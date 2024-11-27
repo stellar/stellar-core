@@ -314,6 +314,21 @@ MutableTransactionResult::isSuccess() const
     return getResult().result.code() == txSUCCESS;
 }
 
+#ifdef BUILD_TESTS
+void
+MutableTransactionResult::setReplayTransactionResult(
+    TransactionResult const& replayResult)
+{
+    mReplayTransactionResult = std::make_optional(replayResult);
+}
+
+std::optional<TransactionResult> const&
+MutableTransactionResult::getReplayTransactionResult() const
+{
+    return mReplayTransactionResult;
+}
+#endif // BUILD_TESTS
+
 FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
     MutableTxResultPtr innerTxResult)
     : MutableTransactionResultBase(), mInnerTxResult(innerTxResult)
@@ -447,4 +462,19 @@ FeeBumpMutableTransactionResult::isSuccess() const
 {
     return mTxResult->result.code() == txFEE_BUMP_INNER_SUCCESS;
 }
+
+#ifdef BUILD_TESTS
+void
+FeeBumpMutableTransactionResult::setReplayTransactionResult(
+    TransactionResult const& replayResult)
+{
+    /* NO-OP */
+}
+
+std::optional<TransactionResult> const&
+FeeBumpMutableTransactionResult::getReplayTransactionResult() const
+{
+    return mReplayTransactionResult;
+}
+#endif // BUILD_TESTS
 }

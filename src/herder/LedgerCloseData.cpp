@@ -26,6 +26,21 @@ LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq,
     releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
 }
 
+#ifdef BUILD_TESTS
+LedgerCloseData::LedgerCloseData(
+    uint32_t ledgerSeq, TxSetXDRFrameConstPtr txSet, StellarValue const& v,
+    std::optional<Hash> const& expectedLedgerHash,
+    std::optional<TransactionResultSet> const& expectedResults)
+    : mLedgerSeq(ledgerSeq)
+    , mTxSet(txSet)
+    , mValue(v)
+    , mExpectedLedgerHash(expectedLedgerHash)
+    , mExpectedResults(expectedResults)
+{
+    releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
+}
+#endif // BUILD_TESTS
+
 std::string
 stellarValueToString(Config const& c, StellarValue const& sv)
 {

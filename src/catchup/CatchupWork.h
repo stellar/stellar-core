@@ -24,22 +24,22 @@ using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
 // CatchupWork does all the necessary work to perform any type of catchup.
 // It accepts CatchupConfiguration structure to know from which ledger to which
-// one do the catchup and if it involves only applying ledgers or ledgers and
+// one to do the catchup and if it involves only applying ledgers or ledgers and
 // buckets.
 //
-// First thing it does is to get a history state which allows to calculate
-// proper destination ledger (in case CatchupConfiguration::CURRENT) was used
-// and to get list of buckets that should be in database on that ledger.
+// First, it gets a history state, which allows it to calculate a
+// proper destination ledger (in case CatchupConfiguration::CURRENT)
+// and get a list of buckets that should be in the database on that ledger.
 //
-// Next step is downloading and verifying ledgers (if verifyMode is set to
-// VERIFY_BUFFERED_LEDGERS it can also verify against ledgers currently
+// Next, it downloads and verifies ledgers (if verifyMode is set to
+// VERIFY_BUFFERED_LEDGERS, it can also verify against ledgers currently
 // buffered in LedgerManager).
 //
 // Then, depending on configuration, it can download, verify and apply buckets
 // (as in MINIMAL and RECENT catchups), and then download and apply
 // transactions (as in COMPLETE and RECENT catchups).
 //
-// After that, catchup is done and node can replay buffered ledgers and take
+// After that, catchup is done and the node can replay buffered ledgers and take
 // part in consensus protocol.
 
 class CatchupWork : public Work

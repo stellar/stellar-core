@@ -42,6 +42,7 @@ GetRemoteFileWork::getCommand()
     releaseAssert(mCurrentArchive);
     releaseAssert(mCurrentArchive->hasGetCmd());
     auto cmdLine = mCurrentArchive->getFileCmd(mRemote, mLocal);
+    CLOG_DEBUG(History, "Downloading file: cmd: {}", cmdLine);
 
     return CommandInfo{cmdLine, std::string()};
 }

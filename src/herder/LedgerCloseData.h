@@ -28,6 +28,13 @@ class LedgerCloseData
         uint32_t ledgerSeq, TxSetXDRFrameConstPtr txSet, StellarValue const& v,
         std::optional<Hash> const& expectedLedgerHash = std::nullopt);
 
+#ifdef BUILD_TESTS
+    LedgerCloseData(uint32_t ledgerSeq, TxSetXDRFrameConstPtr txSet,
+                    StellarValue const& v,
+                    std::optional<Hash> const& expectedLedgerHash,
+                    std::optional<TransactionResultSet> const& expectedResults);
+#endif // BUILD_TESTS
+
     uint32_t
     getLedgerSeq() const
     {
@@ -48,6 +55,13 @@ class LedgerCloseData
     {
         return mExpectedLedgerHash;
     }
+#ifdef BUILD_TESTS
+    std::optional<TransactionResultSet> const&
+    getExpectedResults() const
+    {
+        return mExpectedResults;
+    }
+#endif // BUILD_TESTS
 
     StoredDebugTransactionSet
     toXDR() const
@@ -81,7 +95,10 @@ class LedgerCloseData
     uint32_t mLedgerSeq;
     TxSetXDRFrameConstPtr mTxSet;
     StellarValue mValue;
-    std::optional<Hash> mExpectedLedgerHash;
+    std::optional<Hash> mExpectedLedgerHash = std::nullopt;
+#ifdef BUILD_TESTS
+    std::optional<TransactionResultSet> mExpectedResults = std::nullopt;
+#endif // BUILD_TESTS
 };
 
 std::string stellarValueToString(Config const& c, StellarValue const& sv);

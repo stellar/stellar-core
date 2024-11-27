@@ -20,6 +20,7 @@ class GetAndUnzipRemoteFileWork : public Work
 
     FileTransferInfo mFt;
     std::shared_ptr<HistoryArchive> const mArchive;
+    bool mLogErrorOnFailure;
 
     bool validateFile();
 
@@ -29,7 +30,8 @@ class GetAndUnzipRemoteFileWork : public Work
     // retries.
     GetAndUnzipRemoteFileWork(Application& app, FileTransferInfo ft,
                               std::shared_ptr<HistoryArchive> archive = nullptr,
-                              size_t retry = BasicWork::RETRY_A_LOT);
+                              size_t retry = BasicWork::RETRY_A_LOT,
+                              bool logErrorOnFailure = true);
     ~GetAndUnzipRemoteFileWork() = default;
     std::string getStatus() const override;
     std::shared_ptr<HistoryArchive> getArchive() const;
