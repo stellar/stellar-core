@@ -323,11 +323,14 @@ ApplyCheckpointWork::getNextLedgerCloseData()
         bm.setNextCloseVersionAndHashForTesting(
             mApp.getConfig().LEDGER_PROTOCOL_VERSION, header.bucketListHash);
     }
-#endif
-
     return std::make_shared<LedgerCloseData>(
         header.ledgerSeq, txset, header.scpValue,
         std::make_optional<Hash>(mHeaderHistoryEntry.hash), txres);
+#else
+    return std::make_shared<LedgerCloseData>(
+        header.ledgerSeq, txset, header.scpValue,
+        std::make_optional<Hash>(mHeaderHistoryEntry.hash));
+#endif
 }
 
 BasicWork::State
