@@ -2,26 +2,20 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/test/BucketTestUtils.h"
-#include "crypto/Random.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManagerImpl.h"
 #include "history/test/HistoryTestsUtils.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
 #include "main/Config.h"
-#include "overlay/OverlayManager.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
-#include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
 #include <filesystem>
 #include <fstream>
 
@@ -53,54 +47,6 @@ class TemporaryFileDamager
         std::filesystem::rename(mVictimSaved, mVictim);
     }
 };
-
-// Logic to check the state of the bucket list with the state of the DB
-static bool
-checkState(Application& app)
-{
-    BucketListIsConsistentWithDatabase blc(app);
-    bool blcOk = true;
-    try
-    {
-        blc.checkEntireBucketlist();
-    }
-    catch (std::runtime_error& e)
-    {
-        LOG_ERROR(DEFAULT_LOG, "Error during bucket-list consistency check: {}",
-                  e.what());
-        blcOk = false;
-    }
-
-    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        auto checkBucket = [&blcOk](auto b) {
-            if (!b->isEmpty() && !b->isIndexed())
-            {
-                LOG_ERROR(DEFAULT_LOG,
-                          "Error during bucket-list consistency check: "
-                          "unindexed bucket in BucketList");
-                blcOk = false;
-            }
-        };
-
-        auto& bm = app.getBucketManager();
-        for (uint32_t i = 0; i < bm.getLiveBucketList().kNumLevels && blcOk;
-             ++i)
-        {
-            auto& level = bm.getLiveBucketList().getLevel(i);
-            checkBucket(level.getCurr());
-            checkBucket(level.getSnap());
-            auto& nextFuture = level.getNext();
-            if (nextFuture.hasOutputHash())
-            {
-                auto hash = hexToBin256(nextFuture.getOutputHash());
-                checkBucket(bm.getBucketByHash<LiveBucket>(hash));
-            }
-        }
-    }
-
-    return blcOk;
-}
 
 // Sets up a network with a main validator node that publishes checkpoints to
 // a test node. Tests startup behavior of the test node when up to date with
@@ -375,14 +321,6 @@ TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
         damage.damageVictim();
         REQUIRE(selfCheck(chkConfig) == 1);
     }
-}
-
-TEST_CASE("application setup", "[applicationutils]")
-{
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    auto app = setupApp(cfg, clock);
-    REQUIRE(checkState(*app));
 }
 
 TEST_CASE("application major version numbers", "[applicationutils]")

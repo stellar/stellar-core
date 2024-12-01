@@ -32,8 +32,6 @@
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/SponsorshipCountIsValid.h"
-#include "ledger/InMemoryLedgerTxn.h"
-#include "ledger/InMemoryLedgerTxnRoot.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -62,6 +60,8 @@
 #include "work/WorkScheduler.h"
 
 #ifdef BUILD_TESTS
+#include "ledger/test/InMemoryLedgerTxn.h"
+#include "ledger/test/InMemoryLedgerTxnRoot.h"
 #include "simulation/LoadGenerator.h"
 #endif
 
@@ -400,7 +400,7 @@ ApplicationImpl::resetLedgerState()
 #endif
         );
         mNeverCommittingLedgerTxn = std::make_unique<InMemoryLedgerTxn>(
-            *mInMemoryLedgerTxnRoot, getDatabase(), mLedgerTxnRoot.get());
+            *mInMemoryLedgerTxnRoot, getDatabase(), *mLedgerTxnRoot);
     }
     else
 #endif
@@ -598,8 +598,7 @@ ApplicationImpl::getJsonInfo(bool verbose)
 void
 ApplicationImpl::reportInfo(bool verbose)
 {
-    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ false,
-                                        /* isLedgerStateReady */ true);
+    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ false);
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
@@ -918,8 +917,7 @@ ApplicationImpl::start()
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ true,
-                                        /* isLedgerStateReady */ true);
+    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ true);
     startServices();
 }
 

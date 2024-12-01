@@ -188,10 +188,11 @@ class ApplicationImpl : public Application
     // the "effective" in-memory root transaction, is returned when a client
     // requests the root.
     //
-    // Note that using this only works when the ledger can fit in RAM -- as it
-    // is held in the never-committing LedgerTxn in its entirety -- so if it
-    // ever grows beyond RAM-size you need to use a mode with some sort of
-    // database on secondary storage.
+    // This is only used in testing scenarios where we need to commit directly
+    // to the LedgerTxn root and bypass the normal ledger close process (since
+    // BucketListDB requires a full ledger close to update DB state). In the
+    // future, this should be removed in favor of tests that are all compatible
+    // with BucketListDB: https://github.com/stellar/stellar-core/issues/4570.
 #ifdef BUILD_TESTS
     std::unique_ptr<InMemoryLedgerTxnRoot> mInMemoryLedgerTxnRoot;
     std::unique_ptr<InMemoryLedgerTxn> mNeverCommittingLedgerTxn;

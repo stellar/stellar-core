@@ -124,23 +124,16 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     }
 
     Application::pointer app;
-    if (newDB)
+    if (mMode == OVER_LOOPBACK)
     {
-        if (mMode == OVER_LOOPBACK)
-        {
-            app =
-                createTestApplication<ApplicationLoopbackOverlay, Simulation&>(
-                    *clock, *cfg, *this, newDB, false);
-        }
-        else
-        {
-            app = createTestApplication(*clock, *cfg, newDB, false);
-        }
+        app = createTestApplication<ApplicationLoopbackOverlay, Simulation&>(
+            *clock, *cfg, *this, newDB, false);
     }
     else
     {
-        app = setupApp(*cfg, *clock);
+        app = createTestApplication(*clock, *cfg, newDB, false);
     }
+
     mNodes.emplace(nodeKey.getPublicKey(), Node{clock, app});
 
     mPeerMap.emplace(app->getConfig().PEER_PORT,

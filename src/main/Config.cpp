@@ -2275,8 +2275,11 @@ Config::modeDoesCatchupWithBucketList() const
 bool
 Config::isUsingBucketListDB() const
 {
-    return !DEPRECATED_SQL_LEDGER_STATE && !MODE_USES_IN_MEMORY_LEDGER &&
-           MODE_ENABLES_BUCKETLIST;
+    return !DEPRECATED_SQL_LEDGER_STATE
+#ifdef BUILD_TESTS
+           && !MODE_USES_IN_MEMORY_LEDGER
+#endif
+           && MODE_ENABLES_BUCKETLIST;
 }
 
 bool

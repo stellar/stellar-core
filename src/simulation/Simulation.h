@@ -92,6 +92,18 @@ class Simulation
     // prevent overlay from automatically re-connecting to peers
     void stopOverlayTick();
 
+    bool
+    isSetUpForSorobanUpgrade() const
+    {
+        return mSetupForSorobanUpgrade;
+    }
+
+    void
+    markReadyForSorobanUpgrade()
+    {
+        mSetupForSorobanUpgrade = true;
+    }
+
   private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
     void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
@@ -127,6 +139,8 @@ class Simulation
 
     // Map PEER_PORT to Application
     std::unordered_map<unsigned short, std::weak_ptr<Application>> mPeerMap;
+
+    bool mSetupForSorobanUpgrade{false};
 };
 
 class LoopbackOverlayManager : public OverlayManagerImpl

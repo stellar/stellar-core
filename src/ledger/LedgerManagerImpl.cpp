@@ -281,8 +281,7 @@ setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
-                                       bool isLedgerStateReady)
+LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
 {
     ZoneScoped;
 
@@ -348,35 +347,41 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
 
     releaseAssert(latestLedgerHeader.has_value());
 
-    HistoryArchiveState has = getLastClosedLedgerHAS();
-    auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
-    auto pubmissing =
-        mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
-    missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
-    if (!missing.empty())
+    // Step 3. Restore BucketList if we're doing a full core startup
+    // (startServices=true), OR when using BucketListDB
+    if (restoreBucketlist || mApp.getConfig().isUsingBucketListDB())
     {
-        CLOG_ERROR(Ledger, "{} buckets are missing from bucket directory '{}'",
-                   missing.size(), mApp.getBucketManager().getBucketDir());
-        throw std::runtime_error("Bucket directory is corrupt");
-    }
-
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
-    {
-        // Only restart merges in full startup mode. Many modes in core
-        // (standalone offline commands, in-memory setup) do not need to
-        // spin up expensive merge processes.
-        auto assumeStateWork =
-            mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-                has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
-        if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
+        HistoryArchiveState has = getLastClosedLedgerHAS();
+        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+        auto pubmissing = mApp.getHistoryManager()
+                              .getMissingBucketsReferencedByPublishQueue();
+        missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
+        if (!missing.empty())
         {
-            CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                      ledgerAbbrev(*latestLedgerHeader));
+            CLOG_ERROR(Ledger,
+                       "{} buckets are missing from bucket directory '{}'",
+                       missing.size(), mApp.getBucketManager().getBucketDir());
+            throw std::runtime_error("Bucket directory is corrupt");
         }
-        else
+
+        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
         {
-            // Work should only fail during graceful shutdown
-            releaseAssertOrThrow(mApp.isStopping());
+            // Only restart merges in full startup mode. Many modes in core
+            // (standalone offline commands, in-memory setup) do not need to
+            // spin up expensive merge processes.
+            auto assumeStateWork =
+                mApp.getWorkScheduler().executeWork<AssumeStateWork>(
+                    has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+            if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
+            {
+                CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                          ledgerAbbrev(*latestLedgerHeader));
+            }
+            else
+            {
+                // Work should only fail during graceful shutdown
+                releaseAssertOrThrow(mApp.isStopping());
+            }
         }
     }
 
@@ -391,23 +396,10 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
     if (protocolVersionStartsFrom(latestLedgerHeader->ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        if (isLedgerStateReady)
-        {
-            // Step 5. If ledger state is ready and core is in v20, load network
-            // configs right away
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            updateNetworkConfig(ltx);
-        }
-        else
-        {
-            // In some modes, e.g. in-memory, core's state is rebuilt
-            // asynchronously via catchup. In this case, we're not able to load
-            // the network config at this time, and instead must let catchup do
-            // it when ready.
-            CLOG_INFO(Ledger,
-                      "Ledger state is being rebuilt, network config will "
-                      "be loaded once the rebuild is done");
-        }
+        // Step 5. If ledger state is ready and core is in v20, load network
+        // configs right away
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        updateNetworkConfig(ltx);
     }
 }
 

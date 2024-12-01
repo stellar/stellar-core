@@ -2,11 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/InMemoryLedgerTxn.h"
+#include "ledger/test/InMemoryLedgerTxn.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnImpl.h"
 #include "transactions/TransactionUtils.h"
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -73,7 +71,7 @@ InMemoryLedgerTxn::FilteredEntryIteratorImpl::clone() const
 
 InMemoryLedgerTxn::InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent,
                                      Database& db,
-                                     AbstractLedgerTxnParent* realRoot)
+                                     AbstractLedgerTxnParent& realRoot)
     : LedgerTxn(parent), mDb(db), mRealRootForOffers(realRoot)
 {
 }
@@ -144,13 +142,12 @@ InMemoryLedgerTxn::updateLedgerKeyMap(EntryIterator iter)
 
         // In addition to maintaining in-memory map, commit offers to "real" ltx
         // root to test SQL backed offers
-        if (mRealRootForOffers &&
-            genKey.type() == InternalLedgerEntryType::LEDGER_ENTRY)
+        if (genKey.type() == InternalLedgerEntryType::LEDGER_ENTRY)
         {
             auto const& ledgerKey = genKey.ledgerKey();
             if (ledgerKey.type() == OFFER)
             {
-                LedgerTxn ltx(*mRealRootForOffers);
+                LedgerTxn ltx(mRealRootForOffers);
                 if (!iter.entryExists())
                 {
                     ltx.erase(ledgerKey);
@@ -365,79 +362,61 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
 void
 InMemoryLedgerTxn::dropOffers(bool rebuild)
 {
-    if (mRealRootForOffers)
-    {
-        mRealRootForOffers->dropOffers(rebuild);
-    }
-    else
-    {
-        LedgerTxn::dropOffers(rebuild);
-    }
+    mRealRootForOffers.dropOffers(rebuild);
 }
 
 uint64_t
 InMemoryLedgerTxn::countObjects(LedgerEntryType let) const
 {
-    if (mRealRootForOffers)
-    {
-        return mRealRootForOffers->countObjects(let);
-    }
-
-    return 0;
+    return mRealRootForOffers.countObjects(let);
 }
 
 uint64_t
 InMemoryLedgerTxn::countObjects(LedgerEntryType let,
                                 LedgerRange const& ledgers) const
 {
-    if (mRealRootForOffers)
-    {
-        return mRealRootForOffers->countObjects(let, ledgers);
-    }
-
-    return 0;
+    return mRealRootForOffers.countObjects(let, ledgers);
 }
 
 void
 InMemoryLedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
 {
-    if (mRealRootForOffers)
-    {
-        mRealRootForOffers->deleteObjectsModifiedOnOrAfterLedger(ledger);
-    }
+    mRealRootForOffers.deleteObjectsModifiedOnOrAfterLedger(ledger);
 }
 
 UnorderedMap<LedgerKey, LedgerEntry>
 InMemoryLedgerTxn::getAllOffers()
 {
-    if (mRealRootForOffers)
-    {
-        return mRealRootForOffers->getAllOffers();
-    }
-
-    return LedgerTxn::getAllOffers();
+    return mRealRootForOffers.getAllOffers();
 }
 
 std::shared_ptr<LedgerEntry const>
 InMemoryLedgerTxn::getBestOffer(Asset const& buying, Asset const& selling)
 {
-    if (mRealRootForOffers)
-    {
-        return mRealRootForOffers->getBestOffer(buying, selling);
-    }
-
-    return LedgerTxn::getBestOffer(buying, selling);
+    return mRealRootForOffers.getBestOffer(buying, selling);
 }
 
 std::shared_ptr<LedgerEntry const>
 InMemoryLedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
                                 OfferDescriptor const& worseThan)
 {
-    if (mRealRootForOffers)
-    {
-        return mRealRootForOffers->getBestOffer(buying, selling, worseThan);
-    }
-
-    return LedgerTxn::getBestOffer(buying, selling, worseThan);
+    return mRealRootForOffers.getBestOffer(buying, selling, worseThan);
 }
+
+#ifdef BEST_OFFER_DEBUGGING
+bool
+InMemoryLedgerTxn::bestOfferDebuggingEnabled() const
+{
+    return mRealRootForOffers.bestOfferDebuggingEnabled();
+}
+
+std::shared_ptr<LedgerEntry const>
+InMemoryLedgerTxn::getBestOfferSlow(Asset const& buying, Asset const& selling,
+                                    OfferDescriptor const* worseThan,
+                                    std::unordered_set<int64_t>& exclude)
+{
+    return mRealRootForOffers.getBestOfferSlow(buying, selling, worseThan,
+                                               exclude);
+}
+#endif
 }

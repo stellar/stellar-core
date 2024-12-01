@@ -125,23 +125,6 @@ setupApp(Config& cfg, VirtualClock& clock)
         return nullptr;
     }
 
-    // With in-memory testing mode, ledger state is not yet ready during this
-    // setup step
-    app->getLedgerManager().loadLastKnownLedger(
-        /* restoreBucketlist */ false,
-        /* isLedgerStateReady */ !cfg.MODE_USES_IN_MEMORY_LEDGER);
-    auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-
-    if (cfg.MODE_USES_IN_MEMORY_LEDGER &&
-        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
-    {
-        // If ledger is genesis, rebuild genesis state from buckets
-        if (!applyBucketsForLCL(*app))
-        {
-            return nullptr;
-        }
-    }
-
     return app;
 }
 
@@ -320,8 +303,7 @@ selfCheck(Config cfg)
 
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
-                                                /* isLedgerStateReady */ true);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -402,8 +384,7 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
-                           /* isLedgerStateReady */ true);
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto bucket = bm.mergeBuckets(has);
 
@@ -506,8 +487,7 @@ dumpStateArchivalStatistics(Config cfg)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
-                                                /* isLedgerStateReady */ true);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
@@ -620,8 +600,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     Application::pointer app = Application::create(clock, cfg, false);
     auto& lm = app->getLedgerManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
-                           /* isLedgerStateReady */ true);
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)

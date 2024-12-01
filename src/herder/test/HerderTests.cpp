@@ -3247,106 +3247,6 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     }
 }
 
-TEST_CASE("accept soroban txs after network upgrade", "[soroban][herder]")
-{
-    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-
-    auto simulation =
-        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_IN_MEMORY);
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
-            return cfg;
-        });
-
-    simulation->startAllNodes();
-    auto nodes = simulation->getNodes();
-    uint32_t numAccounts = 100;
-    auto& loadGen = nodes[0]->getLoadGenerator();
-
-    // Generate some accounts
-    auto& loadGenDone =
-        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    auto currLoadGenCount = loadGenDone.count();
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(numAccounts, 1));
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Ensure more transactions get in the ledger post upgrade
-    ConfigUpgradeSetFrameConstPtr res;
-    Upgrades::UpgradeParameters scheduledUpgrades;
-    scheduledUpgrades.mUpgradeTime =
-        VirtualClock::from_time_t(nodes[0]
-                                      ->getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.scpValue.closeTime +
-                                  15);
-    scheduledUpgrades.mProtocolVersion =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
-    for (auto const& app : nodes)
-    {
-        app->getHerder().setUpgrades(scheduledUpgrades);
-    }
-
-    auto& secondLoadGen = nodes[1]->getLoadGenerator();
-    auto& secondLoadGenDone =
-        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    currLoadGenCount = loadGenDone.count();
-    auto secondLoadGenCount = secondLoadGenDone.count();
-
-    // Generate classic txs from another node (with offset to prevent
-    // overlapping accounts)
-    secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 50,
-                                                           /* nTxs */ 100, 2,
-                                                           /* offset */ 50));
-
-    // Crank a bit and verify that upgrade went through
-    simulation->crankForAtLeast(4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    REQUIRE(nodes[0]
-                ->getLedgerManager()
-                .getLastClosedLedgerHeader()
-                .header.ledgerVersion ==
-            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION));
-    for (auto node : nodes)
-    {
-        overrideSorobanNetworkConfigForTest(*node);
-    }
-    // Now generate Soroban txs
-    auto sorobanConfig =
-        GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
-                                    /* nTxs */ 15, 1, /* offset */ 0);
-    sorobanConfig.skipLowFeeTxs = true;
-    loadGen.generateLoad(sorobanConfig);
-    auto& loadGenFailed =
-        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
-    auto& secondLoadGenFailed =
-        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
-
-    simulation->crankUntil(
-        [&]() {
-            return loadGenDone.count() > currLoadGenCount &&
-                   secondLoadGenDone.count() > secondLoadGenCount;
-        },
-        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    REQUIRE(loadGenFailed.count() == 0);
-    REQUIRE(secondLoadGenFailed.count() == 0);
-
-    //  Ensure some Soroban txs got into the ledger
-    auto totalSoroban =
-        nodes[0]
-            ->getMetrics()
-            .NewMeter({"soroban", "host-fn-op", "success"}, "call")
-            .count() +
-        nodes[0]
-            ->getMetrics()
-            .NewMeter({"soroban", "host-fn-op", "failure"}, "call")
-            .count();
-    REQUIRE(totalSoroban > 0);
-}
-
 TEST_CASE("overlay parallel processing")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -3679,6 +3579,11 @@ herderExternalizesValuesWithProtocol(uint32_t version)
             Herder::State::HERDER_BOOTING_STATE);
 
     simulation->startAllNodes();
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+        },
+        simulation);
 
     // After SCP is restored, Herder is tracking
     REQUIRE(getC()->getHerder().getState() ==
@@ -3758,7 +3663,6 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxTransactionsSizeBytes = 1'000'000;
             cfg.mTxMaxSizeBytes = 500'000;
-            cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
         },
         simulation, /*applyUpgrade=*/false);
 

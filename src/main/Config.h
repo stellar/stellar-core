@@ -693,7 +693,9 @@ class Config : public std::enable_shared_from_this<Config>
     bool TEST_CASES_ENABLED;
 
     // A config parameter that uses a never-committing ledger. This means that
-    // all ledger entries will be kept in memory, and not persisted to DB.
+    // all ledger entries, except for offers, will be kept in memory, and not
+    // persisted to DB. Since offers are backed by SQL and not BucketListDB,
+    // offers are still commited to the SQL DB even when this mode is enabled.
     // Should only be used for testing.
     bool MODE_USES_IN_MEMORY_LEDGER;
 
