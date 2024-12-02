@@ -352,11 +352,11 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
             {
                 // start is incomplete, so reset to avoid leaving the
                 // LoadGenerator in an invalid state.
-                reset();
-                throw std::runtime_error(
-                    "Before running MODE::SOROBAN_INVOKE, please run "
-                    "MODE::SOROBAN_INVOKE_SETUP to set up your contract "
-                    "first.");
+                CLOG_ERROR(LoadGen, "Before running MODE::SOROBAN_INVOKE, "
+                                    "please run MODE::SOROBAN_INVOKE_SETUP to "
+                                    "set up your contract first.");
+                emitFailure(/*resetSoroban=*/true);
+                return;
             }
             releaseAssert(mContractInstances.empty());
             releaseAssert(mAccountsAvailable.size() >= cfg.nAccounts);

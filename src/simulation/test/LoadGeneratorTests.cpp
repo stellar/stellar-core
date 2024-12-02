@@ -225,17 +225,18 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     SECTION("misconfigured soroban loadgen mode usage")
     {
         // Users are required to run SOROBAN_INVOKE_SETUP_LOAD before running
-        // SOROBAN_INVOKE_LOAD. Running a SOROBAN_INVOKE_LOAD without a prior
-        // SOROBAN_INVOKE_SETUP_LOAD should throw a helpful exception explaining
-        // the misconfiguration.
-        auto invokeLoadCfg =
-            GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE,
-                                        /* nAccounts*/ 1, /* numSorobanTxs */ 1,
-                                        /* txRate */ 1);
-        REQUIRE_THROWS_WITH(
-            loadGen.generateLoad(invokeLoadCfg),
-            "Before running MODE::SOROBAN_INVOKE, please run "
-            "MODE::SOROBAN_INVOKE_SETUP to set up your contract first.");
+        // SOROBAN_INVOKE_LOAD. If they do not, load generation will fail. An
+        // error message will be logged and `loadgen.run.failed` will be
+        // incremented.
+        auto invokeLoadCfg = GeneratedLoadConfig::txLoad(
+            LoadGenMode::SOROBAN_INVOKE,
+            /* nAccounts */ 1, /* numSorobanTxs */ 1,
+            /* txRate */ 1);
+        auto& loadGenFailed =
+            app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+        auto failedCount = loadGenFailed.count();
+        loadGen.generateLoad(invokeLoadCfg);
+        REQUIRE(loadGenFailed.count() == failedCount + 1);
     }
     int64_t numTxsBefore = getSuccessfulTxCount();
 
