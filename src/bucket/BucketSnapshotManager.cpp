@@ -13,7 +13,9 @@
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <shared_mutex>
+#include <xdrpp/types.h>
 
 namespace stellar
 {
@@ -38,6 +40,16 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(threadIsMain());
     releaseAssert(mCurrLiveSnapshot);
     releaseAssert(mCurrHotArchiveSnapshot);
+
+    // Initialize point load timers for each LedgerEntry type
+    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
+            static_cast<LedgerEntryType>(t));
+        auto& metric =
+            mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
+        mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
+    }
 }
 
 std::shared_ptr<SearchableLiveBucketListSnapshot>
@@ -215,14 +227,7 @@ BucketSnapshotManager::endPointLoadTimer(LedgerEntryType t,
     if (!bloomMiss)
     {
         auto iter = mPointTimers.find(t);
-        if (iter == mPointTimers.end())
-        {
-            auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
-            auto& metric =
-                mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
-            iter = mPointTimers.emplace(t, metric).first;
-        }
-
+        releaseAssert(iter != mPointTimers.end());
         iter->second.Update(duration);
     }
 }
