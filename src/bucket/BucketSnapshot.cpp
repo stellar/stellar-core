@@ -63,7 +63,12 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return {std::make_shared<typename BucketT::EntryT>(be), false};
+        auto ret = std::make_shared<typename BucketT::EntryT>(be);
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            mBucket->getIndex().addToCache(ret);
+        }
+        return {ret, false};
     }
 
     // Mark entry miss for metrics
@@ -79,6 +84,15 @@ BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
     if (isEmpty())
     {
         return {nullptr, false};
+    }
+
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        auto [entryOp, hit] = mBucket->getIndex().getFromCache(k);
+        if (hit)
+        {
+            return {entryOp, false};
+        }
     }
 
     auto pos = mBucket->getIndex().lookup(k);
@@ -111,53 +125,67 @@ BucketSnapshotBase<BucketT>::loadKeys(
     auto currKeyIt = keys.begin();
     auto const& index = mBucket->getIndex();
     auto indexIter = index.begin();
-    while (currKeyIt != keys.end() && indexIter != index.end())
+
+    while (currKeyIt != keys.end() &&
+           (indexIter != index.end() || index.isFullyCached()))
     {
-        auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
-        indexIter = newIndexIter;
-        if (offOp)
+        std::shared_ptr<typename BucketT::EntryT> entryOp{};
+        bool cacheHit = false;
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
-            auto [entryOp, bloomMiss] = getEntryAtOffset(
-                *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
+            std::tie(entryOp, cacheHit) = index.getFromCache(*currKeyIt);
+        }
 
-            if (entryOp)
+        if (!cacheHit)
+        {
+            std::optional<std::streamoff> offOp{};
+            auto bloomMiss = false;
+            std::tie(offOp, indexIter) = index.scan(indexIter, *currKeyIt);
+            if (!offOp)
             {
-                // Don't return tombstone entries, as these do not exist wrt
-                // ledger state
-                if (!BucketT::isTombstoneEntry(*entryOp))
-                {
-                    // Only live bucket loads can be metered
-                    if constexpr (std::is_same_v<BucketT, LiveBucket>)
-                    {
-                        bool addEntry = true;
-                        if (lkMeter)
-                        {
-                            // Here, we are metering after the entry has been
-                            // loaded. This is because we need to know the size
-                            // of the entry to meter it. Future work will add
-                            // metering at the xdr level.
-                            auto entrySize =
-                                xdr::xdr_size(entryOp->liveEntry());
-                            addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                            lkMeter->updateReadQuotasForKey(*currKeyIt,
-                                                            entrySize);
-                        }
-                        if (addEntry)
-                        {
-                            result.push_back(entryOp->liveEntry());
-                        }
-                    }
-                    else
-                    {
-                        static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
-                                      "unexpected bucket type");
-                        result.push_back(*entryOp);
-                    }
-                }
-
-                currKeyIt = keys.erase(currKeyIt);
+                ++currKeyIt;
                 continue;
             }
+
+            std::tie(entryOp, bloomMiss) = getEntryAtOffset(
+                *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
+        }
+
+        if (entryOp)
+        {
+            // Don't return tombstone entries, as these do not exist wrt
+            // ledger state
+            if (!BucketT::isTombstoneEntry(*entryOp))
+            {
+                // Only live bucket loads can be metered
+                if constexpr (std::is_same_v<BucketT, LiveBucket>)
+                {
+                    bool addEntry = true;
+                    if (lkMeter)
+                    {
+                        // Here, we are metering after the entry has been
+                        // loaded. This is because we need to know the size
+                        // of the entry to meter it. Future work will add
+                        // metering at the xdr level.
+                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
+                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
+                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
+                    }
+                    if (addEntry)
+                    {
+                        result.push_back(entryOp->liveEntry());
+                    }
+                }
+                else
+                {
+                    static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                                  "unexpected bucket type");
+                    result.push_back(*entryOp);
+                }
+            }
+
+            currKeyIt = keys.erase(currKeyIt);
+            continue;
         }
 
         ++currKeyIt;

@@ -162,7 +162,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DEPRECATED_SQL_LEDGER_STATE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
-    BUCKETLIST_DB_PERSIST_INDEX = true;
+    BUCKETLIST_DB_PERSIST_INDEX = false;
     BACKGROUND_EVICTION_SCAN = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:

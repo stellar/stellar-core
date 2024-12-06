@@ -6,14 +6,18 @@
 
 #include "bucket/BucketIndex.h"
 #include "bucket/LiveBucket.h"
+#include "ledger/LedgerHashUtils.h"
 #include "medida/meter.h"
 #include "util/BinaryFuseFilter.h"
+#include "util/RandomEvictionCache.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"
 
 #include "util/BufferedAsioCerealOutputArchive.h"
 #include <cereal/types/map.hpp>
 #include <map>
 #include <memory>
+#include <shared_mutex>
 
 namespace stellar
 {
@@ -34,6 +38,10 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         std::streamoff pageSize{};
         std::unique_ptr<BinaryFuseFilter16> filter{};
         std::map<Asset, std::vector<PoolID>> assetToPoolID{};
+        std::map<LedgerKey, std::shared_ptr<BucketEntry>> inMemoryMap;
+        mutable RandomEvictionCache<LedgerKey, std::shared_ptr<BucketEntry>>
+            inMemoryCache;
+        mutable std::shared_mutex cacheLock;
         BucketEntryCounters counters{};
 
         template <class Archive>
@@ -41,8 +49,8 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         save(Archive& ar) const
         {
             auto version = BUCKET_INDEX_VERSION;
-            ar(version, pageSize, assetToPoolID, keysToOffset, filter,
-               counters);
+            ar(version, pageSize, assetToPoolID, keysToOffset, filter, counters,
+               inMemoryMap);
         }
 
         // Note: version and pageSize must be loaded before this function is
@@ -53,7 +61,11 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         void
         load(Archive& ar)
         {
-            ar(assetToPoolID, keysToOffset, filter, counters);
+            ar(assetToPoolID, keysToOffset, filter, counters, inMemoryMap);
+        }
+
+        SerializableBucketIndex() : inMemoryCache(CACHE_SIZE)
+        {
         }
     } mData;
 
@@ -100,6 +112,11 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getOfferRange() const override;
 
+    virtual std::pair<std::shared_ptr<BucketEntry>, bool>
+    getFromCache(LedgerKey const& k) const override;
+
+    virtual void addToCache(std::shared_ptr<BucketEntry> be) const override;
+
     virtual std::streamoff
     getPageSize() const override
     {
@@ -116,6 +133,12 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     end() const override
     {
         return mData.keysToOffset.end();
+    }
+
+    virtual bool
+    isFullyCached() const override
+    {
+        return !mData.inMemoryMap.empty();
     }
 
     virtual void markBloomMiss() const override;
