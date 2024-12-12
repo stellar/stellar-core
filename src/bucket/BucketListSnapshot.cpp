@@ -83,12 +83,11 @@ getLedgerEntryInternal(LedgerKey const& k, BucketListSnapshot const& snapshot)
         auto [be, bloomMiss] = b.getBucketEntry(k);
         sawBloomMiss = sawBloomMiss || bloomMiss;
 
-        if (be.has_value())
+        if (be)
         {
-            result =
-                be.value().type() == DEADENTRY
-                    ? nullptr
-                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            result = be->type() == DEADENTRY
+                         ? nullptr
+                         : std::make_shared<LedgerEntry>(be->liveEntry());
             return true;
         }
         else

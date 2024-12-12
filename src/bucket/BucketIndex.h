@@ -75,7 +75,9 @@ class BucketIndex : public NonMovableOrCopyable
                                   IndividualIndex::const_iterator>;
 
     inline static const std::string DB_BACKEND_STATE = "bl";
-    inline static const uint32_t BUCKET_INDEX_VERSION = 4;
+    inline static const uint32_t BUCKET_INDEX_VERSION = 5;
+    inline static const uint32_t CACHE_SIZE = 1'000'000;
+    inline static const uint64_t INDIVIDUAL_CACHE_CUTOFF_SIZE = 100'000'000'000;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
@@ -124,12 +126,20 @@ class BucketIndex : public NonMovableOrCopyable
     virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getOfferRange() const = 0;
 
+    // Returns true if cache hit occurred
+    virtual std::pair<std::shared_ptr<BucketEntry>, bool>
+    getFromCache(LedgerKey const& k) const = 0;
+
+    virtual void addToCache(std::shared_ptr<BucketEntry> be) const = 0;
+
     // Returns page size for index. InidividualIndex returns 0 for page size
     virtual std::streamoff getPageSize() const = 0;
 
     virtual Iterator begin() const = 0;
 
     virtual Iterator end() const = 0;
+
+    virtual bool isFullyCached() const = 0;
 
     virtual void markBloomMiss() const = 0;
     virtual void markBloomLookup() const = 0;

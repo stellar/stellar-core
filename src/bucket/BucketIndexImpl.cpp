@@ -14,6 +14,7 @@
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 #include <Tracy.hpp>
 #include <cereal/archives/binary.hpp>
@@ -24,6 +25,8 @@
 #include <fmt/format.h>
 
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <thread>
 #include <xdrpp/marshal.h>
 
@@ -80,12 +83,14 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         auto timer = LogSlowExecution("Indexing bucket");
         mData.pageSize = pageSize;
 
+        auto fileSize = std::filesystem::file_size(filename);
+        bool inMemoryMap = fileSize < INDIVIDUAL_CACHE_CUTOFF_SIZE;
+
         // We don't have a good way of estimating IndividualIndex size since
         // keys are variable size, so only reserve range indexes since we know
         // the page size ahead of time
-        if constexpr (std::is_same<IndexT, RangeIndex>::value)
+        if (std::is_same_v<IndexT, RangeIndex>)
         {
-            auto fileSize = std::filesystem::file_size(filename);
             auto estimatedIndexEntries = fileSize / mData.pageSize;
             mData.keysToOffset.reserve(estimatedIndexEntries);
         }
@@ -157,7 +162,12 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                         key.liquidityPool().liquidityPoolID);
                 }
 
-                if constexpr (std::is_same<IndexT, RangeIndex>::value)
+                if (inMemoryMap)
+                {
+                    mData.inMemoryMap[key] = std::make_shared<BucketEntry>(be);
+                }
+
+                if constexpr (std::is_same_v<IndexT, RangeIndex>)
                 {
                     auto keyBuf = xdr::xdr_to_opaque(key);
                     SipHash24 hasher(seed.data());
@@ -264,7 +274,8 @@ template <class IndexT>
 template <class Archive>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm, Archive& ar,
                                          std::streamoff pageSize)
-    : mBloomMissMeter(bm.getBloomMissMeter())
+    : mData()
+    , mBloomMissMeter(bm.getBloomMissMeter())
     , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
     mData.pageSize = pageSize;
@@ -523,6 +534,48 @@ BucketIndexImpl<IndexT>::getOfferRange() const
     return getOffsetBounds(lowerBound, upperBound);
 }
 
+template <class IndexT>
+std::pair<std::shared_ptr<BucketEntry>, bool>
+BucketIndexImpl<IndexT>::getFromCache(LedgerKey const& k) const
+{
+    if (mData.inMemoryMap.empty())
+    {
+        std::lock_guard<std::shared_mutex> lock(mData.cacheLock);
+        auto* ptr = mData.inMemoryCache.maybeGet(k);
+        if (ptr)
+        {
+            return {*ptr, true};
+        }
+        else
+        {
+            return {nullptr, false};
+        }
+    }
+    else
+    {
+        auto iter = mData.inMemoryMap.find(k);
+        if (iter == mData.inMemoryMap.end())
+        {
+            return {nullptr, true};
+        }
+        else
+        {
+            return {iter->second, true};
+        }
+    }
+}
+
+template <class IndexT>
+void
+BucketIndexImpl<IndexT>::addToCache(std::shared_ptr<BucketEntry> be) const
+{
+    if (mData.inMemoryMap.empty())
+    {
+        std::unique_lock<std::shared_mutex> lock(mData.cacheLock);
+        mData.inMemoryCache.put(getBucketLedgerKey(*be), be);
+    }
+}
+
 #ifdef BUILD_TESTS
 template <class IndexT>
 bool
@@ -567,6 +620,20 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
     if (mData.counters != in.mData.counters)
     {
         return false;
+    }
+
+    if (mData.inMemoryMap.size() != in.mData.inMemoryMap.size())
+    {
+        return false;
+    }
+
+    for (auto const& [key, entry] : mData.inMemoryMap)
+    {
+        auto iter = in.mData.inMemoryMap.find(key);
+        if (iter == in.mData.inMemoryMap.end() || !(*entry == *iter->second))
+        {
+            return false;
+        }
     }
 
     return true;

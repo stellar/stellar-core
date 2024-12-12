@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {
@@ -30,14 +31,14 @@ BucketSnapshot::isEmpty() const
     return mBucket->isEmpty();
 }
 
-std::pair<std::optional<BucketEntry>, bool>
+std::pair<std::shared_ptr<BucketEntry>, bool>
 BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                                  size_t pageSize) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return {std::nullopt, false};
+        return {nullptr, false};
     }
 
     auto& stream = getStream();
@@ -48,26 +49,34 @@ BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
     {
         if (stream.readOne(be))
         {
-            return {std::make_optional(be), false};
+            return {std::make_shared<BucketEntry>(be), false};
         }
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return {std::make_optional(be), false};
+        auto ret = std::make_shared<BucketEntry>(be);
+        mBucket->getIndex().addToCache(ret);
+        return {ret, false};
     }
 
     // Mark entry miss for metrics
     mBucket->getIndex().markBloomMiss();
-    return {std::nullopt, true};
+    return {nullptr, true};
 }
 
-std::pair<std::optional<BucketEntry>, bool>
+std::pair<std::shared_ptr<BucketEntry>, bool>
 BucketSnapshot::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return {std::nullopt, false};
+        return {nullptr, false};
+    }
+
+    auto [entryOp, hit] = mBucket->getIndex().getFromCache(k);
+    if (hit)
+    {
+        return {entryOp, false};
     }
 
     auto pos = mBucket->getIndex().lookup(k);
@@ -77,7 +86,7 @@ BucketSnapshot::getBucketEntry(LedgerKey const& k) const
                                 mBucket->getIndex().getPageSize());
     }
 
-    return {std::nullopt, false};
+    return {nullptr, false};
 }
 
 // When searching for an entry, BucketList calls this function on every bucket.
@@ -99,37 +108,54 @@ BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
     auto currKeyIt = keys.begin();
     auto const& index = mBucket->getIndex();
     auto indexIter = index.begin();
-    while (currKeyIt != keys.end() && indexIter != index.end())
+
+    while (currKeyIt != keys.end() &&
+           (indexIter != index.end() || index.isFullyCached()))
     {
-        auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
-        indexIter = newIndexIter;
-        if (offOp)
+        std::shared_ptr<BucketEntry> entryOp{};
+        bool cacheHit = false;
+        std::tie(entryOp, cacheHit) = index.getFromCache(*currKeyIt);
+
+        if (!cacheHit)
         {
-            auto [entryOp, bloomMiss] = getEntryAtOffset(
-                *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
-            if (entryOp)
+            std::optional<std::streamoff> offOp{};
+            auto bloomMiss = false;
+            std::tie(offOp, indexIter) = index.scan(indexIter, *currKeyIt);
+            if (!offOp)
             {
-                if (entryOp->type() != DEADENTRY)
-                {
-                    bool addEntry = true;
-                    if (lkMeter)
-                    {
-                        // Here, we are metering after the entry has been
-                        // loaded. This is because we need to know the size of
-                        // the entry to meter it. Future work will add metering
-                        // at the xdr level.
-                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
-                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
-                    }
-                    if (addEntry)
-                    {
-                        result.push_back(entryOp->liveEntry());
-                    }
-                }
-                currKeyIt = keys.erase(currKeyIt);
+                ++currKeyIt;
                 continue;
             }
+
+            std::tie(entryOp, bloomMiss) = getEntryAtOffset(
+                *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
+        }
+
+        if (entryOp)
+        {
+            // Don't return tombstone entries, as these do not exist wrt
+            // ledger state
+            if (entryOp->type() != DEADENTRY)
+            {
+                bool addEntry = true;
+                if (lkMeter)
+                {
+                    // Here, we are metering after the entry has been
+                    // loaded. This is because we need to know the size
+                    // of the entry to meter it. Future work will add
+                    // metering at the xdr level.
+                    auto entrySize = xdr::xdr_size(entryOp->liveEntry());
+                    addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
+                    lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
+                }
+                if (addEntry)
+                {
+                    result.push_back(entryOp->liveEntry());
+                }
+            }
+
+            currKeyIt = keys.erase(currKeyIt);
+            continue;
         }
 
         ++currKeyIt;

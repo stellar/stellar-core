@@ -37,7 +37,7 @@ class BucketSnapshot : public NonMovable
     // reads until key is found or the end of the page. Returns <BucketEntry,
     // bloomMiss>, where bloomMiss is true if a bloomMiss occurred during the
     // load.
-    std::pair<std::optional<BucketEntry>, bool>
+    std::pair<std::shared_ptr<BucketEntry>, bool>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                      size_t pageSize) const;
 
@@ -53,7 +53,7 @@ class BucketSnapshot : public NonMovable
 
     // Loads bucket entry for LedgerKey k. Returns <BucketEntry, bloomMiss>,
     // where bloomMiss is true if a bloomMiss occurred during the load.
-    std::pair<std::optional<BucketEntry>, bool>
+    std::pair<std::shared_ptr<BucketEntry>, bool>
     getBucketEntry(LedgerKey const& k) const;
 
     // Loads LedgerEntry's for given keys. When a key is found, the
