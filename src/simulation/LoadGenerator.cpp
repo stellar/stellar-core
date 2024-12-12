@@ -666,7 +666,11 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
+            uint64_t sourceAccountId = 0;
+            if (!cfg.useRootAccountForSorobanUpgradeFlow)
+            {
+                sourceAccountId = getNextAvailableAccount(ledgerNum);
+            }
 
             std::function<std::pair<TxGenerator::TestAccountPtr,
                                     TransactionFrameBaseConstPtr>()>
@@ -762,6 +766,14 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     auto upgradeBytes =
                         mTxGenerator.getConfigUpgradeSetFromLoadConfig(
                             cfg.getSorobanUpgradeConfig());
+                    if (cfg.useRootAccountForSorobanUpgradeFlow)
+                    {
+                        return mTxGenerator
+                            .invokeSorobanCreateUpgradeTransaction(
+                                mRoot, upgradeBytes, *mCodeKey,
+                                *mContractInstanceKeys.begin(),
+                                cfg.maxGeneratedFeeRate);
+                    }
                     return mTxGenerator.invokeSorobanCreateUpgradeTransaction(
                         ledgerNum, sourceAccountId, upgradeBytes, *mCodeKey,
                         *mContractInstanceKeys.begin(),
@@ -779,6 +791,19 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             if (submitTx(cfg, generateTx))
             {
                 --cfg.nTxs;
+            }
+            else if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP &&
+                     cfg.useRootAccountForSorobanUpgradeFlow)
+            {
+                // If submission failed during SOROBAN_UPGRADE_SETUP, the
+                // contract instance key must be regenerated
+                // so we reset the nInstances to 1 to prevent
+                // subtracting past zero.
+                auto& sorobanCfg = cfg.getMutSorobanConfig();
+                if (sorobanCfg.nInstances == 0)
+                {
+                    sorobanCfg.nInstances = 1;
+                }
             }
             else if (mFailed)
             {
@@ -861,11 +886,9 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     TransactionResultCode code;
     TransactionQueue::AddResultCode status;
     uint32_t numTries = 0;
-
     while ((status = execute(tx, cfg.mode, code)) !=
            TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
-
         if (cfg.skipLowFeeTxs &&
             (status ==
                  TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
@@ -877,6 +900,24 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
             from->setSequenceNumber(from->getLastSequenceNumber() - 1);
             CLOG_INFO(LoadGen, "skipped low fee tx with fee {}",
                       tx->getInclusionFee());
+            return false;
+        }
+        // If we are using the root account to perform a soroban upgrade flow,
+        // retry the transaction.
+        if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP &&
+            cfg.useRootAccountForSorobanUpgradeFlow)
+        {
+            if (status == TransactionQueue::AddResultCode::
+                              ADD_STATUS_TRY_AGAIN_LATER ||
+                (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
+                 code == txBAD_SEQ))
+            {
+                // The next attempt will regenerate a contract instance key.
+                mContractInstanceKeys.clear();
+                maybeHandleFailedTx(tx, from, status, code); // Update seq num
+                return false;
+            }
+            mFailed = true;
             return false;
         }
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
@@ -1092,9 +1133,17 @@ LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
     // instance and ContractCode LE overhead
     mContactOverheadBytes = wasmBytes.size() + 160;
 
-    return mTxGenerator.createUploadWasmTransaction(ledgerNum, sourceAccountId,
-                                                    wasmBytes, *mCodeKey,
-                                                    cfg.maxGeneratedFeeRate);
+    if (cfg.useRootAccountForSorobanUpgradeFlow)
+    {
+        return mTxGenerator.createUploadWasmTransaction(
+            mRoot, wasmBytes, *mCodeKey, cfg.maxGeneratedFeeRate);
+    }
+    else
+    {
+        return mTxGenerator.createUploadWasmTransaction(
+            ledgerNum, sourceAccountId, wasmBytes, *mCodeKey,
+            cfg.maxGeneratedFeeRate);
+    }
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -1105,9 +1154,19 @@ LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
     auto salt = sha256("upgrade" +
                        std::to_string(++mNumCreateContractTransactionCalls));
 
-    auto txPair = mTxGenerator.createContractTransaction(
-        ledgerNum, sourceAccountId, *mCodeKey, mContactOverheadBytes, salt,
-        cfg.maxGeneratedFeeRate);
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr> txPair;
+    if (cfg.useRootAccountForSorobanUpgradeFlow)
+    {
+        txPair = mTxGenerator.createContractTransaction(
+            mRoot, *mCodeKey, mContactOverheadBytes, salt,
+            cfg.maxGeneratedFeeRate);
+    }
+    else
+    {
+        txPair = mTxGenerator.createContractTransaction(
+            ledgerNum, sourceAccountId, *mCodeKey, mContactOverheadBytes, salt,
+            cfg.maxGeneratedFeeRate);
+    }
 
     auto const& instanceLk =
         txPair.second->sorobanResources().footprint.readWrite.back();

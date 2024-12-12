@@ -117,6 +117,7 @@ struct GeneratedLoadConfig
     Json::Value getStatus() const;
 
     LoadGenMode mode = LoadGenMode::CREATE;
+    bool useRootAccountForSorobanUpgradeFlow = false;
     uint32_t nAccounts = 0;
     uint32_t offset = 0;
     uint32_t nTxs = 0;
@@ -329,6 +330,10 @@ class LoadGenerator
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                 uint32_t ledgerNum, uint64_t sourceAccountId);
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
+                                uint32_t ledgerNum,
+                                TxGenerator::TestAccountPtr sourceAccount);
 
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createInstanceTransaction(GeneratedLoadConfig const& cfg,

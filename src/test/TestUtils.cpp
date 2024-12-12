@@ -190,40 +190,22 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     auto nodes = simulation->getNodes();
     auto& lg = nodes[0]->getLoadGenerator();
     auto& app = *nodes[0];
-
     auto& complete =
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    auto completeCount = complete.count();
-    // Only create an account if there are none aleady created.
-    uint32_t offset = 0;
-    if (app.getMetrics()
-            .NewMeter({"loadgen", "account", "created"}, "account")
-            .count() == 0)
-    {
-        auto createAccountsLoadConfig =
-            GeneratedLoadConfig::createAccountsLoad(1, 1);
-        offset = std::numeric_limits<uint32_t>::max() - 1;
-        createAccountsLoadConfig.offset = offset;
-
-        lg.generateLoad(createAccountsLoadConfig);
-        simulation->crankUntil(
-            [&]() { return complete.count() == completeCount + 1; },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    }
 
     // Create upload wasm transaction.
     auto createUploadCfg = GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
-    createUploadCfg.offset = offset;
+    createUploadCfg.useRootAccountForSorobanUpgradeFlow = true;
     lg.generateLoad(createUploadCfg);
-    completeCount = complete.count();
+    auto completeCount = complete.count();
     simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
+        [&]() { return complete.count() >= completeCount + 1; },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // Create upgrade transaction.
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
-    createUpgradeLoadGenConfig.offset = offset;
+    createUpgradeLoadGenConfig.useRootAccountForSorobanUpgradeFlow = true;
     // Get current network config.
     auto cfg = nodes[0]->getLedgerManager().getSorobanNetworkConfig();
     modifyFn(cfg);
