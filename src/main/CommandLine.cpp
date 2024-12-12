@@ -1822,199 +1822,116 @@ runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
-    uint64_t ledgerMaxInstructions = 0;
-    uint64_t ledgerMaxReadLedgerEntries = 0;
-    uint64_t ledgerMaxReadBytes = 0;
-    uint64_t ledgerMaxWriteLedgerEntries = 0;
-    uint64_t ledgerMaxWriteBytes = 0;
-    uint64_t ledgerMaxTxCount = 0;
-    uint64_t ledgerMaxTransactionsSizeBytes = 0;
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        config.RUN_STANDALONE = true;
+        config.MANUAL_CLOSE = true;
+        config.USE_CONFIG_FOR_GENESIS = true;
+        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        config.LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
-    ParserWithValidation ledgerMaxInstructionsParser{
-        clara::Opt(ledgerMaxInstructions,
-                   "LedgerMaxInstructions")["--ledger-max-instructions"]
-            .required(),
-        [&] {
-            return ledgerMaxInstructions > 0
-                       ? ""
-                       : "ledgerMaxInstructions must be > 0";
-        }};
+        TmpDirManager tdm(std::string("soroban-storage-meta-"));
+        TmpDir td = tdm.tmpDir("soroban-meta-ok");
+        std::string metaPath = td.getName() + "/stream.xdr";
 
-    ParserWithValidation ledgerMaxReadLedgerEntriesParser{
-        clara::Opt(ledgerMaxReadLedgerEntries,
-                   "LedgerMaxReadLedgerEntries")["--ledger-max-read-entries"]
-            .required(),
-        [&] {
-            return ledgerMaxReadLedgerEntries > 0
-                       ? ""
-                       : "ledgerMaxReadLedgerEntries must be > 0";
-        }};
+        config.METADATA_OUTPUT_STREAM = metaPath;
 
-    ParserWithValidation ledgerMaxReadBytesParser{
-        clara::Opt(ledgerMaxReadBytes,
-                   "LedgerMaxReadBytes")["--ledger-max-read-bytes"]
-            .required(),
-        [&] {
-            return ledgerMaxReadBytes > 0 ? ""
-                                          : "ledgerMaxReadBytes must be > 0";
-        }};
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        auto appPtr = Application::create(clock, config);
 
-    ParserWithValidation ledgerMaxWriteLedgerEntriesParser{
-        clara::Opt(ledgerMaxWriteLedgerEntries,
-                   "LedgerMaxWriteLedgerEntries")["--ledger-max-write-entries"]
-            .required(),
-        [&] {
-            return ledgerMaxWriteLedgerEntries > 0
-                       ? ""
-                       : "ledgerMaxWriteLedgerEntries must be > 0";
-        }};
+        auto& app = *appPtr;
+        {
+            app.start();
 
-    ParserWithValidation ledgerMaxWriteBytesParser{
-        clara::Opt(ledgerMaxWriteBytes,
-                   "LedgerMaxWriteBytes")["--ledger-max-write-bytes"]
-            .required(),
-        [&] {
-            return ledgerMaxWriteBytes > 0 ? ""
-                                           : "ledgerMaxWriteBytes must be > 0";
-        }};
+            ApplyLoad al(app);
 
-    ParserWithValidation ledgerMaxTxCountParser{
-        clara::Opt(ledgerMaxTxCount,
-                   "LedgerMaxTxCount")["--ledger-max-tx-count"]
-            .required(),
-        [&] {
-            return ledgerMaxTxCount > 0 ? "" : "ledgerMaxTxCount must be > 0";
-        }};
+            auto& ledgerClose =
+                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+            ledgerClose.Clear();
 
-    ParserWithValidation ledgerMaxTransactionsSizeBytesParser{
-        clara::Opt(ledgerMaxTransactionsSizeBytes,
-                   "LedgerMaxTransactionsSizeBytes")["--ledger-max-tx-size"]
-            .required(),
-        [&] {
-            return ledgerMaxTransactionsSizeBytes > 0
-                       ? ""
-                       : "ledgerMaxTransactionsSizeBytes must be > 0";
-        }};
+            auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+            cpuInsRatio.Clear();
 
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), ledgerMaxInstructionsParser,
-         ledgerMaxReadLedgerEntriesParser, ledgerMaxReadBytesParser,
-         ledgerMaxWriteLedgerEntriesParser, ledgerMaxWriteBytesParser,
-         ledgerMaxTxCountParser, ledgerMaxTransactionsSizeBytesParser},
-        [&] {
-            auto config = configOption.getConfig();
-            config.RUN_STANDALONE = true;
-            config.MANUAL_CLOSE = true;
-            config.USE_CONFIG_FOR_GENESIS = true;
-            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            config.LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op",
+                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+            cpuInsRatioExclVm.Clear();
 
-            VirtualClock clock(VirtualClock::REAL_TIME);
-            auto appPtr = Application::create(clock, config);
+            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+            ledgerCpuInsRatio.Clear();
 
-            auto& app = *appPtr;
+            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
+            ledgerCpuInsRatioExclVm.Clear();
+
+            for (size_t i = 0; i < 100; ++i)
             {
-                app.start();
-
-                ApplyLoad al(app, ledgerMaxInstructions,
-                             ledgerMaxReadLedgerEntries, ledgerMaxReadBytes,
-                             ledgerMaxWriteLedgerEntries, ledgerMaxWriteBytes,
-                             ledgerMaxTxCount, ledgerMaxTransactionsSizeBytes);
-
-                auto& ledgerClose =
-                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-                ledgerClose.Clear();
-
-                auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio"});
-                cpuInsRatio.Clear();
-
-                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-                cpuInsRatioExclVm.Clear();
-
-                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-                ledgerCpuInsRatio.Clear();
-
-                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "ledger-cpu-insns-ratio-excl-vm"});
-                ledgerCpuInsRatioExclVm.Clear();
-
-                for (size_t i = 0; i < 100; ++i)
-                {
-                    app.getBucketManager()
-                        .getLiveBucketList()
-                        .resolveAllFutures();
-                    releaseAssert(app.getBucketManager()
-                                      .getLiveBucketList()
-                                      .futuresAllResolved());
-                    al.benchmark();
-                }
-
-                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
-                          ledgerClose.max());
-                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
-                          ledgerClose.min());
-                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
-                          ledgerClose.mean());
-                CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
-                          ledgerClose.std_dev());
-
-                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
-                          cpuInsRatio.max() / 1000000);
-                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
-                          cpuInsRatio.mean() / 1000000);
-
-                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-                          cpuInsRatioExclVm.max() / 1000000);
-                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-                          cpuInsRatioExclVm.mean() / 1000000);
-                CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-                          cpuInsRatioExclVm.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
-                          ledgerCpuInsRatio.max() / 1000000);
-                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
-                          ledgerCpuInsRatio.mean() / 1000000);
-                CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
-                          ledgerCpuInsRatio.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
-                          ledgerCpuInsRatioExclVm.max() / 1000000);
-                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
-                          ledgerCpuInsRatioExclVm.mean() / 1000000);
-                CLOG_INFO(
-                    Perf,
-                    "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
-                    ledgerCpuInsRatioExclVm.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Tx count utilization {}%",
-                          al.getTxCountUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Instruction utilization {}%",
-                          al.getInstructionUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Tx size utilization {}%",
-                          al.getTxSizeUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Read bytes utilization {}%",
-                          al.getReadByteUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Write bytes utilization {}%",
-                          al.getWriteByteUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Read entry utilization {}%",
-                          al.getReadEntryUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Write entry utilization {}%",
-                          al.getWriteEntryUtilization().mean() / 1000.0);
-
-                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
-                          al.successRate() * 100);
+                app.getBucketManager().getLiveBucketList().resolveAllFutures();
+                releaseAssert(app.getBucketManager()
+                                  .getLiveBucketList()
+                                  .futuresAllResolved());
+                al.benchmark();
             }
 
-            return 0;
-        });
+            CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                      ledgerClose.max());
+            CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
+                      ledgerClose.min());
+            CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                      ledgerClose.mean());
+            CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
+                      ledgerClose.std_dev());
+
+            CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                      cpuInsRatio.max() / 1000000);
+            CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                      cpuInsRatio.mean() / 1000000);
+
+            CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                      cpuInsRatioExclVm.max() / 1000000);
+            CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                      cpuInsRatioExclVm.mean() / 1000000);
+            CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
+                      cpuInsRatioExclVm.std_dev() / 1000000);
+
+            CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
+                      ledgerCpuInsRatio.max() / 1000000);
+            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
+                      ledgerCpuInsRatio.mean() / 1000000);
+            CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
+                      ledgerCpuInsRatio.std_dev() / 1000000);
+
+            CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
+                      ledgerCpuInsRatioExclVm.max() / 1000000);
+            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
+                      ledgerCpuInsRatioExclVm.mean() / 1000000);
+            CLOG_INFO(Perf,
+                      "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
+                      ledgerCpuInsRatioExclVm.std_dev() / 1000000);
+
+            CLOG_INFO(Perf, "Tx count utilization {}%",
+                      al.getTxCountUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Instruction utilization {}%",
+                      al.getInstructionUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Tx size utilization {}%",
+                      al.getTxSizeUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Read bytes utilization {}%",
+                      al.getReadByteUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Write bytes utilization {}%",
+                      al.getWriteByteUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Read entry utilization {}%",
+                      al.getReadEntryUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Write entry utilization {}%",
+                      al.getWriteEntryUtilization().mean() / 1000.0);
+
+            CLOG_INFO(Perf, "Tx Success Rate: {:f}%", al.successRate() * 100);
+        }
+
+        return 0;
+    });
 }
 #endif
 

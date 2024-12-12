@@ -315,8 +315,68 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Instructions per transaction for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
     // loadgen modes
-    std::vector<uint64_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
+    // Also used for configuring apply-load command.
+    std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
+
+    // apply-load-specific configuration parameters:
+    // Size of the synthetic contract data entries used in apply-load.
+    // Currently we generate entries of the equal size for more precise
+    // control over the modelled instructions.
+    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING = 0;
+
+    // The parameters below control the synthetic bucket list generation in
+    // apply-load.
+
+    // Number of ledgers to simulate in apply-load. The more ledgers there are,
+    // the more bucket list levels will be populated.
+    uint32_t APPLY_LOAD_BL_SIMULATED_LEDGERS = 1000;
+    // Write a batch of entries every that many ledgers.
+    uint32_t APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
+    // Number of entries to write in every batch.
+    uint32_t APPLY_LOAD_BL_BATCH_SIZE = 1000;
+    // The final `APPLY_LOAD_BL_LAST_BATCH_LEDGERS` of synthetic load will each
+    // have `APPLY_LOAD_BL_LAST_BATCH_SIZE` entries in order to populate the
+    // lowest BL levels.
+    uint32_t APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
+    // Number of entries to write in every ledger of
+    // `APPLY_LOAD_BL_LAST_BATCH_LEDGERS`.
+    uint32_t APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
+
+    // The APPLY_LOAD_* parameters below are for initializing Soroban
+    // settings before applying the benchmark transactions.
+    uint32_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;
+    uint32_t APPLY_LOAD_TX_MAX_INSTRUCTIONS = 0;
+
+    uint32_t APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES = 0;
+
+    uint32_t APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES = 0;
+
+    uint32_t APPLY_LOAD_LEDGER_MAX_READ_BYTES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_READ_BYTES = 0;
+
+    uint32_t APPLY_LOAD_LEDGER_MAX_WRITE_BYTES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_WRITE_BYTES = 0;
+
+    uint32_t APPLY_LOAD_MAX_TX_SIZE_BYTES = 0;
+    uint32_t APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES = 0;
+
+    uint32_t APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 0;
+    uint32_t APPLY_LOAD_MAX_TX_COUNT = 0;
+
+    // Number of read-only and read-write entries in the apply-load
+    // transactions. Every entry will have
+    // `APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING` size.
+    std::vector<uint32_t> APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING;
+
+    // Number of events to generate in the apply-load transactions.
+    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_FOR_TESTING;
+    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING;
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;

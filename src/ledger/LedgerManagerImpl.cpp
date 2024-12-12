@@ -580,6 +580,12 @@ LedgerManagerImpl::getLastClosedLedgerTxMeta()
 {
     return mLastLedgerTxMeta;
 }
+
+void
+LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
+{
+    storeCurrentLedger(header, true, true);
+}
 #endif
 
 SorobanMetrics&

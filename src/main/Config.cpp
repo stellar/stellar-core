@@ -1455,58 +1455,174 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
                  [&]() {
                      LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_WASM_BYTES_FOR_TESTING",
                  [&]() {
                      LOADGEN_WASM_BYTES_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING",
                  [&]() {
                      LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
                  [&]() {
                      LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING",
                  [&]() {
                      LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_IO_KILOBYTES_FOR_TESTING",
                  [&]() {
                      LOADGEN_IO_KILOBYTES_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING",
                  [&]() {
                      LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
                  [&]() {
                      LOADGEN_TX_SIZE_BYTES_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
                  [&]() {
                      LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_INSTRUCTIONS_FOR_TESTING",
                  [&]() {
                      LOADGEN_INSTRUCTIONS_FOR_TESTING =
-                         readIntArray<uint64>(item);
+                         readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
                  [&]() {
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_BL_SIMULATED_LEDGERS",
+                 [&]() {
+                     APPLY_LOAD_BL_SIMULATED_LEDGERS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_BL_WRITE_FREQUENCY",
+                 [&]() {
+                     APPLY_LOAD_BL_WRITE_FREQUENCY = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_BL_BATCH_SIZE",
+                 [&]() { APPLY_LOAD_BL_BATCH_SIZE = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_BL_LAST_BATCH_LEDGERS",
+                 [&]() {
+                     APPLY_LOAD_BL_LAST_BATCH_LEDGERS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_BL_LAST_BATCH_SIZE",
+                 [&]() {
+                     APPLY_LOAD_BL_LAST_BATCH_SIZE = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING =
                          readIntArray<uint32>(item);
                  }},
+                {"APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_EVENT_COUNT_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_EVENT_COUNT_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_INSTRUCTIONS",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_INSTRUCTIONS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_LEDGER_MAX_READ_BYTES",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_READ_BYTES = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_READ_BYTES",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_READ_BYTES = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_LEDGER_MAX_WRITE_BYTES",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_WRITE_BYTES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_WRITE_BYTES",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_WRITE_BYTES = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_TX_SIZE_BYTES",
+                 [&]() {
+                     APPLY_LOAD_MAX_TX_SIZE_BYTES = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES",
+                 [&]() {
+                     APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES",
+                 [&]() {
+                     APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_TX_COUNT",
+                 [&]() { APPLY_LOAD_MAX_TX_COUNT = readInt<uint32_t>(item); }},
+
                 {"CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
                  [&]() {
                      CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);

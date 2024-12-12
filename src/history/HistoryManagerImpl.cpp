@@ -560,13 +560,13 @@ HistoryManagerImpl::getPublishQueueStates()
 {
     ZoneScoped;
     std::vector<HistoryArchiveState> states;
-    forEveryQueuedCheckpoint(publishQueuePath(mApp.getConfig()).string(),
-                             [&](uint32_t seq, std::string const& f) {
-                                 HistoryArchiveState has;
-                                 auto fullPath =
-                                     publishQueuePath(mApp.getConfig()) / f;
-                                 states.push_back(loadCheckpointHAS(fullPath));
-                             });
+    forEveryQueuedCheckpoint(
+        publishQueuePath(mApp.getConfig()).string(),
+        [&](uint32_t seq, std::string const& f) {
+            HistoryArchiveState has;
+            auto fullPath = publishQueuePath(mApp.getConfig()) / f;
+            states.push_back(loadCheckpointHAS(fullPath.string()));
+        });
     return states;
 }
 

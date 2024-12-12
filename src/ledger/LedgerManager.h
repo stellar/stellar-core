@@ -135,6 +135,7 @@ class LedgerManager
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfig() = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
+    virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.

@@ -272,7 +272,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
 
     {
         OutputFileStream out(ctx, !bm.getConfig().DISABLE_XDR_FSYNC);
-        out.open(tmpFilename);
+        out.open(tmpFilename.string());
         cereal::BufferedAsioOutputArchive ar(out);
         ar(mData);
     }

@@ -71,6 +71,7 @@ class SorobanMetrics
     medida::Timer& mHostFnOpInvokeTimeNsecsExclVm;
     medida::Histogram& mHostFnOpInvokeTimeFsecsCpuInsnRatio;
     medida::Histogram& mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm;
+    medida::Histogram& mHostFnOpDeclaredInsnsUsageRatio;
     medida::Meter& mHostFnOpMaxRwKeyByte;
     medida::Meter& mHostFnOpMaxRwDataByte;
     medida::Meter& mHostFnOpMaxRwCodeByte;

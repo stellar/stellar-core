@@ -472,7 +472,7 @@ checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 [[package]]
 name = "soroban-env-common"
 version = "22.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=0497816694bef2b103494c8c61b7c8a06a72c7d3#0497816694bef2b103494c8c61b7c8a06a72c7d3"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=a3f7fca9c2ad89796c7525a648da086543502dd5#a3f7fca9c2ad89796c7525a648da086543502dd5"
 dependencies = [
  "crate-git-revision",
  "ethnum",
@@ -486,7 +486,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-macros"
 version = "22.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=0497816694bef2b103494c8c61b7c8a06a72c7d3#0497816694bef2b103494c8c61b7c8a06a72c7d3"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=a3f7fca9c2ad89796c7525a648da086543502dd5#a3f7fca9c2ad89796c7525a648da086543502dd5"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -500,7 +500,7 @@ dependencies = [
 [[package]]
 name = "soroban-synth-wasm"
 version = "22.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=0497816694bef2b103494c8c61b7c8a06a72c7d3#0497816694bef2b103494c8c61b7c8a06a72c7d3"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=a3f7fca9c2ad89796c7525a648da086543502dd5#a3f7fca9c2ad89796c7525a648da086543502dd5"
 dependencies = [
  "arbitrary",
  "soroban-env-common",
@@ -513,7 +513,7 @@ dependencies = [
 [[package]]
 name = "soroban-test-wasms"
 version = "22.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=0497816694bef2b103494c8c61b7c8a06a72c7d3#0497816694bef2b103494c8c61b7c8a06a72c7d3"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=a3f7fca9c2ad89796c7525a648da086543502dd5#a3f7fca9c2ad89796c7525a648da086543502dd5"
 
 [[package]]
 name = "static_assertions"
@@ -550,7 +550,8 @@ dependencies = [
 [[package]]
 name = "stellar-xdr"
 version = "22.0.0"
-source = "git+https://github.com/stellar/rs-stellar-xdr?rev=b5516843b6379e4e29520bf2ba156484f62edc46#b5516843b6379e4e29520bf2ba156484f62edc46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20c2130275cc730d042b3082f51145f0486f5a543d6d72fced02ed9048b82b57"
 dependencies = [
  "crate-git-revision",
  "escape-bytes",
