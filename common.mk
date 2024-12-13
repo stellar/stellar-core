@@ -24,7 +24,7 @@ AM_CPPFLAGS += -I"$(top_builddir)/src/protocol-curr"
 endif
 
 # Unconditionally add CEREAL_THREAD_SAFE, we always want it.
-AM_CPPFLAGS += -DCEREAL_THREAD_SAFE
+#AM_CPPFLAGS += -DCEREAL_THREAD_SAFE
 
 # USE_TRACY and tracy_CFLAGS here represent the case of enabling
 # tracy at configure-time; but even when it is disabled we want
