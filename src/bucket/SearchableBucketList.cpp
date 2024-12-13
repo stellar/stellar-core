@@ -5,6 +5,7 @@
 #include "bucket/SearchableBucketList.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketListSnapshotBase.h"
+#include "util/GlobalChecks.h"
 
 #include <medida/timer.h>
 
@@ -244,6 +245,16 @@ SearchableLiveBucketListSnapshot::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     LedgerKeyMeter* lkMeter)
 {
+    if (threadIsMain())
+    {
+        auto timer =
+            mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
+                .TimeScope();
+        auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
+        releaseAssertOrThrow(op);
+        return std::move(*op);
+    }
+
     auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
