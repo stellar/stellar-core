@@ -114,162 +114,15 @@ minimalDbPath(Config const& cfg)
     return dpath;
 }
 
-void
-setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
-{
-    releaseAssertOrThrow(cfg.isInMemoryMode());
-
-    VirtualClock clock;
-    Application::pointer app;
-
-    // Look for an existing minimal database, and see if it's possible to
-    // restore ledger state from buckets. If it is not possible, reset the
-    // existing database back to genesis. If the minimal database does not
-    // exist, create a new one.
-    bool found = false;
-
-    auto cfgToCheckDB = cfg;
-    cfgToCheckDB.METADATA_OUTPUT_STREAM = "";
-
-    if (std::filesystem::exists(minimalDbPath(cfg)))
-    {
-        app = Application::create(clock, cfgToCheckDB, /* newDB */ false);
-        found = true;
-    }
-    else
-    {
-        LOG_INFO(DEFAULT_LOG, "Minimal database not found, creating one...");
-        app = Application::create(clock, cfgToCheckDB, /* newDB */ true);
-    }
-
-    // Rebuild the state from scratch if:
-    //  - --start-at-ledger was not provided
-    //  - target catchup ledger is before LCL
-    //  - target catchup ledger is too far ahead of LCL
-    // In all other cases, attempt restoring the ledger states via
-    // local bucket application
-    if (found)
-    {
-        LOG_INFO(DEFAULT_LOG, "Found the existing minimal database");
-
-        // DB state might be set to 0 if core previously exited while rebuilding
-        // state. In this case, we want to rebuild the DB from scratch
-        bool rebuildDB =
-            app->getLedgerManager().getLastClosedLedgerHAS().currentLedger <
-            LedgerManager::GENESIS_LEDGER_SEQ;
-
-        if (!rebuildDB)
-        {
-            // Ledger state is not yet ready during this setup step
-            app->getLedgerManager().loadLastKnownLedger(
-                /* restoreBucketlist */ false, /* isLedgerStateReady */ false);
-            auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
-            LOG_INFO(DEFAULT_LOG, "Current in-memory state, got LCL: {}", lcl);
-            rebuildDB =
-                !canRebuildInMemoryLedgerFromBuckets(startAtLedger, lcl);
-        }
-
-        if (rebuildDB)
-        {
-            LOG_INFO(DEFAULT_LOG, "Cannot restore the in-memory state, "
-                                  "rebuilding the state from scratch");
-            app->resetDBForInMemoryMode();
-        }
-    }
-}
-
 Application::pointer
-setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
-         std::string const& startAtHash)
+setupApp(Config& cfg, VirtualClock& clock)
 {
-    if (cfg.isInMemoryMode())
-    {
-        setupMinimalDBForInMemoryMode(cfg, startAtLedger);
-    }
-
     LOG_INFO(DEFAULT_LOG, "Starting stellar-core {}", STELLAR_CORE_VERSION);
     Application::pointer app;
     app = Application::create(clock, cfg, false);
     if (!app->getHistoryArchiveManager().checkSensibleConfig())
     {
         return nullptr;
-    }
-
-    // With in-memory mode, ledger state is not yet ready during this setup step
-    app->getLedgerManager().loadLastKnownLedger(
-        /* restoreBucketlist */ false,
-        /* isLedgerStateReady */ !cfg.isInMemoryMode());
-    auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-
-    if (cfg.isInMemoryMode() &&
-        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
-    {
-        // If ledger is genesis, rebuild genesis state from buckets
-        if (!applyBucketsForLCL(*app))
-        {
-            return nullptr;
-        }
-    }
-
-    bool doCatchupForInMemoryMode =
-        cfg.isInMemoryMode() && startAtLedger != 0 && !startAtHash.empty();
-    if (doCatchupForInMemoryMode)
-    {
-        // At this point, setupApp has either confirmed that we can rebuild from
-        // the existing buckets, or reset the DB to genesis
-        if (lcl.header.ledgerSeq != LedgerManager::GENESIS_LEDGER_SEQ)
-        {
-            auto lclHashStr = binToHex(lcl.hash);
-            if (lcl.header.ledgerSeq == startAtLedger &&
-                lclHashStr != startAtHash)
-            {
-                LOG_ERROR(DEFAULT_LOG,
-                          "Provided hash {} does not agree with stored hash {}",
-                          startAtHash, lclHashStr);
-                return nullptr;
-            }
-
-            auto has = app->getLedgerManager().getLastClosedLedgerHAS();
-
-            // Collect bucket references to pass to catchup _before_ starting
-            // the app, which may trigger garbage collection
-            std::set<std::shared_ptr<LiveBucket>> retained;
-            for (auto const& b : has.allBuckets())
-            {
-                auto bPtr = app->getBucketManager().getBucketByHash<LiveBucket>(
-                    hexToBin256(b));
-                releaseAssert(bPtr);
-                retained.insert(bPtr);
-            }
-
-            // Start the app with LCL set to 0
-            app->getLedgerManager().setupInMemoryStateRebuild();
-            app->start();
-
-            // Set Herder to track the actual LCL
-            app->getHerder().setTrackingSCPState(lcl.header.ledgerSeq,
-                                                 lcl.header.scpValue, true);
-
-            // Schedule the catchup work that will rebuild state
-            auto cc = CatchupConfiguration(has, lcl);
-            app->getLedgerManager().startCatchup(cc, /* archive */ nullptr,
-                                                 retained);
-        }
-        else
-        {
-            LedgerNumHashPair pair;
-            pair.first = startAtLedger;
-            pair.second = std::optional<Hash>(hexToBin256(startAtHash));
-            auto mode = CatchupConfiguration::Mode::OFFLINE_BASIC;
-            Json::Value catchupInfo;
-            int res =
-                catchup(app, CatchupConfiguration{pair, 0, mode}, catchupInfo,
-                        /* archive */ nullptr);
-            if (res != 0)
-            {
-                return nullptr;
-            }
-        }
     }
 
     return app;
@@ -450,8 +303,7 @@ selfCheck(Config cfg)
 
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
-                                                /* isLedgerStateReady */ true);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -532,8 +384,7 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
-                           /* isLedgerStateReady */ true);
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto bucket = bm.mergeBuckets(has);
 
@@ -636,8 +487,7 @@ dumpStateArchivalStatistics(Config cfg)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
-                                                /* isLedgerStateReady */ true);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
@@ -750,8 +600,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     Application::pointer app = Application::create(clock, cfg, false);
     auto& lm = app->getLedgerManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
-                           /* isLedgerStateReady */ true);
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)

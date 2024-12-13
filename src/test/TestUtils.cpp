@@ -9,6 +9,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "work/WorkScheduler.h"
+#include <limits>
 
 namespace stellar
 {
@@ -185,7 +186,8 @@ genesis(int minute, int second)
 
 void
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
-                            std::shared_ptr<Simulation> simulation)
+                            std::shared_ptr<Simulation> simulation,
+                            bool applyUpgrade)
 {
     auto nodes = simulation->getNodes();
     auto& lg = nodes[0]->getLoadGenerator();
@@ -194,31 +196,34 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     auto& complete =
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto completeCount = complete.count();
-    // Only create an account if there are none aleady created.
-    uint32_t offset = 0;
-    if (app.getMetrics()
-            .NewMeter({"loadgen", "account", "created"}, "account")
-            .count() == 0)
+
+    // Use large offset to avoid conflicts with tests using loadgen.
+    auto const offset = std::numeric_limits<uint32_t>::max() - 1;
+
+    // Only create an account if upgrade has not ran before.
+    if (!simulation->isSetUpForSorobanUpgrade())
     {
         auto createAccountsLoadConfig =
             GeneratedLoadConfig::createAccountsLoad(1, 1);
-        offset = std::numeric_limits<uint32_t>::max() - 1;
         createAccountsLoadConfig.offset = offset;
 
         lg.generateLoad(createAccountsLoadConfig);
         simulation->crankUntil(
             [&]() { return complete.count() == completeCount + 1; },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    }
 
-    // Create upload wasm transaction.
-    auto createUploadCfg = GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
-    createUploadCfg.offset = offset;
-    lg.generateLoad(createUploadCfg);
-    completeCount = complete.count();
-    simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
-        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        // Create upload wasm transaction.
+        auto createUploadCfg =
+            GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
+        createUploadCfg.offset = offset;
+        lg.generateLoad(createUploadCfg);
+        completeCount = complete.count();
+        simulation->crankUntil(
+            [&]() { return complete.count() == completeCount + 1; },
+            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        simulation->markReadyForSorobanUpgrade();
+    }
 
     // Create upgrade transaction.
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
@@ -247,13 +252,17 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
         app->getHerder().setUpgrades(scheduledUpgrades);
     }
-    // Wait for upgrade to be applied
-    simulation->crankUntil(
-        [&]() {
-            auto netCfg = app.getLedgerManager().getSorobanNetworkConfig();
-            return netCfg == cfg;
-        },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    if (applyUpgrade)
+    {
+        // Wait for upgrade to be applied
+        simulation->crankUntil(
+            [&]() {
+                auto netCfg = app.getLedgerManager().getSorobanNetworkConfig();
+                return netCfg == cfg;
+            },
+            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    }
 }
 
 void

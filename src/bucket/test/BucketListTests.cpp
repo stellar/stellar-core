@@ -861,7 +861,7 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
 TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);

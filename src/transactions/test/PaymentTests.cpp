@@ -38,7 +38,7 @@ using namespace stellar::txtest;
 // path payment with a transfer rate
 TEST_CASE_VERSIONS("payment", "[tx][payment]")
 {
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -1510,7 +1510,11 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
 
             // Since a1 has a trustline, and there is only 1 trustline, we know
             // that gateway has no trustlines.
-            REQUIRE(app->getLedgerTxnRoot().countObjects(TRUSTLINE) == 1);
+            LedgerSnapshot lsg(*app);
+            LedgerKey trustKey(TRUSTLINE);
+            trustKey.trustLine().accountID = gateway.getPublicKey();
+            trustKey.trustLine().asset = assetToTrustLineAsset(idr);
+            REQUIRE(!lsg.load(trustKey));
         });
     }
     SECTION("authorize flag")
@@ -1930,7 +1934,7 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
 
     SECTION("fee equal to base reserve")
     {
-        auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+        auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY);
         cfg.TESTING_UPGRADE_DESIRED_FEE = 100000000;
 
         VirtualClock clock;
@@ -2040,7 +2044,7 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
 
     SECTION("fee bigger than base reserve")
     {
-        auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+        auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY);
         cfg.TESTING_UPGRADE_DESIRED_FEE = 200000000;
 
         VirtualClock clock;

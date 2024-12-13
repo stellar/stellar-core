@@ -281,8 +281,7 @@ setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
-                                       bool isLedgerStateReady)
+LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
 {
     ZoneScoped;
 
@@ -397,23 +396,10 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
     if (protocolVersionStartsFrom(latestLedgerHeader->ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        if (isLedgerStateReady)
-        {
-            // Step 5. If ledger state is ready and core is in v20, load network
-            // configs right away
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            updateNetworkConfig(ltx);
-        }
-        else
-        {
-            // In some modes, e.g. in-memory, core's state is rebuilt
-            // asynchronously via catchup. In this case, we're not able to load
-            // the network config at this time, and instead must let catchup do
-            // it when ready.
-            CLOG_INFO(Ledger,
-                      "Ledger state is being rebuilt, network config will "
-                      "be loaded once the rebuild is done");
-        }
+        // Step 5. If ledger state is ready and core is in v20, load network
+        // configs right away
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        updateNetworkConfig(ltx);
     }
 }
 
@@ -1009,14 +995,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // member variable: if we throw while committing below, we will at worst
         // emit duplicate meta, when retrying.
         mNextMetaToEmit = std::move(ledgerCloseMeta);
-
-        // If the LedgerCloseData provided an expected hash, then we validated
-        // it above.
-        if (!mApp.getConfig().EXPERIMENTAL_PRECAUTION_DELAY_META ||
-            ledgerData.getExpectedHash())
-        {
-            emitNextMeta();
-        }
+        emitNextMeta();
     }
 
     // The next 5 steps happen in a relatively non-obvious, subtle order.

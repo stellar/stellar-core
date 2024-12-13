@@ -222,7 +222,11 @@ LedgerSnapshot::LedgerSnapshot(AbstractLedgerTxn& ltx)
 
 LedgerSnapshot::LedgerSnapshot(Application& app)
 {
-    if (app.getConfig().DEPRECATED_SQL_LEDGER_STATE)
+    if (app.getConfig().DEPRECATED_SQL_LEDGER_STATE
+#ifdef BUILD_TESTS
+        || app.getConfig().MODE_USES_IN_MEMORY_LEDGER
+#endif
+    )
     {
         // Legacy read-only SQL transaction
         mLegacyLedgerTxn = std::make_unique<LedgerTxn>(

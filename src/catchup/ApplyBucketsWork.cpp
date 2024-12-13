@@ -72,6 +72,8 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mLevel(startingLevel())
     , mMaxProtocolVersion(maxProtocolVersion)
     , mCounters(app.getClock().now())
+    , mIsApplyInvariantEnabled(
+          app.getInvariantManager().isBucketApplyInvariantEnabled())
 {
 }
 
@@ -111,6 +113,7 @@ ApplyBucketsWork::doReset()
     mLastPos = 0;
     mBucketToApplyIndex = 0;
     mMinProtocolVersionSeen = UINT32_MAX;
+    mSeenKeysBeforeApply.clear();
     mSeenKeys.clear();
     mBucketsToApply.clear();
     mBucketApplicator.reset();
@@ -201,6 +204,14 @@ ApplyBucketsWork::startBucket()
     auto bucket = mBucketsToApply.at(mBucketToApplyIndex);
     mMinProtocolVersionSeen =
         std::min(mMinProtocolVersionSeen, bucket->getBucketVersion());
+
+    // Take a snapshot of seen keys before applying the bucket, only if
+    // invariants are enabled since this is expensive.
+    if (mIsApplyInvariantEnabled)
+    {
+        mSeenKeysBeforeApply = mSeenKeys;
+    }
+
     // Create a new applicator for the bucket.
     mBucketApplicator = std::make_unique<BucketApplicator>(
         mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel, bucket,
@@ -297,7 +308,8 @@ ApplyBucketsWork::doWork()
             // bucket.
             mApp.getInvariantManager().checkOnBucketApply(
                 mBucketsToApply.at(mBucketToApplyIndex),
-                mApplyState.currentLedger, mLevel, isCurr, mEntryTypeFilter);
+                mApplyState.currentLedger, mLevel, isCurr,
+                mSeenKeysBeforeApply);
             prepareForNextBucket();
         }
         if (!appliedAllBuckets())

@@ -111,9 +111,15 @@ void setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg);
 // for most of the unit tests (unless the test is meant to exercise the
 // configuration limits).
 void overrideSorobanNetworkConfigForTest(Application& app);
+
+// Runs loadgen to arm all nodes in simulation for the given upgrade. If
+// applyUpgrade == true, close ledgers until the upgrade has been applied.
+// Otherwise just arm the nodes without closing the ledger containing the
+// upgrade.
 void
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
-                            std::shared_ptr<Simulation> simulation);
+                            std::shared_ptr<Simulation> simulation,
+                            bool applyUpgrade = true);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);

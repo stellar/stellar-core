@@ -50,9 +50,8 @@ class Simulation
     // Add new node to the simulation. This function does not start the node.
     // Callers are expected to call `start` or `startAllNodes` manually.
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                                 Config const* cfg = nullptr, bool newDB = true,
-                                 uint32_t startAtLedger = 0,
-                                 std::string const& startAtHash = "");
+                                 Config const* cfg = nullptr,
+                                 bool newDB = true);
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
@@ -93,6 +92,18 @@ class Simulation
     // prevent overlay from automatically re-connecting to peers
     void stopOverlayTick();
 
+    bool
+    isSetUpForSorobanUpgrade() const
+    {
+        return mSetupForSorobanUpgrade;
+    }
+
+    void
+    markReadyForSorobanUpgrade()
+    {
+        mSetupForSorobanUpgrade = true;
+    }
+
   private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
     void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
@@ -128,6 +139,8 @@ class Simulation
 
     // Map PEER_PORT to Application
     std::unordered_map<unsigned short, std::weak_ptr<Application>> mPeerMap;
+
+    bool mSetupForSorobanUpgrade{false};
 };
 
 class LoopbackOverlayManager : public OverlayManagerImpl

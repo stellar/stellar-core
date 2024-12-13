@@ -17,7 +17,7 @@ using namespace stellar::txtest;
 
 TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
 {
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

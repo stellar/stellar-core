@@ -160,12 +160,6 @@ apply.
 * **run**: Runs stellar-core service.<br>
   Option **--wait-for-consensus** lets validators wait to hear from the network
   before participating in consensus.<br>
-  (deprecated) Option **--in-memory** stores the current ledger in memory rather than a
-  database.<br>
-  (deprecated) Option **--start-at-ledger <N>** starts **--in-memory** mode with a catchup to
-  ledger **N** then replays to the current state of the network.<br>
-  (deprecated) Option **--start-at-hash <HASH>** provides a (mandatory) hash for the ledger
-  **N** specified by the **--start-at-ledger** option.
 * **sec-to-pub**:  Reads a secret key on standard input and outputs the
   corresponding public key.  Both keys are in Stellar's standard
   base-32 ASCII format.

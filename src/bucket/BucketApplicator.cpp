@@ -110,11 +110,13 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
     // directly instead of creating a temporary inner LedgerTxn
     // as "advance" commits changes during each step this does not introduce any
     // new failure mode
+#ifdef BUILD_TESTS
     if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         ltx = static_cast<AbstractLedgerTxn*>(&root);
     }
     else
+#endif
     {
         innerLtx = std::make_unique<LedgerTxn>(root, false);
         ltx = innerLtx.get();

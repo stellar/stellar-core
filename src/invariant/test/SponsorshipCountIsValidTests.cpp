@@ -18,7 +18,7 @@ using namespace stellar::InvariantTestUtils;
 TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"SponsorshipCountIsValid"};
     auto app = createTestApplication(clock, cfg);
 

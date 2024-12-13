@@ -15,9 +15,7 @@ namespace stellar
 class CatchupConfiguration;
 
 // Create application and validate its configuration
-Application::pointer setupApp(Config& cfg, VirtualClock& clock,
-                              uint32_t startAtLedger,
-                              std::string const& startAtHash);
+Application::pointer setupApp(Config& cfg, VirtualClock& clock);
 int runApp(Application::pointer app);
 void setForceSCPFlag();
 void initializeDatabase(Config cfg);
