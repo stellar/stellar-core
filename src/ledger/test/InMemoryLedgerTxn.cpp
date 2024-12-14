@@ -51,6 +51,12 @@ InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryPtr() const
     return mIter.entryPtr();
 }
 
+SessionWrapper&
+InMemoryLedgerTxn::getSession() const
+{
+    return mDb.getSession();
+}
+
 bool
 InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryExists() const
 {
@@ -91,7 +97,7 @@ InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
     LedgerTxn::addChild(child, mode);
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
-        mTransaction = std::make_unique<soci::transaction>(mDb.getSession());
+        mTransaction = std::make_unique<soci::transaction>(mDb.getRawSession());
     }
 }
 
