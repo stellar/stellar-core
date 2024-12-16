@@ -19,7 +19,7 @@ constexpr uint32_t DEFAULT_WASM_BYTES = 35 * 1024;
 constexpr uint32_t DEFAULT_NUM_DATA_ENTRIES = 2;
 constexpr uint32_t DEFAULT_IO_KILOBYTES = 1;
 constexpr uint32_t DEFAULT_TX_SIZE_BYTES = 256;
-constexpr uint64_t DEFAULT_INSTRUCTIONS = 28'000'000;
+constexpr uint32_t DEFAULT_INSTRUCTIONS = 28'000'000;
 
 // Sample from a discrete distribution of `values` with weights `weights`.
 // Returns `defaultValue` if `values` is empty.
@@ -373,16 +373,16 @@ TxGenerator::invokeSorobanLoadTransaction(
     // instruction count is not perfect. Some TXs will fail due to exceeding
     // resource limitations, but failures will be rare and those failures
     // will happen at apply time, so they will still generate significant load.
-    uint64_t const baseInstructionCount = 1'500'000;
-    uint64_t const instructionsPerGuestCycle = 80;
-    uint64_t const instructionsPerHostCycle = 5030;
+    uint32_t const baseInstructionCount = 2'500'000;
+    uint32_t const instructionsPerGuestCycle = 80;
+    uint32_t const instructionsPerHostCycle = 5030;
 
     // Very rough estimates.
-    uint64_t const instructionsPerKbWritten = 50000;
+    uint32_t const instructionsPerKbWritten = 50000;
 
     // instructionsPerPaddingByte is just a value we know works. We use an auth
     // payload as padding, so it consumes instructions on the host side.
-    uint64_t const instructionsPerPaddingByte = 100;
+    uint32_t const instructionsPerPaddingByte = 100;
 
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
@@ -451,9 +451,10 @@ TxGenerator::invokeSorobanLoadTransaction(
         instructionsPerPaddingByte * paddingBytes;
 
     // Pick random number of cycles between bounds
-    uint64_t targetInstructions = sampleDiscrete(
-        appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
-        appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t targetInstructions =
+        sampleDiscrete(appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
+                       appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_INSTRUCTIONS);
 
     // Factor in instructions for storage
     targetInstructions = baseInstructionCount + instructionsForStorageAndAuth >=
@@ -463,12 +464,12 @@ TxGenerator::invokeSorobanLoadTransaction(
                                    instructionsForStorageAndAuth;
 
     // Randomly select a number of guest cycles
-    uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
-    uint64_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
+    uint32_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
+    uint32_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
 
     // Rest of instructions consumed by host cycles
     targetInstructions -= guestCycles * instructionsPerGuestCycle;
-    uint64_t hostCycles = targetInstructions / instructionsPerHostCycle;
+    uint32_t hostCycles = targetInstructions / instructionsPerHostCycle;
 
     auto guestCyclesU64 = makeU64(guestCycles);
     auto hostCyclesU64 = makeU64(hostCycles);
@@ -490,7 +491,7 @@ TxGenerator::invokeSorobanLoadTransaction(
 
     increaseOpSize(op, paddingBytes);
 
-    int64_t instructionCount =
+    uint32_t instructionCount =
         baseInstructionCount + hostCycles * instructionsPerHostCycle +
         guestCycles * instructionsPerGuestCycle + instructionsForStorageAndAuth;
     resources.instructions = instructionCount;
@@ -995,7 +996,7 @@ TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
     int64_t resourceFee = sorobanResourceFee(
         mApp, resources, 5000 + static_cast<size_t>(wasmSize), 100);
     // Roughly cover the rent fee.
-    resourceFee += 100000;
+    resourceFee += 1'000'000;
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                              {uploadOp}, {}, resources,
                                              inclusionFee, resourceFee);
