@@ -205,6 +205,8 @@ class LoadGenerator
         return mContactOverheadBytes;
     }
 
+    void stop();
+
   private:
     struct TxMetrics
     {

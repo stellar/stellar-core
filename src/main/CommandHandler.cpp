@@ -1263,9 +1263,18 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     {
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
+        auto modeStr =
+            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
+        // First check if a current run needs to be stopped
+        if (modeStr == "stop")
+        {
+            mApp.getLoadGenerator().stop();
+            retStr = "Stopped load generation";
+            return;
+        }
+
         GeneratedLoadConfig cfg;
-        cfg.mode = LoadGenerator::getMode(
-            parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
+        cfg.mode = LoadGenerator::getMode(modeStr);
 
         cfg.nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);

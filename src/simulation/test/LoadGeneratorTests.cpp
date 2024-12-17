@@ -124,6 +124,26 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             },
             10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
+    SECTION("stop loadgen")
+    {
+        loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+            /* nAccounts */ 10000,
+            /* txRate */ 1));
+        simulation->crankForAtLeast(std::chrono::seconds(10), false);
+        auto& acc = app.getMetrics().NewMeter({"loadgen", "account", "created"},
+                                              "account");
+        auto numAccounts = acc.count();
+        REQUIRE(app.getMetrics()
+                    .NewMeter({"loadgen", "run", "failed"}, "run")
+                    .count() == 0);
+        loadGen.stop();
+        REQUIRE(app.getMetrics()
+                    .NewMeter({"loadgen", "run", "failed"}, "run")
+                    .count() == 1);
+        // No new txs submitted
+        simulation->crankForAtLeast(std::chrono::seconds(10), false);
+        REQUIRE(acc.count() == numAccounts);
+    }
 }
 
 TEST_CASE("modify soroban network config", "[loadgen][soroban]")
