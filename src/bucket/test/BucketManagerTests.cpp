@@ -22,7 +22,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "main/ExternalQueue.h"
+#include "main/Maintainer.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/GlobalChecks.h"
@@ -614,8 +614,7 @@ TEST_CASE_VERSIONS(
             clock.crank(false);
 
             // Trim history after publishing whenever possible.
-            ExternalQueue ps(*app);
-            ps.deleteOldEntries(50000);
+            app->getMaintainer().performMaintenance(50000);
         }
     });
 }

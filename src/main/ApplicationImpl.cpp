@@ -38,7 +38,6 @@
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
-#include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
@@ -720,9 +719,6 @@ ApplicationImpl::startServices()
 {
     // restores Herder's state before starting overlay
     mHerder->start();
-    // set known cursors before starting maintenance job
-    ExternalQueue ps(*this);
-    ps.setInitialCursors(mConfig.KNOWN_CURSORS);
     mMaintainer->start();
     if (mConfig.MODE_AUTO_STARTS_OVERLAY)
     {

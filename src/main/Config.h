@@ -546,9 +546,6 @@ class Config : public std::enable_shared_from_this<Config>
     // at a premium.
     uint32_t METADATA_DEBUG_LEDGERS;
 
-    // Set of cursors added at each startup with value '1'.
-    std::vector<std::string> KNOWN_CURSORS;
-
     // maximum protocol version supported by the application, can be overridden
     // in tests
     uint32_t LEDGER_PROTOCOL_VERSION;

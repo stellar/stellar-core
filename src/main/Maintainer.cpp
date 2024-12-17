@@ -3,8 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Maintainer.h"
+#include "ledger/LedgerManager.h"
+#include "main/Application.h"
 #include "main/Config.h"
-#include "main/ExternalQueue.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
@@ -72,7 +73,21 @@ Maintainer::performMaintenance(uint32_t count)
         "performance issue: check database or perform a large manual "
         "maintenance followed by database maintenance. Maintenance took",
         std::chrono::seconds{2});
-    ExternalQueue ps{mApp};
-    ps.deleteOldEntries(count);
+
+    // Calculate the minimum of the LCL and/or any queued checkpoint.
+    uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    uint32_t ql = mApp.getHistoryManager().getMinLedgerQueuedToPublish();
+    uint32_t qmin = ql == 0 ? lcl : std::min(ql, lcl);
+
+    // Next calculate, given qmin, the first ledger it'd be _safe to
+    // delete_ while still keeping everything required to publish.
+    // So if qmin is (for example) 0x7f = 127, then we want to keep 64
+    // ledgers before that, and therefore can erase 0x3f = 63 and less.
+    uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t lmin = qmin >= freq ? qmin - freq : 0;
+
+    CLOG_INFO(History, "Trimming history <= ledger {}", lmin);
+
+    mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), lmin, count);
 }
 }

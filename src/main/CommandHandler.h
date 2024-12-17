@@ -49,7 +49,6 @@ class CommandHandler
 
     void bans(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
-    void dropcursor(std::string const& params, std::string& retStr);
     void dropPeer(std::string const& params, std::string& retStr);
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);
@@ -61,8 +60,6 @@ class CommandHandler
     void peers(std::string const& params, std::string& retStr);
     void selfCheck(std::string const&, std::string& retStr);
     void quorum(std::string const& params, std::string& retStr);
-    void setcursor(std::string const& params, std::string& retStr);
-    void getcursor(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
     void unban(std::string const& params, std::string& retStr);

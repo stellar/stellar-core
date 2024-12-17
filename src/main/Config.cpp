@@ -8,7 +8,6 @@
 #include "herder/Herder.h"
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerManager.h"
-#include "main/ExternalQueue.h"
 #include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -1133,18 +1132,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { BUCKETLIST_DB_PERSIST_INDEX = readBool(item); }},
                 {"METADATA_DEBUG_LEDGERS",
                  [&]() { METADATA_DEBUG_LEDGERS = readInt<uint32_t>(item); }},
-                {"KNOWN_CURSORS",
-                 [&]() {
-                     KNOWN_CURSORS = readArray<std::string>(item);
-                     for (auto const& c : KNOWN_CURSORS)
-                     {
-                         if (!ExternalQueue::validateResourceID(c))
-                         {
-                             throw std::invalid_argument(fmt::format(
-                                 FMT_STRING("invalid cursor: \"{}\""), c));
-                         }
-                     }
-                 }},
                 {"RUN_STANDALONE", [&]() { RUN_STANDALONE = readBool(item); }},
                 {"CATCHUP_COMPLETE",
                  [&]() { CATCHUP_COMPLETE = readBool(item); }},
