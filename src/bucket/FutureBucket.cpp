@@ -66,7 +66,8 @@ FutureBucket<BucketT>::FutureBucket(
         if (!snap->isEmpty() &&
             protocolVersionIsBefore(
                 snap->getBucketVersion(),
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                HotArchiveBucket::
+                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             throw std::runtime_error(
                 "Invalid ArchivalFutureBucket: ledger version doesn't support "
@@ -408,7 +409,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                 ZoneNamedN(mergeZone, "Merge task", true);
                 ZoneValueV(mergeZone, static_cast<int64_t>(level));
 
-                auto res = BucketBase::merge(
+                auto res = BucketT::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
                     BucketListBase<BucketT>::keepTombstoneEntries(level),
                     countMergeEvents, ctx, doFsync);

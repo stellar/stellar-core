@@ -292,8 +292,9 @@ class BucketManager : NonMovableOrCopyable
     // for each bucket. However, during startup there are race conditions where
     // a bucket may be indexed twice. If there is an index race, set index with
     // this function, otherwise use BucketBase::setIndex().
-    void maybeSetIndex(std::shared_ptr<BucketBase> b,
-                       std::unique_ptr<BucketIndex const>&& index);
+    template <class BucketT>
+    void maybeSetIndex(std::shared_ptr<BucketT> b,
+                       std::unique_ptr<typename BucketT::IndexT const>&& index);
 
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries

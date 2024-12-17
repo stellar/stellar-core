@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
 #include "bucket/BucketIndex.h"
+#include "bucket/BucketUtils.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
@@ -47,17 +48,35 @@ enum class Loop
     INCOMPLETE
 };
 
+class HotArchiveBucket;
+class LiveBucket;
+
+template <class BucketT, class IndexT>
 class BucketBase : public NonMovableOrCopyable
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
+    // Because of the CRTP design with derived Bucket classes, this base class
+    // does not have direct access to BucketT::IndexT, so we take two templates
+    // and make this assert.
+    static_assert(
+        std::is_same_v<
+            IndexT,
+            std::conditional_t<
+                std::is_same_v<BucketT, LiveBucket>, BucketIndex,
+                std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
+                                   BucketIndex, void>>>,
+        "IndexT must match BucketT::IndexT");
+
   protected:
     std::filesystem::path const mFilename;
     Hash const mHash;
     size_t mSize{0};
 
-    std::unique_ptr<BucketIndex const> mIndex{};
+    std::unique_ptr<IndexT const> mIndex{};
 
     // Returns index, throws if index not yet initialized
-    BucketIndex const& getIndex() const;
+    IndexT const& getIndex() const;
 
     static std::string randomFileName(std::string const& tmpDir,
                                       std::string ext);
@@ -74,7 +93,7 @@ class BucketBase : public NonMovableOrCopyable
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
     BucketBase(std::string const& filename, Hash const& hash,
-               std::unique_ptr<BucketIndex const>&& index);
+               std::unique_ptr<IndexT const>&& index);
 
     Hash const& getHash() const;
     std::filesystem::path const& getFilename() const;
@@ -94,7 +113,7 @@ class BucketBase : public NonMovableOrCopyable
     getOfferRange() const;
 
     // Sets index, throws if index is already set
-    void setIndex(std::unique_ptr<BucketIndex const>&& index);
+    void setIndex(std::unique_ptr<IndexT const>&& index);
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
     // are overridden in the fresh bucket by keywise-equal entries in
@@ -107,7 +126,6 @@ class BucketBase : public NonMovableOrCopyable
     // `maxProtocolVersion` bounds this (for error checking) and should usually
     // be the protocol of the ledger header at which the merge is starting. An
     // exception will be thrown if any provided bucket versions exceed it.
-    template <class BucketT>
     static std::shared_ptr<BucketT>
     merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
           std::shared_ptr<BucketT> const& oldBucket,
@@ -120,7 +138,7 @@ class BucketBase : public NonMovableOrCopyable
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef BUILD_TESTS
-    BucketIndex const&
+    IndexT const&
     getIndexForTesting() const
     {
         return getIndex();
@@ -128,8 +146,6 @@ class BucketBase : public NonMovableOrCopyable
 
 #endif // BUILD_TESTS
 
-    virtual uint32_t getBucketVersion() const = 0;
-
-    template <class BucketT> friend class BucketSnapshotBase;
+    template <class T> friend class BucketSnapshotBase;
 };
 }

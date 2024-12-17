@@ -952,7 +952,7 @@ BucketManager::addHotArchiveBatch(
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
     releaseAssertOrThrow(protocolVersionStartsFrom(
         header.ledgerVersion,
-        BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -1011,7 +1011,8 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
     {
         if (protocolVersionStartsFrom(
                 currentHeader.ledgerVersion,
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                HotArchiveBucket::
+                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             // TODO: Hash Archive Bucket
             // Dependency: HAS supports Hot Archive BucketList
@@ -1036,9 +1037,11 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
     calculateSkipValues(currentHeader);
 }
 
+template <class BucketT>
 void
-BucketManager::maybeSetIndex(std::shared_ptr<BucketBase> b,
-                             std::unique_ptr<BucketIndex const>&& index)
+BucketManager::maybeSetIndex(
+    std::shared_ptr<BucketT> b,
+    std::unique_ptr<typename BucketT::IndexT const>&& index)
 {
     ZoneScoped;
 
@@ -1634,4 +1637,11 @@ BucketManager::reportBucketEntryCountMetrics()
             bucketEntryCounters.entryTypeSizes.at(type));
     }
 }
+
+template void BucketManager::maybeSetIndex<LiveBucket>(
+    std::shared_ptr<LiveBucket> b,
+    std::unique_ptr<LiveBucket::IndexT const>&& index);
+template void BucketManager::maybeSetIndex<HotArchiveBucket>(
+    std::shared_ptr<HotArchiveBucket> b,
+    std::unique_ptr<HotArchiveBucket::IndexT const>&& index);
 }

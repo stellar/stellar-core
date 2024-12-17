@@ -27,7 +27,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                                                     MergeCounters& mc,
                                                     asio::io_context& ctx,
                                                     bool doFsync)
-    : mFilename(BucketBase::randomBucketName(tmpDir))
+    : mFilename(BucketT::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mCtx(ctx)
     , mBuf(nullptr)
@@ -59,7 +59,8 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                           "unexpected bucket type");
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+                HotArchiveBucket::
+                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);

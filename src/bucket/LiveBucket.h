@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
 #include "bucket/BucketBase.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketUtils.h"
 #include "ledger/LedgerTypeUtils.h"
 
@@ -45,7 +46,7 @@ struct BucketEntryCounters
  * Live Buckets are used by the LiveBucketList to store the current canonical
  * state of the ledger. They contain entries of type BucketEntry.
  */
-class LiveBucket : public BucketBase,
+class LiveBucket : public BucketBase<LiveBucket, BucketIndex>,
                    public std::enable_shared_from_this<LiveBucket>
 {
   public:
@@ -54,6 +55,8 @@ class LiveBucket : public BucketBase,
 
     // Entry type returned by loadKeys
     using LoadT = LedgerEntry;
+
+    using IndexT = BucketIndex;
 
     LiveBucket();
     virtual ~LiveBucket()
@@ -125,7 +128,7 @@ class LiveBucket : public BucketBase,
     static void countOldEntryType(MergeCounters& mc, BucketEntry const& e);
     static void countNewEntryType(MergeCounters& mc, BucketEntry const& e);
 
-    uint32_t getBucketVersion() const override;
+    uint32_t getBucketVersion() const;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
 

@@ -293,7 +293,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
                          "took", std::chrono::milliseconds(100));
 
     std::filesystem::path tmpFilename =
-        BucketBase::randomBucketIndexName(bm.getTmpDir());
+        LiveBucket::randomBucketIndexName(bm.getTmpDir());
     CLOG_DEBUG(Bucket, "Saving bucket index for {}: {}", hexAbbrev(hash),
                tmpFilename);
 

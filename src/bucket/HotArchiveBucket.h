@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
 #include "bucket/BucketBase.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketUtils.h"
 #include "xdr/Stellar-ledger-entries.h"
 
@@ -22,7 +23,7 @@ typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
  * Hot Archive Buckets are used by the HotBucketList to store recently evicted
  * entries. They contain entries of type HotArchiveBucketEntry.
  */
-class HotArchiveBucket : public BucketBase,
+class HotArchiveBucket : public BucketBase<HotArchiveBucket, BucketIndex>,
                          public std::enable_shared_from_this<HotArchiveBucket>
 {
     static std::vector<HotArchiveBucketEntry>
@@ -37,13 +38,15 @@ class HotArchiveBucket : public BucketBase,
     // Entry type returned by loadKeys
     using LoadT = HotArchiveBucketEntry;
 
+    using IndexT = BucketIndex;
+
     HotArchiveBucket();
     virtual ~HotArchiveBucket()
     {
     }
     HotArchiveBucket(std::string const& filename, Hash const& hash,
                      std::unique_ptr<BucketIndex const>&& index);
-    uint32_t getBucketVersion() const override;
+    uint32_t getBucketVersion() const;
 
     static std::shared_ptr<HotArchiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
