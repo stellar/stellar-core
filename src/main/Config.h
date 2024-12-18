@@ -163,6 +163,7 @@ class Config : public std::enable_shared_from_this<Config>
 #endif
         TESTDB_BUCKET_DB_VOLATILE,
         TESTDB_BUCKET_DB_PERSISTENT,
+        TESTDB_BUCKET_DB_PERSISTENT_POSTGRES,
         TESTDB_MODES
     };
 
@@ -270,6 +271,11 @@ class Config : public std::enable_shared_from_this<Config>
     // picked up from the scheduler. This is useful to imitate a "slow" node.
     // This config should only be enabled when testing.
     std::chrono::microseconds ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING;
+
+    // A config parameter that forces stellar-core to sleep every time it closes
+    // a ledger if order to simulate slow application. This config should only
+    // be enabled when testing.
+    std::chrono::milliseconds ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING;
 
     // Timeout before publishing externalized values to archive
     std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
@@ -465,6 +471,9 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Enable parallel processing of overlay operations (experimental)
     bool BACKGROUND_OVERLAY_PROCESSING;
+
+    // Enable parallel block application (experimental)
+    bool EXPERIMENTAL_PARALLEL_LEDGER_CLOSE;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
@@ -794,6 +803,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
     void logBasicInfo() const;
+    bool parallelLedgerClose() const;
     void setNoListen();
     void setNoPublish();
 

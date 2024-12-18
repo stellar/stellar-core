@@ -63,7 +63,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
-    "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING"};
+    "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
+    "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -157,6 +158,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
+    EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
@@ -183,6 +185,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING = false;
     ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
         std::chrono::seconds::zero();
+    ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::milliseconds(0);
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
@@ -1065,6 +1068,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_OVERLAY_PROCESSING",
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
+                {"EXPERIMENTAL_PARALLEL_LEDGER_CLOSE",
+                 [&]() {
+                     EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = readBool(item);
+                 }},
+                {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                         std::chrono::milliseconds(readInt<uint32_t>(item));
+                 }},
                 // https://github.com/stellar/stellar-core/issues/4581
                 {"BACKGROUND_EVICTION_SCAN",
                  [&]() {
@@ -1774,6 +1786,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        if (EXPERIMENTAL_PARALLEL_LEDGER_CLOSE && !parallelLedgerClose())
+        {
+            std::string msg =
+                "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_CLOSE "
+                "does not support SQLite. Either switch to Postgres or set "
+                "EXPERIMENTAL_PARALLEL_LEDGER_CLOSE=false";
+            throw std::runtime_error(msg);
+        }
+
         // Check all loadgen distributions
         verifyLoadGenOpCountForTestingConfigs();
         verifyLoadGenDistribution(
@@ -2076,6 +2097,10 @@ Config::logBasicInfo() const
              "BACKGROUND_OVERLAY_PROCESSING="
              "{}",
              BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_PARALLEL_LEDGER_CLOSE="
+             "{}",
+             EXPERIMENTAL_PARALLEL_LEDGER_CLOSE ? "true" : "false");
 }
 
 void
@@ -2368,6 +2393,13 @@ bool
 Config::modeStoresAnyHistory() const
 {
     return MODE_STORES_HISTORY_LEDGERHEADERS || MODE_STORES_HISTORY_MISC;
+}
+
+bool
+Config::parallelLedgerClose() const
+{
+    return EXPERIMENTAL_PARALLEL_LEDGER_CLOSE &&
+           !(DATABASE.value.find("sqlite3://") != std::string::npos);
 }
 
 void
