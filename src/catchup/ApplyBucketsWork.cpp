@@ -207,20 +207,6 @@ ApplyBucketsWork::doWork()
     if (!mAssumeStateWork)
     {
         // Step 2: apply buckets.
-        if (mApp.getLedgerManager().rebuildingInMemoryState() && !mDelayChecked)
-        {
-            mDelayChecked = true;
-            auto delay = mApp.getConfig()
-                             .ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING;
-            if (delay != std::chrono::seconds::zero())
-            {
-                CLOG_INFO(History, "Delay bucket application by {} seconds",
-                          delay.count());
-                setupWaitingCallback(delay);
-                return State::WORK_WAITING;
-            }
-        }
-
         auto isCurr = mBucketToApplyIndex % 2 == 0;
         if (mBucketApplicator)
         {

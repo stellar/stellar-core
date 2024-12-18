@@ -178,20 +178,6 @@ LedgerManagerImpl::setState(State s)
         {
             mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
         }
-
-        if (mState == LM_CATCHING_UP_STATE && !mStartCatchup)
-        {
-            mStartCatchup = std::make_unique<VirtualClock::time_point>(
-                mApp.getClock().now());
-        }
-        else if (mState == LM_SYNCED_STATE && mStartCatchup)
-        {
-            std::chrono::nanoseconds duration =
-                mApp.getClock().now() - *mStartCatchup;
-            mCatchupDuration.Update(duration);
-            CLOG_DEBUG(Perf, "Caught up to the network in {} seconds",
-                       std::chrono::duration<double>(duration).count());
-        }
     }
 }
 
@@ -395,30 +381,6 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         updateNetworkConfig(ltx);
         mSorobanNetworkConfigReadOnly = mSorobanNetworkConfigForApply;
-    }
-}
-
-bool
-LedgerManagerImpl::rebuildingInMemoryState()
-{
-    return mRebuildInMemoryState;
-}
-
-void
-LedgerManagerImpl::setupInMemoryStateRebuild()
-{
-    if (!mRebuildInMemoryState)
-    {
-        LedgerHeader lh;
-        HistoryArchiveState has;
-        auto& ps = mApp.getPersistentState();
-        ps.setState(PersistentState::kLastClosedLedger,
-                    binToHex(xdrSha256(lh)));
-        ps.setState(PersistentState::kHistoryArchiveState, has.toString());
-        ps.setState(PersistentState::kLastSCPData, "");
-        ps.setState(PersistentState::kLastSCPDataXDR, "");
-        ps.setState(PersistentState::kLedgerUpgrades, "");
-        mRebuildInMemoryState = true;
     }
 }
 

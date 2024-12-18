@@ -161,11 +161,6 @@ class LedgerManager
     //  and restart merges
     virtual void loadLastKnownLedger(bool restoreBucketlist) = 0;
 
-    // Return true if core is currently rebuilding in-memory state via local
-    // catchup
-    virtual bool rebuildingInMemoryState() = 0;
-    virtual void setupInMemoryStateRebuild() = 0;
-
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers
     // that should be replayed. Normally this happens automatically when

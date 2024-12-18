@@ -186,8 +186,6 @@ class LedgerManagerImpl : public LedgerManager
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
     void loadLastKnownLedger(bool restoreBucketlist) override;
-    virtual bool rebuildingInMemoryState() override;
-    virtual void setupInMemoryStateRebuild() override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
