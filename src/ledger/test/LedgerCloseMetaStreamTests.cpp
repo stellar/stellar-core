@@ -421,8 +421,8 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                             .bucketListWindowSamplePeriod = 1;
                     });
 
-                // Modify Soroban network config closes a ledger
-                ++targetSeq;
+                // Modify Soroban network config closes 2 ledgers
+                targetSeq += 2;
             }
 
             auto root = TestAccount::createRoot(*app);

@@ -273,6 +273,22 @@ modifySorobanNetworkConfig(Application& app,
     {
         return;
     }
+
+    // In this upgrade path, cfg.writeAllSettings will call addBatch with and
+    // artificial ledgerSeq of lcl + 1. In order to properly refresh cached
+    // config setting state, we then close a "real" ledger with ledgerSeq == lcl
+    // + 1. This is usually fine. However, if lcl + 1 is a ledgerSeq that causes
+    // a Bucket merge event, we will erroneously merge the same level twice.
+    // This causes the BucketList to lose data.
+    // To prevent this, we check if lcl + 1 will cause a merge. If it does, we
+    // simply close a ledger to move on to lcl + 2. Note that if level 0 does
+    // not spill, no other level will spill.
+    if (LiveBucketList::levelShouldSpill(
+            app.getLedgerManager().getLastClosedLedgerNum() + 1, 0))
+    {
+        txtest::closeLedger(app);
+    }
+
     LedgerTxn ltx(app.getLedgerTxnRoot());
     app.getLedgerManager().updateNetworkConfig(ltx);
     auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig();
