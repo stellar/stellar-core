@@ -11,11 +11,11 @@
 
 namespace stellar
 {
-EvictionResult
+EvictionResultCandidates
 SearchableLiveBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,
     EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
-    StateArchivalSettings const& sas) const
+    StateArchivalSettings const& sas, uint32_t ledgerVers) const
 {
     releaseAssert(mSnapshot);
     releaseAssert(stats);
@@ -30,7 +30,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     LiveBucketList::updateStartingEvictionIterator(
         evictionIter, sas.startingEvictionScanLevel, ledgerSeq);
 
-    EvictionResult result(sas);
+    EvictionResultCandidates result(sas);
     auto startIter = evictionIter;
     auto scanSize = sas.evictionScanSize;
 
@@ -42,7 +42,8 @@ SearchableLiveBucketListSnapshot::scanForEviction(
 
         // If we scan scanSize before hitting bucket EOF, exit early
         if (b.scanForEviction(evictionIter, scanSize, ledgerSeq,
-                              result.eligibleKeys, *this) == Loop::COMPLETE)
+                              result.eligibleEntries, *this,
+                              ledgerVers) == Loop::COMPLETE)
         {
             break;
         }

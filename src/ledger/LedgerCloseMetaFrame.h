@@ -30,7 +30,8 @@ class LedgerCloseMetaFrame
 
     void populateTxSet(TxSetXDRFrame const& txSet);
 
-    void populateEvictedEntries(LedgerEntryChanges const& evictionChanges);
+    // Used for populating meta from background eviction scan
+    void populateEvictedEntries(EvictedStateVectors const& evictedState);
 
     void setNetworkConfiguration(SorobanNetworkConfig const& networkConfig,
                                  bool emitExtV1);

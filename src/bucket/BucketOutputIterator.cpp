@@ -64,6 +64,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);
             bme.metaEntry() = mMeta;
+            releaseAssertOrThrow(bme.metaEntry().ext.v() == 1);
             put(bme);
         }
 

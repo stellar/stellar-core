@@ -102,7 +102,7 @@ class BucketManager : NonMovableOrCopyable
     std::map<LedgerEntryTypeAndDurability, medida::Counter&>
         mBucketListEntrySizeCounters;
 
-    std::future<EvictionResult> mEvictionFuture{};
+    std::future<EvictionResultCandidates> mEvictionFuture{};
 
     // Copy app's config for thread-safe access
     Config const mConfig;
@@ -290,10 +290,17 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void startBackgroundEvictionScan(uint32_t ledgerSeq);
-    void resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx,
-                                       uint32_t ledgerSeq,
-                                       LedgerKeySet const& modifiedKeys);
+    void startBackgroundEvictionScan(uint32_t ledgerSeq, uint32_t ledgerVers);
+
+    // Returns a pair of vectors representing entries evicted this ledger, where
+    // the first vector constains all deleted keys (TTL and temporary), and
+    // the second vector contains all archived entries (persistent and
+    // ContractCode). Note that when an entry is archived, its TTL key will be
+    // included in the deleted keys vector.
+    EvictedStateVectors
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys,
+                                  uint32_t ledgerVers);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;

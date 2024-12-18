@@ -617,8 +617,18 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
     auto test = BucketIndexTest(cfg, /*levels=*/3);
     test.buildGeneralTest();
 
-    auto buckets = test.getBM().getBucketListReferencedBuckets();
-    for (auto const& bucketHash : buckets)
+    std::set<Hash> liveBuckets;
+    auto& liveBL = test.getBM().getLiveBucketList();
+    for (auto i = 0; i < LiveBucketList::kNumLevels; ++i)
+    {
+        auto level = liveBL.getLevel(i);
+        for (auto const& b : {level.getCurr(), level.getSnap()})
+        {
+            liveBuckets.emplace(b->getHash());
+        }
+    }
+
+    for (auto const& bucketHash : liveBuckets)
     {
         if (isZero(bucketHash))
         {
@@ -647,7 +657,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
     cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
     test.restartWithConfig(cfg);
 
-    for (auto const& bucketHash : buckets)
+    for (auto const& bucketHash : liveBuckets)
     {
         if (isZero(bucketHash))
         {

@@ -589,11 +589,22 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
 
     if constexpr (std::is_same_v<IndexT, RangeIndex>)
     {
-        releaseAssert(mData.filter);
-        releaseAssert(in.mData.filter);
-        if (!(*(mData.filter) == *(in.mData.filter)))
+        // If both indexes have a filter, check if they are equal
+        if (mData.filter && in.mData.filter)
         {
-            return false;
+            if (!(*(mData.filter) == *(in.mData.filter)))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // If both indexes don't fave a filter, check that each filter is
+            // null
+            if (mData.filter || in.mData.filter)
+            {
+                return false;
+            }
         }
     }
     else
