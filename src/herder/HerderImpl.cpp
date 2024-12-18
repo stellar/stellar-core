@@ -1988,7 +1988,7 @@ HerderImpl::restoreSCPState()
 
     // Load all known tx sets
     auto latestTxSets = mApp.getPersistentState().getTxSetsForAllSlots();
-    for (auto const& txSet : latestTxSets)
+    for (auto const& [_, txSet] : latestTxSets)
     {
         try
         {
@@ -2017,7 +2017,7 @@ HerderImpl::restoreSCPState()
     // load saved state from database
     auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
 
-    for (auto const& state : latest64)
+    for (auto const& [_, state] : latest64)
     {
         try
         {
@@ -2057,16 +2057,19 @@ void
 HerderImpl::persistUpgrades()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto s = mUpgrades.getParameters().toJson();
-    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s);
+    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s,
+                                       mApp.getDatabase().getSession());
 }
 
 void
 HerderImpl::restoreUpgrades()
 {
     ZoneScoped;
-    std::string s =
-        mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
+    releaseAssert(threadIsMain());
+    std::string s = mApp.getPersistentState().getState(
+        PersistentState::kLedgerUpgrades, mApp.getDatabase().getSession());
     if (!s.empty())
     {
         Upgrades::UpgradeParameters p;
@@ -2223,7 +2226,7 @@ HerderImpl::purgeOldPersistedTxSets()
     {
         auto hashesToDelete =
             mApp.getPersistentState().getTxSetHashesForAllSlots();
-        for (auto const& state :
+        for (auto const& [_, state] :
              mApp.getPersistentState().getSCPStateAllSlots())
         {
             try
