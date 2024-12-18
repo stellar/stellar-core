@@ -14,6 +14,7 @@
 #include <set>
 #include <soci.h>
 #include <string>
+#include <unordered_map>
 #include <xdrpp/marshal.h>
 
 namespace medida
@@ -26,6 +27,12 @@ namespace stellar
 {
 class Application;
 class SQLLogContext;
+using PreparedStatementCache =
+    std::map<std::string, std::shared_ptr<soci::statement>>;
+
+// smallest schema version supported
+static constexpr unsigned long MIN_SCHEMA_VERSION = 21;
+static constexpr unsigned long SCHEMA_VERSION = 24;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -60,6 +67,33 @@ class StatementContext : NonCopyable
     }
 };
 
+class SessionWrapper : NonCopyable
+{
+    soci::session mSession;
+    std::string const mSessionName;
+
+  public:
+    SessionWrapper(std::string sessionName)
+        : mSessionName(std::move(sessionName))
+    {
+    }
+    SessionWrapper(std::string sessionName, soci::connection_pool& pool)
+        : mSession(pool), mSessionName(std::move(sessionName))
+    {
+    }
+
+    soci::session&
+    session()
+    {
+        return mSession;
+    }
+    std::string const&
+    getSessionName() const
+    {
+        return mSessionName;
+    }
+};
+
 /**
  * Object that owns the database connection(s) that an application
  * uses to store the current ledger and other persistent state in.
@@ -84,22 +118,30 @@ class StatementContext : NonCopyable
  * (SQL isolation level 'SERIALIZABLE' in Postgresql and Sqlite, neither of
  * which provide true serializability).
  */
+
 class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
-    soci::session mSession;
+    SessionWrapper mSession;
+
     std::unique_ptr<soci::connection_pool> mPool;
 
-    std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
-    medida::Counter& mStatementsSize;
+    // Cache key -> session name <> query
+    using PreparedStatementCache =
+        std::unordered_map<std::string, std::shared_ptr<soci::statement>>;
+    std::unordered_map<std::string, PreparedStatementCache> mCaches;
 
-    std::set<std::string> mEntityTypes;
+    medida::Counter& mStatementsSize;
 
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
     void open();
+    // Save `vers` as schema version.
+    void putSchemaVersion(unsigned long vers);
+
+    std::mutex mutable mStatementsMutex;
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
@@ -118,11 +160,14 @@ class Database : NonMovableOrCopyable
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
     // is created if necessary before borrowing, and reset (unbound from data)
-    // when the statement context is destroyed.
-    StatementContext getPreparedStatement(std::string const& query);
+    // when the statement context is destroyed. Prepared statements caches are
+    // per DB session.
+    StatementContext getPreparedStatement(std::string const& query,
+                                          SessionWrapper& session);
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
+    void clearPreparedStatementCache(SessionWrapper& session);
     void clearPreparedStatementCache();
 
     // Return metric-gathering timers for various families of SQL operation.
@@ -151,7 +196,8 @@ class Database : NonMovableOrCopyable
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
-    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op);
+    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
+                                      SessionWrapper& session);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -161,14 +207,8 @@ class Database : NonMovableOrCopyable
     // by the new-db command on stellar-core.
     void initialize();
 
-    // Save `vers` as schema version.
-    void putSchemaVersion(unsigned long vers);
-
     // Get current schema version in DB.
     unsigned long getDBSchemaVersion();
-
-    // Get current schema version of running application.
-    unsigned long getAppSchemaVersion();
 
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
@@ -176,8 +216,11 @@ class Database : NonMovableOrCopyable
     void dropTxMetaIfExists();
     void maybeUpgradeToBucketListDB();
 
+    // Soci named session wrapper
+    SessionWrapper& getSession();
     // Access the underlying SOCI session object
-    soci::session& getSession();
+    // Use these to directly access the soci session object
+    soci::session& getRawSession();
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
@@ -210,9 +253,9 @@ doDatabaseTypeSpecificOperation(soci::session& session,
 template <typename T>
 T
 Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
-                                          soci::session& session)
+                                          SessionWrapper& session)
 {
-    return stellar::doDatabaseTypeSpecificOperation(session, op);
+    return stellar::doDatabaseTypeSpecificOperation(session.session(), op);
 }
 
 template <typename T>
