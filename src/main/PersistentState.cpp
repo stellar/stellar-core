@@ -149,32 +149,24 @@ PersistentState::setSCPStateV1ForSlot(
 }
 
 bool
-PersistentState::shouldRebuildForType(LedgerEntryType let)
+PersistentState::shouldRebuildForOfferTable()
 {
     ZoneScoped;
-    return !getFromDb(getStoreStateName(kRebuildLedger, let)).empty();
+    return !getFromDb(getStoreStateName(kRebuildLedger, OFFER)).empty();
 }
 
 void
-PersistentState::clearRebuildForType(LedgerEntryType let)
+PersistentState::clearRebuildForOfferTable()
 {
     ZoneScoped;
-    updateDb(getStoreStateName(kRebuildLedger, let), "");
+    updateDb(getStoreStateName(kRebuildLedger, OFFER), "");
 }
 
 void
-PersistentState::setRebuildForType(LedgerEntryType let)
+PersistentState::setRebuildForOfferTable()
 {
     ZoneScoped;
-
-    // Only allow rebuilds for offer table if BucketListDB enabled, other tables
-    // don't exist
-    if (mApp.getConfig().isUsingBucketListDB() && let != OFFER)
-    {
-        return;
-    }
-
-    updateDb(getStoreStateName(kRebuildLedger, let), "1");
+    updateDb(getStoreStateName(kRebuildLedger, OFFER), "1");
 }
 
 void

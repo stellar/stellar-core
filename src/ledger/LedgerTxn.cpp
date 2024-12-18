@@ -2002,83 +2002,22 @@ LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
 }
 
 uint64_t
-LedgerTxn::countObjects(LedgerEntryType let) const
+LedgerTxn::countOffers(LedgerRange const& ledgers) const
 {
-    throw std::runtime_error("called countObjects on non-root LedgerTxn");
-}
-
-uint64_t
-LedgerTxn::countObjects(LedgerEntryType let, LedgerRange const& ledgers) const
-{
-    throw std::runtime_error("called countObjects on non-root LedgerTxn");
+    throw std::runtime_error("called countOffers on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     throw std::runtime_error(
-        "called deleteObjectsModifiedOnOrAfterLedger on non-root LedgerTxn");
+        "called deleteOffersModifiedOnOrAfterLedger on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropAccounts(bool rebuild)
-{
-    throw std::runtime_error("called dropAccounts on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropData(bool rebuild)
-{
-    throw std::runtime_error("called dropData on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropOffers(bool rebuild)
+LedgerTxn::dropOffers()
 {
     throw std::runtime_error("called dropOffers on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropTrustLines(bool rebuild)
-{
-    throw std::runtime_error("called dropTrustLines on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropClaimableBalances(bool rebuild)
-{
-    throw std::runtime_error(
-        "called dropClaimableBalances on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropLiquidityPools(bool rebuild)
-{
-    throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropContractData(bool rebuild)
-{
-    throw std::runtime_error("called dropContractData on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropContractCode(bool rebuild)
-{
-    throw std::runtime_error("called dropContractCode on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropConfigSettings(bool rebuild)
-{
-    throw std::runtime_error("called dropConfigSettings on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropTTL(bool rebuild)
-{
-    throw std::runtime_error("called dropTTL on non-root LedgerTxn");
 }
 
 double
@@ -2610,8 +2549,7 @@ accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
 
 // Return true only if something is actually accumulated and not skipped over
 bool
-BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
-                                             bool bucketListDBEnabled)
+BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
 {
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
     if (iter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
@@ -2619,55 +2557,15 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         return false;
     }
 
-    // Don't accumulate entry types that are supported by BucketListDB when it
-    // is enabled
+    // Don't accumulate entry types that are supported by BucketListDB
     auto type = iter.key().ledgerKey().type();
-    if (bucketListDBEnabled && !BucketIndex::typeNotSupported(type))
+    if (!BucketIndex::typeNotSupported(type))
     {
         return false;
     }
 
-    switch (type)
-    {
-    case ACCOUNT:
-        accum(iter, mAccountsToUpsert, mAccountsToDelete);
-        break;
-    case TRUSTLINE:
-        accum(iter, mTrustLinesToUpsert, mTrustLinesToDelete);
-        break;
-    case OFFER:
-        accum(iter, mOffersToUpsert, mOffersToDelete);
-        break;
-    case DATA:
-        accum(iter, mAccountDataToUpsert, mAccountDataToDelete);
-        break;
-    case CLAIMABLE_BALANCE:
-        accum(iter, mClaimableBalanceToUpsert, mClaimableBalanceToDelete);
-        break;
-    case LIQUIDITY_POOL:
-        accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
-        break;
-    case CONTRACT_DATA:
-        accum(iter, mContractDataToUpsert, mContractDataToDelete);
-        break;
-    case CONTRACT_CODE:
-        accum(iter, mContractCodeToUpsert, mContractCodeToDelete);
-        break;
-    case CONFIG_SETTING:
-    {
-        // Configuration can not be deleted.
-        releaseAssert(iter.entryExists());
-        std::vector<EntryIterator> emptyEntries;
-        accum(iter, mConfigSettingsToUpsert, emptyEntries);
-        break;
-    }
-    case TTL:
-        accum(iter, mTTLToUpsert, mTTLToDelete);
-        break;
-    default:
-        abort();
-    }
-
+    releaseAssertOrThrow(type == OFFER);
+    accum(iter, mOffersToUpsert, mOffersToDelete);
     return true;
 }
 
@@ -2676,30 +2574,7 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                                size_t bufferThreshold,
                                LedgerTxnConsistency cons)
 {
-    auto& upsertAccounts = bleca.getAccountsToUpsert();
-    if (upsertAccounts.size() > bufferThreshold)
-    {
-        bulkUpsertAccounts(upsertAccounts);
-        upsertAccounts.clear();
-    }
-    auto& deleteAccounts = bleca.getAccountsToDelete();
-    if (deleteAccounts.size() > bufferThreshold)
-    {
-        bulkDeleteAccounts(deleteAccounts, cons);
-        deleteAccounts.clear();
-    }
-    auto& upsertTrustLines = bleca.getTrustLinesToUpsert();
-    if (upsertTrustLines.size() > bufferThreshold)
-    {
-        bulkUpsertTrustLines(upsertTrustLines);
-        upsertTrustLines.clear();
-    }
-    auto& deleteTrustLines = bleca.getTrustLinesToDelete();
-    if (deleteTrustLines.size() > bufferThreshold)
-    {
-        bulkDeleteTrustLines(deleteTrustLines, cons);
-        deleteTrustLines.clear();
-    }
+
     auto& upsertOffers = bleca.getOffersToUpsert();
     if (upsertOffers.size() > bufferThreshold)
     {
@@ -2711,87 +2586,6 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     {
         bulkDeleteOffers(deleteOffers, cons);
         deleteOffers.clear();
-    }
-    auto& upsertAccountData = bleca.getAccountDataToUpsert();
-    if (upsertAccountData.size() > bufferThreshold)
-    {
-        bulkUpsertAccountData(upsertAccountData);
-        upsertAccountData.clear();
-    }
-    auto& deleteAccountData = bleca.getAccountDataToDelete();
-    if (deleteAccountData.size() > bufferThreshold)
-    {
-        bulkDeleteAccountData(deleteAccountData, cons);
-        deleteAccountData.clear();
-    }
-    auto& upsertClaimableBalance = bleca.getClaimableBalanceToUpsert();
-    if (upsertClaimableBalance.size() > bufferThreshold)
-    {
-        bulkUpsertClaimableBalance(upsertClaimableBalance);
-        upsertClaimableBalance.clear();
-    }
-    auto& deleteClaimableBalance = bleca.getClaimableBalanceToDelete();
-    if (deleteClaimableBalance.size() > bufferThreshold)
-    {
-        bulkDeleteClaimableBalance(deleteClaimableBalance, cons);
-        deleteClaimableBalance.clear();
-    }
-    auto& upsertLiquidityPool = bleca.getLiquidityPoolToUpsert();
-    if (upsertLiquidityPool.size() > bufferThreshold)
-    {
-        bulkUpsertLiquidityPool(upsertLiquidityPool);
-        upsertLiquidityPool.clear();
-    }
-    auto& deleteLiquidityPool = bleca.getLiquidityPoolToDelete();
-    if (deleteLiquidityPool.size() > bufferThreshold)
-    {
-        bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
-        deleteLiquidityPool.clear();
-    }
-    auto& upsertConfigSettings = bleca.getConfigSettingsToUpsert();
-    if (upsertConfigSettings.size() > bufferThreshold)
-    {
-        bulkUpsertConfigSettings(upsertConfigSettings);
-        upsertConfigSettings.clear();
-    }
-    auto& upsertContractData = bleca.getContractDataToUpsert();
-    if (upsertContractData.size() > bufferThreshold)
-    {
-        bulkUpsertContractData(upsertContractData);
-        upsertContractData.clear();
-    }
-    auto& deleteContractData = bleca.getContractDataToDelete();
-    if (deleteContractData.size() > bufferThreshold)
-    {
-        bulkDeleteContractData(deleteContractData, cons);
-        deleteContractData.clear();
-    }
-
-    auto& upsertContractCode = bleca.getContractCodeToUpsert();
-    if (upsertContractCode.size() > bufferThreshold)
-    {
-        bulkUpsertContractCode(upsertContractCode);
-        upsertContractCode.clear();
-    }
-    auto& deleteContractCode = bleca.getContractCodeToDelete();
-    if (deleteContractCode.size() > bufferThreshold)
-    {
-        bulkDeleteContractCode(deleteContractCode, cons);
-        deleteContractCode.clear();
-    }
-
-    auto& upsertTTL = bleca.getTTLToUpsert();
-    if (upsertTTL.size() > bufferThreshold)
-    {
-        bulkUpsertTTL(upsertTTL);
-        upsertTTL.clear();
-    }
-
-    auto& deleteTTL = bleca.getTTLToDelete();
-    if (deleteTTL.size() > bufferThreshold)
-    {
-        bulkDeleteTTL(deleteTTL, cons);
-        deleteTTL.clear();
     }
 }
 
@@ -2814,14 +2608,13 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
 
-    auto bucketListDBEnabled = mApp.getConfig().isUsingBucketListDB();
     auto bleca = BulkLedgerEntryChangeAccumulator();
     [[maybe_unused]] int64_t counter{0};
     try
     {
         while ((bool)iter)
         {
-            if (bleca.accumulate(iter, bucketListDBEnabled))
+            if (bleca.accumulate(iter))
             {
                 ++counter;
             }
@@ -2869,71 +2662,19 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     mPrefetchMisses = 0;
 }
 
-std::string
-LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
+uint64_t
+LedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
-    switch (let)
-    {
-    case ACCOUNT:
-        return "accounts";
-    case DATA:
-        return "accountdata";
-    case OFFER:
-        return "offers";
-    case TRUSTLINE:
-        return "trustlines";
-    case CLAIMABLE_BALANCE:
-        return "claimablebalance";
-    case LIQUIDITY_POOL:
-        return "liquiditypool";
-    case CONTRACT_DATA:
-        return "contractdata";
-    case CONTRACT_CODE:
-        return "contractcode";
-    case CONFIG_SETTING:
-        return "configsettings";
-    case TTL:
-        return "ttl";
-    default:
-        throw std::runtime_error("Unknown ledger entry type");
-    }
+    return mImpl->countOffers(ledgers);
 }
 
 uint64_t
-LedgerTxnRoot::countObjects(LedgerEntryType let) const
-{
-    return mImpl->countObjects(let);
-}
-
-uint64_t
-LedgerTxnRoot::Impl::countObjects(LedgerEntryType let) const
+LedgerTxnRoot::Impl::countOffers(LedgerRange const& ledgers) const
 {
     using namespace soci;
     throwIfChild();
 
-    std::string query =
-        "SELECT COUNT(*) FROM " + tableFromLedgerEntryType(let) + ";";
-    uint64_t count = 0;
-    mApp.getDatabase().getSession() << query, into(count);
-    return count;
-}
-
-uint64_t
-LedgerTxnRoot::countObjects(LedgerEntryType let,
-                            LedgerRange const& ledgers) const
-{
-    return mImpl->countObjects(let, ledgers);
-}
-
-uint64_t
-LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
-                                  LedgerRange const& ledgers) const
-{
-    using namespace soci;
-    throwIfChild();
-
-    std::string query = "SELECT COUNT(*) FROM " +
-                        tableFromLedgerEntryType(let) +
+    std::string query = "SELECT COUNT(*) FROM offers"
                         " WHERE lastmodified >= :v1 AND lastmodified < :v2;";
     uint64_t count = 0;
     int first = static_cast<int>(ledgers.mFirst);
@@ -2944,86 +2685,27 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
 }
 
 void
-LedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
-    return mImpl->deleteObjectsModifiedOnOrAfterLedger(ledger);
+    return mImpl->deleteOffersModifiedOnOrAfterLedger(ledger);
 }
 
 void
-LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     using namespace soci;
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        std::string query = "DELETE FROM " + tableFromLedgerEntryType(t) +
-                            " WHERE lastmodified >= :v1";
-        mApp.getDatabase().getSession() << query, use(ledger);
-    }
+    std::string query = "DELETE FROM offers WHERE lastmodified >= :v1";
+    mApp.getDatabase().getSession() << query, use(ledger);
 }
 
 void
-LedgerTxnRoot::dropAccounts(bool rebuild)
+LedgerTxnRoot::dropOffers()
 {
-    mImpl->dropAccounts(rebuild);
-}
-
-void
-LedgerTxnRoot::dropData(bool rebuild)
-{
-    mImpl->dropData(rebuild);
-}
-
-void
-LedgerTxnRoot::dropOffers(bool rebuild)
-{
-    mImpl->dropOffers(rebuild);
-}
-
-void
-LedgerTxnRoot::dropTrustLines(bool rebuild)
-{
-    mImpl->dropTrustLines(rebuild);
-}
-
-void
-LedgerTxnRoot::dropClaimableBalances(bool rebuild)
-{
-    mImpl->dropClaimableBalances(rebuild);
-}
-
-void
-LedgerTxnRoot::dropLiquidityPools(bool rebuild)
-{
-    mImpl->dropLiquidityPools(rebuild);
-}
-
-void
-LedgerTxnRoot::dropContractData(bool rebuild)
-{
-    mImpl->dropContractData(rebuild);
-}
-
-void
-LedgerTxnRoot::dropContractCode(bool rebuild)
-{
-    mImpl->dropContractCode(rebuild);
-}
-
-void
-LedgerTxnRoot::dropConfigSettings(bool rebuild)
-{
-    mImpl->dropConfigSettings(rebuild);
-}
-
-void
-LedgerTxnRoot::dropTTL(bool rebuild)
-{
-    mImpl->dropTTL(rebuild);
+    mImpl->dropOffers();
 }
 
 uint32_t
@@ -3096,128 +2778,14 @@ LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
         }
     };
 
-    if (mApp.getConfig().isUsingBucketListDB())
+    LedgerKeySet keysToSearch;
+    for (auto const& key : keys)
     {
-        LedgerKeySet keysToSearch;
-        for (auto const& key : keys)
-        {
-            insertIfNotLoaded(keysToSearch, key);
-        }
-        auto blLoad = getSearchableLiveBucketListSnapshot().loadKeysWithLimits(
-            keysToSearch, lkMeter);
-        cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
+        insertIfNotLoaded(keysToSearch, key);
     }
-    else
-    {
-        UnorderedSet<LedgerKey> accounts;
-        UnorderedSet<LedgerKey> offers;
-        UnorderedSet<LedgerKey> trustlines;
-        UnorderedSet<LedgerKey> data;
-        UnorderedSet<LedgerKey> claimablebalance;
-        UnorderedSet<LedgerKey> liquiditypool;
-        UnorderedSet<LedgerKey> contractdata;
-        UnorderedSet<LedgerKey> configSettings;
-        UnorderedSet<LedgerKey> contractCode;
-        UnorderedSet<LedgerKey> ttl;
-
-        for (auto const& key : keys)
-        {
-            switch (key.type())
-            {
-            case ACCOUNT:
-                insertIfNotLoaded(accounts, key);
-                if (accounts.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadAccounts(accounts));
-                    accounts.clear();
-                }
-                break;
-            case OFFER:
-                insertIfNotLoaded(offers, key);
-                if (offers.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadOffers(offers));
-                    offers.clear();
-                }
-                break;
-            case TRUSTLINE:
-                insertIfNotLoaded(trustlines, key);
-                if (trustlines.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadTrustLines(trustlines));
-                    trustlines.clear();
-                }
-                break;
-            case DATA:
-                insertIfNotLoaded(data, key);
-                if (data.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadData(data));
-                    data.clear();
-                }
-                break;
-            case CLAIMABLE_BALANCE:
-                insertIfNotLoaded(claimablebalance, key);
-                if (claimablebalance.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadClaimableBalance(claimablebalance));
-                    claimablebalance.clear();
-                }
-                break;
-            case LIQUIDITY_POOL:
-                insertIfNotLoaded(liquiditypool, key);
-                if (liquiditypool.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadLiquidityPool(liquiditypool));
-                    liquiditypool.clear();
-                }
-                break;
-            case CONTRACT_DATA:
-                insertIfNotLoaded(contractdata, key);
-                if (contractdata.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadContractData(contractdata));
-                    contractdata.clear();
-                }
-                break;
-            case CONTRACT_CODE:
-                insertIfNotLoaded(contractCode, key);
-                if (contractCode.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadContractCode(contractCode));
-                    contractCode.clear();
-                }
-                break;
-            case CONFIG_SETTING:
-                insertIfNotLoaded(configSettings, key);
-                if (configSettings.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadConfigSettings(configSettings));
-                    configSettings.clear();
-                }
-                break;
-            case TTL:
-                insertIfNotLoaded(ttl, key);
-                if (ttl.size() == mBulkLoadBatchSize)
-                {
-                    cacheResult(bulkLoadTTL(ttl));
-                    ttl.clear();
-                }
-            }
-        }
-
-        //  Prefetch whatever is remaining
-        cacheResult(bulkLoadAccounts(accounts));
-        cacheResult(bulkLoadOffers(offers));
-        cacheResult(bulkLoadTrustLines(trustlines));
-        cacheResult(bulkLoadData(data));
-        cacheResult(bulkLoadClaimableBalance(claimablebalance));
-        cacheResult(bulkLoadLiquidityPool(liquiditypool));
-        cacheResult(bulkLoadConfigSettings(configSettings));
-        cacheResult(bulkLoadContractData(contractdata));
-        cacheResult(bulkLoadContractCode(contractCode));
-        cacheResult(bulkLoadTTL(ttl));
-    }
+    auto blLoad = getSearchableLiveBucketListSnapshot().loadKeysWithLimits(
+        keysToSearch, lkMeter);
+    cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
 
     return total;
 }
@@ -3489,7 +3057,6 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
 SearchableLiveBucketListSnapshot&
 LedgerTxnRoot::Impl::getSearchableLiveBucketListSnapshot() const
 {
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
     if (!mSearchableBucketListSnapshot)
     {
         mSearchableBucketListSnapshot =
@@ -3633,17 +3200,9 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     std::vector<LedgerEntry> trustLines;
     try
     {
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            trustLines =
-                getSearchableLiveBucketListSnapshot()
-                    .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
-        }
-        else
-        {
-            trustLines =
-                loadPoolShareTrustLinesByAccountAndAsset(account, asset);
-        }
+        trustLines =
+            getSearchableLiveBucketListSnapshot()
+                .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
     }
     catch (NonSociRelatedException&)
     {
@@ -3697,15 +3256,8 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 {
     try
     {
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            return getSearchableLiveBucketListSnapshot().loadInflationWinners(
-                maxWinners, minVotes);
-        }
-        else
-        {
-            return loadInflationWinners(maxWinners, minVotes);
-        }
+        return getSearchableLiveBucketListSnapshot().loadInflationWinners(
+            maxWinners, minVotes);
     }
     catch (std::exception& e)
     {
@@ -3753,47 +3305,13 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     std::shared_ptr<LedgerEntry const> entry;
     try
     {
-        if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
+        if (key.type() != OFFER)
         {
             entry = getSearchableLiveBucketListSnapshot().load(key);
         }
         else
         {
-            switch (key.type())
-            {
-            case ACCOUNT:
-                entry = loadAccount(key);
-                break;
-            case DATA:
-                entry = loadData(key);
-                break;
-            case OFFER:
-                entry = loadOffer(key);
-                break;
-            case TRUSTLINE:
-                entry = loadTrustLine(key);
-                break;
-            case CLAIMABLE_BALANCE:
-                entry = loadClaimableBalance(key);
-                break;
-            case LIQUIDITY_POOL:
-                entry = loadLiquidityPool(key);
-                break;
-            case CONTRACT_DATA:
-                entry = loadContractData(key);
-                break;
-            case CONTRACT_CODE:
-                entry = loadContractCode(key);
-                break;
-            case CONFIG_SETTING:
-                entry = loadConfigSetting(key);
-                break;
-            case TTL:
-                entry = loadTTL(key);
-                break;
-            default:
-                throw std::runtime_error("Unknown key type");
-            }
+            entry = loadOffer(key);
         }
     }
     catch (NonSociRelatedException&)

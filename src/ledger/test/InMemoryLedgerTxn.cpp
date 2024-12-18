@@ -360,28 +360,21 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
 }
 
 void
-InMemoryLedgerTxn::dropOffers(bool rebuild)
+InMemoryLedgerTxn::dropOffers()
 {
-    mRealRootForOffers.dropOffers(rebuild);
+    mRealRootForOffers.dropOffers();
 }
 
 uint64_t
-InMemoryLedgerTxn::countObjects(LedgerEntryType let) const
+InMemoryLedgerTxn::countOffers(LedgerRange const& ledgers) const
 {
-    return mRealRootForOffers.countObjects(let);
-}
-
-uint64_t
-InMemoryLedgerTxn::countObjects(LedgerEntryType let,
-                                LedgerRange const& ledgers) const
-{
-    return mRealRootForOffers.countObjects(let, ledgers);
+    return mRealRootForOffers.countOffers(ledgers);
 }
 
 void
-InMemoryLedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+InMemoryLedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
-    mRealRootForOffers.deleteObjectsModifiedOnOrAfterLedger(ledger);
+    mRealRootForOffers.deleteOffersModifiedOnOrAfterLedger(ledger);
 }
 
 UnorderedMap<LedgerKey, LedgerEntry>

@@ -285,7 +285,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         case Config::TESTDB_BUCKET_DB_VOLATILE:
         case Config::TESTDB_IN_MEMORY:
             dbname << "sqlite3://:memory:";
-            thisConfig.BACKGROUND_EVICTION_SCAN = false;
             break;
         case Config::TESTDB_BUCKET_DB_PERSISTENT:
             dbname << "sqlite3://" << rootDir << "test.db";
@@ -295,7 +294,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         case Config::TESTDB_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
             thisConfig.DISABLE_XDR_FSYNC = false;
-            thisConfig.BACKGROUND_EVICTION_SCAN = false;
             break;
 #endif
         default:

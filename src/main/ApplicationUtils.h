@@ -55,8 +55,6 @@ int catchup(Application::pointer app, CatchupConfiguration cc,
 // Reduild ledger state based on the buckets. Ensure ledger state is properly
 // reset before calling this function.
 bool applyBucketsForLCL(Application& app);
-bool applyBucketsForLCL(Application& app,
-                        std::function<bool(LedgerEntryType)> onlyApply);
 int publish(Application::pointer app);
 std::string minimalDBForInMemoryMode(Config const& cfg);
 bool canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl);

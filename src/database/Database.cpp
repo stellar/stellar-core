@@ -252,49 +252,53 @@ Database::upgradeToCurrentSchema()
         putSchemaVersion(vers);
     }
 
-    // While not really a schema upgrade, we need to upgrade the DB when
-    // BucketListDB is enabled.
-    if (mApp.getConfig().isUsingBucketListDB())
-    {
-        // Tx meta column no longer supported in BucketListDB
-        dropTxMetaIfExists();
-    }
+    maybeUpgradeToBucketListDB();
 
     CLOG_INFO(Database, "DB schema is in current version");
     releaseAssert(vers == SCHEMA_VERSION);
 }
 
 void
-Database::dropTxMetaIfExists()
+Database::maybeUpgradeToBucketListDB()
 {
-    int txMetaExists{};
-    std::string selectStr;
-    if (isSqlite())
+    if (mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
+        BucketIndex::DB_BACKEND_STATE)
     {
-        selectStr = "SELECT EXISTS ("
-                    "SELECT 1 "
-                    "FROM pragma_table_info('txhistory') "
-                    "WHERE name = 'txmeta');";
-    }
-    else
-    {
-        selectStr = "SELECT EXISTS ("
-                    "SELECT 1 "
-                    "FROM information_schema.columns "
-                    "WHERE "
-                    "table_name = 'txhistory' AND "
-                    "column_name = 'txmeta');";
-    }
+        CLOG_INFO(Database, "Upgrading to BucketListDB");
 
-    auto& st = getPreparedStatement(selectStr).statement();
-    st.exchange(soci::into(txMetaExists));
-    st.define_and_bind();
-    st.execute(true);
+        // Drop all LedgerEntry tables except for offers
+        CLOG_INFO(Database, "Dropping table accounts");
+        getSession() << "DROP TABLE IF EXISTS accounts;";
 
-    if (txMetaExists)
-    {
-        CLOG_INFO(Database, "Dropping txmeta column from txhistory table");
-        getSession() << "ALTER TABLE txhistory DROP COLUMN txmeta;";
+        CLOG_INFO(Database, "Dropping table signers");
+        getSession() << "DROP TABLE IF EXISTS signers;";
+
+        CLOG_INFO(Database, "Dropping table claimablebalance");
+        getSession() << "DROP TABLE IF EXISTS claimablebalance;";
+
+        CLOG_INFO(Database, "Dropping table configsettings");
+        getSession() << "DROP TABLE IF EXISTS configsettings;";
+
+        CLOG_INFO(Database, "Dropping table contractcode");
+        getSession() << "DROP TABLE IF EXISTS contractcode;";
+
+        CLOG_INFO(Database, "Dropping table contractdata");
+        getSession() << "DROP TABLE IF EXISTS contractdata;";
+
+        CLOG_INFO(Database, "Dropping table accountdata");
+        getSession() << "DROP TABLE IF EXISTS accountdata;";
+
+        CLOG_INFO(Database, "Dropping table liquiditypool");
+        getSession() << "DROP TABLE IF EXISTS liquiditypool;";
+
+        CLOG_INFO(Database, "Dropping table trustlines");
+        getSession() << "DROP TABLE IF EXISTS trustlines;";
+
+        CLOG_INFO(Database, "Dropping table ttl");
+        getSession() << "DROP TABLE IF EXISTS ttl;";
+
+        mApp.getPersistentState().setState(PersistentState::kDBBackend,
+                                           BucketIndex::DB_BACKEND_STATE);
     }
 }
 

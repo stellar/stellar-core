@@ -64,22 +64,11 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
 
-    uint64_t countObjects(LedgerEntryType let) const override;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
 
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
-    void dropAccounts(bool rebuild) override;
-    void dropData(bool rebuild) override;
-    void dropOffers(bool rebuild) override;
-    void dropTrustLines(bool rebuild) override;
-    void dropClaimableBalances(bool rebuild) override;
-    void dropLiquidityPools(bool rebuild) override;
-    void dropContractData(bool rebuild) override;
-    void dropContractCode(bool rebuild) override;
-    void dropConfigSettings(bool rebuild) override;
-    void dropTTL(bool rebuild) override;
+    void dropOffers() override;
     double getPrefetchHitRate() const override;
     uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) override;
     uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,

@@ -39,8 +39,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
 
-    return out.getBucket(bucketManager,
-                         bucketManager.getConfig().isUsingBucketListDB());
+    return out.getBucket(bucketManager);
 }
 
 std::vector<HotArchiveBucketEntry>

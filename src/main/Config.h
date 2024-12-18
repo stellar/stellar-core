@@ -441,10 +441,6 @@ class Config : public std::enable_shared_from_this<Config>
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
 
-    // A config parameter that when set uses SQL as the primary
-    // key-value store for LedgerEntry lookups instead of BucketListDB.
-    bool DEPRECATED_SQL_LEDGER_STATE;
-
     // Page size exponent used by BucketIndex when indexing ranges of
     // BucketEntry's. If set to 0, BucketEntry's are individually indexed.
     // Otherwise, pageSize ==
@@ -468,10 +464,6 @@ class Config : public std::enable_shared_from_this<Config>
     // NODE_IS_VALIDATOR=true, this value is ingnored and indexes are never
     // persisted.
     bool BUCKETLIST_DB_PERSIST_INDEX;
-
-    // When set to true, eviction scans occur on the background thread,
-    // increasing performance. Requires EXPERIMENTAL_BUCKETLIST_DB.
-    bool BACKGROUND_EVICTION_SCAN;
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
@@ -792,8 +784,6 @@ class Config : public std::enable_shared_from_this<Config>
     std::chrono::seconds getExpectedLedgerCloseTime() const;
 
     bool modeDoesCatchupWithBucketList() const;
-    bool isUsingBucketListDB() const;
-    bool isUsingBackgroundEviction() const;
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;

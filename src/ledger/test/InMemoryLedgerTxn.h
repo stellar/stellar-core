@@ -133,13 +133,9 @@ class InMemoryLedgerTxn : public LedgerTxn
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) override;
 
-    void dropOffers(bool rebuild) override;
-
-    uint64_t countObjects(LedgerEntryType let) const override;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const override;
-
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    void dropOffers() override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
 #ifdef BEST_OFFER_DEBUGGING
     virtual bool bestOfferDebuggingEnabled() const override;
@@ -150,5 +146,4 @@ class InMemoryLedgerTxn : public LedgerTxn
                      std::unordered_set<int64_t>& exclude) override;
 #endif
 };
-
 }
