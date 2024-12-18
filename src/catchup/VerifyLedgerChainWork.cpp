@@ -116,8 +116,8 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mRange(range)
     , mCurrCheckpoint(mRange.mCount == 0
                           ? 0
-                          : mApp.getHistoryManager().checkpointContainingLedger(
-                                mRange.last()))
+                          : HistoryManager::checkpointContainingLedger(
+                                mRange.last(), app.getConfig()))
     , mLastClosed(lastClosedLedger)
     , mMaxPrevVerified(maxPrevVerified)
     , mFatalFailurePromise(std::move(fatalFailure))
@@ -152,8 +152,8 @@ VerifyLedgerChainWork::onReset()
     mVerifiedLedgers.clear();
     mCurrCheckpoint = mRange.mCount == 0
                           ? 0
-                          : mApp.getHistoryManager().checkpointContainingLedger(
-                                mRange.last());
+                          : HistoryManager::checkpointContainingLedger(
+                                mRange.last(), mApp.getConfig());
     mChainDisagreesWithLocalState.reset();
     mHasTrustedHash = false;
 }
@@ -186,8 +186,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     CLOG_DEBUG(History, "Verifying ledger headers from {} for checkpoint {}",
                ft.localPath_nogz(), mCurrCheckpoint);
-
-    auto const& hm = mApp.getHistoryManager();
 
     while (hdrIn)
     {
@@ -261,12 +259,13 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
         if (beginCheckpoint)
         {
-            if (!hm.isFirstLedgerInCheckpoint(curr.header.ledgerSeq))
+            if (!HistoryManager::isFirstLedgerInCheckpoint(
+                    curr.header.ledgerSeq, mApp.getConfig()))
             {
-                CLOG_ERROR(
-                    History, "Checkpoint did not start with {} - got {}",
-                    hm.firstLedgerInCheckpointContaining(curr.header.ledgerSeq),
-                    curr.header.ledgerSeq);
+                CLOG_ERROR(History, "Checkpoint did not start with {} - got {}",
+                           HistoryManager::firstLedgerInCheckpointContaining(
+                               curr.header.ledgerSeq, mApp.getConfig()),
+                           curr.header.ledgerSeq);
                 return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
             }
 
@@ -405,8 +404,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         return verifyTrustedHash;
     }
 
-    if (mCurrCheckpoint ==
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
+    if (mCurrCheckpoint == HistoryManager::checkpointContainingLedger(
+                               mRange.mFirst, mApp.getConfig()))
     {
         // Write outgoing trust-link to shared write-once variable.
         LedgerNumHashPair outgoing;
@@ -464,8 +463,8 @@ VerifyLedgerChainWork::onRun()
         return BasicWork::State::WORK_SUCCESS;
     }
 
-    if (mCurrCheckpoint <
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
+    if (mCurrCheckpoint < HistoryManager::checkpointContainingLedger(
+                              mRange.mFirst, mApp.getConfig()))
     {
         throw std::runtime_error(
             "Verification undershot first ledger in the range.");
@@ -491,8 +490,8 @@ VerifyLedgerChainWork::onRun()
     // then there is no point retrying catchup - core will never be able to
     // recover
     if (result == HistoryManager::VERIFY_STATUS_OK &&
-        mCurrCheckpoint ==
-            mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
+        mCurrCheckpoint == HistoryManager::checkpointContainingLedger(
+                               mRange.mFirst, mApp.getConfig()))
     {
         if (mChainDisagreesWithLocalState)
         {
@@ -503,14 +502,15 @@ VerifyLedgerChainWork::onRun()
     switch (result)
     {
     case HistoryManager::VERIFY_STATUS_OK:
-        if (mCurrCheckpoint ==
-            mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
+        if (mCurrCheckpoint == HistoryManager::checkpointContainingLedger(
+                                   mRange.mFirst, mApp.getConfig()))
         {
             CLOG_INFO(History, "History chain [{},{}] verified", mRange.mFirst,
                       mRange.last());
             return BasicWork::State::WORK_SUCCESS;
         }
-        mCurrCheckpoint -= mApp.getHistoryManager().getCheckpointFrequency();
+        mCurrCheckpoint -=
+            HistoryManager::getCheckpointFrequency(mApp.getConfig());
         return BasicWork::State::WORK_RUNNING;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION:
         CLOG_ERROR(History, "Catchup material failed verification - "

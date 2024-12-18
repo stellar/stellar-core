@@ -149,9 +149,8 @@ VerifyTxResultsWork::getCurrentTxResultSet(uint32_t ledger)
         if (res)
         {
             auto readLedger = mTxResultEntry.ledgerSeq;
-            auto const& hm = mApp.getHistoryManager();
-
-            auto low = hm.firstLedgerInCheckpointContaining(mCheckpoint);
+            auto low = HistoryManager::firstLedgerInCheckpointContaining(
+                mCheckpoint, mApp.getConfig());
             if (readLedger > mCheckpoint || readLedger < low)
             {
                 throw std::runtime_error("Results outside of checkpoint range");

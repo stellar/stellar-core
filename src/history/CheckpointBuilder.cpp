@@ -19,16 +19,16 @@ CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
         releaseAssert(!mLedgerHeaders);
         // Don't start writing checkpoint until proper checkpoint boundary
         // This can occur if a node enabled publish mid-checkpoint
-        if (mPublishWasDisabled &&
-            !mApp.getHistoryManager().isFirstLedgerInCheckpoint(ledgerSeq))
+        if (mPublishWasDisabled && !HistoryManager::isFirstLedgerInCheckpoint(
+                                       ledgerSeq, mApp.getConfig()))
         {
             return false;
         }
 
         mPublishWasDisabled = false;
 
-        auto checkpoint =
-            mApp.getHistoryManager().checkpointContainingLedger(ledgerSeq);
+        auto checkpoint = HistoryManager::checkpointContainingLedger(
+            ledgerSeq, mApp.getConfig());
         auto res = FileTransferInfo(FileType::HISTORY_FILE_TYPE_RESULTS,
                                     checkpoint, mApp.getConfig());
         auto txs = FileTransferInfo(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
@@ -59,7 +59,7 @@ CheckpointBuilder::checkpointComplete(uint32_t checkpoint)
     ZoneScoped;
     releaseAssert(mApp.getHistoryArchiveManager().publishEnabled());
     releaseAssert(
-        mApp.getHistoryManager().isLastLedgerInCheckpoint(checkpoint));
+        HistoryManager::isLastLedgerInCheckpoint(checkpoint, mApp.getConfig()));
 
     // This will close and reset the streams
     mLedgerHeaders.reset();
@@ -206,7 +206,7 @@ CheckpointBuilder::cleanup(uint32_t lcl)
     mOpen = false;
     auto const& cfg = mApp.getConfig();
 
-    auto checkpoint = mApp.getHistoryManager().checkpointContainingLedger(lcl);
+    auto checkpoint = HistoryManager::checkpointContainingLedger(lcl, cfg);
     auto res =
         FileTransferInfo(FileType::HISTORY_FILE_TYPE_RESULTS, checkpoint, cfg);
     auto txs = FileTransferInfo(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
@@ -224,8 +224,7 @@ CheckpointBuilder::cleanup(uint32_t lcl)
             // Make sure any new checkpoints are deleted
             auto next = FileTransferInfo(
                 ft.getType(),
-                mApp.getHistoryManager().checkpointContainingLedger(checkpoint +
-                                                                    1),
+                HistoryManager::checkpointContainingLedger(checkpoint + 1, cfg),
                 cfg);
             CLOG_INFO(History, "Deleting next checkpoint files {}",
                       next.localPath_nogz_dirty());

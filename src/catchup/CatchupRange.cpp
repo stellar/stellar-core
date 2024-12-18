@@ -69,15 +69,17 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
 
     // Case 3: special case of buckets only, no replay; only
     // possible when targeting the exact end of a checkpoint.
-    if (cfg.count() == 0 &&
-        (hm.isLastLedgerInCheckpoint(cfg.toLedger()) || cfg.localBucketsOnly()))
+    if (cfg.count() == 0 && (HistoryManager::isLastLedgerInCheckpoint(
+                                 cfg.toLedger(), hm.getConfig()) ||
+                             cfg.localBucketsOnly()))
     {
         return CatchupRange(cfg.toLedger());
     }
 
     uint32_t targetStart = cfg.toLedger() - cfg.count() + 1;
     uint32_t firstInCheckpoint =
-        hm.firstLedgerInCheckpointContaining(targetStart);
+        HistoryManager::firstLedgerInCheckpointContaining(targetStart,
+                                                          hm.getConfig());
 
     // Case 4: target is inside first checkpoint, just replay.
     if (firstInCheckpoint == init)
@@ -87,7 +89,8 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
 
     // Case 5: apply buckets, then replay.
     uint32_t applyBucketsAt =
-        hm.lastLedgerBeforeCheckpointContaining(targetStart);
+        HistoryManager::lastLedgerBeforeCheckpointContaining(targetStart,
+                                                             hm.getConfig());
     LedgerRange replay(firstInCheckpoint, cfg.toLedger() - applyBucketsAt);
     return CatchupRange(applyBucketsAt, replay);
 }

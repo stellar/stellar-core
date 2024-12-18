@@ -264,8 +264,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
         auto lclNum = app->getLedgerManager().getLastClosedLedgerNum();
         auto lastCheckpointSeq =
-            app->getHistoryManager().lastLedgerBeforeCheckpointContaining(
-                lclNum);
+            HistoryManager::lastLedgerBeforeCheckpointContaining(
+                lclNum, app->getConfig());
 
         SECTION("with slotIndex difference less or equal than "
                 "MAX_SLOTS_TO_REMEMBER")

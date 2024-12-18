@@ -57,8 +57,8 @@ CheckSingleLedgerHeaderWork::doReset()
     mGetLedgerFileWork.reset();
     mDownloadDir =
         std::make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getName()));
-    uint32_t checkpoint = mApp.getHistoryManager().checkpointContainingLedger(
-        mExpected.header.ledgerSeq);
+    uint32_t checkpoint = HistoryManager::checkpointContainingLedger(
+        mExpected.header.ledgerSeq, mApp.getConfig());
     mFt = std::make_unique<FileTransferInfo>(
         *mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
 }
@@ -104,7 +104,8 @@ CheckSingleLedgerHeaderWork::doWork()
     XDRInputFileStream in;
     in.open(mFt->localPath_nogz());
     LedgerHeaderHistoryEntry lhhe;
-    size_t headersToRead = mApp.getHistoryManager().getCheckpointFrequency();
+    size_t headersToRead =
+        HistoryManager::getCheckpointFrequency(mApp.getConfig());
     try
     {
         while (in && in.readOne<LedgerHeaderHistoryEntry>(lhhe))

@@ -154,8 +154,7 @@ struct HistoryArchiveState
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
   public:
-    explicit HistoryArchive(Application& app,
-                            HistoryArchiveConfiguration const& config);
+    explicit HistoryArchive(HistoryArchiveConfiguration const& config);
     ~HistoryArchive();
     bool hasGetCmd() const;
     bool hasPutCmd() const;

@@ -16,7 +16,7 @@ std::string
 fmtProgress(Application& app, std::string const& task, LedgerRange const& range,
             uint32_t curr)
 {
-    auto step = app.getHistoryManager().getCheckpointFrequency();
+    auto step = HistoryManager::getCheckpointFrequency(app.getConfig());
     // Step is only ever 8 or 64.
     releaseAssert(step != 0);
     if (range.mCount == 0)

@@ -158,8 +158,8 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
                 REQUIRE(lastClosedLedger == LedgerManager::GENESIS_LEDGER_SEQ);
 
                 // buckets can only by applied on checkpoint boundary
-                REQUIRE(historyManager.isLastLedgerInCheckpoint(
-                    range.getBucketApplyLedger()));
+                REQUIRE(HistoryManager::isLastLedgerInCheckpoint(
+                    range.getBucketApplyLedger(), app->getConfig()));
 
                 // If we're applying buckets and replaying ledgers, we do
                 // the latter immediately after the former.
@@ -185,14 +185,16 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
                 REQUIRE(range.count() >= configuration.count());
 
                 if (std::numeric_limits<uint32_t>::max() -
-                        historyManager.getCheckpointFrequency() >=
+                        HistoryManager::getCheckpointFrequency(
+                            app->getConfig()) >=
                     configuration.count())
                 {
                     // but at most count + getCheckpointFrequency
                     // doing more would mean we are doing non-needed work
                     REQUIRE(range.getReplayCount() <=
                             configuration.count() +
-                                historyManager.getCheckpointFrequency());
+                                HistoryManager::getCheckpointFrequency(
+                                    app->getConfig()));
                 }
             }
             else

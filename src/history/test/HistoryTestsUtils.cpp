@@ -258,9 +258,10 @@ TestLedgerChainGenerator::makeOneLedgerFile(
     uint32_t currCheckpoint, Hash prevHash,
     HistoryManager::LedgerVerificationStatus state)
 {
-    auto& hm = mApp.getHistoryManager();
-    auto initLedger = hm.firstLedgerInCheckpointContaining(currCheckpoint);
-    auto size = hm.sizeOfCheckpointContaining(currCheckpoint);
+    auto initLedger = HistoryManager::firstLedgerInCheckpointContaining(
+        currCheckpoint, mApp.getConfig());
+    auto size = HistoryManager::sizeOfCheckpointContaining(currCheckpoint,
+                                                           mApp.getConfig());
 
     LedgerHeaderHistoryEntry first, last, lcl;
     lcl.header.ledgerSeq = initLedger;
@@ -282,7 +283,7 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
 
     LedgerHeaderHistoryEntry first, last;
     for (auto i = mCheckpointRange.mFirst; i < mCheckpointRange.limit();
-         i += mApp.getHistoryManager().sizeOfCheckpointContaining(i))
+         i += HistoryManager::sizeOfCheckpointContaining(i, mApp.getConfig()))
     {
         // Only corrupt first checkpoint (last to be verified)
         if (i != mCheckpointRange.mFirst)
@@ -404,7 +405,7 @@ CatchupSimulation::~CatchupSimulation()
 uint32_t
 CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
 {
-    return getApp().getHistoryManager().getCheckpointFrequency() *
+    return HistoryManager::getCheckpointFrequency(getApp().getConfig()) *
                checkpointIndex -
            1;
 }
@@ -532,6 +533,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto lastSucceeded = txsSucceeded.count();
 
     lm.closeLedger(mLedgerCloseDatas.back());
+    testutil::crankFor(getApp().getClock(), std::chrono::milliseconds(10));
 
     if (check)
     {
@@ -609,7 +611,8 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger,
                                      .header.ledgerVersion);
         }
 
-        if (getApp().getHistoryManager().publishCheckpointOnLedgerClose(lcl))
+        if (HistoryManager::publishCheckpointOnLedgerClose(
+                lcl, getApp().getConfig()))
         {
             mBucketListAtLastPublish =
                 getApp().getBucketManager().getLiveBucketList();
@@ -621,23 +624,26 @@ void
 CatchupSimulation::ensurePublishesComplete()
 {
     auto& hm = getApp().getHistoryManager();
-    while (hm.publishQueueLength() > 0 && hm.getPublishFailureCount() == 0)
+    auto const& cfg = getApp().getConfig();
+    while (HistoryManager::publishQueueLength(cfg) > 0 &&
+           hm.getPublishFailureCount() == 0)
     {
         getApp().getClock().crank(true);
     }
 
     REQUIRE(hm.getPublishFailureCount() == 0);
     // Make sure all references to buckets were released
-    REQUIRE(hm.getBucketsReferencedByPublishQueue().empty());
+    REQUIRE(HistoryManager::getBucketsReferencedByPublishQueue(cfg).empty());
 
     // Make sure all published checkpoint files have been cleaned up
     auto lcl = getApp().getLedgerManager().getLastClosedLedgerNum();
-    auto firstCheckpoint =
-        hm.checkpointContainingLedger(LedgerManager::GENESIS_LEDGER_SEQ);
-    auto lastCheckpoint = hm.lastLedgerBeforeCheckpointContaining(lcl);
+    auto firstCheckpoint = HistoryManager::checkpointContainingLedger(
+        LedgerManager::GENESIS_LEDGER_SEQ, cfg);
+    auto lastCheckpoint =
+        HistoryManager::lastLedgerBeforeCheckpointContaining(lcl, cfg);
 
     for (uint32_t i = firstCheckpoint; i <= lastCheckpoint;
-         i += hm.getCheckpointFrequency())
+         i += HistoryManager::getCheckpointFrequency(cfg))
     {
         FileTransferInfo res(FileType::HISTORY_FILE_TYPE_RESULTS, i,
                              getApp().getConfig());
@@ -659,9 +665,9 @@ CatchupSimulation::ensureOfflineCatchupPossible(
     uint32_t targetLedger, std::optional<uint32_t> restartLedger)
 {
     // One additional ledger is needed for publish.
-    auto target =
-        getApp().getHistoryManager().checkpointContainingLedger(targetLedger) +
-        1;
+    auto target = HistoryManager::checkpointContainingLedger(
+                      targetLedger, getApp().getConfig()) +
+                  1;
     ensureLedgerAvailable(target, restartLedger);
     ensurePublishesComplete();
 }
@@ -670,11 +676,10 @@ void
 CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
                                                uint32_t bufferLedgers)
 {
-    auto& hm = getApp().getHistoryManager();
-
     // One additional ledger is needed for publish, one as a trigger ledger for
     // catchup, one as closing ledger.
-    ensureLedgerAvailable(hm.checkpointContainingLedger(targetLedger) +
+    ensureLedgerAvailable(HistoryManager::checkpointContainingLedger(
+                              targetLedger, getApp().getConfig()) +
                           bufferLedgers + 3);
     ensurePublishesComplete();
 }
@@ -686,10 +691,9 @@ CatchupSimulation::getAllPublishedCheckpoints() const
     assert(mLedgerHashes.size() == mLedgerSeqs.size());
     auto hi = mLedgerHashes.begin();
     auto si = mLedgerSeqs.begin();
-    auto const& hm = getApp().getHistoryManager();
     while (si != mLedgerSeqs.end())
     {
-        if (hm.isLastLedgerInCheckpoint(*si))
+        if (HistoryManager::isLastLedgerInCheckpoint(*si, getApp().getConfig()))
         {
             LedgerNumHashPair pair;
             pair.first = *si;
@@ -709,10 +713,9 @@ CatchupSimulation::getLastPublishedCheckpoint() const
     assert(mLedgerHashes.size() == mLedgerSeqs.size());
     auto hi = mLedgerHashes.rbegin();
     auto si = mLedgerSeqs.rbegin();
-    auto const& hm = getApp().getHistoryManager();
     while (si != mLedgerSeqs.rend())
     {
-        if (hm.isLastLedgerInCheckpoint(*si))
+        if (HistoryManager::isLastLedgerInCheckpoint(*si, getApp().getConfig()))
         {
             pair.first = *si;
             pair.second = std::make_optional<Hash>(*hi);
@@ -722,24 +725,6 @@ CatchupSimulation::getLastPublishedCheckpoint() const
         ++si;
     }
     return pair;
-}
-
-void
-CatchupSimulation::crankUntil(Application::pointer app,
-                              std::function<bool()> const& predicate,
-                              VirtualClock::duration timeout)
-{
-    auto start = std::chrono::system_clock::now();
-    while (!predicate())
-    {
-        app->getClock().crank(false);
-        auto current = std::chrono::system_clock::now();
-        auto diff = current - start;
-        if (diff > timeout)
-        {
-            break;
-        }
-    }
 }
 
 Application::pointer
@@ -789,9 +774,9 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
-    crankUntil(app, finished,
-               std::chrono::seconds{std::max<int64>(
-                   expectedCatchupWork.mTxSetsApplied + 15, 60)});
+    testutil::crankUntil(app, finished,
+                         std::chrono::seconds{std::max<int64>(
+                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
 
     // Finished successfully
     auto success = cm.isCatchupInitialized() &&
@@ -826,11 +811,11 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto& lm = app->getLedgerManager();
     auto startCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
 
-    auto& hm = app->getHistoryManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     // catchup will run to the final ledger in the checkpoint
-    auto toLedger = hm.checkpointContainingLedger(initLedger - 1);
+    auto toLedger = HistoryManager::checkpointContainingLedger(
+        initLedger - 1, app->getConfig());
 
     auto catchupConfiguration =
         CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT,
@@ -861,17 +846,19 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
     uint32_t firstLedgerInCheckpoint;
-    if (hm.isFirstLedgerInCheckpoint(initLedger))
+    if (HistoryManager::isFirstLedgerInCheckpoint(initLedger, app->getConfig()))
     {
         firstLedgerInCheckpoint = initLedger;
     }
     else
     {
         firstLedgerInCheckpoint =
-            hm.firstLedgerAfterCheckpointContaining(initLedger);
+            HistoryManager::firstLedgerAfterCheckpointContaining(
+                initLedger, app->getConfig());
     }
 
-    uint32_t triggerLedger = hm.ledgerToTriggerCatchup(firstLedgerInCheckpoint);
+    uint32_t triggerLedger = HistoryManager::ledgerToTriggerCatchup(
+        firstLedgerInCheckpoint, app->getConfig());
 
     if (ledgersToInject.empty())
     {
@@ -904,15 +891,23 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
 
-    crankUntil(app, catchupIsDone,
-               std::chrono::seconds{std::max<int64>(
-                   expectedCatchupWork.mTxSetsApplied + 15, 60)});
+    testutil::crankUntil(app, catchupIsDone,
+                         std::chrono::seconds{std::max<int64>(
+                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
 
     if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
     {
         // Externalize closing ledger
         externalize(triggerLedger + bufferLedgers + 1);
     }
+
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return lm.getLastClosedLedgerNum() ==
+                   triggerLedger + bufferLedgers + 1;
+        },
+        std::chrono::seconds{60});
 
     auto result = caughtUp();
     if (result)
@@ -952,6 +947,8 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
                                           lcd.getLedgerSeq(), lcd.getTxSet());
     herder.getHerderSCPDriver().valueExternalized(
         lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
+
+    // TODO: crank the clock
 }
 
 void
@@ -1100,9 +1097,10 @@ CatchupSimulation::computeCatchupPerformedWork(
         txSetsDownloaded = 0;
     }
 
-    auto firstVerifiedLedger = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
-                                        verifyCheckpointRange.mFirst + 1 -
-                                            hm.getCheckpointFrequency());
+    auto firstVerifiedLedger =
+        std::max(LedgerManager::GENESIS_LEDGER_SEQ,
+                 verifyCheckpointRange.mFirst + 1 -
+                     HistoryManager::getCheckpointFrequency(app.getConfig()));
     auto ledgersVerified =
         catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
     auto txSetsApplied = catchupRange.getReplayCount();

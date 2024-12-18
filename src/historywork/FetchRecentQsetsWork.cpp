@@ -51,7 +51,7 @@ FetchRecentQsetsWork::doWork()
     // about every active qset. A more sophisticated view would survey longer
     // time periods at lower resolution.
     uint32_t numCheckpoints = 100;
-    uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t step = HistoryManager::getCheckpointFrequency(mApp.getConfig());
     uint32_t window = numCheckpoints * step;
     uint32_t lastSeq = mLedgerNum;
     uint32_t firstSeq = lastSeq < window ? (step - 1) : (lastSeq - window);
