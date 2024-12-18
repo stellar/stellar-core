@@ -180,6 +180,7 @@ class VirtualClock
 
     // timer should be last to ensure it gets destroyed first
     RealSteadyTimer mRealTimer;
+    std::mutex mutable mVirtualNowMutex;
 
   public:
     // A VirtualClock is instantiated in either real or virtual mode. In real
