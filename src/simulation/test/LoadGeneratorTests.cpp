@@ -475,8 +475,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                 cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
         },
         simulation);
-    auto const numInstances = 10;
-    auto const numSorobanTxs = 100;
+    auto const numInstances = nAccounts;
+    auto const numSorobanTxs = 150;
 
     numTxsBefore = getSuccessfulTxCount();
 
@@ -509,8 +509,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         /* txRate */ 1);
 
     invokeLoadCfg.getMutSorobanConfig().nInstances = numInstances;
-    constexpr int maxInvokeFail = 10;
-    invokeLoadCfg.setMinSorobanPercentSuccess(100 - maxInvokeFail);
+    invokeLoadCfg.setMinSorobanPercentSuccess(100);
 
     loadGen.generateLoad(invokeLoadCfg);
     completeCount = complete.count();
@@ -525,15 +524,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             {"ledger", "apply-soroban", "success"});
         auto& txsFailed = node->getMetrics().NewCounter(
             {"ledger", "apply-soroban", "failure"});
-
-        // Because we can't preflight TXs, some invocations will fail due to too
-        // few resources. This is expected, as our instruction counts are
-        // approximations. The following checks will make sure all set up
-        // phases succeeded, so only the invoke phase may have acceptable failed
-        // TXs
-        REQUIRE(txsSucceeded.count() >
-                numTxsBefore + numSorobanTxs - maxInvokeFail);
-        REQUIRE(txsFailed.count() < maxInvokeFail);
+        REQUIRE(txsSucceeded.count() == numTxsBefore + numSorobanTxs);
+        REQUIRE(txsFailed.count() == 0);
     }
 
     auto instanceKeys = loadGen.getContractInstanceKeysForTesting();
@@ -595,16 +587,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         constexpr uint32_t uploadWeight = 5;
         mixCfg.sorobanUploadWeight = uploadWeight;
 
-        // Because we can't preflight TXs, some invocations will fail due to too
-        // few resources. This is expected, as our instruction counts are
-        // approximations. Additionally, many upload transactions will fail as
-        // they are likely to generate invalid wasm. Therefore, we check that
-        // all but `maxInvokeFail + 1.5 * uploadWeight` transactions succeed. In
-        // case the random sampling produces more upload transactions than
-        // expected, we allow for a 50% margin of error on the number of upload
-        // transactions.
-        constexpr int maxSorobanFail = 1.5 * uploadWeight + maxInvokeFail;
-        mixLoadCfg.setMinSorobanPercentSuccess(100 - maxSorobanFail);
+        mixLoadCfg.setMinSorobanPercentSuccess(100);
 
         loadGen.generateLoad(mixLoadCfg);
         auto numSuccessBefore = getSuccessfulTxCount();
@@ -620,53 +603,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         // Check results
         for (auto node : nodes)
         {
-            auto& totalSucceeded =
-                node->getMetrics().NewCounter({"ledger", "apply", "success"});
             auto& totalFailed =
                 node->getMetrics().NewCounter({"ledger", "apply", "failure"});
-            auto& sorobanSucceeded = node->getMetrics().NewCounter(
-                {"ledger", "apply-soroban", "success"});
-            auto& sorobanFailed = node->getMetrics().NewCounter(
-                {"ledger", "apply-soroban", "failure"});
-
-            // Total number of classic transactions
-            int64_t classicTotal =
-                totalSucceeded.count() + totalFailed.count() -
-                sorobanSucceeded.count() - sorobanFailed.count();
-
-            // All classic transaction should succeed
-            REQUIRE(totalSucceeded.count() - sorobanSucceeded.count() ==
-                    classicTotal);
-            // All failures should be soroban failures)
-            REQUIRE(totalFailed.count() == sorobanFailed.count());
-
-            // Check soroban results
-            REQUIRE(sorobanSucceeded.count() > numSuccessBefore + numMixedTxs -
-                                                   classicTotal -
-                                                   maxSorobanFail);
-            REQUIRE(sorobanFailed.count() <= maxSorobanFail + numFailedBefore);
+            REQUIRE(totalFailed.count() == 0);
         }
-    }
-
-    // Test minimum percent success with too many transactions that fail to
-    // apply by requiring a 100% success rate for SOROBAN_UPLOAD mode
-    SECTION("Too many failed transactions")
-    {
-        auto uploadFailCfg = GeneratedLoadConfig::txLoad(
-            LoadGenMode::SOROBAN_UPLOAD, nAccounts, numSorobanTxs,
-            /* txRate */ 1);
-
-        // Set success percentage to 100% and leave other parameters at default.
-        uploadFailCfg.setMinSorobanPercentSuccess(100);
-
-        // LoadGen should fail
-        loadGen.generateLoad(uploadFailCfg);
-        auto& fail =
-            app.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
-        auto failCount = fail.count();
-        simulation->crankUntil([&]() { return fail.count() == failCount + 1; },
-                               300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
-                               false);
     }
 }
 

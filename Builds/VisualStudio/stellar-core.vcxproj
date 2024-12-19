@@ -616,8 +616,6 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\test\SponsorshipCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.cpp" />
-    <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxn.cpp" />
-    <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxnRoot.cpp" />
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
@@ -639,6 +637,8 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTypeUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp" />
+    <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxn.cpp" />
+    <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerHeaderTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTests.cpp" />
@@ -1068,8 +1068,6 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\test\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.h" />
-    <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxn.h" />
-    <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h" />
@@ -1085,6 +1083,8 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\LedgerTypeUtils.h" />
     <ClInclude Include="..\..\src\ledger\NetworkConfig.h" />
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
+    <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxn.h" />
+    <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\SorobanMetrics.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />

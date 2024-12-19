@@ -900,12 +900,6 @@
     <ClCompile Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxn.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxnRoot.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -1400,6 +1394,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketUtils.cpp">
       <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxn.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.cpp">
+      <Filter>ledger\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2096,12 +2096,6 @@
     <ClInclude Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxn.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -2448,6 +2442,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketUtils.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxn.h">
+      <Filter>ledger\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.h">
+      <Filter>ledger\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
