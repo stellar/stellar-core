@@ -15,13 +15,13 @@ jobs:
   complete:
     if: always()
     needs: [fmt, cargo-deny, rust-check-git-rev-deps, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
       run: exit 1
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - run: rustup component add rustfmt
@@ -29,7 +29,7 @@ jobs:
     - run: cargo fmt --all --check
 
   cargo-deny:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         checks:
@@ -47,13 +47,13 @@ jobs:
         arguments:
 
   rust-check-git-rev-deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - uses: stellar/actions/rust-check-git-rev-deps@main
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       CACHED_PATHS: |
         ~/.ccache
