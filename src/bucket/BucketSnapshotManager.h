@@ -72,7 +72,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
         std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
         SnapshotPtrT<BucketT> const& managerSnapshot,
         std::map<uint32_t, SnapshotPtrT<BucketT>> const&
-            managerHistoricalSnapshots) const;
+            managerHistoricalSnapshots,
+        bool forceUpdate = false) const;
 
   public:
     // Called by main thread to update snapshots whenever the BucketList
@@ -98,7 +99,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
     template <class BucketT>
     void maybeUpdateSnapshot(
         SnapshotPtrT<BucketT>& snapshot,
-        std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots) const;
+        std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
+        bool forceUpdate = false) const;
 
     // All metric recording functions must only be called by the main thread
     void startPointLoadTimer() const;

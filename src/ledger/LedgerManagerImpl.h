@@ -49,7 +49,6 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
-    LedgerHeaderHistoryEntry mLastClosedLedger;
     std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
 
     SorobanMetrics mSorobanMetrics;
@@ -114,8 +113,6 @@ class LedgerManagerImpl : public LedgerManager
 
     void emitNextMeta();
 
-    SorobanNetworkConfig& getSorobanNetworkConfigInternal();
-
     // Publishes soroban metrics, including select network config limits as well
     // as the actual ledger usage.
     void publishSorobanMetrics();
@@ -134,8 +131,8 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    void advanceLedgerPointers(LedgerHeader const& header,
-                               bool debugLog = true);
+    void advanceReadOnlyLedgerState(LedgerHeader const& header,
+                                    bool debugLog = true);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 

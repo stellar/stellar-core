@@ -3234,7 +3234,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         closeLedger(*app);
     }
 
-    auto const& lcl = lm.getLastClosedLedgerHeader();
+    auto getLcl = [&]() { return lm.getLastClosedLedgerHeader(); };
 
     // The only readWrite key in the invoke op is the one that writes the
     // ConfigUpgradeSet xdr
@@ -3248,7 +3248,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto ttl = ltx.load(getTTLKey(proposalKey));
             // Expire the entry on the next ledger
-            ttl.current().data.ttl().liveUntilLedgerSeq = lcl.header.ledgerSeq;
+            ttl.current().data.ttl().liveUntilLedgerSeq =
+                getLcl().header.ledgerSeq;
             ltx.commit();
         }
 
@@ -3256,11 +3257,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey;
 
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
+        auto txSet = TxSetXDRFrame::makeEmpty(getLcl());
+        auto lastCloseTime = getLcl().header.scpValue.closeTime;
 
         app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            txSet, getLcl().header.ledgerSeq + 1, lastCloseTime,
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
         // No upgrade due to expired entry
@@ -3279,11 +3280,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey;
 
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
+        auto txSet = TxSetXDRFrame::makeEmpty(getLcl());
+        auto lastCloseTime = getLcl().header.scpValue.closeTime;
 
         app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            txSet, getLcl().header.ledgerSeq + 1, lastCloseTime,
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
         // No upgrade due to tampered entry

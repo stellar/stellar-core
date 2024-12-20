@@ -98,22 +98,24 @@ template <>
 void
 BucketSnapshotManager::maybeUpdateSnapshot<LiveBucket>(
     SnapshotPtrT<LiveBucket>& snapshot,
-    std::map<uint32_t, SnapshotPtrT<LiveBucket>>& historicalSnapshots) const
+    std::map<uint32_t, SnapshotPtrT<LiveBucket>>& historicalSnapshots,
+    bool forceUpdate) const
 {
     maybeUpdateSnapshotInternal(snapshot, historicalSnapshots,
-                                mCurrLiveSnapshot, mLiveHistoricalSnapshots);
+                                mCurrLiveSnapshot, mLiveHistoricalSnapshots,
+                                forceUpdate);
 }
 
 template <>
 void
 BucketSnapshotManager::maybeUpdateSnapshot<HotArchiveBucket>(
     SnapshotPtrT<HotArchiveBucket>& snapshot,
-    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>& historicalSnapshots)
-    const
+    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>& historicalSnapshots,
+    bool forceUpdate) const
 {
     maybeUpdateSnapshotInternal(snapshot, historicalSnapshots,
                                 mCurrHotArchiveSnapshot,
-                                mHotArchiveHistoricalSnapshots);
+                                mHotArchiveHistoricalSnapshots, forceUpdate);
 }
 
 template <class BucketT>
@@ -122,8 +124,8 @@ BucketSnapshotManager::maybeUpdateSnapshotInternal(
     SnapshotPtrT<BucketT>& snapshot,
     std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
     SnapshotPtrT<BucketT> const& managerSnapshot,
-    std::map<uint32_t, SnapshotPtrT<BucketT>> const& managerHistoricalSnapshots)
-    const
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const& managerHistoricalSnapshots,
+    bool forceUpdate) const
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -134,11 +136,14 @@ BucketSnapshotManager::maybeUpdateSnapshotInternal(
 
     // First update current snapshot
     if (!snapshot ||
-        snapshot->getLedgerSeq() != managerSnapshot->getLedgerSeq())
+        snapshot->getLedgerSeq() != managerSnapshot->getLedgerSeq() ||
+        forceUpdate)
     {
         // Should only update with a newer snapshot
-        releaseAssert(!snapshot || snapshot->getLedgerSeq() <
-                                       managerSnapshot->getLedgerSeq());
+        releaseAssert(!snapshot ||
+                      snapshot->getLedgerSeq() <
+                          managerSnapshot->getLedgerSeq() ||
+                      forceUpdate);
         snapshot = std::make_unique<BucketListSnapshot<BucketT> const>(
             *managerSnapshot);
     }

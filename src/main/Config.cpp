@@ -117,7 +117,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // non configurable
     MODE_ENABLES_BUCKETLIST = true;
     MODE_STORES_HISTORY_MISC = true;
-    MODE_STORES_HISTORY_LEDGERHEADERS = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
@@ -2354,13 +2353,7 @@ Config::modeDoesCatchupWithBucketList() const
 bool
 Config::modeStoresAllHistory() const
 {
-    return MODE_STORES_HISTORY_LEDGERHEADERS && MODE_STORES_HISTORY_MISC;
-}
-
-bool
-Config::modeStoresAnyHistory() const
-{
-    return MODE_STORES_HISTORY_LEDGERHEADERS || MODE_STORES_HISTORY_MISC;
+    return MODE_STORES_HISTORY_MISC;
 }
 
 void

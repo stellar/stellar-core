@@ -91,7 +91,6 @@ class SimulationHelper
         mTestCfg.FORCE_SCP = false;
         mTestCfg.INVARIANT_CHECKS = {};
         mTestCfg.MODE_AUTO_STARTS_OVERLAY = false;
-        mTestCfg.MODE_STORES_HISTORY_LEDGERHEADERS = true;
         mTestCfg.USE_CONFIG_FOR_GENESIS = false;
         mTestCfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
 

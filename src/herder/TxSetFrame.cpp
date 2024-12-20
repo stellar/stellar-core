@@ -875,7 +875,7 @@ ApplicableTxSetFrame::checkValid(Application& app,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     ZoneScoped;
-    auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
 
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)

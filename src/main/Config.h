@@ -469,9 +469,6 @@ class Config : public std::enable_shared_from_this<Config>
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY_MISC;
 
-    // A config parameter that stores ledger headers in the database
-    bool MODE_STORES_HISTORY_LEDGERHEADERS;
-
     // A config parameter that controls whether core automatically catches up
     // when it has buffered enough input; if false an out-of-sync node will
     // remain out-of-sync, buffering ledgers from the network in memory until
@@ -783,7 +780,6 @@ class Config : public std::enable_shared_from_this<Config>
     bool modeDoesCatchupWithBucketList() const;
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
-    bool modeStoresAnyHistory() const;
     void logBasicInfo() const;
     void setNoListen();
     void setNoPublish();

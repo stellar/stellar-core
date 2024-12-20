@@ -64,7 +64,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
 void
 SearchableLiveBucketListSnapshot::updateSnapshotToLatest()
 {
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots, true);
 }
 
 template <class BucketT>

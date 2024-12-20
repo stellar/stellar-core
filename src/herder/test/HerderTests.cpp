@@ -1870,7 +1870,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
     Application::pointer app = createTestApplication(clock, cfg);
 
-    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto getLcl = [&]() {
+        return app->getLedgerManager().getLastClosedLedgerHeader();
+    };
 
     auto root = TestAccount::createRoot(*app);
     std::vector<TestAccount> accounts;
@@ -1958,7 +1960,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         std::vector<size_t> txSetSizes;
         std::vector<size_t> txSetOpSizes;
         std::vector<TimePoint> closeTimes;
-        std::vector<decltype(lcl.header.baseFee)> baseFees;
+        std::vector<decltype(getLcl().header.baseFee)> baseFees;
 
         auto addCandidateThenTest = [&](CandidateSpec const& spec) {
             // Create a transaction set using the given parameters, combine
@@ -1974,13 +1976,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             auto [txSet, applicableTxSet] =
                 makeTransactions(spec.n, spec.nbOps, spec.feeMulti);
             txSetHashes.push_back(txSet->getContentsHash());
-            txSetSizes.push_back(applicableTxSet->size(lcl.header));
+            txSetSizes.push_back(applicableTxSet->size(getLcl().header));
             txSetOpSizes.push_back(applicableTxSet->sizeOpTotal());
             closeTimes.push_back(spec.closeTime);
             if (spec.baseFeeIncrement)
             {
                 auto const baseFee =
-                    lcl.header.baseFee + *spec.baseFeeIncrement;
+                    getLcl().header.baseFee + *spec.baseFeeIncrement;
                 baseFees.push_back(baseFee);
                 LedgerUpgrade ledgerUpgrade;
                 ledgerUpgrade.type(LEDGER_UPGRADE_BASE_FEE);
@@ -2143,13 +2145,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& scp = herder.getHerderSCPDriver();
 
-        auto const lclCloseTime = lcl.header.scpValue.closeTime;
+        auto const lclCloseTime = getLcl().header.scpValue.closeTime;
 
         auto testTxBounds = [&](TimePoint const minTime,
                                 TimePoint const maxTime,
                                 TimePoint const nextCloseTime,
                                 bool const expectValid) {
-            REQUIRE(nextCloseTime > lcl.header.scpValue.closeTime);
+            REQUIRE(nextCloseTime > getLcl().header.scpValue.closeTime);
             // Build a transaction set containing one transaction (which
             // could be any transaction that is valid in all ways aside from
             // its time bounds) with the given minTime and maxTime.
@@ -4215,8 +4217,8 @@ static void
 externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
             std::vector<TransactionFrameBasePtr> const& txs, Application& app)
 {
-    auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto ledgerSeq = lcl.header.ledgerSeq + 1;
+    auto getLcl = [&]() { return lm.getLastClosedLedgerHeader(); };
+    auto ledgerSeq = getLcl().header.ledgerSeq + 1;
 
     auto classicTxs = txs;
 
@@ -4243,7 +4245,7 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
-    auto lastCloseTime = lcl.header.scpValue.closeTime;
+    auto lastCloseTime = getLcl().header.scpValue.closeTime;
 
     StellarValue sv =
         herder.makeStellarValue(txSet->getContentsHash(), lastCloseTime,

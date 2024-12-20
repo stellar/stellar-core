@@ -439,8 +439,9 @@ void
 CatchupManagerImpl::tryApplySyncingLedgers()
 {
     ZoneScoped;
-    auto const& ledgerHeader =
-        mApp.getLedgerManager().getLastClosedLedgerHeader();
+    auto getLcl = [&]() {
+        return mApp.getLedgerManager().getLastClosedLedgerHeader();
+    };
 
     // We can apply multiple ledgers here, which might be slow. This is a rare
     // occurrence so we should be fine.
@@ -450,14 +451,14 @@ CatchupManagerImpl::tryApplySyncingLedgers()
         auto const& lcd = it->second;
 
         // we still have a missing ledger
-        if (ledgerHeader.header.ledgerSeq + 1 != lcd.getLedgerSeq())
+        if (getLcl().header.ledgerSeq + 1 != lcd.getLedgerSeq())
         {
             break;
         }
 
         mApp.getLedgerManager().closeLedger(lcd);
         CLOG_INFO(History, "Closed buffered ledger: {}",
-                  LedgerManager::ledgerAbbrev(ledgerHeader));
+                  LedgerManager::ledgerAbbrev(getLcl()));
 
         ++it;
     }
