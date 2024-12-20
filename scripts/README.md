@@ -9,17 +9,18 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 
 ### Overlay survey 
 - Name - `OverlaySurvey.py`
-- Description - A Python script that will walk the network using the Overlay survey mechanism to gather connection information. See [admin](./../docs/software/admin.md#overlay-topology-survey) for more information on the overlay survey. The survey will use the peers of the initial node to seed the survey.
-- Usage - Ex. `python3 OverlaySurvey.py -gs gs.json survey -n http://127.0.0.1:11626 -d 50 -sr sr.json -gmlw gmlw.graphml` to run the survey, `python3 OverlaySurvey.py -gs gs.json analyze -gmla gmla.graphml` to analyze an existing graph, or `python3 OverlaySurvey.py -gs gs.json augment -gmli gmlw.graphml -gmlo augmented.graphml` to augment the existing graph with data from StellarBeat.
+- Description - A Python script that will walk the network using the Overlay survey mechanism to gather connection information. See [the admin guide](https://developers.stellar.org/docs/validators/admin-guide/monitoring#overlay-topology-survey) for more information on the overlay survey. The survey will use the peers of the initial node to seed the survey.
+- Usage - Ex. `python3 OverlaySurvey.py -gs gs.json survey -n http://127.0.0.1:11626 -c 20 -sr sr.json -gmlw gmlw.graphml` to run the survey, `python3 OverlaySurvey.py -gs gs.json analyze -gmla gmla.graphml` to analyze an existing graph, or `python3 OverlaySurvey.py -gs gs.json augment -gmli gmlw.graphml -gmlo augmented.graphml` to augment the existing graph with data from StellarBeat.
 
     - `-gs GRAPHSTATS`, `--graphStats GRAPHSTATS` - output file for graph stats (Optional)
     - `-v`, `--verbose` - increase log verbosity (Optional)
     - sub command `survey` - run survey and analyze
         - `-n NODE`, `--node NODE` - address of initial survey node
-        - `-c DURATION`, `--collect-duration DURATION` - duration of survey collecting phase in minutes
+        - `-c DURATION`, `--collectDuration DURATION` - duration of survey collecting phase in minutes
         - `-nl NODELIST`, `--nodeList NODELIST` - list of seed nodes. One node per line. (Optional)
         - `-gmlw GRAPHMLWRITE`, `--graphmlWrite GRAPHMLWRITE` - output file for graphml file
         - `-sr SURVEYRESULT`, `--surveyResult SURVEYRESULT` - output file for survey results
+        - `-p`, `--startPhase` - Survey phase to begin from. One of `startCollecting`, `stopCollecting`, or `surveyResults`. See [Attaching to a Running Survey](#attaching-to-a-running-survey) for more info. (Optional)
     - sub command `simulate` - simulate a run of the `survey` subcommand without any network calls. Takes the same arguments as `survey`, plus the following:
         - `-s SIMGRAPH`, `--simGraph SIMGRAPH` - Network topology to simulate in graphml format.
         - `-r SIMROOT`, `--simRoot SIMROOT` - Node in graph to start simulation from.
@@ -31,6 +32,14 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
     - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with StellarBeat data) and flatten it into an undirected graph in JSON.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-json JSONOUTPUT` - output json file
+
+#### Attaching to a Running Survey
+
+Use the `--startPhase` option to attach the script to an already running survey. This may be necessary if something happened during the running of the script that caused the script to terminate early (such as losing connection with the surveyor node). `--startPhase` has three possible values:
+
+- `startCollecting`: Start a survey from the beginning of the collecting phase. This is the default value when `--startPhase` is unspecified. It indicates you would like to start a new survey from the beginning (that is, you are not attaching the script to an existing survey).
+- `stopCollecting`: Immediately broadcast a `TimeSlicedSurveyStopCollectingMessage` for the currently running survey and begin surveying individual nodes for results. Use this option if your survey is currently in the collecting phase and you'd like to move it to the reporting phase.
+- `surveyResults`: Begin surveying individual nodes for results. Use this option if your survey is in the reporting phase.
 
 ### Diff Tracy CSV
 - Name - `DiffTracyCSV.py`
