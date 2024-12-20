@@ -115,7 +115,8 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
     LedgerHeaderWrapper mLedgerHeader;
 
   public:
-    BucketSnapshotState(BucketManager& bm);
+    BucketSnapshotState(
+        std::shared_ptr<SearchableLiveBucketListSnapshot> snapshot);
     ~BucketSnapshotState() override;
 
     LastClosedLedger const& getLastClosedLedger() const override;

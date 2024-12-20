@@ -1253,6 +1253,19 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     }
 }
 
+std::shared_ptr<SearchableLiveBucketListSnapshot>
+LedgerManagerImpl::getCurrentLedgerStateSnaphot()
+{
+    if (!mReadOnlyLedgerStateSnapshot)
+    {
+        mReadOnlyLedgerStateSnapshot =
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot();
+    }
+    return mReadOnlyLedgerStateSnapshot;
+}
+
 void
 LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                                          bool debugLog)

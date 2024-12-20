@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerStateSnapshot.h"
-#include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionFrame.h"
@@ -247,7 +247,8 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     }
     else
 #endif
-        mGetter = std::make_unique<BucketSnapshotState>(app.getBucketManager());
+        mGetter = std::make_unique<BucketSnapshotState>(
+            app.getLedgerManager().getCurrentLedgerStateSnaphot());
 }
 
 LedgerHeaderWrapper
