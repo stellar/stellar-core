@@ -20,20 +20,17 @@ Common options can be placed at any place in the command line.
 Command options can only by placed after command.
 
 * **apply-load**: Applies Soroban transactions by repeatedly generating transactions and closing
-them directly through the LedgerManager. The parameters specified below configure the network limits, and
-they're all required - **--ledger-max-instructions N**, **--ledger-max-read-entries N**, **--ledger-max-write-entries N**, **--ledger-max-read-byte N**, **--ledger-max-write-bytes N**, **--ledger-max-tx-size N**, **--ledger-max-tx-count N**. This command will generate enough transactions to fill up a synthetic transaction queue (it's just a list of transactions with the same limits as the real queue), and then create a transaction set off of that to
+them directly through the LedgerManager. This command will generate enough transactions to fill up a synthetic transaction queue (it's just a list of transactions with the same limits as the real queue), and then create a transaction set off of that to
 apply.
 
 * At the moment, the Soroban transactions are generated using some of the same config parameters as the **generateload** command. Specifically,
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`,
-    `LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING`,
-    `LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING`,
-    `LOADGEN_IO_KILOBYTES_FOR_TESTING`,
-    `LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING`,
-    `LOADGEN_TX_SIZE_BYTES_FOR_TESTING`,
-    `LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING`,
     `LOADGEN_INSTRUCTIONS_FOR_TESTING`, and
-    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING`.
+    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING`. In addition to those, you must also set the
+    limit related settings - `APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS`, `APPLY_LOAD_TX_MAX_INSTRUCTIONS`, `APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES`, `APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES`, `APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES`, `APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES`, `APPLY_LOAD_LEDGER_MAX_READ_BYTES`, `APPLY_LOAD_TX_MAX_READ_BYTES`, `APPLY_LOAD_LEDGER_MAX_WRITE_BYTES`, `APPLY_LOAD_TX_MAX_WRITE_BYTES`, `APPLY_LOAD_MAX_TX_SIZE_BYTES`, `APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES`, `APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES`, `APPLY_LOAD_MAX_TX_COUNT`.
+* `apply-load` will also generate a synthetic bucket list using `APPLY_LOAD_BL_SIMULATED_LEDGERS`, `APPLY_LOAD_BL_WRITE_FREQUENCY`, `APPLY_LOAD_BL_BATCH_SIZE`, `APPLY_LOAD_BL_LAST_BATCH_LEDGERS`, `APPLY_LOAD_BL_LAST_BATCH_SIZE`. These have default values set in `Config.h`.
+* There are additional `APPLY_LOAD_*` related config settings that can be used to configure
+`apply-load`, and you can learn more about these from the comments in `Config.h`.
 
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
   archives without connecting to network. For new instances (with empty history
