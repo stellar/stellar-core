@@ -17,8 +17,19 @@ void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
                                    std::vector<LedgerEntry> const& liveEntries,
                                    std::vector<LedgerKey> const& deadEntries);
 
+void addLiveBatchAndUpdateSnapshot(Application& app, LastClosedLedger lcl,
+                                   std::vector<LedgerEntry> const& initEntries,
+                                   std::vector<LedgerEntry> const& liveEntries,
+                                   std::vector<LedgerKey> const& deadEntries);
+
 void addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,
+    std::vector<LedgerEntry> const& archiveEntries,
+    std::vector<LedgerKey> const& restoredEntries,
+    std::vector<LedgerKey> const& deletedEntries);
+
+void addHotArchiveBatchAndUpdateSnapshot(
+    Application& app, LastClosedLedger lcl,
     std::vector<LedgerEntry> const& archiveEntries,
     std::vector<LedgerKey> const& restoredEntries,
     std::vector<LedgerKey> const& deletedEntries);

@@ -99,10 +99,10 @@ BucketManager::initialize()
         mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
         mSnapshotManager = std::make_unique<BucketSnapshotManager>(
             mApp,
-            std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
-                                                             LedgerHeader()),
+            std::make_unique<BucketListSnapshot<LiveBucket>>(
+                *mLiveBucketList, LastClosedLedger()),
             std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                *mHotArchiveBucketList, LedgerHeader()),
+                *mHotArchiveBucketList, LastClosedLedger()),
             mConfig.QUERY_SNAPSHOT_LEDGERS);
     }
 

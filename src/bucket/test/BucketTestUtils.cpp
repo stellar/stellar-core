@@ -39,15 +39,35 @@ addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
                               std::vector<LedgerEntry> const& liveEntries,
                               std::vector<LedgerKey> const& deadEntries)
 {
+    LedgerHeaderHistoryEntry lhe;
+    lhe.header = header;
+    auto sorobanConfig =
+        app.getLedgerManager().hasSorobanNetworkConfig()
+            ? std::make_optional(
+                  app.getLedgerManager().getSorobanNetworkConfig())
+            : std::nullopt;
+    addLiveBatchAndUpdateSnapshot(
+        app,
+        LastClosedLedger(lhe, app.getLedgerManager().getLastClosedLedgerHAS(),
+                         sorobanConfig),
+        initEntries, liveEntries, deadEntries);
+}
+
+void
+addLiveBatchAndUpdateSnapshot(Application& app, LastClosedLedger lcl,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries)
+{
     auto& liveBl = app.getBucketManager().getLiveBucketList();
-    liveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
-                    liveEntries, deadEntries);
+    liveBl.addBatch(app, lcl.getLedgerSeq(), lcl.getProtocolVersion(),
+                    initEntries, liveEntries, deadEntries);
 
     auto liveSnapshot =
-        std::make_unique<BucketListSnapshot<LiveBucket>>(liveBl, header);
+        std::make_unique<BucketListSnapshot<LiveBucket>>(liveBl, lcl);
     auto hotArchiveSnapshot =
         std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-            app.getBucketManager().getHotArchiveBucketList(), header);
+            app.getBucketManager().getHotArchiveBucketList(), lcl);
 
     app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
@@ -60,14 +80,35 @@ addHotArchiveBatchAndUpdateSnapshot(
     std::vector<LedgerKey> const& restoredEntries,
     std::vector<LedgerKey> const& deletedEntries)
 {
+    LedgerHeaderHistoryEntry lhe;
+    lhe.header = header;
+    auto sorobanConfig =
+        app.getLedgerManager().hasSorobanNetworkConfig()
+            ? std::make_optional(
+                  app.getLedgerManager().getSorobanNetworkConfig())
+            : std::nullopt;
+    addHotArchiveBatchAndUpdateSnapshot(
+        app,
+        LastClosedLedger(lhe, app.getLedgerManager().getLastClosedLedgerHAS(),
+                         sorobanConfig),
+        archiveEntries, restoredEntries, deletedEntries);
+}
+
+void
+addHotArchiveBatchAndUpdateSnapshot(
+    Application& app, LastClosedLedger lcl,
+    std::vector<LedgerEntry> const& archiveEntries,
+    std::vector<LedgerKey> const& restoredEntries,
+    std::vector<LedgerKey> const& deletedEntries)
+{
     auto& hotArchiveBl = app.getBucketManager().getHotArchiveBucketList();
-    hotArchiveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion,
+    hotArchiveBl.addBatch(app, lcl.getLedgerSeq(), lcl.getProtocolVersion(),
                           archiveEntries, restoredEntries, deletedEntries);
     auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-        app.getBucketManager().getLiveBucketList(), header);
+        app.getBucketManager().getLiveBucketList(), lcl);
     auto hotArchiveSnapshot =
         std::make_unique<BucketListSnapshot<HotArchiveBucket>>(hotArchiveBl,
-                                                               header);
+                                                               lcl);
 
     app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));

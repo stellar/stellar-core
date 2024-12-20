@@ -1273,11 +1273,13 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     if (header.ledgerSeq != prevLedgerSeq)
     {
         auto& bm = mApp.getBucketManager();
+        auto lcl = LastClosedLedger(mLastClosedLedger, getLastClosedLedgerHAS(),
+                                    mSorobanNetworkConfig);
         auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-            bm.getLiveBucketList(), header);
+            bm.getLiveBucketList(), lcl);
         auto hotArchiveSnapshot =
             std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                bm.getHotArchiveBucketList(), header);
+                bm.getHotArchiveBucketList(), lcl);
         bm.getBucketSnapshotManager().updateCurrentSnapshot(
             std::move(liveSnapshot), std::move(hotArchiveSnapshot));
     }

@@ -65,6 +65,7 @@ class AbstractLedgerStateSnapshot
 {
   public:
     virtual ~AbstractLedgerStateSnapshot() = default;
+    virtual LastClosedLedger const& getLastClosedLedger() const = 0;
     virtual LedgerHeaderWrapper getLedgerHeader() const = 0;
     virtual LedgerEntryWrapper getAccount(AccountID const& account) const = 0;
     virtual LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
@@ -91,6 +92,7 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
   public:
     LedgerTxnReadOnly(AbstractLedgerTxn& ltx);
     ~LedgerTxnReadOnly() override;
+    LastClosedLedger const& getLastClosedLedger() const override;
     LedgerHeaderWrapper getLedgerHeader() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
@@ -116,6 +118,7 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
     BucketSnapshotState(BucketManager& bm);
     ~BucketSnapshotState() override;
 
+    LastClosedLedger const& getLastClosedLedger() const override;
     LedgerHeaderWrapper getLedgerHeader() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
@@ -144,6 +147,7 @@ class LedgerSnapshot : public NonMovableOrCopyable
     LedgerSnapshot(AbstractLedgerTxn& ltx);
     LedgerSnapshot(Application& app);
     LedgerHeaderWrapper getLedgerHeader() const;
+    LastClosedLedger const& getLastClosedLedger() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
     getAccount(LedgerHeaderWrapper const& header,

@@ -11,6 +11,8 @@
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "history/HistoryArchive.h"
+#include "ledger/NetworkConfig.h"
 
 namespace medida
 {
@@ -34,8 +36,70 @@ template <class BucketT> struct BucketLevelSnapshot
     BucketLevelSnapshot(BucketLevel<BucketT> const& level);
 };
 
+// Complete state of last closed ledger: ledger header, soroban network config,
+// bucketlist
+struct LastClosedLedger
+{
+    std::optional<SorobanNetworkConfig> sorobanNetworkConfig;
+    LedgerHeaderHistoryEntry lhhe;
+    HistoryArchiveState has;
+    LastClosedLedger() = default;
+    explicit LastClosedLedger(
+        LedgerHeaderHistoryEntry const& lhhe, HistoryArchiveState const& has,
+        std::optional<SorobanNetworkConfig> const& sorobanNetworkConfig)
+        : sorobanNetworkConfig(sorobanNetworkConfig), lhhe(lhhe), has(has)
+    {
+    }
+    // Add getters
+    uint32_t
+    getProtocolVersion() const
+    {
+        return lhhe.header.ledgerVersion;
+    }
+    uint32_t
+    getLastTxFee() const
+    {
+        return lhhe.header.baseFee;
+    }
+    uint32_t
+    getLastReserve() const
+    {
+        return lhhe.header.baseReserve;
+    }
+    uint32_t
+    getMaxTxSetSize() const
+    {
+        return lhhe.header.maxTxSetSize;
+    }
+    uint32_t
+    getLastMaxTxSetSizeOps() const
+    {
+        auto n = getMaxTxSetSize();
+        return protocolVersionStartsFrom(getProtocolVersion(),
+                                         ProtocolVersion::V_11)
+                   ? n
+                   : (n * MAX_OPS_PER_TX);
+    }
+    uint32_t
+    getLedgerSeq() const
+    {
+        return lhhe.header.ledgerSeq;
+    }
+    LedgerHeaderHistoryEntry const&
+    getLedgerHeaderHistoryEntry() const
+    {
+        return lhhe;
+    }
+    std::optional<SorobanNetworkConfig> const&
+    getSorobanNetworkConfig() const
+    {
+        return sorobanNetworkConfig;
+    }
+};
+
 template <class BucketT> class BucketListSnapshot : public NonMovable
 {
+
     BUCKET_TYPE_ASSERT(BucketT);
     using BucketSnapshotT =
         std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
@@ -44,11 +108,12 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
   private:
     std::vector<BucketLevelSnapshot<BucketT>> mLevels;
 
-    // LedgerHeader associated with this ledger state snapshot
-    LedgerHeader const mHeader;
+    // Last closed ledger associated with this snapshot
+    LastClosedLedger const mLastClosedLedger;
 
   public:
-    BucketListSnapshot(BucketListBase<BucketT> const& bl, LedgerHeader hhe);
+    BucketListSnapshot(BucketListBase<BucketT> const& bl,
+                       LastClosedLedger lastClosed);
 
     // Only allow copies via constructor
     BucketListSnapshot(BucketListSnapshot const& snapshot);
@@ -59,7 +124,12 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
     LedgerHeader const&
     getLedgerHeader() const
     {
-        return mHeader;
+        return mLastClosedLedger.lhhe.header;
+    }
+    LastClosedLedger const&
+    getLastClosedLedger() const
+    {
+        return mLastClosedLedger;
     }
 };
 
@@ -112,6 +182,7 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     }
 
     LedgerHeader const& getLedgerHeader();
+    LastClosedLedger const& getLastClosedLedger();
 
     // Loads inKeys from the specified historical snapshot. Returns
     // load_result_vec if the snapshot for the given ledger is

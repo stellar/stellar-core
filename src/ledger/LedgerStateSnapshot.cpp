@@ -112,6 +112,13 @@ LedgerTxnReadOnly::getLedgerHeader() const
     return LedgerHeaderWrapper(mLedgerTxn.loadHeader());
 }
 
+LastClosedLedger const&
+LedgerTxnReadOnly::getLastClosedLedger() const
+{
+    throw std::runtime_error(
+        "LedgerTxnReadOnly::getLastClosedLedger is illegal");
+}
+
 LedgerEntryWrapper
 LedgerTxnReadOnly::getAccount(AccountID const& account) const
 {
@@ -162,10 +169,11 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
     return f(lsg);
 }
 
-BucketSnapshotState::BucketSnapshotState(BucketManager& bm)
-    : mSnapshot(bm.getSearchableLiveBucketListSnapshot())
+BucketSnapshotState::BucketSnapshotState(
+    std::shared_ptr<SearchableLiveBucketListSnapshot> snapshot)
+    : mSnapshot(snapshot)
     , mLedgerHeader(LedgerHeaderWrapper(
-          std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
+          std::make_shared<LedgerHeader>(snapshot->getLedgerHeader())))
 {
 }
 
@@ -177,6 +185,12 @@ LedgerHeaderWrapper
 BucketSnapshotState::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(std::get<1>(mLedgerHeader.mHeader));
+}
+
+LastClosedLedger const&
+BucketSnapshotState::getLastClosedLedger() const
+{
+    return mSnapshot->getLastClosedLedger();
 }
 
 LedgerEntryWrapper
@@ -240,6 +254,12 @@ LedgerHeaderWrapper
 LedgerSnapshot::getLedgerHeader() const
 {
     return mGetter->getLedgerHeader();
+}
+
+LastClosedLedger const&
+LedgerSnapshot::getLastClosedLedger() const
+{
+    return mGetter->getLastClosedLedger();
 }
 
 LedgerEntryWrapper

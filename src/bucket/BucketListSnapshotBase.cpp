@@ -16,8 +16,8 @@ namespace stellar
 {
 template <class BucketT>
 BucketListSnapshot<BucketT>::BucketListSnapshot(
-    BucketListBase<BucketT> const& bl, LedgerHeader header)
-    : mHeader(std::move(header))
+    BucketListBase<BucketT> const& bl, LastClosedLedger lastClosed)
+    : mLastClosedLedger(std::move(lastClosed))
 {
     releaseAssert(threadIsMain());
 
@@ -31,7 +31,7 @@ BucketListSnapshot<BucketT>::BucketListSnapshot(
 template <class BucketT>
 BucketListSnapshot<BucketT>::BucketListSnapshot(
     BucketListSnapshot<BucketT> const& snapshot)
-    : mLevels(snapshot.mLevels), mHeader(snapshot.mHeader)
+    : mLevels(snapshot.mLevels), mLastClosedLedger(snapshot.mLastClosedLedger)
 {
 }
 
@@ -46,7 +46,7 @@ template <class BucketT>
 uint32_t
 BucketListSnapshot<BucketT>::getLedgerSeq() const
 {
-    return mHeader.ledgerSeq;
+    return mLastClosedLedger.lhhe.header.ledgerSeq;
 }
 
 template <class BucketT>
@@ -56,6 +56,15 @@ SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader()
     releaseAssert(mSnapshot);
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
     return mSnapshot->getLedgerHeader();
+}
+
+template <class BucketT>
+LastClosedLedger const&
+SearchableBucketListSnapshotBase<BucketT>::getLastClosedLedger()
+{
+    releaseAssert(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    return mSnapshot->getLastClosedLedger();
 }
 
 template <class BucketT>
