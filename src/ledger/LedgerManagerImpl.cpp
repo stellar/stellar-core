@@ -1258,10 +1258,12 @@ LedgerManagerImpl::getCurrentLedgerStateSnaphot()
 {
     if (!mReadOnlyLedgerStateSnapshot)
     {
+        // Set autoUpdate to false to "freeze" the snapshot
+        // Update manually at the end of ledger close
         mReadOnlyLedgerStateSnapshot =
             mApp.getBucketManager()
                 .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot();
+                .copySearchableLiveBucketListSnapshot(/* autoUpdate */ false);
     }
     return mReadOnlyLedgerStateSnapshot;
 }
@@ -1296,6 +1298,9 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
         bm.getBucketSnapshotManager().updateCurrentSnapshot(
             std::move(liveSnapshot), std::move(hotArchiveSnapshot));
     }
+    // Manually refresh the snapshot now that apply is done
+    // This has to be done *after* snapshot manager updates current snapshot
+    getCurrentLedgerStateSnaphot()->updateSnapshotToLatest();
 }
 
 void

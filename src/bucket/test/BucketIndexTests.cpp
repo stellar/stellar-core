@@ -133,7 +133,7 @@ class BucketIndexTest
 
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+                                .copySearchableLiveBucketListSnapshot(true);
         auto lk = LedgerEntryKey(canonicalEntry);
 
         auto currentLoadedEntry = searchableBL->load(lk);
@@ -252,7 +252,7 @@ class BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+                                .copySearchableLiveBucketListSnapshot(true);
 
         // Test bulk load lookup
         auto loadResult =
@@ -279,7 +279,7 @@ class BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+                                .copySearchableLiveBucketListSnapshot(true);
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -319,7 +319,7 @@ class BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+                                .copySearchableLiveBucketListSnapshot(true);
 
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
@@ -496,7 +496,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+                                .copySearchableLiveBucketListSnapshot(true);
         auto loadResult =
             searchableBL->loadPoolShareTrustLinesByAccountAndAsset(
                 mAccountToSearch.accountID, mAssetToSearch);

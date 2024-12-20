@@ -61,6 +61,12 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     return result;
 }
 
+void
+SearchableLiveBucketListSnapshot::updateSnapshotToLatest()
+{
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+}
+
 template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
@@ -77,7 +83,10 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    if (mAutoUpdate)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    }
 
     if (!ledgerSeq || *ledgerSeq == mSnapshot->getLedgerSeq())
     {
@@ -111,7 +120,10 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     // This query should only be called during TX apply
     releaseAssert(threadIsMain());
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    if (mAutoUpdate)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    }
     releaseAssert(mSnapshot);
 
     LedgerKeySet trustlinesToLoad;
@@ -152,7 +164,10 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
                                                        int64_t minBalance)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    if (mAutoUpdate)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    }
     releaseAssert(mSnapshot);
 
     // This is a legacy query, should only be called by main thread during
@@ -261,14 +276,15 @@ SearchableLiveBucketListSnapshot::loadKeysWithLimits(
 }
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager)
-    : SearchableBucketListSnapshotBase<LiveBucket>(snapshotManager)
+    BucketSnapshotManager const& snapshotManager, bool autoUpdate)
+    : SearchableBucketListSnapshotBase<LiveBucket>(snapshotManager, autoUpdate)
 {
 }
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     BucketSnapshotManager const& snapshotManager)
-    : SearchableBucketListSnapshotBase<HotArchiveBucket>(snapshotManager)
+    : SearchableBucketListSnapshotBase<HotArchiveBucket>(snapshotManager,
+                                                         /* autoUpdate */ true)
 {
 }
 

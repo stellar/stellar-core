@@ -89,7 +89,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
                           uint32_t numHistoricalLedgers);
 
     std::shared_ptr<SearchableLiveBucketListSnapshot>
-    copySearchableLiveBucketListSnapshot() const;
+    copySearchableLiveBucketListSnapshot(bool autoUpdate) const;
 
     std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
     copySearchableHotArchiveBucketListSnapshot() const;

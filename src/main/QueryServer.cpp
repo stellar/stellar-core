@@ -67,7 +67,8 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
     for (auto pid : workerPids)
     {
         mBucketListSnapshots[pid] = std::move(
-            bucketSnapshotManager.copySearchableLiveBucketListSnapshot());
+            bucketSnapshotManager.copySearchableLiveBucketListSnapshot(
+                /* autoUpdate */ true));
     }
 }
 

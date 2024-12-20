@@ -53,11 +53,12 @@ BucketSnapshotManager::BucketSnapshotManager(
 }
 
 std::shared_ptr<SearchableLiveBucketListSnapshot>
-BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+    bool autoUpdate) const
 {
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
-        new SearchableLiveBucketListSnapshot(*this));
+        new SearchableLiveBucketListSnapshot(*this, autoUpdate));
 }
 
 std::shared_ptr<SearchableHotArchiveBucketListSnapshot>

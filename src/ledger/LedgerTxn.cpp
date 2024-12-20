@@ -3062,7 +3062,7 @@ LedgerTxnRoot::Impl::getSearchableLiveBucketListSnapshot() const
         mSearchableBucketListSnapshot =
             mApp.getBucketManager()
                 .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot();
+                .copySearchableLiveBucketListSnapshot(/* autoUpdate */ true);
     }
 
     return *mSearchableBucketListSnapshot;

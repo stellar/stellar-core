@@ -1405,7 +1405,8 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
     entry.data.claimableBalance().amount = 0;
 
     auto searchableBL =
-        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot();
+        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(
+            true);
 
     // Update entry every 5 ledgers so we can see bucket merge events
     for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)

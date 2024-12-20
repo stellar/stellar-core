@@ -54,7 +54,10 @@ LedgerHeader const&
 SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader()
 {
     releaseAssert(mSnapshot);
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    if (mAutoUpdate)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    }
     return mSnapshot->getLedgerHeader();
 }
 
@@ -63,7 +66,10 @@ LastClosedLedger const&
 SearchableBucketListSnapshotBase<BucketT>::getLastClosedLedger()
 {
     releaseAssert(mSnapshot);
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    if (mAutoUpdate)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    }
     return mSnapshot->getLastClosedLedger();
 }
 
@@ -117,7 +123,10 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
         }
     };
 
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    if (mAutoUpdate)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    }
     if (threadIsMain())
     {
         mSnapshotManager.startPointLoadTimer();
@@ -150,10 +159,12 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 
 template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
-    BucketSnapshotManager const& snapshotManager)
-    : mSnapshotManager(snapshotManager), mHistoricalSnapshots()
+    BucketSnapshotManager const& snapshotManager, bool autoUpdate)
+    : mSnapshotManager(snapshotManager)
+    , mHistoricalSnapshots()
+    , mAutoUpdate(autoUpdate)
 {
-
+    // Always create a snapshot based on the latest LCL state.
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 }
 

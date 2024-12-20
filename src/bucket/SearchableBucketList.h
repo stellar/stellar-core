@@ -14,7 +14,7 @@ class SearchableLiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<LiveBucket>
 {
     SearchableLiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager);
+        BucketSnapshotManager const& snapshotManager, bool autoUpdate);
 
   public:
     std::vector<LedgerEntry>
@@ -35,7 +35,9 @@ class SearchableLiveBucketListSnapshot
                                    StateArchivalSettings const& sas);
 
     friend std::shared_ptr<SearchableLiveBucketListSnapshot>
-    BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;
+    BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+        bool autoUpdate) const;
+    void updateSnapshotToLatest();
 };
 
 class SearchableHotArchiveBucketListSnapshot
