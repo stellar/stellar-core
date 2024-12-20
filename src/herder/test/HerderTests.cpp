@@ -212,54 +212,6 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                     REQUIRE(c1.loadSequenceNumber() == expectedC1Seq);
                 }
             }
-
-            SECTION("Queue processing test")
-            {
-                app->getCommandHandler().manualCmd("maintenance?queue=true");
-
-                while (app->getLedgerManager().getLastClosedLedgerNum() <
-                       (app->getHistoryManager().getCheckpointFrequency() + 5))
-                {
-                    app->getClock().crank(true);
-                }
-
-                app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=1");
-                app->getCommandHandler().manualCmd("maintenance?queue=true");
-                auto& db = app->getDatabase();
-                auto& sess = db.getSession();
-
-                app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
-                app->getCommandHandler().manualCmd("maintenance?queue=true");
-                auto lh = LedgerHeaderUtils::loadBySequence(db, sess, 2);
-                REQUIRE(!!lh);
-
-                app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=2");
-                // this should delete items older than sequence 2
-                app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderUtils::loadBySequence(db, sess, 2);
-                REQUIRE(!lh);
-                lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
-                REQUIRE(!!lh);
-
-                // this should delete items older than sequence 3
-                SECTION("set min to 3 by update")
-                {
-                    app->getCommandHandler().manualCmd(
-                        "setcursor?id=A1&cursor=3");
-                    app->getCommandHandler().manualCmd(
-                        "maintenance?queue=true");
-                    lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
-                    REQUIRE(!lh);
-                }
-                SECTION("set min to 3 by deletion")
-                {
-                    app->getCommandHandler().manualCmd("dropcursor?id=A1");
-                    app->getCommandHandler().manualCmd(
-                        "maintenance?queue=true");
-                    lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
-                    REQUIRE(!lh);
-                }
-            }
         }
     });
 }

@@ -61,8 +61,7 @@ You have some control over which peers you're connected to:
 
 ### Maintenance
 
-Core keeps old meta around for Horizon and other systems. As cursors get updated, automatic
-maintenance normally deletes more than enough for the node to use a constant amount of disk space.
+Core keeps historical data needed for publish (such as SCP history)
 
 Sometimes you need to clean up more than this (for example, if you have a large maintenance debt).
 In this case running the command `maintenance?count=100000000` (integer is a large number, bigger than your max backlog) will perform the full maintenance.

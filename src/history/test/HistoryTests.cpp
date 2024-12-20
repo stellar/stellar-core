@@ -16,7 +16,7 @@
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
-#include "main/ExternalQueue.h"
+#include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "process/ProcessManager.h"
 #include "test/TestAccount.h"
@@ -1375,8 +1375,7 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         REQUIRE(hm0.getMinLedgerQueuedToPublish() == 7);
 
         // Trim history after publishing.
-        ExternalQueue ps(*app0);
-        ps.deleteOldEntries(50000);
+        app0->getMaintainer().performMaintenance(50000);
     }
 
     cfg.MAX_CONCURRENT_SUBPROCESSES = 32;
@@ -1395,8 +1394,7 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
             clock.crank(true);
 
             // Trim history after publishing whenever possible.
-            ExternalQueue ps(*app1);
-            ps.deleteOldEntries(50000);
+            app1->getMaintainer().performMaintenance(50000);
         }
         // We should have either an empty publish queue or a
         // ledger sometime after the 5th checkpoint

@@ -24,7 +24,6 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
-#include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
@@ -63,7 +62,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 21;
-static unsigned long const SCHEMA_VERSION = 23;
+static unsigned long const SCHEMA_VERSION = 24;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -218,6 +217,9 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 23:
         mApp.getHistoryManager().dropSQLBasedPublish();
         Upgrades::dropSupportUpgradeHistory(*this);
+        break;
+    case 24:
+        getSession() << "DROP TABLE IF EXISTS pubsub;";
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
@@ -477,7 +479,6 @@ Database::initialize()
     Upgrades::dropAll(*this);
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
-    ExternalQueue::dropAll(*this);
     LedgerHeaderUtils::dropAll(*this);
     // No need to re-create txhistory, will be dropped during
     // upgradeToCurrentSchema anyway

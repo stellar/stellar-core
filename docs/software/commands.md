@@ -244,11 +244,6 @@ Most commands return their results in JSON format.
   `connect?peer=NAME&port=NNN`<br>
   Triggers the instance to connect to peer NAME at port NNN.
 
-* **dropcursor**  
-  `dropcursor?id=ID`<br>
-  Deletes the tracking cursor identified by `id`. See `setcursor` for
-  more information.
-
 * **droppeer**
   `droppeer?node=NODE_ID[&ban=D]`<br>
   Drops peer identified by NODE_ID, when D is 1 the peer is also banned.
@@ -306,23 +301,6 @@ Most commands return their results in JSON format.
   * `disagree`: participating in the latest consensus rounds, but working on different values.
   * `delayed`: participating in the latest consensus rounds, but slower than others.
   * `agree`: running just fine.
-
-* **setcursor**
-  `setcursor?id=ID&cursor=N`<br>
-  Sets or creates a cursor identified by `ID` with value `N`. ID is an
-  uppercase AlphaNum, N is an uint32 that represents the last ledger sequence
-  number that the instance ID processed. Cursors are used by dependent services
-  to tell stellar-core which data can be safely deleted by the instance. The
-  data is historical data stored in the SQL tables such as txhistory or
-  ledgerheaders. When all consumers processed the data for ledger sequence N
-  the data can be safely removed by the instance. The actual deletion is
-  performed by invoking the `maintenance` endpoint or on startup. See also
-  `dropcursor`.
-
-* **getcursor**
-  `getcursor?[id=ID]`<br>
-  Gets the cursor identified by `ID`. If ID is not defined then all cursors
-  will be returned.
 
 * **scp**
   `scp?[limit=n][&fullkeys=false]`<br>
