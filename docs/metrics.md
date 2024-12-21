@@ -26,11 +26,15 @@ Metric name                               | Type      | Description
 ---------------------------------------   | --------  | --------------------
 app.post-on-background-thread.delay       | timer     | time to start task posted to background thread
 app.post-on-main-thread.delay             | timer     | time to start task posted to current crank of main thread
-bucket.batch.addtime                      | timer     | time to add a batch
-bucket.batch.objectsadded                 | meter     | number of objects added per batch
+app.post-on-overlay-thread.delay          | timer     | time to start task posted to overlay thread
+bucket.batch.addtime                      | timer     | time to add a live batch
+bucket.batch.objectsadded                 | meter     | number of objects added per live batch
+bucket.batch-archive.addtime              | timer     | time to add a hot archive batch
+bucket.batch-archive.objectsadded         | meter     | number of objects added per hot archive batch
 bucket.memory.shared                      | counter   | number of buckets referenced (excluding publish queue)
 bucket.merge-time.level-<X>               | timer     | time to merge two buckets on level <X>
 bucket.snap.merge                         | timer     | time to merge two buckets
+bucketlist-archive.size.bytes             | counter   | total size of the hot archive BucketList in bytes
 bucketlist.size.bytes                     | counter   | total size of the BucketList in bytes
 bucketlist.entryCounts.-<X>               | counter   | number of entries of type <X> in the BucketList
 bucketlist.entrySizes.-<X>                | counter   | size of entries of type <X> in the BucketList
@@ -41,6 +45,9 @@ bucketlistDB.bulk.inflationWinners        | timer     | time to load inflation w
 bucketlistDB.bulk.poolshareTrustlines     | timer     | time to load poolshare trustlines by accountID and assetID
 bucketlistDB.bulk.prefetch                | timer     | time to prefetch
 bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X> (if no bloom miss occurred)
+crypto.verify.hit                         | meter     | number of signature cache hits
+crypto.verify.miss                        | meter     | number of signature cache misses
+crypto.verify.total                       | meter     | sum of both hits and misses
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
@@ -145,6 +152,8 @@ overlay.send.survey-request               | meter     | sent survey request
 overlay.send.survey-response              | meter     | sent survey response
 process.action.queue                      | counter   | number of items waiting in internal action-queue
 process.action.overloaded                 | counter   | 0-or-1 value indicating action-queue overloading
+process.file.handles                      | counter   | number of open file handles
+process.memory.handles                    | counter   | number of running processes in process manager
 scp.envelope.emit                         | meter     | SCP message sent
 scp.envelope.invalidsig                   | meter     | envelope failed signature verification
 scp.envelope.receive                      | meter     | SCP message received
