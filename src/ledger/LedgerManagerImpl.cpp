@@ -529,26 +529,20 @@ LedgerManagerImpl::getSorobanNetworkConfig()
 {
     releaseAssert(hasSorobanNetworkConfig());
 #ifdef BUILD_TESTS
-    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        return *mSorobanNetworkConfig;
-    }
-    else
+    return *mSorobanNetworkConfig;
+#else
+    return getLastClosedLedger(mApp).getSorobanNetworkConfig().value();
 #endif
-        return getLastClosedLedger(mApp).getSorobanNetworkConfig().value();
 }
 
 bool
 LedgerManagerImpl::hasSorobanNetworkConfig() const
 {
 #ifdef BUILD_TESTS
-    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        return mSorobanNetworkConfig.has_value();
-    }
-    else
+    return mSorobanNetworkConfig.has_value();
+#else
+    return getLastClosedLedger(mApp).getSorobanNetworkConfig().has_value();
 #endif
-        return getLastClosedLedger(mApp).getSorobanNetworkConfig().has_value();
 }
 
 #ifdef BUILD_TESTS

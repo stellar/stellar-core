@@ -959,11 +959,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         auto& bm = app->getBucketManager();
         auto& bl = bm.getLiveBucketList();
 
-        auto& networkCfg = [&]() -> SorobanNetworkConfig& {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            return app->getLedgerManager().getMutableSorobanNetworkConfig();
-        }();
-
+        auto& networkCfg =
+            app->getLedgerManager().getMutableSorobanNetworkConfig();
         auto& stateArchivalSettings = networkCfg.stateArchivalSettings();
         auto& evictionIter = networkCfg.evictionIterator();
         auto const levelToScan = 3;

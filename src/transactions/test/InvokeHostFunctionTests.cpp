@@ -2082,8 +2082,10 @@ TEST_CASE("state archival", "[tx][soroban]")
         cfg.mWriteFee1KBBucketListLow = 20'000;
         cfg.mWriteFee1KBBucketListHigh = 1'000'000;
     });
-    auto const& stateArchivalSettings =
-        test.getNetworkCfg().stateArchivalSettings();
+
+    auto getArchivalSettings = [&]() {
+        return test.getNetworkCfg().stateArchivalSettings();
+    };
     auto isSuccess = [](auto resultCode) {
         return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
     };
@@ -2091,7 +2093,7 @@ TEST_CASE("state archival", "[tx][soroban]")
     SECTION("contract instance and Wasm archival")
     {
         uint32_t originalExpectedLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+            test.getLCLSeq() + getArchivalSettings().minPersistentTTL - 1;
 
         for (uint32_t i =
                  test.getApp().getLedgerManager().getLastClosedLedgerNum();
@@ -2121,7 +2123,7 @@ TEST_CASE("state archival", "[tx][soroban]")
                                                     40000 /* two LE-writes
                                                     */);
             auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+                test.getLCLSeq() + getArchivalSettings().minPersistentTTL - 1;
 
             // Instance should now be useable
             REQUIRE(isSuccess(
@@ -2137,7 +2139,7 @@ TEST_CASE("state archival", "[tx][soroban]")
                                  939 /* rent bump */ +
                                      20000 /* one LE write */);
             auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+                test.getLCLSeq() + getArchivalSettings().minPersistentTTL - 1;
 
             // invocation should fail
             REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY, 0) ==
@@ -2155,7 +2157,7 @@ TEST_CASE("state archival", "[tx][soroban]")
                                  943 /* rent bump */ +
                                      20000 /* one LE write */);
             auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+                test.getLCLSeq() + getArchivalSettings().minPersistentTTL - 1;
 
             // invocation should fail
             REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY, 0) ==
@@ -2194,7 +2196,7 @@ TEST_CASE("state archival", "[tx][soroban]")
         REQUIRE(isSuccess(
             client.put("temp", ContractDataDurability::TEMPORARY, 0)));
         auto expectedTempLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minTemporaryTTL - 1;
+            test.getLCLSeq() + getArchivalSettings().minTemporaryTTL - 1;
 
         // Check for expected minimum lifetime values
         REQUIRE(
@@ -2274,7 +2276,7 @@ TEST_CASE("state archival", "[tx][soroban]")
 
             // Recreated entry should be live
             REQUIRE(client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
-                    test.getLCLSeq() + stateArchivalSettings.minTemporaryTTL -
+                    test.getLCLSeq() + getArchivalSettings().minTemporaryTTL -
                         1);
             REQUIRE(isSuccess(
                 client.get("temp", ContractDataDurability::TEMPORARY, 42)));
@@ -2329,7 +2331,7 @@ TEST_CASE("state archival", "[tx][soroban]")
                 makeSymbolSCVal("persistent2"),
                 ContractDataDurability::PERSISTENT);
             uint32_t expectedLiveUntilLedger2 =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+                test.getLCLSeq() + getArchivalSettings().minPersistentTTL - 1;
             REQUIRE(client.getTTL("persistent2",
                                   ContractDataDurability::PERSISTENT) ==
                     expectedLiveUntilLedger2);
@@ -2347,7 +2349,7 @@ TEST_CASE("state archival", "[tx][soroban]")
             // Check value and TTL of restored entry
             REQUIRE(client.getTTL("persistent",
                                   ContractDataDurability::PERSISTENT) ==
-                    test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
+                    test.getLCLSeq() + getArchivalSettings().minPersistentTTL -
                         1);
             REQUIRE(isSuccess(client.get(
                 "persistent", ContractDataDurability::PERSISTENT, 10)));
@@ -2432,12 +2434,12 @@ TEST_CASE("state archival", "[tx][soroban]")
         REQUIRE(isSuccess(
             client.put("key", ContractDataDurability::PERSISTENT, 0)));
         uint32_t initialLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+            test.getLCLSeq() + getArchivalSettings().minPersistentTTL - 1;
         REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
                 initialLiveUntilLedger);
         // Try extending entry, but set the threshold 1 ledger below the
         // current TTL.
-        uint32_t currentTTL = stateArchivalSettings.minPersistentTTL - 2;
+        uint32_t currentTTL = getArchivalSettings().minPersistentTTL - 2;
         REQUIRE(
             isSuccess(client.extend("key", ContractDataDurability::PERSISTENT,
                                     currentTTL - 1, 50'000)));
@@ -2467,9 +2469,9 @@ TEST_CASE("state archival", "[tx][soroban]")
         SECTION("extension op")
         {
             // Max TTL includes current ledger, so subtract 1
-            test.invokeExtendOp({lk}, stateArchivalSettings.maxEntryTTL - 1);
+            test.invokeExtendOp({lk}, getArchivalSettings().maxEntryTTL - 1);
             REQUIRE(test.getTTL(lk) ==
-                    test.getLCLSeq() + stateArchivalSettings.maxEntryTTL - 1);
+                    test.getLCLSeq() + getArchivalSettings().maxEntryTTL - 1);
         }
 
         SECTION("extend host function persistent")
@@ -2480,14 +2482,14 @@ TEST_CASE("state archival", "[tx][soroban]")
 
             REQUIRE(isSuccess(client.extend(
                 "key", ContractDataDurability::PERSISTENT,
-                stateArchivalSettings.maxEntryTTL + 10,
-                stateArchivalSettings.maxEntryTTL + 10,
+                getArchivalSettings().maxEntryTTL + 10,
+                getArchivalSettings().maxEntryTTL + 10,
                 client.readKeySpec("key", ContractDataDurability::PERSISTENT)
                     .setRefundableResourceFee(80'000))));
 
             // Capped at max (Max TTL includes current ledger, so subtract 1)
             REQUIRE(test.getTTL(lk) ==
-                    test.getLCLSeq() + stateArchivalSettings.maxEntryTTL - 1);
+                    test.getLCLSeq() + getArchivalSettings().maxEntryTTL - 1);
         }
 
         SECTION("extend host function temp")
@@ -2498,19 +2500,19 @@ TEST_CASE("state archival", "[tx][soroban]")
                 makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
             uint32_t ledgerSeq = test.getLCLSeq();
             REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY,
-                                  stateArchivalSettings.maxEntryTTL,
-                                  stateArchivalSettings.maxEntryTTL) ==
+                                  getArchivalSettings().maxEntryTTL,
+                                  getArchivalSettings().maxEntryTTL) ==
                     INVOKE_HOST_FUNCTION_TRAPPED);
             REQUIRE(test.getTTL(lkTemp) ==
-                    ledgerSeq + stateArchivalSettings.minTemporaryTTL - 1);
+                    ledgerSeq + getArchivalSettings().minTemporaryTTL - 1);
 
             // Max TTL includes current ledger, so subtract 1
             REQUIRE(isSuccess(
                 client.extend("key", ContractDataDurability::TEMPORARY,
-                              stateArchivalSettings.maxEntryTTL - 1,
-                              stateArchivalSettings.maxEntryTTL - 1)));
+                              getArchivalSettings().maxEntryTTL - 1,
+                              getArchivalSettings().maxEntryTTL - 1)));
             REQUIRE(test.getTTL(lkTemp) ==
-                    test.getLCLSeq() + stateArchivalSettings.maxEntryTTL - 1);
+                    test.getLCLSeq() + getArchivalSettings().maxEntryTTL - 1);
         }
     }
 }
