@@ -125,7 +125,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -140,13 +140,11 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      $(MSBuildProjectDirectory)\build_rust.bat $(OutDir) debug next
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -190,7 +188,7 @@ exit /b 0
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -205,13 +203,11 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      $(MSBuildProjectDirectory)\build_rust.bat $(OutDir) debug curr
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -256,7 +252,7 @@ exit /b 0
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -271,15 +267,13 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      $(MSBuildProjectDirectory)\build_rust.bat $(OutDir) debug next
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -326,7 +320,7 @@ exit /b 0
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -336,16 +330,14 @@ exit /b 0
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
-	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --features next --target-dir $(OutDir)\rust\soroban-p22-target
-	      cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      $(MSBuildProjectDirectory)\build_rust.bat $(OutDir) release next
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -391,7 +383,7 @@ exit /b 0
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -401,16 +393,14 @@ exit /b 0
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
-	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --target-dir $(OutDir)\rust\soroban-p22-target
-        cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      $(MSBuildProjectDirectory)\build_rust.bat $(OutDir) release curr
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -451,32 +441,16 @@ exit /b 0
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\httpthreaded\connection.cpp">
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
+      <ObjectFileName>$(IntDir)\httpthreaded\</ObjectFileName>
     </ClCompile>
     <ClCompile Include="..\..\lib\httpthreaded\reply.cpp">
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
+      <ObjectFileName>$(IntDir)\httpthreaded\</ObjectFileName>
     </ClCompile>
     <ClCompile Include="..\..\lib\httpthreaded\request_parser.cpp">
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
+      <ObjectFileName>$(IntDir)\httpthreaded\</ObjectFileName>
     </ClCompile>
     <ClCompile Include="..\..\lib\httpthreaded\server.cpp">
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(IntDir)\httpthreaded\</ObjectFileName>
+      <ObjectFileName>$(IntDir)\httpthreaded\</ObjectFileName>
     </ClCompile>
     <ClCompile Include="..\..\lib\spdlog.cpp" />
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp" />
@@ -922,7 +896,7 @@ exit /b 0
     <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
     <ClCompile Include="..\..\src\work\WorkWithCallback.cpp" />
-    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp" />
+    <ClCompile Include="src\generated\rust\RustBridge.cpp" />
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -1266,7 +1240,7 @@ exit /b 0
     <ClInclude Include="..\..\src\work\WorkScheduler.h" />
     <ClInclude Include="..\..\src\work\WorkSequence.h" />
     <ClInclude Include="..\..\src\work\WorkWithCallback.h" />
-    <ClInclude Include="src\$(Configuration)\generated\rust\RustBridge.h" />
+    <ClInclude Include="src\generated\rust\RustBridge.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-contract.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-ledger-entries.h" />
@@ -1311,37 +1285,15 @@ exit /b 0
     <None Include="..\..\docs\transaction.md" />
     <None Include="..\..\docs\versioning.md" />
     <CustomBuild Include="..\..\hash-xdrs.sh">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">false</ExcludedFromBuild>
+      <Outputs>src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <OutputItemType>None</OutputItemType>
+      <Message>running hash-xdrs.sh</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">running hash-xdrs.sh</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h;src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</AdditionalInputs>
-      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">None</OutputItemType>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">running hash-xdrs.sh</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h;src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</AdditionalInputs>
-      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">None</OutputItemType>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">running hash-xdrs.sh</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
-      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">None</OutputItemType>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running hash-xdrs.sh</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
-      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">None</OutputItemType>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">wsl bash ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">running hash-xdrs.sh</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h;src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</AdditionalInputs>
-      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">None</OutputItemType>
     </CustomBuild>
     <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
@@ -1655,19 +1607,17 @@ exit /b 0
     <None Include="..\..\src\rust\Cargo.toml" />
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
       <FileType>Document</FileType>
-      <Command>$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --cfg test=false --header --output src\$(Configuration)\generated\rust\RustBridge.h
-$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --cfg test=false --output src\$(Configuration)\generated\rust\RustBridge.cpp</Command>
+      <Command>$(MSBuildProjectDirectory)\generate_rust_bridge.bat $(OutDir)\..\bin\cxxbridge.exe</Command>
+      <AdditionalInputs>$(OutDir)\..\bin\cxxbridge.exe;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-internal.h;src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-types.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
       <Message>running cxxbridge to generate RustBridge.h and RustBridge.cpp</Message>
-      <Outputs>src\$(Configuration)\generated\rust\RustBridge.h;src\$(Configuration)\generated\rust\RustBridge.cpp</Outputs>
+      <Outputs>src\generated\rust\RustBridge.h;src\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
-      <AdditionalInputs>$(OutDir)\bin\cxxbridge.exe</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe;$(OutDir)\rust\target\release\rust_stellar_core.lib</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <FileType>Document</FileType>
-      <Command>cargo install --root $(OutDir) cxxbridge-cmd --version 1.0.68</Command>
-      <Message>cargo install --root $(OutDir) cxxbridge-cmd --version 1.0.68</Message>
-      <Outputs>$(OutDir)/bin/cxxbridge.exe</Outputs>
+      <Command>cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Message>cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Message>
+      <Outputs>$(OutDir)\..\bin\cxxbridge.exe</Outputs>
     </CustomBuild>
     <None Include="..\..\src\rust\src\b64.rs" />
     <None Include="..\..\src\rust\src\contract.rs" />

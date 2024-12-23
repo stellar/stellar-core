@@ -537,7 +537,7 @@
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp">
+    <ClCompile Include="src\generated\rust\RustBridge.cpp">
       <Filter>rust\generated</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\xdrquery\XDRQuery.cpp">
@@ -923,7 +923,7 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp">
       <Filter>ledger</Filter>
-    </ClCompile>    
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -1721,7 +1721,7 @@
     <ClInclude Include="..\..\src\util\ProtocolVersion.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="src\$(Configuration)\generated\rust\RustBridge.h">
+    <ClInclude Include="src\generated\rust\RustBridge.h">
       <Filter>rust\generated</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\rust\CppShims.h">
