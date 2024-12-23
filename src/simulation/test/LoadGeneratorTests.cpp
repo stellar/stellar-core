@@ -197,8 +197,9 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
-            // Use tight bounds to we can verify storage works properly
+            cfg.USE_CONFIG_FOR_GENESIS = false;
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+            //  Use tight bounds to we can verify storage works properly
             cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {numDataEntries};
             cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1};
             cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {ioKiloBytes};
@@ -220,6 +221,20 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto nodes = simulation->getNodes();
 
     auto& app = *nodes[0]; // pick a node to generate load
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    auto lclCloseTime =
+        VirtualClock::from_time_t(app.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.scpValue.closeTime);
+    scheduledUpgrades.mUpgradeTime = lclCloseTime;
+    scheduledUpgrades.mProtocolVersion =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    for (auto const& node : nodes)
+    {
+        node->getHerder().setUpgrades(scheduledUpgrades);
+    }
+    simulation->crankForAtLeast(std::chrono::seconds(20), false);
+
     auto& loadGen = app.getLoadGenerator();
     auto getSuccessfulTxCount = [&]() {
         return nodes[0]
