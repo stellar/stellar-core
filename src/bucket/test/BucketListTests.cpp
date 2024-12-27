@@ -868,7 +868,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
     for_versions_from(20, *app, [&] {
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
-        auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig();
+        auto& networkConfig =
+            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
 
         uint32_t windowSize = networkConfig.stateArchivalSettings()
                                   .bucketListSizeWindowSampleSize;
@@ -1404,9 +1405,6 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         LedgerTestUtils::generateValidLedgerEntryOfType(CLAIMABLE_BALANCE);
     entry.data.claimableBalance().amount = 0;
 
-    auto searchableBL =
-        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot();
-
     // Update entry every 5 ledgers so we can see bucket merge events
     for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)
     {
@@ -1422,6 +1420,8 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
+        auto searchableBL = bm.getBucketSnapshotManager()
+                                .copySearchableLiveBucketListSnapshot();
 
         // Snapshot should automatically update with latest version
         auto loadedEntry = searchableBL->load(LedgerEntryKey(entry));

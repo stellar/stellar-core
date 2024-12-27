@@ -106,7 +106,7 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
 // A concrete implementation of read-only BucketList snapshot wrapper
 class BucketSnapshotState : public AbstractLedgerStateSnapshot
 {
-    std::shared_ptr<SearchableLiveBucketListSnapshot> mSnapshot;
+    std::shared_ptr<SearchableLiveBucketListSnapshot const> const mSnapshot;
     // Store a copy of the header from mSnapshot. This is needed for
     // validation flow where for certain validation scenarios the header needs
     // to be modified

@@ -52,21 +52,44 @@ BucketSnapshotManager::BucketSnapshotManager(
     }
 }
 
-std::shared_ptr<SearchableLiveBucketListSnapshot>
+template <class BucketT>
+std::map<uint32_t, SnapshotPtrT<BucketT>>
+copyHistoricalSnapshots(
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const& snapshots)
+{
+    std::map<uint32_t, SnapshotPtrT<BucketT>> copiedSnapshots;
+    for (auto const& [ledgerSeq, snap] : snapshots)
+    {
+        copiedSnapshots.emplace(
+            ledgerSeq,
+            std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
+    }
+    return copiedSnapshots;
+}
+
+SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
-        new SearchableLiveBucketListSnapshot(*this));
+        new SearchableLiveBucketListSnapshot(
+            *this,
+            std::make_unique<BucketListSnapshot<LiveBucket>>(
+                *mCurrLiveSnapshot),
+            copyHistoricalSnapshots(mLiveHistoricalSnapshots)));
 }
 
-std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
 {
     releaseAssert(mCurrHotArchiveSnapshot);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
-        new SearchableHotArchiveBucketListSnapshot(*this));
+        new SearchableHotArchiveBucketListSnapshot(
+            *this,
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                *mCurrHotArchiveSnapshot),
+            copyHistoricalSnapshots(mHotArchiveHistoricalSnapshots)));
 }
 
 medida::Timer&
@@ -93,75 +116,35 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
     return iter->second;
 }
 
-template <>
 void
-BucketSnapshotManager::maybeUpdateSnapshot<LiveBucket>(
-    SnapshotPtrT<LiveBucket>& snapshot,
-    std::map<uint32_t, SnapshotPtrT<LiveBucket>>& historicalSnapshots) const
+BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
+    SearchableSnapshotConstPtr& snapshot)
 {
-    maybeUpdateSnapshotInternal(snapshot, historicalSnapshots,
-                                mCurrLiveSnapshot, mLiveHistoricalSnapshots);
-}
-
-template <>
-void
-BucketSnapshotManager::maybeUpdateSnapshot<HotArchiveBucket>(
-    SnapshotPtrT<HotArchiveBucket>& snapshot,
-    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>& historicalSnapshots)
-    const
-{
-    maybeUpdateSnapshotInternal(snapshot, historicalSnapshots,
-                                mCurrHotArchiveSnapshot,
-                                mHotArchiveHistoricalSnapshots);
-}
-
-template <class BucketT>
-void
-BucketSnapshotManager::maybeUpdateSnapshotInternal(
-    SnapshotPtrT<BucketT>& snapshot,
-    std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
-    SnapshotPtrT<BucketT> const& managerSnapshot,
-    std::map<uint32_t, SnapshotPtrT<BucketT>> const& managerHistoricalSnapshots)
-    const
-{
-    BUCKET_TYPE_ASSERT(BucketT);
-
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
 
-    // First update current snapshot
     if (!snapshot ||
-        snapshot->getLedgerSeq() != managerSnapshot->getLedgerSeq())
+        snapshot->getLedgerSeq() < mCurrLiveSnapshot->getLedgerSeq())
     {
-        // Should only update with a newer snapshot
-        releaseAssert(!snapshot || snapshot->getLedgerSeq() <
-                                       managerSnapshot->getLedgerSeq());
-        snapshot = std::make_unique<BucketListSnapshot<BucketT> const>(
-            *managerSnapshot);
+        snapshot = copySearchableLiveBucketListSnapshot();
     }
+}
 
-    // Then update historical snapshots (if any exist)
-    if (managerHistoricalSnapshots.empty())
-    {
-        return;
-    }
+void
+BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
+    SearchableHotArchiveSnapshotConstPtr& snapshot)
+{
+    // The canonical snapshot held by the BucketSnapshotManager is not being
+    // modified. Rather, a thread is checking it's copy against the canonical
+    // snapshot, so use a shared lock.
+    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
 
-    // If size of manager's history map is different, or if the oldest snapshot
-    // ledger seq is different, we need to update.
-    if (managerHistoricalSnapshots.size() != historicalSnapshots.size() ||
-        managerHistoricalSnapshots.begin()->first !=
-            historicalSnapshots.begin()->first)
+    if (!snapshot ||
+        snapshot->getLedgerSeq() < mCurrHotArchiveSnapshot->getLedgerSeq())
     {
-        // Copy current snapshot map into historicalSnapshots
-        historicalSnapshots.clear();
-        for (auto const& [ledgerSeq, snap] : managerHistoricalSnapshots)
-        {
-            historicalSnapshots.emplace(
-                ledgerSeq,
-                std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
-        }
+        snapshot = copySearchableHotArchiveBucketListSnapshot();
     }
 }
 

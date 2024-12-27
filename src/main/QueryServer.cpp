@@ -56,6 +56,7 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
                          int maxClient, size_t threadPoolSize,
                          BucketSnapshotManager& bucketSnapshotManager)
     : mServer(address, port, maxClient, threadPoolSize)
+    , mBucketSnapshotManager(bucketSnapshotManager)
 {
     LOG_INFO(DEFAULT_LOG, "Listening on {}:{} for Query requests", address,
              port);
@@ -132,7 +133,11 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 
     if (!keys.empty())
     {
-        auto& bl = *mBucketListSnapshots.at(std::this_thread::get_id());
+        auto& snapshotPtr = mBucketListSnapshots.at(std::this_thread::get_id());
+        mBucketSnapshotManager.maybeCopySearchableBucketListSnapshot(
+            snapshotPtr);
+
+        auto& bl = *snapshotPtr;
 
         LedgerKeySet orderedKeys;
         for (auto const& key : keys)

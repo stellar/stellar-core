@@ -163,7 +163,8 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
 }
 
 BucketSnapshotState::BucketSnapshotState(BucketManager& bm)
-    : mSnapshot(bm.getSearchableLiveBucketListSnapshot())
+    : mSnapshot(
+          bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot())
     , mLedgerHeader(LedgerHeaderWrapper(
           std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
 {

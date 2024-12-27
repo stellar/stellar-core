@@ -2660,6 +2660,9 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
 
     mPrefetchHits = 0;
     mPrefetchMisses = 0;
+
+    // std::shared_ptr<...>::reset does not throw
+    mSearchableBucketListSnapshot.reset();
 }
 
 uint64_t
@@ -3054,7 +3057,7 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
-SearchableLiveBucketListSnapshot&
+SearchableLiveBucketListSnapshot const&
 LedgerTxnRoot::Impl::getSearchableLiveBucketListSnapshot() const
 {
     if (!mSearchableBucketListSnapshot)
@@ -3373,6 +3376,7 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
     mChild = nullptr;
     mPrefetchHits = 0;
     mPrefetchMisses = 0;
+    mSearchableBucketListSnapshot.reset();
 }
 
 std::shared_ptr<InternalLedgerEntry const>
