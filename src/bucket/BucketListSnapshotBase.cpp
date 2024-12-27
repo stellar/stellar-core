@@ -51,13 +51,9 @@ BucketListSnapshot<BucketT>::getLedgerSeq() const
 
 template <class BucketT>
 LedgerHeader const&
-SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader()
+SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader() const
 {
     releaseAssert(mSnapshot);
-    if (mAutoUpdate)
-    {
-        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-    }
     return mSnapshot->getLedgerHeader();
 }
 
@@ -100,7 +96,7 @@ SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
 
 template <class BucketT>
 std::shared_ptr<typename BucketT::LoadT>
-SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
+SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
 {
     ZoneScoped;
 
@@ -123,10 +119,6 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
         }
     };
 
-    if (mAutoUpdate)
-    {
-        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-    }
     if (threadIsMain())
     {
         mSnapshotManager.startPointLoadTimer();
@@ -145,7 +137,8 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
 template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    uint32_t ledgerSeq) const
 {
     return loadKeysInternal(inKeys, /*lkMeter=*/nullptr, ledgerSeq);
 }
@@ -164,7 +157,6 @@ SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     , mHistoricalSnapshots()
     , mAutoUpdate(autoUpdate)
 {
-    // Always create a snapshot based on the latest LCL state.
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 }
 

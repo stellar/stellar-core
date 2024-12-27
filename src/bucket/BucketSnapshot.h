@@ -85,7 +85,7 @@ class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
     Loop scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
                          std::list<EvictionResultEntry>& evictableKeys,
-                         SearchableLiveBucketListSnapshot& bl) const;
+                         SearchableLiveBucketListSnapshot const& bl) const;
 };
 
 class HotArchiveBucketSnapshot : public BucketSnapshotBase<HotArchiveBucket>

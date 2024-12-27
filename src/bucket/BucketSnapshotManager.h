@@ -89,10 +89,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
                           SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
                           uint32_t numHistoricalLedgers);
 
-    std::shared_ptr<SearchableLiveBucketListSnapshot>
-    copySearchableLiveBucketListSnapshot(bool autoUpdate) const;
+    std::shared_ptr<SearchableLiveBucketListSnapshot const>
+    copySearchableLiveBucketListSnapshot() const;
 
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>
     copySearchableHotArchiveBucketListSnapshot() const;
 
     // Checks if snapshot is out of date and updates it accordingly
@@ -107,5 +107,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     void endPointLoadTimer(LedgerEntryType t, bool bloomMiss) const;
     medida::Timer& recordBulkLoadMetrics(std::string const& label,
                                          size_t numEntries) const;
+
+    uint32_t getCurrentLedgerSeq() const;
 };
 }

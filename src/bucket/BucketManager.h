@@ -78,8 +78,6 @@ class BucketManager : NonMovableOrCopyable
     std::unique_ptr<TmpDir> mWorkDir;
     BucketMapT<LiveBucket> mSharedLiveBuckets;
     BucketMapT<HotArchiveBucket> mSharedHotArchiveBuckets;
-    std::shared_ptr<SearchableLiveBucketListSnapshot>
-        mSearchableBucketListSnapshot{};
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
@@ -380,10 +378,6 @@ class BucketManager : NonMovableOrCopyable
     std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork();
 
     Config const& getConfig() const;
-
-    // Get bucketlist snapshot
-    std::shared_ptr<SearchableLiveBucketListSnapshot>
-    getSearchableLiveBucketListSnapshot();
 
     void reportBucketEntryCountMetrics();
 };

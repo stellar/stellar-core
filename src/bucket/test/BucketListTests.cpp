@@ -1401,10 +1401,6 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         LedgerTestUtils::generateValidLedgerEntryOfType(CLAIMABLE_BALANCE);
     entry.data.claimableBalance().amount = 0;
 
-    auto searchableBL =
-        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(
-            true);
-
     // Update entry every 5 ledgers so we can see bucket merge events
     for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)
     {
@@ -1420,6 +1416,8 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
+        auto searchableBL = bm.getBucketSnapshotManager()
+                                .copySearchableLiveBucketListSnapshot();
 
         // Snapshot should automatically update with latest version
         auto loadedEntry = searchableBL->load(LedgerEntryKey(entry));

@@ -169,9 +169,9 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
     return f(lsg);
 }
 
-BucketSnapshotState::BucketSnapshotState(
-    std::shared_ptr<SearchableLiveBucketListSnapshot> snapshot)
-    : mSnapshot(snapshot)
+BucketSnapshotState::BucketSnapshotState(BucketManager& bm)
+    : mSnapshot(
+          bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot())
     , mLedgerHeader(LedgerHeaderWrapper(
           std::make_shared<LedgerHeader>(snapshot->getLedgerHeader())))
 {

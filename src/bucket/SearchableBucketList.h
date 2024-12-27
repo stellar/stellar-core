@@ -19,25 +19,23 @@ class SearchableLiveBucketListSnapshot
   public:
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset);
+                                             Asset const& asset) const;
 
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
-                                                      int64_t minBalance);
+                                                      int64_t minBalance) const;
 
     std::vector<LedgerEntry>
     loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       LedgerKeyMeter* lkMeter);
+                       LedgerKeyMeter* lkMeter) const;
 
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
                                    std::shared_ptr<EvictionStatistics> stats,
-                                   StateArchivalSettings const& sas);
+                                   StateArchivalSettings const& sas) const;
 
-    friend std::shared_ptr<SearchableLiveBucketListSnapshot>
-    BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-        bool autoUpdate) const;
-    void updateSnapshotToLatest();
+    friend std::shared_ptr<SearchableLiveBucketListSnapshot const>
+    BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;
 };
 
 class SearchableHotArchiveBucketListSnapshot
@@ -48,9 +46,9 @@ class SearchableHotArchiveBucketListSnapshot
 
   public:
     std::vector<HotArchiveBucketEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
-    friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>
     BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const;
 };
 }

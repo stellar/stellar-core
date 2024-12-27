@@ -1580,21 +1580,6 @@ BucketManager::getConfig() const
     return mConfig;
 }
 
-std::shared_ptr<SearchableLiveBucketListSnapshot>
-BucketManager::getSearchableLiveBucketListSnapshot()
-{
-    // Any other threads must maintain their own snapshot
-    releaseAssert(threadIsMain());
-    if (!mSearchableBucketListSnapshot)
-    {
-        mSearchableBucketListSnapshot =
-            mSnapshotManager->copySearchableLiveBucketListSnapshot(
-                /* autoUpdate */ true);
-    }
-
-    return mSearchableBucketListSnapshot;
-}
-
 void
 BucketManager::reportBucketEntryCountMetrics()
 {

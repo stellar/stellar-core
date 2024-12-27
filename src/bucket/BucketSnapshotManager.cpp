@@ -52,16 +52,15 @@ BucketSnapshotManager::BucketSnapshotManager(
     }
 }
 
-std::shared_ptr<SearchableLiveBucketListSnapshot>
-BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-    bool autoUpdate) const
+std::shared_ptr<SearchableLiveBucketListSnapshot const>
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(*this, autoUpdate));
 }
 
-std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
 {
     releaseAssert(mCurrHotArchiveSnapshot);
@@ -134,19 +133,10 @@ BucketSnapshotManager::maybeUpdateSnapshotInternal(
     // snapshot, so use a shared lock.
     std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
 
-    // First update current snapshot
-    if (!snapshot ||
-        snapshot->getLedgerSeq() != managerSnapshot->getLedgerSeq() ||
-        forceUpdate)
-    {
-        // Should only update with a newer snapshot
-        releaseAssert(!snapshot ||
-                      snapshot->getLedgerSeq() <
-                          managerSnapshot->getLedgerSeq() ||
-                      forceUpdate);
-        snapshot = std::make_unique<BucketListSnapshot<BucketT> const>(
-            *managerSnapshot);
-    }
+    // Should only update on snapshot creation
+    releaseAssert(!snapshot);
+    snapshot =
+        std::make_unique<BucketListSnapshot<BucketT> const>(*managerSnapshot);
 
     // Then update historical snapshots (if any exist)
     if (managerHistoricalSnapshots.empty())
@@ -236,5 +226,12 @@ BucketSnapshotManager::endPointLoadTimer(LedgerEntryType t,
         releaseAssert(iter != mPointTimers.end());
         iter->second.Update(duration);
     }
+}
+
+uint32_t
+BucketSnapshotManager::getCurrentLedgerSeq() const
+{
+    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    return mCurrLiveSnapshot->getLedgerSeq();
 }
 }

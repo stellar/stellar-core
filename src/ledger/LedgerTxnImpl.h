@@ -616,8 +616,8 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
-    mutable std::shared_ptr<SearchableLiveBucketListSnapshot>
-        mSearchableBucketListSnapshot{};
+    mutable std::shared_ptr<SearchableLiveBucketListSnapshot const>
+        mSearchableBucketListSnapshot;
 
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
@@ -684,7 +684,7 @@ class LedgerTxnRoot::Impl
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
-    SearchableLiveBucketListSnapshot&
+    SearchableLiveBucketListSnapshot const&
     getSearchableLiveBucketListSnapshot() const;
 
     uint32_t prefetchInternal(UnorderedSet<LedgerKey> const& keys,
