@@ -16,12 +16,14 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/UnorderedSet.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
 #include <soci.h>
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace stellar
 {
@@ -501,14 +503,17 @@ LedgerTxn::Impl::commit() noexcept
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
         // commitChild has the strong exception safety guarantee
-        mParent.commitChild(getEntryIterator(entries), mConsistency);
+        mParent.commitChild(getEntryIterator(entries), mRestoredHotArchiveKeys,
+                            mConsistency);
     });
 }
 
 void
-LedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept
+LedgerTxn::commitChild(EntryIterator iter,
+                       UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+                       LedgerTxnConsistency cons) noexcept
 {
-    getImpl()->commitChild(std::move(iter), cons);
+    getImpl()->commitChild(std::move(iter), restoredHotArchiveKeys, cons);
 }
 
 static LedgerTxnConsistency
@@ -526,8 +531,9 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
 }
 
 void
-LedgerTxn::Impl::commitChild(EntryIterator iter,
-                             LedgerTxnConsistency cons) noexcept
+LedgerTxn::Impl::commitChild(
+    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+    LedgerTxnConsistency cons) noexcept
 {
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
@@ -630,6 +636,15 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
     catch (...)
     {
         printErrorAndAbort("unknown fatal error during commit to LedgerTxn");
+    }
+
+    for (auto const& key : restoredHotArchiveKeys)
+    {
+        auto [_, inserted] = mRestoredHotArchiveKeys.emplace(key);
+        if (!inserted)
+        {
+            printErrorAndAbort("restored hot archive entry already exists");
+        }
     }
 
     // std::unique_ptr<...>::swap does not throw
@@ -799,6 +814,37 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     if (isActive)
     {
         mActive.erase(activeIter);
+    }
+}
+
+void
+LedgerTxn::removeFromHotArchive(LedgerKey const& key)
+{
+    getImpl()->removeFromHotArchive(key);
+}
+
+void
+LedgerTxn::Impl::removeFromHotArchive(LedgerKey const& key)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(key))
+    {
+        throw std::runtime_error("Key type not supported in Hot Archive");
+    }
+
+    auto restoredEntry = mEntry.find(key);
+    if (restoredEntry == mEntry.end() || !restoredEntry->second.isInit())
+    {
+        throw std::runtime_error(
+            "Restored entry must be created before Hot Archive removal");
+    }
+
+    auto [_, inserted] = mRestoredHotArchiveKeys.insert(key);
+    if (!inserted)
+    {
+        throw std::runtime_error("Key already removed from hot archive");
     }
 }
 
@@ -1470,6 +1516,24 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     deadEntries.swap(resDead);
 }
 
+void
+LedgerTxn::getRestoredHotArchiveKeys(
+    std::vector<LedgerKey>& restoredHotArchiveKeys)
+{
+    getImpl()->getRestoredHotArchiveKeys(restoredHotArchiveKeys);
+}
+
+void
+LedgerTxn::Impl::getRestoredHotArchiveKeys(
+    std::vector<LedgerKey>& restoredHotArchiveKeys)
+{
+    restoredHotArchiveKeys.reserve(mRestoredHotArchiveKeys.size());
+    for (auto const& key : mRestoredHotArchiveKeys)
+    {
+        restoredHotArchiveKeys.emplace_back(key);
+    }
+}
+
 LedgerKeySet
 LedgerTxn::getAllTTLKeysWithoutSealing() const
 {
@@ -1957,6 +2021,7 @@ LedgerTxn::Impl::rollback() noexcept
     }
 
     mEntry.clear();
+    mRestoredHotArchiveKeys.clear();
     mMultiOrderBook.clear();
     mActive.clear();
     mActiveHeader.reset();
@@ -2559,10 +2624,11 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::commitChild(EntryIterator iter,
-                           LedgerTxnConsistency cons) noexcept
+LedgerTxnRoot::commitChild(
+    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+    LedgerTxnConsistency cons) noexcept
 {
-    mImpl->commitChild(std::move(iter), cons);
+    mImpl->commitChild(std::move(iter), restoredHotArchiveKeys, cons);
 }
 
 static void
@@ -2618,8 +2684,9 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
 }
 
 void
-LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
-                                 LedgerTxnConsistency cons) noexcept
+LedgerTxnRoot::Impl::commitChild(
+    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+    LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
 

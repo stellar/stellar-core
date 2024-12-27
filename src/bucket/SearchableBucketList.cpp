@@ -5,6 +5,7 @@
 #include "bucket/SearchableBucketList.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketListSnapshotBase.h"
+#include "bucket/LiveBucketList.h"
 #include "util/GlobalChecks.h"
 
 #include <medida/timer.h>

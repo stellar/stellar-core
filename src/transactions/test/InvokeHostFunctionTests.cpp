@@ -2920,45 +2920,130 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("evicted persistent entries", "[tx][soroban][archival]")
+TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 {
-    auto cfg = getTestConfig();
-    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
-        cfg.stateArchivalSettings().startingEvictionScanLevel = 1;
-        cfg.stateArchivalSettings().minPersistentTTL = 4;
-    });
+    auto test = [](bool evict) {
+        auto cfg = getTestConfig();
+        SorobanTest test(cfg, true, [evict](SorobanNetworkConfig& cfg) {
+            cfg.stateArchivalSettings().startingEvictionScanLevel =
+                evict ? 1 : 5;
+            cfg.stateArchivalSettings().minPersistentTTL = 4;
+        });
 
-    ContractStorageTestClient client(test);
+        ContractStorageTestClient client(test);
 
-    // WASM and instance should not expire
-    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+        // WASM and instance should not expire
+        test.invokeExtendOp(client.getContract().getKeys(), 10'000);
 
-    auto writeInvocation = client.getContract().prepareInvocation(
-        "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
-        client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
-    REQUIRE(writeInvocation.withExactNonRefundableResourceFee().invoke());
-    auto lk = client.getContract().getDataKey(
-        makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+        auto writeInvocation = client.getContract().prepareInvocation(
+            "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+            client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
+        REQUIRE(writeInvocation.withExactNonRefundableResourceFee().invoke());
+        auto lk = client.getContract().getDataKey(
+            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-    auto evictionLedger = 14;
+        auto hotArchive = test.getApp()
+                              .getBucketManager()
+                              .getBucketSnapshotManager()
+                              .copySearchableHotArchiveBucketListSnapshot();
 
-    // Close ledgers until entry is evicted
-    for (uint32_t i = test.getLCLSeq(); i < evictionLedger; ++i)
+        auto evictionLedger = 14;
+
+        // Close ledgers until entry is evicted
+        for (uint32_t i = test.getLCLSeq(); i < evictionLedger; ++i)
+        {
+            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        }
+
+        if (evict)
+        {
+            REQUIRE(hotArchive->load(lk));
+            REQUIRE(!hotArchive->load(getTTLKey(lk)));
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(!ltx.load(lk));
+                REQUIRE(!ltx.load(getTTLKey(lk)));
+            }
+        }
+        else
+        {
+            REQUIRE(!hotArchive->load(lk));
+            REQUIRE(!hotArchive->load(getTTLKey(lk)));
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(ltx.load(lk));
+                REQUIRE(ltx.load(getTTLKey(lk)));
+            }
+        }
+
+        // Rewriting entry should fail since key is archived
+        REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
+
+        // Reads should also fail
+        REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                           std::nullopt) ==
+                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+        // Rent extension is a no op
+        SorobanResources resources;
+        resources.footprint.readOnly = {lk};
+
+        resources.instructions = 0;
+        resources.readBytes = 1000;
+        resources.writeBytes = 1000;
+        auto resourceFee = 1'000'000;
+
+        auto extendTx =
+            test.createExtendOpTx(resources, 100, 1'000, resourceFee);
+        auto result = test.invokeTx(extendTx);
+        REQUIRE(isSuccessResult(result));
+
+        REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                           std::nullopt) ==
+                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+        // Restore should succeed. Fee should be the same for both evicted and
+        // nonevicted case
+        SECTION("restore with nonexistent key")
+        {
+            // Get random CONTRACT_CODE key that doesn't exist in ledger
+            UnorderedSet<LedgerKey> excludedKeys{
+                client.getContract().getKeys().begin(),
+                client.getContract().getKeys().end()};
+            auto randomKey =
+                LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                    {CONTRACT_CODE}, 1, excludedKeys)
+                    .at(0);
+
+            // Restore should skip nonexistent key and charge same fees
+            test.invokeRestoreOp({lk, randomKey}, 20'048);
+        }
+
+        SECTION("key accessible after restore")
+        {
+            test.invokeRestoreOp({lk}, 20'048);
+
+            auto const& stateArchivalSettings =
+                test.getNetworkCfg().stateArchivalSettings();
+            auto newExpectedLiveUntilLedger =
+                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+            REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
+
+            client.get("key", ContractDataDurability::PERSISTENT, 123);
+
+            // Restored entries are deleted from Hot Archive
+            REQUIRE(!hotArchive->load(lk));
+        }
+    };
+
+    SECTION("eviction")
     {
-        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        test(true);
     }
 
-    auto hotArchive = test.getApp()
-                          .getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableHotArchiveBucketListSnapshot();
-
-    REQUIRE(hotArchive->load(lk));
-    REQUIRE(!hotArchive->load(getTTLKey(lk)));
+    SECTION("expiration without eviction")
     {
-        LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-        REQUIRE(!ltx.load(lk));
-        REQUIRE(!ltx.load(getTTLKey(lk)));
+        test(false);
     }
 }
 

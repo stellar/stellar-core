@@ -5,7 +5,9 @@
 // clang-format off
 // This needs to be included first
 #include "TransactionUtils.h"
+#include "main/AppConnector.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <json/json.h>
@@ -344,13 +346,14 @@ InvokeHostFunctionOpFrame::doApply(
     auto const& footprint = resources.footprint;
     auto footprintLength =
         footprint.readOnly.size() + footprint.readWrite.size();
+    auto hotArchive = app.copySearchableHotArchiveBucketListSnapshot();
 
     ledgerEntryCxxBufs.reserve(footprintLength);
     ttlEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
                      &resources, &sorobanConfig, &appConfig, sorobanData, &res,
-                     this](auto const& keys) -> bool {
+                     &hotArchive, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -404,6 +407,44 @@ InvokeHostFunctionOpFrame::doApply(
                     }
                 }
                 // If ttlLtxe doesn't exist, this is a new Soroban entry
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                // Starting in protocol 23, we must check the Hot Archive for
+                // new keys. If a new key is actually archived, fail the op.
+                if (isPersistentEntry(lk) &&
+                    protocolVersionStartsFrom(
+                        ltx.getHeader().ledgerVersion,
+                        HotArchiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    auto archiveEntry = hotArchive->load(lk);
+                    if (archiveEntry)
+                    {
+                        if (lk.type() == CONTRACT_CODE)
+                        {
+                            sorobanData->pushApplyTimeDiagnosticError(
+                                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                "trying to access an archived contract "
+                                "code "
+                                "entry",
+                                {makeBytesSCVal(lk.contractCode().hash)});
+                        }
+                        else if (lk.type() == CONTRACT_DATA)
+                        {
+                            sorobanData->pushApplyTimeDiagnosticError(
+                                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                "trying to access an archived contract "
+                                "data "
+                                "entry",
+                                {makeAddressSCVal(lk.contractData().contract),
+                                 lk.contractData().key});
+                        }
+                        // Cannot access an archived entry
+                        this->innerResult(res).code(
+                            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                        return false;
+                    }
+                }
+#endif
             }
 
             if (!isSorobanEntry(lk) || sorobanEntryLive)

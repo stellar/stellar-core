@@ -4,6 +4,7 @@
 
 // clang-format off
 // This needs to be included first
+#include "bucket/LiveBucketList.h"
 #include "rust/RustVecXdrMarshal.h"
 // clang-format on
 

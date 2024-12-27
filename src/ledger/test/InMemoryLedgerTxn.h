@@ -103,6 +103,7 @@ class InMemoryLedgerTxn : public LedgerTxn
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
     void commitChild(EntryIterator iter,
+                     UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
                      LedgerTxnConsistency cons) noexcept override;
     void rollbackChild() noexcept override;
 
@@ -112,6 +113,7 @@ class InMemoryLedgerTxn : public LedgerTxn
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
     void erase(InternalLedgerKey const& key) override;
+    void removeFromHotArchive(LedgerKey const& key) override;
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
     ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) override;

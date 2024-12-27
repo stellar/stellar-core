@@ -5,6 +5,7 @@
 #include "ledger/test/InMemoryLedgerTxn.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/TransactionUtils.h"
+#include "util/UnorderedSet.h"
 
 namespace stellar
 {
@@ -186,8 +187,9 @@ InMemoryLedgerTxn::getFilteredEntryIterator(EntryIterator const& iter)
 }
 
 void
-InMemoryLedgerTxn::commitChild(EntryIterator iter,
-                               LedgerTxnConsistency cons) noexcept
+InMemoryLedgerTxn::commitChild(
+    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+    LedgerTxnConsistency cons) noexcept
 {
     if (!mTransaction)
     {
@@ -198,7 +200,7 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter,
         auto filteredIter = getFilteredEntryIterator(iter);
         updateLedgerKeyMap(filteredIter);
 
-        LedgerTxn::commitChild(filteredIter, cons);
+        LedgerTxn::commitChild(filteredIter, restoredHotArchiveKeys, cons);
         mTransaction->commit();
         mTransaction.reset();
     }
@@ -270,6 +272,13 @@ void
 InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
 {
     throw std::runtime_error("called erase on InMemoryLedgerTxn");
+}
+
+void
+InMemoryLedgerTxn::removeFromHotArchive(LedgerKey const& key)
+{
+    throw std::runtime_error(
+        "called removeFromHotArchive on InMemoryLedgerTxn");
 }
 
 LedgerTxnEntry

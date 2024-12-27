@@ -1,12 +1,11 @@
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
-#include "bucket/HotArchiveBucketList.h"
-#include "bucket/LiveBucketList.h"
 #include "main/Config.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -32,6 +31,9 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class LiveBucketList;
+class HotArchiveBucketList;
+class BucketBase;
+class BucketIndex;
 class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
@@ -395,7 +397,6 @@ class BucketManager : NonMovableOrCopyable
     scheduleVerifyReferencedBucketsWork(HistoryArchiveState const& has);
 
     Config const& getConfig() const;
-
     void reportBucketEntryCountMetrics();
 };
 

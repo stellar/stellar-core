@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bucket/BucketSnapshotManager.h"
 #include "main/Config.h"
 #include "medida/metrics_registry.h"
 
@@ -13,6 +14,7 @@ class BanManager;
 struct OverlayMetrics;
 class SorobanNetworkConfig;
 class SorobanMetrics;
+class SearchableHotArchiveBucketListSnapshot;
 struct LedgerTxnDelta;
 class CapacityTrackedMessage;
 
@@ -57,5 +59,7 @@ class AppConnector
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() const;
 
     medida::MetricsRegistry& getMetrics() const;
+    SearchableHotArchiveSnapshotConstPtr
+    copySearchableHotArchiveBucketListSnapshot();
 };
 }

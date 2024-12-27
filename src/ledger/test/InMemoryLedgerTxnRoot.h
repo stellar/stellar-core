@@ -39,6 +39,7 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     );
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
     void commitChild(EntryIterator iter,
+                     UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
                      LedgerTxnConsistency cons) noexcept override;
     void rollbackChild() noexcept override;
 

@@ -238,6 +238,66 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
             validate(ltx1, {});
         }
     }
+
+    SECTION("restored hot archive keys")
+    {
+        auto randomEntries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {CONTRACT_CODE}, 2);
+        std::vector<LedgerKey> randomKeys = {LedgerEntryKey(randomEntries[0]),
+                                             LedgerEntryKey(randomEntries[1])};
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+        SECTION("remove key before creation")
+        {
+            REQUIRE_THROWS(ltx1.removeFromHotArchive(randomKeys[0]));
+        }
+
+        SECTION("commited to parent")
+        {
+            ltx1.create(randomEntries[0]);
+            ltx1.removeFromHotArchive(randomKeys[0]);
+
+            SECTION("rollback")
+            {
+                {
+                    LedgerTxn ltx2(ltx1);
+                    ltx2.create(randomEntries[1]);
+                    ltx2.removeFromHotArchive(randomKeys[1]);
+                }
+
+                std::vector<LedgerKey> parentKeys;
+                ltx1.getRestoredHotArchiveKeys(parentKeys);
+                REQUIRE(parentKeys.size() == 1);
+                REQUIRE(parentKeys.front() == randomKeys[0]);
+            }
+
+            SECTION("commit")
+            {
+                {
+                    LedgerTxn ltx2(ltx1);
+                    ltx2.create(randomEntries[1]);
+                    ltx2.removeFromHotArchive(randomKeys[1]);
+                    ltx2.commit();
+                }
+
+                std::vector<LedgerKey> parentKeys;
+                ltx1.getRestoredHotArchiveKeys(parentKeys);
+                REQUIRE(parentKeys.size() == 2);
+                REQUIRE(std::find(parentKeys.begin(), parentKeys.end(),
+                                  randomKeys[0]) != parentKeys.end());
+                REQUIRE(std::find(parentKeys.begin(), parentKeys.end(),
+                                  randomKeys[1]) != parentKeys.end());
+            }
+        }
+
+        SECTION("commit same key twice")
+        {
+            ltx1.create(randomEntries[0]);
+            ltx1.removeFromHotArchive(randomKeys[0]);
+            REQUIRE_THROWS(ltx1.removeFromHotArchive(randomKeys[0]));
+        }
+    }
 }
 
 TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")

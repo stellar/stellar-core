@@ -420,8 +420,10 @@ class AbstractLedgerTxnParent
     // commitChild and rollbackChild are called by a child AbstractLedgerTxn
     // to trigger an atomic commit or an atomic rollback of the data stored in
     // the child.
-    virtual void commitChild(EntryIterator iter,
-                             LedgerTxnConsistency cons) noexcept = 0;
+    virtual void
+    commitChild(EntryIterator iter,
+                UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+                LedgerTxnConsistency cons) noexcept = 0;
     virtual void rollbackChild() noexcept = 0;
 
     // getAllOffers, getBestOffer, and getOffersByAccountAndAsset are used to
@@ -539,10 +541,10 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void commit() noexcept = 0;
     virtual void rollback() noexcept = 0;
 
-    // loadHeader, create, erase, load, and loadWithoutRecord provide the main
-    // interface to interact with data stored in the AbstractLedgerTxn. These
-    // functions only allow one instance of a particular data to be active at a
-    // time.
+    // loadHeader, create, erase, load, loadWithoutRecord, and
+    // removeFromHotArchive provide the main interface to interact with data
+    // stored in the AbstractLedgerTxn. These functions only allow one instance
+    // of a particular data to be active at a time.
     // - loadHeader
     //     Loads the current LedgerHeader. Throws if there is already an active
     //     LedgerTxnHeader.
@@ -566,11 +568,17 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     then it will still be recorded after calling loadWithoutRecord.
     //     Throws if there is an active LedgerTxnEntry associated with this
     //     key.
+    // - removeFromHotArchive:
+    //     Indicates that an entry in the Hot Archive has been restored and must
+    //     be removed from the Hot Archive. Prior to this call, the key must
+    //     be created via a call to create. Throws if key has not been
+    //     previously created in this LedgerTxn.
     // All of these functions throw if the AbstractLedgerTxn is sealed or if
     // the AbstractLedgerTxn has a child.
     virtual LedgerTxnHeader loadHeader() = 0;
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
     virtual void erase(InternalLedgerKey const& key) = 0;
+    virtual void removeFromHotArchive(LedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) = 0;
@@ -613,6 +621,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
+    virtual void
+    getRestoredHotArchiveKeys(std::vector<LedgerKey>& restoredKeys) = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
@@ -705,11 +715,13 @@ class LedgerTxn : public AbstractLedgerTxn
     void commit() noexcept override;
 
     void commitChild(EntryIterator iter,
+                     UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
                      LedgerTxnConsistency cons) noexcept override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
     void erase(InternalLedgerKey const& key) override;
+    void removeFromHotArchive(LedgerKey const& key) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 
@@ -744,6 +756,8 @@ class LedgerTxn : public AbstractLedgerTxn
     void getAllEntries(std::vector<LedgerEntry>& initEntries,
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
+    void
+    getRestoredHotArchiveKeys(std::vector<LedgerKey>& restoredKeys) override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
@@ -831,6 +845,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
 
     void commitChild(EntryIterator iter,
+                     UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
                      LedgerTxnConsistency cons) noexcept override;
 
     uint64_t countOffers(LedgerRange const& ledgers) const override;
