@@ -97,7 +97,7 @@ class LedgerManager
     getLastClosedLedgerHeader() const = 0;
 
     // Get bucketlist snapshot
-    virtual std::shared_ptr<SearchableLiveBucketListSnapshot>
+    virtual std::shared_ptr<SearchableLiveBucketListSnapshot const>
     getCurrentLedgerStateSnaphot() = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in

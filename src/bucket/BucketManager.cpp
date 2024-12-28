@@ -1054,8 +1054,7 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq)
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
-    auto searchableBL = mSnapshotManager->copySearchableLiveBucketListSnapshot(
-        /* autoUpdate */ true);
+    auto searchableBL = mSnapshotManager->copySearchableLiveBucketListSnapshot();
     auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
     auto const& sas = cfg.stateArchivalSettings();
 

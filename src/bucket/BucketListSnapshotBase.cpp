@@ -59,13 +59,9 @@ SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader() const
 
 template <class BucketT>
 LastClosedLedger const&
-SearchableBucketListSnapshotBase<BucketT>::getLastClosedLedger()
+SearchableBucketListSnapshotBase<BucketT>::getLastClosedLedger() const
 {
     releaseAssert(mSnapshot);
-    if (mAutoUpdate)
-    {
-        mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-    }
     return mSnapshot->getLastClosedLedger();
 }
 
@@ -152,10 +148,9 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 
 template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
-    BucketSnapshotManager const& snapshotManager, bool autoUpdate)
+    BucketSnapshotManager const& snapshotManager)
     : mSnapshotManager(snapshotManager)
     , mHistoricalSnapshots()
-    , mAutoUpdate(autoUpdate)
 {
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 }

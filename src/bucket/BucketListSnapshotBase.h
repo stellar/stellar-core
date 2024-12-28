@@ -159,7 +159,6 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     // Snapshot managed by SnapshotManager
     SnapshotPtrT<BucketT> mSnapshot{};
     std::map<uint32_t, SnapshotPtrT<BucketT>> mHistoricalSnapshots;
-    bool const mAutoUpdate;
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
@@ -167,12 +166,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f,
                         BucketListSnapshot<BucketT> const& snapshot) const;
 
-    // If `autoUpdate` is true, the snapshot will keep itself consistent with
-    // LCL automatically. If not, callers are expected to refresh the snapshot
-    // manually (this is useful to use cases that a consistent view of the state
-    // for some arbitrary time)
     SearchableBucketListSnapshotBase(
-        BucketSnapshotManager const& snapshotManager, bool autoUpdate);
+        BucketSnapshotManager const& snapshotManager);
 
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
@@ -187,6 +182,7 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     }
 
     LedgerHeader const& getLedgerHeader() const;
+    LastClosedLedger const& getLastClosedLedger() const;
 
     // Loads inKeys from the specified historical snapshot. Returns
     // load_result_vec if the snapshot for the given ledger is

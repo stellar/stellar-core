@@ -116,7 +116,7 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
 
   public:
     BucketSnapshotState(
-        std::shared_ptr<SearchableLiveBucketListSnapshot> snapshot);
+        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot);
     ~BucketSnapshotState() override;
 
     LastClosedLedger const& getLastClosedLedger() const override;

@@ -14,7 +14,7 @@ class SearchableLiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<LiveBucket>
 {
     SearchableLiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager, bool autoUpdate);
+        BucketSnapshotManager const& snapshotManager);
 
   public:
     std::vector<LedgerEntry>

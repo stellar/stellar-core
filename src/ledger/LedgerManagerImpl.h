@@ -67,7 +67,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
     bool mRebuildInMemoryState{false};
-    std::shared_ptr<SearchableLiveBucketListSnapshot>
+    std::shared_ptr<SearchableLiveBucketListSnapshot const>
         mReadOnlyLedgerStateSnapshot;
 
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
@@ -202,7 +202,7 @@ class LedgerManagerImpl : public LedgerManager
 
     SorobanMetrics& getSorobanMetrics() override;
 
-    std::shared_ptr<SearchableLiveBucketListSnapshot>
+    std::shared_ptr<SearchableLiveBucketListSnapshot const>
     getCurrentLedgerStateSnaphot() override;
 };
 }

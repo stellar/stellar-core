@@ -61,12 +61,6 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     return result;
 }
 
-void
-SearchableLiveBucketListSnapshot::updateSnapshotToLatest()
-{
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots, true);
-}
-
 template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
@@ -263,15 +257,14 @@ SearchableLiveBucketListSnapshot::loadKeysWithLimits(
 }
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager, bool autoUpdate)
-    : SearchableBucketListSnapshotBase<LiveBucket>(snapshotManager, autoUpdate)
+    BucketSnapshotManager const& snapshotManager)
+    : SearchableBucketListSnapshotBase<LiveBucket>(snapshotManager)
 {
 }
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     BucketSnapshotManager const& snapshotManager)
-    : SearchableBucketListSnapshotBase<HotArchiveBucket>(snapshotManager,
-                                                         /* autoUpdate */ true)
+    : SearchableBucketListSnapshotBase<HotArchiveBucket>(snapshotManager)
 {
 }
 

@@ -1252,17 +1252,15 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     }
 }
 
-std::shared_ptr<SearchableLiveBucketListSnapshot>
+std::shared_ptr<SearchableLiveBucketListSnapshot const>
 LedgerManagerImpl::getCurrentLedgerStateSnaphot()
 {
     if (!mReadOnlyLedgerStateSnapshot)
     {
-        // Set autoUpdate to false to "freeze" the snapshot
-        // Update manually at the end of ledger close
         mReadOnlyLedgerStateSnapshot =
             mApp.getBucketManager()
                 .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot(/* autoUpdate */ false);
+                .copySearchableLiveBucketListSnapshot();
     }
     return mReadOnlyLedgerStateSnapshot;
 }
@@ -1294,7 +1292,7 @@ LedgerManagerImpl::advanceReadOnlyLedgerState(LedgerHeader const& header,
             bm.getHotArchiveBucketList(), lcl);
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
-    getCurrentLedgerStateSnaphot()->updateSnapshotToLatest();
+    mReadOnlyLedgerStateSnapshot = bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot();
 }
 
 void
