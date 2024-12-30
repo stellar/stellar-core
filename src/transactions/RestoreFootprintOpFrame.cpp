@@ -50,6 +50,7 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
     return header.ledgerVersion >= 20;
 }
 
+// Soroban network config -> backgorund has its own snapshot -> 
 bool
 RestoreFootprintOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,

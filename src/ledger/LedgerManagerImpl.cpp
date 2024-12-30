@@ -430,12 +430,14 @@ LedgerManagerImpl::getDatabase()
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSize() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.maxTxSetSize;
 }
 
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
+    releaseAssert(threadIsMain());
     auto n = mLastClosedLedger.header.maxTxSetSize;
     return protocolVersionStartsFrom(mLastClosedLedger.header.ledgerVersion,
                                      ProtocolVersion::V_11)
@@ -487,6 +489,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
+    releaseAssert(threadIsMain());
     auto const& lh = mLastClosedLedger.header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
@@ -497,18 +500,21 @@ LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 uint32_t
 LedgerManagerImpl::getLastReserve() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.baseReserve;
 }
 
 uint32_t
 LedgerManagerImpl::getLastTxFee() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.baseFee;
 }
 
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger;
 }
 
@@ -516,6 +522,7 @@ HistoryArchiveState
 LedgerManagerImpl::getLastClosedLedgerHAS()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     string hasString = mApp.getPersistentState().getState(
         PersistentState::kHistoryArchiveState);
@@ -527,12 +534,14 @@ LedgerManagerImpl::getLastClosedLedgerHAS()
 uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.ledgerSeq;
 }
 
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal()
 {
+    releaseAssert(threadIsMain());
     releaseAssert(mSorobanNetworkConfig);
     return *mSorobanNetworkConfig;
 }
@@ -540,12 +549,14 @@ LedgerManagerImpl::getSorobanNetworkConfigInternal()
 SorobanNetworkConfig const&
 LedgerManagerImpl::getSorobanNetworkConfig()
 {
+    releaseAssert(threadIsMain());
     return getSorobanNetworkConfigInternal();
 }
 
 bool
 LedgerManagerImpl::hasSorobanNetworkConfig() const
 {
+    releaseAssert(threadIsMain());
     return mSorobanNetworkConfig.has_value();
 }
 
@@ -553,6 +564,7 @@ LedgerManagerImpl::hasSorobanNetworkConfig() const
 SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfig()
 {
+    releaseAssert(threadIsMain());
     return getSorobanNetworkConfigInternal();
 }
 std::vector<TransactionMetaFrame> const&
@@ -1253,6 +1265,19 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     }
 }
 
+std::shared_ptr<SearchableLiveBucketListSnapshot const>
+LedgerManagerImpl::getCurrentLedgerStateSnaphot()
+{
+    if (!mReadOnlyLedgerStateSnapshot)
+    {
+        mReadOnlyLedgerStateSnapshot =
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot();
+    }
+    return mReadOnlyLedgerStateSnapshot;
+}
+
 void
 LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                                          bool debugLog)
@@ -1266,27 +1291,32 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                    ledgerAbbrev(header, ledgerHash));
     }
 
+    // NB: with parallel ledger close, this will have to be called strictly from
+    // the main thread,
     auto prevLedgerSeq = mLastClosedLedger.header.ledgerSeq;
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
 
-    if (header.ledgerSeq != prevLedgerSeq)
-    {
-        auto& bm = mApp.getBucketManager();
-        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-            bm.getLiveBucketList(), header);
-        auto hotArchiveSnapshot =
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                bm.getHotArchiveBucketList(), header);
-        bm.getBucketSnapshotManager().updateCurrentSnapshot(
-            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
-    }
+    auto& bm = mApp.getBucketManager();
+    auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+        bm.getLiveBucketList(), header);
+    auto hotArchiveSnapshot =
+        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+            bm.getHotArchiveBucketList(), header);
+    bm.getBucketSnapshotManager().updateCurrentSnapshot(
+        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
+
+    // NB: with parallel ledger close, this will have to be called strictly from
+    // the main thread,
+    mReadOnlyLedgerStateSnapshot =
+        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot();
 }
 
 void
 LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     uint32_t ledgerVersion = rootLtx.loadHeader().current().ledgerVersion;
 
