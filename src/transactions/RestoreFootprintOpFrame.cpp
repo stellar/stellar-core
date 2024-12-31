@@ -50,7 +50,6 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
     return header.ledgerVersion >= 20;
 }
 
-// Soroban network config -> backgorund has its own snapshot -> 
 bool
 RestoreFootprintOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
@@ -58,14 +57,14 @@ RestoreFootprintOpFrame::doApply(
 {
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
-    RestoreFootprintMetrics metrics(app.getLedgerManager().getSorobanMetrics());
+    RestoreFootprintMetrics metrics(app.getSorobanMetrics());
     auto timeScope = metrics.getExecTimer();
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfig();
+        app.getLedgerManager().getSorobanNetworkConfigForApply();
     auto const& appConfig = app.getConfig();
 
     auto const& archivalSettings = sorobanConfig.stateArchivalSettings();
@@ -148,15 +147,11 @@ RestoreFootprintOpFrame::doApply(
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
-        rustEntryRentChanges,
-        app.getLedgerManager()
-            .getSorobanNetworkConfig()
-            .rustBridgeRentFeeConfiguration(),
+        rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
         ledgerSeq);
     if (!sorobanData->consumeRefundableSorobanResources(
-            0, rentFee, ltx.loadHeader().current().ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig(),
-            mParentTx))
+            0, rentFee, ltx.loadHeader().current().ledgerVersion, sorobanConfig,
+            app.getConfig(), mParentTx))
     {
         innerResult(res).code(RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
         return false;

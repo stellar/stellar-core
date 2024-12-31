@@ -57,14 +57,13 @@ ExtendFootprintTTLOpFrame::doApply(
     releaseAssertOrThrow(sorobanData);
     ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
 
-    ExtendFootprintTTLMetrics metrics(
-        app.getLedgerManager().getSorobanMetrics());
+    ExtendFootprintTTLMetrics metrics(app.getSorobanMetrics());
     auto timeScope = metrics.getExecTimer();
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
     auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfig();
+        app.getLedgerManager().getSorobanNetworkConfigForApply();
 
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     rustEntryRentChanges.reserve(footprint.readOnly.size());

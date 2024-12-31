@@ -97,8 +97,7 @@ class LedgerManager
     getLastClosedLedgerHeader() const = 0;
 
     // Get bucketlist snapshot
-    virtual std::shared_ptr<SearchableLiveBucketListSnapshot const>
-    getCurrentLedgerStateSnaphot() = 0;
+    virtual SearchableSnapshotConstPtr getCurrentLedgerStateSnaphot() = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
@@ -132,7 +131,9 @@ class LedgerManager
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
     // used most of the time.
-    virtual SorobanNetworkConfig const& getSorobanNetworkConfig() = 0;
+    virtual SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() = 0;
+    virtual SorobanNetworkConfig const& getSorobanNetworkConfigForApply() = 0;
+
     virtual bool hasSorobanNetworkConfig() const = 0;
 
 #ifdef BUILD_TESTS

@@ -382,6 +382,8 @@ TransactionQueue::canAdd(
                 if (!tx->checkSorobanResourceAndSetError(
                         mApp.getAppConnector(),
                         mApp.getLedgerManager()
+                            .getSorobanNetworkConfigReadOnly(),
+                        mApp.getLedgerManager()
                             .getLastClosedLedgerHeader()
                             .header.ledgerVersion,
                         txResult))

@@ -50,7 +50,20 @@ class LedgerManagerImpl : public LedgerManager
 
   private:
     LedgerHeaderHistoryEntry mLastClosedLedger;
-    std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
+
+    // Read-only Soroban network configuration, accessible by main thread only.
+    // This config has to match the read-only ledger state snapshot managed by
+    // LedgerManager. Today this is only accessed by the main thread, but it can
+    // be used by multiple threads as long snapshot consistency
+    // requirement is preserved (though synchronization should be added in this
+    // case)
+    std::shared_ptr<SorobanNetworkConfig const> mSorobanNetworkConfigReadOnly;
+
+    // Latest Soroban config during apply (should not be used outside of
+    // application, as it may be in half-valid state). Note that access to this
+    // variable is not synchronized, since it should only be used by one thread
+    // (main or ledger close).
+    std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfigForApply;
 
     SorobanMetrics mSorobanMetrics;
     medida::Timer& mTransactionApply;
@@ -68,8 +81,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
     bool mRebuildInMemoryState{false};
-    std::shared_ptr<SearchableLiveBucketListSnapshot const>
-        mReadOnlyLedgerStateSnapshot;
+    SearchableSnapshotConstPtr mReadOnlyLedgerStateSnapshot;
 
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
     medida::Timer& mCatchupDuration;
@@ -113,8 +125,6 @@ class LedgerManagerImpl : public LedgerManager
     void setState(State s);
 
     void emitNextMeta();
-
-    SorobanNetworkConfig& getSorobanNetworkConfigInternal();
 
     // Publishes soroban metrics, including select network config limits as well
     // as the actual ledger usage.
@@ -160,7 +170,9 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const& getSorobanNetworkConfig() override;
+    SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() override;
+    SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
+
     bool hasSorobanNetworkConfig() const override;
 
 #ifdef BUILD_TESTS
@@ -204,7 +216,6 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    std::shared_ptr<SearchableLiveBucketListSnapshot const>
-    getCurrentLedgerStateSnaphot() override;
+    SearchableSnapshotConstPtr getCurrentLedgerStateSnaphot() override;
 };
 }

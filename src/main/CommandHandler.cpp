@@ -761,7 +761,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         if (format == "basic")
         {
             Json::Value res;
-            auto const& conf = lm.getSorobanNetworkConfig();
+            auto const& conf = lm.getSorobanNetworkConfigReadOnly();
 
             // Contract size
             res["max_contract_size"] = conf.maxContractSizeBytes();

@@ -158,7 +158,9 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset) const
 {
-    if (!isTransactionXDRValidForCurrentProtocol(app, mEnvelope) ||
+    if (!isTransactionXDRValidForProtocol(
+            ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
+            mEnvelope) ||
         !XDRProvidesValidFee())
     {
         auto txResult = createSuccessResult();
@@ -196,10 +198,10 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
 
 bool
 FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
-    AppConnector& app, uint32_t ledgerVersion,
+    AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
     MutableTxResultPtr txResult) const
 {
-    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion,
+    return mInnerTx->checkSorobanResourceAndSetError(app, cfg, ledgerVersion,
                                                      txResult);
 }
 

@@ -70,9 +70,9 @@ class TransactionTestFrame : public TransactionFrameBase
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
-    bool
-    checkSorobanResourceAndSetError(AppConnector& app, uint32_t ledgerVersion,
-                                    MutableTxResultPtr txResult) const override;
+    bool checkSorobanResourceAndSetError(
+        AppConnector& app, SorobanNetworkConfig const& cfg,
+        uint32_t ledgerVersion, MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
 

@@ -261,9 +261,8 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
-bool
-isTransactionXDRValidForCurrentProtocol(AppConnector& app,
-                                        TransactionEnvelope const& envelope);
+bool isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
+                                      TransactionEnvelope const& envelope);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 

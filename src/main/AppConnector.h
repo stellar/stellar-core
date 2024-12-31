@@ -34,7 +34,7 @@ class AppConnector
     OverlayManager& getOverlayManager();
     BanManager& getBanManager();
     bool shouldYield() const;
-    SorobanNetworkConfig const& getSorobanNetworkConfig() const;
+    SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() const;
     medida::MetricsRegistry& getMetrics() const;
     SorobanMetrics& getSorobanMetrics() const;
     void checkOnOperationApply(Operation const& operation,

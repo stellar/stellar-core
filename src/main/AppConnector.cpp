@@ -47,10 +47,10 @@ AppConnector::getBanManager()
 }
 
 SorobanNetworkConfig const&
-AppConnector::getSorobanNetworkConfig() const
+AppConnector::getSorobanNetworkConfigReadOnly() const
 {
     releaseAssert(threadIsMain());
-    return mApp.getLedgerManager().getSorobanNetworkConfig();
+    return mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
 }
 
 medida::MetricsRegistry&
