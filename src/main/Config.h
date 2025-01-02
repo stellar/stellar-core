@@ -219,6 +219,15 @@ class Config : public std::enable_shared_from_this<Config>
     // production networks.
     bool ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING;
 
+    // A temporary config paramter that when enabled causes the protocol
+    // upgrades to also update the Soroban cost calibration. This will result
+    // in loadgen reflecting more accurate costs and match the real network.
+    // This also makes the node unable to catchup with the real traffic and
+    // thus should only be used in tests that only use loadgen.
+    // This can be defaulted to 'true' and then removed once the stable Core
+    // build supports the new logic.
+    bool UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING;
+
     // A config parameter that reduces ledger close time to 1s and checkpoint
     // frequency to every 8 ledgers. Do not ever set this in production, as it
     // will make your history archives incompatible with those of anyone else.

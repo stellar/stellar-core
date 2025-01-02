@@ -41,6 +41,7 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "RUN_STANDALONE",
     "MANUAL_CLOSE",
     "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
+    "UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING",
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
@@ -173,6 +174,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // automatic self-check happens once every 3 hours
     AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
+    UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
@@ -1149,6 +1151,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = readBool(item);
+                 }},
+                {"UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING",
+                 [&]() {
+                     UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING =
+                         readBool(item);
                  }},
                 {"ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
                  [&]() {

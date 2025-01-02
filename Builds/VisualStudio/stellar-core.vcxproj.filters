@@ -405,9 +405,6 @@
     <ClCompile Include="..\..\src\main\dumpxdr.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\main.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -918,39 +915,15 @@
     <ClCompile Include="..\..\src\ledger\LedgerTxn.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnAccountSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnContractCodeSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnDataSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp">
       <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
+    </ClCompile>    
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -967,9 +940,6 @@
       <Filter>main\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\test\SelfCheckTests.cpp">
@@ -1289,9 +1259,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp">
       <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp">
-      <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp">
       <Filter>util</Filter>
@@ -1641,9 +1608,6 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ErrorMessages.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\ExternalQueue.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Maintainer.h">

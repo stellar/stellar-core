@@ -1204,7 +1204,9 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         // reflect the most recent calibration on p20. This would break
         // if we tried to replay the ledger, but we shouldn't be combining load
         // generation with the ledger replay.
-        if (app.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+        if (app.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING &&
+            app.getConfig()
+                .UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING)
         {
             SorobanNetworkConfig::updateRecalibratedCostTypesForV20(ltx);
         }
