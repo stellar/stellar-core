@@ -85,7 +85,6 @@ RestoreFootprintOpFrame::doApply(
             auto constTTLLtxe = ltx.loadWithoutRecord(ttlKey);
             if (!constTTLLtxe)
             {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 // Next check the hot archive if protocol >= 23
                 if (protocolVersionStartsFrom(
                         ltx.getHeader().ledgerVersion,
@@ -100,7 +99,6 @@ RestoreFootprintOpFrame::doApply(
                     }
                 }
                 else
-#endif
                 {
                     // Entry doesn't exist, skip
                     continue;
@@ -116,14 +114,12 @@ RestoreFootprintOpFrame::doApply(
         // We must load the ContractCode/ContractData entry for fee purposes, as
         // restore is considered a write
         uint32_t entrySize = 0;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (hotArchiveEntry)
         {
             entrySize = static_cast<uint32>(
                 xdr::xdr_size(hotArchiveEntry->archivedEntry()));
         }
         else
-#endif
         {
             auto constEntryLtxe = ltx.loadWithoutRecord(lk);
 
@@ -177,27 +173,16 @@ RestoreFootprintOpFrame::doApply(
         rustChange.new_size_bytes = entrySize;
         rustChange.new_live_until_ledger = restoredLiveUntilLedger;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (hotArchiveEntry)
         {
-            ltx.create(hotArchiveEntry->archivedEntry());
-            LedgerEntry ttl;
-            ttl.data.type(TTL);
-            ttl.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
-            ttl.data.ttl().keyHash = getTTLKey(lk).ttl().keyHash;
-            ltx.create(ttl);
-
-            // Mark the entry as restored
-            ltx.removeFromHotArchive(lk);
+            ltx.restoreFromHotArchive(hotArchiveEntry->archivedEntry(),
+                                      restoredLiveUntilLedger);
         }
         else
-#endif
         {
-            // Entry exists if we get this this point due to the constTTLLtxe
-            // loadWithoutRecord logic above.
-            auto ttlLtxe = ltx.load(ttlKey);
-            ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
-                restoredLiveUntilLedger;
+            // Entry exists in the live BucketList if we get this this point due
+            // to the constTTLLtxe loadWithoutRecord logic above.
+            ltx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
         }
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;

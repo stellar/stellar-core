@@ -1788,17 +1788,24 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
                     ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
                     *mSorobanNetworkConfigForApply);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             if (protocolVersionStartsFrom(
                     initialLedgerVers,
                     BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 std::vector<LedgerKey> restoredKeys;
-                ltx.getRestoredHotArchiveKeys(restoredKeys);
+                auto const& restoredKeyMap = ltx.getRestoredHotArchiveKeys();
+                for (auto const& key : restoredKeyMap)
+                {
+                    // TTL keys are not recorded in the hot archive BucketList
+                    if (key.type() == CONTRACT_DATA ||
+                        key.type() == CONTRACT_CODE)
+                    {
+                        restoredKeys.push_back(key);
+                    }
+                }
                 mApp.getBucketManager().addHotArchiveBatch(
                     mApp, lh, evictedState.archivedEntries, restoredKeys, {});
             }
-#endif
 
             if (ledgerCloseMeta)
             {

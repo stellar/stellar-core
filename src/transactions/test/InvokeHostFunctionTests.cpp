@@ -2752,6 +2752,92 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                     REQUIRE(!evicted);
                 }
             }
+
+            SECTION("Restoration Meta")
+            {
+                test.invokeRestoreOp({persistentKey}, 20'048);
+                auto targetRestorationLedger = test.getLCLSeq();
+
+                XDRInputFileStream in;
+                in.open(metaPath);
+                LedgerCloseMeta lcm;
+                bool restoreMeta = false;
+
+                LedgerKeySet keysToRestore = {persistentKey,
+                                              getTTLKey(persistentKey)};
+                while (in.readOne(lcm))
+                {
+                    REQUIRE(lcm.v() == 1);
+                    if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                        targetRestorationLedger)
+                    {
+                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+                        REQUIRE(
+                            lcm.v1().evictedPersistentLedgerEntries.empty());
+
+                        REQUIRE(lcm.v1().txProcessing.size() == 1);
+                        auto txMeta = lcm.v1().txProcessing.front();
+                        REQUIRE(
+                            txMeta.txApplyProcessing.v3().operations.size() ==
+                            1);
+
+                        REQUIRE(txMeta.txApplyProcessing.v3()
+                                    .operations[0]
+                                    .changes.size() == 2);
+                        for (auto const& change : txMeta.txApplyProcessing.v3()
+                                                      .operations[0]
+                                                      .changes)
+                        {
+
+                            // Only support persistent eviction meta >= p23
+                            LedgerKey lk;
+                            if (protocolVersionStartsFrom(
+                                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                    BucketBase::
+                                        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                            {
+                                REQUIRE(change.type() ==
+                                        LedgerEntryChangeType::
+                                            LEDGER_ENTRY_RESTORED);
+                                lk = LedgerEntryKey(change.restored());
+                                REQUIRE(keysToRestore.find(lk) !=
+                                        keysToRestore.end());
+                                keysToRestore.erase(lk);
+                            }
+                            else
+                            {
+                                if (change.type() ==
+                                    LedgerEntryChangeType::LEDGER_ENTRY_STATE)
+                                {
+                                    lk = LedgerEntryKey(change.state());
+                                    REQUIRE(lk == getTTLKey(persistentKey));
+                                    keysToRestore.erase(lk);
+                                }
+                                else
+                                {
+                                    REQUIRE(change.type() ==
+                                            LedgerEntryChangeType::
+                                                LEDGER_ENTRY_UPDATED);
+                                    lk = LedgerEntryKey(change.updated());
+                                    REQUIRE(lk == getTTLKey(persistentKey));
+
+                                    // While we will see the TTL key twice,
+                                    // remove the TTL key in the path above and
+                                    // the persistent key here to make the check
+                                    // easier
+                                    keysToRestore.erase(persistentKey);
+                                }
+                            }
+                        }
+
+                        restoreMeta = true;
+                        break;
+                    }
+                }
+
+                REQUIRE(restoreMeta);
+                REQUIRE(keysToRestore.empty());
+            }
         }
 #endif
 
@@ -2942,11 +3028,6 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         auto lk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-        auto hotArchive = test.getApp()
-                              .getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
-
         auto evictionLedger = 14;
 
         // Close ledgers until entry is evicted
@@ -2954,6 +3035,11 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         {
             closeLedgerOn(test.getApp(), i, 2, 1, 2016);
         }
+
+        auto hotArchive = test.getApp()
+                              .getBucketManager()
+                              .getBucketSnapshotManager()
+                              .copySearchableHotArchiveBucketListSnapshot();
 
         if (evict)
         {
@@ -3022,7 +3108,6 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         SECTION("key accessible after restore")
         {
             test.invokeRestoreOp({lk}, 20'048);
-
             auto const& stateArchivalSettings =
                 test.getNetworkCfg().stateArchivalSettings();
             auto newExpectedLiveUntilLedger =
@@ -3030,6 +3115,11 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
 
             client.get("key", ContractDataDurability::PERSISTENT, 123);
+
+            test.getApp()
+                .getBucketManager()
+                .getBucketSnapshotManager()
+                .maybeCopySearchableHotArchiveBucketListSnapshot(hotArchive);
 
             // Restored entries are deleted from Hot Archive
             REQUIRE(!hotArchive->load(lk));

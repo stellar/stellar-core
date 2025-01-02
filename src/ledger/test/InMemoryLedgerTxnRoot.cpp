@@ -33,9 +33,9 @@ InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 }
 
 void
-InMemoryLedgerTxnRoot::commitChild(
-    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
-    LedgerTxnConsistency cons) noexcept
+InMemoryLedgerTxnRoot::commitChild(EntryIterator iter,
+                                   RestoredKeys const& restoredKeys,
+                                   LedgerTxnConsistency cons) noexcept
 {
     printErrorAndAbort("committing to stub InMemoryLedgerTxnRoot");
 }

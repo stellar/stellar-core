@@ -4,8 +4,8 @@
 
 // clang-format off
 // This needs to be included first
+#include "rust/RustVecXdrMarshal.h"
 #include "TransactionUtils.h"
-#include "main/AppConnector.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -14,7 +14,6 @@
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
 #include "xdr/Stellar-contract.h"
-#include "rust/RustVecXdrMarshal.h"
 // clang-format on
 
 #include "ledger/LedgerTxnImpl.h"
@@ -407,7 +406,6 @@ InvokeHostFunctionOpFrame::doApply(
                     }
                 }
                 // If ttlLtxe doesn't exist, this is a new Soroban entry
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 // Starting in protocol 23, we must check the Hot Archive for
                 // new keys. If a new key is actually archived, fail the op.
                 if (isPersistentEntry(lk) &&
@@ -423,8 +421,7 @@ InvokeHostFunctionOpFrame::doApply(
                         {
                             sorobanData->pushApplyTimeDiagnosticError(
                                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
-                                "trying to access an archived contract "
-                                "code "
+                                "trying to access an archived contract code "
                                 "entry",
                                 {makeBytesSCVal(lk.contractCode().hash)});
                         }
@@ -432,8 +429,7 @@ InvokeHostFunctionOpFrame::doApply(
                         {
                             sorobanData->pushApplyTimeDiagnosticError(
                                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
-                                "trying to access an archived contract "
-                                "data "
+                                "trying to access an archived contract data "
                                 "entry",
                                 {makeAddressSCVal(lk.contractData().contract),
                                  lk.contractData().key});
@@ -444,7 +440,6 @@ InvokeHostFunctionOpFrame::doApply(
                         return false;
                     }
                 }
-#endif
             }
 
             if (!isSorobanEntry(lk) || sorobanEntryLive)

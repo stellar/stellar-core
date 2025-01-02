@@ -4,12 +4,12 @@
 
 // clang-format off
 // This needs to be included first
-#include "bucket/LiveBucketList.h"
 #include "rust/RustVecXdrMarshal.h"
 // clang-format on
 
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/ReplayDebugMetaWork.h"

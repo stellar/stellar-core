@@ -8,6 +8,7 @@
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger.h"
 #include <algorithm>
 
 namespace
@@ -20,9 +21,14 @@ struct CmpLedgerEntryChanges
     {
         // order that we want is:
         // LEDGER_ENTRY_STATE, LEDGER_ENTRY_CREATED,
-        // LEDGER_ENTRY_UPDATED, LEDGER_ENTRY_REMOVED
-        static constexpr std::array<int, 4> reindex = {1, 2, 3, 0};
-        releaseAssert(let >= 0 && let < 4);
+        // LEDGER_ENTRY_UPDATED, LEDGER_ENTRY_REMOVED, LEDGER_ENTRY_RESTORED
+        static constexpr std::array<int, 5> reindex = {1, 2, 3, 0
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                                                       ,
+                                                       4
+#endif
+        };
+        releaseAssert(let >= 0 && let < 5);
         return reindex[let];
     }
 
@@ -44,6 +50,11 @@ struct CmpLedgerEntryChanges
         case LEDGER_ENTRY_REMOVED:
             res = change.removed();
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case LEDGER_ENTRY_RESTORED:
+            res = LedgerEntryKey(change.restored());
+            break;
+#endif
         }
         return res;
     }

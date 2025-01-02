@@ -48,6 +48,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <unordered_set>
 #include <xdrpp/types.h>
 
 namespace stellar
@@ -57,6 +58,114 @@ namespace
 // Limit to the maximum resource fee allowed for transaction,
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+// Starting in protocol 23, some operation meta needs to be modified
+// to be consumed by downstream systems. In particular, restoration is
+// (mostly) logically a new entry creation from the perspective of ltx and
+// stellar-core as a whole, but this change type is reclassified to
+// LEDGER_ENTRY_RESTORED for easier consumption downstream.
+LedgerEntryChanges
+processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
+                            AbstractLedgerTxn& ltx)
+{
+    if (op->getOperation().body.type() != RESTORE_FOOTPRINT)
+    {
+        return ltx.getChanges();
+    }
+
+    auto const& hotArchiveRestores = ltx.getRestoredHotArchiveKeys();
+    auto const& liveRestores = ltx.getRestoredLiveBucketListKeys();
+
+    LedgerEntryChanges changes = ltx.getChanges();
+
+    // Depending on whether the restored entry is still in the live
+    // BucketList (has not yet been evicted), or has been evicted and is in
+    // the hot archive, meta will be handled differently as follows:
+    //
+    // Entry restore from Hot Archive:
+    // Meta before changes:
+    //     Data/Code: LEDGER_ENTRY_CREATED
+    //     TTL: LEDGER_ENTRY_CREATED
+    // Meta after changes:
+    //     Data/Code: LEDGER_ENTRY_RESTORED
+    //     TTL: LEDGER_ENTRY_RESTORED
+    //
+    // Entry restore from Live BucketList:
+    // Meta before changes:
+    //     Data/Code: no meta
+    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(newValue)
+    // Meta after changes:
+    //     Data/Code: LEDGER_ENTRY_RESTORED
+    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_RESTORED(newValue)
+    //
+    // First, iterate through existing meta and change everything we need to
+    // update.
+    for (auto& change : changes)
+    {
+        // For entry creation meta, we only need to check for Hot Archive
+        // restores
+        if (change.type() == LEDGER_ENTRY_CREATED)
+        {
+            auto le = change.created();
+            if (hotArchiveRestores.find(LedgerEntryKey(le)) !=
+                hotArchiveRestores.end())
+            {
+                releaseAssertOrThrow(isPersistentEntry(le.data) ||
+                                     le.data.type() == TTL);
+                change.type(LEDGER_ENTRY_RESTORED);
+                change.restored() = le;
+            }
+        }
+        // Update meta only applies to TTL meta
+        else if (change.type() == LEDGER_ENTRY_UPDATED)
+        {
+            if (change.updated().data.type() == TTL)
+            {
+                auto ttlLe = change.updated();
+                if (liveRestores.find(LedgerEntryKey(ttlLe)) !=
+                    liveRestores.end())
+                {
+                    // Update the TTL change from LEDGER_ENTRY_UPDATED to
+                    // LEDGER_ENTRY_RESTORED.
+                    change.type(LEDGER_ENTRY_RESTORED);
+                    change.restored() = ttlLe;
+                }
+            }
+        }
+    }
+
+    // Now we need to insert all the LEDGER_ENTRY_RESTORED changes for the
+    // data entries that were not created but already existed on the live
+    // BucketList. These data/code entries have not been modified (only the TTL
+    // is updated), so ltx doesn't have any meta. However this is still useful
+    // for downstream so we manually insert restore meta here.
+    for (auto const& key : liveRestores)
+    {
+        if (key.type() == TTL)
+        {
+            continue;
+        }
+        releaseAssertOrThrow(isPersistentEntry(key));
+
+        // Note: this is already in the cache since the RestoreOp loaded
+        // all data keys for size calculation during apply already
+        auto entry = ltx.getNewestVersion(key);
+
+        // If TTL already exists and is just being updated, the
+        // data entry must also already exist
+        releaseAssertOrThrow(entry);
+
+        LedgerEntryChange change;
+        change.type(LEDGER_ENTRY_RESTORED);
+        change.restored() = entry->ledgerEntry();
+        changes.push_back(change);
+    }
+
+    return changes;
+}
+#endif
+
 } // namespace
 
 using namespace std;
@@ -1648,15 +1757,30 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 success = false;
             }
+
+            // The operation meta will be empty if the transaction
+            // doesn't succeed so we may as well not do any work in that
+            // case
             if (success)
             {
                 app.checkOnOperationApply(op->getOperation(), opResult,
                                           ltxOp.getDelta());
 
-                // The operation meta will be empty if the transaction
-                // doesn't succeed so we may as well not do any work in that
-                // case
-                operationMetas.emplace_back(ltxOp.getChanges());
+                LedgerEntryChanges changes;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                if (protocolVersionStartsFrom(
+                        ledgerVersion,
+                        LiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    changes = processOpLedgerEntryChanges(op, ltxOp);
+                }
+                else
+#endif
+                {
+                    changes = ltxOp.getChanges();
+                }
+                operationMetas.emplace_back(changes);
             }
 
             if (txRes ||

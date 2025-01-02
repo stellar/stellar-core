@@ -503,17 +503,16 @@ LedgerTxn::Impl::commit() noexcept
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
         // commitChild has the strong exception safety guarantee
-        mParent.commitChild(getEntryIterator(entries), mRestoredHotArchiveKeys,
+        mParent.commitChild(getEntryIterator(entries), mRestoredKeys,
                             mConsistency);
     });
 }
 
 void
-LedgerTxn::commitChild(EntryIterator iter,
-                       UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+LedgerTxn::commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
                        LedgerTxnConsistency cons) noexcept
 {
-    getImpl()->commitChild(std::move(iter), restoredHotArchiveKeys, cons);
+    getImpl()->commitChild(std::move(iter), restoredKeys, cons);
 }
 
 static LedgerTxnConsistency
@@ -531,9 +530,9 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
 }
 
 void
-LedgerTxn::Impl::commitChild(
-    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
-    LedgerTxnConsistency cons) noexcept
+LedgerTxn::Impl::commitChild(EntryIterator iter,
+                             RestoredKeys const& restoredKeys,
+                             LedgerTxnConsistency cons) noexcept
 {
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
@@ -638,12 +637,21 @@ LedgerTxn::Impl::commitChild(
         printErrorAndAbort("unknown fatal error during commit to LedgerTxn");
     }
 
-    for (auto const& key : restoredHotArchiveKeys)
+    for (auto const& key : restoredKeys.hotArchive)
     {
-        auto [_, inserted] = mRestoredHotArchiveKeys.emplace(key);
+        auto [_, inserted] = mRestoredKeys.hotArchive.emplace(key);
         if (!inserted)
         {
             printErrorAndAbort("restored hot archive entry already exists");
+        }
+    }
+
+    for (auto const& key : restoredKeys.liveBucketList)
+    {
+        auto [_, inserted] = mRestoredKeys.liveBucketList.emplace(key);
+        if (!inserted)
+        {
+            printErrorAndAbort("restored live BucketList entry already exists");
         }
     }
 
@@ -818,34 +826,88 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
 }
 
 void
-LedgerTxn::removeFromHotArchive(LedgerKey const& key)
+LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
-    getImpl()->removeFromHotArchive(key);
+    getImpl()->restoreFromHotArchive(*this, entry, ttl);
 }
 
 void
-LedgerTxn::Impl::removeFromHotArchive(LedgerKey const& key)
+LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
+                                       LedgerEntry const& entry, uint32_t ttl)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(entry.data))
+    {
+        throw std::runtime_error("Key type not supported in Hot Archive");
+    }
+    auto ttlKey = getTTLKey(entry);
+
+    // Restore entry by creating it on the live BucketList
+    create(self, entry);
+
+    // Also create the corresponding TTL entry
+    LedgerEntry ttlEntry;
+    ttlEntry.data.type(TTL);
+    ttlEntry.data.ttl().liveUntilLedgerSeq = ttl;
+    ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
+    create(self, ttlEntry);
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerKey const& key) {
+        auto [_, inserted] = mRestoredKeys.hotArchive.insert(key);
+        if (!inserted)
+        {
+            throw std::runtime_error("Key already removed from hot archive");
+        }
+    };
+    addKey(LedgerEntryKey(entry));
+    addKey(ttlKey);
+}
+
+void
+LedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
+{
+    getImpl()->restoreFromLiveBucketList(*this, key, ttl);
+}
+
+void
+LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
+                                           LedgerKey const& key, uint32_t ttl)
 {
     throwIfSealed();
     throwIfChild();
 
     if (!isPersistentEntry(key))
     {
-        throw std::runtime_error("Key type not supported in Hot Archive");
+        throw std::runtime_error("Key type not supported for restoration");
     }
 
-    auto restoredEntry = mEntry.find(key);
-    if (restoredEntry == mEntry.end() || !restoredEntry->second.isInit())
+    auto ttlKey = getTTLKey(key);
+
+    // Note: key should have already been loaded via loadWithoutRecord by
+    // caller, so this read should already be in the cache.
+    auto ttlLtxe = load(self, ttlKey);
+    if (!ttlLtxe)
     {
-        throw std::runtime_error(
-            "Restored entry must be created before Hot Archive removal");
+        throw std::runtime_error("Entry restored from live BucketList but does "
+                                 "not exist in the live BucketList.");
     }
 
-    auto [_, inserted] = mRestoredHotArchiveKeys.insert(key);
-    if (!inserted)
-    {
-        throw std::runtime_error("Key already removed from hot archive");
-    }
+    ttlLtxe.current().data.ttl().liveUntilLedgerSeq = ttl;
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerKey const& key) {
+        auto [_, inserted] = mRestoredKeys.liveBucketList.insert(key);
+        if (!inserted)
+        {
+            throw std::runtime_error(
+                "Key already restored from Live BucketList");
+        }
+    };
+    addKey(key);
+    addKey(ttlKey);
 }
 
 void
@@ -1516,22 +1578,28 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     deadEntries.swap(resDead);
 }
 
-void
-LedgerTxn::getRestoredHotArchiveKeys(
-    std::vector<LedgerKey>& restoredHotArchiveKeys)
+UnorderedSet<LedgerKey> const&
+LedgerTxn::getRestoredHotArchiveKeys() const
 {
-    getImpl()->getRestoredHotArchiveKeys(restoredHotArchiveKeys);
+    return getImpl()->getRestoredHotArchiveKeys();
 }
 
-void
-LedgerTxn::Impl::getRestoredHotArchiveKeys(
-    std::vector<LedgerKey>& restoredHotArchiveKeys)
+UnorderedSet<LedgerKey> const&
+LedgerTxn::Impl::getRestoredHotArchiveKeys() const
 {
-    restoredHotArchiveKeys.reserve(mRestoredHotArchiveKeys.size());
-    for (auto const& key : mRestoredHotArchiveKeys)
-    {
-        restoredHotArchiveKeys.emplace_back(key);
-    }
+    return mRestoredKeys.hotArchive;
+}
+
+UnorderedSet<LedgerKey> const&
+LedgerTxn::getRestoredLiveBucketListKeys() const
+{
+    return getImpl()->getRestoredLiveBucketListKeys();
+}
+
+UnorderedSet<LedgerKey> const&
+LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
+{
+    return mRestoredKeys.liveBucketList;
 }
 
 LedgerKeySet
@@ -2021,7 +2089,8 @@ LedgerTxn::Impl::rollback() noexcept
     }
 
     mEntry.clear();
-    mRestoredHotArchiveKeys.clear();
+    mRestoredKeys.hotArchive.clear();
+    mRestoredKeys.liveBucketList.clear();
     mMultiOrderBook.clear();
     mActive.clear();
     mActiveHeader.reset();
@@ -2624,11 +2693,10 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::commitChild(
-    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
-    LedgerTxnConsistency cons) noexcept
+LedgerTxnRoot::commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+                           LedgerTxnConsistency cons) noexcept
 {
-    mImpl->commitChild(std::move(iter), restoredHotArchiveKeys, cons);
+    mImpl->commitChild(std::move(iter), restoredKeys, cons);
 }
 
 static void
@@ -2684,9 +2752,9 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
 }
 
 void
-LedgerTxnRoot::Impl::commitChild(
-    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
-    LedgerTxnConsistency cons) noexcept
+LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
+                                 RestoredKeys const& restoredHotArchiveKeys,
+                                 LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
 

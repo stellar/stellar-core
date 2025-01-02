@@ -187,9 +187,9 @@ InMemoryLedgerTxn::getFilteredEntryIterator(EntryIterator const& iter)
 }
 
 void
-InMemoryLedgerTxn::commitChild(
-    EntryIterator iter, UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
-    LedgerTxnConsistency cons) noexcept
+InMemoryLedgerTxn::commitChild(EntryIterator iter,
+                               RestoredKeys const& restoredKeys,
+                               LedgerTxnConsistency cons) noexcept
 {
     if (!mTransaction)
     {
@@ -200,7 +200,7 @@ InMemoryLedgerTxn::commitChild(
         auto filteredIter = getFilteredEntryIterator(iter);
         updateLedgerKeyMap(filteredIter);
 
-        LedgerTxn::commitChild(filteredIter, restoredHotArchiveKeys, cons);
+        LedgerTxn::commitChild(filteredIter, restoredKeys, cons);
         mTransaction->commit();
         mTransaction.reset();
     }
@@ -275,10 +275,17 @@ InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
 }
 
 void
-InMemoryLedgerTxn::removeFromHotArchive(LedgerKey const& key)
+InMemoryLedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
     throw std::runtime_error(
-        "called removeFromHotArchive on InMemoryLedgerTxn");
+        "called restoreFromHotArchive on InMemoryLedgerTxn");
+}
+
+void
+InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
+{
+    throw std::runtime_error(
+        "called restoreFromLiveBucketList on InMemoryLedgerTxn");
 }
 
 LedgerTxnEntry

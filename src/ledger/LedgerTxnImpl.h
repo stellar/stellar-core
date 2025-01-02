@@ -96,9 +96,7 @@ class LedgerTxn::Impl
     std::shared_ptr<LedgerTxnHeader::Impl> mActiveHeader;
     EntryMap mEntry;
 
-    // Contains the set of keys for entries that currently exist in the hot
-    // archive and were restored.
-    UnorderedSet<LedgerKey> mRestoredHotArchiveKeys;
+    RestoredKeys mRestoredKeys;
     UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
@@ -340,8 +338,7 @@ class LedgerTxn::Impl
 
     void commit() noexcept;
 
-    void commitChild(EntryIterator iter,
-                     UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
                      LedgerTxnConsistency cons) noexcept;
 
     // create has the basic exception safety guarantee. If it throws an
@@ -364,11 +361,19 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     void erase(InternalLedgerKey const& key);
 
-    // removeFromHotArchive has the basic exception safety guarantee. If it
+    // restoreFromHotArchive has the basic exception safety guarantee. If it
     // throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
-    void removeFromHotArchive(LedgerKey const& key);
+    void restoreFromHotArchive(LedgerTxn& self, LedgerEntry const& entry,
+                               uint32_t ttl);
+
+    // restoreFromLiveBucketList has the basic exception safety guarantee. If it
+    // throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    void restoreFromLiveBucketList(LedgerTxn& self, LedgerKey const& key,
+                                   uint32_t ttl);
 
     // getAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -443,8 +448,10 @@ class LedgerTxn::Impl
     void getAllEntries(std::vector<LedgerEntry>& initEntries,
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries);
-    // getRestoredHotArchiveKeys has the strong exception safety guarantee
-    void getRestoredHotArchiveKeys(std::vector<LedgerKey>& restoredKeys);
+    // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys
+    // have the strong exception safety guarantee
+    UnorderedSet<LedgerKey> const& getRestoredHotArchiveKeys() const;
+    UnorderedSet<LedgerKey> const& getRestoredLiveBucketListKeys() const;
 
     LedgerKeySet getAllTTLKeysWithoutSealing() const;
 
@@ -721,8 +728,7 @@ class LedgerTxnRoot::Impl
     // addChild has the strong exception safety guarantee.
     void addChild(AbstractLedgerTxn& child, TransactionMode mode);
 
-    void commitChild(EntryIterator iter,
-                     UnorderedSet<LedgerKey> const& restoredHotArchiveKeys,
+    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
                      LedgerTxnConsistency cons) noexcept;
 
     // countOffers has the strong exception safety guarantee.
