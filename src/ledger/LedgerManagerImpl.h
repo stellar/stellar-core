@@ -166,6 +166,7 @@ class LedgerManagerImpl : public LedgerManager
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     TransactionResultSet mLatestTxResultSet{};
+    void storeCurrentLedgerForTest(LedgerHeader const& header) override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -173,8 +174,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(bool restoreBucketlist,
-                             bool isLedgerStateReady) override;
+    void loadLastKnownLedger(bool restoreBucketlist) override;
     virtual bool rebuildingInMemoryState() override;
     virtual void setupInMemoryStateRebuild() override;
 

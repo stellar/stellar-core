@@ -106,7 +106,6 @@ class BucketManager : NonMovableOrCopyable
 
     std::future<EvictionResult> mEvictionFuture{};
 
-    bool const mDeleteEntireBucketDirInDtor;
     // Copy app's config for thread-safe access
     Config const mConfig;
 
@@ -291,10 +290,8 @@ class BucketManager : NonMovableOrCopyable
                        std::unique_ptr<BucketIndex const>&& index);
 
     // Scans BucketList for non-live entries to evict starting at the entry
-    // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
+    // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void scanForEvictionLegacy(AbstractLedgerTxn& ltx, uint32_t ledgerSeq);
-
     void startBackgroundEvictionScan(uint32_t ledgerSeq);
     void resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx,
                                        uint32_t ledgerSeq,

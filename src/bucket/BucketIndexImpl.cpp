@@ -239,7 +239,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         ZoneValue(static_cast<int64_t>(count));
     }
 
-    if (bm.getConfig().isPersistingBucketListDBIndexes())
+    if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX)
     {
         saveToDisk(bm, hash, ctx);
     }
@@ -260,7 +260,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
     BucketManager& bm, Hash const& hash, asio::io_context& ctx) const
 {
     ZoneScoped;
-    releaseAssert(bm.getConfig().isPersistingBucketListDBIndexes());
+    releaseAssert(bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX);
     auto timer =
         LogSlowExecution("Saving index", LogSlowExecution::Mode::AUTOMATIC_RAII,
                          "took", std::chrono::milliseconds(100));
@@ -272,7 +272,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
 
     {
         OutputFileStream out(ctx, !bm.getConfig().DISABLE_XDR_FSYNC);
-        out.open(tmpFilename);
+        out.open(tmpFilename.string());
         cereal::BufferedAsioOutputArchive ar(out);
         ar(mData);
     }
@@ -381,7 +381,6 @@ BucketIndex::createIndex(BucketManager& bm,
 
     ZoneScoped;
     auto const& cfg = bm.getConfig();
-    releaseAssertOrThrow(cfg.isUsingBucketListDB());
     releaseAssertOrThrow(!filename.empty());
     auto pageSize = effectivePageSize(cfg, fs::size(filename.string()));
 

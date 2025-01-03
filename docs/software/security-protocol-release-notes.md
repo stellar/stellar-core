@@ -53,6 +53,10 @@ It then follows that:
 
 # List of releases
 
+## v22.0.0 (2024-11-06)
+
+* `Ledger` - protocol - Fixed an issue with read only TTL extensions not being charged for when initiated within a contract.
+
 ## v20.4.0 (2024-04-08)
 
 * `Overlay` - security - remote crash could be triggered due to race condition in error code processing from a third party library.

@@ -10,6 +10,10 @@ class Counter;
 }
 namespace stellar
 {
+// Calculates total size we'll need to read for all specified keys
+uint64_t footprintSize(Application& app,
+                       xdr::xvector<stellar::LedgerKey> const& keys);
+
 // Config settings for SOROBAN_CREATE_UPGRADE
 struct SorobanUpgradeConfig
 {
@@ -62,6 +66,7 @@ class TxGenerator
         // [wasm, instance]
         xdr::xvector<LedgerKey> readOnlyKeys;
         SCAddress contractID;
+        uint32_t contractEntriesSize = 0;
     };
 
     using TestAccountPtr = std::shared_ptr<TestAccount>;
@@ -111,6 +116,12 @@ class TxGenerator
                                  uint64_t contractOverheadBytes,
                                  std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeSorobanLoadTransactionV2(uint32_t ledgerNum, uint64_t accountId,
+                                   ContractInstance const& instance,
+                                   uint64_t dataEntryCount,
+                                   size_t dataEntrySize,
+                                   std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
         LedgerKey const& codeKey, LedgerKey const& instanceKey,
@@ -148,9 +159,6 @@ class TxGenerator
 
   private:
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
-
-    // Calculates total size we'll need to read for all specified keys
-    uint64_t bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys);
 
     void updateMinBalance();
 

@@ -28,6 +28,7 @@ class PersistentState
         kRebuildLedger,
         kLastSCPDataXDR,
         kTxSet,
+        // https://github.com/stellar/stellar-core/issues/4582
         kDBBackend,
         kLastEntry,
     };
@@ -46,9 +47,9 @@ class PersistentState
     setSCPStateV1ForSlot(uint64 slot, std::string const& value,
                          std::unordered_map<Hash, std::string> const& txSets);
 
-    bool shouldRebuildForType(LedgerEntryType let);
-    void clearRebuildForType(LedgerEntryType let);
-    void setRebuildForType(LedgerEntryType let);
+    bool shouldRebuildForOfferTable();
+    void clearRebuildForOfferTable();
+    void setRebuildForOfferTable();
 
     bool hasTxSet(Hash const& txSetHash);
     void deleteTxSets(std::unordered_set<Hash> hashesToDelete);

@@ -217,7 +217,7 @@ class CatchupSimulation
         std::shared_ptr<HistoryConfigurator> cg =
             std::make_shared<TmpDirHistoryConfigurator>(),
         bool startApp = true,
-        Config::TestDbMode dbMode = Config::TESTDB_IN_MEMORY_OFFERS);
+        Config::TestDbMode dbMode = Config::TESTDB_IN_MEMORY);
     ~CatchupSimulation();
 
     Application&

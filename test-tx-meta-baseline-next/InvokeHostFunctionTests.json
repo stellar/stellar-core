@@ -1391,9 +1391,7 @@
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo="
 	],
-	"temp entry eviction|BucketListDB|background scan" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"temp entry eviction|BucketListDB|legacy main thread scan" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"temp entry eviction|sql" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"temp entry eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"transaction validation diagnostics" : [ "bKDF6V5IzTo=" ],
 	"version test" : [ "766L+TYsWqA=" ]
 }

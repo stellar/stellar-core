@@ -353,54 +353,6 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-void
-maybeEnableInMemoryMode(Config& config, bool inMemory, uint32_t startAtLedger,
-                        std::string const& startAtHash, bool persistMinimalData)
-{
-    // First, ensure user parameters are valid
-    if (!inMemory)
-    {
-        if (startAtLedger != 0)
-        {
-            throw std::runtime_error("--start-at-ledger requires --in-memory");
-        }
-        if (!startAtHash.empty())
-        {
-            throw std::runtime_error("--start-at-hash requires --in-memory");
-        }
-        return;
-    }
-    if (startAtLedger != 0 && startAtHash.empty())
-    {
-        throw std::runtime_error("--start-at-ledger requires --start-at-hash");
-    }
-    else if (startAtLedger == 0 && !startAtHash.empty())
-    {
-        throw std::runtime_error("--start-at-hash requires --start-at-ledger");
-    }
-
-    // Adjust configs for live in-memory-replay mode
-    config.setInMemoryMode();
-
-    if (startAtLedger != 0 && !startAtHash.empty())
-    {
-        config.MODE_AUTO_STARTS_OVERLAY = false;
-    }
-
-    // Set database to a small sqlite database used to store minimal data needed
-    // to restore the ledger state
-    if (persistMinimalData)
-    {
-        config.DATABASE = SecretValue{minimalDBForInMemoryMode(config)};
-        config.MODE_STORES_HISTORY_LEDGERHEADERS = true;
-        // Since this mode stores historical data (needed to restore
-        // ledger state in certain scenarios), set maintenance to run
-        // aggressively so that we only store a few ledgers worth of data
-        config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds(30);
-        config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
-    }
-}
-
 clara::Opt
 ledgerHashParser(std::string& ledgerHash)
 {
@@ -419,23 +371,21 @@ clara::Opt
 inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
-        "(DEPRECATED) store working ledger in memory rather than database");
+        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
 startAtLedgerParser(uint32_t& startAtLedger)
 {
     return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
-        "(DEPRECATED) start in-memory run with replay from historical ledger "
-        "number");
+        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
 startAtHashParser(std::string& startAtHash)
 {
     return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
-        "(DEPRECATED) start in-memory run with replay from historical ledger "
-        "hash");
+        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
@@ -870,7 +820,8 @@ runCatchup(CommandLineArgs const& args)
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation), inMemoryParser(inMemory),
-         ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
+         ledgerHashParser(hash), ledgerHashParser(hash),
+         forceUntrustedCatchup(forceUntrusted),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -891,10 +842,6 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
             }
 
-            // --start-at-ledger and --start-at-hash aren't allowed in catchup,
-            // so pass defaults values
-            maybeEnableInMemoryMode(config, inMemory, 0, "",
-                                    /* persistMinimalData */ false);
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
@@ -1221,13 +1168,12 @@ int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    bool minimalForInMemoryMode = false;
+    [[maybe_unused]] bool minimalForInMemoryMode = false;
 
     auto minimalDBParser = [](bool& minimalForInMemoryMode) {
         return clara::Opt{
             minimalForInMemoryMode}["--minimal-for-in-memory-mode"](
-            "Reset the special database used only for in-memory mode (see "
-            "--in-memory flag");
+            "(DEPRECATED) flag is ignored and will be removed soon.");
     };
 
     return runWithHelp(args,
@@ -1235,11 +1181,6 @@ runNewDB(CommandLineArgs const& args)
                         minimalDBParser(minimalForInMemoryMode)},
                        [&] {
                            auto cfg = configOption.getConfig();
-                           if (minimalForInMemoryMode)
-                           {
-                               cfg.DATABASE =
-                                   SecretValue{minimalDBForInMemoryMode(cfg)};
-                           }
                            initializeDatabase(cfg);
                            return 0;
                        });
@@ -1535,10 +1476,10 @@ run(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
     std::string stream;
-    bool inMemory = false;
     bool waitForConsensus = false;
-    uint32_t startAtLedger = 0;
-    std::string startAtHash;
+    [[maybe_unused]] bool inMemory = false;
+    [[maybe_unused]] uint32_t startAtLedger = 0;
+    [[maybe_unused]] std::string startAtHash;
 
     return runWithHelp(
         args,
@@ -1564,14 +1505,10 @@ run(CommandLineArgs const& args)
                 {
                     cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.MODE_STORES_HISTORY_MISC = false;
-                    cfg.MODE_USES_IN_MEMORY_LEDGER = false;
                     cfg.MODE_ENABLES_BUCKETLIST = false;
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
-                maybeEnableInMemoryMode(cfg, inMemory, startAtLedger,
-                                        startAtHash,
-                                        /* persistMinimalData */ true);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
@@ -1612,10 +1549,8 @@ run(CommandLineArgs const& args)
                 }
 
                 // Second, setup the app with the final configuration.
-                // Note that when in in-memory mode, additional setup may be
-                // required (such as database reset, catchup, etc)
                 clock = std::make_shared<VirtualClock>(clockMode);
-                app = setupApp(cfg, *clock, startAtLedger, startAtHash);
+                app = setupApp(cfg, *clock);
                 if (!app)
                 {
                     LOG_ERROR(DEFAULT_LOG,
@@ -1822,199 +1757,116 @@ runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
-    uint64_t ledgerMaxInstructions = 0;
-    uint64_t ledgerMaxReadLedgerEntries = 0;
-    uint64_t ledgerMaxReadBytes = 0;
-    uint64_t ledgerMaxWriteLedgerEntries = 0;
-    uint64_t ledgerMaxWriteBytes = 0;
-    uint64_t ledgerMaxTxCount = 0;
-    uint64_t ledgerMaxTransactionsSizeBytes = 0;
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        config.RUN_STANDALONE = true;
+        config.MANUAL_CLOSE = true;
+        config.USE_CONFIG_FOR_GENESIS = true;
+        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        config.LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
-    ParserWithValidation ledgerMaxInstructionsParser{
-        clara::Opt(ledgerMaxInstructions,
-                   "LedgerMaxInstructions")["--ledger-max-instructions"]
-            .required(),
-        [&] {
-            return ledgerMaxInstructions > 0
-                       ? ""
-                       : "ledgerMaxInstructions must be > 0";
-        }};
+        TmpDirManager tdm(std::string("soroban-storage-meta-"));
+        TmpDir td = tdm.tmpDir("soroban-meta-ok");
+        std::string metaPath = td.getName() + "/stream.xdr";
 
-    ParserWithValidation ledgerMaxReadLedgerEntriesParser{
-        clara::Opt(ledgerMaxReadLedgerEntries,
-                   "LedgerMaxReadLedgerEntries")["--ledger-max-read-entries"]
-            .required(),
-        [&] {
-            return ledgerMaxReadLedgerEntries > 0
-                       ? ""
-                       : "ledgerMaxReadLedgerEntries must be > 0";
-        }};
+        config.METADATA_OUTPUT_STREAM = metaPath;
 
-    ParserWithValidation ledgerMaxReadBytesParser{
-        clara::Opt(ledgerMaxReadBytes,
-                   "LedgerMaxReadBytes")["--ledger-max-read-bytes"]
-            .required(),
-        [&] {
-            return ledgerMaxReadBytes > 0 ? ""
-                                          : "ledgerMaxReadBytes must be > 0";
-        }};
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        auto appPtr = Application::create(clock, config);
 
-    ParserWithValidation ledgerMaxWriteLedgerEntriesParser{
-        clara::Opt(ledgerMaxWriteLedgerEntries,
-                   "LedgerMaxWriteLedgerEntries")["--ledger-max-write-entries"]
-            .required(),
-        [&] {
-            return ledgerMaxWriteLedgerEntries > 0
-                       ? ""
-                       : "ledgerMaxWriteLedgerEntries must be > 0";
-        }};
+        auto& app = *appPtr;
+        {
+            app.start();
 
-    ParserWithValidation ledgerMaxWriteBytesParser{
-        clara::Opt(ledgerMaxWriteBytes,
-                   "LedgerMaxWriteBytes")["--ledger-max-write-bytes"]
-            .required(),
-        [&] {
-            return ledgerMaxWriteBytes > 0 ? ""
-                                           : "ledgerMaxWriteBytes must be > 0";
-        }};
+            ApplyLoad al(app);
 
-    ParserWithValidation ledgerMaxTxCountParser{
-        clara::Opt(ledgerMaxTxCount,
-                   "LedgerMaxTxCount")["--ledger-max-tx-count"]
-            .required(),
-        [&] {
-            return ledgerMaxTxCount > 0 ? "" : "ledgerMaxTxCount must be > 0";
-        }};
+            auto& ledgerClose =
+                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+            ledgerClose.Clear();
 
-    ParserWithValidation ledgerMaxTransactionsSizeBytesParser{
-        clara::Opt(ledgerMaxTransactionsSizeBytes,
-                   "LedgerMaxTransactionsSizeBytes")["--ledger-max-tx-size"]
-            .required(),
-        [&] {
-            return ledgerMaxTransactionsSizeBytes > 0
-                       ? ""
-                       : "ledgerMaxTransactionsSizeBytes must be > 0";
-        }};
+            auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+            cpuInsRatio.Clear();
 
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), ledgerMaxInstructionsParser,
-         ledgerMaxReadLedgerEntriesParser, ledgerMaxReadBytesParser,
-         ledgerMaxWriteLedgerEntriesParser, ledgerMaxWriteBytesParser,
-         ledgerMaxTxCountParser, ledgerMaxTransactionsSizeBytesParser},
-        [&] {
-            auto config = configOption.getConfig();
-            config.RUN_STANDALONE = true;
-            config.MANUAL_CLOSE = true;
-            config.USE_CONFIG_FOR_GENESIS = true;
-            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            config.LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op",
+                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+            cpuInsRatioExclVm.Clear();
 
-            VirtualClock clock(VirtualClock::REAL_TIME);
-            auto appPtr = Application::create(clock, config);
+            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+            ledgerCpuInsRatio.Clear();
 
-            auto& app = *appPtr;
+            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
+            ledgerCpuInsRatioExclVm.Clear();
+
+            for (size_t i = 0; i < 100; ++i)
             {
-                app.start();
-
-                ApplyLoad al(app, ledgerMaxInstructions,
-                             ledgerMaxReadLedgerEntries, ledgerMaxReadBytes,
-                             ledgerMaxWriteLedgerEntries, ledgerMaxWriteBytes,
-                             ledgerMaxTxCount, ledgerMaxTransactionsSizeBytes);
-
-                auto& ledgerClose =
-                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-                ledgerClose.Clear();
-
-                auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio"});
-                cpuInsRatio.Clear();
-
-                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-                cpuInsRatioExclVm.Clear();
-
-                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-                ledgerCpuInsRatio.Clear();
-
-                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "ledger-cpu-insns-ratio-excl-vm"});
-                ledgerCpuInsRatioExclVm.Clear();
-
-                for (size_t i = 0; i < 100; ++i)
-                {
-                    app.getBucketManager()
-                        .getLiveBucketList()
-                        .resolveAllFutures();
-                    releaseAssert(app.getBucketManager()
-                                      .getLiveBucketList()
-                                      .futuresAllResolved());
-                    al.benchmark();
-                }
-
-                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
-                          ledgerClose.max());
-                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
-                          ledgerClose.min());
-                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
-                          ledgerClose.mean());
-                CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
-                          ledgerClose.std_dev());
-
-                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
-                          cpuInsRatio.max() / 1000000);
-                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
-                          cpuInsRatio.mean() / 1000000);
-
-                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-                          cpuInsRatioExclVm.max() / 1000000);
-                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-                          cpuInsRatioExclVm.mean() / 1000000);
-                CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-                          cpuInsRatioExclVm.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
-                          ledgerCpuInsRatio.max() / 1000000);
-                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
-                          ledgerCpuInsRatio.mean() / 1000000);
-                CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
-                          ledgerCpuInsRatio.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
-                          ledgerCpuInsRatioExclVm.max() / 1000000);
-                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
-                          ledgerCpuInsRatioExclVm.mean() / 1000000);
-                CLOG_INFO(
-                    Perf,
-                    "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
-                    ledgerCpuInsRatioExclVm.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Tx count utilization {}%",
-                          al.getTxCountUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Instruction utilization {}%",
-                          al.getInstructionUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Tx size utilization {}%",
-                          al.getTxSizeUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Read bytes utilization {}%",
-                          al.getReadByteUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Write bytes utilization {}%",
-                          al.getWriteByteUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Read entry utilization {}%",
-                          al.getReadEntryUtilization().mean() / 1000.0);
-                CLOG_INFO(Perf, "Write entry utilization {}%",
-                          al.getWriteEntryUtilization().mean() / 1000.0);
-
-                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
-                          al.successRate() * 100);
+                app.getBucketManager().getLiveBucketList().resolveAllFutures();
+                releaseAssert(app.getBucketManager()
+                                  .getLiveBucketList()
+                                  .futuresAllResolved());
+                al.benchmark();
             }
 
-            return 0;
-        });
+            CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                      ledgerClose.max());
+            CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
+                      ledgerClose.min());
+            CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                      ledgerClose.mean());
+            CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
+                      ledgerClose.std_dev());
+
+            CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                      cpuInsRatio.max() / 1000000);
+            CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                      cpuInsRatio.mean() / 1000000);
+
+            CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                      cpuInsRatioExclVm.max() / 1000000);
+            CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                      cpuInsRatioExclVm.mean() / 1000000);
+            CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
+                      cpuInsRatioExclVm.std_dev() / 1000000);
+
+            CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
+                      ledgerCpuInsRatio.max() / 1000000);
+            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
+                      ledgerCpuInsRatio.mean() / 1000000);
+            CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
+                      ledgerCpuInsRatio.std_dev() / 1000000);
+
+            CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
+                      ledgerCpuInsRatioExclVm.max() / 1000000);
+            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
+                      ledgerCpuInsRatioExclVm.mean() / 1000000);
+            CLOG_INFO(Perf,
+                      "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
+                      ledgerCpuInsRatioExclVm.std_dev() / 1000000);
+
+            CLOG_INFO(Perf, "Tx count utilization {}%",
+                      al.getTxCountUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Instruction utilization {}%",
+                      al.getInstructionUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Tx size utilization {}%",
+                      al.getTxSizeUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Read bytes utilization {}%",
+                      al.getReadByteUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Write bytes utilization {}%",
+                      al.getWriteByteUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Read entry utilization {}%",
+                      al.getReadEntryUtilization().mean() / 1000.0);
+            CLOG_INFO(Perf, "Write entry utilization {}%",
+                      al.getWriteEntryUtilization().mean() / 1000.0);
+
+            CLOG_INFO(Perf, "Tx Success Rate: {:f}%", al.successRate() * 100);
+        }
+
+        return 0;
+    });
 }
 #endif
 

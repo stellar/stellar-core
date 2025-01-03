@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 namespace stellar
 {
@@ -17,6 +18,7 @@ enum LedgerEntryType : std::int32_t;
 struct LedgerTxnDelta;
 struct Operation;
 struct OperationResult;
+struct LedgerKey;
 
 // NOTE: The checkOn* functions should have a default implementation so that
 //       more can be added in the future without requiring changes to all
@@ -45,7 +47,7 @@ class Invariant
     virtual std::string
     checkOnBucketApply(std::shared_ptr<LiveBucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger,
-                       std::function<bool(LedgerEntryType)> entryTypeFilter)
+                       std::unordered_set<LedgerKey> const& shadowedKeys)
     {
         return std::string{};
     }

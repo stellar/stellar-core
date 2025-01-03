@@ -277,6 +277,23 @@ LoadGenerator::resetSorobanState()
 }
 
 void
+LoadGenerator::stop()
+{
+    ZoneScoped;
+    if (mStarted)
+    {
+        // Some residual transactions might still be pending in consensus, but
+        // that should be harmless.
+        if (mLoadTimer)
+        {
+            mLoadTimer->cancel();
+        }
+        mLoadgenFail.Mark();
+        reset();
+    }
+}
+
+void
 LoadGenerator::start(GeneratedLoadConfig& cfg)
 {
     if (mStarted)

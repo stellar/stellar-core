@@ -42,17 +42,15 @@ addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
     auto& liveBl = app.getBucketManager().getLiveBucketList();
     liveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
                     liveEntries, deadEntries);
-    if (app.getConfig().isUsingBucketListDB())
-    {
-        auto liveSnapshot =
-            std::make_unique<BucketListSnapshot<LiveBucket>>(liveBl, header);
-        auto hotArchiveSnapshot =
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                app.getBucketManager().getHotArchiveBucketList(), header);
 
-        app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
-            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
-    }
+    auto liveSnapshot =
+        std::make_unique<BucketListSnapshot<LiveBucket>>(liveBl, header);
+    auto hotArchiveSnapshot =
+        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+            app.getBucketManager().getHotArchiveBucketList(), header);
+
+    app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
+        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 }
 
 void
@@ -65,17 +63,14 @@ addHotArchiveBatchAndUpdateSnapshot(
     auto& hotArchiveBl = app.getBucketManager().getHotArchiveBucketList();
     hotArchiveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion,
                           archiveEntries, restoredEntries, deletedEntries);
-    if (app.getConfig().isUsingBucketListDB())
-    {
-        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-            app.getBucketManager().getLiveBucketList(), header);
-        auto hotArchiveSnapshot =
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(hotArchiveBl,
-                                                                   header);
+    auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+        app.getBucketManager().getLiveBucketList(), header);
+    auto hotArchiveSnapshot =
+        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(hotArchiveBl,
+                                                               header);
 
-        app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
-            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
-    }
+    app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
+        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 }
 
 void
@@ -233,16 +228,8 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 }
 
                 LedgerTxn ltxEvictions(ltx);
-                if (mApp.getConfig().isUsingBackgroundEviction())
-                {
-                    mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        ltxEvictions, lh.ledgerSeq, keys);
-                }
-                else
-                {
-                    mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
-                                                                  lh.ledgerSeq);
-                }
+                mApp.getBucketManager().resolveBackgroundEvictionScan(
+                    ltxEvictions, lh.ledgerSeq, keys);
 
                 if (ledgerCloseMeta)
                 {
@@ -261,8 +248,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         // Add dead entries from ltx to entries that will be added to BucketList
         // so we can test background eviction properly
         if (protocolVersionStartsFrom(initialLedgerVers,
-                                      SOROBAN_PROTOCOL_VERSION) &&
-            mApp.getConfig().isUsingBackgroundEviction())
+                                      SOROBAN_PROTOCOL_VERSION))
         {
             for (auto const& k : dead)
             {

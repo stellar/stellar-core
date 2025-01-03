@@ -53,52 +53,10 @@ class EntryIterator::AbstractImpl
 // reorganizing the relevant parts of soci.
 class BulkLedgerEntryChangeAccumulator
 {
-
-    std::vector<EntryIterator> mAccountsToUpsert;
-    std::vector<EntryIterator> mAccountsToDelete;
-    std::vector<EntryIterator> mAccountDataToUpsert;
-    std::vector<EntryIterator> mAccountDataToDelete;
-    std::vector<EntryIterator> mClaimableBalanceToUpsert;
-    std::vector<EntryIterator> mClaimableBalanceToDelete;
     std::vector<EntryIterator> mOffersToUpsert;
     std::vector<EntryIterator> mOffersToDelete;
-    std::vector<EntryIterator> mTrustLinesToUpsert;
-    std::vector<EntryIterator> mTrustLinesToDelete;
-    std::vector<EntryIterator> mLiquidityPoolToUpsert;
-    std::vector<EntryIterator> mLiquidityPoolToDelete;
-    std::vector<EntryIterator> mContractDataToUpsert;
-    std::vector<EntryIterator> mContractDataToDelete;
-    std::vector<EntryIterator> mContractCodeToUpsert;
-    std::vector<EntryIterator> mContractCodeToDelete;
-    std::vector<EntryIterator> mConfigSettingsToUpsert;
-    std::vector<EntryIterator> mTTLToUpsert;
-    std::vector<EntryIterator> mTTLToDelete;
 
   public:
-    std::vector<EntryIterator>&
-    getAccountsToUpsert()
-    {
-        return mAccountsToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getAccountsToDelete()
-    {
-        return mAccountsToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getTrustLinesToUpsert()
-    {
-        return mTrustLinesToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getTrustLinesToDelete()
-    {
-        return mTrustLinesToDelete;
-    }
-
     std::vector<EntryIterator>&
     getOffersToUpsert()
     {
@@ -111,85 +69,7 @@ class BulkLedgerEntryChangeAccumulator
         return mOffersToDelete;
     }
 
-    std::vector<EntryIterator>&
-    getAccountDataToUpsert()
-    {
-        return mAccountDataToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getAccountDataToDelete()
-    {
-        return mAccountDataToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getClaimableBalanceToUpsert()
-    {
-        return mClaimableBalanceToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getClaimableBalanceToDelete()
-    {
-        return mClaimableBalanceToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getLiquidityPoolToUpsert()
-    {
-        return mLiquidityPoolToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getLiquidityPoolToDelete()
-    {
-        return mLiquidityPoolToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getConfigSettingsToUpsert()
-    {
-        return mConfigSettingsToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getContractDataToUpsert()
-    {
-        return mContractDataToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getContractDataToDelete()
-    {
-        return mContractDataToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getContractCodeToUpsert()
-    {
-        return mContractCodeToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getContractCodeToDelete()
-    {
-        return mContractCodeToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getTTLToUpsert()
-    {
-        return mTTLToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getTTLToDelete()
-    {
-        return mTTLToDelete;
-    }
-
-    bool accumulate(EntryIterator const& iter, bool bucketListDBEnabled);
+    bool accumulate(EntryIterator const& iter);
 };
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety
@@ -749,8 +629,6 @@ class LedgerTxnRoot::Impl
 
     void throwIfChild() const;
 
-    std::shared_ptr<LedgerEntry const> loadAccount(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const> loadData(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const> loadOffer(LedgerKey const& key) const;
     std::vector<LedgerEntry> loadAllOffers() const;
     std::deque<LedgerEntry>::const_iterator
@@ -766,57 +644,12 @@ class LedgerTxnRoot::Impl
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;
     std::vector<LedgerEntry> loadOffers(StatementContext& prep) const;
-    std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
-                                                      int64_t minBalance) const;
-    std::shared_ptr<LedgerEntry const>
-    loadTrustLine(LedgerKey const& key) const;
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const;
-    std::shared_ptr<LedgerEntry const>
-    loadClaimableBalance(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const>
-    loadLiquidityPool(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const>
-    loadContractData(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const>
-    loadContractCode(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const>
-    loadConfigSetting(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const> loadTTL(LedgerKey const& key) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
-    void bulkUpsertAccounts(std::vector<EntryIterator> const& entries);
-    void bulkDeleteAccounts(std::vector<EntryIterator> const& entries,
-                            LedgerTxnConsistency cons);
-    void bulkUpsertTrustLines(std::vector<EntryIterator> const& entries);
-    void bulkDeleteTrustLines(std::vector<EntryIterator> const& entries,
-                              LedgerTxnConsistency cons);
     void bulkUpsertOffers(std::vector<EntryIterator> const& entries);
     void bulkDeleteOffers(std::vector<EntryIterator> const& entries,
                           LedgerTxnConsistency cons);
-    void bulkUpsertAccountData(std::vector<EntryIterator> const& entries);
-    void bulkDeleteAccountData(std::vector<EntryIterator> const& entries,
-                               LedgerTxnConsistency cons);
-    void bulkUpsertClaimableBalance(std::vector<EntryIterator> const& entries);
-    void bulkDeleteClaimableBalance(std::vector<EntryIterator> const& entries,
-                                    LedgerTxnConsistency cons);
-    void bulkUpsertLiquidityPool(std::vector<EntryIterator> const& entries);
-    void bulkDeleteLiquidityPool(std::vector<EntryIterator> const& entries,
-                                 LedgerTxnConsistency cons);
-    void bulkUpsertContractData(std::vector<EntryIterator> const& entries);
-    void bulkDeleteContractData(std::vector<EntryIterator> const& entries,
-                                LedgerTxnConsistency cons);
-    void bulkUpsertContractCode(std::vector<EntryIterator> const& entries);
-    void bulkDeleteContractCode(std::vector<EntryIterator> const& entries,
-                                LedgerTxnConsistency cons);
-    void bulkUpsertConfigSettings(std::vector<EntryIterator> const& entries);
-    void bulkUpsertTTL(std::vector<EntryIterator> const& entries);
-    void bulkDeleteTTL(std::vector<EntryIterator> const& entries,
-                       LedgerTxnConsistency cons);
-
-    static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
     // The entry cache maintains relatively strong invariants:
     //
@@ -841,26 +674,7 @@ class LedgerTxnRoot::Impl
                                          Asset const& selling) const;
 
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadAccounts(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadTrustLines(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadData(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadLiquidityPool(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadContractData(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadContractCode(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadConfigSettings(UnorderedSet<LedgerKey> const& keys) const;
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadTTL(UnorderedSet<LedgerKey> const& keys) const;
-
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
                                 Asset const& selling);
@@ -892,26 +706,14 @@ class LedgerTxnRoot::Impl
 
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept;
 
-    // countObjects has the strong exception safety guarantee.
-    uint64_t countObjects(LedgerEntryType let) const;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const;
+    // countOffers has the strong exception safety guarantee.
+    uint64_t countOffers(LedgerRange const& ledgers) const;
 
-    // deleteObjectsModifiedOnOrAfterLedger has no exception safety guarantees.
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const;
+    // deleteOffersModifiedOnOrAfterLedger has no exception safety guarantees.
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const;
 
-    // dropAccounts, dropData, dropOffers, and dropTrustLines have no exception
-    // safety guarantees.
-    void dropAccounts(bool rebuild);
-    void dropData(bool rebuild);
-    void dropOffers(bool rebuild);
-    void dropTrustLines(bool rebuild);
-    void dropClaimableBalances(bool rebuild);
-    void dropLiquidityPools(bool rebuild);
-    void dropContractData(bool rebuild);
-    void dropContractCode(bool rebuild);
-    void dropConfigSettings(bool rebuild);
-    void dropTTL(bool rebuild);
+    // no exception safety guarantees.
+    void dropOffers();
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

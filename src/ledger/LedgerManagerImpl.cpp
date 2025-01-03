@@ -281,8 +281,7 @@ setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
-                                       bool isLedgerStateReady)
+LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
 {
     ZoneScoped;
 
@@ -348,41 +347,35 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
 
     releaseAssert(latestLedgerHeader.has_value());
 
-    // Step 3. Restore BucketList if we're doing a full core startup
-    // (startServices=true), OR when using BucketListDB
-    if (restoreBucketlist || mApp.getConfig().isUsingBucketListDB())
+    HistoryArchiveState has = getLastClosedLedgerHAS();
+    auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+    auto pubmissing =
+        mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
+    missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
+    if (!missing.empty())
     {
-        HistoryArchiveState has = getLastClosedLedgerHAS();
-        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
-        auto pubmissing = mApp.getHistoryManager()
-                              .getMissingBucketsReferencedByPublishQueue();
-        missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
-        if (!missing.empty())
-        {
-            CLOG_ERROR(Ledger,
-                       "{} buckets are missing from bucket directory '{}'",
-                       missing.size(), mApp.getBucketManager().getBucketDir());
-            throw std::runtime_error("Bucket directory is corrupt");
-        }
+        CLOG_ERROR(Ledger, "{} buckets are missing from bucket directory '{}'",
+                   missing.size(), mApp.getBucketManager().getBucketDir());
+        throw std::runtime_error("Bucket directory is corrupt");
+    }
 
-        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        // Only restart merges in full startup mode. Many modes in core
+        // (standalone offline commands, in-memory setup) do not need to
+        // spin up expensive merge processes.
+        auto assumeStateWork =
+            mApp.getWorkScheduler().executeWork<AssumeStateWork>(
+                has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+        if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
         {
-            // Only restart merges in full startup mode. Many modes in core
-            // (standalone offline commands, in-memory setup) do not need to
-            // spin up expensive merge processes.
-            auto assumeStateWork =
-                mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-                    has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
-            if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
-            {
-                CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                          ledgerAbbrev(*latestLedgerHeader));
-            }
-            else
-            {
-                // Work should only fail during graceful shutdown
-                releaseAssertOrThrow(mApp.isStopping());
-            }
+            CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                      ledgerAbbrev(*latestLedgerHeader));
+        }
+        else
+        {
+            // Work should only fail during graceful shutdown
+            releaseAssertOrThrow(mApp.isStopping());
         }
     }
 
@@ -397,23 +390,10 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
     if (protocolVersionStartsFrom(latestLedgerHeader->ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        if (isLedgerStateReady)
-        {
-            // Step 5. If ledger state is ready and core is in v20, load network
-            // configs right away
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            updateNetworkConfig(ltx);
-        }
-        else
-        {
-            // In some modes, e.g. in-memory, core's state is rebuilt
-            // asynchronously via catchup. In this case, we're not able to load
-            // the network config at this time, and instead must let catchup do
-            // it when ready.
-            CLOG_INFO(Ledger,
-                      "Ledger state is being rebuilt, network config will "
-                      "be loaded once the rebuild is done");
-        }
+        // Step 5. If ledger state is ready and core is in v20, load network
+        // configs right away
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        updateNetworkConfig(ltx);
     }
 }
 
@@ -579,6 +559,12 @@ std::vector<TransactionMetaFrame> const&
 LedgerManagerImpl::getLastClosedLedgerTxMeta()
 {
     return mLastLedgerTxMeta;
+}
+
+void
+LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
+{
+    storeCurrentLedger(header, true, true);
 }
 #endif
 
@@ -1003,14 +989,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // member variable: if we throw while committing below, we will at worst
         // emit duplicate meta, when retrying.
         mNextMetaToEmit = std::move(ledgerCloseMeta);
-
-        // If the LedgerCloseData provided an expected hash, then we validated
-        // it above.
-        if (!mApp.getConfig().EXPERIMENTAL_PRECAUTION_DELAY_META ||
-            ledgerData.getExpectedHash())
-        {
-            emitNextMeta();
-        }
+        emitNextMeta();
     }
 
     // The next 5 steps happen in a relatively non-obvious, subtle order.
@@ -1058,9 +1037,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     hm.logAndUpdatePublishStatus();
 
     // step 5
-    if (protocolVersionStartsFrom(initialLedgerVers,
-                                  SOROBAN_PROTOCOL_VERSION) &&
-        mApp.getConfig().isUsingBackgroundEviction())
+    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1);
     }
@@ -1293,8 +1270,7 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
 
-    if (mApp.getConfig().isUsingBucketListDB() &&
-        header.ledgerSeq != prevLedgerSeq)
+    if (header.ledgerSeq != prevLedgerSeq)
     {
         auto& bm = mApp.getBucketManager();
         auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
@@ -1497,10 +1473,7 @@ LedgerManagerImpl::prefetchTransactionData(
         {
             if (tx->isSoroban())
             {
-                if (mApp.getConfig().isUsingBucketListDB())
-                {
-                    tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
-                }
+                tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
             }
             else
             {
@@ -1509,14 +1482,11 @@ LedgerManagerImpl::prefetchTransactionData(
         }
         // Prefetch classic and soroban keys separately for greater visibility
         // into the performance of each mode.
-        if (mApp.getConfig().isUsingBucketListDB())
+        if (!sorobanKeys.empty())
         {
-            if (!sorobanKeys.empty())
-            {
-                mApp.getLedgerTxnRoot().prefetchSoroban(sorobanKeys,
-                                                        lkMeter.get());
-            }
+            mApp.getLedgerTxnRoot().prefetchSoroban(sorobanKeys, lkMeter.get());
         }
+
         mApp.getLedgerTxnRoot().prefetchClassic(classicKeys);
     }
 }
@@ -1701,17 +1671,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         {
             auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
-
-            if (mApp.getConfig().isUsingBackgroundEviction())
-            {
-                mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, lh.ledgerSeq, keys);
-            }
-            else
-            {
-                mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
-                                                              lh.ledgerSeq);
-            }
+            mApp.getBucketManager().resolveBackgroundEvictionScan(
+                ltxEvictions, lh.ledgerSeq, keys);
 
             if (ledgerCloseMeta)
             {

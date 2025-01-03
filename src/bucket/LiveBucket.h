@@ -97,19 +97,6 @@ class LiveBucket : public BucketBase,
     void apply(Application& app) const;
 #endif
 
-    // Returns Loop::INCOMPLETE if eof reached, Loop::COMPLETE otherwise.
-    // Modifies iter as the bucket is scanned. Also modifies bytesToScan and
-    // maxEntriesToEvict such that after this function returns:
-    //      bytesToScan -= amount_bytes_scanned
-    //      maxEntriesToEvict -= entries_evicted
-    Loop scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                               uint32_t& bytesToScan,
-                               uint32_t& remainingEntriesToEvict,
-                               uint32_t ledgerSeq,
-                               medida::Counter& entriesEvictedCounter,
-                               medida::Counter& bytesScannedForEvictionCounter,
-                               std::shared_ptr<EvictionStatistics> stats) const;
-
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
     // be sorted, hashed, and adopted in the provided BucketManager.

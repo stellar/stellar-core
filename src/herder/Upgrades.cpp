@@ -1199,6 +1199,16 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     if (needUpgradeToVersion(SOROBAN_PROTOCOL_VERSION, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
+#ifdef BUILD_TESTS
+        // Update the costs in case if we're in loadgen mode, so that the costs
+        // reflect the most recent calibration on p20. This would break
+        // if we tried to replay the ledger, but we shouldn't be combining load
+        // generation with the ledger replay.
+        if (app.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+        {
+            SorobanNetworkConfig::updateRecalibratedCostTypesForV20(ltx);
+        }
+#endif
     }
     if (needUpgradeToVersion(ProtocolVersion::V_21, prevVersion, newVersion))
     {

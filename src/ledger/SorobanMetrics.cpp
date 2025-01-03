@@ -132,6 +132,8 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"}))
     , mLedgerHostFnCpuInsnsRatioExclVm(metrics.NewHistogram(
           {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"}))
+    , mHostFnOpDeclaredInsnsUsageRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"}))
 {
 }
 

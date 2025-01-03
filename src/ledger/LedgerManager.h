@@ -135,6 +135,7 @@ class LedgerManager
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfig() = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
+    virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
@@ -150,13 +151,10 @@ class LedgerManager
     virtual void startNewLedger() = 0;
 
     // loads the last ledger information from the database with the following
-    // parameters:
+    // parameter:
     //  * restoreBucketlist indicates whether to restore the bucket list fully,
     //  and restart merges
-    //  * isLedgerStateReady indicates whether the ledger state is ready or is
-    //  still being rebuilt (in which case we can't yet load ledger entries)
-    virtual void loadLastKnownLedger(bool restoreBucketlist,
-                                     bool isLedgerStateReady) = 0;
+    virtual void loadLastKnownLedger(bool restoreBucketlist) = 0;
 
     // Return true if core is currently rebuilding in-memory state via local
     // catchup

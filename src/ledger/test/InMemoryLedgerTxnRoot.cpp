@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/InMemoryLedgerTxnRoot.h"
+#include "ledger/test/InMemoryLedgerTxnRoot.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "util/XDROperators.h"
@@ -97,71 +97,19 @@ InMemoryLedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
 }
 
 uint64_t
-InMemoryLedgerTxnRoot::countObjects(LedgerEntryType let) const
-{
-    return 0;
-}
-
-uint64_t
-InMemoryLedgerTxnRoot::countObjects(LedgerEntryType let,
-                                    LedgerRange const& ledgers) const
+InMemoryLedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
     return 0;
 }
 
 void
-InMemoryLedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(
+InMemoryLedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(
     uint32_t ledger) const
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropAccounts(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropData(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropOffers(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropTrustLines(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropClaimableBalances(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropLiquidityPools(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropContractData(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropContractCode(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropConfigSettings(bool)
-{
-}
-
-void
-InMemoryLedgerTxnRoot::dropTTL(bool)
+InMemoryLedgerTxnRoot::dropOffers()
 {
 }
 

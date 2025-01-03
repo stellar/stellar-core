@@ -36,8 +36,6 @@
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
 
-#include "ExternalQueue.h"
-
 #ifdef BUILD_TESTS
 #include "simulation/LoadGenerator.h"
 #include "test/TestAccount.h"
@@ -72,8 +70,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
 
-        if (mApp.getConfig().HTTP_QUERY_PORT &&
-            mApp.getConfig().isUsingBucketListDB())
+        if (mApp.getConfig().HTTP_QUERY_PORT)
         {
             mQueryServer = std::make_unique<QueryServer>(
                 ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
@@ -90,9 +87,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
     if (mApp.getConfig().modeStoresAnyHistory())
     {
-        addRoute("dropcursor", &CommandHandler::dropcursor);
-        addRoute("getcursor", &CommandHandler::getcursor);
-        addRoute("setcursor", &CommandHandler::setcursor);
         addRoute("maintenance", &CommandHandler::maintenance);
     }
 
@@ -1012,77 +1006,6 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::dropcursor(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    std::map<std::string, std::string> map;
-    http::server::server::parseParams(params, map);
-    std::string const& id = map["id"];
-
-    if (!ExternalQueue::validateResourceID(id))
-    {
-        retStr = "Invalid resource id";
-    }
-    else
-    {
-        ExternalQueue ps(mApp);
-        ps.deleteCursor(id);
-        retStr = "Done";
-    }
-}
-
-void
-CommandHandler::setcursor(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    std::map<std::string, std::string> map;
-    http::server::server::parseParams(params, map);
-    std::string const& id = map["id"];
-
-    uint32 cursor = parseRequiredParam<uint32>(map, "cursor");
-
-    if (!ExternalQueue::validateResourceID(id))
-    {
-        retStr = "Invalid resource id";
-    }
-    else
-    {
-        ExternalQueue ps(mApp);
-        ps.setCursorForResource(id, cursor);
-        retStr = "Done";
-    }
-}
-
-void
-CommandHandler::getcursor(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    Json::Value root;
-    std::map<std::string, std::string> map;
-    http::server::server::parseParams(params, map);
-    std::string const& id = map["id"];
-
-    // the decision was made not to check validity here
-    // because there are subsequent checks for that in
-    // ExternalQueue and if an exception is thrown for
-    // validity there, the ret format is technically more
-    // correct for the mime type
-    ExternalQueue ps(mApp);
-    std::map<std::string, uint32> curMap;
-    int counter = 0;
-    ps.getCursorForResource(id, curMap);
-    root["cursors"][0];
-    for (auto cursor : curMap)
-    {
-        root["cursors"][counter]["id"] = cursor.first;
-        root["cursors"][counter]["cursor"] = cursor.second;
-        counter++;
-    }
-
-    retStr = root.toStyledString();
-}
-
-void
 CommandHandler::maintenance(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
@@ -1263,9 +1186,18 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     {
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
+        auto modeStr =
+            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
+        // First check if a current run needs to be stopped
+        if (modeStr == "stop")
+        {
+            mApp.getLoadGenerator().stop();
+            retStr = "Stopped load generation";
+            return;
+        }
+
         GeneratedLoadConfig cfg;
-        cfg.mode = LoadGenerator::getMode(
-            parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
+        cfg.mode = LoadGenerator::getMode(modeStr);
 
         cfg.nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);

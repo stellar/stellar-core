@@ -3,6 +3,7 @@
 #include "ledger/LedgerManager.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include <cmath>
 #include <crypto/SHA.h>
 
 namespace stellar
@@ -18,7 +19,7 @@ constexpr uint32_t DEFAULT_WASM_BYTES = 35 * 1024;
 constexpr uint32_t DEFAULT_NUM_DATA_ENTRIES = 2;
 constexpr uint32_t DEFAULT_IO_KILOBYTES = 1;
 constexpr uint32_t DEFAULT_TX_SIZE_BYTES = 256;
-constexpr uint64_t DEFAULT_INSTRUCTIONS = 28'000'000;
+constexpr uint32_t DEFAULT_INSTRUCTIONS = 28'000'000;
 
 // Sample from a discrete distribution of `values` with weights `weights`.
 // Returns `defaultValue` if `values` is empty.
@@ -37,6 +38,22 @@ sampleDiscrete(std::vector<T> const& values,
     return values.at(distribution(gRandomEngine));
 }
 } // namespace
+
+uint64_t
+footprintSize(Application& app, xdr::xvector<stellar::LedgerKey> const& keys)
+{
+    LedgerSnapshot lsg(app);
+    uint64_t total = 0;
+    for (auto const& key : keys)
+    {
+        auto entry = lsg.load(key);
+        if (entry)
+        {
+            total += xdr::xdr_size(entry.current());
+        }
+    }
+    return total;
+}
 
 TxGenerator::TxGenerator(Application& app)
     : mApp(app)
@@ -88,22 +105,6 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
     }
 
     return fee;
-}
-
-uint64_t
-TxGenerator::bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys)
-{
-    LedgerSnapshot lsg(mApp);
-    uint64_t total = 0;
-    for (auto const& key : keys)
-    {
-        auto entry = lsg.load(key);
-        if (entry)
-        {
-            total += xdr::xdr_size(entry.current());
-        }
-    }
-    return total;
 }
 
 bool
@@ -372,16 +373,16 @@ TxGenerator::invokeSorobanLoadTransaction(
     // instruction count is not perfect. Some TXs will fail due to exceeding
     // resource limitations, but failures will be rare and those failures
     // will happen at apply time, so they will still generate significant load.
-    uint64_t const baseInstructionCount = 1'500'000;
-    uint64_t const instructionsPerGuestCycle = 80;
-    uint64_t const instructionsPerHostCycle = 5030;
+    uint32_t const baseInstructionCount = 2'500'000;
+    uint32_t const instructionsPerGuestCycle = 80;
+    uint32_t const instructionsPerHostCycle = 5030;
 
     // Very rough estimates.
-    uint64_t const instructionsPerKbWritten = 50000;
+    uint32_t const instructionsPerKbWritten = 50000;
 
     // instructionsPerPaddingByte is just a value we know works. We use an auth
     // payload as padding, so it consumes instructions on the host side.
-    uint64_t const instructionsPerPaddingByte = 100;
+    uint32_t const instructionsPerPaddingByte = 100;
 
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
@@ -450,7 +451,7 @@ TxGenerator::invokeSorobanLoadTransaction(
         instructionsPerPaddingByte * paddingBytes;
 
     // Pick random number of cycles between bounds
-    uint64_t targetInstructions =
+    uint32_t targetInstructions =
         sampleDiscrete(appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
                        appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
                        DEFAULT_INSTRUCTIONS);
@@ -463,12 +464,12 @@ TxGenerator::invokeSorobanLoadTransaction(
                                    instructionsForStorageAndAuth;
 
     // Randomly select a number of guest cycles
-    uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
-    uint64_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
+    uint32_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
+    uint32_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
 
     // Rest of instructions consumed by host cycles
     targetInstructions -= guestCycles * instructionsPerGuestCycle;
-    uint64_t hostCycles = targetInstructions / instructionsPerHostCycle;
+    uint32_t hostCycles = targetInstructions / instructionsPerHostCycle;
 
     auto guestCyclesU64 = makeU64(guestCycles);
     auto hostCyclesU64 = makeU64(hostCycles);
@@ -484,13 +485,13 @@ TxGenerator::invokeSorobanLoadTransaction(
     ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
                                  kiloBytesPerEntryU32};
 
-    resources.readBytes = bytesToRead(resources.footprint.readOnly) +
-                          bytesToRead(resources.footprint.readWrite);
+    resources.readBytes = footprintSize(mApp, resources.footprint.readOnly) +
+                          footprintSize(mApp, resources.footprint.readWrite);
     resources.writeBytes = totalWriteBytes;
 
     increaseOpSize(op, paddingBytes);
 
-    int64_t instructionCount =
+    uint32_t instructionCount =
         baseInstructionCount + hostCycles * instructionsPerHostCycle +
         guestCycles * instructionsPerGuestCycle + instructionsForStorageAndAuth;
     resources.instructions = instructionCount;
@@ -510,6 +511,159 @@ TxGenerator::invokeSorobanLoadTransaction(
                                                          /* opsCnt */ 1),
                                              resourceFee);
 
+    return std::make_pair(account, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeSorobanLoadTransactionV2(
+    uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
+    uint64_t dataEntryCount, size_t dataEntrySize,
+    std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto const& appCfg = mApp.getConfig();
+
+    // The estimates below are fairly tight as they depend on linear
+    // functions (maybe with a small constant factor as well).
+    uint32_t const baseInstructionCount = 737'119;
+    uint32_t const baselineTxSizeBytes = 256;
+    uint32_t const eventSize = 80;
+    uint32_t const instructionsPerGuestCycle = 40;
+    uint32_t const instructionsPerHostCycle = 4'875;
+    uint32_t const instructionsPerAuthByte = 35;
+    uint32_t const instructionsPerEvent = 8'500;
+
+    SorobanResources resources;
+    resources.footprint.readOnly = instance.readOnlyKeys;
+    uint32_t roEntries = sampleDiscrete(
+        appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
+        appCfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t rwEntries = sampleDiscrete(
+        appCfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING,
+        appCfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+
+    releaseAssert(dataEntryCount > roEntries + rwEntries);
+    if (roEntries >= instance.readOnlyKeys.size())
+    {
+        roEntries -= instance.readOnlyKeys.size();
+    }
+    else
+    {
+        roEntries = 0;
+    }
+    std::unordered_set<uint64_t> usedEntries;
+    stellar::uniform_int_distribution<uint64_t> entryDist(0,
+                                                          dataEntryCount - 1);
+    auto generateEntries = [&](uint32_t entryCount,
+                               xdr::xvector<LedgerKey>& footprint) {
+        for (uint32_t i = 0; i < entryCount; ++i)
+        {
+            uint64_t entryId = entryDist(gRandomEngine);
+            if (usedEntries.emplace(entryId).second)
+            {
+                auto lk = contractDataKey(instance.contractID, makeU64(entryId),
+                                          ContractDataDurability::PERSISTENT);
+                footprint.emplace_back(lk);
+            }
+            else
+            {
+                --i;
+            }
+        }
+    };
+    generateEntries(roEntries, resources.footprint.readOnly);
+    generateEntries(rwEntries, resources.footprint.readWrite);
+
+    uint32_t txOverheadBytes = baselineTxSizeBytes + xdr::xdr_size(resources);
+    uint32_t desiredTxBytes = sampleDiscrete(
+        appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
+        appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t paddingBytes =
+        txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
+    uint32_t entriesSize = dataEntrySize * (roEntries + rwEntries);
+
+    uint32_t eventCount = sampleDiscrete(
+        appCfg.APPLY_LOAD_EVENT_COUNT_FOR_TESTING,
+        appCfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING, 0u);
+
+    // Pick random number of cycles between bounds
+    uint32_t targetInstructions = sampleDiscrete(
+        appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
+        appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING, 0u);
+
+    auto numEntries = (roEntries + rwEntries + instance.readOnlyKeys.size());
+
+    // The entry encoding estimates are somewhat loose because we're
+    // unfortunately building storage with O(n^2) complexity.
+
+    // Figuring out the number of instructions for storage is difficult because
+    // we build storage with O(n^2) complexity, so instead, I graphed the
+    // instruction count provided in the diagnostics as the invocation starts
+    // against different entry counts, and got the equation below from that. The
+    // estimate is pretty close (usually off by 50,000 to 200,000 instructions).
+    //
+    // The instructionsPerEntryByte should probably be taken into account here
+    // but I left the linear calculation for that because the estimate is
+    // already close.
+    uint32_t instructionsForEntries =
+        (205 * std::pow(numEntries, 2)) + (12000 * numEntries) + 65485;
+
+    uint32_t const instructionsPerEntryByte = 44;
+
+    uint32_t instructionsWithoutCpuLoad =
+        baseInstructionCount + instructionsPerAuthByte * paddingBytes +
+        instructionsPerEntryByte * entriesSize + instructionsForEntries +
+        eventCount * instructionsPerEvent;
+    if (targetInstructions > instructionsWithoutCpuLoad)
+    {
+        targetInstructions -= instructionsWithoutCpuLoad;
+    }
+    else
+    {
+        targetInstructions = 0;
+    }
+
+    // Instead of mixing both guest and host cycles using the commented out code
+    // above, we just use guestCycles because there's an issue with how the U256
+    // add host function is modeled in the host. The instruction count is
+    // greatly overestimated relative to actual time spent.
+    uint64_t guestCycles = targetInstructions / instructionsPerGuestCycle;
+    targetInstructions -= guestCycles * instructionsPerGuestCycle;
+    uint64_t hostCycles = 0;
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = instance.contractID;
+    ihf.invokeContract().functionName = "do_cpu_only_work";
+    ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
+                                 makeU32(eventCount)};
+    resources.writeBytes = dataEntrySize * rwEntries;
+    resources.readBytes = dataEntrySize * roEntries +
+                          instance.contractEntriesSize + resources.writeBytes;
+
+    increaseOpSize(op, paddingBytes);
+
+    resources.instructions = instructionsWithoutCpuLoad +
+                             hostCycles * instructionsPerHostCycle +
+                             guestCycles * instructionsPerGuestCycle;
+
+    auto resourceFee =
+        sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes,
+                           eventSize * eventCount);
+    resourceFee += 1'000'000;
+
+    // A tx created using this method may be discarded when creating the txSet,
+    // so we need to refresh the TestAccount sequence number to avoid a
+    // txBAD_SEQ.
+    auto account = findAccount(accountId, ledgerNum);
+    account->loadSequenceNumber();
+
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                             {op}, {}, resources,
+                                             generateFee(maxGeneratedFeeRate,
+                                                         /* opsCnt */ 1),
+                                             resourceFee);
     return std::make_pair(account, tx);
 }
 
@@ -842,7 +996,7 @@ TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
     int64_t resourceFee = sorobanResourceFee(
         mApp, resources, 5000 + static_cast<size_t>(wasmSize), 100);
     // Roughly cover the rent fee.
-    resourceFee += 100000;
+    resourceFee += 1'000'000;
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                              {uploadOp}, {}, resources,
                                              inclusionFee, resourceFee);

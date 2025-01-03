@@ -652,7 +652,7 @@ LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
 }
 
 void
-LedgerTxnRoot::Impl::dropOffers(bool rebuild)
+LedgerTxnRoot::Impl::dropOffers()
 {
     throwIfChild();
     mEntryCache.clear();
@@ -660,44 +660,39 @@ LedgerTxnRoot::Impl::dropOffers(bool rebuild)
 
     mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS offers;";
 
-    if (rebuild)
+    std::string coll = mApp.getDatabase().getSimpleCollationClause();
+    mApp.getDatabase().getSession()
+        << "CREATE TABLE offers"
+        << "("
+        << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
+        << "offerid          BIGINT           NOT NULL CHECK (offerid >= "
+           "0),"
+        << "sellingasset     TEXT " << coll << " NOT NULL,"
+        << "buyingasset      TEXT " << coll << " NOT NULL,"
+        << "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
+           "pricen           INT              NOT NULL,"
+           "priced           INT              NOT NULL,"
+           "price            DOUBLE PRECISION NOT NULL,"
+           "flags            INT              NOT NULL,"
+           "lastmodified     INT              NOT NULL,"
+           "extension        TEXT             NOT NULL,"
+           "ledgerext        TEXT             NOT NULL,"
+           "PRIMARY KEY      (offerid)"
+           ");";
+    mApp.getDatabase().getSession()
+        << "CREATE INDEX bestofferindex ON offers "
+           "(sellingasset,buyingasset,price,offerid);";
+    mApp.getDatabase().getSession() << "CREATE INDEX offerbyseller ON offers "
+                                       "(sellerid);";
+    if (!mApp.getDatabase().isSqlite())
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
-        mApp.getDatabase().getSession()
-            << "CREATE TABLE offers"
-            << "("
-            << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
-            << "offerid          BIGINT           NOT NULL CHECK (offerid >= "
-               "0),"
-            << "sellingasset     TEXT " << coll << " NOT NULL,"
-            << "buyingasset      TEXT " << coll << " NOT NULL,"
-            << "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
-               "pricen           INT              NOT NULL,"
-               "priced           INT              NOT NULL,"
-               "price            DOUBLE PRECISION NOT NULL,"
-               "flags            INT              NOT NULL,"
-               "lastmodified     INT              NOT NULL,"
-               "extension        TEXT             NOT NULL,"
-               "ledgerext        TEXT             NOT NULL,"
-               "PRIMARY KEY      (offerid)"
-               ");";
-        mApp.getDatabase().getSession()
-            << "CREATE INDEX bestofferindex ON offers "
-               "(sellingasset,buyingasset,price,offerid);";
-        mApp.getDatabase().getSession()
-            << "CREATE INDEX offerbyseller ON offers "
-               "(sellerid);";
-        if (!mApp.getDatabase().isSqlite())
-        {
-            mApp.getDatabase().getSession()
-                << "ALTER TABLE offers "
-                << "ALTER COLUMN sellerid "
-                << "TYPE VARCHAR(56) COLLATE \"C\", "
-                << "ALTER COLUMN buyingasset "
-                << "TYPE TEXT COLLATE \"C\", "
-                << "ALTER COLUMN sellingasset "
-                << "TYPE TEXT COLLATE \"C\"";
-        }
+        mApp.getDatabase().getSession() << "ALTER TABLE offers "
+                                        << "ALTER COLUMN sellerid "
+                                        << "TYPE VARCHAR(56) COLLATE \"C\", "
+                                        << "ALTER COLUMN buyingasset "
+                                        << "TYPE TEXT COLLATE \"C\", "
+                                        << "ALTER COLUMN sellingasset "
+                                        << "TYPE TEXT COLLATE \"C\"";
     }
 }
 
