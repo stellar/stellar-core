@@ -623,18 +623,10 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerRange.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxn.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnAccountSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnContractCodeSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp" />
+    
     <ClCompile Include="..\..\src\ledger\LedgerTypeUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp" />
     <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxn.cpp" />
@@ -654,7 +646,6 @@ exit /b 0
     <ClCompile Include="..\..\src\main\test\ApplicationUtilsTests.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp" />
-    <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp" />
     <ClCompile Include="..\..\src\main\test\SelfCheckTests.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
@@ -868,7 +859,6 @@ exit /b 0
     <ClCompile Include="..\..\src\main\CommandLine.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
-    <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
     <ClCompile Include="..\..\src\main\Maintainer.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
@@ -1197,7 +1187,6 @@ exit /b 0
     <ClInclude Include="..\..\src\main\Config.h" />
     <ClInclude Include="..\..\src\main\dumpxdr.h" />
     <ClInclude Include="..\..\src\main\ErrorMessages.h" />
-    <ClInclude Include="..\..\src\main\ExternalQueue.h" />
     <ClInclude Include="..\..\src\main\Maintainer.h" />
     <ClInclude Include="..\..\src\main\PersistentState.h" />
     <ClInclude Include="..\..\src\main\StellarCoreVersion.h" />

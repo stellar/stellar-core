@@ -199,6 +199,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             auto cfg = getTestConfig(i);
             cfg.USE_CONFIG_FOR_GENESIS = false;
             cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+            cfg.UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING = true;
             //  Use tight bounds to we can verify storage works properly
             cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {numDataEntries};
             cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1};
