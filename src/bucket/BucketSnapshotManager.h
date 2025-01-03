@@ -32,6 +32,10 @@ class SearchableHotArchiveBucketListSnapshot;
 
 template <class BucketT>
 using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
+using SearchableSnapshotConstPtr =
+    std::shared_ptr<SearchableLiveBucketListSnapshot const>;
+using SearchableHotArchiveSnapshotConstPtr =
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>;
 
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
@@ -66,14 +70,6 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     mutable std::optional<VirtualClock::time_point> mTimerStart;
 
-    template <class BucketT>
-    void maybeUpdateSnapshotInternal(
-        SnapshotPtrT<BucketT>& snapshot,
-        std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
-        SnapshotPtrT<BucketT> const& managerSnapshot,
-        std::map<uint32_t, SnapshotPtrT<BucketT>> const&
-            managerHistoricalSnapshots) const;
-
   public:
     // Called by main thread to update snapshots whenever the BucketList
     // is updated
@@ -88,17 +84,20 @@ class BucketSnapshotManager : NonMovableOrCopyable
                           SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
                           uint32_t numHistoricalLedgers);
 
-    std::shared_ptr<SearchableLiveBucketListSnapshot>
-    copySearchableLiveBucketListSnapshot() const;
+    // Copy the most recent snapshot for the live bucket list
+    SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot() const;
 
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    // Copy the most recent snapshot for the hot archive bucket list
+    SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot() const;
 
-    // Checks if snapshot is out of date and updates it accordingly
-    template <class BucketT>
-    void maybeUpdateSnapshot(
-        SnapshotPtrT<BucketT>& snapshot,
-        std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots) const;
+    // `maybeCopy` interface refreshes `snapshot` if a newer snapshot is
+    // available. It's a no-op otherwise. This is useful to avoid unnecessary
+    // copying.
+    void
+    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
+    void maybeCopySearchableHotArchiveBucketListSnapshot(
+        SearchableHotArchiveSnapshotConstPtr& snapshot);
 
     // All metric recording functions must only be called by the main thread
     void startPointLoadTimer() const;

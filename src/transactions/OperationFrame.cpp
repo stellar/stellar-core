@@ -263,7 +263,7 @@ OperationFrame::checkValid(AppConnector& app,
         {
             releaseAssertOrThrow(sorobanData);
             auto const& sorobanConfig =
-                app.getLedgerManager().getSorobanNetworkConfig();
+                app.getLedgerManager().getSorobanNetworkConfigForApply();
 
             validationResult =
                 doCheckValidForSoroban(sorobanConfig, app.getConfig(),

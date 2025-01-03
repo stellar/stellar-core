@@ -51,10 +51,9 @@ BucketListSnapshot<BucketT>::getLedgerSeq() const
 
 template <class BucketT>
 LedgerHeader const&
-SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader()
+SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader() const
 {
     releaseAssert(mSnapshot);
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
     return mSnapshot->getLedgerHeader();
 }
 
@@ -85,7 +84,7 @@ SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
 
 template <class BucketT>
 std::shared_ptr<typename BucketT::LoadT>
-SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
+SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
 {
     ZoneScoped;
 
@@ -108,7 +107,6 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
         }
     };
 
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
     if (threadIsMain())
     {
         mSnapshotManager.startPointLoadTimer();
@@ -127,7 +125,8 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
 template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    uint32_t ledgerSeq) const
 {
     return loadKeysInternal(inKeys, /*lkMeter=*/nullptr, ledgerSeq);
 }
@@ -141,11 +140,13 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 
 template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
-    BucketSnapshotManager const& snapshotManager)
-    : mSnapshotManager(snapshotManager), mHistoricalSnapshots()
+    BucketSnapshotManager const& snapshotManager,
+    SnapshotPtrT<BucketT>&& snapshot,
+    std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots)
+    : mSnapshotManager(snapshotManager)
+    , mSnapshot(std::move(snapshot))
+    , mHistoricalSnapshots(std::move(historicalSnapshots))
 {
-
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 }
 
 template <class BucketT>

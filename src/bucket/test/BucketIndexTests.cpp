@@ -803,6 +803,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         addHotArchiveBatchAndUpdateSnapshot(*app, header, archivedEntries,
                                             restoredEntries, deletedEntries);
+        app->getBucketManager()
+            .getBucketSnapshotManager()
+            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
         checkResult();
 
         // Add a few batches so that entries are no longer in the top bucket
@@ -810,6 +813,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         {
             header.ledgerSeq += 1;
             addHotArchiveBatchAndUpdateSnapshot(*app, header, {}, {}, {});
+            app->getBucketManager()
+                .getBucketSnapshotManager()
+                .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
         }
 
         // Shadow entries via liveEntry
@@ -819,6 +825,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {},
                                             {liveShadow1, liveShadow2}, {});
+        app->getBucketManager()
+            .getBucketSnapshotManager()
+            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
 
         // Point load
         for (auto const& k : {liveShadow1, liveShadow2})
@@ -838,6 +847,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {}, {},
                                             {deletedShadow});
+        app->getBucketManager()
+            .getBucketSnapshotManager()
+            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
 
         // Point load
         auto entryPtr = searchableBL->load(deletedShadow);
@@ -859,6 +871,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {archivedShadow}, {},
                                             {});
+        app->getBucketManager()
+            .getBucketSnapshotManager()
+            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
 
         // Point load
         entryPtr = searchableBL->load(LedgerEntryKey(archivedShadow));

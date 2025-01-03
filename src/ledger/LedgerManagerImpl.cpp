@@ -394,6 +394,7 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         // configs right away
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         updateNetworkConfig(ltx);
+        mSorobanNetworkConfigReadOnly = mSorobanNetworkConfigForApply;
     }
 }
 
@@ -430,12 +431,14 @@ LedgerManagerImpl::getDatabase()
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSize() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.maxTxSetSize;
 }
 
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
+    releaseAssert(threadIsMain());
     auto n = mLastClosedLedger.header.maxTxSetSize;
     return protocolVersionStartsFrom(mLastClosedLedger.header.ledgerVersion,
                                      ProtocolVersion::V_11)
@@ -450,7 +453,7 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban)
 
     if (isSoroban)
     {
-        auto conf = getSorobanNetworkConfig();
+        auto conf = getSorobanNetworkConfigReadOnly();
         std::vector<int64_t> limits = {conf.ledgerMaxTxCount(),
                                        conf.ledgerMaxInstructions(),
                                        conf.ledgerMaxTransactionSizesBytes(),
@@ -472,7 +475,8 @@ LedgerManagerImpl::maxSorobanTransactionResources()
 {
     ZoneScoped;
 
-    auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& conf =
+        mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
     int64_t const opCount = 1;
     std::vector<int64_t> limits = {opCount,
                                    conf.txMaxInstructions(),
@@ -487,6 +491,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
+    releaseAssert(threadIsMain());
     auto const& lh = mLastClosedLedger.header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
@@ -497,18 +502,21 @@ LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 uint32_t
 LedgerManagerImpl::getLastReserve() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.baseReserve;
 }
 
 uint32_t
 LedgerManagerImpl::getLastTxFee() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.baseFee;
 }
 
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger;
 }
 
@@ -516,6 +524,7 @@ HistoryArchiveState
 LedgerManagerImpl::getLastClosedLedgerHAS()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     string hasString = mApp.getPersistentState().getState(
         PersistentState::kHistoryArchiveState);
@@ -527,34 +536,41 @@ LedgerManagerImpl::getLastClosedLedgerHAS()
 uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
+    releaseAssert(threadIsMain());
     return mLastClosedLedger.header.ledgerSeq;
 }
 
-SorobanNetworkConfig&
-LedgerManagerImpl::getSorobanNetworkConfigInternal()
+SorobanNetworkConfig const&
+LedgerManagerImpl::getSorobanNetworkConfigReadOnly()
 {
-    releaseAssert(mSorobanNetworkConfig);
-    return *mSorobanNetworkConfig;
+    releaseAssert(threadIsMain());
+    releaseAssert(hasSorobanNetworkConfig());
+    return *mSorobanNetworkConfigReadOnly;
 }
 
 SorobanNetworkConfig const&
-LedgerManagerImpl::getSorobanNetworkConfig()
+LedgerManagerImpl::getSorobanNetworkConfigForApply()
 {
-    return getSorobanNetworkConfigInternal();
+    // Must be called from ledger close thread only
+    releaseAssert(mSorobanNetworkConfigForApply);
+    return *mSorobanNetworkConfigForApply;
 }
 
 bool
 LedgerManagerImpl::hasSorobanNetworkConfig() const
 {
-    return mSorobanNetworkConfig.has_value();
+    releaseAssert(threadIsMain());
+    return static_cast<bool>(mSorobanNetworkConfigReadOnly);
 }
 
 #ifdef BUILD_TESTS
 SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfig()
 {
-    return getSorobanNetworkConfigInternal();
+    releaseAssert(threadIsMain());
+    return *mSorobanNetworkConfigForApply;
 }
+
 std::vector<TransactionMetaFrame> const&
 LedgerManagerImpl::getLastClosedLedgerTxMeta()
 {
@@ -577,48 +593,41 @@ LedgerManagerImpl::getSorobanMetrics()
 void
 LedgerManagerImpl::publishSorobanMetrics()
 {
-    releaseAssert(mSorobanNetworkConfig);
+    auto const& conf = getSorobanNetworkConfigForApply();
     // first publish the network config limits
     mSorobanMetrics.mConfigContractDataKeySizeBytes.set_count(
-        mSorobanNetworkConfig->maxContractDataKeySizeBytes());
+        conf.maxContractDataKeySizeBytes());
     mSorobanMetrics.mConfigMaxContractDataEntrySizeBytes.set_count(
-        mSorobanNetworkConfig->maxContractDataEntrySizeBytes());
+        conf.maxContractDataEntrySizeBytes());
     mSorobanMetrics.mConfigMaxContractSizeBytes.set_count(
-        mSorobanNetworkConfig->maxContractSizeBytes());
-    mSorobanMetrics.mConfigTxMaxSizeByte.set_count(
-        mSorobanNetworkConfig->txMaxSizeBytes());
-    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(
-        mSorobanNetworkConfig->txMaxInstructions());
-    mSorobanMetrics.mConfigTxMemoryLimitBytes.set_count(
-        mSorobanNetworkConfig->txMemoryLimit());
+        conf.maxContractSizeBytes());
+    mSorobanMetrics.mConfigTxMaxSizeByte.set_count(conf.txMaxSizeBytes());
+    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(conf.txMaxInstructions());
+    mSorobanMetrics.mConfigTxMemoryLimitBytes.set_count(conf.txMemoryLimit());
     mSorobanMetrics.mConfigTxMaxReadLedgerEntries.set_count(
-        mSorobanNetworkConfig->txMaxReadLedgerEntries());
-    mSorobanMetrics.mConfigTxMaxReadBytes.set_count(
-        mSorobanNetworkConfig->txMaxReadBytes());
+        conf.txMaxReadLedgerEntries());
+    mSorobanMetrics.mConfigTxMaxReadBytes.set_count(conf.txMaxReadBytes());
     mSorobanMetrics.mConfigTxMaxWriteLedgerEntries.set_count(
-        mSorobanNetworkConfig->txMaxWriteLedgerEntries());
-    mSorobanMetrics.mConfigTxMaxWriteBytes.set_count(
-        mSorobanNetworkConfig->txMaxWriteBytes());
+        conf.txMaxWriteLedgerEntries());
+    mSorobanMetrics.mConfigTxMaxWriteBytes.set_count(conf.txMaxWriteBytes());
     mSorobanMetrics.mConfigMaxContractEventsSizeBytes.set_count(
-        mSorobanNetworkConfig->txMaxContractEventsSizeBytes());
-    mSorobanMetrics.mConfigLedgerMaxTxCount.set_count(
-        mSorobanNetworkConfig->ledgerMaxTxCount());
+        conf.txMaxContractEventsSizeBytes());
+    mSorobanMetrics.mConfigLedgerMaxTxCount.set_count(conf.ledgerMaxTxCount());
     mSorobanMetrics.mConfigLedgerMaxInstructions.set_count(
-        mSorobanNetworkConfig->ledgerMaxInstructions());
+        conf.ledgerMaxInstructions());
     mSorobanMetrics.mConfigLedgerMaxTxsSizeByte.set_count(
-        mSorobanNetworkConfig->ledgerMaxTransactionSizesBytes());
+        conf.ledgerMaxTransactionSizesBytes());
     mSorobanMetrics.mConfigLedgerMaxReadLedgerEntries.set_count(
-        mSorobanNetworkConfig->ledgerMaxReadLedgerEntries());
+        conf.ledgerMaxReadLedgerEntries());
     mSorobanMetrics.mConfigLedgerMaxReadBytes.set_count(
-        mSorobanNetworkConfig->ledgerMaxReadBytes());
+        conf.ledgerMaxReadBytes());
     mSorobanMetrics.mConfigLedgerMaxWriteEntries.set_count(
-        mSorobanNetworkConfig->ledgerMaxWriteLedgerEntries());
+        conf.ledgerMaxWriteLedgerEntries());
     mSorobanMetrics.mConfigLedgerMaxWriteBytes.set_count(
-        mSorobanNetworkConfig->ledgerMaxWriteBytes());
+        conf.ledgerMaxWriteBytes());
     mSorobanMetrics.mConfigBucketListTargetSizeByte.set_count(
-        mSorobanNetworkConfig->bucketListTargetSizeBytes());
-    mSorobanMetrics.mConfigFeeWrite1KB.set_count(
-        mSorobanNetworkConfig->feeWrite1KB());
+        conf.bucketListTargetSizeBytes());
+    mSorobanMetrics.mConfigFeeWrite1KB.set_count(conf.feeWrite1KB());
 
     // then publish the actual ledger usage
     mSorobanMetrics.publishAndResetLedgerWideMetrics();
@@ -1253,6 +1262,19 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     }
 }
 
+SearchableSnapshotConstPtr
+LedgerManagerImpl::getCurrentLedgerStateSnaphot()
+{
+    if (!mReadOnlyLedgerStateSnapshot)
+    {
+        mReadOnlyLedgerStateSnapshot =
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot();
+    }
+    return mReadOnlyLedgerStateSnapshot;
+}
+
 void
 LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                                          bool debugLog)
@@ -1266,37 +1288,43 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                    ledgerAbbrev(header, ledgerHash));
     }
 
-    auto prevLedgerSeq = mLastClosedLedger.header.ledgerSeq;
+    // NB: with parallel ledger close, this will have to be called strictly from
+    // the main thread,
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
+    mSorobanNetworkConfigReadOnly = mSorobanNetworkConfigForApply;
 
-    if (header.ledgerSeq != prevLedgerSeq)
-    {
-        auto& bm = mApp.getBucketManager();
-        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-            bm.getLiveBucketList(), header);
-        auto hotArchiveSnapshot =
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                bm.getHotArchiveBucketList(), header);
-        bm.getBucketSnapshotManager().updateCurrentSnapshot(
-            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
-    }
+    auto& bm = mApp.getBucketManager();
+    auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+        bm.getLiveBucketList(), header);
+    auto hotArchiveSnapshot =
+        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+            bm.getHotArchiveBucketList(), header);
+    bm.getBucketSnapshotManager().updateCurrentSnapshot(
+        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
+
+    // NB: with parallel ledger close, this will have to be called strictly from
+    // the main thread,
+    mReadOnlyLedgerStateSnapshot =
+        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot();
 }
 
 void
 LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     uint32_t ledgerVersion = rootLtx.loadHeader().current().ledgerVersion;
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        if (!mSorobanNetworkConfig)
+        if (!mSorobanNetworkConfigForApply)
         {
-            mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
+            mSorobanNetworkConfigForApply =
+                std::make_shared<SorobanNetworkConfig>();
         }
-        mSorobanNetworkConfig->loadFromLedger(
+        mSorobanNetworkConfigForApply->loadFromLedger(
             rootLtx, mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
             ledgerVersion);
         publishSorobanMetrics();
@@ -1682,8 +1710,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             ltxEvictions.commit();
         }
 
-        getSorobanNetworkConfigInternal().maybeSnapshotBucketListSize(
-            lh.ledgerSeq, ltx, mApp);
+        mSorobanNetworkConfigForApply->maybeSnapshotBucketListSize(lh.ledgerSeq,
+                                                                   ltx, mApp);
     }
 
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
@@ -1732,7 +1760,7 @@ LedgerManagerImpl::ledgerClosed(
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         ledgerCloseMeta->setNetworkConfiguration(
-            getSorobanNetworkConfig(),
+            getSorobanNetworkConfigReadOnly(),
             mApp.getConfig().EMIT_LEDGER_CLOSE_META_EXT_V1);
     }
 

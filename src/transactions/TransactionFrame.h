@@ -94,8 +94,9 @@ class TransactionFrame : public TransactionFrameBase
                               LedgerEntryWrapper const& sourceAccount,
                               uint64_t lowerBoundCloseTimeOffset) const;
 
-    bool commonValidPreSeqNum(AppConnector& app, LedgerSnapshot const& ls,
-                              bool chargeFee,
+    bool commonValidPreSeqNum(AppConnector& app,
+                              std::optional<SorobanNetworkConfig> const& cfg,
+                              LedgerSnapshot const& ls, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset,
                               std::optional<FeePair> sorobanResourceFee,
@@ -105,6 +106,7 @@ class TransactionFrame : public TransactionFrameBase
                           int64_t seqNum) const;
 
     ValidationType commonValid(AppConnector& app,
+                               std::optional<SorobanNetworkConfig> const& cfg,
                                SignatureChecker& signatureChecker,
                                LedgerSnapshot const& ls, SequenceNumber current,
                                bool applying, bool chargeFee,
@@ -215,9 +217,9 @@ class TransactionFrame : public TransactionFrameBase
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
-    bool
-    checkSorobanResourceAndSetError(AppConnector& app, uint32_t ledgerVersion,
-                                    MutableTxResultPtr txResult) const override;
+    bool checkSorobanResourceAndSetError(
+        AppConnector& app, SorobanNetworkConfig const& cfg,
+        uint32_t ledgerVersion, MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
 

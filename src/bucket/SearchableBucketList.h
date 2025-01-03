@@ -14,27 +14,29 @@ class SearchableLiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<LiveBucket>
 {
     SearchableLiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager);
+        BucketSnapshotManager const& snapshotManager,
+        SnapshotPtrT<LiveBucket>&& snapshot,
+        std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots);
 
   public:
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset);
+                                             Asset const& asset) const;
 
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
-                                                      int64_t minBalance);
+                                                      int64_t minBalance) const;
 
     std::vector<LedgerEntry>
     loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       LedgerKeyMeter* lkMeter);
+                       LedgerKeyMeter* lkMeter) const;
 
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
                                    std::shared_ptr<EvictionStatistics> stats,
-                                   StateArchivalSettings const& sas);
+                                   StateArchivalSettings const& sas) const;
 
-    friend std::shared_ptr<SearchableLiveBucketListSnapshot>
+    friend SearchableSnapshotConstPtr
     BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;
 };
 
@@ -42,13 +44,16 @@ class SearchableHotArchiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<HotArchiveBucket>
 {
     SearchableHotArchiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager);
+        BucketSnapshotManager const& snapshotManager,
+        SnapshotPtrT<HotArchiveBucket>&& snapshot,
+        std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&&
+            historicalSnapshots);
 
   public:
     std::vector<HotArchiveBucketEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
-    friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    friend SearchableHotArchiveSnapshotConstPtr
     BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const;
 };
 }

@@ -1259,7 +1259,7 @@ TEST_CASE("Soroban TransactionQueue limits",
     auto account2 = root.create("a2", minBalance2);
 
     SorobanNetworkConfig conf =
-        app->getLedgerManager().getSorobanNetworkConfig();
+        app->getLedgerManager().getSorobanNetworkConfigReadOnly();
 
     SorobanResources resources;
     resources.instructions = 2'000'000;

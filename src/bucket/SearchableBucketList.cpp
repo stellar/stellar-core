@@ -15,7 +15,7 @@ EvictionResult
 SearchableLiveBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,
     EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
-    StateArchivalSettings const& sas)
+    StateArchivalSettings const& sas) const
 {
     releaseAssert(mSnapshot);
     releaseAssert(stats);
@@ -65,7 +65,7 @@ template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq)
+    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq) const
 {
     ZoneScoped;
 
@@ -76,8 +76,6 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
         b.loadKeys(keys, entries, lkMeter);
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
-
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 
     if (!ledgerSeq || *ledgerSeq == mSnapshot->getLedgerSeq())
     {
@@ -105,13 +103,12 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
 //     trustlines with the given accountID and poolID from step 1
 std::vector<LedgerEntry>
 SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
-    AccountID const& accountID, Asset const& asset)
+    AccountID const& accountID, Asset const& asset) const
 {
     ZoneScoped;
 
     // This query should only be called during TX apply
     releaseAssert(threadIsMain());
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
     releaseAssert(mSnapshot);
 
     LedgerKeySet trustlinesToLoad;
@@ -149,10 +146,9 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
 std::vector<InflationWinner>
 SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
-                                                       int64_t minBalance)
+                                                       int64_t minBalance) const
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
     releaseAssert(mSnapshot);
 
     // This is a legacy query, should only be called by main thread during
@@ -243,7 +239,7 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 std::vector<LedgerEntry>
 SearchableLiveBucketListSnapshot::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter)
+    LedgerKeyMeter* lkMeter) const
 {
     if (threadIsMain())
     {
@@ -261,20 +257,26 @@ SearchableLiveBucketListSnapshot::loadKeysWithLimits(
 }
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager)
-    : SearchableBucketListSnapshotBase<LiveBucket>(snapshotManager)
+    BucketSnapshotManager const& snapshotManager,
+    SnapshotPtrT<LiveBucket>&& snapshot,
+    std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots)
+    : SearchableBucketListSnapshotBase<LiveBucket>(
+          snapshotManager, std::move(snapshot), std::move(historicalSnapshots))
 {
 }
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager)
-    : SearchableBucketListSnapshotBase<HotArchiveBucket>(snapshotManager)
+    BucketSnapshotManager const& snapshotManager,
+    SnapshotPtrT<HotArchiveBucket>&& snapshot,
+    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&& historicalSnapshots)
+    : SearchableBucketListSnapshotBase<HotArchiveBucket>(
+          snapshotManager, std::move(snapshot), std::move(historicalSnapshots))
 {
 }
 
 std::vector<HotArchiveBucketEntry>
 SearchableHotArchiveBucketListSnapshot::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     auto op = loadKeysInternal(inKeys, /*lkMeter=*/nullptr, std::nullopt);
     releaseAssertOrThrow(op);

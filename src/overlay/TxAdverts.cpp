@@ -203,7 +203,8 @@ TxAdverts::getMaxAdvertSize() const
                                           .header.ledgerVersion,
                                       SOROBAN_PROTOCOL_VERSION))
         {
-            auto limits = mApp.getLedgerManager().getSorobanNetworkConfig();
+            auto limits =
+                mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
             opsToFloodPerLedger += getOpsFloodLedger(
                 limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
         }

@@ -5,6 +5,7 @@
 #include "ledger/LedgerStateSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionFrame.h"
@@ -162,8 +163,8 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
     return f(lsg);
 }
 
-BucketSnapshotState::BucketSnapshotState(BucketManager& bm)
-    : mSnapshot(bm.getSearchableLiveBucketListSnapshot())
+BucketSnapshotState::BucketSnapshotState(SearchableSnapshotConstPtr snapshot)
+    : mSnapshot(snapshot)
     , mLedgerHeader(LedgerHeaderWrapper(
           std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
 {
@@ -222,6 +223,7 @@ LedgerSnapshot::LedgerSnapshot(AbstractLedgerTxn& ltx)
 
 LedgerSnapshot::LedgerSnapshot(Application& app)
 {
+    releaseAssert(threadIsMain());
 #ifdef BUILD_TESTS
     if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
@@ -233,7 +235,8 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     }
     else
 #endif
-        mGetter = std::make_unique<BucketSnapshotState>(app.getBucketManager());
+        mGetter = std::make_unique<BucketSnapshotState>(
+            app.getLedgerManager().getCurrentLedgerStateSnaphot());
 }
 
 LedgerHeaderWrapper

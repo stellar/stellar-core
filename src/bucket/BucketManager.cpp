@@ -1056,7 +1056,7 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq)
 
     auto searchableBL =
         mSnapshotManager->copySearchableLiveBucketListSnapshot();
-    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfigForApply();
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t = std::packaged_task<EvictionResult()>;
@@ -1092,7 +1092,7 @@ BucketManager::resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx,
     auto evictionCandidates = mEvictionFuture.get();
 
     auto const& networkConfig =
-        mApp.getLedgerManager().getSorobanNetworkConfig();
+        mApp.getLedgerManager().getSorobanNetworkConfigForApply();
 
     // If eviction related settings changed during the ledger, we have to
     // restart the scan
@@ -1578,20 +1578,6 @@ Config const&
 BucketManager::getConfig() const
 {
     return mConfig;
-}
-
-std::shared_ptr<SearchableLiveBucketListSnapshot>
-BucketManager::getSearchableLiveBucketListSnapshot()
-{
-    // Any other threads must maintain their own snapshot
-    releaseAssert(threadIsMain());
-    if (!mSearchableBucketListSnapshot)
-    {
-        mSearchableBucketListSnapshot =
-            mSnapshotManager->copySearchableLiveBucketListSnapshot();
-    }
-
-    return mSearchableBucketListSnapshot;
 }
 
 void

@@ -97,12 +97,14 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
                         BucketListSnapshot<BucketT> const& snapshot) const;
 
     SearchableBucketListSnapshotBase(
-        BucketSnapshotManager const& snapshotManager);
+        BucketSnapshotManager const& snapshotManager,
+        SnapshotPtrT<BucketT>&& snapshot,
+        std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots);
 
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                      LedgerKeyMeter* lkMeter,
-                     std::optional<uint32_t> ledgerSeq);
+                     std::optional<uint32_t> ledgerSeq) const;
 
   public:
     uint32_t
@@ -111,7 +113,7 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
         return mSnapshot->getLedgerSeq();
     }
 
-    LedgerHeader const& getLedgerHeader();
+    LedgerHeader const& getLedgerHeader() const;
 
     // Loads inKeys from the specified historical snapshot. Returns
     // load_result_vec if the snapshot for the given ledger is
@@ -121,8 +123,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     // in the BucketList is N - 1.
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       uint32_t ledgerSeq);
+                       uint32_t ledgerSeq) const;
 
-    std::shared_ptr<typename BucketT::LoadT> load(LedgerKey const& k);
+    std::shared_ptr<typename BucketT::LoadT> load(LedgerKey const& k) const;
 };
 }

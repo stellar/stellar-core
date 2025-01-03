@@ -6,6 +6,7 @@
 
 #include "lib/httpthreaded/server.hpp"
 
+#include "bucket/BucketSnapshotManager.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -25,9 +26,10 @@ class QueryServer
 
     httpThreaded::server::server mServer;
 
-    std::unordered_map<std::thread::id,
-                       std::shared_ptr<SearchableLiveBucketListSnapshot>>
+    std::unordered_map<std::thread::id, SearchableSnapshotConstPtr>
         mBucketListSnapshots;
+
+    BucketSnapshotManager& mBucketSnapshotManager;
 
     bool safeRouter(HandlerRoute route, std::string const& params,
                     std::string const& body, std::string& retStr);
