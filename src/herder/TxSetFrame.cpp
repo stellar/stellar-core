@@ -430,14 +430,14 @@ phaseTxsAreValid(TxSetPhaseFrame const& phase, Application& app,
                  uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     // This is done so minSeqLedgerGap is validated against the next
     // ledgerSeq, which is what will be used at apply time
 
     // Grab read-only latest ledger state; This is only used to validate tx sets
     // for LCL+1
     LedgerSnapshot ls(app);
-    ls.getLedgerHeader().currentToModify().ledgerSeq =
-        app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    ls.getLedgerHeader().currentToModify().ledgerSeq += 1;
     for (auto const& tx : phase)
     {
         auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
@@ -526,7 +526,9 @@ std::pair<TxFrameList, std::shared_ptr<InclusionFeeMap>>
 applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
 {
     ZoneScoped;
-
+    releaseAssert(threadIsMain());
+    releaseAssert(!app.getLedgerManager().isApplying());
+    
     auto const& lclHeader =
         app.getLedgerManager().getLastClosedLedgerHeader().header;
     std::vector<bool> hadTxNotFittingLane;
@@ -703,6 +705,8 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
 #endif
 )
 {
+    releaseAssert(threadIsMain());
+    releaseAssert(!app.getLedgerManager().isApplying());
     releaseAssert(txPhases.size() == invalidTxs.size());
     releaseAssert(txPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
@@ -875,6 +879,8 @@ makeTxSetFromTransactions(TxFrameList txs, Application& app,
                           uint64_t upperBoundCloseTimeOffset,
                           TxFrameList& invalidTxs, bool enforceTxsApplyOrder)
 {
+    releaseAssert(threadIsMain());
+    releaseAssert(!app.getLedgerManager().isApplying());
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     PerPhaseTransactionList perPhaseTxs;
     perPhaseTxs.resize(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
@@ -1563,8 +1569,13 @@ ApplicableTxSetFrame::ApplicableTxSetFrame(
     , mPhases(phases)
     , mContentsHash(contentsHash)
 {
-    releaseAssert(previousLedgerHash ==
-                  app.getLedgerManager().getLastClosedLedgerHeader().hash);
+    // When applying in the background, the same check is performed in
+    // closeLedger already
+    if (threadIsMain())
+    {
+        releaseAssert(previousLedgerHash ==
+                      app.getLedgerManager().getLastClosedLedgerHeader().hash);
+    }
 }
 
 ApplicableTxSetFrame::ApplicableTxSetFrame(
@@ -1624,7 +1635,8 @@ ApplicableTxSetFrame::checkValid(Application& app,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     ZoneScoped;
-    auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    releaseAssert(threadIsMain());
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
 
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)

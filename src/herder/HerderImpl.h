@@ -75,7 +75,8 @@ class HerderImpl : public Herder
 
     void start() override;
 
-    void lastClosedLedgerIncreased(bool latest) override;
+    void lastClosedLedgerIncreased(bool latest,
+                                   TxSetXDRFrameConstPtr txSet) override;
 
     SCP& getSCP();
     HerderSCPDriver&
@@ -194,6 +195,8 @@ class HerderImpl : public Herder
     makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
+
+    virtual void beginApply() override;
 
     void startTxSetGCTimer();
 

@@ -203,6 +203,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 {
     ZoneScoped;
     uint64_t lastCloseTime;
+    releaseAssert(threadIsMain());
     if (b.ext.v() != STELLAR_VALUE_SIGNED)
     {
         CLOG_TRACE(Herder,
@@ -220,15 +221,15 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         }
     }
 
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
     // when checking close time, start with what we have locally
-    lastCloseTime = lcl.scpValue.closeTime;
+    lastCloseTime = lhhe.header.scpValue.closeTime;
 
     // if this value is not for our local state,
     // perform as many checks as we can
-    if (slotIndex != (lcl.ledgerSeq + 1))
+    if (slotIndex != (lhhe.header.ledgerSeq + 1))
     {
-        if (slotIndex == lcl.ledgerSeq)
+        if (slotIndex == lhhe.header.ledgerSeq)
         {
             // previous ledger
             if (b.closeTime != lastCloseTime)
@@ -239,7 +240,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
                 return SCPDriver::kInvalidValue;
             }
         }
-        else if (slotIndex < lcl.ledgerSeq)
+        else if (slotIndex < lhhe.header.ledgerSeq)
         {
             // basic sanity check on older value
             if (b.closeTime >= lastCloseTime)
@@ -322,7 +323,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
         res = SCPDriver::kInvalidValue;
     }
-    else if (!checkAndCacheTxSetValid(*txSet, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(*txSet, lhhe, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
@@ -612,6 +613,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
     std::set<TransactionFramePtr> aggSet;
 
+    releaseAssert(!mLedgerManager.isApplying());
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
     Hash candidatesHash;
@@ -1226,11 +1228,11 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
 
 bool
 HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
+                                         LedgerHeaderHistoryEntry const& lcl,
                                          uint64_t closeTimeOffset) const
 {
-    auto key = TxSetValidityKey{
-        mApp.getLedgerManager().getLastClosedLedgerHeader().hash,
-        txSet.getContentsHash(), closeTimeOffset, closeTimeOffset};
+    auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
+                                closeTimeOffset, closeTimeOffset};
 
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
@@ -1241,8 +1243,7 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
         // might end up with malformed tx set that doesn't refer to the
         // LCL.
         ApplicableTxSetFrameConstPtr applicableTxSet;
-        if (txSet.previousLedgerHash() ==
-            mApp.getLedgerManager().getLastClosedLedgerHeader().hash)
+        if (txSet.previousLedgerHash() == lcl.hash)
         {
             applicableTxSet = txSet.prepareForApply(mApp);
         }
@@ -1250,10 +1251,9 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
         bool res = true;
         if (applicableTxSet == nullptr)
         {
-            CLOG_ERROR(Herder,
-                       "validateValue i:{} can't prepare txSet {} for apply",
-                       (mApp.getLedgerManager().getLastClosedLedgerNum() + 1),
-                       hexAbbrev(txSet.getContentsHash()));
+            CLOG_ERROR(
+                Herder, "validateValue i:{} can't prepare txSet {} for apply",
+                (lcl.header.ledgerSeq + 1), hexAbbrev(txSet.getContentsHash()));
             res = false;
         }
         else
@@ -1286,6 +1286,7 @@ uint64
 HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
                                bool const isLocalNode) const
 {
+    releaseAssert(!mLedgerManager.isApplying());
     Config const& cfg = mApp.getConfig();
     bool const unsupportedProtocol = protocolVersionIsBefore(
         mApp.getLedgerManager()

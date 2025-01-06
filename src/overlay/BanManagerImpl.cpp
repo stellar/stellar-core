@@ -44,7 +44,8 @@ BanManagerImpl::banNode(NodeID nodeID)
     {
         ZoneNamedN(insertBanZone, "insert ban", true);
         auto prep = mApp.getDatabase().getPreparedStatement(
-            "INSERT INTO ban (nodeid) VALUES(:n)");
+            "INSERT INTO ban (nodeid) VALUES(:n)",
+            mApp.getDatabase().getSession());
         auto& st = prep.statement();
         st.exchange(soci::use(nodeIDString));
         st.define_and_bind();
@@ -61,7 +62,8 @@ BanManagerImpl::unbanNode(NodeID nodeID)
     {
         ZoneNamedN(deleteBanZone, "delete ban", true);
         auto prep = mApp.getDatabase().getPreparedStatement(
-            "DELETE FROM ban WHERE nodeid = :n;");
+            "DELETE FROM ban WHERE nodeid = :n;",
+            mApp.getDatabase().getSession());
         auto& st = prep.statement();
         st.exchange(soci::use(nodeIDString));
         st.define_and_bind();
@@ -77,7 +79,8 @@ BanManagerImpl::isBanned(NodeID nodeID)
     {
         ZoneNamedN(selectBanZone, "select ban", true);
         auto prep = mApp.getDatabase().getPreparedStatement(
-            "SELECT count(*) FROM ban WHERE nodeid = :n");
+            "SELECT count(*) FROM ban WHERE nodeid = :n",
+            mApp.getDatabase().getSession());
         uint32_t count;
         auto& st = prep.statement();
         st.exchange(soci::into(count));
@@ -96,8 +99,8 @@ BanManagerImpl::getBans()
     std::string nodeIDString;
     {
         ZoneNamedN(selectBanZone, "select ban", true);
-        auto prep =
-            mApp.getDatabase().getPreparedStatement("SELECT nodeid FROM ban");
+        auto prep = mApp.getDatabase().getPreparedStatement(
+            "SELECT nodeid FROM ban", mApp.getDatabase().getSession());
         auto& st = prep.statement();
         st.exchange(soci::into(nodeIDString));
         st.define_and_bind();
@@ -114,10 +117,10 @@ BanManagerImpl::getBans()
 void
 BanManager::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS ban";
+    db.getRawSession() << "DROP TABLE IF EXISTS ban";
 
-    db.getSession() << "CREATE TABLE ban ("
-                       "nodeid      CHARACTER(56) NOT NULL PRIMARY KEY"
-                       ")";
+    db.getRawSession() << "CREATE TABLE ban ("
+                          "nodeid      CHARACTER(56) NOT NULL PRIMARY KEY"
+                          ")";
 }
 }

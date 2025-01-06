@@ -1465,8 +1465,8 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
             auto const& op = mOperations[i];
             auto& opResult = txResult->getOpResultAt(i);
 
-            if (!op->checkValid(app, signatureChecker, ls, false, opResult,
-                                txResult->getSorobanData()))
+            if (!op->checkValid(app, signatureChecker, sorobanConfig, ls, false,
+                                opResult, txResult->getSorobanData()))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -1719,8 +1719,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // If transaction fails, we don't charge for any
                 // refundable resources.
                 auto preApplyFee = computePreApplySorobanResourceFee(
-                    ledgerVersion,
-                    app.getLedgerManager().getSorobanNetworkConfigForApply(),
+                    ledgerVersion, app.getSorobanNetworkConfigForApply(),
                     app.getConfig());
 
                 txResult.getSorobanData()->setSorobanFeeRefund(
@@ -1838,8 +1837,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                                       SOROBAN_PROTOCOL_VERSION) &&
             isSoroban())
         {
-            sorobanConfig =
-                app.getLedgerManager().getSorobanNetworkConfigForApply();
+            sorobanConfig = app.getSorobanNetworkConfigForApply();
             sorobanResourceFee = computePreApplySorobanResourceFee(
                 ledgerVersion, *sorobanConfig, app.getConfig());
 

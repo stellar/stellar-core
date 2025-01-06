@@ -1214,6 +1214,13 @@ LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
                            account->getAccountId());
                 result.push_back(account);
             }
+            else if (app.getHerder().sourceAccountPending(
+                         account->getPublicKey()))
+            {
+                CLOG_TRACE(LoadGen, "Account {} is pending!",
+                           account->getAccountId());
+                result.push_back(account);
+            }
         }
         else if (!reloadRes)
         {

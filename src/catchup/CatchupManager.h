@@ -49,11 +49,18 @@ class CatchupManager
         friend CatchupMetrics operator-(CatchupMetrics const& x,
                                         CatchupMetrics const& y);
     };
+
+    enum class ProcessLedgerResult
+    {
+        PROCESSED_ALL_LEDGERS_SEQUENTIALLY,
+        WAIT_TO_APPLY_BUFFERED_OR_CATCHUP
+    };
     static std::unique_ptr<CatchupManager> create(Application& app);
 
     // Process ledgers that could not be applied, and determine if catchup
     // should run
-    virtual void processLedger(LedgerCloseData const& ledgerData) = 0;
+    virtual ProcessLedgerResult processLedger(LedgerCloseData const& ledgerData,
+                                              bool isLatestSlot) = 0;
 
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers
@@ -102,6 +109,8 @@ class CatchupManager
     // This returns the largest ledger sequence that CatchupManager has ever
     // heard of.
     virtual uint32_t getLargestLedgerSeqHeard() const = 0;
+
+    virtual uint32_t getMaxScheduledToApply() = 0;
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.

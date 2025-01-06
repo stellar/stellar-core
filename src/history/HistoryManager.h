@@ -320,13 +320,13 @@ class HistoryManager
     // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than
     // a multiple of getCheckpointFrequency(). Returns true if checkpoint
     // publication of the LCL was queued, otherwise false.
-    virtual bool maybeQueueHistoryCheckpoint() = 0;
+    virtual bool maybeQueueHistoryCheckpoint(uint32_t lcl) = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
     // checkpoint to it, as well as the bucketlist of its state -- to a
     // publication-queue in the database. This should be followed shortly
     // (typically after commit) with a call to publishQueuedHistory.
-    virtual void queueCurrentHistory() = 0;
+    virtual void queueCurrentHistory(uint32_t lcl) = 0;
 
     // Return the youngest ledger still in the outgoing publish queue;
     // returns 0 if the publish queue has nothing in it.
@@ -341,7 +341,7 @@ class HistoryManager
     virtual size_t publishQueuedHistory() = 0;
 
     // Prepare checkpoint files for publishing
-    virtual void maybeCheckpointComplete() = 0;
+    virtual void maybeCheckpointComplete(uint32_t lcl) = 0;
 
     // Migrate SQL-based publish queue to the new file format
     // (one-time call during database schema upgrade path)

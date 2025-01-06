@@ -53,17 +53,22 @@ AppConnector::getSorobanNetworkConfigReadOnly() const
     return mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
 }
 
+SorobanNetworkConfig const&
+AppConnector::getSorobanNetworkConfigForApply() const
+{
+    // releaseAssert(!threadIsMain() || !mConfig.parallelLedgerClose());
+    return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+}
+
 medida::MetricsRegistry&
 AppConnector::getMetrics() const
 {
-    releaseAssert(threadIsMain());
     return mApp.getMetrics();
 }
 
 SorobanMetrics&
 AppConnector::getSorobanMetrics() const
 {
-    releaseAssert(threadIsMain());
     return mApp.getLedgerManager().getSorobanMetrics();
 }
 
@@ -72,7 +77,8 @@ AppConnector::checkOnOperationApply(Operation const& operation,
                                     OperationResult const& opres,
                                     LedgerTxnDelta const& ltxDelta)
 {
-    releaseAssert(threadIsMain());
+    // Only one thread can call this method
+    releaseAssert(threadIsMain() || mConfig.parallelLedgerClose());
     mApp.getInvariantManager().checkOnOperationApply(operation, opres,
                                                      ltxDelta);
 }
@@ -80,7 +86,7 @@ AppConnector::checkOnOperationApply(Operation const& operation,
 Hash const&
 AppConnector::getNetworkID() const
 {
-    releaseAssert(threadIsMain());
+    // NetworkID is a const
     return mApp.getNetworkID();
 }
 
@@ -135,6 +141,13 @@ AppConnector::checkScheduledAndCache(
     std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
+}
+
+LedgerHeaderHistoryEntry
+AppConnector::getLastClosedLedgerHeader() const
+{
+    // LCL is thread-safe (it's a copy)
+    return mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
 }

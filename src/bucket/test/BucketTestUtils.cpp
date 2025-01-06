@@ -101,6 +101,10 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
                                      lcl.header.scpValue.closeTime, upgrades,
                                      skToSignValue);
+    testutil::crankUntil(
+        app,
+        [&lm, ledgerNum]() { return lm.getLastClosedLedgerNum() == ledgerNum; },
+        std::chrono::seconds(10));
     return lm.getLastClosedLedgerHeader().hash;
 }
 
@@ -232,7 +236,9 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
 
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers);
+                        ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
+                        mApp.getLedgerManager()
+                            .getMutableSorobanNetworkConfig());
 
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,

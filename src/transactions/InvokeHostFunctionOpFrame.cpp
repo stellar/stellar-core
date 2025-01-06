@@ -332,8 +332,7 @@ InvokeHostFunctionOpFrame::doApply(
     Config const& appConfig = app.getConfig();
     HostFunctionMetrics metrics(app.getSorobanMetrics());
     auto timeScope = metrics.getExecTimer();
-    auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfigForApply();
+    auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;

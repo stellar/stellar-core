@@ -82,6 +82,7 @@ class ApplicationImpl : public Application
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
     virtual asio::io_context& getOverlayIOContext() override;
+    virtual asio::io_context& getLedgerCloseIOContext() override;
 
     virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type) override;
@@ -92,6 +93,8 @@ class ApplicationImpl : public Application
 
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) override;
+    virtual void postOnLedgerCloseThread(std::function<void()>&& f,
+                                         std::string jobName) override;
     virtual void start() override;
     void startServices();
 
@@ -158,6 +161,9 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
 
+    std::unique_ptr<asio::io_context> mLedgerCloseIOContext;
+    std::unique_ptr<asio::io_context::work> mLedgerCloseWork;
+
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<OverlayManager> mOverlayManager;
@@ -206,6 +212,7 @@ class ApplicationImpl : public Application
 
     std::vector<std::thread> mWorkerThreads;
     std::optional<std::thread> mOverlayThread;
+    std::optional<std::thread> mLedgerCloseThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
     // medium priority thread. In the future, this may become a more general
@@ -216,7 +223,8 @@ class ApplicationImpl : public Application
     asio::signal_set mStopSignals;
 
     bool mStarted;
-    bool mStopping;
+    std::atomic<bool> mStopping;
+    bool mLedgerCloseThreadStopped{false};
 
     VirtualTimer mStoppingTimer;
     VirtualTimer mSelfCheckTimer;
@@ -225,6 +233,7 @@ class ApplicationImpl : public Application
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
+    medida::Timer& mPostOnLedgerCloseThreadDelay;
 
     VirtualClock::system_time_point mStartedOn;
 
@@ -258,5 +267,6 @@ class ApplicationImpl : public Application
 
     void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
                                                      bool forceRebuild);
+    void shutdownLedgerCloseThread();
 };
 }

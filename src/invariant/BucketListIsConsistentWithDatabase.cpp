@@ -7,6 +7,8 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
+#include "crypto/Hex.h"
+#include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
@@ -157,7 +159,8 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
         throw std::runtime_error(s);
     }
 
-    if (mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
+    if (mApp.getPersistentState().getState(PersistentState::kDBBackend,
+                                           mApp.getDatabase().getSession()) !=
         BucketIndex::DB_BACKEND_STATE)
     {
         throw std::runtime_error(

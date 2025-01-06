@@ -97,22 +97,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
             };
 
             auto waitForExternalize = [&]() {
-                bool stop = false;
                 auto prev = app->getLedgerManager().getLastClosedLedgerNum();
-                VirtualTimer checkTimer(*app);
-
-                auto check = [&](asio::error_code const& error) {
-                    REQUIRE(!error);
-                    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >
-                            prev);
-                    stop = true;
-                };
-
-                checkTimer.expires_from_now(
-                    Herder::EXP_LEDGER_TIMESPAN_SECONDS +
-                    std::chrono::seconds(1));
-                checkTimer.async_wait(check);
-                while (!stop)
+                while (app->getLedgerManager().getLastClosedLedgerNum() <=
+                       prev + 1)
                 {
                     app->getClock().crank(true);
                 }
@@ -2552,10 +2539,10 @@ TEST_CASE("SCP State", "[herder]")
 
         REQUIRE(sim->getNode(nodeIDs[0])
                     ->getLedgerManager()
-                    .getLastClosedLedgerNum() == expectedLedger);
+                    .getLastClosedLedgerNum() >= expectedLedger);
         REQUIRE(sim->getNode(nodeIDs[1])
                     ->getLedgerManager()
-                    .getLastClosedLedgerNum() == expectedLedger);
+                    .getLastClosedLedgerNum() >= expectedLedger);
 
         lcl = sim->getNode(nodeIDs[0])
                   ->getLedgerManager()
@@ -2653,7 +2640,7 @@ TEST_CASE("SCP State", "[herder]")
         // then let the nodes run a bit more, they should all externalize the
         // next ledger
         sim->crankUntil(
-            [&]() { return sim->haveAllExternalized(expectedLedger + 1, 5); },
+            [&]() { return sim->haveAllExternalized(expectedLedger + 2, 6); },
             2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         // nodes are at least on ledger 7 (some may be on 8)
@@ -2662,14 +2649,6 @@ TEST_CASE("SCP State", "[herder]")
             // All nodes are in sync
             REQUIRE(sim->getNode(nodeIDs[i])->getState() ==
                     Application::State::APP_SYNCED_STATE);
-            auto const& actual = sim->getNode(nodeIDs[i])
-                                     ->getLedgerManager()
-                                     .getLastClosedLedgerHeader()
-                                     .header;
-            if (actual.ledgerSeq == expectedLedger + 1)
-            {
-                REQUIRE(actual.previousLedgerHash == lcl.hash);
-            }
         }
     }
 
@@ -2783,8 +2762,8 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
     auto mainNode = simulation->addNode(v0SecretKey, qSet, &cfg1);
     simulation->startAllNodes();
-    auto& hm = mainNode->getHistoryManager();
-    auto firstCheckpoint = hm.firstLedgerAfterCheckpointContaining(1);
+    auto firstCheckpoint = HistoryManager::firstLedgerAfterCheckpointContaining(
+        1, mainNode->getConfig());
 
     // Crank until we are halfway through the second checkpoint
     simulation->crankUntil(
@@ -2803,7 +2782,8 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
                 mainNode->getConfig().MAX_SLOTS_TO_REMEMBER + 1);
 
         auto secondCheckpoint =
-            hm.firstLedgerAfterCheckpointContaining(firstCheckpoint);
+            HistoryManager::firstLedgerAfterCheckpointContaining(
+                firstCheckpoint, mainNode->getConfig());
 
         // Crank until we complete the 2nd checkpoint
         simulation->crankUntil(
@@ -3090,10 +3070,10 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
             bool hadSorobanSurgePricing = false;
             simulation->crankUntil(
                 [&]() {
-                    auto& lclHeader = nodes[0]
-                                          ->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header;
+                    auto const& lclHeader = nodes[0]
+                                                ->getLedgerManager()
+                                                .getLastClosedLedgerHeader()
+                                                .header;
                     auto txSet = nodes[0]->getHerder().getTxSet(
                         lclHeader.scpValue.txSetHash);
                     GeneralizedTransactionSet xdrTxSet;
@@ -3229,14 +3209,34 @@ TEST_CASE("overlay parallel processing")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
-    // Set threshold to 1 so all have to vote
-    auto simulation =
-        Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
-            auto cfg = getTestConfig(i);
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
-            return cfg;
-        });
+    std::shared_ptr<Simulation> simulation;
+
+    SECTION("background traffic processing")
+    {
+        // Set threshold to 1 so all have to vote
+        simulation =
+            Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+                auto cfg = getTestConfig(i);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+                return cfg;
+            });
+    }
+    SECTION("background ledger close")
+    {
+        // Set threshold to 1 so all have to vote
+        simulation =
+            Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+                auto cfg = getTestConfig(
+                    i, Config::TESTDB_BUCKET_DB_PERSISTENT_POSTGRES);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = true;
+                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                    std::chrono::milliseconds(500);
+                return cfg;
+            });
+    }
+
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
@@ -3268,15 +3268,15 @@ TEST_CASE("overlay parallel processing")
     // soroban traffic
     currLoadGenCount = loadGenDone.count();
     auto secondLoadGenCount = secondLoadGenDone.count();
-    uint32_t const classicTxCount = 200;
+    uint32_t const txCount = 100;
     // Generate Soroban txs from one node
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_UPLOAD, 50,
-        /* nTxs */ 500, desiredTxRate, /* offset */ 0));
+        /* nTxs */ txCount, desiredTxRate, /* offset */ 0));
     // Generate classic txs from another node (with offset to prevent
     // overlapping accounts)
     secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
-        LoadGenMode::PAY, 50, classicTxCount, desiredTxRate,
+        LoadGenMode::PAY, 50, txCount, desiredTxRate,
         /* offset */ 50));
 
     simulation->crankUntil(
@@ -3519,13 +3519,26 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
 // received by a node, we fully control the state of Herder and LM (and whether
 // each component is in sync or out of sync)
 static void
-herderExternalizesValuesWithProtocol(uint32_t version)
+herderExternalizesValuesWithProtocol(uint32_t version,
+                                     bool parallelLedgerClose = false,
+                                     uint32_t delayCloseMs = 0)
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
-        Simulation::OVER_LOOPBACK, networkID, [version](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
+        Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(
+                i, parallelLedgerClose
+                       ? Config::TESTDB_BUCKET_DB_PERSISTENT_POSTGRES
+                       : Config::TESTDB_BUCKET_DB_PERSISTENT);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
+            if (parallelLedgerClose)
+            {
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = true;
+                // Add artifical delay to ledger close to increase chances of
+                // conflicts
+                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                    std::chrono::milliseconds(delayCloseMs);
+            }
             return cfg;
         });
 
@@ -3583,7 +3596,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
             [&]() {
                 return simulation->haveAllExternalized(destinationLedger, 100);
             },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
         return std::min(currentALedger(), currentCLedger());
     };
 
@@ -3703,6 +3716,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
                 Herder::ENVELOPE_STATUS_READY);
         REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
                 Herder::ENVELOPE_STATUS_READY);
+        simulation->crankForAtLeast(std::chrono::seconds(10), false);
     };
 
     auto testOutOfOrder = [&](bool partial) {
@@ -4283,6 +4297,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.FLOOD_TX_PERIOD_MS = 1; // flood as fast as possible
+    cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::seconds(0);
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();
@@ -4335,6 +4350,8 @@ TEST_CASE("do not flood too many soroban transactions",
             cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
             cfg.FLOOD_SOROBAN_TX_PERIOD_MS = 50;
             cfg.FLOOD_SOROBAN_RATE_PER_LEDGER = 2.0;
+            cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                std::chrono::seconds(0);
             return cfg;
         });
 
@@ -5304,7 +5321,8 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             // Prepare query
             auto& db = node->getDatabase();
             auto prep = db.getPreparedStatement(
-                "SELECT envelope FROM scphistory WHERE ledgerseq = :l");
+                "SELECT envelope FROM scphistory WHERE ledgerseq = :l",
+                db.getSession());
             auto& st = prep.statement();
             st.exchange(soci::use(ledgerNum));
             std::string envStr;

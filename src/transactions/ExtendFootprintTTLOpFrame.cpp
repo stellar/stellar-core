@@ -62,8 +62,7 @@ ExtendFootprintTTLOpFrame::doApply(
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
-    auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfigForApply();
+    auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
 
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     rustEntryRentChanges.reserve(footprint.readOnly.size());

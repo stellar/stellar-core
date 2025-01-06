@@ -31,13 +31,13 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
                 BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mLedgerRange(range)
-    , mCheckpoint(
-          app.getHistoryManager().checkpointContainingLedger(range.mFirst))
+    , mCheckpoint(HistoryManager::checkpointContainingLedger(range.mFirst,
+                                                             app.getConfig()))
     , mOnFailure(cb)
 {
     // Ledger range check to enforce application of a single checkpoint
-    auto const& hm = mApp.getHistoryManager();
-    auto low = hm.firstLedgerInCheckpointContaining(mCheckpoint);
+    auto low = HistoryManager::firstLedgerInCheckpointContaining(
+        mCheckpoint, mApp.getConfig());
     if (mLedgerRange.mFirst != low)
     {
         throw std::runtime_error(

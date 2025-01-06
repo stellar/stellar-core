@@ -372,6 +372,9 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
         recordOrCheckGlobalTestTxMetadata(tm.getXDR());
     }
 
+    // TODO: in-memory mode doesn't work with parallel ledger close because
+    // it manually modifies LedgerTxn without closing a ledger; this results
+    // in a different ledger header stored inside of LedgerTxn
     ltx.commit();
 
     return res;
@@ -631,15 +634,15 @@ loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k, bool mustExist)
 bool
 doesAccountExist(Application& app, PublicKey const& k)
 {
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    return (bool)stellar::loadAccountWithoutRecord(ltx, k);
+    LedgerSnapshot lss(app);
+    return (bool)lss.getAccount(k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto account = stellar::loadAccount(ltx, k);
+    LedgerSnapshot lss(app);
+    auto account = lss.getAccount(k);
     return account.current().data.account().signers;
 }
 
@@ -699,11 +702,8 @@ transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops,
                           uint32_t fee)
 {
-    uint32_t ledgerVersion;
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    }
+    auto ledgerVersion =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
     {
         return transactionFromOperationsV0(app, from, seq, ops, fee);

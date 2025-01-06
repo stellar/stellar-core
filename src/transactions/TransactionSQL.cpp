@@ -348,20 +348,23 @@ void
 dropSupportTransactionFeeHistory(Database& db)
 {
     ZoneScoped;
-    db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
+    releaseAssert(threadIsMain());
+    db.getRawSession() << "DROP TABLE IF EXISTS txfeehistory";
 }
 
 void
 dropSupportTxSetHistory(Database& db)
 {
     ZoneScoped;
-    db.getSession() << "DROP TABLE IF EXISTS txsethistory";
+    releaseAssert(threadIsMain());
+    db.getRawSession() << "DROP TABLE IF EXISTS txsethistory";
 }
 
 void
 dropSupportTxHistory(Database& db)
 {
     ZoneScoped;
-    db.getSession() << "DROP TABLE IF EXISTS txhistory";
+    releaseAssert(threadIsMain());
+    db.getRawSession() << "DROP TABLE IF EXISTS txhistory";
 }
 }

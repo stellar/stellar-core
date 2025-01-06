@@ -9,6 +9,9 @@
 
 namespace stellar
 {
+
+class SorobanNetworkConfig;
+
 // The LiveBucketList stores the current canonical state of the ledger. It is
 // made up of LiveBucket buckets, which in turn store individual entries of type
 // BucketEntry. When an entry is "evicted" from the ledger, it is removed from

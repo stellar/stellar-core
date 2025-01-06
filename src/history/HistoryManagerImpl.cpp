@@ -375,9 +375,8 @@ HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 }
 
 bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint()
+HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
 {
-    uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()))
     {
         return false;
@@ -390,15 +389,14 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint()
         return false;
     }
 
-    queueCurrentHistory();
+    queueCurrentHistory(lcl);
     return true;
 }
 
 void
-HistoryManagerImpl::queueCurrentHistory()
+HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
 {
     ZoneScoped;
-    auto ledger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     LiveBucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
@@ -527,9 +525,8 @@ HistoryManagerImpl::publishQueuedHistory()
 }
 
 void
-HistoryManagerImpl::maybeCheckpointComplete()
+HistoryManagerImpl::maybeCheckpointComplete(uint32_t lcl)
 {
-    uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()) ||
         !mApp.getHistoryArchiveManager().publishEnabled())
     {
@@ -702,7 +699,7 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
                               });
         // Maybe finalize checkpoint if we're at a checkpoint boundary and
         // haven't rotated yet. No-op if checkpoint has been rotated already
-        maybeCheckpointComplete();
+        maybeCheckpointComplete(lcl);
     }
 }
 

@@ -1016,7 +1016,7 @@ TxGenerator::sorobanRandomUploadResources()
 
     // Estimate VM instantiation cost, with some additional buffer to increase
     // the chance that this instruction count is sufficient.
-    ContractCostParamEntry const& vmInstantiationCosts =
+    ContractCostParamEntry vmInstantiationCosts =
         mApp.getLedgerManager()
             .getSorobanNetworkConfigReadOnly()
             .cpuCostParams()[VmInstantiation];

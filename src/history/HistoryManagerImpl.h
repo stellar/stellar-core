@@ -46,15 +46,15 @@ class HistoryManagerImpl : public HistoryManager
 
     void logAndUpdatePublishStatus() override;
 
-    bool maybeQueueHistoryCheckpoint() override;
+    bool maybeQueueHistoryCheckpoint(uint32_t lcl) override;
 
-    void queueCurrentHistory() override;
+    void queueCurrentHistory(uint32_t lcl) override;
 
     void takeSnapshotAndPublish(HistoryArchiveState const& has);
 
     size_t publishQueuedHistory() override;
 
-    void maybeCheckpointComplete() override;
+    void maybeCheckpointComplete(uint32_t lcl) override;
     void dropSQLBasedPublish() override;
 
     std::vector<std::string>

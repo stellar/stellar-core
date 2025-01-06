@@ -98,7 +98,6 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
 {
     // For now, only keep metrics for the main thread. We can decide on what
     // metrics make sense when more background services are added later.
-    releaseAssert(threadIsMain());
 
     if (numEntries != 0)
     {
@@ -153,8 +152,6 @@ BucketSnapshotManager::updateCurrentSnapshot(
     SnapshotPtrT<LiveBucket>&& liveSnapshot,
     SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
 {
-    releaseAssert(threadIsMain());
-
     auto updateSnapshot = [numHistoricalSnapshots = mNumHistoricalSnapshots](
                               auto& currentSnapshot, auto& historicalSnapshots,
                               auto&& newSnapshot) {

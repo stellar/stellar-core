@@ -42,6 +42,14 @@ class BasicWork;
 class LedgerManagerImpl : public LedgerManager
 {
   protected:
+    struct CloseLedgerOutput
+    {
+        LedgerHeaderHistoryEntry ledgerHeader;
+        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
+        HistoryArchiveState has;
+        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
+    };
+
     Application& mApp;
     std::unique_ptr<XDROutputFileStream> mMetaStream;
     std::unique_ptr<XDROutputFileStream> mMetaDebugStream;
@@ -49,6 +57,8 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
+    // Cache LCL state, updates once a ledger (synchronized with
+    // mLedgerStateMutex)
     LedgerHeaderHistoryEntry mLastClosedLedger;
 
     // Read-only Soroban network configuration, accessible by main thread only.
@@ -64,6 +74,7 @@ class LedgerManagerImpl : public LedgerManager
     // variable is not synchronized, since it should only be used by one thread
     // (main or ledger close).
     std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfigForApply;
+    HistoryArchiveState mLastClosedLedgerHAS;
 
     SorobanMetrics mSorobanMetrics;
     medida::Timer& mTransactionApply;
@@ -83,13 +94,17 @@ class LedgerManagerImpl : public LedgerManager
     bool mRebuildInMemoryState{false};
     SearchableSnapshotConstPtr mReadOnlyLedgerStateSnapshot;
 
-    std::unique_ptr<VirtualClock::time_point> mStartCatchup;
+    // Use mutex to guard read access to LCL and Soroban network config
+    mutable std::recursive_mutex mLedgerStateMutex;
+
     medida::Timer& mCatchupDuration;
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
+    bool mCurrentlyApplyingLedger{false};
 
-    std::vector<MutableTxResultPtr> processFeesSeqNums(
-        ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
+
+    static std::vector<MutableTxResultPtr> processFeesSeqNums(
+        ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter, 
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);
 
@@ -102,16 +117,19 @@ class LedgerManagerImpl : public LedgerManager
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
-    void
+    CloseLedgerOutput
     ledgerClosed(AbstractLedgerTxn& ltx,
                  std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
                  uint32_t initialLedgerVers);
 
-    void storeCurrentLedger(LedgerHeader const& header, bool storeHeader,
-                            bool appendToCheckpoint);
-    void prefetchTransactionData(ApplicableTxSetFrame const& txSet);
-    void prefetchTxSourceIds(ApplicableTxSetFrame const& txSet);
-    void closeLedgerIf(LedgerCloseData const& ledgerData);
+    HistoryArchiveState storeCurrentLedger(LedgerHeader const& header,
+                                           bool storeHeader,
+                                           bool appendToCheckpoint);
+    static void
+    prefetchTransactionData(AbstractLedgerTxnParent& rootLtx, ApplicableTxSetFrame const& txSet, Config const& config);
+    static void
+    prefetchTxSourceIds(AbstractLedgerTxnParent& rootLtx,
+                        ApplicableTxSetFrame const& txSet, Config const& config);
 
     State mState;
 
@@ -127,6 +145,8 @@ class LedgerManagerImpl : public LedgerManager
     // as the actual ledger usage.
     void publishSorobanMetrics();
 
+    void updateCurrentLedgerState(CloseLedgerOutput const& output);
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -141,8 +161,11 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    void advanceLedgerPointers(LedgerHeader const& header,
-                               bool debugLog = true);
+    // Update in-memory cached LCL state (this only happens at the end of ledger
+    // close)
+    CloseLedgerOutput advanceLedgerPointers(LedgerHeader const& header,
+                                            HistoryArchiveState const& has,
+                                            bool debugLog = true);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
@@ -154,10 +177,12 @@ class LedgerManagerImpl : public LedgerManager
     // This call is read-only and hence `ltx` can be read-only.
     void updateNetworkConfig(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
+    void beginApply() override;
     State getState() const override;
     std::string getStateHuman() const override;
 
-    void valueExternalized(LedgerCloseData const& ledgerData) override;
+    void valueExternalized(LedgerCloseData const& ledgerData,
+                           bool isLatestSlot) override;
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
@@ -198,7 +223,10 @@ class LedgerManagerImpl : public LedgerManager
         std::shared_ptr<HistoryArchive> archive,
         std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) override;
 
-    void closeLedger(LedgerCloseData const& ledgerData) override;
+    void closeLedger(LedgerCloseData const& ledgerData,
+                     bool calledViaExternalize) override;
+    void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
+                             LedgerCloseData const& ledgerData);
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
 
@@ -212,5 +240,10 @@ class LedgerManagerImpl : public LedgerManager
 
     SorobanMetrics& getSorobanMetrics() override;
     SearchableSnapshotConstPtr getCurrentLedgerStateSnaphot() override;
+    virtual bool
+    isApplying() const override
+    {
+        return mCurrentlyApplyingLedger;
+    }
 };
 }

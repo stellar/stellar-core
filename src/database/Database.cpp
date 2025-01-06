@@ -216,7 +216,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         Upgrades::dropSupportUpgradeHistory(*this);
         break;
     case 24:
-        getSession() << "DROP TABLE IF EXISTS pubsub;";
+        getRawSession() << "DROP TABLE IF EXISTS pubsub;";
         mApp.getPersistentState().migrateToSlotStateTable();
         break;
     default:

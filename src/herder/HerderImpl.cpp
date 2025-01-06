@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderImpl.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -14,9 +16,6 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnHeader.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -249,10 +248,6 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     // start timing next externalize from this point
     mLastExternalize = mApp.getClock().now();
 
-    // In order to update the transaction queue we need to get the
-    // applied transactions.
-    updateTransactionQueue(mPendingEnvelopes.getTxSet(value.txSetHash));
-
     // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
     auto minSlotToRemember = getMinLedgerSeqToRemember();
@@ -359,7 +354,7 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
         writeDebugTxSet(ledgerData);
     }
 
-    mLedgerManager.valueExternalized(ledgerData);
+    mLedgerManager.valueExternalized(ledgerData, isLatestSlot);
 }
 
 void
@@ -435,6 +430,15 @@ recordExternalizeAndCheckCloseTimeDrift(
 }
 
 void
+HerderImpl::beginApply()
+{
+    // Tx set might be applied async: in this case, cancel the timer. It'll be
+    // restarted when the tx set is applied. This is needed to not mess with
+    // Herder's out of sync recovery mechanism.
+    mTrackingTimer.cancel();
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
@@ -476,10 +480,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 
         // Check to see if quorums have changed and we need to reanalyze.
         checkAndMaybeReanalyzeQuorumMap();
-
-        // heart beat *after* doing all the work (ensures that we do not include
-        // the overhead of externalization in the way we track SCP)
-        trackingHeartBeat();
     }
     else
     {
@@ -1136,16 +1136,31 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
 }
 
 void
-HerderImpl::lastClosedLedgerIncreased(bool latest)
+HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
 {
+    releaseAssert(threadIsMain());
+
     maybeSetupSorobanQueue(
         mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
 
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
 
+    // In order to update the transaction queue we need to get the
+    // applied transactions.
+    updateTransactionQueue(txSet);
+
+    // If we're in sync and there are no buffered ledgers to apply, trigger next
+    // ledger
     if (latest)
     {
+        // Re-start heartbeat tracking _after_ applying the most up-to-date
+        // ledger. This guarantees out-of-sync timer won't fire while we have
+        // ledgers to apply.
+        trackingHeartBeat();
+
+        // Ensure out of sync recovery did not get triggered while we were
+        // applying
         releaseAssert(isTracking());
         releaseAssert(trackingConsensusLedgerIndex() ==
                       mLedgerManager.getLastClosedLedgerNum());
@@ -1158,6 +1173,10 @@ HerderImpl::lastClosedLedgerIncreased(bool latest)
 void
 HerderImpl::setupTriggerNextLedger()
 {
+    // Invariant: core proceeds to vote for the next ledger only when it's _not_
+    // applying to ensure block production does not conflict with ledger close.
+    releaseAssert(!mLedgerManager.isApplying());
+
     // Invariant: tracking is equal to LCL when we trigger. This helps ensure
     // core emits SCP messages only for slots it can fully validate
     // (any closed ledger is fully validated)
@@ -1301,8 +1320,8 @@ uint32_t
 HerderImpl::getMostRecentCheckpointSeq()
 {
     auto lastIndex = trackingConsensusLedgerIndex();
-    return mApp.getHistoryManager().firstLedgerInCheckpointContaining(
-        lastIndex);
+    return HistoryManager::firstLedgerInCheckpointContaining(lastIndex,
+                                                             mApp.getConfig());
 }
 
 void
@@ -1347,8 +1366,18 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
+    // If applying, the next ledger will trigger voting
+    if (mLedgerManager.isApplying())
+    {
+        CLOG_DEBUG(Herder, "triggerNextLedger: skipping (applying) : {}",
+                   mApp.getStateHuman());
+        return;
+    }
+
     // our first choice for this round's set is all the tx we have collected
     // during last few ledger closes
+    // Since we are not currently applying, it is safe to use read-only LCL, as
+    // it's guaranteed to be up-to-date
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     PerPhaseTransactionList txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
@@ -1531,7 +1560,7 @@ HerderImpl::getUpgradesJson()
 void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
-    auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto header = mLedgerManager.getLastClosedLedgerHeader().header;
     setTrackingSCPState(header.ledgerSeq, header.scpValue,
                         /* isTrackingNetwork */ true);
 }
@@ -2262,6 +2291,7 @@ HerderImpl::purgeOldPersistedTxSets()
 void
 HerderImpl::trackingHeartBeat()
 {
+    releaseAssert(threadIsMain());
     if (mApp.getConfig().MANUAL_CLOSE)
     {
         return;
@@ -2326,6 +2356,15 @@ void
 HerderImpl::herderOutOfSync()
 {
     ZoneScoped;
+    // State switch from "tracking" to "out of sync" should only happen if there
+    // are no ledgers queued to be applied. If there are ledgers queued, it's
+    // possible the rest of the network is waiting for this node to vote. In
+    // this case we should _still_ remain in tracking and emit nomination; If
+    // the nodes does not hear anything from the network after that, then node
+    // can go into out of sync recovery.
+    releaseAssert(threadIsMain());
+    releaseAssert(!mLedgerManager.isApplying());
+
     CLOG_WARNING(Herder, "Lost track of consensus");
 
     auto s = getJsonInfo(20).toStyledString();

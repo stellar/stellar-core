@@ -70,6 +70,11 @@ class BucketManager : NonMovableOrCopyable
 
     static std::string const kLockFilename;
 
+    // NB: ideally, BucketManager should have no access to mApp, as it's too
+    // dangerous in the context of parallel application. BucketManager is quite
+    // bloated, with lots of legacy code, so to ensure safety, annotate all
+    // functions using mApp with `releaseAssert(threadIsMain())` and avoid
+    // accessing mApp in the background.
     Application& mApp;
     std::unique_ptr<LiveBucketList> mLiveBucketList;
     std::unique_ptr<HotArchiveBucketList> mHotArchiveBucketList;
@@ -124,7 +129,7 @@ class BucketManager : NonMovableOrCopyable
 
     std::atomic<bool> mIsShutdown{false};
 
-    void cleanupStaleFiles();
+    void cleanupStaleFiles(HistoryArchiveState const& has);
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
 
@@ -260,7 +265,7 @@ class BucketManager : NonMovableOrCopyable
     // not immediately cause the buckets to delete themselves, if someone else
     // is using them via a shared_ptr<>, but the BucketManager will no longer
     // independently keep them alive.
-    void forgetUnreferencedBuckets();
+    void forgetUnreferencedBuckets(HistoryArchiveState const& has);
 
     // Feed a new batch of entries to the bucket list. This interface expects to
     // be given separate init (created) and live (updated) entry vectors. The
@@ -290,7 +295,8 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void startBackgroundEvictionScan(uint32_t ledgerSeq, uint32_t ledgerVers);
+    void startBackgroundEvictionScan(uint32_t ledgerSeq, uint32_t ledgerVers,
+                                     SorobanNetworkConfig const& cfg);
 
     // Returns a pair of vectors representing entries evicted this ledger, where
     // the first vector constains all deleted keys (TTL and temporary), and
@@ -300,7 +306,8 @@ class BucketManager : NonMovableOrCopyable
     EvictedStateVectors
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
                                   LedgerKeySet const& modifiedKeys,
-                                  uint32_t ledgerVers);
+                                  uint32_t ledgerVers,
+                                  SorobanNetworkConfig& networkConfig);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;
@@ -325,7 +332,8 @@ class BucketManager : NonMovableOrCopyable
 
     // Return the set of buckets referenced by the BucketList, LCL HAS,
     // and publish queue.
-    std::set<Hash> getAllReferencedBuckets() const;
+    std::set<Hash>
+    getAllReferencedBuckets(HistoryArchiveState const& has) const;
 
     // Check for missing bucket files that would prevent `assumeState` from
     // succeeding
@@ -382,7 +390,8 @@ class BucketManager : NonMovableOrCopyable
 
     // Schedule a Work class that verifies the hashes of all referenced buckets
     // on background threads.
-    std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork();
+    std::shared_ptr<BasicWork>
+    scheduleVerifyReferencedBucketsWork(HistoryArchiveState const& has);
 
     Config const& getConfig() const;
 

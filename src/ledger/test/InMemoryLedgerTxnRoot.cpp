@@ -140,7 +140,7 @@ void InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
 SessionWrapper&
 InMemoryLedgerTxnRoot::getSession() const
 {
-    throw std::runtime_error("ERROR!!");
+    throw std::runtime_error("called InMemoryLedgerTxnRoot::getSession");
 }
 
 #ifdef BUILD_TESTS

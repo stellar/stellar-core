@@ -62,6 +62,10 @@ class PendingEnvelopes
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetXDRFrameConstPtr>;
     // recent txsets
+    // Note on thread-safety: the cache must be maintained strictly by the main
+    // thread Other threads may reference TxSetXDRFrameConstPtr, which is safe,
+    // because shared_ptr ref counting is thread-safe TxSetXDRFrameConstPtr
+    // itself is immutable, and thus thread-safe
     RandomEvictionCache<Hash, TxSetFramCacheItem> mTxSetCache;
     // weak references to all known txsets
     UnorderedMap<Hash, std::weak_ptr<TxSetXDRFrame const>> mKnownTxSets;

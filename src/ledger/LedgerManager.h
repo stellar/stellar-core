@@ -64,6 +64,7 @@ class LedgerManager
     };
 
     virtual void moveToSynced() = 0;
+    virtual void beginApply() = 0;
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
@@ -90,7 +91,8 @@ class LedgerManager
     // close event. This is the most common cause of LedgerManager advancing
     // from one ledger to the next: the network reached consensus on
     // `ledgerData`.
-    virtual void valueExternalized(LedgerCloseData const& ledgerData) = 0;
+    virtual void valueExternalized(LedgerCloseData const& ledgerData,
+                                   bool isLatestSlot) = 0;
 
     // Return the LCL header and (complete, immutable) hash.
     virtual LedgerHeaderHistoryEntry const&
@@ -101,6 +103,7 @@ class LedgerManager
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
+    // This function return of copy of latest HAS, so it's thread-safe.
     virtual HistoryArchiveState getLastClosedLedgerHAS() = 0;
 
     // Return the sequence number of the LCL.
@@ -174,9 +177,18 @@ class LedgerManager
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of
-    // `valueExternalized()`; this method is present in the public interface to
-    // permit testing.
-    virtual void closeLedger(LedgerCloseData const& ledgerData) = 0;
+    // `valueExternalized()` during normal operation (in which case
+    // `calledViaExternalize` should be set to true), but can also be called
+    // directly by catchup (with `calledViaExternalize` false in this case).
+    virtual void closeLedger(LedgerCloseData const& ledgerData,
+                             bool calledViaExternalize) = 0;
+#ifdef BUILD_TESTS
+    void
+    closeLedger(LedgerCloseData const& ledgerData)
+    {
+        closeLedger(ledgerData, /* externalize */ false);
+    }
+#endif
 
     // deletes old entries stored in the database
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
@@ -192,5 +204,7 @@ class LedgerManager
     virtual ~LedgerManager()
     {
     }
+
+    virtual bool isApplying() const = 0;
 };
 }
