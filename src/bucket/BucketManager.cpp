@@ -1370,7 +1370,8 @@ BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
     {
-        HistoryStateBucket const& hsb = has.currentBuckets.at(i - 1);
+        HistoryStateBucket<LiveBucket> const& hsb =
+            has.currentBuckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
                             fmt::format(FMT_STRING("snap {:d}"), i - 1));
         hashes.emplace_back(hexToBin256(hsb.curr),
@@ -1547,7 +1548,7 @@ BucketManager::visitLedgerEntries(
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        HistoryStateBucket const& hsb = has.currentBuckets.at(i);
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr),
                             fmt::format(FMT_STRING("curr {:d}"), i));
         hashes.emplace_back(hexToBin256(hsb.snap),
