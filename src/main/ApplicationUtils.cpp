@@ -492,7 +492,7 @@ dumpStateArchivalStatistics(Config cfg)
     std::vector<Hash> hashes;
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        HistoryStateBucket const& hsb = has.currentBuckets.at(i);
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr));
         hashes.emplace_back(hexToBin256(hsb.snap));
     }
