@@ -406,7 +406,23 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
         bl = mApp.getBucketManager().getLiveBucketList();
     }
 
-    HistoryArchiveState has(ledger, bl, mApp.getConfig().NETWORK_PASSPHRASE);
+    HistoryArchiveState has;
+    auto ledgerVers = mApp.getLedgerManager()
+                          .getLastClosedLedgerHeader()
+                          .header.ledgerVersion;
+    if (protocolVersionIsBefore(
+            ledgerVers,
+            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        auto hotBl = mApp.getBucketManager().getHotArchiveBucketList();
+        has = HistoryArchiveState(ledger, bl, hotBl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
+    else
+    {
+        has = HistoryArchiveState(ledger, bl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
 
     CLOG_DEBUG(History, "Queueing publish state for ledger {}", ledger);
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
