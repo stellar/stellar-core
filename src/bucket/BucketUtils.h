@@ -72,22 +72,25 @@ struct MergeCounters
 // iterator as if that key was the last entry evicted
 struct EvictionResultEntry
 {
-    LedgerKey key;
+    LedgerEntry entry;
     EvictionIterator iter;
     uint32_t liveUntilLedger;
 
-    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+    EvictionResultEntry(LedgerEntry const& entry, EvictionIterator const& iter,
                         uint32_t liveUntilLedger)
-        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+        : entry(entry), iter(iter), liveUntilLedger(liveUntilLedger)
     {
     }
 };
 
-struct EvictionResult
+// Hold the list of entries eligible for eviction on the given ledger. Note that
+// if these entries are updated during the given ledger, they may not actually
+// be evicted.
+struct EvictionResultCandidates
 {
-    // List of keys eligible for eviction in the order in which they occur in
+    // List of entries eligible for eviction in the order in which they occur in
     // the bucket
-    std::list<EvictionResultEntry> eligibleKeys{};
+    std::list<EvictionResultEntry> eligibleEntries{};
 
     // Eviction iterator at the end of the scan region
     EvictionIterator endOfRegionIterator;
@@ -98,7 +101,7 @@ struct EvictionResult
     // State archival settings that this scan is based on
     StateArchivalSettings initialSas;
 
-    EvictionResult(StateArchivalSettings const& sas) : initialSas(sas)
+    EvictionResultCandidates(StateArchivalSettings const& sas) : initialSas(sas)
     {
     }
 
@@ -111,6 +114,16 @@ struct EvictionResult
     // off of older settings.
     bool isValid(uint32_t currLedger,
                  StateArchivalSettings const& currSas) const;
+};
+
+// Holds the final set of evicted state for the given ledger. deletedKeys
+// holds the keys of evicted temporary entries, their TTLs, as well as the TTLs
+// of evicted persistent entries. archivedEntries holds evicted persistent
+// entries.
+struct EvictedStateVectors
+{
+    std::vector<LedgerKey> deletedKeys;
+    std::vector<LedgerEntry> archivedEntries;
 };
 
 struct EvictionCounters

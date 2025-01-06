@@ -94,8 +94,8 @@ MergeCounters::operator==(MergeCounters const& other) const
 // Check that eviction scan is based off of current ledger snapshot and that
 // archival settings have not changed
 bool
-EvictionResult::isValid(uint32_t currLedger,
-                        StateArchivalSettings const& currSas) const
+EvictionResultCandidates::isValid(uint32_t currLedger,
+                                  StateArchivalSettings const& currSas) const
 {
     return initialLedger == currLedger &&
            initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&

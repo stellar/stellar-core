@@ -552,6 +552,21 @@ for_versions(uint32 from, uint32 to, Config const& cfg,
 }
 
 void
+for_versions(uint32 from, uint32 to, Config const& cfg,
+             std::function<void(Config&)> const& f)
+{
+    if (from > to)
+    {
+        return;
+    }
+    auto versions = std::vector<uint32>{};
+    versions.resize(to - from + 1);
+    std::iota(std::begin(versions), std::end(versions), from);
+
+    for_versions(versions, cfg, f);
+}
+
+void
 for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
@@ -572,6 +587,22 @@ for_versions(std::vector<uint32> const& versions, Application& app,
 void
 for_versions(std::vector<uint32> const& versions, Config const& cfg,
              std::function<void(Config const&)> const& f)
+{
+    REQUIRE(gMustUseTestVersionsWrapper);
+
+    if (std::find(versions.begin(), versions.end(), gTestingVersion) !=
+        versions.end())
+    {
+        REQUIRE(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION == gTestingVersion);
+        Config vcfg = cfg;
+        vcfg.LEDGER_PROTOCOL_VERSION = gTestingVersion;
+        f(vcfg);
+    }
+}
+
+void
+for_versions(std::vector<uint32> const& versions, Config const& cfg,
+             std::function<void(Config&)> const& f)
 {
     REQUIRE(gMustUseTestVersionsWrapper);
 
