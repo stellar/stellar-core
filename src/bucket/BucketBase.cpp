@@ -393,7 +393,7 @@ BucketBase<BucketT, IndexT>::merge(
     }
     if (countMergeEvents)
     {
-        bucketManager.incrMergeCounters(mc);
+        bucketManager.incrMergeCounters<BucketT>(mc);
     }
 
     std::vector<Hash> shadowHashes;

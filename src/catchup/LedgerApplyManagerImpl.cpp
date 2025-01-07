@@ -266,9 +266,8 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
 }
 
 void
-LedgerApplyManagerImpl::startCatchup(
-    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
+LedgerApplyManagerImpl::startCatchup(CatchupConfiguration configuration,
+                                     std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -293,7 +292,7 @@ LedgerApplyManagerImpl::startCatchup(
     // NB: if WorkScheduler is aborting this returns nullptr,
     // which means we don't "really" start catchup.
     mCatchupWork = mApp.getWorkScheduler().scheduleWork<CatchupWork>(
-        configuration, bucketsToRetain, archive);
+        configuration, archive);
 }
 
 std::string
@@ -445,7 +444,7 @@ LedgerApplyManagerImpl::startOnlineCatchup()
     auto hash = std::make_optional<Hash>(lcd.getTxSet()->previousLedgerHash());
     startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
                   getCatchupCount(), CatchupConfiguration::Mode::ONLINE},
-                 nullptr, {});
+                 nullptr);
 }
 
 void

@@ -892,7 +892,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, archive, {});
+        app->getLedgerManager().startCatchup(cc, archive);
     }
     catch (std::invalid_argument const&)
     {
