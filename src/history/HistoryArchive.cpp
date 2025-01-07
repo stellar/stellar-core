@@ -241,24 +241,31 @@ HistoryArchiveState::getBucketListHash() const
     // relatively-different representations. Everything will explode if there is
     // any difference in these algorithms anyways, so..
 
-    SHA256 totalHash;
-    auto hashBuckets = [&totalHash](auto const& buckets) {
+    auto hashBuckets = [](auto const& buckets) {
+        SHA256 hash;
         for (auto const& level : buckets)
         {
             SHA256 levelHash;
             levelHash.add(hexToBin(level.curr));
             levelHash.add(hexToBin(level.snap));
-            totalHash.add(levelHash.finish());
+            hash.add(levelHash.finish());
         }
+
+        return hash.finish();
     };
 
-    hashBuckets(currentBuckets);
-    hashBuckets(hotArchiveBuckets);
+    if (hasHotArchiveBuckets())
+    {
+        SHA256 hash;
+        hash.add(hashBuckets(currentBuckets));
+        hash.add(hashBuckets(hotArchiveBuckets));
+        return hash.finish();
+    }
 
-    return totalHash.finish();
+    return hashBuckets(currentBuckets);
 }
 
-std::vector<std::string>
+HistoryArchiveState::BucketHashReturnT
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
     ZoneScoped;
@@ -266,9 +273,9 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     std::set<std::string> inhibit;
     uint256 zero;
     inhibit.insert(binToHex(zero));
-    std::vector<std::string> ret;
-    auto processBuckets = [&inhibit, &ret](auto const& buckets,
-                                           auto const& otherBuckets) {
+    auto processBuckets = [&inhibit](auto const& buckets,
+                                     auto const& otherBuckets) {
+        std::vector<std::string> ret;
         for (auto b : otherBuckets)
         {
             inhibit.insert(b.curr);
@@ -302,12 +309,12 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
                 }
             }
         }
+        return ret;
     };
 
-    processBuckets(currentBuckets, other.currentBuckets);
-    processBuckets(hotArchiveBuckets, other.hotArchiveBuckets);
-
-    return ret;
+    auto liveHashes = processBuckets(currentBuckets, other.currentBuckets);
+    auto hotHashes = processBuckets(hotArchiveBuckets, other.hotArchiveBuckets);
+    return BucketHashReturnT(std::move(liveHashes), std::move(hotHashes));
 }
 
 std::vector<std::string>
@@ -335,47 +342,48 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 {
     ZoneScoped;
     // This function assumes presence of required buckets to verify state
-    uint32_t minBucketVersion = 0;
-    bool nonEmptySeen = false;
-
-    auto validateBucketVersion = [&](uint32_t bucketVersion) {
-        if (bucketVersion < minBucketVersion)
-        {
-            CLOG_ERROR(History,
-                       "Incompatible bucket versions: expected version "
-                       "{} or higher, got {}",
-                       minBucketVersion, bucketVersion);
-            return false;
-        }
-        minBucketVersion = bucketVersion;
-        return true;
-    };
-
-    // Process bucket, return version
-    auto processBucket = [&](auto const& bucket) {
-        int32_t version = 0;
-        releaseAssert(bucket);
-        if (!bucket->isEmpty())
-        {
-            version = bucket->getBucketVersion();
-            if (!nonEmptySeen)
-            {
-                nonEmptySeen = true;
-            }
-        }
-        return version;
-    };
 
     auto validateBucketList = [&](auto const& buckets,
                                   uint32_t expectedLevels) {
+        // Get Bucket version and set nonEmptySeen
+        bool nonEmptySeen = false;
+        auto getVersionAndCheckEmpty = [&](auto const& bucket) {
+            int32_t version = 0;
+            releaseAssert(bucket);
+            if (!bucket->isEmpty())
+            {
+                version = bucket->getBucketVersion();
+                if (!nonEmptySeen)
+                {
+                    nonEmptySeen = true;
+                }
+            }
+            return version;
+        };
+
+        uint32_t minBucketVersion = 0;
+        auto validateBucketVersion = [&](uint32_t bucketVersion) {
+            if (bucketVersion < minBucketVersion)
+            {
+                CLOG_ERROR(History,
+                           "Incompatible bucket versions: expected version "
+                           "{} or higher, got {}",
+                           minBucketVersion, bucketVersion);
+                return false;
+            }
+            minBucketVersion = bucketVersion;
+            return true;
+        };
+
+        using BucketT =
+            typename std::decay_t<decltype(buckets)>::value_type::bucket_type;
+
         if (buckets.size() != expectedLevels)
         {
             CLOG_ERROR(History, "Invalid HAS: bucket list size mismatch");
             return false;
         }
 
-        using BucketT =
-            typename std::decay_t<decltype(buckets)>::value_type::bucket_type;
         for (uint32_t j = expectedLevels; j != 0; --j)
         {
 
@@ -388,8 +396,8 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
                 hexToBin256(level.curr));
             auto snap = app.getBucketManager().getBucketByHash<BucketT>(
                 hexToBin256(level.snap));
-            if (!validateBucketVersion(processBucket(snap)) ||
-                !validateBucketVersion(processBucket(curr)))
+            if (!validateBucketVersion(getVersionAndCheckEmpty(snap)) ||
+                !validateBucketVersion(getVersionAndCheckEmpty(curr)))
             {
                 return false;
             }
@@ -411,11 +419,13 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
             auto const& prev = buckets[i - 1];
             auto prevSnap = app.getBucketManager().getBucketByHash<BucketT>(
                 hexToBin256(prev.snap));
-            uint32_t prevSnapVersion = processBucket(prevSnap);
+            uint32_t prevSnapVersion = getVersionAndCheckEmpty(prevSnap);
 
             if (!nonEmptySeen)
             {
-                // No real buckets seen yet, move on
+                // We're iterating from the bottom up, so if we haven't seen a
+                // non-empty bucket yet, we can skip the check because the
+                // bucket is default initialized
                 continue;
             }
             else if (protocolVersionStartsFrom(

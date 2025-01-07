@@ -75,7 +75,6 @@ setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger, Application& app)
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
-                         std::set<std::shared_ptr<LiveBucket>> bucketsToRetain,
                          std::shared_ptr<HistoryArchive> archive)
     : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getLedgerManager().getLastClosedLedgerHAS()}
@@ -83,7 +82,6 @@ CatchupWork::CatchupWork(Application& app,
           mApp.getTmpDirManager().tmpDir(getName()))}
     , mCatchupConfiguration{catchupConfiguration}
     , mArchive{archive}
-    , mRetainedBuckets{bucketsToRetain}
 {
     if (mArchive)
     {
@@ -126,7 +124,8 @@ CatchupWork::doReset()
     ZoneScoped;
     mBucketsAppliedEmitted = false;
     mTransactionsVerifyEmitted = false;
-    mBuckets.clear();
+    mLiveBuckets.clear();
+    mHotBuckets.clear();
     mDownloadVerifyLedgersSeq.reset();
     mBucketVerifyApplySeq.reset();
     mTransactionsVerifyApplySeq.reset();
@@ -143,7 +142,6 @@ CatchupWork::doReset()
     mCurrentWork.reset();
     mHAS.reset();
     mBucketHAS.reset();
-    mRetainedBuckets.clear();
 }
 
 void
@@ -210,9 +208,10 @@ CatchupWork::downloadApplyBuckets()
     std::vector<std::shared_ptr<BasicWork>> seq;
     auto version = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
 
-    std::vector<std::string> hashes = mBucketHAS->differingBuckets(mLocalState);
+    auto hashes = mBucketHAS->differingBuckets(mLocalState);
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
-        mApp, mBuckets, hashes, *mDownloadDir, mArchive);
+        mApp, mLiveBuckets, mHotBuckets, hashes.live, hashes.hot, *mDownloadDir,
+        mArchive);
     seq.push_back(getBuckets);
 
     auto verifyHASCallback = [has = *mBucketHAS](Application& app) {
@@ -229,7 +228,7 @@ CatchupWork::downloadApplyBuckets()
     version = mVerifiedLedgerRangeStart.header.ledgerVersion;
 
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, *mBucketHAS, version);
+        mApp, mLiveBuckets, *mBucketHAS, version);
     seq.push_back(applyBuckets);
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
                                           seq, RETRY_NEVER);
@@ -472,7 +471,8 @@ CatchupWork::runCatchupStep()
                 mApp.getLedgerManager().setLastClosedLedger(
                     mVerifiedLedgerRangeStart);
                 mBucketsAppliedEmitted = true;
-                mBuckets.clear();
+                mLiveBuckets.clear();
+                mHotBuckets.clear();
                 mLastApplied =
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
 

@@ -22,9 +22,11 @@
 namespace stellar
 {
 
-VerifyBucketWork::VerifyBucketWork(
+template <typename BucketT>
+VerifyBucketWork<BucketT>::VerifyBucketWork(
     Application& app, std::string const& bucketFile, uint256 const& hash,
-    std::unique_ptr<LiveBucketIndex const>& index, OnFailureCallback failureCb)
+    std::unique_ptr<typename BucketT::IndexT const>& index,
+    OnFailureCallback failureCb)
     : BasicWork(app, "verify-bucket-hash-" + bucketFile, BasicWork::RETRY_NEVER)
     , mBucketFile(bucketFile)
     , mHash(hash)
@@ -33,8 +35,9 @@ VerifyBucketWork::VerifyBucketWork(
 {
 }
 
+template <typename BucketT>
 BasicWork::State
-VerifyBucketWork::onRun()
+VerifyBucketWork<BucketT>::onRun()
 {
     ZoneScoped;
     if (mDone)
@@ -50,8 +53,9 @@ VerifyBucketWork::onRun()
     return State::WORK_WAITING;
 }
 
+template <typename BucketT>
 void
-VerifyBucketWork::spawnVerifier()
+VerifyBucketWork<BucketT>::spawnVerifier()
 {
     std::string filename = mBucketFile;
     if (auto size = fs::size(filename);
@@ -90,9 +94,9 @@ VerifyBucketWork::spawnVerifier()
                 CLOG_INFO(History, "Verifying and indexing bucket {}",
                           binToHex(hash));
 
-                index = createIndex<LiveBucket>(
-                    app.getBucketManager(), filename, hash,
-                    app.getWorkerIOContext(), &hasher);
+                index =
+                    createIndex<BucketT>(app.getBucketManager(), filename, hash,
+                                         app.getWorkerIOContext(), &hasher);
                 releaseAssertOrThrow(index);
 
                 uint256 vHash = hasher.finish();
@@ -135,12 +139,16 @@ VerifyBucketWork::spawnVerifier()
         "VerifyBucket: start in background");
 }
 
+template <typename BucketT>
 void
-VerifyBucketWork::onFailureRaise()
+VerifyBucketWork<BucketT>::onFailureRaise()
 {
     if (mOnFailure)
     {
         mOnFailure();
     }
 }
+
+template class VerifyBucketWork<LiveBucket>;
+template class VerifyBucketWork<HotArchiveBucket>;
 }

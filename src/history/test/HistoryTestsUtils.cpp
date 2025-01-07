@@ -4,6 +4,9 @@
 
 #include "history/test/HistoryTestsUtils.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/HotArchiveBucketList.h"
 #include "catchup/CatchupRange.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
@@ -14,12 +17,14 @@
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/GlobalChecks.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
 #include "work/WorkScheduler.h"
@@ -31,6 +36,21 @@ namespace stellar
 {
 namespace historytestutils
 {
+
+namespace
+{
+void
+setConfigForArchival(Config& cfg)
+{
+    // Evict very aggressively, but only 1 entry at a time so that Hot
+    // Archive Buckets churn
+    cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+    cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+    cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+    cfg.TESTING_EVICTION_SCAN_SIZE = 100'000;
+    cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 1;
+}
+}
 
 std::string
 HistoryConfigurator::getArchiveDirName() const
@@ -124,36 +144,50 @@ RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
     return mCfg;
 }
 
-BucketOutputIteratorForTesting::BucketOutputIteratorForTesting(
+template <typename BucketT>
+BucketOutputIteratorForTesting<BucketT>::BucketOutputIteratorForTesting(
     std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc,
     asio::io_context& ctx)
-    : BucketOutputIterator{
+    : BucketOutputIterator<BucketT>{
           tmpDir, true, testutil::testBucketMetadata(protocolVersion),
           mc,     ctx,  /*doFsync=*/true}
 {
 }
 
+template <typename BucketT>
 std::pair<std::string, uint256>
-BucketOutputIteratorForTesting::writeTmpTestBucket()
+BucketOutputIteratorForTesting<BucketT>::writeTmpTestBucket()
 {
-    auto ledgerEntries =
-        LedgerTestUtils::generateValidUniqueLedgerEntries(NUM_ITEMS_PER_BUCKET);
-    auto bucketEntries =
-        LiveBucket::convertToBucketEntry(false, {}, ledgerEntries, {});
-    for (auto const& bucketEntry : bucketEntries)
+    auto generateEntries = [this]() {
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            auto le = LedgerTestUtils::generateValidUniqueLedgerEntries(
+                NUM_ITEMS_PER_BUCKET);
+            return BucketT::convertToBucketEntry(false, {}, le, {});
+        }
+        else
+        {
+            UnorderedSet<LedgerKey> empty;
+            auto keys = LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                {CONTRACT_CODE}, NUM_ITEMS_PER_BUCKET, empty);
+            return BucketT::convertToBucketEntry({}, {}, keys);
+        }
+    };
+
+    for (auto const& bucketEntry : generateEntries())
     {
-        put(bucketEntry);
+        this->put(bucketEntry);
     }
 
     // Finish writing and close the bucket file
-    REQUIRE(mBuf);
-    mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
-    mObjectsPut++;
-    mBuf.reset();
-    mOut.close();
+    REQUIRE(this->mBuf);
+    this->mOut.writeOne(*this->mBuf, &this->mHasher, &this->mBytesPut);
+    this->mObjectsPut++;
+    this->mBuf.reset();
+    this->mOut.close();
 
-    return std::pair<std::string, uint256>(mFilename.string(),
-                                           mHasher.finish());
+    return std::pair<std::string, uint256>(this->mFilename.string(),
+                                           this->mHasher.finish());
 };
 
 TestBucketGenerator::TestBucketGenerator(
@@ -164,9 +198,12 @@ TestBucketGenerator::TestBucketGenerator(
         mApp.getTmpDirManager().tmpDir("tmp-bucket-generator"));
 }
 
+template <typename BucketT>
 std::string
 TestBucketGenerator::generateBucket(TestBucketState state)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     uint256 hash = HashUtils::pseudoRandomForTesting();
     if (state == TestBucketState::FILE_NOT_UPLOADED)
     {
@@ -174,7 +211,7 @@ TestBucketGenerator::generateBucket(TestBucketState state)
         return binToHex(hash);
     }
     MergeCounters mc;
-    BucketOutputIteratorForTesting bucketOut{
+    BucketOutputIteratorForTesting<BucketT> bucketOut{
         mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc,
         mApp.getClock().getIOContext()};
     std::string filename;
@@ -381,7 +418,11 @@ CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
                                      bool startApp, Config::TestDbMode dbMode)
     : mClock(std::make_unique<VirtualClock>(mode))
     , mHistoryConfigurator(cg)
-    , mCfg(getTestConfig(0, dbMode))
+    , mCfg([&] {
+        auto cfg = getTestConfig(0, dbMode);
+        setConfigForArchival(cfg);
+        return cfg;
+    }())
     , mAppPtr(createTestApplication(*mClock,
                                     mHistoryConfigurator->configure(mCfg, true),
                                     /*newDB*/ true, /*startApp*/ false))
@@ -493,10 +534,13 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                10;
             res.writeBytes = 100'000;
             uint32_t inclusion = 100;
+
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE, res));
+                getApp(), stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE * 5,
+                res, {}, 0, rand_uniform(101, 2'000)));
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE, res));
+                getApp(), eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE * 5,
+                res, {}, 0, rand_uniform(101, 2'000)));
             check = true;
         }
     }
@@ -616,6 +660,19 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger,
             mBucketListAtLastPublish =
                 getApp().getBucketManager().getLiveBucketList();
         }
+    }
+
+    // Make sure the Hot Archive isn't empty
+    if (protocolVersionStartsFrom(
+            getApp()
+                .getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        releaseAssert(
+            getApp().getBucketManager().getHotArchiveBucketList().getSize() >=
+            1'000);
     }
 }
 
@@ -740,10 +797,12 @@ CatchupSimulation::createCatchupApplication(
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
+    setConfigForArchival(mCfgs.back());
     if (ledgerVersion)
     {
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;
     }
+
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),
@@ -765,7 +824,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
                                 : CatchupConfiguration::Mode::OFFLINE_BASIC;
     auto catchupConfiguration =
         CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT, mode};
-    lm.startCatchup(catchupConfiguration, nullptr, {});
+    lm.startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
     auto& lam = app->getLedgerApplyManager();
@@ -1119,5 +1178,10 @@ CatchupSimulation::restartApp()
     mClock = std::make_unique<VirtualClock>(mClock->getMode());
     mAppPtr = createTestApplication(*mClock, mCfg, /*newDB*/ false);
 }
+
+template std::string
+    TestBucketGenerator::generateBucket<LiveBucket>(TestBucketState);
+template std::string
+    TestBucketGenerator::generateBucket<HotArchiveBucket>(TestBucketState);
 }
 }
