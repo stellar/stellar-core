@@ -56,7 +56,6 @@ AppConnector::getSorobanNetworkConfigReadOnly() const
 SorobanNetworkConfig const&
 AppConnector::getSorobanNetworkConfigForApply() const
 {
-    // releaseAssert(!threadIsMain() || !mConfig.parallelLedgerClose());
     return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
 }
 
@@ -77,8 +76,6 @@ AppConnector::checkOnOperationApply(Operation const& operation,
                                     OperationResult const& opres,
                                     LedgerTxnDelta const& ltxDelta)
 {
-    // Only one thread can call this method
-    releaseAssert(threadIsMain() || mConfig.parallelLedgerClose());
     mApp.getInvariantManager().checkOnOperationApply(operation, opres,
                                                      ltxDelta);
 }
@@ -142,12 +139,4 @@ AppConnector::checkScheduledAndCache(
 {
     return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
 }
-
-LedgerHeaderHistoryEntry
-AppConnector::getLastClosedLedgerHeader() const
-{
-    // LCL is thread-safe (it's a copy)
-    return mApp.getLedgerManager().getLastClosedLedgerHeader();
-}
-
 }

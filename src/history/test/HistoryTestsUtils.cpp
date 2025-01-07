@@ -947,8 +947,6 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
                                           lcd.getLedgerSeq(), lcd.getTxSet());
     herder.getHerderSCPDriver().valueExternalized(
         lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
-
-    // TODO: crank the clock
 }
 
 void

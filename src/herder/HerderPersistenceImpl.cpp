@@ -236,9 +236,8 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
                                           XDROutputFileStream& scpHistory)
 {
     ZoneScoped;
-    // TODO: this may conflict with main thread, as this is done in the
-    // background (this is the case in master today, so can be fixed
-    // later).
+    // Subtle: changing these queries may cause conflicts with main thread
+    // https://github.com/stellar/stellar-core/issues/4589
 
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     size_t n = 0;

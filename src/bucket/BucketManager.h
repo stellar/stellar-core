@@ -36,6 +36,7 @@ class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
 enum class LedgerEntryTypeAndDurability : uint32_t;
+class SorobanNetworkConfig;
 
 struct HistoryArchiveState;
 
@@ -307,7 +308,7 @@ class BucketManager : NonMovableOrCopyable
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
                                   LedgerKeySet const& modifiedKeys,
                                   uint32_t ledgerVers,
-                                  SorobanNetworkConfig& networkConfig);
+                                  SorobanNetworkConfig const& networkConfig);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;

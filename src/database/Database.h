@@ -141,6 +141,8 @@ class Database : NonMovableOrCopyable
     // Save `vers` as schema version.
     void putSchemaVersion(unsigned long vers);
 
+    // Prepared statements cache may be accessed by mutliple threads (each using
+    // a different session), so use a mutex to synchronize access.
     std::mutex mutable mStatementsMutex;
 
   public:

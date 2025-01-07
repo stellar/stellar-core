@@ -7,7 +7,6 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
-#include "crypto/Hex.h"
 #include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"

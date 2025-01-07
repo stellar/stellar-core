@@ -18,6 +18,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Fs.h"
@@ -1080,7 +1081,7 @@ EvictedStateVectors
 BucketManager::resolveBackgroundEvictionScan(
     AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
     LedgerKeySet const& modifiedKeys, uint32_t ledgerVers,
-    SorobanNetworkConfig& networkConfig)
+    SorobanNetworkConfig const& networkConfig)
 {
     ZoneScoped;
     releaseAssert(mEvictionStatistics);

@@ -57,6 +57,5 @@ class AppConnector
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() const;
 
     medida::MetricsRegistry& getMetrics() const;
-    LedgerHeaderHistoryEntry getLastClosedLedgerHeader() const;
 };
 }

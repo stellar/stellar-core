@@ -524,7 +524,7 @@ CatchupWork::runCatchupStep()
                 // In this case we should actually have been caught-up during
                 // the replay process and, if judged successful, our LCL should
                 // be the one provided as well.
-                auto lastClosed =
+                auto& lastClosed =
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
                 releaseAssert(mLastApplied.hash == lastClosed.hash);
                 releaseAssert(mLastApplied.header == lastClosed.header);

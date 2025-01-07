@@ -221,15 +221,15 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         }
     }
 
-    auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     // when checking close time, start with what we have locally
-    lastCloseTime = lhhe.header.scpValue.closeTime;
+    lastCloseTime = lcl.header.scpValue.closeTime;
 
     // if this value is not for our local state,
     // perform as many checks as we can
-    if (slotIndex != (lhhe.header.ledgerSeq + 1))
+    if (slotIndex != (lcl.header.ledgerSeq + 1))
     {
-        if (slotIndex == lhhe.header.ledgerSeq)
+        if (slotIndex == lcl.header.ledgerSeq)
         {
             // previous ledger
             if (b.closeTime != lastCloseTime)
@@ -240,7 +240,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
                 return SCPDriver::kInvalidValue;
             }
         }
-        else if (slotIndex < lhhe.header.ledgerSeq)
+        else if (slotIndex < lcl.header.ledgerSeq)
         {
             // basic sanity check on older value
             if (b.closeTime >= lastCloseTime)
@@ -323,7 +323,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
         res = SCPDriver::kInvalidValue;
     }
-    else if (!checkAndCacheTxSetValid(*txSet, lhhe, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(*txSet, lcl, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
@@ -614,6 +614,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     std::set<TransactionFramePtr> aggSet;
 
     releaseAssert(!mLedgerManager.isApplying());
+    releaseAssert(threadIsMain());
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
     Hash candidatesHash;

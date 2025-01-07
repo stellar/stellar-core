@@ -591,7 +591,7 @@ ApplicationImpl::~ApplicationImpl()
     try
     {
         // First, shutdown ledger close queue _before_ shutting down all the
-        // subsystems This ensures that any ledger currently being closed
+        // subsystems. This ensures that any ledger currently being closed
         // finishes okay
         shutdownLedgerCloseThread();
         shutdownWorkScheduler();

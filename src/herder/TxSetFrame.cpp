@@ -528,7 +528,7 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
     ZoneScoped;
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
-    
+
     auto const& lclHeader =
         app.getLedgerManager().getLastClosedLedgerHeader().header;
     std::vector<bool> hadTxNotFittingLane;

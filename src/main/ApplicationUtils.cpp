@@ -271,7 +271,7 @@ setAuthenticatedLedgerHashPair(Application::pointer app,
 
     if (lm.isSynced())
     {
-        auto lhe = lm.getLastClosedLedgerHeader();
+        auto const& lhe = lm.getLastClosedLedgerHeader();
         tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
     }
     else

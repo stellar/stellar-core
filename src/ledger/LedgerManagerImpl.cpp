@@ -171,7 +171,8 @@ LedgerManagerImpl::beginApply()
 {
     // Go into "applying" state, this will prevent catchup from starting
     mCurrentlyApplyingLedger = true;
-    // Notify Herder that application star:ted, so it won't fire out of sync
+
+    // Notify Herder that application started, so it won't fire out of sync
     // timer
     mApp.getHerder().beginApply();
 }
@@ -252,7 +253,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
     auto output =
         ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr, /*initialLedgerVers*/ 0);
-    updateCurrentLedgerState(output);
+    advanceLedgerPointers(output);
 
     ltx.commit();
 }
@@ -385,8 +386,8 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     }
 
     // Step 4. Restore LedgerManager's internal state
-    auto output = advanceLedgerPointers(*latestLedgerHeader, has);
-    updateCurrentLedgerState(output);
+    auto output = advanceLedgerStateSnapshot(*latestLedgerHeader, has);
+    advanceLedgerPointers(output);
 
     // Maybe truncate checkpoint files if we're restarting after a crash
     // in closeLedger (in which case any modifications to the ledger state have
@@ -766,7 +767,10 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
         releaseAssert(latestQueuedToApply <= latestHeardFromNetwork);
     }
 
-    if (lcl == latestQueuedToApply)
+    // Without parallel ledger close, this should always be true
+    bool doneApplying = lcl == latestQueuedToApply;
+    releaseAssert(doneApplying || mApp.getConfig().parallelLedgerClose());
+    if (doneApplying)
     {
         mCurrentlyApplyingLedger = false;
     }
@@ -816,8 +820,17 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
-    auto prevHeader =
-        threadIsMain() ? getLastClosedLedgerHeader().header : header.current();
+    // Note: closeLedger should be able to work correctly based on ledger header
+    // stored in LedgerTxn. The issue is that in tests LedgerTxn is sometimes
+    // modified manually, which changes ledger header hash compared to the
+    // cached one and causes tests to fail.
+    LedgerHeader prevHeader = header.current();
+#ifdef BUILD_TESTS
+    if (threadIsMain())
+    {
+        prevHeader = getLastClosedLedgerHeader().header;
+    }
+#endif
     auto prevHash = xdrSha256(prevHeader);
 
     auto initialLedgerVers = header.current().ledgerVersion;
@@ -830,7 +843,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
 
     auto now = mApp.getClock().now();
     mLedgerAgeClosed.Update(now - mLastClose);
-    // mLastClose is only accessed by a single thread
+    // mLastClose is only accessed by a single thread, so no synchronization
+    // needed
     mLastClose = now;
     mLedgerAge.set_count(0);
 
@@ -913,9 +927,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     }
 
     // first, prefetch source accounts for txset, then charge fees
-    prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet, mApp.getConfig());
-    auto const mutableTxResults = processFeesSeqNums(
-        *applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
+    prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
+                        mApp.getConfig());
+    auto const mutableTxResults =
+        processFeesSeqNums(*applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
 
     // Subtle: after this call, `header` is invalidated, and is not safe to use
     auto txResultSet = applyTransactions(*applicableTxSet, mutableTxResults,
@@ -1008,7 +1023,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
         emitNextMeta();
     }
 
-    // The next 5 steps happen in a relatively non-obvious, subtle order.
+    // The next 7 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
     // be so subtle, but for the time being this is where we are.
     //
@@ -1034,7 +1049,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     //
     // 6. GC unreferenced buckets. Only do this once publishes are in progress.
     //
-    // 7. Finally, relfect newly closed ledger in LedgerManager's and Herder's
+    // 7. Finally, reflect newly closed ledger in LedgerManager's and Herder's
     // states: maybe move into SYNCED state, trigger next ledger, etc.
 
     // Step 1. Maybe queue the current checkpoint file for publishing; this
@@ -1063,31 +1078,31 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
 
     // Invoke completion handler on the _main_ thread: kick off publishing,
     // cleanup bucket files, notify herder to trigger next ledger
-    auto completionHandler =
-        [this, ledgerSeq, calledViaExternalize, ledgerData,
-         ledgerOutput = std::move(closeLedgerResult)]() mutable {
-            releaseAssert(threadIsMain());
-            updateCurrentLedgerState(ledgerOutput);
+    auto completionHandler = [this, ledgerSeq, calledViaExternalize, ledgerData,
+                              ledgerOutput =
+                                  std::move(closeLedgerResult)]() mutable {
+        releaseAssert(threadIsMain());
+        advanceLedgerPointers(ledgerOutput);
 
-            // Step 5. Maybe kick off publishing on complete checkpoint files
-            auto& hm = mApp.getHistoryManager();
-            hm.publishQueuedHistory();
-            hm.logAndUpdatePublishStatus();
+        // Step 5. Maybe kick off publishing on complete checkpoint files
+        auto& hm = mApp.getHistoryManager();
+        hm.publishQueuedHistory();
+        hm.logAndUpdatePublishStatus();
 
-            // Step 6. Clean up unreferenced buckets post-apply
-            {
-                // Ledger state might be updated at the same time, so protect GC
-                // call with state mutex
-                std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
-                mApp.getBucketManager().forgetUnreferencedBuckets(
-                    getLastClosedLedgerHAS());
-            }
+        // Step 6. Clean up unreferenced buckets post-apply
+        {
+            // Ledger state might be updated at the same time, so protect GC
+            // call with state mutex
+            std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
+            mApp.getBucketManager().forgetUnreferencedBuckets(
+                getLastClosedLedgerHAS());
+        }
 
-            // Step 7. Maybe set LedgerManager into synced state, maybe let
-            // Herder trigger next ledger
-            ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData);
-            CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
-        };
+        // Step 7. Maybe set LedgerManager into synced state, maybe let
+        // Herder trigger next ledger
+        ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData);
+        CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
+    };
 
     if (threadIsMain())
     {
@@ -1098,7 +1113,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
         mApp.postOnMainThread(completionHandler, "ledgerCloseComplete");
     }
 
-    maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(), closeLedgerTime);
+    maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
+                       closeLedgerTime);
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
                ledgerTimeSeconds.count());
@@ -1136,7 +1152,7 @@ LedgerManagerImpl::setLastClosedLedger(
     ltx.commit();
 
     mRebuildInMemoryState = false;
-    updateCurrentLedgerState(advanceLedgerPointers(lastClosed.header, has));
+    advanceLedgerPointers(advanceLedgerStateSnapshot(lastClosed.header, has));
 
     LedgerTxn ltx2(mApp.getLedgerTxnRoot());
     if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
@@ -1159,8 +1175,8 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     has.fromString(mApp.getPersistentState().getState(
         PersistentState::kHistoryArchiveState,
         mApp.getDatabase().getSession()));
-    auto output = advanceLedgerPointers(header, has, false);
-    updateCurrentLedgerState(output);
+    auto output = advanceLedgerStateSnapshot(header, has);
+    advanceLedgerPointers(output);
 }
 
 void
@@ -1307,7 +1323,7 @@ LedgerManagerImpl::getCurrentLedgerStateSnaphot()
 }
 
 void
-LedgerManagerImpl::updateCurrentLedgerState(CloseLedgerOutput const& output)
+LedgerManagerImpl::advanceLedgerPointers(CloseLedgerOutput const& output)
 {
     releaseAssert(threadIsMain());
     CLOG_DEBUG(
@@ -1322,9 +1338,8 @@ LedgerManagerImpl::updateCurrentLedgerState(CloseLedgerOutput const& output)
 }
 
 LedgerManagerImpl::CloseLedgerOutput
-LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
-                                         HistoryArchiveState const& has,
-                                         bool debugLog)
+LedgerManagerImpl::advanceLedgerStateSnapshot(LedgerHeader const& header,
+                                              HistoryArchiveState const& has)
 {
     auto ledgerHash = xdrSha256(header);
 
@@ -1509,8 +1524,9 @@ LedgerManagerImpl::processFeesSeqNums(
 }
 
 void
-LedgerManagerImpl::prefetchTxSourceIds(
-    AbstractLedgerTxnParent& ltx,ApplicableTxSetFrame const& txSet, Config const& config)
+LedgerManagerImpl::prefetchTxSourceIds(AbstractLedgerTxnParent& ltx,
+                                       ApplicableTxSetFrame const& txSet,
+                                       Config const& config)
 {
     ZoneScoped;
     if (config.PREFETCH_BATCH_SIZE > 0)
@@ -1528,8 +1544,9 @@ LedgerManagerImpl::prefetchTxSourceIds(
 }
 
 void
-LedgerManagerImpl::prefetchTransactionData(
-    AbstractLedgerTxnParent& ltx,ApplicableTxSetFrame const& txSet, Config const& config)
+LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
+                                           ApplicableTxSetFrame const& txSet,
+                                           Config const& config)
 {
     ZoneScoped;
     if (config.PREFETCH_BATCH_SIZE > 0)
@@ -1847,7 +1864,7 @@ LedgerManagerImpl::ledgerClosed(
         mApp.getBucketManager().snapshotLedger(lh);
         auto has = storeCurrentLedger(lh, /* storeHeader */ true,
                                       /* appendToCheckpoint */ true);
-        res = advanceLedgerPointers(lh, has);
+        res = advanceLedgerStateSnapshot(lh, has);
     });
 
     return res;

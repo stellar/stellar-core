@@ -869,7 +869,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
         auto& networkConfig =
-            app->getLedgerManager().getMutableSorobanNetworkConfig();
+            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
 
         uint32_t windowSize = networkConfig.stateArchivalSettings()
                                   .bucketListSizeWindowSampleSize;

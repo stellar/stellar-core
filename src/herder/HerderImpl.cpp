@@ -480,6 +480,15 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 
         // Check to see if quorums have changed and we need to reanalyze.
         checkAndMaybeReanalyzeQuorumMap();
+
+        // heart beat *after* doing all the work (ensures that we do not include
+        // the overhead of externalization in the way we track SCP)
+        // Note: this only makes sense in the context of synchronous ledger
+        // application on the main thread.
+        if (!mApp.getConfig().parallelLedgerClose())
+        {
+            trackingHeartBeat();
+        }
     }
     else
     {
@@ -1156,7 +1165,7 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
     {
         // Re-start heartbeat tracking _after_ applying the most up-to-date
         // ledger. This guarantees out-of-sync timer won't fire while we have
-        // ledgers to apply.
+        // ledgers to apply (applicable during parallel ledger close).
         trackingHeartBeat();
 
         // Ensure out of sync recovery did not get triggered while we were
@@ -1369,6 +1378,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // If applying, the next ledger will trigger voting
     if (mLedgerManager.isApplying())
     {
+        // This can only happen when closing ledgers in parallel
+        releaseAssert(mApp.getConfig().parallelLedgerClose());
         CLOG_DEBUG(Herder, "triggerNextLedger: skipping (applying) : {}",
                    mApp.getStateHuman());
         return;
@@ -1560,7 +1571,7 @@ HerderImpl::getUpgradesJson()
 void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
-    auto header = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
     setTrackingSCPState(header.ledgerSeq, header.scpValue,
                         /* isTrackingNetwork */ true);
 }
@@ -2360,7 +2371,7 @@ HerderImpl::herderOutOfSync()
     // are no ledgers queued to be applied. If there are ledgers queued, it's
     // possible the rest of the network is waiting for this node to vote. In
     // this case we should _still_ remain in tracking and emit nomination; If
-    // the nodes does not hear anything from the network after that, then node
+    // the node does not hear anything from the network after that, then node
     // can go into out of sync recovery.
     releaseAssert(threadIsMain());
     releaseAssert(!mLedgerManager.isApplying());

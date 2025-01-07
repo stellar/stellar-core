@@ -57,8 +57,7 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
-    // Cache LCL state, updates once a ledger (synchronized with
-    // mLedgerStateMutex)
+    // Cache LCL state, accessible only from main thread
     LedgerHeaderHistoryEntry mLastClosedLedger;
 
     // Read-only Soroban network configuration, accessible by main thread only.
@@ -74,6 +73,8 @@ class LedgerManagerImpl : public LedgerManager
     // variable is not synchronized, since it should only be used by one thread
     // (main or ledger close).
     std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfigForApply;
+
+    // Cache most recent HAS, accessible only from main thread
     HistoryArchiveState mLastClosedLedgerHAS;
 
     SorobanMetrics mSorobanMetrics;
@@ -94,17 +95,19 @@ class LedgerManagerImpl : public LedgerManager
     bool mRebuildInMemoryState{false};
     SearchableSnapshotConstPtr mReadOnlyLedgerStateSnapshot;
 
-    // Use mutex to guard read access to LCL and Soroban network config
+    // Use mutex to guard ledger state during apply
     mutable std::recursive_mutex mLedgerStateMutex;
 
     medida::Timer& mCatchupDuration;
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
+
+    // Use in the context of parallel ledger close to indicate background thread
+    // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
 
-
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
-        ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter, 
+        ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);
 
@@ -125,11 +128,12 @@ class LedgerManagerImpl : public LedgerManager
     HistoryArchiveState storeCurrentLedger(LedgerHeader const& header,
                                            bool storeHeader,
                                            bool appendToCheckpoint);
-    static void
-    prefetchTransactionData(AbstractLedgerTxnParent& rootLtx, ApplicableTxSetFrame const& txSet, Config const& config);
-    static void
-    prefetchTxSourceIds(AbstractLedgerTxnParent& rootLtx,
-                        ApplicableTxSetFrame const& txSet, Config const& config);
+    static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
+                                        ApplicableTxSetFrame const& txSet,
+                                        Config const& config);
+    static void prefetchTxSourceIds(AbstractLedgerTxnParent& rootLtx,
+                                    ApplicableTxSetFrame const& txSet,
+                                    Config const& config);
 
     State mState;
 
@@ -145,7 +149,8 @@ class LedgerManagerImpl : public LedgerManager
     // as the actual ledger usage.
     void publishSorobanMetrics();
 
-    void updateCurrentLedgerState(CloseLedgerOutput const& output);
+    // Update cached ledger state values managed by this class.
+    void advanceLedgerPointers(CloseLedgerOutput const& output);
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -161,11 +166,12 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    // Update in-memory cached LCL state (this only happens at the end of ledger
-    // close)
-    CloseLedgerOutput advanceLedgerPointers(LedgerHeader const& header,
-                                            HistoryArchiveState const& has,
-                                            bool debugLog = true);
+    // Update ledger state snapshot, and construct CloseLedgerOutput return
+    // value, which contains all information relevant to ledger state (HAS,
+    // ledger header, network config, bucketlist snapshot).
+    CloseLedgerOutput
+    advanceLedgerStateSnapshot(LedgerHeader const& header,
+                               HistoryArchiveState const& has);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
