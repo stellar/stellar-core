@@ -1141,9 +1141,10 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
             // Close ledgers until evicted DEADENTRYs merge with
             // original INITENTRYs. This checks that BucketList
             // invariants are respected
-            for (auto initialDeadMerges =
-                     bm.readMergeCounters().mOldInitEntriesMergedWithNewDead;
-                 bm.readMergeCounters().mOldInitEntriesMergedWithNewDead <
+            for (auto initialDeadMerges = bm.readMergeCounters<LiveBucket>()
+                                              .mOldInitEntriesMergedWithNewDead;
+                 bm.readMergeCounters<LiveBucket>()
+                     .mOldInitEntriesMergedWithNewDead <
                  initialDeadMerges + tempEntries.size();
                  ++ledgerSeq)
             {

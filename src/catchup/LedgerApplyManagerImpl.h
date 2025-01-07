@@ -74,10 +74,8 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
 
     ProcessLedgerResult processLedger(LedgerCloseData const& ledgerData,
                                       bool isLatestSlot) override;
-    void startCatchup(
-        CatchupConfiguration configuration,
-        std::shared_ptr<HistoryArchive> archive,
-        std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) override;
+    void startCatchup(CatchupConfiguration configuration,
+                      std::shared_ptr<HistoryArchive> archive) override;
 
     std::string getStatus() const override;
 

@@ -831,14 +831,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
 }
 
 void
-LedgerManagerImpl::startCatchup(
-    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
+LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
+                                std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
-    mApp.getLedgerApplyManager().startCatchup(configuration, archive,
-                                              bucketsToRetain);
+    mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 
 uint64_t
@@ -1929,7 +1927,7 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
     HistoryArchiveState has;
     if (protocolVersionStartsFrom(
             header.ledgerVersion,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         auto hotBl = mApp.getBucketManager().getHotArchiveBucketList();
         has = HistoryArchiveState(header.ledgerSeq, bl, hotBl,

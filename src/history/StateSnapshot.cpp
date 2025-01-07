@@ -120,13 +120,25 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
     addIfExists(mTransactionResultSnapFile);
     addIfExists(mSCPHistorySnapFile);
 
-    for (auto const& hash : mLocalState.differingBuckets(other))
+    auto hashes = mLocalState.differingBuckets(other);
+
+    for (auto const& hash : hashes.live)
     {
         auto b = mApp.getBucketManager().getBucketByHash<LiveBucket>(
             hexToBin256(hash));
         releaseAssert(b);
         addIfExists(std::make_shared<FileTransferInfo>(*b));
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    for (auto const& hash : hashes.hot)
+    {
+        auto b = mApp.getBucketManager().getBucketByHash<HotArchiveBucket>(
+            hexToBin256(hash));
+        releaseAssert(b);
+        addIfExists(std::make_shared<FileTransferInfo>(*b));
+    }
+#endif
 
     return files;
 }

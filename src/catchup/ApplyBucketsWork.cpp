@@ -190,11 +190,15 @@ ApplyBucketsWork::doWork()
 {
     ZoneScoped;
 
-    // Step 1: index buckets. Step 2: apply buckets. Step 3: assume state
+    // Step 1: index live buckets. Step 2: apply buckets. Step 3: assume state
     if (!mIndexBucketsWork)
     {
-        // Spawn indexing work for the first time
-        mIndexBucketsWork = addWork<IndexBucketsWork>(mBucketsToApply);
+        // Spawn indexing work for the first time. Hot Archive buckets aren't
+        // needed for apply (since we only store live state in SQL tables), so
+        // for now only index the live BL. AssumeStateWork will take care of
+        // index hot archive buckets later.
+        mIndexBucketsWork =
+            addWork<IndexBucketsWork<LiveBucket>>(mBucketsToApply);
         return State::WORK_RUNNING;
     }
 
