@@ -51,4 +51,6 @@ bool protocolVersionEquals(uint32_t protocolVersion,
                            ProtocolVersion equalsVersion);
 
 constexpr ProtocolVersion SOROBAN_PROTOCOL_VERSION = ProtocolVersion::V_20;
+constexpr ProtocolVersion PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION =
+    ProtocolVersion::V_23;
 }

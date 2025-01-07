@@ -6,19 +6,19 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "ad4e4f78e0ef6393e3c3f8dec293ee556975f6d875c693e7007d8743492bc519",
+                "hash": "055a504e9c7b73d7cee8d2f7eb24f884273bb4381e96fd8a4f5ac4b210d9c1b1",
                 "header": {
                     "ledgerVersion": 23,
-                    "previousLedgerHash": "fe02c7ce491811bb67777598e698a8f900bab0394eb867bce954de9e92ab3238",
+                    "previousLedgerHash": "eccc8c2717c84b51a5a64efae54330933b1a5e70c001cd8342d6073319298568",
                     "scpValue": {
-                        "txSetHash": "fa9e787622c23e48d464a24a9afd46003a24aa2e0a6174da2d81d3bb7db6708a",
+                        "txSetHash": "d79023fe99fb77aed2df7663d843c20c0ea33d60a9be005905dadd7f206e4726",
                         "closeTime": 0,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "cfa36fec93baadf4370108f9e0f6c6cc8d5a431300610e855920e0436fd1f61045e632e45c1fa5bc01759f2d86d75b43f2c57a212e087becc32a4305e1b94400"
+                                "signature": "54566eb5e8c73f2068965562fe3f2363561bc7d7faa64bcfb11ad1c1b73d801fa073b03de529ea45b42c1967d6ac18dfe40e7c0f06d67a7f0eb7a5f90c678a0d"
                             }
                         }
                     },
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "fe02c7ce491811bb67777598e698a8f900bab0394eb867bce954de9e92ab3238",
+                    "previousLedgerHash": "eccc8c2717c84b51a5a64efae54330933b1a5e70c001cd8342d6073319298568",
                     "phases": [
                         {
                             "v": 0,
@@ -176,8 +176,11 @@
                             ]
                         },
                         {
-                            "v": 0,
-                            "v0Components": []
+                            "v": 1,
+                            "parallelTxsComponent": {
+                                "baseFee": null,
+                                "executionStages": []
+                            }
                         }
                     ]
                 }

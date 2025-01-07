@@ -940,11 +940,11 @@ TransactionQueue::isBanned(Hash const& hash) const
         });
 }
 
-TxSetTransactions
+TxFrameList
 TransactionQueue::getTransactions(LedgerHeader const& lcl) const
 {
     ZoneScoped;
-    TxSetTransactions txs;
+    TxFrameList txs;
 
     uint32_t const nextLedgerSeq = lcl.ledgerSeq + 1;
     int64_t const startingSeq = getStartingSequenceNumber(nextLedgerSeq);

@@ -1958,11 +1958,10 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        auto txSet = makeTxSetFromTransactions(
-                         TxSetTransactions{
-                             root.tx({txtest::createAccount(stranger, big)})},
-                         *app, 0, 0)
-                         .first;
+        auto txSet =
+            makeTxSetFromTransactions(
+                {root.tx({txtest::createAccount(stranger, big)})}, *app, 0, 0)
+                .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to activate
@@ -2085,9 +2084,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         uint64_t closeTime = 60 * 5 * ledgerSeq;
         TxSetXDRFrameConstPtr txSet =
             makeTxSetFromTransactions(
-                TxSetTransactions{
-                    root.tx({txtest::createAccount(stranger, big)})},
-                *app, 0, 0)
+                {root.tx({txtest::createAccount(stranger, big)})}, *app, 0, 0)
                 .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a

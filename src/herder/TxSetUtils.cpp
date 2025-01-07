@@ -35,8 +35,8 @@ namespace
 {
 // Target use case is to remove a subset of invalid transactions from a TxSet.
 // I.e. txSet.size() >= txsToRemove.size()
-TxSetTransactions
-removeTxs(TxSetTransactions const& txs, TxSetTransactions const& txsToRemove)
+TxFrameList
+removeTxs(TxFrameList const& txs, TxFrameList const& txsToRemove)
 {
     UnorderedSet<Hash> txsToRemoveSet;
     txsToRemoveSet.reserve(txsToRemove.size());
@@ -45,7 +45,7 @@ removeTxs(TxSetTransactions const& txs, TxSetTransactions const& txsToRemove)
         std::inserter(txsToRemoveSet, txsToRemoveSet.end()),
         [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
 
-    TxSetTransactions newTxs;
+    TxFrameList newTxs;
     newTxs.reserve(txs.size() - txsToRemove.size());
     for (auto const& tx : txs)
     {
@@ -105,17 +105,42 @@ TxSetUtils::hashTxSorter(TransactionFrameBasePtr const& tx1,
     return tx1->getFullHash() < tx2->getFullHash();
 }
 
-TxSetTransactions
-TxSetUtils::sortTxsInHashOrder(TxSetTransactions const& transactions)
+TxFrameList
+TxSetUtils::sortTxsInHashOrder(TxFrameList const& transactions)
 {
     ZoneScoped;
-    TxSetTransactions sortedTxs(transactions);
+    TxFrameList sortedTxs(transactions);
     std::sort(sortedTxs.begin(), sortedTxs.end(), TxSetUtils::hashTxSorter);
     return sortedTxs;
 }
 
+TxStageFrameList
+TxSetUtils::sortParallelTxsInHashOrder(TxStageFrameList const& stages)
+{
+    ZoneScoped;
+    TxStageFrameList sortedStages = stages;
+    for (auto& stage : sortedStages)
+    {
+        for (auto& thread : stage)
+        {
+            std::sort(thread.begin(), thread.end(), TxSetUtils::hashTxSorter);
+        }
+        std::sort(stage.begin(), stage.end(), [](auto const& a, auto const& b) {
+            releaseAssert(!a.empty() && !b.empty());
+            return hashTxSorter(a.front(), b.front());
+        });
+    }
+    std::sort(sortedStages.begin(), sortedStages.end(),
+              [](auto const& a, auto const& b) {
+                  releaseAssert(!a.empty() && !b.empty());
+                  releaseAssert(!a.front().empty() && !b.front().empty());
+                  return hashTxSorter(a.front().front(), b.front().front());
+              });
+    return sortedStages;
+}
+
 std::vector<std::shared_ptr<AccountTransactionQueue>>
-TxSetUtils::buildAccountTxQueues(TxSetTransactions const& txs)
+TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
 {
     ZoneScoped;
     UnorderedMap<AccountID, std::vector<TransactionFrameBasePtr>> actTxMap;
@@ -136,8 +161,8 @@ TxSetUtils::buildAccountTxQueues(TxSetTransactions const& txs)
     return queues;
 }
 
-TxSetTransactions
-TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
+TxFrameList
+TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset)
 {
@@ -149,7 +174,7 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
     ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
-    TxSetTransactions invalidTxs;
+    TxFrameList invalidTxs;
 
     for (auto const& tx : txs)
     {
@@ -165,11 +190,11 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
     return invalidTxs;
 }
 
-TxSetTransactions
-TxSetUtils::trimInvalid(TxSetTransactions const& txs, Application& app,
+TxFrameList
+TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
                         uint64_t lowerBoundCloseTimeOffset,
                         uint64_t upperBoundCloseTimeOffset,
-                        TxSetTransactions& invalidTxs)
+                        TxFrameList& invalidTxs)
 {
     invalidTxs = getInvalidTxList(txs, app, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset);

@@ -34,25 +34,25 @@ class TxSetUtils
     static bool hashTxSorter(TransactionFrameBasePtr const& tx1,
                              TransactionFrameBasePtr const& tx2);
 
-    static TxSetTransactions
-    sortTxsInHashOrder(TxSetTransactions const& transactions);
+    static TxFrameList sortTxsInHashOrder(TxFrameList const& transactions);
+    static TxStageFrameList
+    sortParallelTxsInHashOrder(TxStageFrameList const& stages);
 
     static std::vector<std::shared_ptr<AccountTransactionQueue>>
-    buildAccountTxQueues(TxSetTransactions const& txs);
+    buildAccountTxQueues(TxFrameList const& txs);
 
     // Returns transactions from a TxSet that are invalid. If
     // returnEarlyOnFirstInvalidTx is true, return immediately if an invalid
     // transaction is found (instead of finding all of them), this is useful for
     // checking if a TxSet is valid.
-    static TxSetTransactions
-    getInvalidTxList(TxSetTransactions const& txs, Application& app,
-                     uint64_t lowerBoundCloseTimeOffset,
-                     uint64_t upperBoundCloseTimeOffset);
+    static TxFrameList getInvalidTxList(TxFrameList const& txs,
+                                        Application& app,
+                                        uint64_t lowerBoundCloseTimeOffset,
+                                        uint64_t upperBoundCloseTimeOffset);
 
-    static TxSetTransactions trimInvalid(TxSetTransactions const& txs,
-                                         Application& app,
-                                         uint64_t lowerBoundCloseTimeOffset,
-                                         uint64_t upperBoundCloseTimeOffset,
-                                         TxSetTransactions& invalidTxs);
+    static TxFrameList trimInvalid(TxFrameList const& txs, Application& app,
+                                   uint64_t lowerBoundCloseTimeOffset,
+                                   uint64_t upperBoundCloseTimeOffset,
+                                   TxFrameList& invalidTxs);
 }; // class TxSetUtils
 } // namespace stellar

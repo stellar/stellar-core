@@ -1180,9 +1180,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             uint64_t closeTime = 60 * 5 * ledgerSeq;
 
             auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
-                TxSetTransactions{
-                    root.tx({txtest::createAccount(stranger, big)})},
-                *a, 0, 0);
+                {root.tx({txtest::createAccount(stranger, big)})}, *a, 0, 0);
 
             // On first iteration of advance, perform a ledger-protocol version
             // upgrade to the new protocol, to activate INITENTRY behaviour.
