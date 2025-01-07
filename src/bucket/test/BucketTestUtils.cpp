@@ -84,7 +84,13 @@ for_versions_with_differing_bucket_logic(
              1,
          static_cast<uint32_t>(
              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-         static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)},
+         static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+             ,
+         static_cast<uint32_t>(
+             LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)
+#endif
+        },
         cfg, f);
 }
 
@@ -256,9 +262,16 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                             restoredKeys.emplace_back(key);
                         }
                     }
+                    mTestRestoredEntries.insert(mTestRestoredEntries.end(),
+                                                restoredKeys.begin(),
+                                                restoredKeys.end());
+                    mTestArchiveEntries.insert(
+                        mTestArchiveEntries.end(),
+                        evictedState.archivedEntries.begin(),
+                        evictedState.archivedEntries.end());
                     mApp.getBucketManager().addHotArchiveBatch(
-                        mApp, lh, evictedState.archivedEntries, restoredKeys,
-                        {});
+                        mApp, lh, mTestArchiveEntries, mTestRestoredEntries,
+                        mTestDeletedEntries);
                 }
 
                 if (ledgerCloseMeta)
@@ -289,7 +302,14 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
         // Use the testing values.
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
+
         mUseTestEntries = false;
+        mTestInitEntries.clear();
+        mTestLiveEntries.clear();
+        mTestDeadEntries.clear();
+        mTestArchiveEntries.clear();
+        mTestRestoredEntries.clear();
+        mTestDeletedEntries.clear();
     }
     else
     {

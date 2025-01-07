@@ -17,6 +17,8 @@ namespace stellar
 class LiveBucketList : public BucketListBase<LiveBucket>
 {
   public:
+    using bucket_type = LiveBucket;
+
     // Reset Eviction Iterator position if an incoming spill or upgrade has
     // invalidated the previous position
     static void updateStartingEvictionIterator(EvictionIterator& iter,

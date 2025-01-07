@@ -14,20 +14,19 @@ namespace stellar
 class Bucket;
 class LiveBucketIndex;
 class BucketManager;
-class LiveBucket;
 
-class IndexBucketsWork : public Work
+template <class BucketT> class IndexBucketsWork : public Work
 {
     class IndexWork : public BasicWork
     {
-        std::shared_ptr<LiveBucket> mBucket;
-        std::unique_ptr<LiveBucketIndex const> mIndex;
+        std::shared_ptr<BucketT> mBucket;
+        std::unique_ptr<typename BucketT::IndexT const> mIndex;
         BasicWork::State mState{BasicWork::State::WORK_WAITING};
 
         void postWork();
 
       public:
-        IndexWork(Application& app, std::shared_ptr<LiveBucket> b);
+        IndexWork(Application& app, std::shared_ptr<BucketT> b);
 
       protected:
         State onRun() override;
@@ -35,14 +34,14 @@ class IndexBucketsWork : public Work
         void onReset() override;
     };
 
-    std::vector<std::shared_ptr<LiveBucket>> const& mBuckets;
+    std::vector<std::shared_ptr<BucketT>> const& mBuckets;
 
     bool mWorkSpawned{false};
     void spawnWork();
 
   public:
     IndexBucketsWork(Application& app,
-                     std::vector<std::shared_ptr<LiveBucket>> const& buckets);
+                     std::vector<std::shared_ptr<BucketT>> const& buckets);
 
   protected:
     State doWork() override;

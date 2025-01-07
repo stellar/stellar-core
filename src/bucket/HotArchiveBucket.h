@@ -27,11 +27,6 @@ class HotArchiveBucket
     : public BucketBase<HotArchiveBucket, HotArchiveBucketIndex>,
       public std::enable_shared_from_this<HotArchiveBucket>
 {
-    static std::vector<HotArchiveBucketEntry>
-    convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
-                         std::vector<LedgerKey> const& restoredEntries,
-                         std::vector<LedgerKey> const& deletedEntries);
-
   public:
     // Entry type that this bucket stores
     using EntryT = HotArchiveBucketEntry;
@@ -97,6 +92,11 @@ class HotArchiveBucket
 
     static std::shared_ptr<LoadT const>
     bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be);
+
+    static std::vector<HotArchiveBucketEntry>
+    convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
+                         std::vector<LedgerKey> const& restoredEntries,
+                         std::vector<LedgerKey> const& deletedEntries);
 
     friend class HotArchiveBucketSnapshot;
 };

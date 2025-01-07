@@ -37,11 +37,13 @@ class FileTransferInfo
     std::string getLocalDir(TmpDir const& localRoot) const;
 
   public:
-    FileTransferInfo(LiveBucket const& bucket)
+    template <typename BucketT>
+    FileTransferInfo(BucketT const& bucket)
         : mType(FileType::HISTORY_FILE_TYPE_BUCKET)
         , mHexDigits(binToHex(bucket.getHash()))
         , mLocalPath(bucket.getFilename().string())
     {
+        BUCKET_TYPE_ASSERT(BucketT);
     }
 
     FileTransferInfo(TmpDir const& snapDir, FileType const& snapType,
