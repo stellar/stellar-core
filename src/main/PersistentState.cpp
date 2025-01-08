@@ -100,26 +100,26 @@ PersistentState::migrateToSlotStateTable()
         auto prep = mApp.getDatabase().getPreparedStatement(
             "DELETE FROM storestate WHERE statename = :n;",
             mApp.getDatabase().getSession());
+        auto name = getStoreStateName(kLastSCPDataXDR, i);
 
         auto& st = prep.statement();
-        st.exchange(soci::use(getStoreStateName(kLastSCPDataXDR, i)));
+        st.exchange(soci::use(name));
         st.define_and_bind();
         st.execute(true);
     }
 
     // Migrate upgrade data
-    auto upgrades = getFromDb(getStoreStateName(kLedgerUpgrades),
-                              db.getSession(), kLCLTableName);
+    auto upgradeName = getStoreStateName(kLedgerUpgrades);
+    auto upgrades = getFromDb(upgradeName, db.getSession(), kLCLTableName);
     if (!upgrades.empty())
     {
-        updateDb(getStoreStateName(kLedgerUpgrades), upgrades, db.getSession(),
-                 kSlotTableName);
+        updateDb(upgradeName, upgrades, db.getSession(), kSlotTableName);
         auto prep = mApp.getDatabase().getPreparedStatement(
             "DELETE FROM storestate WHERE statename = :n;",
             mApp.getDatabase().getSession());
 
         auto& st = prep.statement();
-        st.exchange(soci::use(getStoreStateName(kLedgerUpgrades)));
+        st.exchange(soci::use(upgradeName));
         st.define_and_bind();
         st.execute(true);
     }
