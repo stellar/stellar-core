@@ -110,7 +110,7 @@ class CatchupManager
     // heard of.
     virtual uint32_t getLargestLedgerSeqHeard() const = 0;
 
-    virtual uint32_t getMaxScheduledToApply() = 0;
+    virtual uint32_t getMaxQueuedToApply() = 0;
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.

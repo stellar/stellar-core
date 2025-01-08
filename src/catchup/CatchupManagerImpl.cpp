@@ -241,7 +241,7 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData,
             message =
                 fmt::format(FMT_STRING("Waiting for ledger {:d} application to "
                                        "complete before starting catchup"),
-                            getMaxScheduledToApply());
+                            getMaxQueuedToApply());
         }
         // If the trigger ledger is behind the last ledger, that means we're
         // waiting for out of order ledgers, which should arrive quickly
@@ -401,7 +401,7 @@ CatchupManagerImpl::getLargestLedgerSeqHeard() const
 }
 
 uint32_t
-CatchupManagerImpl::getMaxScheduledToApply()
+CatchupManagerImpl::getMaxQueuedToApply()
 {
     releaseAssert(threadIsMain());
     updateLastQueuedToApply();

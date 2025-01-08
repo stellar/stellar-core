@@ -53,14 +53,19 @@ class CatchupManagerImpl : public CatchupManager
     // and CatchupManager rely on:
     //  - L (mLargestLedgerSeqHeard) = maximum ledger that core heard the
     //  network externalize, may or may not be applied.
-    //  - Q (mLastQueuedToApply) = Only applicable when
-    //  mConfig.parallelLedgerClose() == true. Maximum ledger that was
-    //  externalized by the network and passed to background thread for
-    //  application.
+    //  - Q (mLastQueuedToApply) = Tracks maximum ledger dequeued from
+    //  mSyncingLedgers and passed to apply -- either synchronously or posted to
+    //  background thread queue. Note: Member variable is an optional<> only
+    //  because it is lazily initialized after LCL, it's supposed to have a
+    //  definite value (>= LCL) from then on.
     //  - LCL = last closed ledger, the last ledger that was externalized, and
     //  applied by core.
-    //  - Core maintains the following invariace LCL <= Q <= L. Eventually,
-    //  every externalized ledger will be applied.
+    //  - Core maintains the following invariant: LCL <= Q <= L. New ledgers
+    //  cause each number to increment, from right to left. First externalize
+    //  enqueues a ledger in mSyncingLedgers, incrementing L. Then a ledger
+    //  is dequeued from mSyncingLedgers and sent to apply, incrementing Q
+    //  towards L. Then a ledger finishes apply, incrementing LCL towards Q.
+    //  Eventually every ledger passes through each of these phases.
     std::optional<uint32_t> mLastQueuedToApply;
     uint32_t mLargestLedgerSeqHeard;
 
@@ -100,7 +105,7 @@ class CatchupManagerImpl : public CatchupManager
     std::optional<LedgerCloseData> maybeGetNextBufferedLedgerToApply() override;
     std::optional<LedgerCloseData> maybeGetLargestBufferedLedger() override;
     uint32_t getLargestLedgerSeqHeard() const override;
-    uint32_t getMaxScheduledToApply() override;
+    uint32_t getMaxQueuedToApply() override;
 
     void syncMetrics() override;
 
