@@ -237,7 +237,8 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             CHECK(fs::exists(indexFilename));
 
             b.reset();
-            app->getBucketManager().forgetUnreferencedBuckets();
+            app->getBucketManager().forgetUnreferencedBuckets(
+                app->getLedgerManager().getLastClosedLedgerHAS());
             CHECK(!fs::exists(filename));
             CHECK(!fs::exists(indexFilename));
         };
@@ -260,7 +261,8 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 
         // This shouldn't change if we forget unreferenced buckets since
         // it's referenced by bucketlist.
-        app->getBucketManager().forgetUnreferencedBuckets();
+        app->getBucketManager().forgetUnreferencedBuckets(
+            app->getLedgerManager().getLastClosedLedgerHAS());
         CHECK(b1.use_count() == 3);
 
         // But if we mutate the curr bucket of the bucketlist, it should.
@@ -343,7 +345,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
                     {CONFIG_SETTING}, 10),
                 {});
-            bm.forgetUnreferencedBuckets();
+            bm.forgetUnreferencedBuckets(
+                app->getLedgerManager().getLastClosedLedgerHAS());
         } while (!LiveBucketList::levelShouldSpill(ledger, level - 1));
 
         // Check that the merge on level isn't committed (we're in
@@ -433,7 +436,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
                     {CONFIG_SETTING}, 100),
                 {});
 
-            bm.forgetUnreferencedBuckets();
+            bm.forgetUnreferencedBuckets(
+                app->getLedgerManager().getLastClosedLedgerHAS());
 
             HistoryArchiveState has(ledger, bl,
                                     app->getConfig().NETWORK_PASSPHRASE);
@@ -517,8 +521,10 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
         bl.resolveAnyReadyFutures();
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    bm.forgetUnreferencedBuckets();
-    auto bmRefBuckets = bm.getAllReferencedBuckets();
+    bm.forgetUnreferencedBuckets(
+        app->getLedgerManager().getLastClosedLedgerHAS());
+    auto bmRefBuckets = bm.getAllReferencedBuckets(
+        app->getLedgerManager().getLastClosedLedgerHAS());
     auto bmDirBuckets = bm.getBucketHashesInBucketDirForTesting();
 
     // Remove the 0 bucket in case it's "referenced"; it's never a file.
@@ -574,16 +580,18 @@ TEST_CASE_VERSIONS(
                     {CONFIG_SETTING}, 100),
                 {});
             clock.crank(false);
-            bm.forgetUnreferencedBuckets();
+            bm.forgetUnreferencedBuckets(
+                app->getLedgerManager().getLastClosedLedgerHAS());
         }
         // We should have published nothing and have the first
         // checkpoint still queued.
         REQUIRE(hm.getPublishSuccessCount() == 0);
-        REQUIRE(hm.getMinLedgerQueuedToPublish() == 7);
+        REQUIRE(HistoryManager::getMinLedgerQueuedToPublish(app->getConfig()) ==
+                7);
 
         auto oldReattachments =
             bm.readMergeCounters().mFinishedMergeReattachments;
-        auto HASs = hm.getPublishQueueStates();
+        auto HASs = HistoryManager::getPublishQueueStates(app->getConfig());
         REQUIRE(HASs.size() == 5);
         for (auto& has : HASs)
         {

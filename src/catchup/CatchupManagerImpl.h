@@ -22,6 +22,11 @@ class Work;
 
 class CatchupManagerImpl : public CatchupManager
 {
+    // Maximum number of ledgers that can be queued to apply (this only applies
+    // when Config.parallelLedgerClose() == true). If this number if exceeded,
+    // core stops scheduling new ledgers to apply, and goes into catchup mode.
+    static uint32_t const MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
+
     Application& mApp;
     std::shared_ptr<CatchupWork> mCatchupWork;
 
@@ -44,12 +49,26 @@ class CatchupManagerImpl : public CatchupManager
     std::map<uint32_t, LedgerCloseData> mSyncingLedgers;
     medida::Counter& mSyncingLedgersSize;
 
-    void addAndTrimSyncingLedgers(LedgerCloseData const& ledgerData);
+    // Conceptually, there are three ledger sequences that LedgerManager, Herder
+    // and CatchupManager rely on:
+    //  - L (mLargestLedgerSeqHeard) = maximum ledger that core heard the
+    //  network externalize, may or may not be applied.
+    //  - Q (mLastQueuedToApply) = Only applicable when
+    //  mConfig.parallelLedgerClose() == true. Maximum ledger that was
+    //  externalized by the network and passed to background thread for
+    //  application.
+    //  - LCL = last closed ledger, the last ledger that was externalized, and
+    //  applied by core.
+    //  - Core maintains the following invariace LCL <= Q <= L. Eventually,
+    //  every externalized ledger will be applied.
+    std::optional<uint32_t> mLastQueuedToApply;
+    uint32_t mLargestLedgerSeqHeard;
+
+    void updateLastQueuedToApply();
     void startOnlineCatchup();
     void trimSyncingLedgers();
     void tryApplySyncingLedgers();
     uint32_t getCatchupCount();
-    uint32_t mLargestLedgerSeqHeard;
     CatchupMetrics mMetrics;
 
     // Check if catchup can't be performed due to local version incompatibility
@@ -61,7 +80,8 @@ class CatchupManagerImpl : public CatchupManager
     CatchupManagerImpl(Application& app);
     ~CatchupManagerImpl() override;
 
-    void processLedger(LedgerCloseData const& ledgerData) override;
+    ProcessLedgerResult processLedger(LedgerCloseData const& ledgerData,
+                                      bool isLatestSlot) override;
     void startCatchup(
         CatchupConfiguration configuration,
         std::shared_ptr<HistoryArchive> archive,
@@ -80,6 +100,7 @@ class CatchupManagerImpl : public CatchupManager
     std::optional<LedgerCloseData> maybeGetNextBufferedLedgerToApply() override;
     std::optional<LedgerCloseData> maybeGetLargestBufferedLedger() override;
     uint32_t getLargestLedgerSeqHeard() const override;
+    uint32_t getMaxScheduledToApply() override;
 
     void syncMetrics() override;
 
@@ -113,6 +134,14 @@ class CatchupManagerImpl : public CatchupManager
     getCatchupFatalFailure() const
     {
         return mCatchupFatalFailure;
+    }
+
+    std::optional<uint32_t> mMaxExternalizeApplyBuffer;
+    uint32_t
+    getMaxExternalizeApplyBuffer()
+    {
+        return mMaxExternalizeApplyBuffer ? *mMaxExternalizeApplyBuffer
+                                          : MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
     }
 #endif
 };

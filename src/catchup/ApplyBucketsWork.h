@@ -41,7 +41,6 @@ class ApplyBucketsWork : public Work
     std::unordered_set<LedgerKey> mSeenKeys;
     std::vector<std::shared_ptr<LiveBucket>> mBucketsToApply;
     std::unique_ptr<BucketApplicator> mBucketApplicator;
-    bool mDelayChecked{false};
 
     BucketApplicator::Counters mCounters;
     bool const mIsApplyInvariantEnabled;

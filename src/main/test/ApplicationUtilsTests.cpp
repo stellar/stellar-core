@@ -165,8 +165,7 @@ class SimulationHelper
                                                     /* txRate */ 1));
         auto currLoadGenCount = loadGenDone.count();
 
-        auto checkpoint =
-            mMainNode->getHistoryManager().getCheckpointFrequency();
+        auto checkpoint = HistoryManager::getCheckpointFrequency(mMainCfg);
 
         // Make sure validator publishes something
         mSimulation->crankUntil(
@@ -195,7 +194,7 @@ class SimulationHelper
         return std::make_pair(selectedLedger, selectedHash);
     }
 
-    LedgerHeaderHistoryEntry const&
+    LedgerHeaderHistoryEntry
     getMainNodeLCL()
     {
         return mSimulation->getNode(mMainNodeID)
@@ -203,7 +202,7 @@ class SimulationHelper
             .getLastClosedLedgerHeader();
     }
 
-    LedgerHeaderHistoryEntry const&
+    LedgerHeaderHistoryEntry
     getTestNodeLCL()
     {
         return mSimulation->getNode(mTestNodeID)

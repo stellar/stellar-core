@@ -90,10 +90,6 @@ CatchupWork::CatchupWork(Application& app,
         CLOG_INFO(History, "CatchupWork: selected archive {}",
                   mArchive->getName());
     }
-
-    // Local catchup is only valid if core is rebuilding state
-    releaseAssert(mCatchupConfiguration.localBucketsOnly() ==
-                  mApp.getLedgerManager().rebuildingInMemoryState());
 }
 
 CatchupWork::~CatchupWork()
@@ -323,8 +319,8 @@ CatchupWork::getAndMaybeSetHistoryArchiveState()
                 mCatchupConfiguration.toLedger() ==
                         CatchupConfiguration::CURRENT
                     ? CatchupConfiguration::CURRENT
-                    : mApp.getHistoryManager().checkpointContainingLedger(
-                          mCatchupConfiguration.toLedger());
+                    : HistoryManager::checkpointContainingLedger(
+                          mCatchupConfiguration.toLedger(), mApp.getConfig());
             // Set retries to 10 to ensure we retry enough in case current
             // checkpoint isn't published yet
             mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
@@ -575,9 +571,8 @@ CatchupWork::runCatchupStep()
                     return true;
                 }
 
-                auto checkpoint =
-                    app.getHistoryManager().checkpointContainingLedger(
-                        ledgerSeq);
+                auto checkpoint = HistoryManager::checkpointContainingLedger(
+                    ledgerSeq, app.getConfig());
                 auto ft = FileTransferInfo(
                     dir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
 

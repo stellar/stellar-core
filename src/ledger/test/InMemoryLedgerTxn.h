@@ -136,6 +136,7 @@ class InMemoryLedgerTxn : public LedgerTxn
     void dropOffers() override;
     uint64_t countOffers(LedgerRange const& ledgers) const override;
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    SessionWrapper& getSession() const override;
 
 #ifdef BEST_OFFER_DEBUGGING
     virtual bool bestOfferDebuggingEnabled() const override;

@@ -232,7 +232,9 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
 
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers);
+                        ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
+                        mApp.getLedgerManager()
+                            .getSorobanNetworkConfigForApply());
 
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,

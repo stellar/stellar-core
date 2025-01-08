@@ -166,8 +166,8 @@ bool
 applyBucketsForLCL(Application& app)
 {
     auto has = app.getLedgerManager().getLastClosedLedgerHAS();
-    auto lclHash =
-        app.getPersistentState().getState(PersistentState::kLastClosedLedger);
+    auto lclHash = app.getPersistentState().getState(
+        PersistentState::kLastClosedLedger, app.getDatabase().getSession());
 
     auto maxProtocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
     auto currentLedger =
@@ -240,10 +240,9 @@ setAuthenticatedLedgerHashPair(Application::pointer app,
                                uint32_t startLedger, std::string startHash)
 {
     auto const& lm = app->getLedgerManager();
-    auto const& hm = app->getHistoryManager();
 
     auto tryCheckpoint = [&](uint32_t seq, Hash h) {
-        if (hm.isLastLedgerInCheckpoint(seq))
+        if (HistoryManager::isLastLedgerInCheckpoint(seq, app->getConfig()))
         {
             LOG_INFO(DEFAULT_LOG,
                      "Found authenticated checkpoint hash {} for ledger {}",
@@ -307,7 +306,8 @@ selfCheck(Config cfg)
 
     // Then we scan all the buckets to check they have expected hashes.
     LOG_INFO(DEFAULT_LOG, "Self-check phase 2: bucket hash verification");
-    auto seq2 = app->getBucketManager().scheduleVerifyReferencedBucketsWork();
+    auto seq2 = app->getBucketManager().scheduleVerifyReferencedBucketsWork(
+        app->getLedgerManager().getLastClosedLedgerHAS());
     while (clock.crank(true) && !seq2->isDone())
         ;
 
@@ -965,18 +965,20 @@ publish(Application::pointer app)
     asio::io_context::work mainWork(io);
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
-    auto isCheckpoint = app->getHistoryManager().isLastLedgerInCheckpoint(lcl);
+    auto isCheckpoint =
+        HistoryManager::isLastLedgerInCheckpoint(lcl, app->getConfig());
     size_t expectedPublishQueueSize = isCheckpoint ? 1 : 0;
 
     app->getHistoryManager().publishQueuedHistory();
-    while (app->getHistoryManager().publishQueueLength() !=
+    while (HistoryManager::publishQueueLength(app->getConfig()) !=
                expectedPublishQueueSize &&
            clock.crank(true))
     {
     }
 
     // Cleanup buckets not referenced by publish queue anymore
-    app->getBucketManager().forgetUnreferencedBuckets();
+    app->getBucketManager().forgetUnreferencedBuckets(
+        app->getLedgerManager().getLastClosedLedgerHAS());
 
     LOG_INFO(DEFAULT_LOG, "*");
     LOG_INFO(DEFAULT_LOG, "* Publish finished.");

@@ -867,8 +867,8 @@ runCatchup(CommandLineArgs const& args)
 
                 if (!trustedCheckpointHashesFile.empty())
                 {
-                    auto const& hm = app->getHistoryManager();
-                    if (!hm.isLastLedgerInCheckpoint(cc.toLedger()))
+                    if (!HistoryManager::isLastLedgerInCheckpoint(
+                            cc.toLedger(), app->getConfig()))
                     {
                         throw std::runtime_error(
                             "destination ledger is not a checkpoint boundary,"
@@ -1338,7 +1338,8 @@ runPrintPublishQueue(CommandLineArgs const& args)
         Application::pointer app = Application::create(clock, cfg, false);
         cereal::JSONOutputArchive archive(std::cout);
         archive.makeArray();
-        for (auto const& has : app->getHistoryManager().getPublishQueueStates())
+        for (auto const& has :
+             HistoryManager::getPublishQueueStates(app->getConfig()))
         {
             has.serialize(archive);
         }

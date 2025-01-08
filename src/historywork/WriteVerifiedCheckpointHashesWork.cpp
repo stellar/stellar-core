@@ -151,8 +151,8 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
         throw std::runtime_error("nothing to iterate over");
     }
 
-    auto const& hm = mApp.getHistoryManager();
-    uint32_t const freq = hm.getCheckpointFrequency();
+    uint32_t const freq =
+        HistoryManager::getCheckpointFrequency(mApp.getConfig());
 
     auto const lclHe = mApp.getLedgerManager().getLastClosedLedgerHeader();
     LedgerNumHashPair const lcl(lclHe.header.ledgerSeq,
@@ -161,19 +161,22 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     uint32_t const last = mCurrCheckpoint;
     uint32_t first = last <= span
                          ? LedgerManager::GENESIS_LEDGER_SEQ
-                         : hm.firstLedgerInCheckpointContaining(last - span);
+                         : HistoryManager::firstLedgerInCheckpointContaining(
+                               last - span, mApp.getConfig());
     // If the first ledger in the range is less than mFromLedger then the
     // range should be constrained to start at mFromLedger, or the checkpoint
     // immediately before it if mFromLedger is not a checkpoint boundary.
     if (mFromLedger && first < *mFromLedger)
     {
-        if (hm.isLastLedgerInCheckpoint(*mFromLedger))
+        if (HistoryManager::isLastLedgerInCheckpoint(*mFromLedger,
+                                                     mApp.getConfig()))
         {
             first = *mFromLedger;
         }
         else
         {
-            first = hm.lastLedgerBeforeCheckpointContaining(*mFromLedger);
+            first = HistoryManager::lastLedgerBeforeCheckpointContaining(
+                *mFromLedger, mApp.getConfig());
         }
         releaseAssertOrThrow(first <= *mFromLedger);
     }
@@ -182,10 +185,12 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     else if (mLatestTrustedHashPair && first < mLatestTrustedHashPair->first)
     {
         first = mLatestTrustedHashPair->first;
-        releaseAssertOrThrow(hm.isLastLedgerInCheckpoint(first));
+        releaseAssertOrThrow(
+            HistoryManager::isLastLedgerInCheckpoint(first, mApp.getConfig()));
     }
 
     LedgerRange const ledgerRange = LedgerRange::inclusive(first, last);
+    auto const& hm = mApp.getHistoryManager();
     CheckpointRange const checkpointRange(ledgerRange, hm);
 
     std::string const checkpointStr = std::to_string(mCurrCheckpoint);

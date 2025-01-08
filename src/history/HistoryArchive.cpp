@@ -446,8 +446,7 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
     }
 }
 
-HistoryArchive::HistoryArchive(Application& app,
-                               HistoryArchiveConfiguration const& config)
+HistoryArchive::HistoryArchive(HistoryArchiveConfiguration const& config)
     : mConfig(config)
 {
 }

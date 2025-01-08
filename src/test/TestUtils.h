@@ -23,7 +23,11 @@ namespace testutil
 {
 void crankSome(VirtualClock& clock);
 void crankFor(VirtualClock& clock, VirtualClock::duration duration);
-
+void crankUntil(Application::pointer app,
+                std::function<bool()> const& predicate,
+                VirtualClock::duration timeout);
+void crankUntil(Application& app, std::function<bool()> const& predicate,
+                VirtualClock::duration timeout);
 void shutdownWorkScheduler(Application& app);
 
 std::vector<Asset> getInvalidAssets(SecretKey const& issuer);

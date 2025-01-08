@@ -887,7 +887,8 @@ resetTxInternalState(Application& app)
     app.getLedgerTxnRoot().resetForFuzzer();
     app.getInvariantManager().resetForFuzzer();
 #endif // BUILD_TESTS
-    app.getDatabase().clearPreparedStatementCache();
+    app.getDatabase().clearPreparedStatementCache(
+        app.getDatabase().getSession());
 }
 
 // FuzzTransactionFrame is a specialized TransactionFrame that includes
@@ -926,9 +927,10 @@ class FuzzTransactionFrame : public TransactionFrame
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
-            return !op->checkValid(app.getAppConnector(), signatureChecker,
-                                   ltxStmt, false, opResult,
-                                   mTxResult->getSorobanData());
+            return !op->checkValid(
+                app.getAppConnector(), signatureChecker,
+                app.getAppConnector().getSorobanNetworkConfigReadOnly(),
+                ltxStmt, false, opResult, mTxResult->getSorobanData());
         };
 
         auto const& ops = getOperations();

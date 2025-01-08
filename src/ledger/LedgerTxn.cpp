@@ -2324,6 +2324,13 @@ LedgerTxn::Impl::hasSponsorshipEntry() const
     return false;
 }
 
+SessionWrapper&
+LedgerTxn::getSession() const
+{
+    throw std::runtime_error("LedgerTxn::getSession illegal call, can only be "
+                             "called on LedgerTxnRoot");
+}
+
 void
 LedgerTxn::prepareNewObjects(size_t s)
 {
@@ -2477,6 +2484,22 @@ LedgerTxnRoot::Impl::~Impl()
     }
 }
 
+SessionWrapper&
+LedgerTxnRoot::Impl::getSession() const
+{
+    if (mSession)
+    {
+        return *mSession;
+    }
+    return mApp.getDatabase().getSession();
+}
+
+SessionWrapper&
+LedgerTxnRoot::getSession() const
+{
+    return mImpl->getSession();
+}
+
 #ifdef BUILD_TESTS
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
@@ -2508,8 +2531,13 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
-        mTransaction = std::make_unique<soci::transaction>(
-            mApp.getDatabase().getSession());
+        if (mApp.getConfig().parallelLedgerClose())
+        {
+            mSession = std::make_unique<SessionWrapper>(
+                "ledgerClose", mApp.getDatabase().getPool());
+        }
+        mTransaction =
+            std::make_unique<soci::transaction>(getSession().session());
     }
     else
     {
@@ -2632,7 +2660,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
         // committing; on postgres this doesn't matter but on SQLite the passive
         // WAL-auto-checkpointing-at-commit behaviour will starve if there are
         // still prepared statements open at commit time.
-        mApp.getDatabase().clearPreparedStatementCache();
+        mApp.getDatabase().clearPreparedStatementCache(getSession());
         ZoneNamedN(commitZone, "SOCI commit", true);
         mTransaction->commit();
     }
@@ -2653,6 +2681,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
+    mSession.reset();
 
     // std::unique_ptr<...>::swap does not throw
     mHeader.swap(childHeader);
@@ -2682,8 +2711,7 @@ LedgerTxnRoot::Impl::countOffers(LedgerRange const& ledgers) const
     uint64_t count = 0;
     int first = static_cast<int>(ledgers.mFirst);
     int limit = static_cast<int>(ledgers.limit());
-    mApp.getDatabase().getSession() << query, into(count), use(first),
-        use(limit);
+    getSession().session() << query, into(count), use(first), use(limit);
     return count;
 }
 
@@ -2702,7 +2730,7 @@ LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
     mBestOffers.clear();
 
     std::string query = "DELETE FROM offers WHERE lastmodified >= :v1";
-    mApp.getDatabase().getSession() << query, use(ledger);
+    getSession().session() << query, use(ledger);
 }
 
 void
@@ -3359,6 +3387,7 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
         {
             mTransaction->rollback();
             mTransaction.reset();
+            mSession.reset();
         }
         catch (std::exception& e)
         {

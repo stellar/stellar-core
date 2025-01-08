@@ -57,7 +57,7 @@ BatchDownloadWork::yieldMoreWork()
                typeString(mFileType), mNext);
     auto getAndUnzip =
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
-    mNext += mApp.getHistoryManager().getCheckpointFrequency();
+    mNext += HistoryManager::getCheckpointFrequency(mApp.getConfig());
 
     return getAndUnzip;
 }

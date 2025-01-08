@@ -57,7 +57,6 @@ template <typename BucketT>
 void
 BucketLevel<BucketT>::setNext(FutureBucket<BucketT> const& fb)
 {
-    releaseAssert(threadIsMain());
     mNextCurr = fb;
 }
 
@@ -79,7 +78,6 @@ template <typename BucketT>
 void
 BucketLevel<BucketT>::setCurr(std::shared_ptr<BucketT> b)
 {
-    releaseAssert(threadIsMain());
     mNextCurr.clear();
     mCurr = b;
 }

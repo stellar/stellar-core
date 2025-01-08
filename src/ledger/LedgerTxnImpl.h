@@ -612,6 +612,8 @@ class LedgerTxnRoot::Impl
     size_t const mMaxBestOffersBatchSize;
 
     Application& mApp;
+    std::unique_ptr<SessionWrapper> mSession;
+
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
     mutable BestOffers mBestOffers;
@@ -708,6 +710,8 @@ class LedgerTxnRoot::Impl
 
     // countOffers has the strong exception safety guarantee.
     uint64_t countOffers(LedgerRange const& ledgers) const;
+
+    SessionWrapper& getSession() const;
 
     // deleteOffersModifiedOnOrAfterLedger has no exception safety guarantees.
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const;

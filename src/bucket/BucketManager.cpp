@@ -18,6 +18,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Fs.h"
@@ -62,6 +63,7 @@ void
 BucketManager::initialize()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     std::string d = mConfig.BUCKET_DIR_PATH;
 
     if (!fs::exists(d))
@@ -729,7 +731,7 @@ BucketManager::getBucketListReferencedBuckets() const
 }
 
 std::set<Hash>
-BucketManager::getAllReferencedBuckets() const
+BucketManager::getAllReferencedBuckets(HistoryArchiveState const& has) const
 {
     ZoneScoped;
     auto referenced = getBucketListReferencedBuckets();
@@ -740,8 +742,7 @@ BucketManager::getAllReferencedBuckets() const
 
     // retain any bucket referenced by the last closed ledger as recorded in the
     // database (as merges complete, the bucket list drifts from that state)
-    auto lclHas = mApp.getLedgerManager().getLastClosedLedgerHAS();
-    auto lclBuckets = lclHas.allBuckets();
+    auto lclBuckets = has.allBuckets();
     for (auto const& h : lclBuckets)
     {
         auto rit = referenced.emplace(hexToBin256(h));
@@ -752,39 +753,38 @@ BucketManager::getAllReferencedBuckets() const
     }
 
     // retain buckets that are referenced by a state in the publish queue.
-    auto pub = mApp.getHistoryManager().getBucketsReferencedByPublishQueue();
+    for (auto const& h :
+         HistoryManager::getBucketsReferencedByPublishQueue(mApp.getConfig()))
     {
-        for (auto const& h : pub)
+        auto rhash = hexToBin256(h);
+        auto rit = referenced.emplace(rhash);
+        if (rit.second)
         {
-            auto rhash = hexToBin256(h);
-            auto rit = referenced.emplace(rhash);
-            if (rit.second)
-            {
-                CLOG_TRACE(Bucket, "{} referenced by publish queue", h);
+            CLOG_TRACE(Bucket, "{} referenced by publish queue", h);
 
-                // Project referenced bucket `rhash` -- which might be a merge
-                // input captured before a merge finished -- through our weak
-                // map of merge input/output relationships, to find any outputs
-                // we'll want to retain in order to resynthesize the merge in
-                // the future, rather than re-run it.
-                mFinishedMerges.getOutputsUsingInput(rhash, referenced);
-            }
+            // Project referenced bucket `rhash` -- which might be a merge
+            // input captured before a merge finished -- through our weak
+            // map of merge input/output relationships, to find any outputs
+            // we'll want to retain in order to resynthesize the merge in
+            // the future, rather than re-run it.
+            mFinishedMerges.getOutputsUsingInput(rhash, referenced);
         }
     }
     return referenced;
 }
 
 void
-BucketManager::cleanupStaleFiles()
+BucketManager::cleanupStaleFiles(HistoryArchiveState const& has)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     if (mConfig.DISABLE_BUCKET_GC)
     {
         return;
     }
 
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto referenced = getAllReferencedBuckets();
+    auto referenced = getAllReferencedBuckets(has);
     std::transform(std::begin(mSharedLiveBuckets), std::end(mSharedLiveBuckets),
                    std::inserter(referenced, std::end(referenced)),
                    [](std::pair<Hash, std::shared_ptr<LiveBucket>> const& p) {
@@ -818,11 +818,11 @@ BucketManager::cleanupStaleFiles()
 }
 
 void
-BucketManager::forgetUnreferencedBuckets()
+BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto referenced = getAllReferencedBuckets();
+    auto referenced = getAllReferencedBuckets(has);
     auto blReferenced = getBucketListReferencedBuckets();
 
     auto bucketMapLoop = [&](auto& bucketMap, auto& futureMap) {
@@ -867,7 +867,7 @@ BucketManager::forgetUnreferencedBuckets()
                     Bucket,
                     "BucketManager::forgetUnreferencedBuckets dropping {}",
                     filename);
-                if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
+                if (!filename.empty() && !mConfig.DISABLE_BUCKET_GC)
                 {
                     CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
                     std::filesystem::remove(filename);
@@ -1049,7 +1049,8 @@ BucketManager::maybeSetIndex(std::shared_ptr<BucketBase> b,
 
 void
 BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
-                                           uint32_t ledgerVers)
+                                           uint32_t ledgerVers,
+                                           SorobanNetworkConfig const& cfg)
 {
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
@@ -1057,7 +1058,6 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
 
     auto searchableBL =
         mSnapshotManager->copySearchableLiveBucketListSnapshot();
-    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfigForApply();
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t = std::packaged_task<EvictionResultCandidates()>;
@@ -1078,31 +1078,27 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
 }
 
 EvictedStateVectors
-BucketManager::resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx,
-                                             uint32_t ledgerSeq,
-                                             LedgerKeySet const& modifiedKeys,
-                                             uint32_t ledgerVers)
+BucketManager::resolveBackgroundEvictionScan(
+    AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+    LedgerKeySet const& modifiedKeys, uint32_t ledgerVers,
+    SorobanNetworkConfig const& networkConfig)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
     releaseAssert(mEvictionStatistics);
 
     if (!mEvictionFuture.valid())
     {
-        startBackgroundEvictionScan(ledgerSeq, ledgerVers);
+        startBackgroundEvictionScan(ledgerSeq, ledgerVers, networkConfig);
     }
 
     auto evictionCandidates = mEvictionFuture.get();
-
-    auto const& networkConfig =
-        mApp.getLedgerManager().getSorobanNetworkConfigForApply();
 
     // If eviction related settings changed during the ledger, we have to
     // restart the scan
     if (!evictionCandidates.isValid(ledgerSeq,
                                     networkConfig.stateArchivalSettings()))
     {
-        startBackgroundEvictionScan(ledgerSeq, ledgerVers);
+        startBackgroundEvictionScan(ledgerSeq, ledgerVers, networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
 
@@ -1229,6 +1225,7 @@ BucketManager::assumeState(HistoryArchiveState const& has,
                            uint32_t maxProtocolVersion, bool restartMerges)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
     // TODO: Assume archival bucket state
@@ -1277,7 +1274,7 @@ BucketManager::assumeState(HistoryArchiveState const& has,
         mLiveBucketList->restartMerges(mApp, maxProtocolVersion,
                                        has.currentLedger);
     }
-    cleanupStaleFiles();
+    cleanupStaleFiles(has);
 }
 
 void
@@ -1378,7 +1375,7 @@ std::shared_ptr<LiveBucket>
 BucketManager::mergeBuckets(HistoryArchiveState const& has)
 {
     ZoneScoped;
-
+    releaseAssert(threadIsMain());
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
     BucketMetadata meta;
     MergeCounters mc;
@@ -1568,9 +1565,11 @@ BucketManager::visitLedgerEntries(
 }
 
 std::shared_ptr<BasicWork>
-BucketManager::scheduleVerifyReferencedBucketsWork()
+BucketManager::scheduleVerifyReferencedBucketsWork(
+    HistoryArchiveState const& has)
 {
-    std::set<Hash> hashes = getAllReferencedBuckets();
+    releaseAssert(threadIsMain());
+    std::set<Hash> hashes = getAllReferencedBuckets(has);
     std::vector<std::shared_ptr<BasicWork>> seq;
     for (auto const& h : hashes)
     {

@@ -291,6 +291,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             thisConfig.DISABLE_XDR_FSYNC = false;
             break;
 #ifdef USE_POSTGRES
+        case Config::TESTDB_BUCKET_DB_PERSISTENT_POSTGRES:
+            dbname << "postgresql://dbname=test" << instanceNumber;
+            thisConfig.DISABLE_XDR_FSYNC = false;
+            break;
         case Config::TESTDB_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
             thisConfig.DISABLE_XDR_FSYNC = false;

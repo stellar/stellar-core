@@ -691,7 +691,8 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
                      batch.GetSnapshot().get99thPercentile(), batch.max(),
                      (double)merges.count(), merges.max(), merges.mean()});
 
-            app->getBucketManager().forgetUnreferencedBuckets();
+            app->getBucketManager().forgetUnreferencedBuckets(
+                app->getLedgerManager().getLastClosedLedgerHAS());
         }
     }
 }

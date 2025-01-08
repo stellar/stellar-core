@@ -241,6 +241,7 @@ class HerderSCPDriver : public SCPDriver
                          uint64_t slotIndex);
 
     bool checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
+                                 LedgerHeaderHistoryEntry const& lcl,
                                  uint64_t closeTimeOffset) const;
 };
 }

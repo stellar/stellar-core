@@ -109,7 +109,6 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     ZoneScoped;
 
     // This query should only be called during TX apply
-    releaseAssert(threadIsMain());
     releaseAssert(mSnapshot);
 
     LedgerKeySet trustlinesToLoad;
@@ -154,7 +153,6 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 
     // This is a legacy query, should only be called by main thread during
     // catchup
-    releaseAssert(threadIsMain());
     auto timer = mSnapshotManager.recordBulkLoadMetrics("inflationWinners", 0)
                      .TimeScope();
 

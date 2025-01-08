@@ -42,6 +42,14 @@ class BasicWork;
 class LedgerManagerImpl : public LedgerManager
 {
   protected:
+    struct CloseLedgerOutput
+    {
+        LedgerHeaderHistoryEntry ledgerHeader;
+        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
+        HistoryArchiveState has;
+        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
+    };
+
     Application& mApp;
     std::unique_ptr<XDROutputFileStream> mMetaStream;
     std::unique_ptr<XDROutputFileStream> mMetaDebugStream;
@@ -49,6 +57,7 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
+    // Cache LCL state, accessible only from main thread
     LedgerHeaderHistoryEntry mLastClosedLedger;
 
     // Read-only Soroban network configuration, accessible by main thread only.
@@ -64,6 +73,9 @@ class LedgerManagerImpl : public LedgerManager
     // variable is not synchronized, since it should only be used by one thread
     // (main or ledger close).
     std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfigForApply;
+
+    // Cache most recent HAS, accessible only from main thread
+    HistoryArchiveState mLastClosedLedgerHAS;
 
     SorobanMetrics mSorobanMetrics;
     medida::Timer& mTransactionApply;
@@ -83,12 +95,18 @@ class LedgerManagerImpl : public LedgerManager
     bool mRebuildInMemoryState{false};
     SearchableSnapshotConstPtr mReadOnlyLedgerStateSnapshot;
 
-    std::unique_ptr<VirtualClock::time_point> mStartCatchup;
+    // Use mutex to guard ledger state during apply
+    mutable std::recursive_mutex mLedgerStateMutex;
+
     medida::Timer& mCatchupDuration;
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
-    std::vector<MutableTxResultPtr> processFeesSeqNums(
+    // Use in the context of parallel ledger close to indicate background thread
+    // is currently closing a ledger or has ledgers queued to apply.
+    bool mCurrentlyApplyingLedger{false};
+
+    static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);
@@ -102,16 +120,20 @@ class LedgerManagerImpl : public LedgerManager
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
-    void
+    CloseLedgerOutput
     ledgerClosed(AbstractLedgerTxn& ltx,
                  std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
                  uint32_t initialLedgerVers);
 
-    void storeCurrentLedger(LedgerHeader const& header, bool storeHeader,
-                            bool appendToCheckpoint);
-    void prefetchTransactionData(ApplicableTxSetFrame const& txSet);
-    void prefetchTxSourceIds(ApplicableTxSetFrame const& txSet);
-    void closeLedgerIf(LedgerCloseData const& ledgerData);
+    HistoryArchiveState storeCurrentLedger(LedgerHeader const& header,
+                                           bool storeHeader,
+                                           bool appendToCheckpoint);
+    static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
+                                        ApplicableTxSetFrame const& txSet,
+                                        Config const& config);
+    static void prefetchTxSourceIds(AbstractLedgerTxnParent& rootLtx,
+                                    ApplicableTxSetFrame const& txSet,
+                                    Config const& config);
 
     State mState;
 
@@ -127,6 +149,9 @@ class LedgerManagerImpl : public LedgerManager
     // as the actual ledger usage.
     void publishSorobanMetrics();
 
+    // Update cached ledger state values managed by this class.
+    void advanceLedgerPointers(CloseLedgerOutput const& output);
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -141,8 +166,12 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    void advanceLedgerPointers(LedgerHeader const& header,
-                               bool debugLog = true);
+    // Update ledger state snapshot, and construct CloseLedgerOutput return
+    // value, which contains all information relevant to ledger state (HAS,
+    // ledger header, network config, bucketlist snapshot).
+    CloseLedgerOutput
+    advanceLedgerStateSnapshot(LedgerHeader const& header,
+                               HistoryArchiveState const& has);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
@@ -154,10 +183,12 @@ class LedgerManagerImpl : public LedgerManager
     // This call is read-only and hence `ltx` can be read-only.
     void updateNetworkConfig(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
+    void beginApply() override;
     State getState() const override;
     std::string getStateHuman() const override;
 
-    void valueExternalized(LedgerCloseData const& ledgerData) override;
+    void valueExternalized(LedgerCloseData const& ledgerData,
+                           bool isLatestSlot) override;
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
@@ -186,8 +217,6 @@ class LedgerManagerImpl : public LedgerManager
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
     void loadLastKnownLedger(bool restoreBucketlist) override;
-    virtual bool rebuildingInMemoryState() override;
-    virtual void setupInMemoryStateRebuild() override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
@@ -200,7 +229,10 @@ class LedgerManagerImpl : public LedgerManager
         std::shared_ptr<HistoryArchive> archive,
         std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) override;
 
-    void closeLedger(LedgerCloseData const& ledgerData) override;
+    void closeLedger(LedgerCloseData const& ledgerData,
+                     bool calledViaExternalize) override;
+    void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
+                             LedgerCloseData const& ledgerData);
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
 
@@ -214,5 +246,10 @@ class LedgerManagerImpl : public LedgerManager
 
     SorobanMetrics& getSorobanMetrics() override;
     SearchableSnapshotConstPtr getCurrentLedgerStateSnaphot() override;
+    virtual bool
+    isApplying() const override
+    {
+        return mCurrentlyApplyingLedger;
+    }
 };
 }

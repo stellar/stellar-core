@@ -30,17 +30,20 @@ checkpointCount(uint32_t firstCheckpoint, LedgerRange const& r,
     {
         return 0;
     }
-    uint32_t lastCheckpoint = hm.checkpointContainingLedger(r.last());
-    return 1 +
-           ((lastCheckpoint - firstCheckpoint) / hm.getCheckpointFrequency());
+    uint32_t lastCheckpoint =
+        HistoryManager::checkpointContainingLedger(r.last(), hm.getConfig());
+    return 1 + ((lastCheckpoint - firstCheckpoint) /
+                HistoryManager::getCheckpointFrequency(hm.getConfig()));
 }
 }
 
 CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
                                  HistoryManager const& historyManager)
-    : mFirst{historyManager.checkpointContainingLedger(ledgerRange.mFirst)}
+    : mFirst{HistoryManager::checkpointContainingLedger(
+          ledgerRange.mFirst, historyManager.getConfig())}
     , mCount{checkpointCount(mFirst, ledgerRange, historyManager)}
-    , mFrequency{historyManager.getCheckpointFrequency()}
+    , mFrequency{
+          HistoryManager::getCheckpointFrequency(historyManager.getConfig())}
 {
     releaseAssert(mFirst > 0);
     releaseAssert((mFirst + 1) % mFrequency == 0);

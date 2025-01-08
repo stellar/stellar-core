@@ -28,8 +28,8 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
     , mRange(range)
     , mDownloadDir(downloadDir)
     , mLastApplied(lastApplied)
-    , mCheckpointToQueue(
-          app.getHistoryManager().checkpointContainingLedger(range.mFirst))
+    , mCheckpointToQueue(HistoryManager::checkpointContainingLedger(
+          range.mFirst, app.getConfig()))
     , mWaitForPublish(waitForPublish)
     , mArchive(archive)
 {
@@ -52,8 +52,8 @@ DownloadApplyTxsWork::yieldMoreWork()
     auto getAndUnzip =
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
-    auto const& hm = mApp.getHistoryManager();
-    auto low = hm.firstLedgerInCheckpointContaining(mCheckpointToQueue);
+    auto low = HistoryManager::firstLedgerInCheckpointContaining(
+        mCheckpointToQueue, mApp.getConfig());
     auto high = std::min(mCheckpointToQueue, mRange.last());
 
     TmpDir const& dir = mDownloadDir;
@@ -162,8 +162,8 @@ DownloadApplyTxsWork::yieldMoreWork()
             bool res = true;
             if (waitForPublish)
             {
-                auto& hm = app.getHistoryManager();
-                auto length = hm.publishQueueLength();
+                auto length =
+                    HistoryManager::publishQueueLength(app.getConfig());
                 if (length <= CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION)
                 {
                     pqFellBehind = false;
@@ -213,7 +213,8 @@ DownloadApplyTxsWork::yieldMoreWork()
     auto nextWork = std::make_shared<WorkSequence>(
         mApp, "download-apply-" + std::to_string(mCheckpointToQueue), seq,
         BasicWork::RETRY_NEVER, true /*stop at first failure*/);
-    mCheckpointToQueue += mApp.getHistoryManager().getCheckpointFrequency();
+    mCheckpointToQueue +=
+        HistoryManager::getCheckpointFrequency(mApp.getConfig());
     mLastYieldedWork = nextWork;
     return nextWork;
 }
@@ -221,8 +222,8 @@ DownloadApplyTxsWork::yieldMoreWork()
 void
 DownloadApplyTxsWork::resetIter()
 {
-    mCheckpointToQueue =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst);
+    mCheckpointToQueue = HistoryManager::checkpointContainingLedger(
+        mRange.mFirst, mApp.getConfig());
     mLastYieldedWork.reset();
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
@@ -234,8 +235,8 @@ DownloadApplyTxsWork::hasNext() const
     {
         return false;
     }
-    auto last =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.last());
+    auto last = HistoryManager::checkpointContainingLedger(mRange.last(),
+                                                           mApp.getConfig());
     return mCheckpointToQueue <= last;
 }
 
@@ -248,17 +249,22 @@ DownloadApplyTxsWork::onSuccess()
 std::string
 DownloadApplyTxsWork::getStatus() const
 {
-    auto& hm = mApp.getHistoryManager();
-    auto first = hm.checkpointContainingLedger(mRange.mFirst);
+    auto first = HistoryManager::checkpointContainingLedger(mRange.mFirst,
+                                                            mApp.getConfig());
     auto last =
         (mRange.mCount == 0 ? first
-                            : hm.checkpointContainingLedger(mRange.last()));
+                            : HistoryManager::checkpointContainingLedger(
+                                  mRange.last(), mApp.getConfig()));
 
     auto checkpointsStarted =
-        (mCheckpointToQueue - first) / hm.getCheckpointFrequency();
+        (mCheckpointToQueue - first) /
+        HistoryManager::getCheckpointFrequency(mApp.getConfig());
     auto checkpointsApplied = checkpointsStarted - getNumWorksInBatch();
 
-    auto totalCheckpoints = (last - first) / hm.getCheckpointFrequency() + 1;
+    auto totalCheckpoints =
+        (last - first) /
+            HistoryManager::getCheckpointFrequency(mApp.getConfig()) +
+        1;
     return fmt::format(
         FMT_STRING("Download & apply checkpoints: num checkpoints left to "
                    "apply:{:d} ({:d}% done)"),

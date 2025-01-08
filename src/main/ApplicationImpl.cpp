@@ -92,6 +92,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
+    , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
+                                ? std::make_unique<asio::io_context>(1)
+                                : nullptr)
+    , mLedgerCloseWork(
+          mLedgerCloseIOContext
+              ? std::make_unique<asio::io_context::work>(*mLedgerCloseIOContext)
+              : nullptr)
     , mWorkerThreads()
     , mEvictionThread()
     , mStopSignals(clock.getIOContext(), SIGINT)
@@ -107,6 +114,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mPostOnOverlayThreadDelay(
           mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
+    , mPostOnLedgerCloseThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-ledger-close-thread", "delay"}))
     , mStartedOn(clock.system_now())
 {
 #ifdef SIGQUIT
@@ -173,6 +182,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         // Keep priority unchanged as overlay processes time-sensitive tasks
         mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
     }
+
+    if (mConfig.parallelLedgerClose())
+    {
+        mLedgerCloseThread =
+            std::thread{[this]() { mLedgerCloseIOContext->run(); }};
+    }
 }
 
 static void
@@ -182,7 +197,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     if (ps.shouldRebuildForOfferTable())
     {
         app.getDatabase().clearPreparedStatementCache();
-        soci::transaction tx(app.getDatabase().getSession());
+        soci::transaction tx(app.getDatabase().getRawSession());
         LOG_INFO(DEFAULT_LOG, "Dropping offers");
         app.getLedgerTxnRoot().dropOffers();
         tx.commit();
@@ -536,10 +551,11 @@ ApplicationImpl::scheduleSelfCheck(bool waitUntilNextCheckpoint)
     {
         // Delay until a second full checkpoint-period after the next checkpoint
         // publication. The captured lhhe should usually be published by then.
-        auto& hm = getHistoryManager();
         auto targetLedger =
-            hm.firstLedgerAfterCheckpointContaining(lhhe.header.ledgerSeq);
-        targetLedger = hm.firstLedgerAfterCheckpointContaining(targetLedger);
+            HistoryManager::firstLedgerAfterCheckpointContaining(
+                lhhe.header.ledgerSeq, getConfig());
+        targetLedger = HistoryManager::firstLedgerAfterCheckpointContaining(
+            targetLedger, getConfig());
         auto cond = [targetLedger](Application& app) -> bool {
             auto& lm = app.getLedgerManager();
             return lm.getLastClosedLedgerNum() > targetLedger;
@@ -571,8 +587,13 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG_INFO(DEFAULT_LOG, "Application destructing");
+    mStopping = true;
     try
     {
+        // First, shutdown ledger close queue _before_ shutting down all the
+        // subsystems. This ensures that any ledger currently being closed
+        // finishes okay
+        shutdownLedgerCloseThread();
         shutdownWorkScheduler();
         if (mProcessManager)
         {
@@ -773,6 +794,7 @@ ApplicationImpl::gracefulStop()
         return;
     }
     mStopping = true;
+    shutdownLedgerCloseThread();
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
@@ -788,7 +810,8 @@ ApplicationImpl::gracefulStop()
         // This call happens in shutdown -- before destruction -- so that we can
         // be sure other subsystems (ledger etc.) are still alive and we can
         // call into them to figure out which buckets _are_ referenced.
-        mBucketManager->forgetUnreferencedBuckets();
+        mBucketManager->forgetUnreferencedBuckets(
+            mLedgerManager->getLastClosedLedgerHAS());
         mBucketManager->shutdown();
     }
     if (mHerder)
@@ -820,6 +843,21 @@ ApplicationImpl::shutdownWorkScheduler()
 }
 
 void
+ApplicationImpl::shutdownLedgerCloseThread()
+{
+    if (mLedgerCloseThread && !mLedgerCloseThreadStopped)
+    {
+        if (mLedgerCloseWork)
+        {
+            mLedgerCloseWork.reset();
+        }
+        LOG_INFO(DEFAULT_LOG, "Joining the ledger close thread");
+        mLedgerCloseThread->join();
+        mLedgerCloseThreadStopped = true;
+    }
+}
+
+void
 ApplicationImpl::joinAllThreads()
 {
     // We never strictly stop the worker IO service, just release the work-lock
@@ -833,6 +871,10 @@ ApplicationImpl::joinAllThreads()
     {
         mOverlayWork.reset();
     }
+    if (mEvictionWork)
+    {
+        mEvictionWork.reset();
+    }
 
     LOG_INFO(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
     for (auto& w : mWorkerThreads)
@@ -840,21 +882,16 @@ ApplicationImpl::joinAllThreads()
         w.join();
     }
 
-    if (mEvictionWork)
+    if (mOverlayThread)
     {
-        mEvictionWork.reset();
+        LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
+        mOverlayThread->join();
     }
 
     if (mEvictionThread)
     {
         LOG_INFO(DEFAULT_LOG, "Joining eviction thread");
         mEvictionThread->join();
-    }
-
-    if (mOverlayThread)
-    {
-        LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
-        mOverlayThread->join();
     }
 
     LOG_INFO(DEFAULT_LOG, "Joined all {} threads", (mWorkerThreads.size() + 1));
@@ -1345,6 +1382,13 @@ ApplicationImpl::getOverlayIOContext()
     return *mOverlayIOContext;
 }
 
+asio::io_context&
+ApplicationImpl::getLedgerCloseIOContext()
+{
+    releaseAssert(mLedgerCloseIOContext);
+    return *mLedgerCloseIOContext;
+}
+
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type)
@@ -1403,6 +1447,19 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
 }
 
 void
+ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
+                                         std::string jobName)
+{
+    releaseAssert(mLedgerCloseIOContext);
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
+        mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
 ApplicationImpl::enableInvariantsFromConfig()
 {
     for (auto name : mConfig.INVARIANT_CHECKS)
@@ -1444,8 +1501,6 @@ ApplicationImpl::createDatabase()
 AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
-    releaseAssert(threadIsMain());
-
 #ifdef BUILD_TESTS
     if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
     {

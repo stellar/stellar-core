@@ -57,7 +57,8 @@ StateSnapshot::writeSCPMessages() const
         mApp.getDatabase().canUsePool()
             ? std::make_unique<soci::session>(mApp.getDatabase().getPool())
             : nullptr);
-    soci::session& sess(snapSess ? *snapSess : mApp.getDatabase().getSession());
+    soci::session& sess(snapSess ? *snapSess
+                                 : mApp.getDatabase().getRawSession());
     soci::transaction tx(sess);
 
     // The current "history block" is stored in _four_ files, one just ledger
@@ -76,9 +77,10 @@ StateSnapshot::writeSCPMessages() const
         XDROutputFileStream scpHistory(ctx, doFsync);
         scpHistory.open(mSCPHistorySnapFile->localPath_nogz());
 
-        auto& hm = mApp.getHistoryManager();
-        begin = hm.firstLedgerInCheckpointContaining(mLocalState.currentLedger);
-        count = hm.sizeOfCheckpointContaining(mLocalState.currentLedger);
+        begin = HistoryManager::firstLedgerInCheckpointContaining(
+            mLocalState.currentLedger, mApp.getConfig());
+        count = HistoryManager::sizeOfCheckpointContaining(
+            mLocalState.currentLedger, mApp.getConfig());
         CLOG_DEBUG(History, "Streaming {} ledgers worth of history, from {}",
                    count, begin);
 

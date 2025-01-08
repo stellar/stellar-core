@@ -53,17 +53,21 @@ AppConnector::getSorobanNetworkConfigReadOnly() const
     return mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
 }
 
+SorobanNetworkConfig const&
+AppConnector::getSorobanNetworkConfigForApply() const
+{
+    return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+}
+
 medida::MetricsRegistry&
 AppConnector::getMetrics() const
 {
-    releaseAssert(threadIsMain());
     return mApp.getMetrics();
 }
 
 SorobanMetrics&
 AppConnector::getSorobanMetrics() const
 {
-    releaseAssert(threadIsMain());
     return mApp.getLedgerManager().getSorobanMetrics();
 }
 
@@ -72,7 +76,6 @@ AppConnector::checkOnOperationApply(Operation const& operation,
                                     OperationResult const& opres,
                                     LedgerTxnDelta const& ltxDelta)
 {
-    releaseAssert(threadIsMain());
     mApp.getInvariantManager().checkOnOperationApply(operation, opres,
                                                      ltxDelta);
 }
@@ -80,7 +83,7 @@ AppConnector::checkOnOperationApply(Operation const& operation,
 Hash const&
 AppConnector::getNetworkID() const
 {
-    releaseAssert(threadIsMain());
+    // NetworkID is a const
     return mApp.getNetworkID();
 }
 
@@ -136,5 +139,4 @@ AppConnector::checkScheduledAndCache(
 {
     return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
 }
-
 }

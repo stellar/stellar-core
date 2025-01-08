@@ -63,8 +63,7 @@ RestoreFootprintOpFrame::doApply(
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfigForApply();
+    auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
     auto const& appConfig = app.getConfig();
 
     auto const& archivalSettings = sorobanConfig.stateArchivalSettings();

@@ -34,8 +34,6 @@ class AppConnector
     OverlayManager& getOverlayManager();
     BanManager& getBanManager();
     bool shouldYield() const;
-    SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() const;
-    medida::MetricsRegistry& getMetrics() const;
     SorobanMetrics& getSorobanMetrics() const;
     void checkOnOperationApply(Operation const& operation,
                                OperationResult const& opres,
@@ -55,5 +53,9 @@ class AppConnector
     // This method is always exclusively called from one thread
     bool
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
+    SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() const;
+    SorobanNetworkConfig const& getSorobanNetworkConfigForApply() const;
+
+    medida::MetricsRegistry& getMetrics() const;
 };
 }

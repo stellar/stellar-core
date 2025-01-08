@@ -907,7 +907,8 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     {
         // Advance to next checkpoint
         auto nextCheckpoint =
-            node->getHistoryManager().firstLedgerAfterCheckpointContaining(lcl);
+            HistoryManager::firstLedgerAfterCheckpointContaining(
+                lcl, node->getConfig());
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(nextCheckpoint, 1);
@@ -917,7 +918,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
 
         envs = herder.getSCP().getLatestMessagesSend(nextCheckpoint);
         auto checkpointFreq =
-            node->getHistoryManager().getCheckpointFrequency();
+            HistoryManager::getCheckpointFrequency(node->getConfig());
         for (auto& env : envs)
         {
             env.statement.slotIndex -= checkpointFreq;

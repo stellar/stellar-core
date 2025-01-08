@@ -76,14 +76,14 @@ Maintainer::performMaintenance(uint32_t count)
 
     // Calculate the minimum of the LCL and/or any queued checkpoint.
     uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
-    uint32_t ql = mApp.getHistoryManager().getMinLedgerQueuedToPublish();
+    uint32_t ql = HistoryManager::getMinLedgerQueuedToPublish(mApp.getConfig());
     uint32_t qmin = ql == 0 ? lcl : std::min(ql, lcl);
 
     // Next calculate, given qmin, the first ledger it'd be _safe to
     // delete_ while still keeping everything required to publish.
     // So if qmin is (for example) 0x7f = 127, then we want to keep 64
     // ledgers before that, and therefore can erase 0x3f = 63 and less.
-    uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t freq = HistoryManager::getCheckpointFrequency(mApp.getConfig());
     uint32_t lmin = qmin >= freq ? qmin - freq : 0;
 
     CLOG_INFO(History, "Trimming history <= ledger {}", lmin);

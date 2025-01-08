@@ -14,6 +14,7 @@
 #include <set>
 #include <soci.h>
 #include <string>
+#include <unordered_map>
 #include <xdrpp/marshal.h>
 
 namespace medida
@@ -26,6 +27,12 @@ namespace stellar
 {
 class Application;
 class SQLLogContext;
+using PreparedStatementCache =
+    std::map<std::string, std::shared_ptr<soci::statement>>;
+
+// smallest schema version supported
+static constexpr unsigned long MIN_SCHEMA_VERSION = 21;
+static constexpr unsigned long SCHEMA_VERSION = 24;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -60,6 +67,33 @@ class StatementContext : NonCopyable
     }
 };
 
+class SessionWrapper : NonCopyable
+{
+    soci::session mSession;
+    std::string const mSessionName;
+
+  public:
+    SessionWrapper(std::string sessionName)
+        : mSessionName(std::move(sessionName))
+    {
+    }
+    SessionWrapper(std::string sessionName, soci::connection_pool& pool)
+        : mSession(pool), mSessionName(std::move(sessionName))
+    {
+    }
+
+    soci::session&
+    session()
+    {
+        return mSession;
+    }
+    std::string const&
+    getSessionName() const
+    {
+        return mSessionName;
+    }
+};
+
 /**
  * Object that owns the database connection(s) that an application
  * uses to store the current ledger and other persistent state in.
@@ -84,22 +118,32 @@ class StatementContext : NonCopyable
  * (SQL isolation level 'SERIALIZABLE' in Postgresql and Sqlite, neither of
  * which provide true serializability).
  */
+
 class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
-    soci::session mSession;
+    SessionWrapper mSession;
+
     std::unique_ptr<soci::connection_pool> mPool;
 
-    std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
-    medida::Counter& mStatementsSize;
+    // Cache key -> session name <> query
+    using PreparedStatementCache =
+        std::unordered_map<std::string, std::shared_ptr<soci::statement>>;
+    std::unordered_map<std::string, PreparedStatementCache> mCaches;
 
-    std::set<std::string> mEntityTypes;
+    medida::Counter& mStatementsSize;
 
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
     void open();
+    // Save `vers` as schema version.
+    void putSchemaVersion(unsigned long vers);
+
+    // Prepared statements cache may be accessed by mutliple threads (each using
+    // a different session), so use a mutex to synchronize access.
+    std::mutex mutable mStatementsMutex;
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
@@ -118,11 +162,14 @@ class Database : NonMovableOrCopyable
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
     // is created if necessary before borrowing, and reset (unbound from data)
-    // when the statement context is destroyed.
-    StatementContext getPreparedStatement(std::string const& query);
+    // when the statement context is destroyed. Prepared statements caches are
+    // per DB session.
+    StatementContext getPreparedStatement(std::string const& query,
+                                          SessionWrapper& session);
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
+    void clearPreparedStatementCache(SessionWrapper& session);
     void clearPreparedStatementCache();
 
     // Return metric-gathering timers for various families of SQL operation.
@@ -151,7 +198,8 @@ class Database : NonMovableOrCopyable
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
-    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op);
+    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
+                                      SessionWrapper& session);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -161,14 +209,8 @@ class Database : NonMovableOrCopyable
     // by the new-db command on stellar-core.
     void initialize();
 
-    // Save `vers` as schema version.
-    void putSchemaVersion(unsigned long vers);
-
     // Get current schema version in DB.
     unsigned long getDBSchemaVersion();
-
-    // Get current schema version of running application.
-    unsigned long getAppSchemaVersion();
 
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
@@ -176,8 +218,11 @@ class Database : NonMovableOrCopyable
     void dropTxMetaIfExists();
     void maybeUpgradeToBucketListDB();
 
+    // Soci named session wrapper
+    SessionWrapper& getSession();
     // Access the underlying SOCI session object
-    soci::session& getSession();
+    // Use these to directly access the soci session object
+    soci::session& getRawSession();
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
@@ -209,75 +254,10 @@ doDatabaseTypeSpecificOperation(soci::session& session,
 
 template <typename T>
 T
-Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
+Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
+                                          SessionWrapper& session)
 {
-    return stellar::doDatabaseTypeSpecificOperation(mSession, op);
-}
-
-// Select a set of records using a client-defined query string, then map
-// each record into an element of a client-defined datatype by applying a
-// client-defined function (the records are accumulated in the "out"
-// vector).
-template <typename T>
-void
-selectMap(Database& db, std::string const& selectStr,
-          std::function<T(soci::row const&)> makeT, std::vector<T>& out)
-{
-    soci::rowset<soci::row> rs = (db.getSession().prepare << selectStr);
-
-    std::transform(rs.begin(), rs.end(), std::back_inserter(out), makeT);
-}
-
-// Map each element in the given vector of a client-defined datatype into a
-// SQL update command by applying a client-defined function, then send those
-// update strings to the database.
-//
-// The "postUpdate" function receives the number of records affected
-// by the given update, as well as the element of the client-defined
-// datatype which generated that update.
-template <typename T>
-void updateMap(Database& db, std::vector<T> const& in,
-               std::string const& updateStr,
-               std::function<void(soci::statement&, T const&)> prepUpdate,
-               std::function<void(long long const, T const&)> postUpdate);
-template <typename T>
-void
-updateMap(Database& db, std::vector<T> const& in, std::string const& updateStr,
-          std::function<void(soci::statement&, T const&)> prepUpdate,
-          std::function<void(long long const, T const&)> postUpdate)
-{
-    auto st_update = db.getPreparedStatement(updateStr).statement();
-
-    for (auto& recT : in)
-    {
-        prepUpdate(st_update, recT);
-        st_update.define_and_bind();
-        st_update.execute(true);
-        auto affected_rows = st_update.get_affected_rows();
-        st_update.clean_up(false);
-        postUpdate(affected_rows, recT);
-    }
-}
-
-// The composition of updateMap() following selectMap().
-//
-// Returns the number of records selected by selectMap() (all of which were
-// then passed through updateMap() before the selectUpdateMap() call
-// returned).
-template <typename T>
-size_t
-selectUpdateMap(Database& db, std::string const& selectStr,
-                std::function<T(soci::row const&)> makeT,
-                std::string const& updateStr,
-                std::function<void(soci::statement&, T const&)> prepUpdate,
-                std::function<void(long long const, T const&)> postUpdate)
-{
-    std::vector<T> vecT;
-
-    selectMap<T>(db, selectStr, makeT, vecT);
-    updateMap<T>(db, vecT, updateStr, prepUpdate, postUpdate);
-
-    return vecT.size();
+    return stellar::doDatabaseTypeSpecificOperation(session.session(), op);
 }
 
 template <typename T>

@@ -25,7 +25,7 @@ HistoryArchiveManager::HistoryArchiveManager(Application& app) : mApp{app}
 {
     for (auto const& archiveConfiguration : mApp.getConfig().HISTORY)
         mArchives.push_back(
-            std::make_shared<HistoryArchive>(app, archiveConfiguration.second));
+            std::make_shared<HistoryArchive>(archiveConfiguration.second));
 }
 
 bool

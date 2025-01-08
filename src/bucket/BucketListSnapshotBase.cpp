@@ -19,8 +19,6 @@ BucketListSnapshot<BucketT>::BucketListSnapshot(
     BucketListBase<BucketT> const& bl, LedgerHeader header)
     : mHeader(std::move(header))
 {
-    releaseAssert(threadIsMain());
-
     for (uint32_t i = 0; i < BucketListBase<BucketT>::kNumLevels; ++i)
     {
         auto const& level = bl.getLevel(i);

@@ -74,7 +74,7 @@ DownloadVerifyTxResultsWork::yieldMoreWork()
                     mCurrCheckpoint),
         seq);
 
-    mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();
+    mCurrCheckpoint += HistoryManager::getCheckpointFrequency(mApp.getConfig());
     return w3;
 }
 }

@@ -32,7 +32,7 @@ transactionTest(Application::pointer app)
     int a0 = a + 1;
     int a1 = a + 2;
 
-    auto& session = app->getDatabase().getSession();
+    auto& session = app->getDatabase().getRawSession();
 
     session << "DROP TABLE IF EXISTS test";
     session << "CREATE TABLE test (x INTEGER)";
@@ -104,7 +104,7 @@ checkMVCCIsolation(Application::pointer app)
 
     int s2r1 = 0, s2r2 = 0, s2r3 = 0, s2r4 = 0;
 
-    auto& sess1 = app->getDatabase().getSession();
+    auto& sess1 = app->getDatabase().getRawSession();
 
     sess1 << "DROP TABLE IF EXISTS test";
     sess1 << "CREATE TABLE test (x INTEGER)";
@@ -217,7 +217,7 @@ TEST_CASE("postgres smoketest", "[db]")
         Application::pointer app = createTestApplication(clock, cfg);
         int a = 10, b = 0;
 
-        auto& session = app->getDatabase().getSession();
+        auto& session = app->getDatabase().getRawSession();
 
         SECTION("round trip")
         {
@@ -249,7 +249,7 @@ TEST_CASE("postgres smoketest", "[db]")
 
         SECTION("postgres MVCC test")
         {
-            app->getDatabase().getSession() << "drop table if exists test";
+            app->getDatabase().getRawSession() << "drop table if exists test";
             checkMVCCIsolation(app);
         }
     }
@@ -279,7 +279,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
     try
     {
         Application::pointer app = createTestApplication(clock, cfg);
-        auto& session = app->getDatabase().getSession();
+        auto& session = app->getDatabase().getRawSession();
 
         session << "drop table if exists txtest;";
         session << "create table txtest (a bigint, b bigint, c bigint, primary "
@@ -356,6 +356,5 @@ TEST_CASE("schema test", "[db]")
 
     auto& db = app->getDatabase();
     auto dbv = db.getDBSchemaVersion();
-    auto av = db.getAppSchemaVersion();
-    REQUIRE(dbv == av);
+    REQUIRE(dbv == SCHEMA_VERSION);
 }

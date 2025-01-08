@@ -38,6 +38,7 @@ VirtualClock::now() const noexcept
     }
     else
     {
+        std::lock_guard<std::mutex> lock(mVirtualNowMutex);
         return mVirtualNow;
     }
 }
@@ -51,6 +52,7 @@ VirtualClock::system_now() const noexcept
     }
     else
     {
+        std::lock_guard<std::mutex> lock(mVirtualNowMutex);
         auto offset = mVirtualNow.time_since_epoch();
         return std::chrono::system_clock::time_point(
             std::chrono::duration_cast<
@@ -283,6 +285,7 @@ void
 VirtualClock::setCurrentVirtualTime(time_point t)
 {
     releaseAssert(mMode == VIRTUAL_TIME);
+    std::lock_guard<std::mutex> lock(mVirtualNowMutex);
     // Maintain monotonicity in VIRTUAL_TIME mode.
     releaseAssert(t >= mVirtualNow);
     mVirtualNow = t;
@@ -547,9 +550,12 @@ VirtualClock::advanceToNext()
 
     auto nextEvent = next();
     // jump forward in time, if needed
-    if (mVirtualNow < nextEvent)
     {
-        mVirtualNow = nextEvent;
+        std::lock_guard<std::mutex> lock(mVirtualNowMutex);
+        if (mVirtualNow < nextEvent)
+        {
+            mVirtualNow = nextEvent;
+        }
     }
     return advanceToNow();
 }

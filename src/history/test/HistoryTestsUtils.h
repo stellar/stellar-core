@@ -275,10 +275,6 @@ class CatchupSimulation
     // this method externalizes through herder
     void externalizeLedger(HerderImpl& herder, uint32_t ledger);
 
-    void crankUntil(Application::pointer app,
-                    std::function<bool()> const& predicate,
-                    VirtualClock::duration duration);
-
     void setUpgradeLedger(uint32_t ledger, ProtocolVersion upgradeVersion);
     void restartApp();
 };
