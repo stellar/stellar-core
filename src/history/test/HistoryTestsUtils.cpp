@@ -533,7 +533,6 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto lastSucceeded = txsSucceeded.count();
 
     lm.closeLedger(mLedgerCloseDatas.back());
-    testutil::crankFor(getApp().getClock(), std::chrono::milliseconds(10));
 
     if (check)
     {

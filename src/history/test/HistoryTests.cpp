@@ -1684,21 +1684,18 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     catchupSimulation.externalizeLedger(herder, nextLedger + 2);
     catchupSimulation.externalizeLedger(herder, nextLedger + 3);
     catchupSimulation.externalizeLedger(herder, nextLedger + 5);
-    testutil::crankFor(app->getClock(), std::chrono::seconds(5));
     REQUIRE(!lm.isSynced());
     REQUIRE(cm.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the first gap. There will still be buffered ledgers left because
     // of the second gap
     catchupSimulation.externalizeLedger(herder, nextLedger + 1);
-    testutil::crankFor(app->getClock(), std::chrono::seconds(5));
     REQUIRE(!lm.isSynced());
     REQUIRE(cm.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
-    testutil::crankFor(app->getClock(), std::chrono::seconds(5));
     REQUIRE(lm.isSynced());
     REQUIRE(cm.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!cm.isCatchupInitialized());

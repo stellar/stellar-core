@@ -760,7 +760,7 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
     uint32_t latestHeardFromNetwork =
         mApp.getCatchupManager().getLargestLedgerSeqHeard();
     uint32_t latestQueuedToApply =
-        mApp.getCatchupManager().getMaxScheduledToApply();
+        mApp.getCatchupManager().getMaxQueuedToApply();
     if (calledViaExternalize)
     {
         releaseAssert(lcl <= latestQueuedToApply);
