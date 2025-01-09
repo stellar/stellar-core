@@ -57,6 +57,8 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
+            cfg.LOADGEN_OP_COUNT_FOR_TESTING = {1, 2, 10};
+            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
             return cfg;
         });
 
@@ -70,10 +72,21 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
 
     auto& loadGen = app.getLoadGenerator();
 
+    auto getSuccessfulTxCount = [&]() {
+        return nodes[0]
+            ->getMetrics()
+            .NewCounter({"ledger", "apply", "success"})
+            .count();
+    };
+
     SECTION("success")
     {
+        uint32_t const nAccounts = 1000;
+        uint32_t const nAccountCreationTxs = nAccounts / 100;
+        uint32_t const nTxs = 10000;
+
         loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-            /* nAccounts */ 10000,
+            /* nAccounts */ nAccounts,
             /* txRate */ 1));
         simulation->crankUntil(
             [&]() {
@@ -82,11 +95,11 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
                            .count() == 1;
             },
             100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        REQUIRE(getSuccessfulTxCount() == nAccountCreationTxs);
 
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
-                                                         /* nAccounts */ 10000,
-                                                         /* nTxs */ 10000,
-                                                         /* txRate */ 10));
+                                                         nAccounts, nTxs,
+                                                         /* txRate */ 50));
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
@@ -94,6 +107,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
                            .count() == 2;
             },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        REQUIRE(getSuccessfulTxCount() == nAccountCreationTxs + nTxs);
     }
     SECTION("invalid loadgen parameters")
     {
