@@ -830,7 +830,7 @@ TEST_CASE("History catchup", "[history][catchup][acceptance]")
         // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger
         catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
         catchupSimulation.ensurePublishesComplete();
-        REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger));
     }
 
     SECTION("when enough publishes has been performed, 3 ledgers are buffered "
@@ -840,7 +840,7 @@ TEST_CASE("History catchup", "[history][catchup][acceptance]")
         // 3 ledgers are buffered
         catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
         catchupSimulation.ensurePublishesComplete();
-        REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
     }
 
     SECTION("when enough publishes has been performed, 3 ledgers are buffered "

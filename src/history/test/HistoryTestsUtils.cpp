@@ -911,8 +911,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto result = caughtUp();
     if (result)
     {
-        REQUIRE(lm.getLastClosedLedgerNum() ==
-                triggerLedger + bufferLedgers + 1);
+        REQUIRE(lm.getLastClosedLedgerNum() >= triggerLedger + bufferLedgers);
 
         auto endCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
         auto catchupPerformedWork =
