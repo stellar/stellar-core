@@ -24,7 +24,7 @@ class Application;
 class CatchupMetrics;
 class FileTransferInfo;
 
-class CatchupManager
+class LedgerApplyManager
 {
   public:
     struct CatchupMetrics
@@ -55,7 +55,7 @@ class CatchupManager
         PROCESSED_ALL_LEDGERS_SEQUENTIALLY,
         WAIT_TO_APPLY_BUFFERED_OR_CATCHUP
     };
-    static std::unique_ptr<CatchupManager> create(Application& app);
+    static std::unique_ptr<LedgerApplyManager> create(Application& app);
 
     // Process ledgers that could not be applied, and determine if catchup
     // should run
@@ -97,16 +97,16 @@ class CatchupManager
     virtual void logAndUpdateCatchupStatus(bool contiguous) = 0;
 
     // This returns the ledger that comes immediately after the LCL (i.e., LCL +
-    // 1) if CatchupManager has it in its buffer. If not, it doesn’t return any
-    // ledger. This method doesn’t tell if the buffer is empty or if it's ever
-    // heard of LCL + 1. It only tells if CatchupManager has LCL + 1 in its
-    // buffer right now.
+    // 1) if LedgerApplyManager has it in its buffer. If not, it doesn’t return
+    // any ledger. This method doesn’t tell if the buffer is empty or if it's
+    // ever heard of LCL + 1. It only tells if LedgerApplyManager has LCL + 1 in
+    // its buffer right now.
     virtual std::optional<LedgerCloseData>
     maybeGetNextBufferedLedgerToApply() = 0;
 
     virtual std::optional<LedgerCloseData> maybeGetLargestBufferedLedger() = 0;
 
-    // This returns the largest ledger sequence that CatchupManager has ever
+    // This returns the largest ledger sequence that LedgerApplyManager has ever
     // heard of.
     virtual uint32_t getLargestLedgerSeqHeard() const = 0;
 
@@ -118,7 +118,7 @@ class CatchupManager
 
     virtual CatchupMetrics const& getCatchupMetrics() = 0;
 
-    virtual ~CatchupManager(){};
+    virtual ~LedgerApplyManager(){};
 
     virtual void historyArchiveStatesDownloaded(uint32_t num = 1) = 0;
     virtual void ledgersVerified(uint32_t num = 1) = 0;

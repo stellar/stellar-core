@@ -475,7 +475,8 @@ CatchupWork::runCatchupStep()
                 }
             }
             // see if we need to apply buffered ledgers
-            if (mApp.getCatchupManager().maybeGetNextBufferedLedgerToApply())
+            if (mApp.getLedgerApplyManager()
+                    .maybeGetNextBufferedLedgerToApply())
             {
                 mApplyBufferedLedgersWork = addWork<ApplyBufferedLedgersWork>();
                 mCurrentWork = mApplyBufferedLedgersWork;
@@ -632,14 +633,14 @@ CatchupWork::doWork()
 {
     ZoneScoped;
     auto nextState = runCatchupStep();
-    auto& cm = mApp.getCatchupManager();
+    auto& lam = mApp.getLedgerApplyManager();
 
     if (nextState == BasicWork::State::WORK_SUCCESS)
     {
-        releaseAssert(!cm.maybeGetNextBufferedLedgerToApply());
+        releaseAssert(!lam.maybeGetNextBufferedLedgerToApply());
     }
 
-    cm.logAndUpdateCatchupStatus(true);
+    lam.logAndUpdateCatchupStatus(true);
     return nextState;
 }
 

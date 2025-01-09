@@ -39,7 +39,7 @@ ApplyBufferedLedgersWork::onRun()
     }
 
     std::optional<LedgerCloseData> maybeLcd =
-        mApp.getCatchupManager().maybeGetNextBufferedLedgerToApply();
+        mApp.getLedgerApplyManager().maybeGetNextBufferedLedgerToApply();
 
     if (!maybeLcd)
     {

@@ -8,8 +8,8 @@
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
-#include "catchup/CatchupManager.h"
 #include "catchup/IndexBucketsWork.h"
+#include "catchup/LedgerApplyManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "historywork/Progress.h"
@@ -169,7 +169,7 @@ ApplyBucketsWork::prepareForNextBucket()
 {
     ZoneScoped;
     mBucketApplicator.reset();
-    mApp.getCatchupManager().bucketsApplied();
+    mApp.getLedgerApplyManager().bucketsApplied();
     mBucketToApplyIndex++;
     // If mBucketToApplyIndex is even, we are progressing to the next
     // level

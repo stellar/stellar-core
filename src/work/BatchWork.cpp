@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/BatchWork.h"
-#include "catchup/CatchupManager.h"
+#include "catchup/LedgerApplyManager.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>

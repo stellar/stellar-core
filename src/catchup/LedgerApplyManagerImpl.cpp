@@ -6,7 +6,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "catchup/CatchupManagerImpl.h"
+#include "catchup/LedgerApplyManagerImpl.h"
 #include "catchup/CatchupConfiguration.h"
 #include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
@@ -24,9 +24,9 @@
 namespace stellar
 {
 
-const uint32_t CatchupManagerImpl::MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT = 12;
+const uint32_t LedgerApplyManagerImpl::MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT = 12;
 
-CatchupManagerImpl::CatchupMetrics::CatchupMetrics()
+LedgerApplyManagerImpl::CatchupMetrics::CatchupMetrics()
     : mHistoryArchiveStatesDownloaded{0}
     , mCheckpointsDownloaded{0}
     , mLedgersVerified{0}
@@ -38,7 +38,7 @@ CatchupManagerImpl::CatchupMetrics::CatchupMetrics()
 {
 }
 
-CatchupManagerImpl::CatchupMetrics::CatchupMetrics(
+LedgerApplyManagerImpl::CatchupMetrics::CatchupMetrics(
     uint64_t historyArchiveStatesDownloaded, uint64_t checkpointsDownloaded,
     uint64_t ledgersVerified, uint64_t ledgerChainsVerificationFailed,
     uint64_t bucketsDownloaded, uint64_t bucketsApplied,
@@ -54,11 +54,11 @@ CatchupManagerImpl::CatchupMetrics::CatchupMetrics(
 {
 }
 
-CatchupManagerImpl::CatchupMetrics
-operator-(CatchupManager::CatchupMetrics const& x,
-          CatchupManager::CatchupMetrics const& y)
+LedgerApplyManagerImpl::CatchupMetrics
+operator-(LedgerApplyManager::CatchupMetrics const& x,
+          LedgerApplyManager::CatchupMetrics const& y)
 {
-    return CatchupManager::CatchupMetrics{
+    return LedgerApplyManager::CatchupMetrics{
         x.mHistoryArchiveStatesDownloaded - y.mHistoryArchiveStatesDownloaded,
         x.mCheckpointsDownloaded - y.mCheckpointsDownloaded,
         x.mLedgersVerified - y.mLedgersVerified,
@@ -80,13 +80,13 @@ findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
                         });
 }
 
-std::unique_ptr<CatchupManager>
-CatchupManager::create(Application& app)
+std::unique_ptr<LedgerApplyManager>
+LedgerApplyManager::create(Application& app)
 {
-    return std::make_unique<CatchupManagerImpl>(app);
+    return std::make_unique<LedgerApplyManagerImpl>(app);
 }
 
-CatchupManagerImpl::CatchupManagerImpl(Application& app)
+LedgerApplyManagerImpl::LedgerApplyManagerImpl(Application& app)
     : mApp(app)
     , mCatchupWork(nullptr)
     , mSyncingLedgersSize(
@@ -96,12 +96,12 @@ CatchupManagerImpl::CatchupManagerImpl(Application& app)
     releaseAssert(threadIsMain());
 }
 
-CatchupManagerImpl::~CatchupManagerImpl()
+LedgerApplyManagerImpl::~LedgerApplyManagerImpl()
 {
 }
 
 uint32_t
-CatchupManagerImpl::getCatchupCount()
+LedgerApplyManagerImpl::getCatchupCount()
 {
     releaseAssert(threadIsMain());
     return mApp.getConfig().CATCHUP_COMPLETE
@@ -109,9 +109,9 @@ CatchupManagerImpl::getCatchupCount()
                : mApp.getConfig().CATCHUP_RECENT;
 }
 
-CatchupManager::ProcessLedgerResult
-CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData,
-                                  bool isLatestSlot)
+LedgerApplyManager::ProcessLedgerResult
+LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
+                                      bool isLatestSlot)
 {
     releaseAssert(threadIsMain());
     updateLastQueuedToApply();
@@ -149,9 +149,9 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData,
         std::max(mLargestLedgerSeqHeard, lastReceivedLedgerSeq);
 
     // 1. CatchupWork is not running yet
-    // 2. CatchupManager received  ledger that should be immediately applied by
-    // LedgerManager: check if we have any sequential ledgers.
-    // If so, attempt to apply mSyncingLedgers and possibly get back in sync
+    // 2. LedgerApplyManager received  ledger that should be immediately applied
+    // by LedgerManager: check if we have any sequential ledgers. If so, attempt
+    // to apply mSyncingLedgers and possibly get back in sync
     if (!mCatchupWork && lastReceivedLedgerSeq == *mLastQueuedToApply + 1)
     {
         tryApplySyncingLedgers();
@@ -266,7 +266,7 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData,
 }
 
 void
-CatchupManagerImpl::startCatchup(
+LedgerApplyManagerImpl::startCatchup(
     CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
     std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
 {
@@ -297,14 +297,14 @@ CatchupManagerImpl::startCatchup(
 }
 
 std::string
-CatchupManagerImpl::getStatus() const
+LedgerApplyManagerImpl::getStatus() const
 {
     releaseAssert(threadIsMain());
     return mCatchupWork ? mCatchupWork->getStatus() : std::string{};
 }
 
 BasicWork::State
-CatchupManagerImpl::getCatchupWorkState() const
+LedgerApplyManagerImpl::getCatchupWorkState() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mCatchupWork);
@@ -312,22 +312,22 @@ CatchupManagerImpl::getCatchupWorkState() const
 }
 
 bool
-CatchupManagerImpl::catchupWorkIsDone() const
+LedgerApplyManagerImpl::catchupWorkIsDone() const
 {
     releaseAssert(threadIsMain());
     return mCatchupWork && mCatchupWork->isDone();
 }
 
 bool
-CatchupManagerImpl::isCatchupInitialized() const
+LedgerApplyManagerImpl::isCatchupInitialized() const
 {
     releaseAssert(threadIsMain());
     return mCatchupWork != nullptr;
 }
 
 void
-CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
-                                              std::string const& message)
+LedgerApplyManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
+                                                  std::string const& message)
 {
     releaseAssert(threadIsMain());
     if (!message.empty())
@@ -352,14 +352,14 @@ CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
 }
 
 void
-CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
+LedgerApplyManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
 {
     releaseAssert(threadIsMain());
     logAndUpdateCatchupStatus(contiguous, getStatus());
 }
 
 std::optional<LedgerCloseData>
-CatchupManagerImpl::maybeGetNextBufferedLedgerToApply()
+LedgerApplyManagerImpl::maybeGetNextBufferedLedgerToApply()
 {
     releaseAssert(threadIsMain());
     // Since we just applied a ledger, refresh mLastQueuedToApply
@@ -379,7 +379,7 @@ CatchupManagerImpl::maybeGetNextBufferedLedgerToApply()
 }
 
 std::optional<LedgerCloseData>
-CatchupManagerImpl::maybeGetLargestBufferedLedger()
+LedgerApplyManagerImpl::maybeGetLargestBufferedLedger()
 {
     releaseAssert(threadIsMain());
     if (!mSyncingLedgers.empty())
@@ -394,14 +394,14 @@ CatchupManagerImpl::maybeGetLargestBufferedLedger()
 }
 
 uint32_t
-CatchupManagerImpl::getLargestLedgerSeqHeard() const
+LedgerApplyManagerImpl::getLargestLedgerSeqHeard() const
 {
     releaseAssert(threadIsMain());
     return mLargestLedgerSeqHeard;
 }
 
 uint32_t
-CatchupManagerImpl::getMaxQueuedToApply()
+LedgerApplyManagerImpl::getMaxQueuedToApply()
 {
     releaseAssert(threadIsMain());
     updateLastQueuedToApply();
@@ -409,14 +409,14 @@ CatchupManagerImpl::getMaxQueuedToApply()
 }
 
 void
-CatchupManagerImpl::syncMetrics()
+LedgerApplyManagerImpl::syncMetrics()
 {
     releaseAssert(threadIsMain());
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 }
 
 void
-CatchupManagerImpl::updateLastQueuedToApply()
+LedgerApplyManagerImpl::updateLastQueuedToApply()
 {
     releaseAssert(threadIsMain());
     if (!mLastQueuedToApply)
@@ -432,7 +432,7 @@ CatchupManagerImpl::updateLastQueuedToApply()
 }
 
 void
-CatchupManagerImpl::startOnlineCatchup()
+LedgerApplyManagerImpl::startOnlineCatchup()
 {
     releaseAssert(threadIsMain());
     releaseAssert(mSyncingLedgers.size() > 1);
@@ -449,7 +449,7 @@ CatchupManagerImpl::startOnlineCatchup()
 }
 
 void
-CatchupManagerImpl::trimSyncingLedgers()
+LedgerApplyManagerImpl::trimSyncingLedgers()
 {
     releaseAssert(threadIsMain());
     auto removeLedgersLessThan = [&](uint32_t ledger) {
@@ -490,7 +490,7 @@ CatchupManagerImpl::trimSyncingLedgers()
 }
 
 void
-CatchupManagerImpl::tryApplySyncingLedgers()
+LedgerApplyManagerImpl::tryApplySyncingLedgers()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -552,41 +552,41 @@ CatchupManagerImpl::tryApplySyncingLedgers()
 }
 
 void
-CatchupManagerImpl::historyArchiveStatesDownloaded(uint32_t num)
+LedgerApplyManagerImpl::historyArchiveStatesDownloaded(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mHistoryArchiveStatesDownloaded += num;
 }
 
 void
-CatchupManagerImpl::ledgersVerified(uint32_t num)
+LedgerApplyManagerImpl::ledgersVerified(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mLedgersVerified += num;
 }
 
 void
-CatchupManagerImpl::ledgerChainsVerificationFailed(uint32_t num)
+LedgerApplyManagerImpl::ledgerChainsVerificationFailed(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mLedgerChainsVerificationFailed += num;
 }
 
 void
-CatchupManagerImpl::bucketsApplied(uint32_t num)
+LedgerApplyManagerImpl::bucketsApplied(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mBucketsApplied += num;
 }
 void
-CatchupManagerImpl::txSetsApplied(uint32_t num)
+LedgerApplyManagerImpl::txSetsApplied(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mTxSetsApplied += num;
 }
 
 void
-CatchupManagerImpl::fileDownloaded(FileType type, uint32_t num)
+LedgerApplyManagerImpl::fileDownloaded(FileType type, uint32_t num)
 {
     releaseAssert(threadIsMain());
     if (type == FileType::HISTORY_FILE_TYPE_BUCKET)
@@ -606,7 +606,7 @@ CatchupManagerImpl::fileDownloaded(FileType type, uint32_t num)
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING(
-                "CatchupManagerImpl::fileDownloaded unknown file type {}"),
+                "LedgerApplyManagerImpl::fileDownloaded unknown file type {}"),
             typeString(type)));
     }
 }
