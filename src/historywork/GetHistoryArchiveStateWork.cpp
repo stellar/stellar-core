@@ -103,7 +103,7 @@ GetHistoryArchiveStateWork::onSuccess()
 {
     if (mReportMetric)
     {
-        mApp.getCatchupManager().historyArchiveStatesDownloaded();
+        mApp.getLedgerApplyManager().historyArchiveStatesDownloaded();
     }
     Work::onSuccess();
 }

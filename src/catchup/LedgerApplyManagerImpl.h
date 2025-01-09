@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "catchup/CatchupManager.h"
 #include "catchup/CatchupWork.h"
+#include "catchup/LedgerApplyManager.h"
 #include <memory>
 
 namespace medida
@@ -20,7 +20,7 @@ namespace stellar
 class Application;
 class Work;
 
-class CatchupManagerImpl : public CatchupManager
+class LedgerApplyManagerImpl : public LedgerApplyManager
 {
     // Maximum number of ledgers that can be queued to apply (this only applies
     // when Config.parallelLedgerClose() == true). If this number if exceeded,
@@ -50,7 +50,7 @@ class CatchupManagerImpl : public CatchupManager
     medida::Counter& mSyncingLedgersSize;
 
     // Conceptually, there are three ledger sequences that LedgerManager, Herder
-    // and CatchupManager rely on:
+    // and LedgerApplyManager rely on:
     //  - L (mLargestLedgerSeqHeard) = maximum ledger that core heard the
     //  network externalize, may or may not be applied.
     //  - Q (mLastQueuedToApply) = Tracks maximum ledger dequeued from
@@ -82,8 +82,8 @@ class CatchupManagerImpl : public CatchupManager
     bool mCatchupFatalFailure{false};
 
   public:
-    CatchupManagerImpl(Application& app);
-    ~CatchupManagerImpl() override;
+    LedgerApplyManagerImpl(Application& app);
+    ~LedgerApplyManagerImpl() override;
 
     ProcessLedgerResult processLedger(LedgerCloseData const& ledgerData,
                                       bool isLatestSlot) override;

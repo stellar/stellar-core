@@ -361,7 +361,7 @@ ApplyCheckpointWork::onRun()
                         lm.getLastClosedLedgerHeader())));
             }
 
-            mApp.getCatchupManager().txSetsApplied();
+            mApp.getLedgerApplyManager().txSetsApplied();
         }
         else
         {

@@ -23,7 +23,7 @@
 #include "util/TmpDir.h"
 
 #include "bucket/BucketOutputIterator.h"
-#include "catchup/CatchupManager.h"
+#include "catchup/LedgerApplyManager.h"
 #include "ledger/CheckpointRange.h"
 #include "lib/catch.hpp"
 #include <random>
@@ -161,7 +161,7 @@ struct CatchupPerformedWork
     uint64_t mTxSetsDownloaded;
     uint64_t mTxSetsApplied;
 
-    CatchupPerformedWork(CatchupManager::CatchupMetrics const& metrics);
+    CatchupPerformedWork(LedgerApplyManager::CatchupMetrics const& metrics);
 
     CatchupPerformedWork(uint64_t historyArchiveStatesDownloaded,
                          uint64_t checkpointsDownloaded,

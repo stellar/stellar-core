@@ -243,7 +243,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
-    mCatchupManager = CatchupManager::create(*this);
+    mLedgerApplyManager = LedgerApplyManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
@@ -1236,7 +1236,7 @@ ApplicationImpl::syncAllMetrics()
 {
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
-    mCatchupManager->syncMetrics();
+    mLedgerApplyManager->syncMetrics();
     syncOwnMetrics();
 }
 
@@ -1272,10 +1272,10 @@ ApplicationImpl::getBucketManager()
     return *mBucketManager;
 }
 
-CatchupManager&
-ApplicationImpl::getCatchupManager()
+LedgerApplyManager&
+ApplicationImpl::getLedgerApplyManager()
 {
-    return *mCatchupManager;
+    return *mLedgerApplyManager;
 }
 
 HistoryArchiveManager&

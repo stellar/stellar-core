@@ -62,7 +62,7 @@ class ApplicationImpl : public Application
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
     virtual BucketManager& getBucketManager() override;
-    virtual CatchupManager& getCatchupManager() override;
+    virtual LedgerApplyManager& getLedgerApplyManager() override;
     virtual HistoryArchiveManager& getHistoryArchiveManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual Maintainer& getMaintainer() override;
@@ -173,7 +173,7 @@ class ApplicationImpl : public Application
         mLedgerManager;              // allow to change that for tests
     std::unique_ptr<Herder> mHerder; // allow to change that for tests
   private:
-    std::unique_ptr<CatchupManager> mCatchupManager;
+    std::unique_ptr<LedgerApplyManager> mLedgerApplyManager;
     std::unique_ptr<HerderPersistence> mHerderPersistence;
     std::unique_ptr<HistoryArchiveManager> mHistoryArchiveManager;
     std::unique_ptr<HistoryManager> mHistoryManager;

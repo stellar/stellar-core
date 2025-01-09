@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/GetAndUnzipRemoteFileWork.h"
-#include "catchup/CatchupManager.h"
+#include "catchup/LedgerApplyManager.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "historywork/GunzipFileWork.h"
@@ -75,7 +75,7 @@ GetAndUnzipRemoteFileWork::onFailureRaise()
 void
 GetAndUnzipRemoteFileWork::onSuccess()
 {
-    mApp.getCatchupManager().fileDownloaded(mFt.getType());
+    mApp.getLedgerApplyManager().fileDownloaded(mFt.getType());
     Work::onSuccess();
 }
 

@@ -189,7 +189,7 @@ LedgerManagerImpl::setState(State s)
         CLOG_INFO(Ledger, "Changing state {} -> {}", oldState, getStateHuman());
         if (mState != LM_CATCHING_UP_STATE)
         {
-            mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+            mApp.getLedgerApplyManager().logAndUpdateCatchupStatus(true);
         }
     }
 }
@@ -633,12 +633,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
         releaseAssert(false);
     }
 
-    auto& cm = mApp.getCatchupManager();
-    auto res = cm.processLedger(ledgerData, isLatestSlot);
+    auto& lam = mApp.getLedgerApplyManager();
+    auto res = lam.processLedger(ledgerData, isLatestSlot);
     // Go into catchup if we have any future ledgers we're unable to apply
     // sequentially.
-    if (res ==
-        CatchupManager::ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP)
+    if (res == LedgerApplyManager::ProcessLedgerResult::
+                   WAIT_TO_APPLY_BUFFERED_OR_CATCHUP)
     {
         if (mState != LM_CATCHING_UP_STATE)
         {
@@ -660,8 +660,8 @@ LedgerManagerImpl::startCatchup(
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
-    mApp.getCatchupManager().startCatchup(configuration, archive,
-                                          bucketsToRetain);
+    mApp.getLedgerApplyManager().startCatchup(configuration, archive,
+                                              bucketsToRetain);
 }
 
 uint64_t
@@ -758,9 +758,9 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
 
     releaseAssert(threadIsMain());
     uint32_t latestHeardFromNetwork =
-        mApp.getCatchupManager().getLargestLedgerSeqHeard();
+        mApp.getLedgerApplyManager().getLargestLedgerSeqHeard();
     uint32_t latestQueuedToApply =
-        mApp.getCatchupManager().getMaxQueuedToApply();
+        mApp.getLedgerApplyManager().getMaxQueuedToApply();
     if (calledViaExternalize)
     {
         releaseAssert(lcl <= latestQueuedToApply);

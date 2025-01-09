@@ -4,7 +4,7 @@
 
 #include "historywork/DownloadBucketsWork.h"
 #include "bucket/BucketManager.h"
-#include "catchup/CatchupManager.h"
+#include "catchup/LedgerApplyManager.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"

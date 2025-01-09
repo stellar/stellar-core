@@ -17,7 +17,7 @@
 
 #include "history/test/HistoryTestsUtils.h"
 
-#include "catchup/CatchupManagerImpl.h"
+#include "catchup/LedgerApplyManagerImpl.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/HerderUtils.h"
@@ -2807,15 +2807,15 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto outOfSync = simulation->addNode(v1SecretKey, qSet, &cfg2);
         simulation->addPendingConnection(v0NodeID, v1NodeID);
         simulation->startAllNodes();
-        auto& cm =
-            static_cast<CatchupManagerImpl&>(outOfSync->getCatchupManager());
+        auto& lam = static_cast<LedgerApplyManagerImpl&>(
+            outOfSync->getLedgerApplyManager());
 
         // Crank until outOfSync node has recieved checkpoint ledger and started
         // catchup
-        simulation->crankUntil([&]() { return cm.isCatchupInitialized(); },
+        simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
 
-        auto const& bufferedLedgers = cm.getBufferedLedgers();
+        auto const& bufferedLedgers = lam.getBufferedLedgers();
         REQUIRE(!bufferedLedgers.empty());
         REQUIRE(bufferedLedgers.begin()->first == firstCheckpoint);
         REQUIRE(bufferedLedgers.crbegin()->first ==
@@ -2832,10 +2832,10 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         simulation->addPendingConnection(v0NodeID, v2NodeID);
 
         simulation->startAllNodes();
-        auto& cm1 =
-            static_cast<CatchupManagerImpl&>(outOfSync1->getCatchupManager());
-        auto& cm2 =
-            static_cast<CatchupManagerImpl&>(outOfSync2->getCatchupManager());
+        auto& cm1 = static_cast<LedgerApplyManagerImpl&>(
+            outOfSync1->getLedgerApplyManager());
+        auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
+            outOfSync2->getLedgerApplyManager());
 
         // Crank until outOfSync node has recieved checkpoint ledger and started
         // catchup
@@ -3489,7 +3489,7 @@ static void
 checkSynced(Application& app)
 {
     REQUIRE(app.getLedgerManager().isSynced());
-    REQUIRE(!app.getCatchupManager().maybeGetNextBufferedLedgerToApply());
+    REQUIRE(!app.getLedgerApplyManager().maybeGetNextBufferedLedgerToApply());
 }
 
 void
@@ -3731,7 +3731,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
                                    validatorBKey.getPublicKey());
 
         // Externalize future ledger
-        // This should trigger CatchupManager to start buffering ledgers
+        // This should trigger LedgerApplyManager to start buffering ledgers
         // Ensure C processes future tx set and its fees correctly (even though
         // its own ledger state isn't upgraded yet)
         receiveLedger(fourth, herderC);
@@ -3761,7 +3761,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         // buffered ledgers
         // complete - all messages are received out of order
         // partial - only most recent ledger is received out of order
-        // CatchupManager should apply buffered ledgers and let LM get back
+        // LedgerApplyManager should apply buffered ledgers and let LM get back
         // in sync
         std::vector<uint32_t> ledgers{first, third, second};
         if (partial)
@@ -3776,7 +3776,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             // Tracking did not change
             checkHerder(*(getC()), herderC,
                         Herder::State::HERDER_TRACKING_NETWORK_STATE, fourth);
-            REQUIRE(!getC()->getCatchupManager().isCatchupInitialized());
+            REQUIRE(!getC()->getLedgerApplyManager().isCatchupInitialized());
 
             // At the last ledger, LM is back in sync
             if (i == ledgers.size() - 1)

@@ -276,7 +276,7 @@ setAuthenticatedLedgerHashPair(Application::pointer app,
     }
     else
     {
-        auto lcd = app->getCatchupManager().maybeGetLargestBufferedLedger();
+        auto lcd = app->getLedgerApplyManager().maybeGetLargestBufferedLedger();
         if (lcd)
         {
             uint32_t seq = lcd->getLedgerSeq() - 1;
@@ -916,7 +916,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     auto done = false;
     while (!done && clock.crank(true))
     {
-        switch (app->getCatchupManager().getCatchupWorkState())
+        switch (app->getLedgerApplyManager().getCatchupWorkState())
         {
         case BasicWork::State::WORK_ABORTED:
         case BasicWork::State::WORK_FAILURE:

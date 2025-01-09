@@ -310,7 +310,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             }
         }
 
-        mApp.getCatchupManager().ledgersVerified();
+        mApp.getLedgerApplyManager().ledgersVerified();
         prev = curr;
 
         // No need to keep verifying if the range is covered
@@ -481,7 +481,7 @@ VerifyLedgerChainWork::onRun()
     {
         CLOG_ERROR(History, "Catchup material failed verification");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
-        mApp.getCatchupManager().ledgerChainsVerificationFailed();
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     }
 
@@ -517,7 +517,7 @@ VerifyLedgerChainWork::onRun()
                             "unsupported ledger version, propagating "
                             "failure");
         CLOG_ERROR(History, "{}", UPGRADE_STELLAR_CORE);
-        mApp.getCatchupManager().ledgerChainsVerificationFailed();
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
         CLOG_ERROR(History, "Catchup material failed verification - hash "
@@ -526,25 +526,25 @@ VerifyLedgerChainWork::onRun()
                    (mChainDisagreesWithLocalState && mHasTrustedHash)
                        ? POSSIBLY_CORRUPTED_LOCAL_DATA
                        : POSSIBLY_CORRUPTED_HISTORY);
-        mApp.getCatchupManager().ledgerChainsVerificationFailed();
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "overshot, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mApp.getCatchupManager().ledgerChainsVerificationFailed();
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "undershot, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mApp.getCatchupManager().ledgerChainsVerificationFailed();
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "missing entries, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mApp.getCatchupManager().ledgerChainsVerificationFailed();
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     default:
         releaseAssert(false);

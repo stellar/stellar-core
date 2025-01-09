@@ -27,7 +27,7 @@ class VirtualClock;
 class TmpDirManager;
 class LedgerManager;
 class BucketManager;
-class CatchupManager;
+class LedgerApplyManager;
 class HistoryArchiveManager;
 class HistoryManager;
 class Maintainer;
@@ -207,7 +207,7 @@ class Application
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual LedgerManager& getLedgerManager() = 0;
     virtual BucketManager& getBucketManager() = 0;
-    virtual CatchupManager& getCatchupManager() = 0;
+    virtual LedgerApplyManager& getLedgerApplyManager() = 0;
     virtual HistoryArchiveManager& getHistoryArchiveManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
     virtual Maintainer& getMaintainer() = 0;

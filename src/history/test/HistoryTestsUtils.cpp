@@ -304,7 +304,7 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
 }
 
 CatchupPerformedWork::CatchupPerformedWork(
-    CatchupManager::CatchupMetrics const& metrics)
+    LedgerApplyManager::CatchupMetrics const& metrics)
     : mHistoryArchiveStatesDownloaded{metrics.mHistoryArchiveStatesDownloaded}
     , mCheckpointsDownloaded{metrics.mCheckpointsDownloaded}
     , mLedgersVerified{metrics.mLedgersVerified}
@@ -758,7 +758,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 {
     CLOG_INFO(History, "starting offline catchup with toLedger={}", toLedger);
 
-    auto startCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+    auto startCatchupMetrics = app->getLedgerApplyManager().getCatchupMetrics();
     auto& lm = app->getLedgerManager();
     auto lastLedger = lm.getLastClosedLedgerNum();
     auto mode = extraValidation ? CatchupConfiguration::Mode::OFFLINE_COMPLETE
@@ -768,8 +768,8 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
     lm.startCatchup(catchupConfiguration, nullptr, {});
     REQUIRE(!app->getClock().getIOContext().stopped());
 
-    auto& cm = app->getCatchupManager();
-    auto finished = [&]() { return cm.catchupWorkIsDone(); };
+    auto& lam = app->getLedgerApplyManager();
+    auto finished = [&]() { return lam.catchupWorkIsDone(); };
 
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
@@ -778,13 +778,14 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
                              expectedCatchupWork.mTxSetsApplied + 15, 60)});
 
     // Finished successfully
-    auto success = cm.isCatchupInitialized() &&
-                   cm.getCatchupWorkState() == BasicWork::State::WORK_SUCCESS;
+    auto success = lam.isCatchupInitialized() &&
+                   lam.getCatchupWorkState() == BasicWork::State::WORK_SUCCESS;
     if (success)
     {
         CLOG_INFO(History, "Caught up");
 
-        auto endCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+        auto endCatchupMetrics =
+            app->getLedgerApplyManager().getCatchupMetrics();
         auto catchupPerformedWork =
             CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
 
@@ -808,7 +809,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
                                  std::vector<uint32_t> const& ledgersToInject)
 {
     auto& lm = app->getLedgerManager();
-    auto startCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+    auto startCatchupMetrics = app->getLedgerApplyManager().getCatchupMetrics();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
@@ -882,7 +883,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     }
 
     auto catchupIsDone = [&]() {
-        return app->getCatchupManager().catchupWorkIsDone();
+        return app->getLedgerApplyManager().catchupWorkIsDone();
     };
 
     auto lastLedger = lm.getLastClosedLedgerNum();
@@ -913,7 +914,8 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     {
         REQUIRE(lm.getLastClosedLedgerNum() >= triggerLedger + bufferLedgers);
 
-        auto endCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+        auto endCatchupMetrics =
+            app->getLedgerApplyManager().getCatchupMetrics();
         auto catchupPerformedWork =
             CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
 

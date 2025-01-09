@@ -4,7 +4,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
-#include "catchup/CatchupManagerImpl.h"
+#include "catchup/LedgerApplyManagerImpl.h"
 #include "catchup/test/CatchupWorkTests.h"
 #include "history/CheckpointBuilder.h"
 #include "history/FileTransferInfo.h"
@@ -928,7 +928,8 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     auto runCatchup = [&](uint32_t expectedDestination) {
-        auto startCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+        auto startCatchupMetrics =
+            app->getLedgerApplyManager().getCatchupMetrics();
 
         auto expectedCatchupWork =
             catchupSimulation.computeCatchupPerformedWork(
@@ -939,11 +940,13 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
                 *app);
 
         testutil::crankUntil(
-            app, [&]() { return app->getCatchupManager().catchupWorkIsDone(); },
+            app,
+            [&]() { return app->getLedgerApplyManager().catchupWorkIsDone(); },
             std::chrono::seconds{
                 std::max<int64>(expectedCatchupWork.mTxSetsApplied + 15, 60)});
 
-        auto endCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+        auto endCatchupMetrics =
+            app->getLedgerApplyManager().getCatchupMetrics();
         auto catchupPerformedWork =
             CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
 
@@ -1157,16 +1160,17 @@ TEST_CASE("Catchup fatal failure", "[catchup][history]")
         catchupSimulation.getApp().getConfig().LEDGER_PROTOCOL_VERSION - 1);
 
     REQUIRE(!catchupSimulation.catchupOnline(a, 10, 5));
-    auto& cm = static_cast<CatchupManagerImpl&>(a->getCatchupManager());
-    REQUIRE(cm.getCatchupWork());
-    REQUIRE(cm.getCatchupWork()->fatalFailure());
+    auto& lam =
+        static_cast<LedgerApplyManagerImpl&>(a->getLedgerApplyManager());
+    REQUIRE(lam.getCatchupWork());
+    REQUIRE(lam.getCatchupWork()->fatalFailure());
 
     // Bad ledger version is a fatal failure
     // Try catching up again, no catchup work should be started as we're in
     // fatal failure mode
     REQUIRE(!catchupSimulation.catchupOnline(a, 70, 5));
-    REQUIRE(cm.getCatchupWork() == nullptr);
-    REQUIRE(cm.getCatchupFatalFailure());
+    REQUIRE(lam.getCatchupWork() == nullptr);
+    REQUIRE(lam.getCatchupFatalFailure());
 }
 
 TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
@@ -1618,7 +1622,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     // 1. LCL is 132
-    // 2. CatchupManager has ledgers up to 189.
+    // 2. LedgerApplyManager has ledgers up to 189.
     //    Once it hears ledger 192 close, it removes ledgers <= 191.
     // 3. Catchup to 191 = initLedger, and then externalize 194 to start catchup
     CHECK(catchupSimulation.catchupOnline(app, checkpointLedger, 1));
@@ -1674,7 +1678,7 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 
     auto& lm = app->getLedgerManager();
-    auto& cm = app->getCatchupManager();
+    auto& lam = app->getLedgerApplyManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     auto nextLedger = lm.getLastClosedLedgerNum() + 1;
@@ -1685,20 +1689,20 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     catchupSimulation.externalizeLedger(herder, nextLedger + 3);
     catchupSimulation.externalizeLedger(herder, nextLedger + 5);
     REQUIRE(!lm.isSynced());
-    REQUIRE(cm.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
+    REQUIRE(lam.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the first gap. There will still be buffered ledgers left because
     // of the second gap
     catchupSimulation.externalizeLedger(herder, nextLedger + 1);
     REQUIRE(!lm.isSynced());
-    REQUIRE(cm.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
+    REQUIRE(lam.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
     REQUIRE(lm.isSynced());
-    REQUIRE(cm.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
-    REQUIRE(!cm.isCatchupInitialized());
+    REQUIRE(lam.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
+    REQUIRE(!lam.isCatchupInitialized());
     REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 5);
 }
 
@@ -1711,7 +1715,7 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto& lm = app->getLedgerManager();
-    auto& cm = app->getCatchupManager();
+    auto& lam = app->getLedgerApplyManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
@@ -1731,8 +1735,8 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
     testutil::crankFor(app->getClock(), std::chrono::seconds(10));
 
     REQUIRE(lm.isSynced());
-    REQUIRE(cm.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
-    REQUIRE(!cm.isCatchupInitialized());
+    REQUIRE(lam.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
+    REQUIRE(!lam.isCatchupInitialized());
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
             checkpointLedger + 2);
 }
