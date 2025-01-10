@@ -293,9 +293,9 @@ template <typename T> class binary_fuse_t
         uint32_t block = (1ul << blockBits);
 
         std::vector<uint32_t> startPos(block);
-        uint32_t h012[5];
+        std::vector<uint32_t> h012(5);
 
-        reverseOrder[size] = 1;
+        reverseOrder.at(size) = 1;
         for (int loop = 0; true; ++loop)
         {
             if (loop + 1 > XOR_MAX_ITERATIONS)
@@ -310,58 +310,58 @@ template <typename T> class binary_fuse_t
             {
                 // important : i * size would overflow as a 32-bit number in
                 // some cases.
-                startPos[i] = ((uint64_t)i * size) >> blockBits;
+                startPos.at(i) = ((uint64_t)i * size) >> blockBits;
             }
 
             uint64_t maskblock = block - 1;
             for (uint32_t i = 0; i < size; i++)
             {
-                uint64_t hash = sip_hash24(keys[i], Seed);
+                uint64_t hash = sip_hash24(keys.at(i), Seed);
                 uint64_t segment_index = hash >> (64 - blockBits);
-                while (reverseOrder[startPos[segment_index]] != 0)
+                while (reverseOrder.at(startPos.at(segment_index)) != 0)
                 {
                     segment_index++;
                     segment_index &= maskblock;
                 }
-                reverseOrder[startPos[segment_index]] = hash;
-                startPos[segment_index]++;
+                reverseOrder.at(startPos.at(segment_index)) = hash;
+                startPos.at(segment_index)++;
             }
             int error = 0;
             uint32_t duplicates = 0;
             for (uint32_t i = 0; i < size; i++)
             {
-                uint64_t hash = reverseOrder[i];
+                uint64_t hash = reverseOrder.at(i);
                 uint32_t h0 = binary_fuse_hash(0, hash);
-                t2count[h0] += 4;
-                t2hash[h0] ^= hash;
+                t2count.at(h0) += 4;
+                t2hash.at(h0) ^= hash;
                 uint32_t h1 = binary_fuse_hash(1, hash);
-                t2count[h1] += 4;
-                t2count[h1] ^= 1;
-                t2hash[h1] ^= hash;
+                t2count.at(h1) += 4;
+                t2count.at(h1) ^= 1;
+                t2hash.at(h1) ^= hash;
                 uint32_t h2 = binary_fuse_hash(2, hash);
-                t2count[h2] += 4;
-                t2hash[h2] ^= hash;
-                t2count[h2] ^= 2;
-                if ((t2hash[h0] & t2hash[h1] & t2hash[h2]) == 0)
+                t2count.at(h2) += 4;
+                t2hash.at(h2) ^= hash;
+                t2count.at(h2) ^= 2;
+                if ((t2hash.at(h0) & t2hash.at(h1) & t2hash.at(h2)) == 0)
                 {
-                    if (((t2hash[h0] == 0) && (t2count[h0] == 8)) ||
-                        ((t2hash[h1] == 0) && (t2count[h1] == 8)) ||
-                        ((t2hash[h2] == 0) && (t2count[h2] == 8)))
+                    if (((t2hash.at(h0) == 0) && (t2count.at(h0) == 8)) ||
+                        ((t2hash.at(h1) == 0) && (t2count.at(h1) == 8)) ||
+                        ((t2hash.at(h2) == 0) && (t2count.at(h2) == 8)))
                     {
                         duplicates += 1;
-                        t2count[h0] -= 4;
-                        t2hash[h0] ^= hash;
-                        t2count[h1] -= 4;
-                        t2count[h1] ^= 1;
-                        t2hash[h1] ^= hash;
-                        t2count[h2] -= 4;
-                        t2count[h2] ^= 2;
-                        t2hash[h2] ^= hash;
+                        t2count.at(h0) -= 4;
+                        t2hash.at(h0) ^= hash;
+                        t2count.at(h1) -= 4;
+                        t2count.at(h1) ^= 1;
+                        t2hash.at(h1) ^= hash;
+                        t2count.at(h2) -= 4;
+                        t2count.at(h2) ^= 2;
+                        t2hash.at(h2) ^= hash;
                     }
                 }
-                error = (t2count[h0] < 4) ? 1 : error;
-                error = (t2count[h1] < 4) ? 1 : error;
-                error = (t2count[h2] < 4) ? 1 : error;
+                error = (t2count.at(h0) < 4) ? 1 : error;
+                error = (t2count.at(h1) < 4) ? 1 : error;
+                error = (t2count.at(h2) < 4) ? 1 : error;
             }
             if (error)
             {
@@ -371,6 +371,9 @@ template <typename T> class binary_fuse_t
 
                 // Rotate seed deterministically
                 auto seedIndex = loop / crypto_shorthash_KEYBYTES;
+
+                // Seed is a carray of size crypto_shorthash_KEYBYTES, can't
+                // segfault
                 Seed[seedIndex]++;
             }
 
@@ -379,41 +382,41 @@ template <typename T> class binary_fuse_t
             // Add sets with one key to the queue.
             for (uint32_t i = 0; i < capacity; i++)
             {
-                alone[Qsize] = i;
-                Qsize += ((t2count[i] >> 2) == 1) ? 1 : 0;
+                alone.at(Qsize) = i;
+                Qsize += ((t2count.at(i) >> 2) == 1) ? 1 : 0;
             }
             uint32_t stacksize = 0;
             while (Qsize > 0)
             {
                 Qsize--;
-                uint32_t index = alone[Qsize];
-                if ((t2count[index] >> 2) == 1)
+                uint32_t index = alone.at(Qsize);
+                if ((t2count.at(index) >> 2) == 1)
                 {
-                    uint64_t hash = t2hash[index];
+                    uint64_t hash = t2hash.at(index);
 
-                    // h012[0] = binary_fuse16_hash(0, hash);
-                    h012[1] = binary_fuse_hash(1, hash);
-                    h012[2] = binary_fuse_hash(2, hash);
-                    h012[3] = binary_fuse_hash(0, hash); // == h012[0];
-                    h012[4] = h012[1];
-                    uint8_t found = t2count[index] & 3;
-                    reverseH[stacksize] = found;
-                    reverseOrder[stacksize] = hash;
+                    // h012.at(0) = binary_fuse16_hash(0, hash);
+                    h012.at(1) = binary_fuse_hash(1, hash);
+                    h012.at(2) = binary_fuse_hash(2, hash);
+                    h012.at(3) = binary_fuse_hash(0, hash); // == h012.at(0);
+                    h012.at(4) = h012.at(1);
+                    uint8_t found = t2count.at(index) & 3;
+                    reverseH.at(stacksize) = found;
+                    reverseOrder.at(stacksize) = hash;
                     stacksize++;
-                    uint32_t other_index1 = h012[found + 1];
-                    alone[Qsize] = other_index1;
-                    Qsize += ((t2count[other_index1] >> 2) == 2 ? 1 : 0);
+                    uint32_t other_index1 = h012.at(found + 1);
+                    alone.at(Qsize) = other_index1;
+                    Qsize += ((t2count.at(other_index1) >> 2) == 2 ? 1 : 0);
 
-                    t2count[other_index1] -= 4;
-                    t2count[other_index1] ^= binary_fuse_mod3(found + 1);
-                    t2hash[other_index1] ^= hash;
+                    t2count.at(other_index1) -= 4;
+                    t2count.at(other_index1) ^= binary_fuse_mod3(found + 1);
+                    t2hash.at(other_index1) ^= hash;
 
-                    uint32_t other_index2 = h012[found + 2];
-                    alone[Qsize] = other_index2;
-                    Qsize += ((t2count[other_index2] >> 2) == 2 ? 1 : 0);
-                    t2count[other_index2] -= 4;
-                    t2count[other_index2] ^= binary_fuse_mod3(found + 2);
-                    t2hash[other_index2] ^= hash;
+                    uint32_t other_index2 = h012.at(found + 2);
+                    alone.at(Qsize) = other_index2;
+                    Qsize += ((t2count.at(other_index2) >> 2) == 2 ? 1 : 0);
+                    t2count.at(other_index2) -= 4;
+                    t2count.at(other_index2) ^= binary_fuse_mod3(found + 2);
+                    t2hash.at(other_index2) ^= hash;
                 }
             }
             if (stacksize + duplicates == size)
@@ -443,16 +446,16 @@ template <typename T> class binary_fuse_t
         for (uint32_t i = size - 1; i < size; i--)
         {
             // the hash of the key we insert next
-            uint64_t hash = reverseOrder[i];
+            uint64_t hash = reverseOrder.at(i);
             T xor2 = binary_fuse_fingerprint(hash);
-            uint8_t found = reverseH[i];
-            h012[0] = binary_fuse_hash(0, hash);
-            h012[1] = binary_fuse_hash(1, hash);
-            h012[2] = binary_fuse_hash(2, hash);
-            h012[3] = h012[0];
-            h012[4] = h012[1];
-            Fingerprints[h012[found]] = xor2 ^ Fingerprints[h012[found + 1]] ^
-                                        Fingerprints[h012[found + 2]];
+            uint8_t found = reverseH.at(i);
+            h012.at(0) = binary_fuse_hash(0, hash);
+            h012.at(1) = binary_fuse_hash(1, hash);
+            h012.at(2) = binary_fuse_hash(2, hash);
+            h012.at(3) = h012.at(0);
+            h012.at(4) = h012.at(1);
+            Fingerprints.at(h012.at(found)) = xor2 ^ Fingerprints.at(h012.at(found + 1)) ^
+                                        Fingerprints.at(h012.at(found + 2));
         }
 
         return true;
@@ -519,7 +522,7 @@ template <typename T> class binary_fuse_t
 
             for (auto byte_i = 0; byte_i < sizeof(T); ++byte_i)
             {
-                value |= static_cast<T>(xdrFilter.fingerprints[pos + byte_i])
+                value |= static_cast<T>(xdrFilter.fingerprints.at(pos + byte_i))
                          << (byte_i * 8);
             }
 
@@ -535,8 +538,8 @@ template <typename T> class binary_fuse_t
         uint64_t hash = sip_hash24(key, Seed);
         T f = binary_fuse_fingerprint(hash);
         binary_hashes_t hashes = hash_batch(hash);
-        f ^= Fingerprints[hashes.h0] ^ Fingerprints[hashes.h1] ^
-             Fingerprints[hashes.h2];
+        f ^= Fingerprints.at(hashes.h0) ^ Fingerprints.at(hashes.h1) ^
+             Fingerprints.at(hashes.h2);
         return f == 0;
     }
 
