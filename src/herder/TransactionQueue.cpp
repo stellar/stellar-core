@@ -1184,12 +1184,18 @@ SorobanTransactionQueue::broadcastSome()
 size_t
 SorobanTransactionQueue::getMaxQueueSizeOps() const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
-    // TODO: I removed a conditional checking that the protocol version is
-    // post-soroban here. I think that check is now unnecessary, right?
-    auto res = mTxQueueLimiter.maxScaledLedgerResources(true);
-    releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
-    return res.getVal(Resource::Type::OPERATIONS);
+    if (protocolVersionStartsFrom(
+            mBucketSnapshot->getLedgerHeader().ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
+    {
+        auto res = mTxQueueLimiter.maxScaledLedgerResources(true);
+        releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
+        return res.getVal(Resource::Type::OPERATIONS);
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 bool
