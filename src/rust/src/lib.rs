@@ -198,6 +198,7 @@ mod rust_bridge {
             ttl_entries: &Vec<CxxBuf>,
             base_prng_seed: &CxxBuf,
             rent_fee_configuration: CxxRentFeeConfiguration,
+            module_cache: &SorobanModuleCache,
         ) -> Result<InvokeHostFunctionOutput>;
 
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
@@ -279,6 +280,20 @@ mod rust_bridge {
         fn i128_sub_will_underflow(lhs: &CxxI128, rhs: &CxxI128) -> Result<bool>;
 
         fn i128_from_i64(val: i64) -> Result<CxxI128>;
+
+        type SorobanModuleCache;
+
+        fn new_module_cache() -> Result<Box<SorobanModuleCache>>;
+        fn compile(
+            self: &mut SorobanModuleCache,
+            ledger_protocol: u32,
+            source: &[u8],
+        ) -> Result<()>;
+        fn shallow_clone(self: &SorobanModuleCache) -> Result<Box<SorobanModuleCache>>;
+        fn evict_contract_code(self: &mut SorobanModuleCache, key: &[u8]) -> Result<()>;
+        fn clear(self: &mut SorobanModuleCache) -> Result<()>;
+        fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
+        fn get_mem_bytes_consumed(self: &SorobanModuleCache) -> Result<u64>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -538,19 +553,66 @@ use log::partition::TX;
 #[path = "."]
 mod p23 {
     pub(crate) extern crate soroban_env_host_p23;
+    use super::SorobanModuleCache;
+    use soroban_env_host::{
+        budget::Budget,
+        e2e_invoke::{self, InvokeHostFunctionResult},
+        xdr::DiagnosticEvent,
+        HostError, LedgerInfo, TraceHook,
+    };
     pub(crate) use soroban_env_host_p23 as soroban_env_host;
 
     pub(crate) mod contract;
+
+    // We do some more local re-exports here of things used in contract.rs that
+    // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
+    // these imports).
+    pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
     }
 
-    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+    pub(crate) const fn get_version_protocol(_v: &soroban_env_host::Version) -> u32 {
         // Temporarily hardcode the protocol version until we actually bump it
         // in the host library.
         23
+    }
+
+    pub fn invoke_host_function_with_trace_hook_and_module_cache<
+        T: AsRef<[u8]>,
+        I: ExactSizeIterator<Item = T>,
+    >(
+        budget: &Budget,
+        enable_diagnostics: bool,
+        encoded_host_fn: T,
+        encoded_resources: T,
+        encoded_source_account: T,
+        encoded_auth_entries: I,
+        ledger_info: LedgerInfo,
+        encoded_ledger_entries: I,
+        encoded_ttl_entries: I,
+        base_prng_seed: T,
+        diagnostic_events: &mut Vec<DiagnosticEvent>,
+        trace_hook: Option<TraceHook>,
+        module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionResult, HostError> {
+        e2e_invoke::invoke_host_function_with_trace_hook_and_module_cache(
+            &budget,
+            enable_diagnostics,
+            encoded_host_fn,
+            encoded_resources,
+            encoded_source_account,
+            encoded_auth_entries,
+            ledger_info,
+            encoded_ledger_entries,
+            encoded_ttl_entries,
+            base_prng_seed,
+            diagnostic_events,
+            trace_hook,
+            Some(module_cache.p23_cache.module_cache.clone()),
+        )
     }
 }
 
@@ -558,8 +620,60 @@ mod p23 {
 mod p22 {
     pub(crate) extern crate soroban_env_host_p22;
     pub(crate) use soroban_env_host_p22 as soroban_env_host;
-
     pub(crate) mod contract;
+    use super::SorobanModuleCache;
+    use soroban_env_host::{
+        budget::{AsBudget, Budget},
+        e2e_invoke::{self, InvokeHostFunctionResult},
+        xdr::{DiagnosticEvent, Hash},
+        Error, HostError, LedgerInfo, TraceHook, Val,
+    };
+
+    // Some stub definitions to handle API additions for the
+    // reusable module cache.
+
+    #[allow(dead_code)]
+    const INTERNAL_ERROR: Error = Error::from_type_and_code(
+        soroban_env_host::xdr::ScErrorType::Context,
+        soroban_env_host::xdr::ScErrorCode::InternalError,
+    );
+
+    #[allow(dead_code)]
+    #[derive(Clone)]
+    pub(crate) struct ModuleCache;
+    #[allow(dead_code)]
+    pub(crate) trait ErrorHandler {
+        fn map_err<T, E>(&self, res: Result<T, E>) -> Result<T, HostError>
+        where
+            Error: From<E>,
+            E: core::fmt::Debug;
+        fn error(&self, error: Error, msg: &str, args: &[Val]) -> HostError;
+    }
+    #[allow(dead_code)]
+    impl ModuleCache {
+        pub(crate) fn new<T>(_handler: T) -> Result<Self, HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn parse_and_cache_module_simple<T>(
+            &self,
+            _handler: &T,
+            _protocol: u32,
+            _wasm: &[u8],
+        ) -> Result<(), HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn remove_module(&self, _key: &Hash) -> Result<(), HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn clear(&self) -> Result<(), HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn contains_module(&self, _key: &Hash) -> Result<bool, HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+    }
+    #[allow(dead_code)]
+    pub(crate) trait CompilationContext: ErrorHandler + AsBudget {}
 
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
@@ -569,14 +683,100 @@ mod p22 {
     pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
         v.interface.protocol
     }
+
+    pub fn invoke_host_function_with_trace_hook_and_module_cache<
+        T: AsRef<[u8]>,
+        I: ExactSizeIterator<Item = T>,
+    >(
+        budget: &Budget,
+        enable_diagnostics: bool,
+        encoded_host_fn: T,
+        encoded_resources: T,
+        encoded_source_account: T,
+        encoded_auth_entries: I,
+        ledger_info: LedgerInfo,
+        encoded_ledger_entries: I,
+        encoded_ttl_entries: I,
+        base_prng_seed: T,
+        diagnostic_events: &mut Vec<DiagnosticEvent>,
+        trace_hook: Option<TraceHook>,
+        _module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionResult, HostError> {
+        e2e_invoke::invoke_host_function_with_trace_hook(
+            &budget,
+            enable_diagnostics,
+            encoded_host_fn,
+            encoded_resources,
+            encoded_source_account,
+            encoded_auth_entries,
+            ledger_info,
+            encoded_ledger_entries,
+            encoded_ttl_entries,
+            base_prng_seed,
+            diagnostic_events,
+            trace_hook,
+        )
+    }
 }
 
 #[path = "."]
 mod p21 {
     pub(crate) extern crate soroban_env_host_p21;
     pub(crate) use soroban_env_host_p21 as soroban_env_host;
-
     pub(crate) mod contract;
+    use super::SorobanModuleCache;
+    use soroban_env_host::{
+        budget::{AsBudget, Budget},
+        e2e_invoke::{self, InvokeHostFunctionResult},
+        xdr::{DiagnosticEvent, Hash},
+        Error, HostError, LedgerInfo, TraceHook, Val,
+    };
+
+    // Some stub definitions to handle API additions for the
+    // reusable module cache.
+
+    #[allow(dead_code)]
+    const INTERNAL_ERROR: Error = Error::from_type_and_code(
+        soroban_env_host::xdr::ScErrorType::Context,
+        soroban_env_host::xdr::ScErrorCode::InternalError,
+    );
+
+    #[allow(dead_code)]
+    #[derive(Clone)]
+    pub(crate) struct ModuleCache;
+    #[allow(dead_code)]
+    pub(crate) trait ErrorHandler {
+        fn map_err<T, E>(&self, res: Result<T, E>) -> Result<T, HostError>
+        where
+            Error: From<E>,
+            E: core::fmt::Debug;
+        fn error(&self, error: Error, msg: &str, args: &[Val]) -> HostError;
+    }
+    #[allow(dead_code)]
+    impl ModuleCache {
+        pub(crate) fn new<T>(_handler: T) -> Result<Self, HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn parse_and_cache_module_simple<T>(
+            &self,
+            _handler: &T,
+            _protocol: u32,
+            _wasm: &[u8],
+        ) -> Result<(), HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn remove_module(&self, _key: &Hash) -> Result<(), HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn clear(&self) -> Result<(), HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+        pub(crate) fn contains_module(&self, _key: &Hash) -> Result<bool, HostError> {
+            Err(INTERNAL_ERROR.into())
+        }
+    }
+    #[allow(dead_code)]
+    pub(crate) trait CompilationContext: ErrorHandler + AsBudget {}
 
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
@@ -585,6 +785,40 @@ mod p21 {
 
     pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
         soroban_env_host::meta::get_ledger_protocol_version(v.interface)
+    }
+
+    pub fn invoke_host_function_with_trace_hook_and_module_cache<
+        T: AsRef<[u8]>,
+        I: ExactSizeIterator<Item = T>,
+    >(
+        budget: &Budget,
+        enable_diagnostics: bool,
+        encoded_host_fn: T,
+        encoded_resources: T,
+        encoded_source_account: T,
+        encoded_auth_entries: I,
+        ledger_info: LedgerInfo,
+        encoded_ledger_entries: I,
+        encoded_ttl_entries: I,
+        base_prng_seed: T,
+        diagnostic_events: &mut Vec<DiagnosticEvent>,
+        trace_hook: Option<TraceHook>,
+        _module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionResult, HostError> {
+        e2e_invoke::invoke_host_function_with_trace_hook(
+            &budget,
+            enable_diagnostics,
+            encoded_host_fn,
+            encoded_resources,
+            encoded_source_account,
+            encoded_auth_entries,
+            ledger_info,
+            encoded_ledger_entries,
+            encoded_ttl_entries,
+            base_prng_seed,
+            diagnostic_events,
+            trace_hook,
+        )
     }
 }
 
@@ -667,6 +901,7 @@ struct HostModule {
         ttl_entries: &Vec<CxxBuf>,
         base_prng_seed: &CxxBuf,
         rent_fee_configuration: &CxxRentFeeConfiguration,
+        module_cache: &SorobanModuleCache,
     ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
     compute_transaction_resource_fee:
         fn(tx_resources: CxxTransactionResources, fee_config: CxxFeeConfiguration) -> FeePair,
@@ -764,6 +999,7 @@ pub(crate) fn invoke_host_function(
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
+    module_cache: &SorobanModuleCache,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, ledger_info.protocol_version)?;
     let res = (hm.invoke_host_function)(
@@ -778,6 +1014,7 @@ pub(crate) fn invoke_host_function(
         ttl_entries,
         base_prng_seed,
         &rent_fee_configuration,
+        module_cache,
     );
 
     #[cfg(feature = "testutils")]
@@ -796,6 +1033,7 @@ pub(crate) fn invoke_host_function(
         ttl_entries,
         base_prng_seed,
         rent_fee_configuration,
+        module_cache,
     );
 
     res
@@ -827,6 +1065,7 @@ mod test_extra_protocol {
         ttl_entries: &Vec<CxxBuf>,
         base_prng_seed: &CxxBuf,
         rent_fee_configuration: CxxRentFeeConfiguration,
+        module_cache: &SorobanModuleCache,
     ) {
         if let Ok(extra) = std::env::var("SOROBAN_TEST_EXTRA_PROTOCOL") {
             if let Ok(proto) = u32::from_str(&extra) {
@@ -858,6 +1097,7 @@ mod test_extra_protocol {
                         ttl_entries,
                         base_prng_seed,
                         &rent_fee_configuration,
+                        module_cache,
                     );
                     if mostly_the_same_host_function_output(&res1, &res2) {
                         info!(target: TX, "{}", summarize_host_function_output(hm1, &res1));
@@ -1100,4 +1340,84 @@ pub(crate) fn i128_from_i64(val: i64) -> Result<CxxI128, Box<dyn std::error::Err
         hi: i128_hi(res),
         lo: i128_lo(res),
     })
+}
+
+// The SorobanModuleCache needs to hold a different protocol-specific cache for
+// each supported protocol version it's going to be used with. It has to hold
+// all these caches _simultaneously_ because it might perform an upgrade from
+// protocol N to protocol N+1 in a single transaction, and needs to be ready for
+// that before it happens.
+//
+// Most of these caches can be empty at any given time, because we're not
+// expecting core to need to replay old protocols, and/or if it does it's during
+// replay and there's no problem stalling while filling a cache with new entries
+// on a per-ledger basis as they are replayed.
+//
+// But for the current protocol version we need to have a cache ready to execute
+// anything thrown at it once it's in sync, so we should prime the
+// current-protocol cache as soon as we start, as well as the next-protocol
+// cache (if it exists) so that we can upgrade without stalling.
+struct SorobanModuleCache {
+    p23_cache: p23::contract::ProtocolSpecificModuleCache,
+}
+
+impl SorobanModuleCache {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self {
+            p23_cache: p23::contract::ProtocolSpecificModuleCache::new()?,
+        })
+    }
+    pub fn compile(
+        &mut self,
+        ledger_protocol: u32,
+        wasm: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match ledger_protocol {
+            23 => self.p23_cache.compile(wasm),
+            // Add other protocols here as needed.
+            _ => Err(Box::new(soroban_curr::contract::CoreHostError::General(
+                "unsupported protocol",
+            ))),
+        }
+    }
+    pub fn shallow_clone(&self) -> Result<Box<Self>, Box<dyn std::error::Error>> {
+        Ok(Box::new(Self {
+            p23_cache: self.p23_cache.shallow_clone()?,
+        }))
+    }
+
+    pub fn evict_contract_code(&mut self, key: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        let hash: [u8; 32] = key
+            .as_ref()
+            .try_into()
+            .map_err(|_| "Invalid contract-code key length")?;
+        self.p23_cache.evict(&hash)
+    }
+    pub fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.p23_cache.clear()
+    }
+
+    pub fn contains_module(
+        &self,
+        protocol: u32,
+        key: &[u8],
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let hash: [u8; 32] = key
+            .as_ref()
+            .try_into()
+            .map_err(|_| "Invalid contract-code key length")?;
+        match protocol {
+            23 => self.p23_cache.contains_module(&hash),
+            _ => Err(Box::new(soroban_curr::contract::CoreHostError::General(
+                "unsupported protocol",
+            ))),
+        }
+    }
+    pub fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        self.p23_cache.get_mem_bytes_consumed()
+    }
+}
+
+fn new_module_cache() -> Result<Box<SorobanModuleCache>, Box<dyn std::error::Error>> {
+    Ok(Box::new(SorobanModuleCache::new()?))
 }

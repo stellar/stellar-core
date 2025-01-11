@@ -4,6 +4,8 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/metrics_registry.h"
+#include "rust/RustBridge.h"
+#include <shared_mutex>
 
 namespace stellar
 {
@@ -26,6 +28,12 @@ class AppConnector
     // Copy config for threads to use, and avoid warnings from thread sanitizer
     // about accessing mApp
     Config const mConfig;
+    // Copy of module cache handle, for threads to use. All copies of the module
+    // cache handle point to the same, shared, threadsafe module cache. It may
+    // periodically be replaced by a delete/rebuild cycle in the LedgerManager.
+    // This is always done under a mutex.
+    rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
+    std::shared_mutex mModuleCacheMutex;
 
   public:
     AppConnector(Application& app);
@@ -51,6 +59,7 @@ class AppConnector
                              std::string const& message);
     VirtualClock::time_point now() const;
     Config const& getConfig() const;
+    rust::Box<rust_bridge::SorobanModuleCache> getModuleCache();
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
     // This method is always exclusively called from one thread

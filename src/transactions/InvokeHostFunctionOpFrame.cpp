@@ -525,7 +525,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
         basePrngSeedBuf.data->assign(sorobanBasePrngSeed.begin(),
                                      sorobanBasePrngSeed.end());
-
+        auto moduleCache = app.getModuleCache();
         out = rust_bridge::invoke_host_function(
             appConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
             appConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, resources.instructions,
@@ -533,7 +533,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             toCxxBuf(getSourceID()), authEntryCxxBufs,
             getLedgerInfo(ltx, app, sorobanConfig), ledgerEntryCxxBufs,
             ttlEntryCxxBufs, basePrngSeedBuf,
-            sorobanConfig.rustBridgeRentFeeConfiguration());
+            sorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
         metrics.mCpuInsn = out.cpu_insns;
         metrics.mMemByte = out.mem_bytes;
         metrics.mInvokeTimeNsecs = out.time_nsecs;

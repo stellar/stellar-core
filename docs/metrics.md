@@ -250,3 +250,7 @@ soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config settin
 soroban.config.ledger-max-write-entry        | counter   | soroban config setting `ledger_max_write_ledger_entries`
 soroban.config.ledger-max-write-ledger-byte  | counter   | soroban config setting `ledger_max_write_bytes`
 soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `bucket_list_target_size_bytes`
+soroban.module-cache.num-entries             | counter   | current number of entries in module cache
+soroban.module-cache.compilation-time        | timer     | times each contract compilation when adding to module cache
+soroban.module-cache.rebuild-time            | timer     | times each rebuild of module cache (including all compilations)
+soroban.module-cache.rebuild-bytes           | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
