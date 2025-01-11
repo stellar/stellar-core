@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "rust/RustBridge.h"
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <xdrpp/message.h>
@@ -69,6 +71,13 @@ class ByteSlice
     }
     ByteSlice(std::string const& bytes)
         : mData(bytes.data()), mSize(bytes.size())
+    {
+    }
+    ByteSlice(::rust::Vec<uint8_t> const& bytes)
+        : mData(bytes.data()), mSize(bytes.size())
+    {
+    }
+    ByteSlice(RustBuf const& bytes) : ByteSlice(bytes.data)
     {
     }
     ByteSlice(char const* str) : ByteSlice((void const*)str, strlen(str))

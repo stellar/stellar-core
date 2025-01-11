@@ -20,6 +20,11 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewHistogram({"soroban", "ledger", "write-entry"}))
     , mLedgerWriteLedgerByte(
           metrics.NewHistogram({"soroban", "ledger", "write-ledger-byte"}))
+    , mLedgerHostFnCpuInsnsRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"}))
+    , mLedgerHostFnCpuInsnsRatioExclVm(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"}))
+
     /* tx-wide metrics */
     , mTxSizeByte(metrics.NewHistogram({"soroban", "tx", "size-byte"}))
     /* InvokeHostFunctionOp metrics */
@@ -62,6 +67,8 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     , mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm(
           metrics.NewHistogram({"soroban", "host-fn-op",
                                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"}))
+    , mHostFnOpDeclaredInsnsUsageRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"}))
     , mHostFnOpMaxRwKeyByte(metrics.NewMeter(
           {"soroban", "host-fn-op", "max-rw-key-byte"}, "byte"))
     , mHostFnOpMaxRwDataByte(metrics.NewMeter(
@@ -128,12 +135,17 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           {"soroban", "config", "bucket-list-target-size-byte"}))
     , mConfigFeeWrite1KB(
           metrics.NewCounter({"soroban", "config", "fee-write-1kb"}))
-    , mLedgerHostFnCpuInsnsRatio(metrics.NewHistogram(
-          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"}))
-    , mLedgerHostFnCpuInsnsRatioExclVm(metrics.NewHistogram(
-          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"}))
-    , mHostFnOpDeclaredInsnsUsageRatio(metrics.NewHistogram(
-          {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"}))
+
+    /* Module cache related metrics */
+    , mModuleCacheNumEntries(
+          metrics.NewCounter({"soroban", "module-cache", "num-entries"}))
+    , mModuleCompilationTime(
+          metrics.NewTimer({"soroban", "module-cache", "compilation-time"}))
+    , mModuleCacheRebuildTime(
+          metrics.NewTimer({"soroban", "module-cache", "rebuild-time"}))
+    , mModuleCacheRebuildBytes(
+          metrics.NewCounter({"soroban", "module-cache", "rebuild-bytes"}))
+
 {
 }
 
