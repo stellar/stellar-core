@@ -672,6 +672,10 @@ class Config : public std::enable_shared_from_this<Config>
     // Number of threads to serve query commands
     int QUERY_THREAD_POOL_SIZE;
 
+    // Number of threads to use when compiling contracts
+    // at startup.
+    int COMPILATION_THREADS;
+
     // Number of ledger snapshots to maintain for querying
     uint32_t QUERY_SNAPSHOT_LEDGERS;
 

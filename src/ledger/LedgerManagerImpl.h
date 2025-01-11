@@ -9,8 +9,10 @@
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
+#include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
 #include "main/PersistentState.h"
+#include "rust/RustBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
@@ -58,20 +60,9 @@ class LedgerManagerImpl : public LedgerManager
         std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
     };
 
-    // Any state that apply needs to access through the app connector should go
-    // here, at very least just to make it clear what is being accessed by which
-    // threads. We may try to further encapsulate it.
-    struct ApplyState
-    {
-        // Latest Soroban config during apply (should not be used outside of
-        // application, as it may be in half-valid state). Note that access to
-        // this variable is not synchronized, since it should only be used by
-        // one thread (main or ledger close).
-        std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
-    };
-
     struct LedgerApplyMetrics
     {
+        SorobanMetrics mSorobanMetrics;
         medida::Timer& mTransactionApply;
         medida::Histogram& mTransactionCount;
         medida::Histogram& mOperationCount;
@@ -88,15 +79,74 @@ class LedgerManagerImpl : public LedgerManager
         LedgerApplyMetrics(medida::MetricsRegistry& registry);
     };
 
+    // Any state that apply needs to access through the app connector should go
+    // here, at very least just to make it clear what is being accessed by which
+    // threads. We may try to further encapsulate it.
+    struct ApplyState
+    {
+        LedgerApplyMetrics mMetrics;
+
+        // Latest Soroban config during apply (should not be used outside of
+        // application, as it may be in half-valid state). Note that access to
+        // this variable is not synchronized, since it should only be used by
+        // one thread (main or ledger close).
+        std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
+
+        // The current reusable / inter-ledger soroban module cache.
+        ::rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
+
+        // Manager object that (re)builds the module cache in background
+        // threads. Only non-nullptr when there's a background compilation in
+        // progress.
+        std::unique_ptr<SharedModuleCacheCompiler> mCompiler;
+
+        // Protocol versions to compile each contract for in the module cache.
+        std::vector<uint32_t> mModuleCacheProtocols;
+
+        // Number of threads to use for compilation (cached from config).
+        size_t mNumCompilationThreads;
+
+        // Kicks off (on auxiliary threads) compilation of all contracts in the
+        // provided snapshot, for ledger protocols starting at minLedgerVersion
+        // and running through to Config::CURRENT_LEDGER_PROTOCOL_VERSION (to
+        // enable upgrades).
+        void startCompilingAllContracts(SearchableSnapshotConstPtr snap,
+                                        uint32_t minLedgerVersion);
+
+        // Finishes a compilation started by `startCompilingAllContracts`.
+        void finishPendingCompilation();
+
+        // Equivalent to calling `startCompilingAllContracts` followed by
+        // `finishPendingCompilation`.
+        void compileAllContractsInLedger(SearchableSnapshotConstPtr snap,
+                                         uint32_t minLedgerVersion);
+
+        // Estimates the size of the arena underlying the module cache's shared
+        // wasmi engine, from metrics, and rebuilds if it has likely built up a
+        // lot of dead space inside of it.
+        void maybeRebuildModuleCache(SearchableSnapshotConstPtr snap,
+                                     uint32_t minLedgerVersion);
+
+        // Evicts a single contract from the module cache, if it is present.
+        // This should be done whenever a contract LE is evicted from the
+        // live BL.
+        void evictFromModuleCache(uint32_t ledgerVersion,
+                                  EvictedStateVectors const& evictedState);
+
+        // Adds all contracts in the provided set of LEs to the module cache.
+        // This should be called as entries are added to the live bucketlist.
+        void addAnyContractsToModuleCache(uint32_t ledgerVersion,
+                                          std::vector<LedgerEntry> const& le);
+
+        ApplyState(Application& app);
+    };
+
     // This state is private to the apply thread and holds work-in-progress
     // that gets accessed via the AppConnector, from inside transactions.
     ApplyState mApplyState;
 
     // Cached LCL state output from last apply (or loaded from DB on startup).
     LedgerState mLastClosedLedgerState;
-
-    LedgerApplyMetrics mLedgerApplyMetrics;
-    SorobanMetrics mSorobanMetrics;
 
     VirtualClock::time_point mLastClose;
 
@@ -256,5 +306,6 @@ class LedgerManagerImpl : public LedgerManager
     {
         return mCurrentlyApplyingLedger;
     }
+    ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
 };
 }
