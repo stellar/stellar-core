@@ -1947,13 +1947,13 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         //  we'll skip trying to apply operations but we'll still
         //  process the sequence number if needed
         std::optional<FeePair> sorobanResourceFee;
-        std::optional<SorobanNetworkConfig> sorobanConfig;
+        AppValidationWrapper avw(app, true);
         if (protocolVersionStartsFrom(ledgerVersion,
                                       SOROBAN_PROTOCOL_VERSION) &&
             isSoroban())
         {
             sorobanResourceFee = computePreApplySorobanResourceFee(
-                ledgerVersion, *sorobanConfig, app.getConfig());
+                ledgerVersion, avw.getSorobanNetworkConfig(), app.getConfig());
 
             auto& sorobanData = *txResult->getSorobanData();
             sorobanData.setSorobanConsumedNonRefundableFee(
@@ -1964,7 +1964,6 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         }
         LedgerTxn ltxTx(ltx);
         LedgerSnapshot ltxStmt(ltxTx);
-        AppValidationWrapper avw(app, true);
         auto cv = commonValid(avw, *signatureChecker, ltxStmt, 0, true,
                               chargeFee, 0, 0, sorobanResourceFee, txResult);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
