@@ -238,6 +238,124 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
             validate(ltx1, {});
         }
     }
+
+    SECTION("restored keys")
+    {
+        auto randomEntries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {CONTRACT_CODE}, 2);
+        std::vector<LedgerKey> randomKeys = {LedgerEntryKey(randomEntries[0]),
+                                             LedgerEntryKey(randomEntries[1])};
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+        SECTION("hot archive restore key exists in live BL")
+        {
+            ltx1.create(randomEntries[0]);
+            REQUIRE_THROWS(ltx1.restoreFromHotArchive(randomEntries[0], 42));
+        }
+
+        SECTION("live BL restore key does not exist")
+        {
+            REQUIRE_THROWS(ltx1.restoreFromLiveBucketList(randomKeys[0], 42));
+        }
+
+        auto checkKey = [](auto const& keySet, auto const& dataKey) {
+            REQUIRE(keySet.find(dataKey) != keySet.end());
+            REQUIRE(keySet.find(getTTLKey(dataKey)) != keySet.end());
+        };
+
+        SECTION("commited to parent")
+        {
+            SECTION("hot archive")
+            {
+                ltx1.restoreFromHotArchive(randomEntries[0], 42);
+
+                SECTION("rollback")
+                {
+                    {
+                        LedgerTxn ltx2(ltx1);
+                        ltx2.restoreFromHotArchive(randomEntries[1], 42);
+                    }
+
+                    REQUIRE(ltx1.getRestoredLiveBucketListKeys().empty());
+                    auto keys = ltx1.getRestoredHotArchiveKeys();
+
+                    // Data key + TTL
+                    REQUIRE(keys.size() == 2);
+                    checkKey(keys, randomKeys[0]);
+                }
+
+                SECTION("commit")
+                {
+                    {
+                        LedgerTxn ltx2(ltx1);
+                        ltx2.restoreFromHotArchive(randomEntries[1], 42);
+                        ltx2.commit();
+                    }
+
+                    REQUIRE(ltx1.getRestoredLiveBucketListKeys().empty());
+                    auto keys = ltx1.getRestoredHotArchiveKeys();
+
+                    // (data key + TTL) * 2
+                    REQUIRE(keys.size() == 4);
+                    checkKey(keys, randomKeys[0]);
+                    checkKey(keys, randomKeys[1]);
+                }
+            }
+
+            SECTION("live BL")
+            {
+                auto getTTLEntry = [](LedgerKey const& key) {
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().liveUntilLedgerSeq = 42;
+                    ttl.data.ttl().keyHash = getTTLKey(key).ttl().keyHash;
+                    return ttl;
+                };
+
+                // Populate live BL with key, then restore it
+                ltx1.create(randomEntries[0]);
+                ltx1.create(getTTLEntry(randomKeys[0]));
+                ltx1.restoreFromLiveBucketList(randomKeys[0], 42);
+
+                SECTION("rollback")
+                {
+                    {
+                        LedgerTxn ltx2(ltx1);
+                        ltx2.create(randomEntries[1]);
+                        ltx2.create(getTTLEntry(randomKeys[1]));
+                        ltx2.restoreFromLiveBucketList(randomKeys[1], 42);
+                    }
+
+                    REQUIRE(ltx1.getRestoredHotArchiveKeys().empty());
+                    auto keys = ltx1.getRestoredLiveBucketListKeys();
+
+                    // Data key + TTL
+                    REQUIRE(keys.size() == 2);
+                    checkKey(keys, randomKeys[0]);
+                }
+
+                SECTION("commit")
+                {
+                    {
+                        LedgerTxn ltx2(ltx1);
+                        ltx2.create(randomEntries[1]);
+                        ltx2.create(getTTLEntry(randomKeys[1]));
+                        ltx2.restoreFromLiveBucketList(randomKeys[1], 42);
+                        ltx2.commit();
+                    }
+
+                    REQUIRE(ltx1.getRestoredHotArchiveKeys().empty());
+                    auto keys = ltx1.getRestoredLiveBucketListKeys();
+
+                    // (data key + TTL) * 2
+                    REQUIRE(keys.size() == 4);
+                    checkKey(keys, randomKeys[0]);
+                    checkKey(keys, randomKeys[1]);
+                }
+            }
+        }
+    }
 }
 
 TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")

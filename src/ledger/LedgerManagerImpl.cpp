@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerManagerImpl.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
@@ -44,6 +45,7 @@
 
 #include <fmt/format.h>
 
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/types.h"
@@ -1790,8 +1792,19 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
                     initialLedgerVers,
                     BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
+                std::vector<LedgerKey> restoredKeys;
+                auto const& restoredKeyMap = ltx.getRestoredHotArchiveKeys();
+                for (auto const& key : restoredKeyMap)
+                {
+                    // TTL keys are not recorded in the hot archive BucketList
+                    if (key.type() == CONTRACT_DATA ||
+                        key.type() == CONTRACT_CODE)
+                    {
+                        restoredKeys.push_back(key);
+                    }
+                }
                 mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries, {}, {});
+                    mApp, lh, evictedState.archivedEntries, restoredKeys, {});
             }
 
             if (ledgerCloseMeta)

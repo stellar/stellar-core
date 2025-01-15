@@ -4,6 +4,7 @@
 
 #include "main/ApplicationUtils.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "crypto/Hex.h"

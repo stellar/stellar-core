@@ -4,11 +4,13 @@
 
 #include "transactions/RestoreFootprintOpFrame.h"
 #include "TransactionUtils.h"
+#include "bucket/HotArchiveBucket.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "transactions/MutableTransactionResult.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -65,6 +67,7 @@ RestoreFootprintOpFrame::doApply(
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
     auto const& appConfig = app.getConfig();
+    auto hotArchive = app.copySearchableHotArchiveBucketListSnapshot();
 
     auto const& archivalSettings = sorobanConfig.stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
@@ -75,11 +78,34 @@ RestoreFootprintOpFrame::doApply(
     rustEntryRentChanges.reserve(footprint.readWrite.size());
     for (auto const& lk : footprint.readWrite)
     {
+        std::shared_ptr<HotArchiveBucketEntry> hotArchiveEntry{nullptr};
         auto ttlKey = getTTLKey(lk);
         {
+            // First check the live BucketList
             auto constTTLLtxe = ltx.loadWithoutRecord(ttlKey);
-            // Skip entry if the TTLEntry is missing or if it's already live.
-            if (!constTTLLtxe || isLive(constTTLLtxe.current(), ledgerSeq))
+            if (!constTTLLtxe)
+            {
+                // Next check the hot archive if protocol >= 23
+                if (protocolVersionStartsFrom(
+                        ltx.getHeader().ledgerVersion,
+                        HotArchiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    hotArchiveEntry = hotArchive->load(lk);
+                    if (!hotArchiveEntry)
+                    {
+                        // Entry doesn't exist, skip
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Entry doesn't exist, skip
+                    continue;
+                }
+            }
+            // Skip entry if it's already live.
+            else if (isLive(constTTLLtxe.current(), ledgerSeq))
             {
                 continue;
             }
@@ -87,13 +113,23 @@ RestoreFootprintOpFrame::doApply(
 
         // We must load the ContractCode/ContractData entry for fee purposes, as
         // restore is considered a write
-        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
+        uint32_t entrySize = 0;
+        if (hotArchiveEntry)
+        {
+            entrySize = static_cast<uint32>(
+                xdr::xdr_size(hotArchiveEntry->archivedEntry()));
+        }
+        else
+        {
+            auto constEntryLtxe = ltx.loadWithoutRecord(lk);
 
-        // We checked for TTLEntry existence above
-        releaseAssertOrThrow(constEntryLtxe);
+            // We checked for TTLEntry existence above
+            releaseAssertOrThrow(constEntryLtxe);
 
-        uint32_t entrySize =
-            static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+            entrySize =
+                static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+        }
+
         metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
@@ -137,11 +173,17 @@ RestoreFootprintOpFrame::doApply(
         rustChange.new_size_bytes = entrySize;
         rustChange.new_live_until_ledger = restoredLiveUntilLedger;
 
-        // Entry exists if we get this this point due to the constTTLLtxe
-        // loadWithoutRecord logic above.
-        auto ttlLtxe = ltx.load(ttlKey);
-        ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
-            restoredLiveUntilLedger;
+        if (hotArchiveEntry)
+        {
+            ltx.restoreFromHotArchive(hotArchiveEntry->archivedEntry(),
+                                      restoredLiveUntilLedger);
+        }
+        else
+        {
+            // Entry exists in the live BucketList if we get this this point due
+            // to the constTTLLtxe loadWithoutRecord logic above.
+            ltx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
+        }
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(

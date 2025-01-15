@@ -139,4 +139,12 @@ AppConnector::checkScheduledAndCache(
 {
     return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
 }
+
+SearchableHotArchiveSnapshotConstPtr
+AppConnector::copySearchableHotArchiveBucketListSnapshot()
+{
+    return mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .copySearchableHotArchiveBucketListSnapshot();
+}
 }

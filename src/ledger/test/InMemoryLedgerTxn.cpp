@@ -5,6 +5,7 @@
 #include "ledger/test/InMemoryLedgerTxn.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/TransactionUtils.h"
+#include "util/UnorderedSet.h"
 
 namespace stellar
 {
@@ -187,6 +188,7 @@ InMemoryLedgerTxn::getFilteredEntryIterator(EntryIterator const& iter)
 
 void
 InMemoryLedgerTxn::commitChild(EntryIterator iter,
+                               RestoredKeys const& restoredKeys,
                                LedgerTxnConsistency cons) noexcept
 {
     if (!mTransaction)
@@ -198,7 +200,7 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter,
         auto filteredIter = getFilteredEntryIterator(iter);
         updateLedgerKeyMap(filteredIter);
 
-        LedgerTxn::commitChild(filteredIter, cons);
+        LedgerTxn::commitChild(filteredIter, restoredKeys, cons);
         mTransaction->commit();
         mTransaction.reset();
     }
@@ -270,6 +272,20 @@ void
 InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
 {
     throw std::runtime_error("called erase on InMemoryLedgerTxn");
+}
+
+void
+InMemoryLedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
+{
+    throw std::runtime_error(
+        "called restoreFromHotArchive on InMemoryLedgerTxn");
+}
+
+void
+InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
+{
+    throw std::runtime_error(
+        "called restoreFromLiveBucketList on InMemoryLedgerTxn");
 }
 
 LedgerTxnEntry

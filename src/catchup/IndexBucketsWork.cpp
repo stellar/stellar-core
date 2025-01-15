@@ -5,6 +5,7 @@
 #include "IndexBucketsWork.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/UnorderedSet.h"

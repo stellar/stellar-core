@@ -9,6 +9,7 @@
 
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/ReplayDebugMetaWork.h"
