@@ -638,3 +638,58 @@ enabled by specifying a port via the HTTP_QUERY_PORT config setting.
   value of the `TTL` entry to the current ledger sequence number.
 
   `ledgerSeq` gives the ledger number on which the query was performed.
+
+* **`getledgerentry`**<br>
+  A POST request with the following body:<br>
+
+  ```
+  ledger=NUM&k=Base64&k=Base64...
+  ```
+- `ledger`: An optional parameter, specifying the ledger snapshot to base the query on.
+  If the specified ledger is not available, a 404 error will be returned with "Ledger not found\n" message.
+  If this parameter is not set, the current ledger is used.
+- `k`: A series of Base64 encoded XDR strings specifying the `LedgerKey` to query. Keys must be
+  unique and must not be TTL entries, as TTL data is automatically returned when querying a Soroban key.
+
+A JSON payload is returned as follows:
+
+```json
+{
+"entries": [
+     {"e": "Base64-LedgerEntry", "s": "live", /*optional*/ "t": uint32},
+     {"e": "Base64-LedgerKey", "s": "new"},
+     {"e": "Base64-LedgerEntry", "s": "archived"}
+],
+"ledger": uint32
+}
+```
+
+- `entries`: A list of entries for each queried LedgerKey. Every key queried is guaranteed to
+  have a corresponding entry returned, and they appear in the same order as they were specified in the request.
+- `e`: Either the `LedgerEntry` or `LedgerKey` for a given key encoded as a Base64 string. If a key
+  is live or archived, `e` contains the corresponding `LedgerEntry`. If a key does not exist
+  (including expired temporary entries) `e` contains the corresponding `LedgerKey`.
+- `s`: One of the following values:
+  - `live`: Entry is live.
+  - `new`: Entry does not exist. Either the entry has never existed or is an expired temp entry.
+  - `archived`: Entry is archived, counts towards disk resources.
+- `t`: An optional value, only returned for live Soroban entries. Contains
+  a uint32 value for the entry's `liveUntilLedgerSeq`.
+- `ledger`: The ledger number on which the query was performed.
+
+Classic entries will always return a state of `live` or `new`.
+If a classic entry does not exist, it will have a state of `new`.
+
+Similarly, temporary Soroban entries will always return a state of `live` or
+`new`. If a temporary entry does not exist or has expired, it
+will have a state of `new`.
+
+This endpoint will always give correct information for archived entries. Even
+if an entry has been archived and evicted to the Hot Archive, this endpoint will
+still return the archived entry's full `LedgerEntry` as well as the proper state.
+
+The endpoint returns a 404 status code with the following error messages in these cases:
+- If no keys are provided: "Must specify key in POST body: k=<LedgerKey in base64 XDR format>\n"
+- If TTL keys are queried: "TTL keys are not allowed\n"
+- If duplicate keys are submitted: "Duplicate keys\n"
+- If the specified ledger is not found: "Ledger not found\n"
