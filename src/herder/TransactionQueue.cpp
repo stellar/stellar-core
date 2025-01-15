@@ -270,7 +270,7 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
 bool
 TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     return mAccountStates.find(accountID) != mAccountStates.end();
 }
 
@@ -334,7 +334,7 @@ TransactionQueue::canAdd(
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
     ZoneScoped;
-    if (isBanned(tx->getFullHash()))
+    if (isBannedInternal(tx->getFullHash()))
     {
         return AddResult(
             TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
@@ -436,7 +436,7 @@ TransactionQueue::canAdd(
         mTxQueueLimiter.canAddTx(tx, currentTx, txsToEvict, ledgerVersion);
     if (!canAddRes.first)
     {
-        ban({tx});
+        banInternal({tx});
         if (canAddRes.second != 0)
         {
             AddResult result(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
@@ -454,10 +454,6 @@ TransactionQueue::canAdd(
         // This is done so minSeqLedgerGap is validated against the next
         // ledgerSeq, which is what will be used at apply time
         ++ls.getLedgerHeader().currentToModify().ledgerSeq;
-        // TODO: ^^ I think this is the right thing to do. Was previously the
-        // commented out line below.
-        // ls.getLedgerHeader().currentToModify().ledgerSeq =
-        //     mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
     auto txResult =
@@ -645,7 +641,7 @@ TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
 
     auto c1 =
         tx->getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
@@ -701,8 +697,9 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     // make space so that we can add this transaction
     // this will succeed as `canAdd` ensures that this is the case
     mTxQueueLimiter.evictTransactions(
-        txsToEvict, *tx,
-        [&](TransactionFrameBasePtr const& txToEvict) { ban({txToEvict}); });
+        txsToEvict, *tx, [&](TransactionFrameBasePtr const& txToEvict) {
+            banInternal({txToEvict});
+        });
     mTxQueueLimiter.addTransaction(tx);
     mKnownTxHashes[tx->getFullHash()] = tx;
 
@@ -806,7 +803,14 @@ void
 TransactionQueue::ban(Transactions const& banTxs)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
+    banInternal(banTxs);
+}
+
+void
+TransactionQueue::banInternal(Transactions const& banTxs)
+{
+    ZoneScoped;
     auto& bannedFront = mBannedTransactions.front();
 
     // Group the transactions by source account and ban all the transactions
@@ -852,7 +856,7 @@ TransactionQueue::AccountState
 TransactionQueue::getAccountTransactionQueueInfo(
     AccountID const& accountID) const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     auto i = mAccountStates.find(accountID);
     if (i == std::end(mAccountStates))
     {
@@ -864,7 +868,7 @@ TransactionQueue::getAccountTransactionQueueInfo(
 size_t
 TransactionQueue::countBanned(int index) const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     return mBannedTransactions[index].size();
 }
 #endif
@@ -939,7 +943,13 @@ TransactionQueue::shift()
 bool
 TransactionQueue::isBanned(Hash const& hash) const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
+    return isBannedInternal(hash);
+}
+
+bool
+TransactionQueue::isBannedInternal(Hash const& hash) const
+{
     return std::any_of(
         std::begin(mBannedTransactions), std::end(mBannedTransactions),
         [&](UnorderedSet<Hash> const& transactions) {
@@ -951,7 +961,14 @@ TxFrameList
 TransactionQueue::getTransactions(LedgerHeader const& lcl) const
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
+    return getTransactionsInternal(lcl);
+}
+
+TxFrameList
+TransactionQueue::getTransactionsInternal(LedgerHeader const& lcl) const
+{
+    ZoneScoped;
     TxFrameList txs;
 
     uint32_t const nextLedgerSeq = lcl.ledgerSeq + 1;
@@ -972,7 +989,7 @@ TransactionFrameBaseConstPtr
 TransactionQueue::getTx(Hash const& hash) const
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     auto it = mKnownTxHashes.find(hash);
     if (it != mKnownTxHashes.end())
     {
@@ -1184,6 +1201,8 @@ SorobanTransactionQueue::broadcastSome()
 size_t
 SorobanTransactionQueue::getMaxQueueSizeOps() const
 {
+    ZoneScoped;
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     if (protocolVersionStartsFrom(
             mBucketSnapshot->getLedgerHeader().ledgerVersion,
             SOROBAN_PROTOCOL_VERSION))
@@ -1264,7 +1283,7 @@ ClassicTransactionQueue::broadcastSome()
         std::make_shared<DexLimitingLaneConfig>(opsToFlood, dexOpsToFlood),
         mBroadcastSeed);
     queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover);
-    ban(banningTxs);
+    banInternal(banningTxs);
     // carry over remainder, up to MAX_OPS_PER_TX ops
     // reason is that if we add 1 next round, we can flood a "worst case fee
     // bump" tx
@@ -1277,14 +1296,11 @@ ClassicTransactionQueue::broadcastSome()
 }
 
 void
-TransactionQueue::broadcast(bool fromCallback)
+TransactionQueue::broadcast(bool fromCallback,
+                            std::lock_guard<std::mutex> const& guard)
 {
     // Must be called from the main thread due to the use of `mBroadcastTimer`
     releaseAssert(threadIsMain());
-
-    // NOTE: Although this is not a public function, it can be called from
-    // `mBroadcastTimer` and so it needs to be synchronized.
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
 
     if (mShutdown || (!fromCallback && mWaiting))
     {
@@ -1317,7 +1333,14 @@ TransactionQueue::broadcast(bool fromCallback)
 }
 
 void
-TransactionQueue::rebroadcast()
+TransactionQueue::broadcast(bool fromCallback)
+{
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
+    broadcast(fromCallback, guard);
+}
+
+void
+TransactionQueue::rebroadcast(std::lock_guard<std::mutex> const& guard)
 {
     // For `broadcast` call
     releaseAssert(threadIsMain());
@@ -1331,14 +1354,14 @@ TransactionQueue::rebroadcast()
             as.mTransaction->mBroadcasted = false;
         }
     }
-    broadcast(false);
+    broadcast(false, guard);
 }
 
 void
 TransactionQueue::shutdown()
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     mShutdown = true;
     mBroadcastTimer.cancel();
 }
@@ -1351,7 +1374,7 @@ TransactionQueue::update(
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
 
     mValidationSnapshot =
         std::make_shared<ImmutableValidationSnapshot>(mAppConn);
@@ -1361,11 +1384,11 @@ TransactionQueue::update(
     removeApplied(applied);
     shift();
 
-    auto txs = getTransactions(lcl);
+    auto txs = getTransactionsInternal(lcl);
     auto invalidTxs = filterInvalidTxs(txs);
-    ban(invalidTxs);
+    banInternal(invalidTxs);
 
-    rebroadcast();
+    rebroadcast(guard);
 }
 
 static bool
@@ -1409,14 +1432,14 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
 size_t
 TransactionQueue::getQueueSizeOps() const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     return mTxQueueLimiter.size();
 }
 
 std::optional<int64_t>
 TransactionQueue::getInQueueSeqNum(AccountID const& account) const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     auto stateIter = mAccountStates.find(account);
     if (stateIter == mAccountStates.end())
     {
@@ -1433,7 +1456,8 @@ TransactionQueue::getInQueueSeqNum(AccountID const& account) const
 size_t
 ClassicTransactionQueue::getMaxQueueSizeOps() const
 {
-    std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+    ZoneScoped;
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
     auto res = mTxQueueLimiter.maxScaledLedgerResources(false);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);

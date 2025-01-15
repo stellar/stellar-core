@@ -210,10 +210,15 @@ class TransactionQueue
     virtual std::pair<Resource, std::optional<Resource>>
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
-    virtual int getFloodPeriod() const = 0;
     virtual bool allowTxBroadcast(TimestampedTx const& tx) = 0;
 
+    // TODO: Explain that there's an overload that takes a guard because this
+    // function is called internally, and also scheduled on a timer. Any async
+    // call should call the first overload (which grabs a lock), and any
+    // internal call should call the second overload (which enforces that the
+    // lock is already held).
     void broadcast(bool fromCallback);
+    void broadcast(bool fromCallback, std::lock_guard<std::mutex> const& guard);
     // broadcasts a single transaction
     enum class BroadcastStatus
     {
@@ -234,6 +239,12 @@ class TransactionQueue
 
     bool isFiltered(TransactionFrameBasePtr tx) const;
 
+    // TODO: Docs
+    // Protected versions of public functions that contain the actual
+    // implementation so they can be called internally when the lock is already
+    // held.
+    void banInternal(Transactions const& banTxs);
+
     // Snapshots to use for transaction validation
     ImmutableValidationSnapshotPtr mValidationSnapshot;
     SearchableSnapshotConstPtr mBucketSnapshot;
@@ -245,7 +256,7 @@ class TransactionQueue
 
     size_t mBroadcastSeed;
 
-    mutable std::recursive_mutex mTxQueueMutex;
+    mutable std::mutex mTxQueueMutex;
 
   private:
     AppConnector& mAppConn;
@@ -259,10 +270,24 @@ class TransactionQueue
      */
     void shift();
 
-    void rebroadcast();
+    // TODO: Explain that this takes a lock guard due to the `broadcast` call
+    // that it makes.
+    void rebroadcast(std::lock_guard<std::mutex> const& guard);
+
+    // TODO: Docs
+    // Private versions of public functions that contain the actual
+    // implementation so they can be called internally when the lock is already
+    // held.
+    bool isBannedInternal(Hash const& hash) const;
+    TxFrameList getTransactionsInternal(LedgerHeader const& lcl) const;
+
+    virtual int getFloodPeriod() const = 0;
 
 #ifdef BUILD_TESTS
   public:
+    // TODO: These tests invoke protected/private functions directly that assume
+    // things are properly locked. I need to make sure these tests operate in a
+    // thread-safe manner or change them to not require private member access.
     friend class TransactionQueueTest;
 
     size_t getQueueSizeOps() const;
@@ -278,19 +303,13 @@ class SorobanTransactionQueue : public TransactionQueue
                             SearchableSnapshotConstPtr bucketSnapshot,
                             uint32 pendingDepth, uint32 banDepth,
                             uint32 poolLedgerMultiplier);
-    int
-    getFloodPeriod() const override
-    {
-        std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
-        return mValidationSnapshot->getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
-    }
 
     size_t getMaxQueueSizeOps() const override;
 #ifdef BUILD_TESTS
     void
     clearBroadcastCarryover()
     {
-        std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+        std::lock_guard<std::mutex> guard(mTxQueueMutex);
         mBroadcastOpCarryover.clear();
         mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     }
@@ -307,6 +326,13 @@ class SorobanTransactionQueue : public TransactionQueue
     {
         return true;
     }
+
+    int
+    getFloodPeriod() const override
+    {
+        return mValidationSnapshot->getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
+    }
+
 };
 
 class ClassicTransactionQueue : public TransactionQueue
@@ -316,13 +342,6 @@ class ClassicTransactionQueue : public TransactionQueue
                             SearchableSnapshotConstPtr bucketSnapshot,
                             uint32 pendingDepth, uint32 banDepth,
                             uint32 poolLedgerMultiplier);
-
-    int
-    getFloodPeriod() const override
-    {
-        std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
-        return mValidationSnapshot->getConfig().FLOOD_TX_PERIOD_MS;
-    }
 
     size_t getMaxQueueSizeOps() const override;
 
@@ -335,6 +354,13 @@ class ClassicTransactionQueue : public TransactionQueue
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
     virtual bool allowTxBroadcast(TimestampedTx const& tx) override;
+
+    int
+    getFloodPeriod() const override
+    {
+        return mValidationSnapshot->getConfig().FLOOD_TX_PERIOD_MS;
+    }
+
 };
 
 extern std::array<const char*,
