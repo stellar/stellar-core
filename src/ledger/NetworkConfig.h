@@ -138,6 +138,9 @@ struct InitialSorobanNetworkConfig
 
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT = 1;
+
+    // Parallel execution settings
+    static constexpr uint32_t LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 };
 
 // Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for
@@ -221,6 +224,8 @@ class SorobanNetworkConfig
     // upgrade.
     static void createCostTypesForV22(AbstractLedgerTxn& ltx, Application& app);
 
+    static void createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
+                                          Application& app);
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)
@@ -332,6 +337,10 @@ class SorobanNetworkConfig
 
     void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
                                 EvictionIterator const& newIter) const;
+
+    // Parallel execution settings
+    uint32_t ledgerMaxDependentTxClusters() const;
+
 #ifdef BUILD_TESTS
     StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
@@ -362,6 +371,7 @@ class SorobanNetworkConfig
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
+    void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
     void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
@@ -426,11 +436,7 @@ class SorobanNetworkConfig
 
     // FIFO queue, push_back/pop_front
     std::deque<uint64_t> mBucketListSizeSnapshots;
-    uint64_t mAverageBucketListSize{0};
-
-#ifdef BUILD_TESTS
-    void writeAllSettings(AbstractLedgerTxn& ltx, Application& app) const;
-#endif
+    uint64_t mAverageBucketListSize{};
 
     // Host cost params
     ContractCostParams mCpuCostParams{};
@@ -439,6 +445,13 @@ class SorobanNetworkConfig
     // State archival settings
     StateArchivalSettings mStateArchivalSettings{};
     mutable EvictionIterator mEvictionIterator{};
+
+    // Parallel execution settings
+    uint32_t mLedgerMaxDependentTxClusters{};
+
+#ifdef BUILD_TESTS
+    void writeAllSettings(AbstractLedgerTxn& ltx, Application& app) const;
+#endif
 };
 
 }
