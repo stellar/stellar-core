@@ -1,0 +1,29 @@
+{
+  "updated_entry": [
+    {
+      "contract_ledger_cost_v0": {
+        "ledger_max_read_ledger_entries": 500,
+        "ledger_max_read_bytes": 500000,
+        "ledger_max_write_ledger_entries": 250,
+        "ledger_max_write_bytes": 143360,
+        "tx_max_read_ledger_entries": 100,
+        "tx_max_read_bytes": 200000,
+        "tx_max_write_ledger_entries": 50,
+        "tx_max_write_bytes": 132096,
+        "fee_read_ledger_entry": 6250,
+        "fee_write_ledger_entry": 10000,
+        "fee_read1_kb": 1786,
+        "bucket_list_target_size_bytes": 14500000000,
+        "write_fee1_kb_bucket_list_low": 8510,
+        "write_fee1_kb_bucket_list_high": 12116,
+        "bucket_list_write_fee_growth_factor": 5000
+      }
+    },
+    {
+      "contract_events_v0": {
+        "tx_max_contract_events_size_bytes": 16384,
+        "fee_contract_events1_kb": 10000
+      }
+    }
+  ]
+}
