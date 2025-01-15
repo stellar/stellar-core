@@ -144,11 +144,9 @@ TransactionTestFrame::checkValidForTesting(AppConnector& app,
 
 bool
 TransactionTestFrame::checkSorobanResourceAndSetError(
-    ValidationConnector const& vc, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+    ValidationConnector const& vc, MutableTxResultPtr txResult) const
 {
-    auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
-        vc, ledgerVersion, txResult);
+    auto ret = mTransactionFrame->checkSorobanResourceAndSetError(vc, txResult);
     mTransactionTxResult = txResult;
     return ret;
 }

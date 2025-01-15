@@ -136,9 +136,7 @@ class TransactionFrame : public TransactionFrameBase
     bool extraSignersExist() const;
 
     bool validateSorobanOpsConsistency() const;
-    bool validateSorobanResources(SorobanNetworkConfig const& config,
-                                  Config const& appConfig,
-                                  uint32_t protocolVersion,
+    bool validateSorobanResources(ValidationConnector const& vc,
                                   SorobanTxData& sorobanData) const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
@@ -218,7 +216,6 @@ class TransactionFrame : public TransactionFrameBase
                uint64_t upperBoundCloseTimeOffset) const override;
     bool
     checkSorobanResourceAndSetError(ValidationConnector const& vc,
-                                    uint32_t ledgerVersion,
                                     MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;

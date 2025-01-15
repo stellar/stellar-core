@@ -388,7 +388,7 @@ TransactionQueue::canAdd(
             {
                 auto txResult = tx->createSuccessResult();
                 if (!tx->checkSorobanResourceAndSetError(
-                        *mValidationSnapshot, ledgerVersion, txResult))
+                        *mValidationSnapshot, txResult))
                 {
                     return AddResult(AddResultCode::ADD_STATUS_ERROR, txResult);
                 }

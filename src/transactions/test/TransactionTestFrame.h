@@ -72,7 +72,6 @@ class TransactionTestFrame : public TransactionFrameBase
                uint64_t upperBoundCloseTimeOffset) const override;
     bool
     checkSorobanResourceAndSetError(ValidationConnector const& vc,
-                                    uint32_t ledgerVersion,
                                     MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;

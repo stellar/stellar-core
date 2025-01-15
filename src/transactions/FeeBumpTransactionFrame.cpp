@@ -198,11 +198,9 @@ FeeBumpTransactionFrame::checkValid(ValidationConnector const& vc,
 
 bool
 FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
-    ValidationConnector const& vc, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+    ValidationConnector const& vc, MutableTxResultPtr txResult) const
 {
-    return mInnerTx->checkSorobanResourceAndSetError(vc, ledgerVersion,
-                                                     txResult);
+    return mInnerTx->checkSorobanResourceAndSetError(vc, txResult);
 }
 
 bool

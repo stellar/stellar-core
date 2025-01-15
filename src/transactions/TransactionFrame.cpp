@@ -646,11 +646,12 @@ TransactionFrame::validateSorobanOpsConsistency() const
 }
 
 bool
-TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
-                                           Config const& appConfig,
-                                           uint32_t protocolVersion,
+TransactionFrame::validateSorobanResources(ValidationConnector const& vc,
                                            SorobanTxData& sorobanData) const
 {
+    SorobanNetworkConfig const& config = vc.getSorobanNetworkConfig();
+    Config const& appConfig = vc.getConfig();
+    uint32_t protocolVersion = vc.getCurrentProtocolVersion();
     auto const& resources = sorobanResources();
     auto const& readEntries = resources.footprint.readOnly;
     auto const& writeEntries = resources.footprint.readWrite;
@@ -1054,7 +1055,7 @@ TransactionFrame::commonValidPreSeqNum(
             return false;
         }
 
-        if (!checkSorobanResourceAndSetError(vc, ledgerVersion, txResult))
+        if (!checkSorobanResourceAndSetError(vc, txResult))
         {
             return false;
         }
@@ -1610,11 +1611,9 @@ TransactionFrame::checkValid(ValidationConnector const& vc,
 
 bool
 TransactionFrame::checkSorobanResourceAndSetError(
-    ValidationConnector const& vc, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+    ValidationConnector const& vc, MutableTxResultPtr txResult) const
 {
-    if (!validateSorobanResources(vc.getSorobanNetworkConfig(), vc.getConfig(),
-                                  ledgerVersion, *txResult->getSorobanData()))
+    if (!validateSorobanResources(vc, *txResult->getSorobanData()))
     {
         txResult->setInnermostResultCode(txSOROBAN_INVALID);
         return false;

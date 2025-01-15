@@ -82,7 +82,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                uint64_t upperBoundCloseTimeOffset) const override;
     bool
     checkSorobanResourceAndSetError(ValidationConnector const& app,
-                                    uint32_t ledgerVersion,
                                     MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;

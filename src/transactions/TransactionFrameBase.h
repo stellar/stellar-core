@@ -102,7 +102,6 @@ class TransactionFrameBase
                uint64_t upperBoundCloseTimeOffset) const = 0;
     virtual bool
     checkSorobanResourceAndSetError(ValidationConnector const& vc,
-                                    uint32_t ledgerVersion,
                                     MutableTxResultPtr txResult) const = 0;
 
     virtual MutableTxResultPtr createSuccessResult() const = 0;
