@@ -163,7 +163,6 @@ class Config : public std::enable_shared_from_this<Config>
 #endif
         TESTDB_BUCKET_DB_VOLATILE,
         TESTDB_BUCKET_DB_PERSISTENT,
-        TESTDB_BUCKET_DB_PERSISTENT_POSTGRES,
         TESTDB_MODES
     };
 
