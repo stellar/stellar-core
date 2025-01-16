@@ -387,8 +387,8 @@ TransactionQueue::canAdd(
             if (tx->isSoroban())
             {
                 auto txResult = tx->createSuccessResult();
-                if (!tx->checkSorobanResourceAndSetError(
-                        *mValidationSnapshot, txResult))
+                if (!tx->checkSorobanResourceAndSetError(*mValidationSnapshot,
+                                                         txResult))
                 {
                     return AddResult(AddResultCode::ADD_STATUS_ERROR, txResult);
                 }
@@ -1429,6 +1429,17 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
 }
 
 #ifdef BUILD_TESTS
+void
+TransactionQueue::updateSnapshots(
+    SearchableSnapshotConstPtr const& newBucketSnapshot)
+{
+    std::lock_guard<std::mutex> guard(mTxQueueMutex);
+    mValidationSnapshot =
+        std::make_shared<ImmutableValidationSnapshot>(mAppConn);
+    mBucketSnapshot = newBucketSnapshot;
+    mTxQueueLimiter.updateSnapshots(mValidationSnapshot, mBucketSnapshot);
+}
+
 size_t
 TransactionQueue::getQueueSizeOps() const
 {

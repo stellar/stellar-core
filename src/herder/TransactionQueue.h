@@ -290,9 +290,13 @@ class TransactionQueue
     // thread-safe manner or change them to not require private member access.
     friend class TransactionQueueTest;
 
+    // TODO: Docs
+    void updateSnapshots(SearchableSnapshotConstPtr const& newBucketSnapshot);
+
     size_t getQueueSizeOps() const;
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
     std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
+
 #endif
 };
 
@@ -332,7 +336,6 @@ class SorobanTransactionQueue : public TransactionQueue
     {
         return mValidationSnapshot->getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
     }
-
 };
 
 class ClassicTransactionQueue : public TransactionQueue
@@ -360,7 +363,6 @@ class ClassicTransactionQueue : public TransactionQueue
     {
         return mValidationSnapshot->getConfig().FLOOD_TX_PERIOD_MS;
     }
-
 };
 
 extern std::array<const char*,

@@ -249,6 +249,13 @@ class TransactionQueueTest
         }
     }
 
+    // TODO: Docs
+    void
+    updateSnapshots(SearchableSnapshotConstPtr const& newBucketSnapshot)
+    {
+        mTransactionQueue.updateSnapshots(newBucketSnapshot);
+    }
+
   private:
     TransactionQueue& mTransactionQueue;
 };
@@ -261,10 +268,6 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto bls = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copySearchableLiveBucketListSnapshot();
-    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -282,6 +285,11 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     auto txSeqA2T1 = transaction(*app, account2, 1, 1, 200);
     auto txSeqA2T2 = transaction(*app, account2, 2, 1, 200);
     auto txSeqA3T1 = transaction(*app, account3, 1, 1, 100);
+
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
 
     SECTION("multiple good sequence numbers, with four shifts")
     {
@@ -533,10 +541,6 @@ testTransactionQueueBasicScenarios()
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto bls = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copySearchableLiveBucketListSnapshot();
-    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -554,6 +558,11 @@ testTransactionQueueBasicScenarios()
     auto txSeqA2T1 = transaction(*app, account2, 1, 1, 200);
     auto txSeqA2T2 = transaction(*app, account2, 2, 1, 200);
     auto txSeqA3T1 = transaction(*app, account3, 1, 1, 100);
+
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
 
     SECTION("simple sequence")
     {
@@ -779,10 +788,6 @@ TEST_CASE("TransactionQueue hitting the rate limit",
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto bls = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copySearchableLiveBucketListSnapshot();
-    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -792,6 +797,11 @@ TEST_CASE("TransactionQueue hitting the rate limit",
     auto account4 = root.create("a4", minBalance2);
     auto account5 = root.create("a5", minBalance2);
     auto account6 = root.create("a6", minBalance2);
+
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
 
     TransactionQueueTest testQueue{queue};
     std::vector<TransactionFrameBasePtr> txs;
@@ -863,10 +873,6 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto bls = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copySearchableLiveBucketListSnapshot();
-    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -901,6 +907,11 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
     condMinSeqLedgerGap.minSeqLedgerGap = 1;
     auto txSeqA1S3MinSeqLedgerGap = transactionWithV2Precondition(
         *app, account1, 3, 200, condMinSeqLedgerGap);
+
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
 
     SECTION("fee bump new tx with minSeqNum past lastSeq")
     {
@@ -2484,6 +2495,10 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                     auto fb2 = feeBump(*app, account3, tx2,
                                        fb1->getInclusionFee() * 10);
 
+                    auto bls = app->getBucketManager()
+                                   .getBucketSnapshotManager()
+                                   .copySearchableLiveBucketListSnapshot();
+                    test.updateSnapshots(bls);
                     test.add(
                         fb2,
                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
