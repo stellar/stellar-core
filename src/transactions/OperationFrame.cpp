@@ -221,7 +221,6 @@ OperationFrame::getSourceID() const
 bool
 OperationFrame::checkValid(ValidationConnector const& vc,
                            SignatureChecker& signatureChecker,
-                           std::optional<SorobanNetworkConfig> const& cfg,
                            LedgerSnapshot const& ls, bool forApply,
                            OperationResult& res,
                            std::shared_ptr<SorobanTxData> sorobanData) const
