@@ -3222,13 +3222,15 @@ TEST_CASE("overlay parallel processing")
                 return cfg;
             });
     }
+
+// Background ledger close requires postgres
+#ifdef USE_POSTGRES
     SECTION("background ledger close")
     {
         // Set threshold to 1 so all have to vote
         simulation =
             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
-                auto cfg = getTestConfig(
-                    i, Config::TESTDB_BUCKET_DB_PERSISTENT_POSTGRES);
+                auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = true;
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
@@ -3236,6 +3238,7 @@ TEST_CASE("overlay parallel processing")
                 return cfg;
             });
     }
+#endif
 
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
@@ -3526,10 +3529,16 @@ herderExternalizesValuesWithProtocol(uint32_t version,
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-            auto cfg = getTestConfig(
-                i, parallelLedgerClose
-                       ? Config::TESTDB_BUCKET_DB_PERSISTENT_POSTGRES
-                       : Config::TESTDB_BUCKET_DB_PERSISTENT);
+            Config::TestDbMode dbMode = Config::TESTDB_BUCKET_DB_PERSISTENT;
+            if (parallelLedgerClose)
+            {
+#ifdef USE_POSTGRES
+                dbMode = Config::TESTDB_POSTGRESQL;
+#else
+                FAIL("Parallel ledger close requires postgres");
+#endif
+            }
+            auto cfg = getTestConfig(i, dbMode);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
             if (parallelLedgerClose)
             {
