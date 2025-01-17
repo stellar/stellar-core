@@ -921,7 +921,7 @@ class FuzzTransactionFrame : public TransactionFrame
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
-        AppValidationWrapper avw(app.getAppConnector(), false);
+        AppValidationWrapper avw(app.getAppConnector(), false, std::nullopt);
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};

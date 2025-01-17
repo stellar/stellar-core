@@ -95,7 +95,7 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     LedgerTxn ltx(ltxOuter);
-    AppValidationWrapper const avw(app, false);
+    AppValidationWrapper const avw(app, false, std::nullopt);
     auto ls = LedgerSnapshot(ltx);
     mTransactionTxResult = mTransactionFrame->checkValid(
         avw, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);

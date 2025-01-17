@@ -396,7 +396,7 @@ ApplyLoad::benchmark()
                      gRandomEngine);
 
     bool limitHit = false;
-    AppValidationWrapper avw(mApp.getAppConnector(), false);
+    AppValidationWrapper avw(mApp.getAppConnector(), false, std::nullopt);
     for (auto accountIndex : shuffledAccounts)
     {
         auto it = accounts.find(accountIndex);

@@ -11,10 +11,14 @@
 namespace stellar
 {
 
-AppValidationWrapper::AppValidationWrapper(AppConnector const& app,
-                                           bool forApply)
-    : mApp(app), mForApply(forApply)
+AppValidationWrapper::AppValidationWrapper(
+    AppConnector const& app, bool forApply,
+    std::optional<uint32_t> protocolVersion)
+    : mApp(app), mForApply(forApply), mProtocolVersion(protocolVersion)
 {
+    // Must supply protocolVersion if running this on a background thread (such
+    // as in the background apply flow).
+    releaseAssert(threadIsMain() || protocolVersion.has_value());
 }
 
 Config const&
@@ -26,13 +30,24 @@ AppValidationWrapper::getConfig() const
 SorobanNetworkConfig const&
 AppValidationWrapper::getSorobanNetworkConfig() const
 {
-    return mForApply ? mApp.getLedgerManager().getSorobanNetworkConfigForApply()
+    return mForApply ? mApp.getSorobanNetworkConfigForApply()
                      : mApp.getSorobanNetworkConfigReadOnly();
 }
 
 uint32_t
 AppValidationWrapper::getCurrentProtocolVersion() const
 {
+    if (mProtocolVersion.has_value())
+    {
+        return mProtocolVersion.value();
+    }
+    // TODO: This use of `getLedgerManager` doesn't play nice with background
+    // ledger close. `getLedgerManager` mandates that it runs in the main
+    // thread, but there are calls to this function via the apply flow that are
+    // not in the main thread. I've instead added an optional protocol version
+    // to store, and fall back on this when it isn't available. I don't like
+    // this solution much though, and would prefer to just use the ledger
+    // snapshot directly once I get rid of ValidationConnector.
     return mApp.getLedgerManager()
         .getLastClosedLedgerHeader()
         .header.ledgerVersion;

@@ -1946,7 +1946,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         //  we'll skip trying to apply operations but we'll still
         //  process the sequence number if needed
         std::optional<FeePair> sorobanResourceFee;
-        AppValidationWrapper avw(app, true);
+        AppValidationWrapper avw(app, true, ledgerVersion);
         if (protocolVersionStartsFrom(ledgerVersion,
                                       SOROBAN_PROTOCOL_VERSION) &&
             isSoroban())

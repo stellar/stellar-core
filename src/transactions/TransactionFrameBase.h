@@ -46,14 +46,15 @@ class ValidationConnector
     virtual ~ValidationConnector() = default;
     virtual Config const& getConfig() const = 0;
     virtual SorobanNetworkConfig const& getSorobanNetworkConfig() const = 0;
-    virtual uint32_t getCurrentProtocolVersion() const = 0;
+    virtual uint34_t getCurrentProtocolVersion() const = 0;
 };
 
 // TODO: Docs
 class AppValidationWrapper : public ValidationConnector
 {
   public:
-    explicit AppValidationWrapper(AppConnector const& app, bool forApply);
+    explicit AppValidationWrapper(AppConnector const& app, bool forApply,
+                                  std::optional<uint32_t> protocolVersion);
     ~AppValidationWrapper() override = default;
 
     Config const& getConfig() const override;
@@ -63,6 +64,7 @@ class AppValidationWrapper : public ValidationConnector
   private:
     AppConnector const& mApp;
     bool const mForApply;
+    std::optional<uint32_t> const mProtocolVersion;
 };
 
 // TODO: Docs
