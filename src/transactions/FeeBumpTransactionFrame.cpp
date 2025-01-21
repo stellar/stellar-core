@@ -153,14 +153,13 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 }
 
 MutableTxResultPtr
-FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+FeeBumpTransactionFrame::checkValid(ValidationConnector const& vc,
+                                    LedgerSnapshot const& ls,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset) const
 {
-    if (!isTransactionXDRValidForProtocol(
-            ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
-            mEnvelope) ||
+    if (!isTransactionXDRValidForCurrentProtocol(vc, mEnvelope) ||
         !XDRProvidesValidFee())
     {
         auto txResult = createSuccessResult();
@@ -188,7 +187,7 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     }
 
     auto innerTxResult = mInnerTx->checkValidWithOptionallyChargedFee(
-        app, ls, current, false, lowerBoundCloseTimeOffset,
+        vc, ls, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
     auto finalTxResult = createSuccessResultWithNewInnerTx(
         std::move(txResult), std::move(innerTxResult), mInnerTx);
@@ -198,11 +197,9 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
 
 bool
 FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
-    AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+    ValidationConnector const& vc, MutableTxResultPtr txResult) const
 {
-    return mInnerTx->checkSorobanResourceAndSetError(app, cfg, ledgerVersion,
-                                                     txResult);
+    return mInnerTx->checkSorobanResourceAndSetError(vc, txResult);
 }
 
 bool

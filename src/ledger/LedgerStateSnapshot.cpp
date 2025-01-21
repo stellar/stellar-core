@@ -239,6 +239,11 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
             app.getLedgerManager().getCurrentLedgerStateSnaphot());
 }
 
+LedgerSnapshot::LedgerSnapshot(SearchableSnapshotConstPtr snapshot)
+    : mGetter(std::make_unique<BucketSnapshotState>(snapshot))
+{
+}
+
 LedgerHeaderWrapper
 LedgerSnapshot::getLedgerHeader() const
 {

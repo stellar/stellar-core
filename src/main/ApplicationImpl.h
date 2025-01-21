@@ -49,7 +49,7 @@ class ApplicationImpl : public Application
 
     virtual uint64_t timeNow() override;
 
-    virtual Config const& getConfig() override;
+    virtual Config const& getConfig() const override;
 
     virtual State getState() const override;
     virtual std::string getStateHuman() const override;
@@ -61,7 +61,7 @@ class ApplicationImpl : public Application
     virtual void clearMetrics(std::string const& domain) override;
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
-    virtual BucketManager& getBucketManager() override;
+    virtual BucketManager& getBucketManager() const override;
     virtual LedgerApplyManager& getLedgerApplyManager() override;
     virtual HistoryArchiveManager& getHistoryArchiveManager() override;
     virtual HistoryManager& getHistoryManager() override;
@@ -77,7 +77,7 @@ class ApplicationImpl : public Application
     virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
-    virtual AppConnector& getAppConnector() override;
+    virtual AppConnector& getAppConnector() const override;
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
@@ -136,7 +136,7 @@ class ApplicationImpl : public Application
 
     virtual Hash const& getNetworkID() const override;
 
-    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() override;
+    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() const override;
 
   private:
     VirtualClock& mVirtualClock;

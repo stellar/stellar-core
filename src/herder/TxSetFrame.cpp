@@ -438,10 +438,12 @@ phaseTxsAreValid(TxSetPhaseFrame const& phase, Application& app,
     // for LCL+1
     LedgerSnapshot ls(app);
     ls.getLedgerHeader().currentToModify().ledgerSeq += 1;
+    // TODO: Double check that the readonly soroban network config is what we
+    // want here.
+    AppValidationWrapper const avw(app.getAppConnector(), false, std::nullopt);
     for (auto const& tx : phase)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(avw, ls, 0, lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {

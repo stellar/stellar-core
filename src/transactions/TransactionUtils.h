@@ -30,6 +30,7 @@ class SorobanNetworkConfig;
 class TransactionFrame;
 class TransactionFrameBase;
 class SorobanTxData;
+class ValidationConnector;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -261,10 +262,12 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
-bool isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                      TransactionEnvelope const& envelope);
+bool
+isTransactionXDRValidForCurrentProtocol(ValidationConnector const& vc,
+                                        TransactionEnvelope const& envelope);
 
-uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
+uint64_t getUpperBoundCloseTimeOffset(AppConnector& app,
+                                      uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
 bool hasAccountEntryExtV3(AccountEntry const& ae);

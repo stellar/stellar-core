@@ -14,33 +14,33 @@ namespace stellar
 {
 
 AppConnector::AppConnector(Application& app)
-    : mApp(app), mConfig(app.getConfig())
+    : mApp(app), mConfig(std::make_shared<const Config>(app.getConfig()))
 {
 }
 
 Herder&
-AppConnector::getHerder()
+AppConnector::getHerder() const
 {
     releaseAssert(threadIsMain());
     return mApp.getHerder();
 }
 
 LedgerManager&
-AppConnector::getLedgerManager()
+AppConnector::getLedgerManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getLedgerManager();
 }
 
 OverlayManager&
-AppConnector::getOverlayManager()
+AppConnector::getOverlayManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getOverlayManager();
 }
 
 BanManager&
-AppConnector::getBanManager()
+AppConnector::getBanManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getBanManager();
@@ -57,6 +57,17 @@ SorobanNetworkConfig const&
 AppConnector::getSorobanNetworkConfigForApply() const
 {
     return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+}
+
+std::optional<SorobanNetworkConfig>
+AppConnector::maybeGetSorobanNetworkConfigReadOnly() const
+{
+    releaseAssert(threadIsMain());
+    if (mApp.getLedgerManager().hasSorobanNetworkConfig())
+    {
+        return mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+    }
+    return std::nullopt;
 }
 
 medida::MetricsRegistry&
@@ -104,6 +115,12 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
 Config const&
 AppConnector::getConfig() const
 {
+    return *mConfig;
+}
+
+std::shared_ptr<Config const>
+AppConnector::getConfigPtr() const
+{
     return mConfig;
 }
 
@@ -117,6 +134,17 @@ VirtualClock::time_point
 AppConnector::now() const
 {
     return mApp.getClock().now();
+}
+
+VirtualClock::system_time_point
+AppConnector::system_now() const
+{
+    // TODO: Is this thread safe? It looks like it is when in REAL_TIME mode,
+    // but I'm not so sure about VIRTUAL_TIME mode as that mode has a
+    // `mVirtualNow` that looks like it can change during access? The same is
+    // true for `AppConnector::now`, which is marked "thread safe" in the header
+    // file. Maybe both of these need some hardening though?
+    return mApp.getClock().system_now();
 }
 
 bool

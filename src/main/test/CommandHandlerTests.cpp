@@ -502,7 +502,8 @@ TEST_CASE("manualclose", "[commandhandler]")
             setMinTime(txFrame, 0);
             TimePoint const maxTime =
                 lastCloseTime() + defaultManualCloseTimeInterval +
-                getUpperBoundCloseTimeOffset(*app, lastCloseTime());
+                getUpperBoundCloseTimeOffset(app->getAppConnector(),
+                                             lastCloseTime());
             setMaxTime(txFrame, maxTime);
             txFrame->getMutableEnvelope().v1().signatures.clear();
             txFrame->addSignature(root);

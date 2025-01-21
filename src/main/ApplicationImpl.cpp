@@ -1128,7 +1128,7 @@ ApplicationImpl::applyCfgCommands()
 }
 
 Config const&
-ApplicationImpl::getConfig()
+ApplicationImpl::getConfig() const
 {
     return mConfig;
 }
@@ -1267,7 +1267,7 @@ ApplicationImpl::getLedgerManager()
 }
 
 BucketManager&
-ApplicationImpl::getBucketManager()
+ApplicationImpl::getBucketManager() const
 {
     return *mBucketManager;
 }
@@ -1499,7 +1499,7 @@ ApplicationImpl::createDatabase()
 }
 
 AbstractLedgerTxnParent&
-ApplicationImpl::getLedgerTxnRoot()
+ApplicationImpl::getLedgerTxnRoot() const
 {
 #ifdef BUILD_TESTS
     if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
@@ -1512,7 +1512,7 @@ ApplicationImpl::getLedgerTxnRoot()
 }
 
 AppConnector&
-ApplicationImpl::getAppConnector()
+ApplicationImpl::getAppConnector() const
 {
     return *mAppConnector;
 }

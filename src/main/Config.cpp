@@ -160,6 +160,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
     EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = false;
+    BACKGROUND_TX_QUEUE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
@@ -1078,6 +1079,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                          std::chrono::milliseconds(readInt<uint32_t>(item));
                  }},
+                {"EXPERIMENTAL_BACKGROUND_TX_QUEUE",
+                 [&]() { BACKGROUND_TX_QUEUE = readBool(item); }},
                 // https://github.com/stellar/stellar-core/issues/4581
                 {"BACKGROUND_EVICTION_SCAN",
                  [&]() {
