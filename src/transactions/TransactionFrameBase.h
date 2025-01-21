@@ -46,7 +46,7 @@ class ValidationConnector
     virtual ~ValidationConnector() = default;
     virtual Config const& getConfig() const = 0;
     virtual SorobanNetworkConfig const& getSorobanNetworkConfig() const = 0;
-    virtual uint34_t getCurrentProtocolVersion() const = 0;
+    virtual uint32_t getCurrentProtocolVersion() const = 0;
 };
 
 // TODO: Docs
