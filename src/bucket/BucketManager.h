@@ -111,7 +111,7 @@ class BucketManager : NonMovableOrCopyable
     std::map<LedgerEntryTypeAndDurability, medida::Counter&>
         mBucketListEntrySizeCounters;
 
-    std::future<EvictionResultCandidates> mEvictionFuture{};
+    std::future<std::unique_ptr<EvictionResultCandidates>> mEvictionFuture{};
 
     // Copy app's config for thread-safe access
     Config const mConfig;
