@@ -2,7 +2,9 @@
 
 #include "bucket/BucketMergeMap.h"
 #include "main/Config.h"
+#include "util/TmpDir.h"
 #include "util/types.h"
+#include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
 #include <filesystem>
@@ -32,8 +34,6 @@ class Application;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;
-class BucketBase;
-class BucketIndex;
 class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
@@ -145,7 +145,7 @@ class BucketManager : NonMovableOrCopyable
     template <class BucketT>
     std::shared_ptr<BucketT> adoptFileAsBucketInternal(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-        std::unique_ptr<BucketIndex const> index,
+        std::unique_ptr<typename BucketT::IndexT const> index,
         BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap);
 
     template <class BucketT>
@@ -221,7 +221,7 @@ class BucketManager : NonMovableOrCopyable
     std::shared_ptr<BucketT>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       MergeKey* mergeKey,
-                      std::unique_ptr<BucketIndex const> index);
+                      std::unique_ptr<typename BucketT::IndexT const> index);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method

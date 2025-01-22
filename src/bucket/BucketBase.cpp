@@ -7,7 +7,6 @@
 // else.
 #include "util/asio.h" // IWYU pragma: keep
 #include "bucket/BucketBase.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
@@ -45,13 +44,6 @@ bool
 BucketBase<BucketT, IndexT>::isIndexed() const
 {
     return static_cast<bool>(mIndex);
-}
-
-template <class BucketT, class IndexT>
-std::optional<std::pair<std::streamoff, std::streamoff>>
-BucketBase<BucketT, IndexT>::getOfferRange() const
-{
-    return getIndex().getOfferRange();
 }
 
 template <class BucketT, class IndexT>

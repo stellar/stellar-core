@@ -4,7 +4,6 @@
 // under the apache license, version 2.0. see the copying file at the root
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
-#include "bucket/BucketIndex.h"
 #include "bucket/BucketUtils.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
@@ -50,6 +49,8 @@ enum class Loop
 
 class HotArchiveBucket;
 class LiveBucket;
+class LiveBucketIndex;
+class HotArchiveBucketIndex;
 
 template <class BucketT, class IndexT>
 class BucketBase : public NonMovableOrCopyable
@@ -63,9 +64,9 @@ class BucketBase : public NonMovableOrCopyable
         std::is_same_v<
             IndexT,
             std::conditional_t<
-                std::is_same_v<BucketT, LiveBucket>, BucketIndex,
+                std::is_same_v<BucketT, LiveBucket>, LiveBucketIndex,
                 std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
-                                   BucketIndex, void>>>,
+                                   HotArchiveBucketIndex, void>>>,
         "IndexT must match BucketT::IndexT");
 
   protected:
@@ -106,11 +107,6 @@ class BucketBase : public NonMovableOrCopyable
 
     // Returns true if bucket is indexed, false otherwise
     bool isIndexed() const;
-
-    // Returns [lowerBound, upperBound) of file offsets for all offers in the
-    // bucket, or std::nullopt if no offers exist
-    std::optional<std::pair<std::streamoff, std::streamoff>>
-    getOfferRange() const;
 
     // Sets index, throws if index is already set
     void setIndex(std::unique_ptr<IndexT const>&& index);

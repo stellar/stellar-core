@@ -7,6 +7,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -643,7 +644,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         REQUIRE(b->isIndexed());
 
         auto onDiskIndex =
-            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+            loadIndex<LiveBucket>(test.getBM(), indexFilename, b->getSize());
         REQUIRE(onDiskIndex);
 
         auto& inMemoryIndex = b->getIndexForTesting();
@@ -686,7 +687,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         // Check if on-disk index rewritten with correct config params
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
         auto onDiskIndex =
-            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+            loadIndex<LiveBucket>(test.getBM(), indexFilename, b->getSize());
         REQUIRE((inMemoryIndex == *onDiskIndex));
     }
 }

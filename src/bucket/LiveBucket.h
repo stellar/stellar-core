@@ -5,9 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
 #include "bucket/BucketBase.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/BucketUtils.h"
-#include "ledger/LedgerTypeUtils.h"
+#include "bucket/LiveBucketIndex.h"
 
 namespace medida
 {
@@ -25,28 +24,12 @@ template <typename T> class BucketInputIterator;
 
 typedef BucketOutputIterator<LiveBucket> LiveBucketOutputIterator;
 typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
-struct BucketEntryCounters
-{
-    std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;
-    std::map<LedgerEntryTypeAndDurability, size_t> entryTypeSizes;
-
-    BucketEntryCounters& operator+=(BucketEntryCounters const& other);
-    bool operator==(BucketEntryCounters const& other) const;
-    bool operator!=(BucketEntryCounters const& other) const;
-
-    template <class Archive>
-    void
-    serialize(Archive& ar)
-    {
-        ar(entryTypeCounts, entryTypeSizes);
-    }
-};
 
 /*
  * Live Buckets are used by the LiveBucketList to store the current canonical
  * state of the ledger. They contain entries of type BucketEntry.
  */
-class LiveBucket : public BucketBase<LiveBucket, BucketIndex>,
+class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                    public std::enable_shared_from_this<LiveBucket>
 {
   public:
@@ -56,14 +39,14 @@ class LiveBucket : public BucketBase<LiveBucket, BucketIndex>,
     // Entry type returned by loadKeys
     using LoadT = LedgerEntry;
 
-    using IndexT = BucketIndex;
+    using IndexT = LiveBucketIndex;
 
     LiveBucket();
     virtual ~LiveBucket()
     {
     }
     LiveBucket(std::string const& filename, Hash const& hash,
-               std::unique_ptr<BucketIndex const>&& index);
+               std::unique_ptr<LiveBucketIndex const>&& index);
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.
@@ -99,6 +82,11 @@ class LiveBucket : public BucketBase<LiveBucket, BucketIndex>,
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
 #endif
+
+    // Returns [lowerBound, upperBound) of file offsets for all offers in the
+    // bucket, or std::nullopt if no offers exist
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getOfferRange() const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will

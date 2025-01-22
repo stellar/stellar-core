@@ -1782,7 +1782,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
 
             if (protocolVersionStartsFrom(
                     initialLedgerVers,
-                    BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 std::vector<LedgerKey> restoredKeys;
                 auto const& restoredKeyMap = ltx.getRestoredHotArchiveKeys();

@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureChecker.h"

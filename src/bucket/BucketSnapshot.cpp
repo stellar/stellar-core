@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/SearchableBucketList.h"
@@ -67,8 +66,8 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
         return {std::make_shared<typename BucketT::EntryT>(be), false};
     }
 
-    // Mark entry miss for metrics
-    mBucket->getIndex().markBloomMiss();
+    // TODO: Mark entry miss for metrics
+    // mBucket->getIndex().markBloomMiss();
     return {nullptr, true};
 }
 
@@ -225,7 +224,7 @@ LiveBucketSnapshot::scanForEviction(
     auto isEvictableType = [ledgerVers](auto const& le) {
         if (protocolVersionIsBefore(
                 ledgerVers,
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             return isTemporaryEntry(le);
         }

@@ -122,7 +122,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
         {
             // Don't check entry types supported by BucketListDB, since they
             // won't exist in SQL
-            if (!BucketIndex::typeNotSupported(pair.first.type()))
+            if (!LiveBucketIndex::typeNotSupported(pair.first.type()))
             {
                 continue;
             }
@@ -160,7 +160,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 
     if (mApp.getPersistentState().getState(PersistentState::kDBBackend,
                                            mApp.getDatabase().getSession()) !=
-        BucketIndex::DB_BACKEND_STATE)
+        LiveBucketIndex::DB_BACKEND_STATE)
     {
         throw std::runtime_error(
             "Corrupt DB: BucketListDB flag "
@@ -295,7 +295,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                 }
 
                 // Don't check DB against keys shadowed by earlier Buckets
-                if (BucketIndex::typeNotSupported(e.liveEntry().data.type()) &&
+                if (LiveBucketIndex::typeNotSupported(
+                        e.liveEntry().data.type()) &&
                     shadowedKeys.find(LedgerEntryKey(e.liveEntry())) ==
                         shadowedKeys.end())
                 {
@@ -311,7 +312,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             {
                 // Only check for OFFER keys that are not shadowed by an earlier
                 // bucket
-                if (BucketIndex::typeNotSupported(e.deadEntry().type()) &&
+                if (LiveBucketIndex::typeNotSupported(e.deadEntry().type()) &&
                     shadowedKeys.find(e.deadEntry()) == shadowedKeys.end())
                 {
                     auto s = checkAgainstDatabase(ltx, e.deadEntry());

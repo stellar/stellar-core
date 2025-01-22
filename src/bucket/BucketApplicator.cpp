@@ -82,7 +82,7 @@ shouldApplyEntry(BucketEntry const& e)
 {
     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
     {
-        return BucketIndex::typeNotSupported(e.liveEntry().data.type());
+        return LiveBucketIndex::typeNotSupported(e.liveEntry().data.type());
     }
 
     if (e.type() != DEADENTRY)
@@ -90,7 +90,7 @@ shouldApplyEntry(BucketEntry const& e)
         throw std::runtime_error(
             "Malformed bucket: unexpected non-INIT/LIVE/DEAD entry.");
     }
-    return BucketIndex::typeNotSupported(e.deadEntry().type());
+    return LiveBucketIndex::typeNotSupported(e.deadEntry().type());
 }
 
 size_t

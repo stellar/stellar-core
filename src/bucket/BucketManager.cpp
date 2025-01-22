@@ -361,9 +361,9 @@ BucketManager::renameBucketDirFile(std::filesystem::path const& src,
 
 template <>
 std::shared_ptr<LiveBucket>
-BucketManager::adoptFileAsBucket(std::string const& filename,
-                                 uint256 const& hash, MergeKey* mergeKey,
-                                 std::unique_ptr<BucketIndex const> index)
+BucketManager::adoptFileAsBucket(
+    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+    std::unique_ptr<LiveBucket::IndexT const> index)
 {
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedLiveBuckets, mLiveBucketFutures);
@@ -371,9 +371,9 @@ BucketManager::adoptFileAsBucket(std::string const& filename,
 
 template <>
 std::shared_ptr<HotArchiveBucket>
-BucketManager::adoptFileAsBucket(std::string const& filename,
-                                 uint256 const& hash, MergeKey* mergeKey,
-                                 std::unique_ptr<BucketIndex const> index)
+BucketManager::adoptFileAsBucket(
+    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+    std::unique_ptr<HotArchiveBucket::IndexT const> index)
 {
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedHotArchiveBuckets,
@@ -384,8 +384,8 @@ template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketManager::adoptFileAsBucketInternal(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-    std::unique_ptr<BucketIndex const> index, BucketMapT<BucketT>& bucketMap,
-    FutureMapT<BucketT>& futureMap)
+    std::unique_ptr<typename BucketT::IndexT const> index,
+    BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap)
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;

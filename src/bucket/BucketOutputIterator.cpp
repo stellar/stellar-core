@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
@@ -59,8 +58,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                           "unexpected bucket type");
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
-                HotArchiveBucket::
-                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+                BucketT::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);
@@ -192,14 +190,14 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     }
 
     auto hash = mHasher.finish();
-    std::unique_ptr<BucketIndex const> index{};
+    std::unique_ptr<typename BucketT::IndexT const> index{};
 
     // either it's a new bucket or we just reconstructed a bucket
     // we already have, in any case ensure we have an index
     if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
         !b || !b->isIndexed())
     {
-        index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
+        index = createIndex<BucketT>(bucketManager, mFilename,
                                                   hash, mCtx);
     }
 

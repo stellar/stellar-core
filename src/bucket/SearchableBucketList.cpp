@@ -7,6 +7,7 @@
 #include "bucket/BucketListSnapshotBase.h"
 #include "bucket/LiveBucketList.h"
 #include "util/GlobalChecks.h"
+#include "ledger/LedgerTxn.h"
 
 #include <medida/timer.h>
 
@@ -219,7 +220,8 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
              winners.size() < maxWinners && iter->first >= minBalance; ++iter)
         {
             // push back {AccountID, voteCount}
-            winners.push_back({iter->second->first, iter->first});
+            winners.push_back(
+                InflationWinner{iter->second->first, iter->first});
         }
     }
     else
