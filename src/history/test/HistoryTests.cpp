@@ -1248,6 +1248,16 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             testUpgrade(SOROBAN_PROTOCOL_VERSION);
         }
     }
+    SECTION("hot archive bucket upgrade")
+    {
+        if (protocolVersionEquals(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            testUpgrade(
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+        }
+    }
 }
 
 TEST_CASE("Catchup fatal failure", "[catchup][history]")
