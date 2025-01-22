@@ -528,10 +528,14 @@ TCPPeer::startRead()
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     releaseAssert(canRead());
-    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-    if (shouldAbort(guard))
     {
-        return;
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
+        // TODO: Remove this outer scoping if I add separate thread for bg tx
+        // queue
     }
 
     mThreadVars.getIncomingHeader().clear();

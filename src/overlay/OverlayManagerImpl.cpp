@@ -1150,11 +1150,10 @@ OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 }
 
 bool
-OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
-                                     Peer::pointer peer, Hash const& msgID)
+OverlayManagerImpl::recvFloodedMsgID(Peer::pointer peer, Hash const& msgID)
 {
     ZoneScoped;
-    return mFloodGate.addRecord(msg, peer, msgID);
+    return mFloodGate.addRecord(peer, msgID);
 }
 
 bool
@@ -1183,6 +1182,44 @@ OverlayManagerImpl::checkScheduledAndCache(
 }
 
 void
+OverlayManagerImpl::recordAddTransactionStats(TxQueueAddResult const& addResult,
+                                              Hash const& txHash,
+                                              Peer::pointer peer,
+                                              Hash const& index)
+{
+    ZoneScoped;
+
+    auto const& om = getOverlayMetrics();
+    switch (addResult.code)
+    {
+    case TxQueueAddResultCode::ADD_STATUS_PENDING:
+        om.mPulledRelevantTxs.Mark();
+        // record that this peer sent us this transaction
+        // add it to the floodmap so that this peer gets credit for it
+        recvFloodedMsgID(peer, index);
+        CLOG_DEBUG(
+            Overlay,
+            "Peer::recvTransaction Received unique transaction {} from {}",
+            hexAbbrev(txHash), peer->toString());
+        break;
+    case TxQueueAddResultCode::ADD_STATUS_DUPLICATE:
+        om.mPulledIrrelevantTxs.Mark();
+        // record that this peer sent us this transaction
+        // add it to the floodmap so that this peer gets credit for it
+        recvFloodedMsgID(peer, index);
+        CLOG_DEBUG(
+            Overlay,
+            "Peer::recvTransaction Received duplicate transaction {} from {}",
+            hexAbbrev(txHash), peer->toString());
+        break;
+    default:
+        om.mPulledIrrelevantTxs.Mark();
+        forgetFloodedMsg(index);
+        break;
+    }
+}
+
+void
 OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
                                     Peer::pointer peer, Hash const& index)
 {
@@ -1191,45 +1228,23 @@ OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
         mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {
-        // record that this peer sent us this transaction
-        // add it to the floodmap so that this peer gets credit for it
-        recvFloodedMsgID(msg, peer, index);
-
-        mTxDemandsManager.recordTxPullLatency(transaction->getFullHash(), peer);
 
         // add it to our current set
         // and make sure it is valid
+        // TODO: I think I could pull this one call into Peer::recvTransaction
+        // and move basically all of the rest of this function to a new function
+        // called something like "recordTransactionStats" or something. Then,
+        // Peer:recvTransaction would invoke HerderImpl::recvTransaction in the
+        // background, and then pass the result to the new function on the main
+        // thread. That way I don't have to make OverlayManagerImpl and its
+        // dependencies (Floodgate, Peer, TxDemandsManager, maybe more), or much
+        // of Peer thread safe. Note that the recordTransactionStats function
+        // would probably need to take a shared ptr to the message so that the
+        // message doesn't get deleted before the function is called. The lambda
+        // capture will need to copy this pointer in.
         auto addResult = mApp.getHerder().recvTransaction(transaction, false);
-        bool pulledRelevantTx = false;
-        if (!(addResult.code ==
-                  TransactionQueue::AddResultCode::ADD_STATUS_PENDING ||
-              addResult.code ==
-                  TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE))
-        {
-            forgetFloodedMsg(index);
-            CLOG_DEBUG(Overlay,
-                       "Peer::recvTransaction Discarded transaction {} from {}",
-                       hexAbbrev(transaction->getFullHash()), peer->toString());
-        }
-        else
-        {
-            bool dup = addResult.code ==
-                       TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE;
-            if (!dup)
-            {
-                pulledRelevantTx = true;
-            }
-            CLOG_DEBUG(
-                Overlay,
-                "Peer::recvTransaction Received {} transaction {} from {}",
-                (dup ? "duplicate" : "unique"),
-                hexAbbrev(transaction->getFullHash()), peer->toString());
-        }
-
-        auto const& om = getOverlayMetrics();
-        auto& meter =
-            pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
-        meter.Mark();
+        recordAddTransactionStats(addResult, transaction->getFullHash(), peer,
+                                  index);
     }
 }
 

@@ -92,6 +92,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
+    , mTxQueueIOContext(mConfig.BACKGROUND_TX_QUEUE
+                            ? std::make_unique<asio::io_context>(1)
+                            : nullptr)
+    , mTxQueueWork(mTxQueueIOContext ? std::make_unique<asio::io_context::work>(
+                                           *mTxQueueIOContext)
+                                     : nullptr)
     , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
                                 ? std::make_unique<asio::io_context>(1)
                                 : nullptr)
@@ -114,6 +120,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mPostOnOverlayThreadDelay(
           mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
+    , mPostOnTxQueueThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-tx-queue-thread", "delay"}))
     , mPostOnLedgerCloseThreadDelay(
           mMetrics->NewTimer({"app", "post-on-ledger-close-thread", "delay"}))
     , mStartedOn(clock.system_now())
@@ -186,6 +194,14 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         // Keep priority unchanged as overlay processes time-sensitive tasks
         mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
+    }
+
+    if (mConfig.BACKGROUND_TX_QUEUE)
+    {
+        // TODO: Keep priority unchanged as tx queue processes time-sensitive
+        // tasks? Or should tx queue priority be downgraded?
+        mTxQueueThread = std::thread{[this]() { mTxQueueIOContext->run(); }};
+        mThreadTypes[mTxQueueThread->get_id()] = ThreadType::TX_QUEUE;
     }
 
     if (mConfig.parallelLedgerClose())
@@ -877,6 +893,10 @@ ApplicationImpl::joinAllThreads()
     {
         mOverlayWork.reset();
     }
+    if (mTxQueueWork)
+    {
+        mTxQueueWork.reset();
+    }
     if (mEvictionWork)
     {
         mEvictionWork.reset();
@@ -892,6 +912,12 @@ ApplicationImpl::joinAllThreads()
     {
         LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
         mOverlayThread->join();
+    }
+
+    if (mTxQueueThread)
+    {
+        LOG_INFO(DEFAULT_LOG, "Joining the tx queue thread");
+        mTxQueueThread->join();
     }
 
     if (mEvictionThread)
@@ -1456,6 +1482,19 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
                             "executed after"};
     asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow]() {
         mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
+ApplicationImpl::postOnTxQueueThread(std::function<void()>&& f,
+                                     std::string jobName)
+{
+    releaseAssert(mTxQueueIOContext);
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(*mTxQueueIOContext, [this, f = std::move(f), isSlow]() {
+        mPostOnTxQueueThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
 }

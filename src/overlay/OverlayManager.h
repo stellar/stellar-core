@@ -51,6 +51,7 @@ class PeerBareAddress;
 class PeerManager;
 class SurveyManager;
 struct StellarMessage;
+struct TxQueueAddResult;
 
 class OverlayManager
 {
@@ -83,14 +84,21 @@ class OverlayManager
     // that, call broadcastMessage, above.
     // Returns true if this is a new message
     // fills msgID with msg's hash
-    virtual bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                                  Hash const& msgID) = 0;
+    virtual bool recvFloodedMsgID(Peer::pointer peer, Hash const& msgID) = 0;
 
     bool
     recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
     {
-        return recvFloodedMsgID(msg, peer, xdrBlake2(msg));
+        return recvFloodedMsgID(peer, xdrBlake2(msg));
     }
+
+    // TODO: Docs
+    // TODO: This is going to be called in a lambda. Be careful about those
+    // pointers and references
+    virtual void
+    recordAddTransactionStats(TxQueueAddResult const& addResult,
+                              Hash const& txHash, Peer::pointer peer,
+                              Hash const& index) = 0;
 
     // Process incoming transaction, pass it down to the transaction queue
     virtual void recvTransaction(StellarMessage const& msg, Peer::pointer peer,

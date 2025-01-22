@@ -164,14 +164,15 @@ class Application
         APP_NUM_STATE
     };
 
-    // Types of threads that may be running
+    // TODO: Docs
     enum class ThreadType
     {
         MAIN,
         WORKER,
         EVICTION,
         OVERLAY,
-        APPLY
+        LEDGER_CLOSE,
+        TX_QUEUE
     };
 
     virtual ~Application(){};
@@ -252,6 +253,8 @@ class Application
     virtual void postOnEvictionBackgroundThread(std::function<void()>&& f,
                                                 std::string jobName) = 0;
     virtual void postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName) = 0;
+    virtual void postOnTxQueueThread(std::function<void()>&& f,
                                      std::string jobName) = 0;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) = 0;

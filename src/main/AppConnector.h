@@ -40,7 +40,7 @@ class AppConnector
     void checkOnOperationApply(Operation const& operation,
                                OperationResult const& opres,
                                LedgerTxnDelta const& ltxDelta);
-    Hash const& getNetworkID() const;
+    Hash const& getNetworkID() const; // TODO: Is this *really* not thread safe?
 
     // Thread-safe methods
     void postOnMainThread(
@@ -48,12 +48,15 @@ class AppConnector
         Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION);
     void postOnOverlayThread(std::function<void()>&& f,
                              std::string const& message);
+    void postOnTxQueueThread(std::function<void()>&& f,
+                             std::string const& message);
     VirtualClock::time_point now() const;
     VirtualClock::system_time_point system_now() const;
     Config const& getConfig() const;
     std::shared_ptr<Config const> getConfigPtr() const;
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
+    bool ledgerIsSynced() const;
     // This method is always exclusively called from one thread
     bool
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
@@ -69,6 +72,7 @@ class AppConnector
     // `getSorobanNetworkConfig` will throw an assertion error in that case.
     std::optional<SorobanNetworkConfig>
     maybeGetSorobanNetworkConfigReadOnly() const;
+    bool threadIsType(Application::ThreadType type) const;
 
     bool threadIsType(Application::ThreadType type) const;
 

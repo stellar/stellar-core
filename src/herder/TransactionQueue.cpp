@@ -52,21 +52,21 @@ std::array<const char*,
     TX_STATUS_STRING = std::array{"PENDING", "DUPLICATE", "ERROR",
                                   "TRY_AGAIN_LATER", "FILTERED"};
 
-TransactionQueue::AddResult::AddResult(AddResultCode addCode)
+TxQueueAddResult::TxQueueAddResult(TxQueueAddResultCode addCode)
     : code(addCode), txResult()
 {
 }
 
-TransactionQueue::AddResult::AddResult(AddResultCode addCode,
-                                       MutableTxResultPtr payload)
+TxQueueAddResult::TxQueueAddResult(TxQueueAddResultCode addCode,
+                                   MutableTxResultPtr payload)
     : code(addCode), txResult(payload)
 {
     releaseAssert(txResult);
 }
 
-TransactionQueue::AddResult::AddResult(AddResultCode addCode,
-                                       TransactionFrameBasePtr tx,
-                                       TransactionResultCode txErrorCode)
+TxQueueAddResult::TxQueueAddResult(TxQueueAddResultCode addCode,
+                                   TransactionFrameBasePtr tx,
+                                   TransactionResultCode txErrorCode)
     : code(addCode), txResult(tx->createSuccessResult())
 {
     releaseAssert(txErrorCode != txSUCCESS);
@@ -642,6 +642,8 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
     std::lock_guard<std::mutex> guard(mTxQueueMutex);
+    CLOG_DEBUG(Tx, "Try add tx {} in {}", hexAbbrev(tx->getFullHash()),
+               threadIsMain() ? "foreground" : "background");
 
     auto c1 =
         tx->getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
@@ -703,8 +705,21 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     mTxQueueLimiter.addTransaction(tx);
     mKnownTxHashes[tx->getFullHash()] = tx;
 
-    mAppConn.postOnMainThread([this]() { broadcast(false); },
-                              "tx queue broadcast");
+    if (threadIsMain())
+    {
+        broadcast(false, guard);
+    }
+    else if (!mWaiting && !mPendingMainThreadBroadcast)
+    {
+        // NOTE: If mWaiting is set, then the broadcast timer is already running
+        // and there is no need to take up main thread time to start it.
+        // Similarly, if mPendingMainThreadBroadcast is set, then there is
+        // already something enqueued to be broadcast on the main thread, which
+        // will result in this transaction being broadcast too.
+        mPendingMainThreadBroadcast = true;
+        mAppConn.postOnMainThread([this]() { broadcast(false); },
+                                  "tx queue broadcast");
+    }
 
     return res;
 }
@@ -1052,8 +1067,12 @@ TransactionQueue::broadcastTx(TimestampedTx& tx)
     // Must be main thread because we are accessing the overlay manager
     releaseAssert(threadIsMain());
 
+    // TODO: Remove
+    std::string txStr = hexAbbrev(tx.mTx->getFullHash());
+
     if (tx.mBroadcasted)
     {
+        CLOG_DEBUG(Tx, "Transaction {} already broadcasted", txStr);
         return BroadcastStatus::BROADCAST_STATUS_ALREADY;
     }
 
@@ -1078,8 +1097,10 @@ TransactionQueue::broadcastTx(TimestampedTx& tx)
         // false to our caller so that they will not count this tx against
         // the per-timeslice counters -- we want to allow the caller to try
         // useful work from other sources.
+        CLOG_DEBUG(Tx, "Transaction {} skipped", txStr);
         return BroadcastStatus::BROADCAST_STATUS_SKIPPED;
     }
+    CLOG_DEBUG(Tx, "Broadcasting transaction {}", txStr);
     return mAppConn.getOverlayManager().broadcastMessage(
                tx.mTx->toStellarMessage(),
                std::make_optional<Hash>(tx.mTx->getFullHash()))
@@ -1302,6 +1323,7 @@ TransactionQueue::broadcast(bool fromCallback,
     // Must be called from the main thread due to the use of `mBroadcastTimer`
     releaseAssert(threadIsMain());
 
+    mPendingMainThreadBroadcast = false;
     if (mShutdown || (!fromCallback && mWaiting))
     {
         return;
@@ -1473,4 +1495,105 @@ ClassicTransactionQueue::getMaxQueueSizeOps() const
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);
 }
+
+void
+TransactionQueues::setClassicTransactionQueue(
+    std::unique_ptr<ClassicTransactionQueue> classicTransactionQueue)
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    releaseAssert(!mClassicTransactionQueue);
+    mClassicTransactionQueue = std::move(classicTransactionQueue);
+}
+
+void
+TransactionQueues::setSorobanTransactionQueue(
+    std::unique_ptr<SorobanTransactionQueue> sorobanTransactionQueue)
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    releaseAssert(!mSorobanTransactionQueue);
+    mSorobanTransactionQueue = std::move(sorobanTransactionQueue);
+}
+
+bool
+TransactionQueues::hasClassicTransactionQueue() const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    return mClassicTransactionQueue != nullptr;
+}
+
+bool
+TransactionQueues::hasSorobanTransactionQueue() const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    return mSorobanTransactionQueue != nullptr;
+}
+
+ClassicTransactionQueue&
+TransactionQueues::getClassicTransactionQueue() const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    releaseAssert(mClassicTransactionQueue);
+    return *mClassicTransactionQueue;
+}
+
+SorobanTransactionQueue&
+TransactionQueues::getSorobanTransactionQueue() const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    releaseAssert(mSorobanTransactionQueue);
+    return *mSorobanTransactionQueue;
+}
+
+void
+TransactionQueues::shutdown()
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    if (mClassicTransactionQueue)
+    {
+        mClassicTransactionQueue->shutdown();
+    }
+    if (mSorobanTransactionQueue)
+    {
+        mSorobanTransactionQueue->shutdown();
+    }
+}
+
+bool
+TransactionQueues::sourceAccountPending(AccountID const& accountID) const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    releaseAssert(mClassicTransactionQueue);
+    bool accPending = mClassicTransactionQueue->sourceAccountPending(accountID);
+    if (mSorobanTransactionQueue)
+    {
+        accPending = accPending ||
+                     mSorobanTransactionQueue->sourceAccountPending(accountID);
+    }
+    return accPending;
+}
+
+bool
+TransactionQueues::isBanned(Hash const& hash) const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    auto banned = mClassicTransactionQueue->isBanned(hash);
+    if (mSorobanTransactionQueue)
+    {
+        banned = banned || mSorobanTransactionQueue->isBanned(hash);
+    }
+    return banned;
+}
+
+TransactionFrameBaseConstPtr
+TransactionQueues::getTx(Hash const& hash) const
+{
+    std::lock_guard<std::mutex> guard(mMutex);
+    auto classic = mClassicTransactionQueue->getTx(hash);
+    if (!classic && mSorobanTransactionQueue)
+    {
+        return mSorobanTransactionQueue->getTx(hash);
+    }
+    return classic;
+}
+
 }

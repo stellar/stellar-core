@@ -71,8 +71,10 @@ Peer::Peer(Application& app, PeerRole role)
     , mRecurringTimer(app)
     , mDelayedExecutionTimer(app)
     , mTxAdverts(std::make_shared<TxAdverts>(app))
+    , mTransactionQueues(mAppConnector.getHerder().getTransactionQueues())
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mTransactionQueues); // TODO: Remove?
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
@@ -876,94 +878,119 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
-    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
-    if (shouldAbort(guard))
-    {
-        return false;
-    }
+    // TODO: Remove if I get rid of the special lock scoping vv
+    std::shared_ptr<CapacityTrackedMessage> msgTracker = nullptr;
 
-    std::string errorMsg;
-    if (getState(guard) >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
+    // TODO: Move back if I git rid of lock scoping vv
+    Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
+    std::string queueName;
     {
-        if (!mHmac.checkAuthenticatedMessage(msg, errorMsg))
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+
+        if (shouldAbort(guard))
         {
-            if (!threadIsMain())
-            {
-                mAppConnector.postOnMainThread(
-                    [self = shared_from_this(), errorMsg]() {
-                        self->sendErrorAndDrop(ERR_AUTH, errorMsg);
-                    },
-                    "Peer::sendErrorAndDrop");
-            }
-            else
-            {
-                sendErrorAndDrop(ERR_AUTH, errorMsg);
-            }
             return false;
         }
+
+        std::string errorMsg;
+        if (getState(guard) >= GOT_HELLO &&
+            msg.v0().message.type() != ERROR_MSG)
+        {
+            if (!mHmac.checkAuthenticatedMessage(msg, errorMsg))
+            {
+                if (!threadIsMain())
+                {
+                    mAppConnector.postOnMainThread(
+                        [self = shared_from_this(), errorMsg]() {
+                            self->sendErrorAndDrop(ERR_AUTH, errorMsg);
+                        },
+                        "Peer::sendErrorAndDrop");
+                }
+                else
+                {
+                    sendErrorAndDrop(ERR_AUTH, errorMsg);
+                }
+                return false;
+            }
+        }
+
+        // NOTE: Additionally, we may use state snapshots to verify TRANSACTION
+        // type messages in the background.
+
+        // Start tracking capacity here, so read throttling is applied
+        // appropriately. Flow control might not be started at that time
+        msgTracker = std::make_shared<CapacityTrackedMessage>(
+            shared_from_this(), msg.v0().message);
+
+        std::string cat;
+
+        switch (msgTracker->getMessage().type())
+        {
+        case HELLO:
+        case AUTH:
+            cat = AUTH_ACTION_QUEUE;
+            break;
+        // control messages
+        case PEERS:
+        case ERROR_MSG:
+        case SEND_MORE:
+        case SEND_MORE_EXTENDED:
+            cat = "CTRL";
+            break;
+        // high volume flooding
+        case TRANSACTION:
+        case FLOOD_ADVERT:
+        case FLOOD_DEMAND:
+        {
+            cat = "TX";
+            type = Scheduler::ActionType::DROPPABLE_ACTION;
+            break;
+        }
+
+        // consensus, inbound
+        case GET_TX_SET:
+        case GET_SCP_QUORUMSET:
+        case GET_SCP_STATE:
+            cat = "SCPQ";
+            type = Scheduler::ActionType::DROPPABLE_ACTION;
+            break;
+
+        // consensus, self
+        case DONT_HAVE:
+        case TX_SET:
+        case GENERALIZED_TX_SET:
+        case SCP_QUORUMSET:
+        case SCP_MESSAGE:
+            cat = "SCP";
+            break;
+
+        default:
+            cat = "MISC";
+        }
+
+        // processing of incoming messages during authenticated must be
+        // in-order, so while not authenticated, place all messages onto
+        // AUTH_ACTION_QUEUE scheduler queue
+        queueName = isAuthenticated(guard) ? cat : AUTH_ACTION_QUEUE;
+        type = isAuthenticated(guard) ? type
+                                      : Scheduler::ActionType::NORMAL_ACTION;
+
+        // TODO: This scope (ending here) exists to ensure this doesn't hold the
+        // state lock upon entry to the transaction queue. This can cause
+        // deadlocks! I think it's safe to release the lock here as there's no
+        // longer any state querying. In practice though, if I end up posting
+        // the tryAdd action onto some tx-queue specific thread, then I can
+        // remove the scoping I added here and the lock will be released upon
+        // return from this function (like it always has).
+
+        // TODO: Really investigate whether this peer+transaction queue locking
+        // each other issue can come up anywhere else.
     }
 
-    // NOTE: Additionally, we may use state snapshots to verify TRANSACTION type
-    // messages in the background.
-
-    // Start tracking capacity here, so read throttling is applied
-    // appropriately. Flow control might not be started at that time
-    auto msgTracker = std::make_shared<CapacityTrackedMessage>(
-        shared_from_this(), msg.v0().message);
-
-    std::string cat;
-    Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
-
-    switch (msgTracker->getMessage().type())
-    {
-    case HELLO:
-    case AUTH:
-        cat = AUTH_ACTION_QUEUE;
-        break;
-    // control messages
-    case PEERS:
-    case ERROR_MSG:
-    case SEND_MORE:
-    case SEND_MORE_EXTENDED:
-        cat = "CTRL";
-        break;
-    // high volume flooding
-    case TRANSACTION:
-    case FLOOD_ADVERT:
-    case FLOOD_DEMAND:
-    {
-        cat = "TX";
-        type = Scheduler::ActionType::DROPPABLE_ACTION;
-        break;
-    }
-
-    // consensus, inbound
-    case GET_TX_SET:
-    case GET_SCP_QUORUMSET:
-    case GET_SCP_STATE:
-        cat = "SCPQ";
-        type = Scheduler::ActionType::DROPPABLE_ACTION;
-        break;
-
-    // consensus, self
-    case DONT_HAVE:
-    case TX_SET:
-    case GENERALIZED_TX_SET:
-    case SCP_QUORUMSET:
-    case SCP_MESSAGE:
-        cat = "SCP";
-        break;
-
-    default:
-        cat = "MISC";
-    }
-
-    // processing of incoming messages during authenticated must be in-order, so
-    // while not authenticated, place all messages onto AUTH_ACTION_QUEUE
-    // scheduler queue
-    auto queueName = isAuthenticated(guard) ? cat : AUTH_ACTION_QUEUE;
-    type = isAuthenticated(guard) ? type : Scheduler::ActionType::NORMAL_ACTION;
+    // TODO: vv Remove asserts if I get rid of the scoping above
+    releaseAssert(msgTracker);
+    releaseAssert(!queueName.empty());
 
     // If a message is already scheduled, drop
     if (mAppConnector.checkScheduledAndCache(msgTracker))
@@ -980,16 +1007,44 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
                                                   envelope.statement));
     }
 
-    // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
-    // its destructor is invoked from main thread only. Note that we can't use
-    // unique_ptr here, because std::function requires its callable
-    // to be copyable (C++23 fixes this with std::move_only_function, but we're
-    // not there yet)
-    mAppConnector.postOnMainThread(
-        [self = shared_from_this(), t = std::move(msgTracker)]() {
-            self->recvMessage(t);
-        },
-        std::move(queueName), type);
+    // TODO: Special case for TRANSACTION here to add to tx queue in the
+    // background.
+    if (msgTracker->getMessage().type() == TRANSACTION &&
+        mAppConnector.getConfig().BACKGROUND_TX_QUEUE)
+    {
+        // TODO: This assert might not be relevant. It's theoretically possible
+        // to enable background tx queue without enabling background overlay
+        // (under this implementation). Whether or not that's a good idea is a
+        // separate question.
+        releaseAssert(!threadIsMain());
+        // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
+        // its destructor is invoked from main thread only. Note that we can't
+        // use unique_ptr here, because std::function requires its callable to
+        // be copyable (C++23 fixes this with std::move_only_function, but we're
+        // not there yet)
+        mAppConnector.postOnTxQueueThread(
+            [self = shared_from_this(), t = std::move(msgTracker)]() {
+                self->recvMessage(t);
+            },
+            "Peer::recvMessage"); // TODO: Change message to something better
+        // TODO: If I end up running this on a different thread then I need to
+        // be sure to std::move `msgTracker` into the lambda as-per the note
+        // below.
+    }
+    else
+    {
+
+        // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
+        // its destructor is invoked from main thread only. Note that we can't
+        // use unique_ptr here, because std::function requires its callable to
+        // be copyable (C++23 fixes this with std::move_only_function, but we're
+        // not there yet)
+        mAppConnector.postOnMainThread(
+            [self = shared_from_this(), t = std::move(msgTracker)]() {
+                self->recvMessage(t);
+            },
+            std::move(queueName), type);
+    }
 
     // msgTracker should be null now
     releaseAssert(!msgTracker);
@@ -1000,7 +1055,7 @@ void
 Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
+    // TODO: Note in the docs that this function may be called in the background
 
     auto const& stellarMsg = msgTracker->getMessage();
 
@@ -1019,7 +1074,7 @@ Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     bool ignoreIfOutOfSync = msgType == TRANSACTION ||
                              msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND;
 
-    if (!mAppConnector.getLedgerManager().isSynced() && ignoreIfOutOfSync)
+    if (!mAppConnector.ledgerIsSynced() && ignoreIfOutOfSync)
     {
         // For transactions, exit early during the state rebuild, as we
         // can't properly verify them
@@ -1028,7 +1083,36 @@ Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     try
     {
-        recvRawMessage(msgTracker);
+        if (msgType == TRANSACTION &&
+            mAppConnector.getConfig().BACKGROUND_TX_QUEUE)
+        {
+            // TODO: Refactor this to more closely mirror recvTransaction flow?
+            // Also need to get all the metrics/etc from
+            // OverlayManagerImpl::recordAddTransactionStats in here.
+            releaseAssert(!threadIsMain());
+            releaseAssert(msgTracker->maybeGetHash().has_value());
+            Hash const index = msgTracker->maybeGetHash().value();
+            // TODO: If `getNetworkID` is truly not thread safe then we might
+            // need to keep a copy of it somewhere safe.
+            auto transaction = TransactionFrameBase::makeTransactionFromWire(
+                mAppConnector.getNetworkID(),
+                msgTracker->getMessage().transaction());
+            releaseAssert(transaction);
+            TransactionQueue::AddResult addResult =
+                Herder::recvTransaction(mTransactionQueues, transaction, false);
+            mAppConnector.postOnMainThread(
+                [self = shared_from_this(), index, addResult, transaction]() {
+                    self->mAppConnector.getOverlayManager()
+                        .recordAddTransactionStats(
+                            addResult, transaction->getFullHash(), self, index);
+                },
+                "Peer::recvMessage recordAddTransactionStats");
+        }
+        else
+        {
+            releaseAssert(threadIsMain());
+            recvRawMessage(msgTracker);
+        }
     }
     catch (CryptoError const& e)
     {
@@ -1070,6 +1154,9 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     // No need to hold the lock for the whole duration of the function, just
     // need to check state for a potential early exit. If the peer gets dropped
     // after, we'd still process the message, but that's harmless.
+    // TODO: I think it's OK that the flow I developed skips this? The message
+    // type is skips most of these checks, except for the authenticated check.
+    // Maybe I should add an isAuthenticated check? Or a shouldAbort check?
     {
         RECURSIVE_LOCK_GUARD(mStateMutex, guard);
         if (shouldAbort(guard))
@@ -1189,6 +1276,7 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     case TRANSACTION:
     {
+        // TODO: Losing this metric right now vv
         auto t = mOverlayMetrics.mRecvTransactionTimer.TimeScope();
         recvTransaction(*msgTracker);
     }
@@ -1487,7 +1575,7 @@ Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
     // add it to the floodmap so that this peer gets credit for it
     releaseAssert(msg.maybeGetHash());
     mAppConnector.getOverlayManager().recvFloodedMsgID(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        shared_from_this(), msg.maybeGetHash().value());
 
     auto res = mAppConnector.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)

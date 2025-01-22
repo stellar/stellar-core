@@ -93,6 +93,8 @@ class ApplicationImpl : public Application
 
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) override;
+    virtual void postOnTxQueueThread(std::function<void()>&& f,
+                                     std::string jobName) override;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) override;
     virtual void start() override;
@@ -163,6 +165,9 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
 
+    std::unique_ptr<asio::io_context> mTxQueueIOContext;
+    std::unique_ptr<asio::io_context::work> mTxQueueWork;
+
     std::unique_ptr<asio::io_context> mLedgerCloseIOContext;
     std::unique_ptr<asio::io_context::work> mLedgerCloseWork;
 
@@ -214,6 +219,7 @@ class ApplicationImpl : public Application
 
     std::vector<std::thread> mWorkerThreads;
     std::optional<std::thread> mOverlayThread;
+    std::optional<std::thread> mTxQueueThread;
     std::optional<std::thread> mLedgerCloseThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
@@ -240,6 +246,7 @@ class ApplicationImpl : public Application
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
+    medida::Timer& mPostOnTxQueueThreadDelay;
     medida::Timer& mPostOnLedgerCloseThreadDelay;
 
     VirtualClock::system_time_point mStartedOn;

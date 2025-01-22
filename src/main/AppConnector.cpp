@@ -112,6 +112,13 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
     mApp.postOnOverlayThread(std::move(f), message);
 }
 
+void
+AppConnector::postOnTxQueueThread(std::function<void()>&& f,
+                                  std::string const& message)
+{
+    mApp.postOnTxQueueThread(std::move(f), message);
+}
+
 Config const&
 AppConnector::getConfig() const
 {
@@ -159,6 +166,13 @@ AppConnector::getOverlayMetrics()
 {
     // OverlayMetrics class is thread-safe
     return mApp.getOverlayManager().getOverlayMetrics();
+}
+
+bool
+AppConnector::ledgerIsSynced() const
+{
+    // Ledger manager's state enum is atomic
+    return mApp.getLedgerManager().isSynced();
 }
 
 bool
