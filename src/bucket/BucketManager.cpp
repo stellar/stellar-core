@@ -1112,15 +1112,17 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
         mSnapshotManager->copySearchableLiveBucketListSnapshot();
     auto const& sas = cfg.stateArchivalSettings();
 
-    using task_t = std::packaged_task<EvictionResultCandidates()>;
+    using task_t =
+        std::packaged_task<std::unique_ptr<EvictionResultCandidates>()>;
     // MSVC gotcha: searchableBL has to be shared_ptr because MSVC wants to
     // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
         [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
          ledgerVers, sas, &counters = mBucketListEvictionCounters,
          stats = mEvictionStatistics] {
-            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas,
-                                       ledgerVers);
+            return std::make_unique<EvictionResultCandidates>(
+                bl->scanForEviction(ledgerSeq, counters, iter, stats, sas,
+                                    ledgerVers));
         });
 
     mEvictionFuture = task->get_future();
@@ -1147,14 +1149,14 @@ BucketManager::resolveBackgroundEvictionScan(
 
     // If eviction related settings changed during the ledger, we have to
     // restart the scan
-    if (!evictionCandidates.isValid(ledgerSeq,
-                                    networkConfig.stateArchivalSettings()))
+    if (!evictionCandidates->isValid(ledgerSeq, ledgerVers,
+                                     networkConfig.stateArchivalSettings()))
     {
         startBackgroundEvictionScan(ledgerSeq, ledgerVers, networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
 
-    auto& eligibleEntries = evictionCandidates.eligibleEntries;
+    auto& eligibleEntries = evictionCandidates->eligibleEntries;
 
     for (auto iter = eligibleEntries.begin(); iter != eligibleEntries.end();)
     {
@@ -1172,7 +1174,7 @@ BucketManager::resolveBackgroundEvictionScan(
     auto remainingEntriesToEvict =
         networkConfig.stateArchivalSettings().maxEntriesToArchive;
     auto entryToEvictIter = eligibleEntries.begin();
-    auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
+    auto newEvictionIterator = evictionCandidates->endOfRegionIterator;
 
     // Return vectors include both evicted entry and associated TTL
     std::vector<LedgerKey> deletedKeys;
@@ -1212,7 +1214,7 @@ BucketManager::resolveBackgroundEvictionScan(
     // region
     if (remainingEntriesToEvict != 0)
     {
-        newEvictionIterator = evictionCandidates.endOfRegionIterator;
+        newEvictionIterator = evictionCandidates->endOfRegionIterator;
     }
 
     networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
