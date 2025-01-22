@@ -376,7 +376,8 @@ HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 }
 
 bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
+HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
+                                                uint32_t ledgerVers)
 {
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()))
     {
@@ -390,12 +391,12 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
         return false;
     }
 
-    queueCurrentHistory(lcl);
+    queueCurrentHistory(lcl, ledgerVers);
     return true;
 }
 
 void
-HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
+HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
 {
     ZoneScoped;
 
@@ -408,9 +409,6 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
     }
 
     HistoryArchiveState has;
-    auto ledgerVers = mApp.getLedgerManager()
-                          .getLastClosedLedgerHeader()
-                          .header.ledgerVersion;
     if (protocolVersionStartsFrom(
             ledgerVers,
             LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
