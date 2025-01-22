@@ -65,9 +65,15 @@ class LedgerManager
 
     virtual void moveToSynced() = 0;
     virtual void beginApply() = 0;
+    // TODO: Mention this must be thread safe in implementation. Beware TOCTOU,
+    // but for non-critical uses (such as tx queue, which is "best effort"
+    // anyway), this is fine.
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
+    // TODO: Mention this is thread-safe because `getState` is thread-safe.
+    // Beware TOCTOU, but for non-critical uses (such as tx queue, which is
+    // "best effort" anyway), this is fine.
     bool
     isSynced() const
     {

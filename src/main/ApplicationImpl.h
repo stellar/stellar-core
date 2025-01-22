@@ -93,6 +93,8 @@ class ApplicationImpl : public Application
 
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) override;
+    virtual void postOnTxQueueThread(std::function<void()>&& f,
+                                     std::string jobName) override;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) override;
     virtual void start() override;
@@ -114,6 +116,8 @@ class ApplicationImpl : public Application
     virtual std::string
     manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 std::optional<TimePoint> const& manualCloseTime) override;
+
+    bool threadIsType(ThreadType type) const override;
 
 #ifdef BUILD_TESTS
     virtual void generateLoad(GeneratedLoadConfig cfg) override;
@@ -160,6 +164,9 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
+
+    std::unique_ptr<asio::io_context> mTxQueueIOContext;
+    std::unique_ptr<asio::io_context::work> mTxQueueWork;
 
     std::unique_ptr<asio::io_context> mLedgerCloseIOContext;
     std::unique_ptr<asio::io_context::work> mLedgerCloseWork;
@@ -212,6 +219,7 @@ class ApplicationImpl : public Application
 
     std::vector<std::thread> mWorkerThreads;
     std::optional<std::thread> mOverlayThread;
+    std::optional<std::thread> mTxQueueThread;
     std::optional<std::thread> mLedgerCloseThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
@@ -219,6 +227,11 @@ class ApplicationImpl : public Application
     // higher-priority worker thread type, but for now we only need a single
     // thread for eviction scans.
     std::optional<std::thread> mEvictionThread;
+
+    // TODO: I don't know if this is thread safe. The only time it's written to
+    // is in the constructor, and other than that threads may read from from it
+    // in parallel. I suspect that's OK, but I need to double check.
+    std::unordered_map<std::thread::id, Application::ThreadType> mThreadTypes;
 
     asio::signal_set mStopSignals;
 
@@ -233,6 +246,7 @@ class ApplicationImpl : public Application
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
+    medida::Timer& mPostOnTxQueueThreadDelay;
     medida::Timer& mPostOnLedgerCloseThreadDelay;
 
     VirtualClock::system_time_point mStartedOn;

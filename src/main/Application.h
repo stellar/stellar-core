@@ -164,6 +164,17 @@ class Application
         APP_NUM_STATE
     };
 
+    // TODO: Docs
+    enum class ThreadType
+    {
+        MAIN,
+        WORKER,
+        EVICTION,
+        OVERLAY,
+        TX_QUEUE,
+        LEDGER_CLOSE
+    };
+
     virtual ~Application(){};
 
     virtual void initialize(bool createNewDB, bool forceRebuild) = 0;
@@ -242,6 +253,8 @@ class Application
     virtual void postOnEvictionBackgroundThread(std::function<void()>&& f,
                                                 std::string jobName) = 0;
     virtual void postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName) = 0;
+    virtual void postOnTxQueueThread(std::function<void()>&& f,
                                      std::string jobName) = 0;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) = 0;
@@ -329,6 +342,8 @@ class Application
 
         return ret;
     }
+
+    virtual bool threadIsType(ThreadType type) const = 0;
 
     virtual AppConnector& getAppConnector() const = 0;
 

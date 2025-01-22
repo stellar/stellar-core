@@ -112,6 +112,13 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
     mApp.postOnOverlayThread(std::move(f), message);
 }
 
+void
+AppConnector::postOnTxQueueThread(std::function<void()>&& f,
+                                  std::string const& message)
+{
+    mApp.postOnTxQueueThread(std::move(f), message);
+}
+
 Config const&
 AppConnector::getConfig() const
 {
@@ -162,10 +169,23 @@ AppConnector::getOverlayMetrics()
 }
 
 bool
+AppConnector::ledgerIsSynced() const
+{
+    // Ledger manager's state enum is atomic
+    return mApp.getLedgerManager().isSynced();
+}
+
+bool
 AppConnector::checkScheduledAndCache(
     std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
+}
+
+bool
+AppConnector::threadIsType(Application::ThreadType type) const
+{
+    return mApp.threadIsType(type);
 }
 
 SearchableHotArchiveSnapshotConstPtr

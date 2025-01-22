@@ -57,39 +57,52 @@ class Application;
  *   unbans any transactions that have been banned for more than banDepth
  *   ledgers.
  */
+
+// TODO:
+// * Dig into flow control, make sure it holds some kind of lock to prevent ASIO
+// overlay queue from growing too much
+//     * Might want to put bg tx queue on its own thread with intermediate
+//     priority (lower than SCP, higher than bucket maintenance). Otherwise,
+//     running this on the overlay thread might delay SCP message processing as
+//     incoming SCP messages need to wait for tx queue additions to occur, which
+//     is bad.
+//         * My note: Try both approaches and benchmark
+
+enum class TxQueueAddResultCode
+{
+    ADD_STATUS_PENDING = 0,
+    ADD_STATUS_DUPLICATE,
+    ADD_STATUS_ERROR,
+    ADD_STATUS_TRY_AGAIN_LATER,
+    ADD_STATUS_FILTERED,
+    ADD_STATUS_COUNT
+};
+
+struct TxQueueAddResult
+{
+    TxQueueAddResultCode code;
+    MutableTxResultPtr txResult;
+
+    // AddResult with no txResult
+    explicit TxQueueAddResult(TxQueueAddResultCode addCode);
+
+    // AddResult from existing transaction result
+    explicit TxQueueAddResult(TxQueueAddResultCode addCode,
+                              MutableTxResultPtr payload);
+
+    // AddResult with error txResult with the specified txErrorCode
+    explicit TxQueueAddResult(TxQueueAddResultCode addCode,
+                              TransactionFrameBasePtr tx,
+                              TransactionResultCode txErrorCode);
+};
+
 class TransactionQueue
 {
   public:
     static uint64_t const FEE_MULTIPLIER;
 
-    enum class AddResultCode
-    {
-        ADD_STATUS_PENDING = 0,
-        ADD_STATUS_DUPLICATE,
-        ADD_STATUS_ERROR,
-        ADD_STATUS_TRY_AGAIN_LATER,
-        ADD_STATUS_FILTERED,
-        ADD_STATUS_COUNT,
-        ADD_STATUS_UNKNOWN // TODO: rename?
-    };
-
-    struct AddResult
-    {
-        TransactionQueue::AddResultCode code;
-        MutableTxResultPtr txResult;
-
-        // AddResult with no txResult
-        explicit AddResult(TransactionQueue::AddResultCode addCode);
-
-        // AddResult from existing transaction result
-        explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           MutableTxResultPtr payload);
-
-        // AddResult with error txResult with the specified txErrorCode
-        explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           TransactionFrameBasePtr tx,
-                           TransactionResultCode txErrorCode);
-    };
+    using AddResultCode = TxQueueAddResultCode;
+    using AddResult = TxQueueAddResult;
 
     /**
      * AccountState stores the following information:
@@ -202,6 +215,7 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
+    bool mPendingMainThreadBroadcast{false}; // TODO: I don't love this solution
     // TODO: VirtualTimer is not thread-safe. Right now it's only used in
     // functions that are called from the main thread. However, if I move
     // broadcasting to the background I will need to be careful with this.
@@ -364,6 +378,39 @@ class ClassicTransactionQueue : public TransactionQueue
         return mValidationSnapshot->getConfig().FLOOD_TX_PERIOD_MS;
     }
 };
+
+// TODO: Rename?
+// TODO: Docs. A thread-safe container for transaction queues that allows for
+// delayed-initialization of the queues.
+// TODO: Doc comments on methods.
+class TransactionQueues : public NonMovableOrCopyable
+{
+  public:
+    TransactionQueues() = default;
+
+    void setClassicTransactionQueue(
+        std::unique_ptr<ClassicTransactionQueue> classicTransactionQueue);
+    void setSorobanTransactionQueue(
+        std::unique_ptr<SorobanTransactionQueue> sorobanTransactionQueue);
+
+    bool hasClassicTransactionQueue() const;
+    bool hasSorobanTransactionQueue() const;
+
+    ClassicTransactionQueue& getClassicTransactionQueue() const;
+    SorobanTransactionQueue& getSorobanTransactionQueue() const;
+
+    // Convenience functions that operate on both queues (if they exist)
+    void shutdown();
+    bool sourceAccountPending(AccountID const& accountID) const;
+    bool isBanned(Hash const& hash) const;
+    TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
+
+  private:
+    mutable std::mutex mMutex;
+    std::unique_ptr<ClassicTransactionQueue> mClassicTransactionQueue = nullptr;
+    std::unique_ptr<SorobanTransactionQueue> mSorobanTransactionQueue = nullptr;
+};
+using TransactionQueuesPtr = std::shared_ptr<TransactionQueues>;
 
 extern std::array<const char*,
                   static_cast<int>(
