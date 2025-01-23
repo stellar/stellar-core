@@ -1236,7 +1236,8 @@ TxSetPhaseFrame::Iterator::operator*() const
 TxSetPhaseFrame::Iterator&
 TxSetPhaseFrame::Iterator::operator++()
 {
-    if (mStageIndex >= mStages.size())
+    if (mStageIndex >= mStages.size() ||
+        mClusterIndex >= mStages[mStageIndex].size())
     {
         throw std::runtime_error("TxPhase iterator out of bounds");
     }
@@ -1663,6 +1664,10 @@ TxSetPhaseFrame::checkValidSoroban(
 
     auto maxResources = sorobanConfig.maxLedgerResources();
 
+    // With parallel Soroban phase the instruction limit validation is more
+    // complex than just comparing the total instructions to the ledger-wide
+    // limit. Thus, we skip the instruction check for the parallel phase and
+    // do the proper check further below.
     if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
     {
