@@ -4,6 +4,8 @@
 
 #include "QuorumIntersectionCheckerImpl.h"
 #include "QuorumIntersectionChecker.h"
+#include "RustQuorumCheckerAdaptor.h"
+#include "herder/HerderUtils.h"
 
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -531,22 +533,6 @@ MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
     return !disj.empty();
 }
 
-// Render `id` as a short, human readable string. If `cfg` has a value, this
-// function uses `cfg` to render the string. Otherwise, it returns the first 5
-// hex values `id`.
-std::string
-toShortString(std::optional<Config> const& cfg, NodeID const& id)
-{
-    if (cfg)
-    {
-        return cfg->toShortString(id);
-    }
-    else
-    {
-        return KeyUtils::toShortString(id).substr(0, 5);
-    }
-}
-
 QBitSet
 QuorumIntersectionCheckerImpl::convertSCPQuorumSet(SCPQuorumSet const& sqs)
 {
@@ -801,18 +787,7 @@ groupString(std::optional<Config> const& cfg, std::set<NodeID> const& group)
     out << ']';
     return out.str();
 }
-
-QuorumIntersectionChecker::QuorumSetMap
-toQuorumIntersectionMap(QuorumTracker::QuorumMap const& qmap)
-{
-    QuorumIntersectionChecker::QuorumSetMap ret;
-    for (auto const& elem : qmap)
-    {
-        ret[elem.first] = elem.second.mQuorumSet;
-    }
-    return ret;
-}
-}
+} // end namespace
 
 namespace stellar
 {
@@ -838,19 +813,10 @@ QuorumIntersectionChecker::create(
 
 std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
-    QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed)
-{
-    return getIntersectionCriticalGroups(toQuorumIntersectionMap(qmap), cfg,
-                                         interruptFlag, seed);
-}
-
-std::set<std::set<NodeID>>
-QuorumIntersectionChecker::getIntersectionCriticalGroups(
-    QuorumSetMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed)
+    QuorumTracker::QuorumMap const& initQmap, std::optional<Config> const& cfg,
+    std::function<bool(QuorumSetMap const&,
+                       std::optional<stellar::Config> const&)> const&
+        networkEnjoysQuorumIntersectionCB)
 {
     // We're going to search for "intersection-critical" groups, by considering
     // each SCPQuorumSet S that (a) has no innerSets of its own and (b) occurs
@@ -877,6 +843,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
     // that asks, but still counts as an intersecting member of any two quorums
     // it's a member of.
 
+    QuorumSetMap qmap = toQuorumIntersectionMap(initQmap);
     std::set<std::set<NodeID>> candidates;
     std::set<std::set<NodeID>> critical;
     QuorumSetMap test_qmap(qmap);
@@ -936,10 +903,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
 
         // Check to see if this modified config is vulnerable to splitting.
-        auto checker = QuorumIntersectionChecker::create(test_qmap, cfg,
-                                                         interruptFlag, seed,
-                                                         /*quiet=*/true);
-        if (checker->networkEnjoysQuorumIntersection())
+        if (networkEnjoysQuorumIntersectionCB(test_qmap, cfg))
         {
             CLOG_DEBUG(SCP,
                        "group is not intersection-critical: {} (with {} "
@@ -954,7 +918,6 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
                 groupString(cfg, group), pointsToGroup.size());
             critical.insert(group);
         }
-
         // Restore proper qsets for all group members, for next iteration.
         for (auto const& candidate : group)
         {

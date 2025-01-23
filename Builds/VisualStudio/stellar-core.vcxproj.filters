@@ -696,6 +696,9 @@
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\RustQuorumCheckerAdaptor.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -1890,6 +1893,9 @@
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\QuorumTracker.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\RustQuorumCheckerAdaptor.h">
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h">

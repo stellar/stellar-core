@@ -173,6 +173,17 @@ mod rust_bridge {
         refundable_fee: i64,
     }
 
+    enum QuorumCheckerStatus {
+        SAT = 0,
+        UNSAT = 1,
+        UNKNOWN = 2,
+    }
+
+    struct QuorumSplit {
+        left: Vec<String>,
+        right: Vec<String>,
+    }
+
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
@@ -263,6 +274,24 @@ mod rust_bridge {
             xdr: &CxxBuf,
             depth_limit: u32,
         ) -> Result<bool>;
+    }
+
+    #[namespace = "stellar::rust_bridge::quorum_checker"]
+    extern "Rust" {
+        type Interrupt;
+
+        fn new_interrupt() -> Box<Interrupt>;
+
+        fn fire(self: &Interrupt);
+
+        fn reset(self: &Interrupt);
+
+        fn network_enjoys_quorum_intersection(
+            nodes: &Vec<CxxBuf>,
+            quorum_set: &Vec<CxxBuf>,
+            interrupt: &Interrupt,
+            potential_split: &mut QuorumSplit,
+        ) -> Result<QuorumCheckerStatus>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -500,6 +529,7 @@ use rust_bridge::CxxTransactionResources;
 use rust_bridge::CxxWriteFeeConfiguration;
 use rust_bridge::FeePair;
 use rust_bridge::InvokeHostFunctionOutput;
+use rust_bridge::QuorumCheckerStatus;
 use rust_bridge::RustBuf;
 use rust_bridge::SorobanVersionInfo;
 
@@ -1025,3 +1055,6 @@ pub(crate) fn compute_write_fee_per_1kb(
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
 }
+
+mod quorum_checker;
+use quorum_checker::{network_enjoys_quorum_intersection, new_interrupt, Interrupt};

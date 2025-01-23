@@ -20,6 +20,9 @@ class QuorumIntersectionChecker
     using QuorumSetMap =
         stellar::UnorderedMap<stellar::NodeID, stellar::SCPQuorumSetPtr>;
 
+    using PotentialSplit =
+        std::pair<std::vector<PublicKey>, std::vector<PublicKey>>;
+    // for v1 qic
     static std::shared_ptr<QuorumIntersectionChecker>
     create(QuorumTracker::QuorumMap const& qmap,
            std::optional<stellar::Config> const& cfg,
@@ -32,15 +35,11 @@ class QuorumIntersectionChecker
            stellar_default_random_engine::result_type seed, bool quiet = false);
 
     static std::set<std::set<NodeID>> getIntersectionCriticalGroups(
-        QuorumTracker::QuorumMap const& qmap,
-        std::optional<stellar::Config> const& cfg,
-        std::atomic<bool>& interruptFlag,
-        stellar_default_random_engine::result_type seed);
-
-    static std::set<std::set<NodeID>> getIntersectionCriticalGroups(
-        QuorumSetMap const& qmap, std::optional<stellar::Config> const& cfg,
-        std::atomic<bool>& interruptFlag,
-        stellar_default_random_engine::result_type seed);
+        QuorumTracker::QuorumMap const& initQmap,
+        std::optional<Config> const& cfg,
+        std::function<bool(QuorumSetMap const&,
+                           std::optional<stellar::Config> const&)> const&
+            networkEnjoysQuorumIntersectionCB);
 
     virtual ~QuorumIntersectionChecker(){};
     virtual bool networkEnjoysQuorumIntersection() const = 0;

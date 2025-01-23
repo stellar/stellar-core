@@ -753,8 +753,12 @@ checkQuorumIntersectionFromJson(std::string const& jsonPath,
     }
 
     std::atomic<bool> interrupt(false);
+    // TODO: toggle between v1 and v2 via cfg option
     auto qicPtr =
         QuorumIntersectionChecker::create(qmap, cfg, interrupt, false);
+    // auto qicPtr =
+    //     QuorumIntersectionChecker::create(qmap, cfg,
+    //     rust_bridge::create_quorum_checker_interrupt().into_raw(), false);
 
     return qicPtr->networkEnjoysQuorumIntersection();
 }

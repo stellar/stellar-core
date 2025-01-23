@@ -9,6 +9,7 @@
 #include "herder/PendingEnvelopes.h"
 #include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
+#include "rust/RustBridge.h"
 #include "util/Timer.h"
 #include "util/UnorderedMap.h"
 #include "util/XDROperators.h"
@@ -30,7 +31,7 @@ constexpr uint32 const SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 class Application;
 class LedgerManager;
 class HerderSCPDriver;
-
+class InterruptGuard;
 /*
  * Is in charge of receiving transactions from the network.
  */
@@ -338,7 +339,13 @@ class HerderImpl : public Herder
         Hash mLastCheckQuorumMapHash{};
         Hash mCheckingQuorumMapHash{};
         bool mRecalculating{false};
+
+        // for v1 (QuorumIntersectionChecker)
         std::atomic<bool> mInterruptFlag{false};
+        // for v2 (rust quorum checker)
+        rust::Box<rust_bridge::quorum_checker::Interrupt> mInterrupt{
+            rust_bridge::quorum_checker::new_interrupt()};
+
         std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
             mPotentialSplit{};
         std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
@@ -356,6 +363,8 @@ class HerderImpl : public Herder
         }
     };
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
+
+    void interrupt_quorum_checker();
 
     State mState;
     void setState(State st);

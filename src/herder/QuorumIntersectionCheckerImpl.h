@@ -543,4 +543,5 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     getPotentialSplit() const override;
     size_t getMaxQuorumsFound() const override;
 };
-}
+
+} // namespace {

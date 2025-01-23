@@ -17,6 +17,7 @@ use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
 // hi) version-specific definition of stellar_env_host. We therefore
 // import it from our _parent_ module rather than from the crate root.
+// TODO: update
 pub(crate) use super::soroban_env_host::{
     budget::Budget,
     e2e_invoke::{self, extract_rent_changes, LedgerEntryChange},

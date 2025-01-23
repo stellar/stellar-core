@@ -103,6 +103,12 @@ version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "a3f7fca9c2ad89796c7525a648da086543502dd5"
 
+[dependencies.stellar-quorum-analyzer]
+version = "0.1.0"
+git = "https://github.com/stellar/stellar-quorum-analyzer"
+rev = "d23dd363cd2ae84fed346dc975bb8d56e2768002"
+# path = "../../../stellar-quorum-analyzer"
+
 [features]
 
 tracy = ["dep:tracy-client"]

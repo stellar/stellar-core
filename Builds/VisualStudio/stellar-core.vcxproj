@@ -521,6 +521,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
+    <ClCompile Include="..\..\src\herder\RustQuorumCheckerAdaptor.cpp" />
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp" />
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\test\PendingEnvelopesTests.cpp" />
@@ -976,6 +977,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
+    <ClInclude Include="..\..\src\herder\RustQuorumCheckerAdaptor.h" />
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h" />
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\TransactionQueue.h" />

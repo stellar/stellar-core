@@ -277,6 +277,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
     QUORUM_INTERSECTION_CHECKER = true;
+    USE_QUORUM_INTERSECTION_CHECKER_V2 = true;
     DATABASE = SecretValue{"sqlite3://:memory:"};
 
     ENTRY_CACHE_SIZE = 100000;
@@ -1355,6 +1356,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"QUORUM_INTERSECTION_CHECKER",
                  [&]() { QUORUM_INTERSECTION_CHECKER = readBool(item); }},
+                {"USE_QUORUM_INTERSECTION_CHECKER_V2",
+                 [&]() {
+                     USE_QUORUM_INTERSECTION_CHECKER_V2 = readBool(item);
+                 }},
                 {"HISTORY",
                  [&]() {
                      auto hist = item.second->as_table();
