@@ -131,10 +131,9 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     loopAllBuckets(trustLineLoop, *mSnapshot);
 
-    auto timer = mSnapshotManager
-                     .recordBulkLoadMetrics("poolshareTrustlines",
-                                            trustlinesToLoad.size())
-                     .TimeScope();
+    auto timer =
+        getBulkLoadTimer("poolshareTrustlines", trustlinesToLoad.size())
+            .TimeScope();
 
     std::vector<LedgerEntry> result;
     auto loadKeysLoop = [&](auto const& b) {
@@ -155,8 +154,7 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 
     // This is a legacy query, should only be called by main thread during
     // catchup
-    auto timer = mSnapshotManager.recordBulkLoadMetrics("inflationWinners", 0)
-                     .TimeScope();
+    auto timer = getBulkLoadTimer("inflationWinners", 0).TimeScope();
 
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;
@@ -243,16 +241,7 @@ SearchableLiveBucketListSnapshot::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     LedgerKeyMeter* lkMeter) const
 {
-    if (threadIsMain())
-    {
-        auto timer =
-            mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
-                .TimeScope();
-        auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
-        releaseAssertOrThrow(op);
-        return std::move(*op);
-    }
-
+    auto timer = getBulkLoadTimer("prefetch", inKeys.size()).TimeScope();
     auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
@@ -260,19 +249,21 @@ SearchableLiveBucketListSnapshot::loadKeysWithLimits(
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     BucketSnapshotManager const& snapshotManager,
-    SnapshotPtrT<LiveBucket>&& snapshot,
+    AppConnector const& appConnector, SnapshotPtrT<LiveBucket>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots)
     : SearchableBucketListSnapshotBase<LiveBucket>(
-          snapshotManager, std::move(snapshot), std::move(historicalSnapshots))
+          snapshotManager, appConnector, std::move(snapshot),
+          std::move(historicalSnapshots))
 {
 }
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     BucketSnapshotManager const& snapshotManager,
-    SnapshotPtrT<HotArchiveBucket>&& snapshot,
+    AppConnector const& appConnector, SnapshotPtrT<HotArchiveBucket>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&& historicalSnapshots)
     : SearchableBucketListSnapshotBase<HotArchiveBucket>(
-          snapshotManager, std::move(snapshot), std::move(historicalSnapshots))
+          snapshotManager, appConnector, std::move(snapshot),
+          std::move(historicalSnapshots))
 {
 }
 

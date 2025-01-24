@@ -50,13 +50,6 @@ class LiveBucketIndex : public NonMovableOrCopyable
   private:
     std::unique_ptr<DiskIndex<LiveBucket> const> mDiskIndex;
 
-    medida::Meter& mBloomMissMeter;
-    medida::Meter& mBloomLookupMeter;
-
-    // TODO: Pass as function pointers
-    // void markBloomMiss() const;
-    // void markBloomLookup() const;
-
   public:
     inline static const std::string DB_BACKEND_STATE = "bl";
     inline static const uint32_t BUCKET_INDEX_VERSION = 5;
@@ -89,6 +82,7 @@ class LiveBucketIndex : public NonMovableOrCopyable
 
     RangeIndex::const_iterator begin() const;
     RangeIndex::const_iterator end() const;
+    void markBloomMiss() const;
 #ifdef BUILD_TESTS
     bool operator==(LiveBucketIndex const& in) const;
 #endif

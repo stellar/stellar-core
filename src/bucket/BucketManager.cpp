@@ -153,10 +153,6 @@ BucketManager::BucketManager(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
-          {"bucketlistDB", "bloom", "misses"}, "bloom"))
-    , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
-          {"bucketlistDB", "bloom", "lookups"}, "bloom"))
     , mLiveBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
     , mArchiveBucketListSizeCounter(
@@ -328,6 +324,24 @@ medida::Timer&
 BucketManager::getMergeTimer()
 {
     return mBucketSnapMerge;
+}
+
+template <class BucketT>
+medida::Meter&
+BucketManager::getBloomMissMeter() const
+{
+    BUCKET_TYPE_ASSERT(BucketT);
+    return mApp.getMetrics().NewMeter(
+        {BucketT::METRIC_STRING, "bloom", "misses"}, "bloom");
+}
+
+template <class BucketT>
+medida::Meter&
+BucketManager::getBloomLookupMeter() const
+{
+    BUCKET_TYPE_ASSERT(BucketT);
+    return mApp.getMetrics().NewMeter(
+        {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom");
 }
 
 MergeCounters
@@ -1171,18 +1185,6 @@ BucketManager::resolveBackgroundEvictionScan(
     return EvictedStateVectors{deletedKeys, archivedEntries};
 }
 
-medida::Meter&
-BucketManager::getBloomMissMeter() const
-{
-    return mBucketListDBBloomMisses;
-}
-
-medida::Meter&
-BucketManager::getBloomLookupMeter() const
-{
-    return mBucketListDBBloomLookups;
-}
-
 void
 BucketManager::calculateSkipValues(LedgerHeader& currentHeader)
 {
@@ -1644,4 +1646,10 @@ template void BucketManager::maybeSetIndex<LiveBucket>(
 template void BucketManager::maybeSetIndex<HotArchiveBucket>(
     std::shared_ptr<HotArchiveBucket> b,
     std::unique_ptr<HotArchiveBucket::IndexT const>&& index);
+template medida::Meter& BucketManager::getBloomMissMeter<LiveBucket>() const;
+template medida::Meter& BucketManager::getBloomLookupMeter<LiveBucket>() const;
+template medida::Meter&
+BucketManager::getBloomMissMeter<HotArchiveBucket>() const;
+template medida::Meter&
+BucketManager::getBloomLookupMeter<HotArchiveBucket>() const;
 }

@@ -41,6 +41,9 @@ class HotArchiveBucket
 
     using IndexT = HotArchiveBucketIndex;
 
+    static inline constexpr char const* METRIC_STRING =
+        "bucketlistDB-hotArchive";
+
     HotArchiveBucket();
     virtual ~HotArchiveBucket()
     {

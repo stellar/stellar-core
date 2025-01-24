@@ -98,8 +98,6 @@ class BucketManager : NonMovableOrCopyable
     medida::Timer& mBucketAddArchiveBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBBloomMisses;
-    medida::Meter& mBucketListDBBloomLookups;
     medida::Counter& mLiveBucketListSizeCounter;
     medida::Counter& mArchiveBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
@@ -135,10 +133,6 @@ class BucketManager : NonMovableOrCopyable
     void cleanupStaleFiles(HistoryArchiveState const& has);
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
-
-    medida::Timer& recordBulkLoadMetrics(std::string const& label,
-                                         size_t numEntries) const;
-    medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
 
     void updateSharedBucketSize();
 
@@ -200,6 +194,9 @@ class BucketManager : NonMovableOrCopyable
                              std::filesystem::path const& dst);
 
     medida::Timer& getMergeTimer();
+
+    template <class BucketT> medida::Meter& getBloomMissMeter() const;
+    template <class BucketT> medida::Meter& getBloomLookupMeter() const;
 
     // Reading and writing the merge counters is done in bulk, and takes a lock
     // briefly; this can be done from any thread.

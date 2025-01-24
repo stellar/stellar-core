@@ -49,12 +49,6 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
 {
   private:
     DiskIndex<HotArchiveBucket> const mDiskIndex;
-    medida::Meter& mBloomMissMeter;
-    medida::Meter& mBloomLookupMeter;
-
-    // TODO: Pass as function pointers
-    // void markBloomMiss() const;
-    // void markBloomLookup() const;
 
   public:
     inline static const uint32_t BUCKET_INDEX_VERSION = 0;
@@ -99,6 +93,12 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     end() const
     {
         return mDiskIndex.end();
+    }
+
+    void
+    markBloomMiss() const
+    {
+        mDiskIndex.markBloomMiss();
     }
 #ifdef BUILD_TESTS
     bool operator==(HotArchiveBucketIndex const& in) const;

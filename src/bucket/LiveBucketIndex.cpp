@@ -23,8 +23,6 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                                  std::filesystem::path const& filename,
                                  std::streamoff pageSize, Hash const& hash,
                                  asio::io_context& ctx)
-    : mBloomMissMeter(bm.getBloomMissMeter())
-    , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
     ZoneScoped;
     releaseAssert(!filename.empty());
@@ -45,9 +43,7 @@ template <class Archive>
 LiveBucketIndex::LiveBucketIndex(BucketManager const& bm, Archive& ar,
                                  std::streamoff pageSize)
 
-    : mDiskIndex(std::make_unique<DiskIndex<LiveBucket>>(ar, pageSize))
-    , mBloomMissMeter(bm.getBloomMissMeter())
-    , mBloomLookupMeter(bm.getBloomLookupMeter())
+    : mDiskIndex(std::make_unique<DiskIndex<LiveBucket>>(ar, bm, pageSize))
 {
     // Only disk indexes are serialized
     releaseAssertOrThrow(pageSize != 0);
@@ -65,6 +61,13 @@ LiveBucketIndex::end() const
 {
     releaseAssertOrThrow(mDiskIndex);
     return mDiskIndex->end();
+}
+
+void
+LiveBucketIndex::markBloomMiss() const
+{
+    releaseAssertOrThrow(mDiskIndex);
+    mDiskIndex->markBloomMiss();
 }
 
 std::optional<std::streamoff>

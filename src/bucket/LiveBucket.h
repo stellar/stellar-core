@@ -41,6 +41,8 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
 
     using IndexT = LiveBucketIndex;
 
+    static inline constexpr char const* METRIC_STRING = "bucketlistDB-live";
+
     LiveBucket();
     virtual ~LiveBucket()
     {

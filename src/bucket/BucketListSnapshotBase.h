@@ -89,6 +89,15 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     // Snapshot managed by SnapshotManager
     SnapshotPtrT<BucketT> mSnapshot{};
     std::map<uint32_t, SnapshotPtrT<BucketT>> mHistoricalSnapshots;
+    AppConnector const& mAppConnector;
+
+    // Metrics
+    UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
+    mutable UnorderedMap<std::string, medida::Timer&> mBulkTimers{};
+
+    medida::Meter& mBulkLoadMeter;
+    medida::Meter& mBloomMisses;
+    medida::Meter& mBloomLookups;
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
@@ -98,13 +107,16 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
     SearchableBucketListSnapshotBase(
         BucketSnapshotManager const& snapshotManager,
-        SnapshotPtrT<BucketT>&& snapshot,
+        AppConnector const& appConnector, SnapshotPtrT<BucketT>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots);
 
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                      LedgerKeyMeter* lkMeter,
                      std::optional<uint32_t> ledgerSeq) const;
+
+    medida::Timer& getBulkLoadTimer(std::string const& label,
+                                    size_t numEntries) const;
 
   public:
     uint32_t

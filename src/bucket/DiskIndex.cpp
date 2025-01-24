@@ -15,6 +15,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include <medida/meter.h>
 
 #include <cereal/archives/binary.hpp>
 
@@ -91,8 +92,7 @@ DiskIndex<BucketT>::scan(RangeIndex::const_iterator start,
 
     // If the key is not in the bloom filter or in the lower bounded index
     // entry, return nullopt
-    // TODO: Functor for metric
-    // markBloomLookup();
+    mBloomLookupMeter.Mark();
     if ((mData.filter && !mData.filter->contains(k)) ||
         keyIter == mData.keysToOffset.end() ||
         keyNotInIndexEntry(k, keyIter->first))
@@ -141,6 +141,8 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                               std::filesystem::path const& filename,
                               std::streamoff pageSize, Hash const& hash,
                               asio::io_context& ctx)
+    : mBloomLookupMeter(bm.getBloomLookupMeter<BucketT>())
+    , mBloomMissMeter(bm.getBloomMissMeter<BucketT>())
 {
     ZoneScoped;
     mData.pageSize = pageSize;
@@ -289,7 +291,10 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
 template <class BucketT>
 template <class Archive>
-DiskIndex<BucketT>::DiskIndex(Archive& ar, std::streamoff pageSize)
+DiskIndex<BucketT>::DiskIndex(Archive& ar, BucketManager const& bm,
+                              std::streamoff pageSize)
+    : mBloomLookupMeter(bm.getBloomLookupMeter<BucketT>())
+    , mBloomMissMeter(bm.getBloomMissMeter<BucketT>())
 {
     releaseAssertOrThrow(pageSize != 0);
     mData.pageSize = pageSize;
@@ -354,6 +359,13 @@ DiskIndex<BucketT>::saveToDisk(BucketManager& bm, Hash const& hash,
             throw std::runtime_error(err);
         }
     }
+}
+
+template <class BucketT>
+void
+DiskIndex<BucketT>::markBloomMiss() const
+{
+    mBloomMissMeter.Mark();
 }
 
 #ifdef BUILD_TESTS
@@ -504,7 +516,9 @@ template class DiskIndex<HotArchiveBucket>;
 template class DiskIndex<LiveBucket>;
 
 template DiskIndex<HotArchiveBucket>::DiskIndex(cereal::BinaryInputArchive& ar,
+                                                BucketManager const& bm,
                                                 std::streamoff pageSize);
 template DiskIndex<LiveBucket>::DiskIndex(cereal::BinaryInputArchive& ar,
+                                          BucketManager const& bm,
                                           std::streamoff pageSize);
 }

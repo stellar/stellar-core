@@ -16,8 +16,6 @@ HotArchiveBucketIndex::HotArchiveBucketIndex(
     BucketManager& bm, std::filesystem::path const& filename,
     std::streamoff pageSize, Hash const& hash, asio::io_context& ctx)
     : mDiskIndex(bm, filename, pageSize, hash, ctx)
-    , mBloomMissMeter(bm.getBloomMissMeter())
-    , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
     ZoneScoped;
     releaseAssert(!filename.empty());
@@ -30,9 +28,7 @@ template <class Archive>
 HotArchiveBucketIndex::HotArchiveBucketIndex(BucketManager const& bm,
                                              Archive& ar,
                                              std::streamoff pageSize)
-    : mDiskIndex(ar, pageSize)
-    , mBloomMissMeter(bm.getBloomMissMeter())
-    , mBloomLookupMeter(bm.getBloomLookupMeter())
+    : mDiskIndex(ar, bm, pageSize)
 {
     // HotArchive only supports disk indexes
     releaseAssertOrThrow(pageSize != 0);

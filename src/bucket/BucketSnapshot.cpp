@@ -66,8 +66,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
         return {std::make_shared<typename BucketT::EntryT>(be), false};
     }
 
-    // TODO: Mark entry miss for metrics
-    // mBucket->getIndex().markBloomMiss();
+    mBucket->getIndex().markBloomMiss();
     return {nullptr, true};
 }
 
