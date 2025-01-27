@@ -444,8 +444,8 @@ LiveBucket::isTombstoneEntry(BucketEntry const& e)
     return e.type() == DEADENTRY;
 }
 
-std::shared_ptr<LiveBucket::LoadT>
-LiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be)
+std::shared_ptr<LiveBucket::LoadT const>
+LiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be)
 {
     return isTombstoneEntry(*be)
                ? nullptr

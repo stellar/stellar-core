@@ -24,25 +24,6 @@ namespace stellar
 
 namespace
 {
-// Returns pagesize for given index based on config parameters and bucket size,
-// in bytes
-std::streamoff
-effectivePageSize(Config const& cfg, size_t bucketSize)
-{
-    // TODO: Individual index
-    return 1UL << cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
-    // Convert cfg param from MB to bytes
-    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1'000'000;
-        bucketSize < cutoff)
-    {
-        return 0;
-    }
-
-    auto pageSizeExp = cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
-    releaseAssertOrThrow(pageSizeExp < 32);
-    return pageSizeExp == 0 ? 0 : 1UL << pageSizeExp;
-}
-
 // Returns true if the key is not contained within the given IndexEntry.
 // Range index: check if key is outside range of indexEntry
 // Individual index: check if key does not match indexEntry key
@@ -76,9 +57,8 @@ upper_bound_pred(LedgerKey const& key, RangeIndex::value_type const& indexEntry)
 }
 
 template <class BucketT>
-std::pair<std::optional<std::streamoff>, RangeIndex::const_iterator>
-DiskIndex<BucketT>::scan(RangeIndex::const_iterator start,
-                         LedgerKey const& k) const
+std::pair<IndexReturnT, typename DiskIndex<BucketT>::IterT>
+DiskIndex<BucketT>::scan(IterT start, LedgerKey const& k) const
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(mData.keysToOffset.size()));
@@ -97,7 +77,7 @@ DiskIndex<BucketT>::scan(RangeIndex::const_iterator start,
         keyIter == mData.keysToOffset.end() ||
         keyNotInIndexEntry(k, keyIter->first))
     {
-        return {std::nullopt, keyIter};
+        return {IndexReturnT(), keyIter};
     }
     else
     {
@@ -424,93 +404,6 @@ DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
     return true;
 }
 #endif
-
-template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
-createIndex(BucketManager& bm, std::filesystem::path const& filename,
-            Hash const& hash, asio::io_context& ctx)
-{
-    BUCKET_TYPE_ASSERT(BucketT);
-
-    ZoneScoped;
-    auto const& cfg = bm.getConfig();
-    releaseAssertOrThrow(!filename.empty());
-    // TODO: Individual index
-    auto pageSize = effectivePageSize(cfg, fs::size(filename.string()));
-    if (pageSize == 0)
-    {
-        CLOG_DEBUG(Bucket,
-                   "BucketIndex::createIndex() indexing individual keys in "
-                   "bucket {}",
-                   filename);
-    }
-    else
-    {
-        CLOG_DEBUG(Bucket,
-                   "BucketIndex::createIndex() indexing key range with "
-                   "page size {} in bucket {}",
-                   pageSize, filename);
-    }
-
-    try
-    {
-        return std::unique_ptr<typename BucketT::IndexT const>(
-            new typename BucketT::IndexT(bm, filename, pageSize, hash, ctx));
-    }
-    // BucketIndex throws if BucketManager shuts down before index finishes,
-    // so return empty index instead of partial index
-    catch (std::runtime_error&)
-    {
-        return {};
-    }
-}
-
-template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
-loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
-          size_t bucketFileSize)
-{
-    std::ifstream in(filename, std::ios::binary);
-    if (!in)
-    {
-        throw std::runtime_error(
-            fmt::format(FMT_STRING("Error opening file {}"), filename));
-    }
-
-    std::streamoff pageSize;
-    uint32_t version;
-    cereal::BinaryInputArchive ar(in);
-    DiskIndex<BucketT>::preLoad(ar, version, pageSize);
-
-    // Make sure on-disk index was built with correct version and config
-    // parameters before deserializing whole file
-    if (version != BucketT::IndexT::BUCKET_INDEX_VERSION ||
-        pageSize != effectivePageSize(bm.getConfig(), bucketFileSize) ||
-        pageSize == 0)
-    {
-        return {};
-    }
-
-    return std::unique_ptr<typename BucketT::IndexT const>(
-        new typename BucketT::IndexT(bm, ar, pageSize));
-}
-
-template std::unique_ptr<typename HotArchiveBucket::IndexT const>
-createIndex<HotArchiveBucket>(BucketManager& bm,
-                              std::filesystem::path const& filename,
-                              Hash const& hash, asio::io_context& ctx);
-template std::unique_ptr<typename LiveBucket::IndexT const>
-createIndex<LiveBucket>(BucketManager& bm,
-                        std::filesystem::path const& filename, Hash const& hash,
-                        asio::io_context& ctx);
-template std::unique_ptr<typename HotArchiveBucket::IndexT const>
-loadIndex<HotArchiveBucket>(BucketManager const& bm,
-                            std::filesystem::path const& filename,
-                            size_t bucketFileSize);
-template std::unique_ptr<typename LiveBucket::IndexT const>
-loadIndex<LiveBucket>(BucketManager const& bm,
-                      std::filesystem::path const& filename,
-                      size_t bucketFileSize);
 
 template class DiskIndex<HotArchiveBucket>;
 template class DiskIndex<LiveBucket>;

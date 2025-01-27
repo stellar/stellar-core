@@ -23,9 +23,44 @@ namespace medida
 class Meter;
 }
 
+namespace asio
+{
+class io_context;
+}
+
 namespace stellar
 {
 class BucketManager;
+
+// maps smallest and largest LedgerKey on a given page inclusively
+// [lowerBound, upperbound]
+struct RangeEntry
+{
+    LedgerKey lowerBound;
+    LedgerKey upperBound;
+
+    RangeEntry() = default;
+    RangeEntry(LedgerKey low, LedgerKey high)
+        : lowerBound(low), upperBound(high)
+    {
+        releaseAssert(low < high || low == high);
+    }
+
+    inline bool
+    operator==(RangeEntry const& in) const
+    {
+        return lowerBound == in.lowerBound && upperBound == in.upperBound;
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive& ar)
+    {
+        ar(lowerBound, upperBound);
+    }
+};
+
+using RangeIndex = std::vector<std::pair<RangeEntry, std::streamoff>>;
 
 // For large Buckets, we cannot cache all contents in memory. Instead, we use a
 // random eviction cache for partial cacheing, and a range based index + binary
@@ -79,6 +114,8 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
                     asio::io_context& ctx) const;
 
   public:
+    using IterT = RangeIndex::const_iterator;
+
     // Constructor for creating a fresh index.
     DiskIndex(BucketManager& bm, std::filesystem::path const& filename,
               std::streamoff pageSize, Hash const& hash, asio::io_context& ctx);
@@ -93,8 +130,7 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     // file offset in the bucket file for k, or std::nullopt if not found
     // iterator that points to the first index entry not less than k, or
     // BucketIndex::end()
-    std::pair<std::optional<std::streamoff>, RangeIndex::const_iterator>
-    scan(RangeIndex::const_iterator start, LedgerKey const& k) const;
+    std::pair<IndexReturnT, IterT> scan(IterT start, LedgerKey const& k) const;
 
     // Returns [lowFileOffset, highFileOffset) that contain the key ranges
     // [lowerBound, upperBound]. If no file offsets exist, returns [0, 0]
@@ -115,13 +151,13 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
         return mData.counters;
     }
 
-    RangeIndex::const_iterator
+    IterT
     begin() const
     {
         return mData.keysToOffset.begin();
     }
 
-    RangeIndex::const_iterator
+    IterT
     end() const
     {
         return mData.keysToOffset.end();
@@ -155,21 +191,4 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     bool operator==(DiskIndex<BucketT> const& inRaw) const;
 #endif
 };
-
-// Builds index for given bucketfile. This is expensive (> 20 seconds
-// for the largest buckets) and should only be called once. If pageSize
-// == 0 or if file size is less than the cutoff, individual key index is
-// used. Otherwise range index is used, with the range defined by
-// pageSize.
-template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
-createIndex(BucketManager& bm, std::filesystem::path const& filename,
-            Hash const& hash, asio::io_context& ctx);
-
-// Loads index from given file. If file does not exist or if saved
-// index does not have same parameters as current config, return null
-template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
-loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
-          size_t bucketFileSize);
 }

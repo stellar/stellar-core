@@ -53,23 +53,28 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
   public:
     inline static const uint32_t BUCKET_INDEX_VERSION = 0;
 
+    using IterT = DiskIndex<HotArchiveBucket>::IterT;
+
     HotArchiveBucketIndex(BucketManager& bm,
                           std::filesystem::path const& filename,
-                          std::streamoff pageSize, Hash const& hash,
-                          asio::io_context& ctx);
+                          Hash const& hash, asio::io_context& ctx);
 
     template <class Archive>
     HotArchiveBucketIndex(BucketManager const& bm, Archive& ar,
                           std::streamoff pageSize);
 
-    std::optional<std::streamoff>
+    // Returns pagesize for given index based on config parameters. BucketSize
+    // is ignored, but we keep the parameter for consistency with
+    // LiveBucketIndex.
+    static std::streamoff getPageSize(Config const& cfg, size_t bucketSize);
+
+    IndexReturnT
     lookup(LedgerKey const& k) const
     {
         return mDiskIndex.scan(mDiskIndex.begin(), k).first;
     }
 
-    std::pair<std::optional<std::streamoff>, RangeIndex::const_iterator>
-    scan(RangeIndex::const_iterator start, LedgerKey const& k) const;
+    std::pair<IndexReturnT, IterT> scan(IterT start, LedgerKey const& k) const;
 
     BucketEntryCounters const&
     getBucketEntryCounters() const
@@ -83,13 +88,13 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
         return mDiskIndex.getPageSize();
     }
 
-    RangeIndex::const_iterator
+    IterT
     begin() const
     {
         return mDiskIndex.begin();
     }
 
-    RangeIndex::const_iterator
+    IterT
     end() const
     {
         return mDiskIndex.end();

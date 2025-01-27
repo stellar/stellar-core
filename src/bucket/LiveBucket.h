@@ -104,8 +104,8 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // level bucket (i.e. DEADENTRY)
     static bool isTombstoneEntry(BucketEntry const& e);
 
-    static std::shared_ptr<LoadT>
-    bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be);
+    static std::shared_ptr<LoadT const>
+    bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be);
 
     // Whenever a given BucketEntry is "eligible" to be written as the merge
     // result in the output bucket, this function writes the entry to the output

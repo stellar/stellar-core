@@ -713,37 +713,38 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
                                 .getBucketSnapshotManager()
                                 .copySearchableHotArchiveBucketListSnapshot();
 
-        auto checkLoad = [&](LedgerKey const& k,
-                             std::shared_ptr<HotArchiveBucketEntry> entryPtr) {
-            // Restored entries should be null
-            if (expectedRestoredEntries.find(k) !=
-                expectedRestoredEntries.end())
-            {
-                REQUIRE(!entryPtr);
-            }
+        auto checkLoad =
+            [&](LedgerKey const& k,
+                std::shared_ptr<HotArchiveBucketEntry const> entryPtr) {
+                // Restored entries should be null
+                if (expectedRestoredEntries.find(k) !=
+                    expectedRestoredEntries.end())
+                {
+                    REQUIRE(!entryPtr);
+                }
 
-            // Deleted entries should be HotArchiveBucketEntry of type
-            // DELETED
-            else if (expectedDeletedEntries.find(k) !=
-                     expectedDeletedEntries.end())
-            {
-                REQUIRE(entryPtr);
-                REQUIRE(entryPtr->type() ==
-                        HotArchiveBucketEntryType::HOT_ARCHIVE_DELETED);
-                REQUIRE(entryPtr->key() == k);
-            }
+                // Deleted entries should be HotArchiveBucketEntry of type
+                // DELETED
+                else if (expectedDeletedEntries.find(k) !=
+                         expectedDeletedEntries.end())
+                {
+                    REQUIRE(entryPtr);
+                    REQUIRE(entryPtr->type() ==
+                            HotArchiveBucketEntryType::HOT_ARCHIVE_DELETED);
+                    REQUIRE(entryPtr->key() == k);
+                }
 
-            // Archived entries should contain full LedgerEntry
-            else
-            {
-                auto expectedIter = expectedArchiveEntries.find(k);
-                REQUIRE(expectedIter != expectedArchiveEntries.end());
-                REQUIRE(entryPtr);
-                REQUIRE(entryPtr->type() ==
-                        HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
-                REQUIRE(entryPtr->archivedEntry() == expectedIter->second);
-            }
-        };
+                // Archived entries should contain full LedgerEntry
+                else
+                {
+                    auto expectedIter = expectedArchiveEntries.find(k);
+                    REQUIRE(expectedIter != expectedArchiveEntries.end());
+                    REQUIRE(entryPtr);
+                    REQUIRE(entryPtr->type() ==
+                            HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+                    REQUIRE(entryPtr->archivedEntry() == expectedIter->second);
+                }
+            };
 
         auto checkResult = [&] {
             LedgerKeySet bulkLoadKeys;

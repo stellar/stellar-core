@@ -95,8 +95,8 @@ class HotArchiveBucket
         std::vector<HotArchiveBucketInputIterator>& shadowIterators,
         uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
 
-    static std::shared_ptr<LoadT>
-    bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be);
+    static std::shared_ptr<LoadT const>
+    bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be);
 
     friend class HotArchiveBucketSnapshot;
 };

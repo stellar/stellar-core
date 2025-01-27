@@ -83,12 +83,12 @@ SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
 }
 
 template <class BucketT>
-std::shared_ptr<typename BucketT::LoadT>
+std::shared_ptr<typename BucketT::LoadT const>
 SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
 {
     ZoneScoped;
 
-    std::shared_ptr<typename BucketT::LoadT> result{};
+    std::shared_ptr<typename BucketT::LoadT const> result{};
     auto timerIter = mPointTimers.find(k.type());
     releaseAssert(timerIter != mPointTimers.end());
     auto timer = timerIter->second.TimeScope();

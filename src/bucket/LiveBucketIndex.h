@@ -6,6 +6,7 @@
 
 #include "bucket/BucketUtils.h"
 #include "bucket/DiskIndex.h"
+#include "bucket/InMemoryIndex.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
 #include "util/NonCopyable.h"
@@ -47,8 +48,25 @@ class BucketManager;
 
 class LiveBucketIndex : public NonMovableOrCopyable
 {
+  public:
+    using IterT =
+        std::variant<InMemoryIndex::IterT, DiskIndex<LiveBucket>::IterT>;
+
   private:
     std::unique_ptr<DiskIndex<LiveBucket> const> mDiskIndex;
+    std::unique_ptr<InMemoryIndex const> mInMemoryIndex;
+
+    static inline DiskIndex<LiveBucket>::IterT
+    getDiskIter(IterT const& iter)
+    {
+        return std::get<DiskIndex<LiveBucket>::IterT>(iter);
+    }
+
+    static inline InMemoryIndex::IterT
+    getInMemoryIter(IterT const& iter)
+    {
+        return std::get<InMemoryIndex::IterT>(iter);
+    }
 
   public:
     inline static const std::string DB_BACKEND_STATE = "bl";
@@ -56,8 +74,7 @@ class LiveBucketIndex : public NonMovableOrCopyable
 
     // Constructor for creating new index from Bucketfile
     LiveBucketIndex(BucketManager& bm, std::filesystem::path const& filename,
-                    std::streamoff pageSize, Hash const& hash,
-                    asio::io_context& ctx);
+                    Hash const& hash, asio::io_context& ctx);
 
     // Constructor for loading pre-existing index from disk
     template <class Archive>
@@ -67,10 +84,13 @@ class LiveBucketIndex : public NonMovableOrCopyable
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
 
-    std::optional<std::streamoff> lookup(LedgerKey const& k) const;
+    // Returns pagesize for given index based on config parameters and bucket
+    // size, in bytes
+    static std::streamoff getPageSize(Config const& cfg, size_t bucketSize);
 
-    std::pair<std::optional<std::streamoff>, RangeIndex::const_iterator>
-    scan(RangeIndex::const_iterator start, LedgerKey const& k) const;
+    IndexReturnT lookup(LedgerKey const& k) const;
+
+    std::pair<IndexReturnT, IterT> scan(IterT start, LedgerKey const& k) const;
 
     std::vector<PoolID> const& getPoolIDsByAsset(Asset const& asset) const;
 
@@ -80,8 +100,8 @@ class LiveBucketIndex : public NonMovableOrCopyable
     BucketEntryCounters const& getBucketEntryCounters() const;
     uint32_t getPageSize() const;
 
-    RangeIndex::const_iterator begin() const;
-    RangeIndex::const_iterator end() const;
+    IterT begin() const;
+    IterT end() const;
     void markBloomMiss() const;
 #ifdef BUILD_TESTS
     bool operator==(LiveBucketIndex const& in) const;

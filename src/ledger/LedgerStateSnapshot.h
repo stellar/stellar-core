@@ -27,13 +27,13 @@ class LedgerEntryWrapper
 {
     // Either hold a reference or a pointer to the entry
     std::variant<LedgerTxnEntry, ConstLedgerTxnEntry,
-                 std::shared_ptr<LedgerEntry>>
+                 std::shared_ptr<LedgerEntry const>>
         mEntry;
 
   public:
     explicit LedgerEntryWrapper(ConstLedgerTxnEntry&& entry);
     explicit LedgerEntryWrapper(LedgerTxnEntry&& entry);
-    explicit LedgerEntryWrapper(std::shared_ptr<LedgerEntry> entry);
+    explicit LedgerEntryWrapper(std::shared_ptr<LedgerEntry const> entry);
     LedgerEntry const& current() const;
     operator bool() const;
 };

@@ -3,25 +3,41 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/HotArchiveBucketIndex.h"
+#include "bucket/BucketIndexUtils.h"
 #include "bucket/BucketManager.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cereal/archives/binary.hpp>
-#include <optional>
 
 namespace stellar
 {
 
 HotArchiveBucketIndex::HotArchiveBucketIndex(
-    BucketManager& bm, std::filesystem::path const& filename,
-    std::streamoff pageSize, Hash const& hash, asio::io_context& ctx)
-    : mDiskIndex(bm, filename, pageSize, hash, ctx)
+    BucketManager& bm, std::filesystem::path const& filename, Hash const& hash,
+    asio::io_context& ctx)
+    : mDiskIndex(bm, filename, getPageSize(bm.getConfig(), 0), hash, ctx)
 {
     ZoneScoped;
     releaseAssert(!filename.empty());
 
-    // HotArchive only supports disk indexes
-    releaseAssertOrThrow(pageSize != 0);
+    CLOG_DEBUG(Bucket,
+               "HotArchiveBucketIndex::createIndex() indexing key range with "
+               "page size {} in bucket {}",
+               mDiskIndex.getPageSize(), filename);
+}
+
+std::streamoff
+HotArchiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
+{
+    auto ret = getPageSizeFromConfig(cfg);
+    if (ret == 0)
+    {
+        // HotArchive doesn't support individual indexes, use default 16 KB
+        // value even if config is set to 0
+        return 16'384;
+    }
+    return ret;
 }
 
 template <class Archive>
@@ -34,9 +50,8 @@ HotArchiveBucketIndex::HotArchiveBucketIndex(BucketManager const& bm,
     releaseAssertOrThrow(pageSize != 0);
 }
 
-std::pair<std::optional<std::streamoff>, RangeIndex::const_iterator>
-HotArchiveBucketIndex::scan(RangeIndex::const_iterator start,
-                            LedgerKey const& k) const
+std::pair<IndexReturnT, HotArchiveBucketIndex::IterT>
+HotArchiveBucketIndex::scan(IterT start, LedgerKey const& k) const
 {
     ZoneScoped;
     return mDiskIndex.scan(start, k);

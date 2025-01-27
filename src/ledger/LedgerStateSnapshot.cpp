@@ -25,7 +25,7 @@ LedgerEntryWrapper::LedgerEntryWrapper(LedgerTxnEntry&& entry)
 {
 }
 
-LedgerEntryWrapper::LedgerEntryWrapper(std::shared_ptr<LedgerEntry> entry)
+LedgerEntryWrapper::LedgerEntryWrapper(std::shared_ptr<LedgerEntry const> entry)
     : mEntry(entry)
 {
 }

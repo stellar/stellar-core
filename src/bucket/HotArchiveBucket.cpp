@@ -139,8 +139,9 @@ HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
     return e.type() == HOT_ARCHIVE_LIVE;
 }
 
-std::shared_ptr<HotArchiveBucket::LoadT>
-HotArchiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be)
+std::shared_ptr<HotArchiveBucket::LoadT const>
+HotArchiveBucket::bucketEntryToLoadResult(
+    std::shared_ptr<EntryT const> const& be)
 {
     return isTombstoneEntry(*be) ? nullptr : be;
 }

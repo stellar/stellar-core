@@ -137,6 +137,7 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                        uint32_t ledgerSeq) const;
 
-    std::shared_ptr<typename BucketT::LoadT> load(LedgerKey const& k) const;
+    std::shared_ptr<typename BucketT::LoadT const>
+    load(LedgerKey const& k) const;
 };
 }

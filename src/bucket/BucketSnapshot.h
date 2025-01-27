@@ -57,7 +57,7 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
 
     // Loads bucket entry for LedgerKey k. Returns <BucketEntry, bloomMiss>,
     // where bloomMiss is true if a bloomMiss occurred during the load.
-    std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
+    std::pair<std::shared_ptr<typename BucketT::EntryT const>, bool>
     getBucketEntry(LedgerKey const& k) const;
 
     // Loads LedgerEntry's for given keys. When a key is found, the

@@ -6,8 +6,8 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketListSnapshotBase.h"
 #include "bucket/LiveBucketList.h"
-#include "util/GlobalChecks.h"
 #include "ledger/LedgerTxn.h"
+#include "util/GlobalChecks.h"
 
 #include <medida/timer.h>
 
