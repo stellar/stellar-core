@@ -112,11 +112,11 @@ validateParallelComponent(ParallelTxsComponent const& component)
             CLOG_DEBUG(Herder, "Got bad txSet: empty stage");
             return false;
         }
-        for (auto const& thread : stage)
+        for (auto const& cluster : stage)
         {
-            if (thread.empty())
+            if (cluster.empty())
             {
-                CLOG_DEBUG(Herder, "Got bad txSet: empty thread");
+                CLOG_DEBUG(Herder, "Got bad txSet: empty cluster");
                 return false;
             }
         }
@@ -315,13 +315,13 @@ parallelPhaseToXdr(TxStageFrameList const& txs,
     {
         auto& xdrStage = component.executionStages.emplace_back();
         xdrStage.reserve(stage.size());
-        for (auto const& thread : stage)
+        for (auto const& cluster : stage)
         {
-            auto& xdrThread = xdrStage.emplace_back();
-            xdrThread.reserve(thread.size());
-            for (auto const& tx : thread)
+            auto& xdrCluster = xdrStage.emplace_back();
+            xdrCluster.reserve(cluster.size());
+            for (auto const& tx : cluster)
             {
-                xdrThread.push_back(tx->getEnvelope());
+                xdrCluster.push_back(tx->getEnvelope());
             }
         }
     }
@@ -404,12 +404,12 @@ sortedForApplyParallel(TxStageFrameList const& stages, Hash const& txSetHash)
     ApplyTxSorter sorter(txSetHash);
     for (auto& stage : sortedStages)
     {
-        for (auto& thread : stage)
+        for (auto& cluster : stage)
         {
-            std::sort(thread.begin(), thread.end(), sorter);
+            std::sort(cluster.begin(), cluster.end(), sorter);
         }
-        // There is no need to shuffle threads in the stage, as they are
-        // independent, so the apply order doesn't matter even if the threads
+        // There is no need to shuffle clusters in the stage, as they are
+        // independent, so the apply order doesn't matter even if the clusters
         // are being applied sequentially.
     }
     std::sort(sortedStages.begin(), sortedStages.end(),
@@ -419,41 +419,6 @@ sortedForApplyParallel(TxStageFrameList const& stages, Hash const& txSetHash)
                   return sorter(a.front().front(), b.front().front());
               });
     return stages;
-}
-
-// This assumes that the phase validation has already been done,
-// specifically that there are no transactions that belong to the same
-// source account, and that the ledger sequence corresponds to the
-bool
-phaseTxsAreValid(TxSetPhaseFrame const& phase, Application& app,
-                 uint64_t lowerBoundCloseTimeOffset,
-                 uint64_t upperBoundCloseTimeOffset)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    // This is done so minSeqLedgerGap is validated against the next
-    // ledgerSeq, which is what will be used at apply time
-
-    // Grab read-only latest ledger state; This is only used to validate tx sets
-    // for LCL+1
-    LedgerSnapshot ls(app);
-    ls.getLedgerHeader().currentToModify().ledgerSeq += 1;
-    for (auto const& tx : phase)
-    {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset);
-        if (!txResult->isSuccess())
-        {
-
-            CLOG_DEBUG(
-                Herder, "Got bad txSet: tx invalid tx: {} result: {}",
-                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
-                txResult->getResultCode());
-            return false;
-        }
-    }
-    return true;
 }
 
 bool
@@ -631,6 +596,38 @@ computeBaseFeeForLegacyTxSet(LedgerHeader const& lclHeader,
     return baseFee;
 }
 
+bool
+checkFeeMap(InclusionFeeMap const& feeMap, LedgerHeader const& lclHeader)
+{
+    for (auto const& [tx, fee] : feeMap)
+    {
+        if (!fee)
+        {
+            continue;
+        }
+        if (*fee < lclHeader.baseFee)
+        {
+
+            CLOG_DEBUG(Herder,
+                       "Got bad txSet: {} has too low component "
+                       "base fee {}",
+                       hexAbbrev(lclHeader.previousLedgerHash), *fee);
+            return false;
+        }
+        if (tx->getInclusionFee() < getMinInclusionFee(*tx, lclHeader, fee))
+        {
+            CLOG_DEBUG(Herder,
+                       "Got bad txSet: {} has tx with fee bid ({}) lower "
+                       "than base fee ({})",
+                       hexAbbrev(lclHeader.previousLedgerHash),
+                       tx->getInclusionFee(),
+                       getMinInclusionFee(*tx, lclHeader, fee));
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 TxSetXDRFrame::TxSetXDRFrame(TransactionSet const& xdrTxSet)
@@ -749,8 +746,8 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
                                         .header.ledgerVersion,
                                     PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
         {
-            validatedPhases.emplace_back(
-                TxSetPhaseFrame(std::move(includedTxs), inclusionFeeMap));
+            validatedPhases.emplace_back(TxSetPhaseFrame(
+                phaseType, std::move(includedTxs), inclusionFeeMap));
         }
         // This is a temporary stub for building a valid parallel tx set
         // without any parallelization.
@@ -762,7 +759,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
                 stages.emplace_back().push_back(includedTxs);
             }
             validatedPhases.emplace_back(
-                TxSetPhaseFrame(std::move(stages), inclusionFeeMap));
+                TxSetPhaseFrame(phaseType, std::move(stages), inclusionFeeMap));
         }
     }
 
@@ -829,17 +826,15 @@ TxSetXDRFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
     if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        std::vector<TxSetPhaseFrame> emptyPhases(
-            static_cast<size_t>(TxSetPhase::PHASE_COUNT),
-            TxSetPhaseFrame::makeEmpty(false));
+        bool isParallelSoroban = false;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
-        {
-            emptyPhases[static_cast<size_t>(TxSetPhase::SOROBAN)] =
-                TxSetPhaseFrame::makeEmpty(true);
-        }
+        isParallelSoroban =
+            protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
 #endif
+        std::vector<TxSetPhaseFrame> emptyPhases = {
+            TxSetPhaseFrame::makeEmpty(TxSetPhase::CLASSIC, false),
+            TxSetPhaseFrame::makeEmpty(TxSetPhase::SOROBAN, isParallelSoroban)};
 
         GeneralizedTransactionSet txSet;
         transactionsToGeneralizedTransactionSetXDR(emptyPhases, lclHeader.hash,
@@ -910,10 +905,10 @@ makeTxSetFromTransactions(TxFrameList txs, Application& app,
         std::vector<TxSetPhaseFrame> overridePhases;
         for (size_t i = 0; i < resPhases.size(); ++i)
         {
-            overridePhases.emplace_back(
-                TxSetPhaseFrame(std::move(perPhaseTxs[i]),
-                                std::make_shared<InclusionFeeMap>(
-                                    resPhases[i].getInclusionFeeMap())));
+            overridePhases.emplace_back(TxSetPhaseFrame(
+                static_cast<TxSetPhase>(i), std::move(perPhaseTxs[i]),
+                std::make_shared<InclusionFeeMap>(
+                    resPhases[i].getInclusionFeeMap())));
         }
         res.second->mApplyOrderPhases = overridePhases;
         res.first->mApplicableTxSetOverride = std::move(res.second);
@@ -964,29 +959,16 @@ TxSetXDRFrame::prepareForApply(Application& app) const
         }
         auto const& xdrPhases = xdrTxSet.v1TxSet().phases;
 
-        for (auto const& xdrPhase : xdrPhases)
+        for (size_t phaseId = 0; phaseId < xdrPhases.size(); ++phaseId)
         {
-            auto maybePhase =
-                TxSetPhaseFrame::makeFromWire(app.getNetworkID(), xdrPhase);
+            auto maybePhase = TxSetPhaseFrame::makeFromWire(
+                static_cast<TxSetPhase>(phaseId), app.getNetworkID(),
+                xdrPhases[phaseId]);
             if (!maybePhase)
             {
                 return nullptr;
             }
             phaseFrames.emplace_back(std::move(*maybePhase));
-        }
-        for (size_t phaseId = 0; phaseId < phaseFrames.size(); ++phaseId)
-        {
-            auto phase = static_cast<TxSetPhase>(phaseId);
-            for (auto const& tx : phaseFrames[phaseId])
-            {
-                if ((tx->isSoroban() && phase != TxSetPhase::SOROBAN) ||
-                    (!tx->isSoroban() && phase != TxSetPhase::CLASSIC))
-                {
-                    CLOG_DEBUG(Herder, "Got bad generalized txSet with invalid "
-                                       "phase transactions");
-                    return nullptr;
-                }
-            }
         }
     }
     else
@@ -1052,9 +1034,9 @@ TxSetXDRFrame::sizeTxTotal() const
                 for (auto const& stage :
                      phase.parallelTxsComponent().executionStages)
                 {
-                    for (auto const& thread : stage)
+                    for (auto const& cluster : stage)
                     {
-                        totalSize += thread.size();
+                        totalSize += cluster.size();
                     }
                 }
                 break;
@@ -1115,11 +1097,11 @@ TxSetXDRFrame::sizeOpTotalForLogging() const
                 for (auto const& stage :
                      phase.parallelTxsComponent().executionStages)
                 {
-                    for (auto const& thread : stage)
+                    for (auto const& cluster : stage)
                     {
                         totalSize +=
-                            std::accumulate(thread.begin(), thread.end(), 0ull,
-                                            accumulateTxsFn);
+                            std::accumulate(cluster.begin(), cluster.end(),
+                                            0ull, accumulateTxsFn);
                     }
                 }
                 break;
@@ -1166,9 +1148,9 @@ TxSetXDRFrame::createTransactionFrames(Hash const& networkID) const
                 for (auto const& stage :
                      phase.parallelTxsComponent().executionStages)
                 {
-                    for (auto const& thread : stage)
+                    for (auto const& cluster : stage)
                     {
-                        for (auto const& tx : thread)
+                        for (auto const& tx : cluster)
                         {
                             txs.emplace_back(
                                 TransactionFrameBase::makeTransactionFromWire(
@@ -1243,29 +1225,30 @@ TxSetPhaseFrame::Iterator::operator*() const
 {
 
     if (mStageIndex >= mStages.size() ||
-        mThreadIndex >= mStages[mStageIndex].size() ||
-        mTxIndex >= mStages[mStageIndex][mThreadIndex].size())
+        mClusterIndex >= mStages[mStageIndex].size() ||
+        mTxIndex >= mStages[mStageIndex][mClusterIndex].size())
     {
         throw std::runtime_error("TxPhase iterator out of bounds");
     }
-    return mStages[mStageIndex][mThreadIndex][mTxIndex];
+    return mStages[mStageIndex][mClusterIndex][mTxIndex];
 }
 
 TxSetPhaseFrame::Iterator&
 TxSetPhaseFrame::Iterator::operator++()
 {
-    if (mStageIndex >= mStages.size())
+    if (mStageIndex >= mStages.size() ||
+        mClusterIndex >= mStages[mStageIndex].size())
     {
         throw std::runtime_error("TxPhase iterator out of bounds");
     }
     ++mTxIndex;
-    if (mTxIndex >= mStages[mStageIndex][mThreadIndex].size())
+    if (mTxIndex >= mStages[mStageIndex][mClusterIndex].size())
     {
         mTxIndex = 0;
-        ++mThreadIndex;
-        if (mThreadIndex >= mStages[mStageIndex].size())
+        ++mClusterIndex;
+        if (mClusterIndex >= mStages[mStageIndex].size())
         {
-            mThreadIndex = 0;
+            mClusterIndex = 0;
             ++mStageIndex;
         }
     }
@@ -1284,7 +1267,7 @@ bool
 TxSetPhaseFrame::Iterator::operator==(Iterator const& other) const
 {
     return mStageIndex == other.mStageIndex &&
-           mThreadIndex == other.mThreadIndex && mTxIndex == other.mTxIndex &&
+           mClusterIndex == other.mClusterIndex && mTxIndex == other.mTxIndex &&
            // Make sure to compare the pointers, not the contents, both for
            // correctness and optimization.
            &mStages == &other.mStages;
@@ -1297,11 +1280,12 @@ TxSetPhaseFrame::Iterator::operator!=(Iterator const& other) const
 }
 
 std::optional<TxSetPhaseFrame>
-TxSetPhaseFrame::makeFromWire(Hash const& networkID,
+TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                               TransactionPhase const& xdrPhase)
 {
     auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
     auto& inclusionFeeMap = *inclusionFeeMapPtr;
+    std::optional<TxSetPhaseFrame> phaseFrame;
     switch (xdrPhase.v())
     {
     case 0:
@@ -1337,7 +1321,9 @@ TxSetPhaseFrame::makeFromWire(Hash const& networkID,
                 break;
             }
         }
-        return TxSetPhaseFrame(std::move(txList), inclusionFeeMapPtr);
+        phaseFrame.emplace(
+            TxSetPhaseFrame(phase, std::move(txList), inclusionFeeMapPtr));
+        break;
     }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 1:
@@ -1354,11 +1340,11 @@ TxSetPhaseFrame::makeFromWire(Hash const& networkID,
         {
             auto& stage = stages.emplace_back();
             stage.reserve(xdrStage.size());
-            for (auto const& xdrThread : xdrStage)
+            for (auto const& xdrCluster : xdrStage)
             {
-                auto& thread = stage.emplace_back();
-                thread.reserve(xdrThread.size());
-                for (auto const& env : xdrThread)
+                auto& cluster = stage.emplace_back();
+                cluster.reserve(xdrCluster.size());
+                for (auto const& env : xdrCluster)
                 {
                     auto tx = TransactionFrameBase::makeTransactionFromWire(
                         networkID, env);
@@ -1368,14 +1354,14 @@ TxSetPhaseFrame::makeFromWire(Hash const& networkID,
                                            "transaction has invalid XDR");
                         return std::nullopt;
                     }
-                    thread.push_back(tx);
+                    cluster.push_back(tx);
                     inclusionFeeMap[tx] = baseFee;
                 }
-                if (!std::is_sorted(thread.begin(), thread.end(),
+                if (!std::is_sorted(cluster.begin(), cluster.end(),
                                     &TxSetUtils::hashTxSorter))
                 {
                     CLOG_DEBUG(Herder, "Got bad generalized txSet: "
-                                       "thread is not sorted");
+                                       "cluster is not sorted");
                     return std::nullopt;
                 }
             }
@@ -1402,12 +1388,16 @@ TxSetPhaseFrame::makeFromWire(Hash const& networkID,
                                "stages are not sorted");
             return std::nullopt;
         }
-        return TxSetPhaseFrame(std::move(stages), inclusionFeeMapPtr);
+        phaseFrame.emplace(
+            TxSetPhaseFrame(phase, std::move(stages), inclusionFeeMapPtr));
+        break;
     }
 #endif
+    default:
+        releaseAssert(false);
     }
-
-    return std::nullopt;
+    releaseAssert(phaseFrame);
+    return phaseFrame;
 }
 
 std::optional<TxSetPhaseFrame>
@@ -1431,23 +1421,26 @@ TxSetPhaseFrame::makeFromWireLegacy(
     {
         inclusionFeeMap[tx] = baseFee;
     }
-    return TxSetPhaseFrame(std::move(txList), inclusionFeeMapPtr);
+    return TxSetPhaseFrame(TxSetPhase::CLASSIC, std::move(txList),
+                           inclusionFeeMapPtr);
 }
 
 TxSetPhaseFrame
-TxSetPhaseFrame::makeEmpty(bool isParallel)
+TxSetPhaseFrame::makeEmpty(TxSetPhase phase, bool isParallel)
 {
     if (isParallel)
     {
-        return TxSetPhaseFrame(TxStageFrameList{},
+        return TxSetPhaseFrame(phase, TxStageFrameList{},
                                std::make_shared<InclusionFeeMap>());
     }
-    return TxSetPhaseFrame(TxFrameList{}, std::make_shared<InclusionFeeMap>());
+    return TxSetPhaseFrame(phase, TxFrameList{},
+                           std::make_shared<InclusionFeeMap>());
 }
 
 TxSetPhaseFrame::TxSetPhaseFrame(
-    TxFrameList const& txs, std::shared_ptr<InclusionFeeMap> inclusionFeeMap)
-    : mInclusionFeeMap(inclusionFeeMap), mIsParallel(false)
+    TxSetPhase phase, TxFrameList const& txs,
+    std::shared_ptr<InclusionFeeMap> inclusionFeeMap)
+    : mPhase(phase), mInclusionFeeMap(inclusionFeeMap), mIsParallel(false)
 {
     if (!txs.empty())
     {
@@ -1456,8 +1449,12 @@ TxSetPhaseFrame::TxSetPhaseFrame(
 }
 
 TxSetPhaseFrame::TxSetPhaseFrame(
-    TxStageFrameList&& txs, std::shared_ptr<InclusionFeeMap> inclusionFeeMap)
-    : mStages(txs), mInclusionFeeMap(inclusionFeeMap), mIsParallel(true)
+    TxSetPhase phase, TxStageFrameList&& txs,
+    std::shared_ptr<InclusionFeeMap> inclusionFeeMap)
+    : mPhase(phase)
+    , mStages(txs)
+    , mInclusionFeeMap(inclusionFeeMap)
+    , mIsParallel(true)
 {
 }
 
@@ -1474,24 +1471,41 @@ TxSetPhaseFrame::end() const
 }
 
 size_t
-TxSetPhaseFrame::size() const
+TxSetPhaseFrame::sizeTx() const
 {
+    ZoneScoped;
+    return std::distance(this->begin(), this->end());
+}
 
-    size_t size = 0;
-    for (auto const& stage : mStages)
+size_t
+TxSetPhaseFrame::sizeOp() const
+{
+    ZoneScoped;
+    return std::accumulate(this->begin(), this->end(), size_t(0),
+                           [&](size_t a, TransactionFrameBasePtr const& tx) {
+                               return a + tx->getNumOperations();
+                           });
+}
+
+size_t
+TxSetPhaseFrame::size(LedgerHeader const& lclHeader) const
+{
+    switch (mPhase)
     {
-        for (auto const& thread : stage)
-        {
-            size += thread.size();
-        }
+    case TxSetPhase::CLASSIC:
+        return protocolVersionStartsFrom(lclHeader.ledgerVersion,
+                                         ProtocolVersion::V_11)
+                   ? sizeOp()
+                   : sizeTx();
+    case TxSetPhase::SOROBAN:
+        return sizeOp();
     }
-    return size;
 }
 
 bool
 TxSetPhaseFrame::empty() const
 {
-    return size() == 0;
+    return sizeTx() == 0;
 }
 
 bool
@@ -1549,15 +1563,298 @@ TxSetPhaseFrame::sortedForApply(Hash const& txSetHash) const
 {
     if (isParallel())
     {
-        return TxSetPhaseFrame(sortedForApplyParallel(mStages, txSetHash),
+        return TxSetPhaseFrame(mPhase,
+                               sortedForApplyParallel(mStages, txSetHash),
                                mInclusionFeeMap);
     }
     else
     {
         return TxSetPhaseFrame(
-            sortedForApplySequential(getSequentialTxs(), txSetHash),
+            mPhase, sortedForApplySequential(getSequentialTxs(), txSetHash),
             mInclusionFeeMap);
     }
+}
+
+bool
+TxSetPhaseFrame::checkValid(Application& app,
+                            uint64_t lowerBoundCloseTimeOffset,
+                            uint64_t upperBoundCloseTimeOffset) const
+{
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    // Verify the fee map for the phase. This check is independent of the phase
+    // type or contents.
+    if (!checkFeeMap(getInclusionFeeMap(), lcl.header))
+    {
+        return false;
+    }
+
+    bool isSoroban = mPhase == TxSetPhase::SOROBAN;
+
+    // Ensure that the phase contains only the transactions of expected
+    // kind (Soroban or classic).
+    for (auto const& tx : *this)
+    {
+        if (tx->isSoroban() != isSoroban)
+        {
+            CLOG_DEBUG(Herder,
+                       "Got bad generalized txSet with invalid "
+                       "phase {} transactions",
+                       static_cast<size_t>(mPhase));
+            return false;
+        }
+    }
+
+    // Then check the phase-specific properties. This may rely on transactions
+    // belonging to the valid phase.
+    bool checkPhaseSpecific =
+        isSoroban
+            ? checkValidSoroban(
+                  lcl.header,
+                  app.getLedgerManager().getSorobanNetworkConfigReadOnly())
+            : checkValidClassic(lcl.header);
+    if (!checkPhaseSpecific)
+    {
+        return false;
+    }
+
+    return txsAreValid(app, lowerBoundCloseTimeOffset,
+                       upperBoundCloseTimeOffset);
+}
+
+bool
+TxSetPhaseFrame::checkValidClassic(LedgerHeader const& lclHeader) const
+{
+    if (isParallel())
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: classic phase can't be parallel");
+        return false;
+    }
+    if (this->size(lclHeader) > lclHeader.maxTxSetSize)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: too many classic txs {} > {}",
+                   this->size(lclHeader), lclHeader.maxTxSetSize);
+        return false;
+    }
+    return true;
+}
+
+bool
+TxSetPhaseFrame::checkValidSoroban(
+    LedgerHeader const& lclHeader,
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    bool needParallelSorobanPhase = protocolVersionStartsFrom(
+        lclHeader.ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    if (isParallel() != needParallelSorobanPhase)
+    {
+        CLOG_DEBUG(Herder,
+                   "Got bad txSet: Soroban phase parallel support "
+                   "does not match the current protocol; '{}' was "
+                   "expected",
+                   needParallelSorobanPhase);
+        return false;
+    }
+    // Ensure the total resources are not over ledger limit.
+    auto totalResources = getTotalResources();
+    if (!totalResources)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: total Soroban resources overflow");
+        return false;
+    }
+
+    auto maxResources = sorobanConfig.maxLedgerResources();
+
+    // With parallel Soroban phase the instruction limit validation is more
+    // complex than just comparing the total instructions to the ledger-wide
+    // limit. Thus, we skip the instruction check for the parallel phase and
+    // do the proper check further below.
+    if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
+                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+    {
+        maxResources.setVal(Resource::Type::INSTRUCTIONS,
+                            std::numeric_limits<int64_t>::max());
+    }
+    if (anyGreater(*totalResources, maxResources))
+    {
+        CLOG_DEBUG(Herder,
+                   "Got bad txSet: needed resources exceed ledger "
+                   "limits {} > {}",
+                   totalResources->toString(), maxResources.toString());
+        return false;
+    }
+
+    if (!isParallel())
+    {
+        return true;
+    }
+    auto const& stages = getParallelStages();
+
+    // Verify that number of clusters is not exceeded per stage. There is no
+    // limit for the number of stages or transactions per cluster.
+    for (auto const& stage : stages)
+    {
+        if (stage.size() > sorobanConfig.ledgerMaxDependentTxClusters())
+        {
+            CLOG_DEBUG(Herder,
+                       "Got bad txSet: too many clusters in Soroban "
+                       "stage {} > {}",
+                       stage.size(),
+                       sorobanConfig.ledgerMaxDependentTxClusters());
+            return false;
+        }
+    }
+
+    // Verify that 'sequential' instructions don't exceed the ledger-wide
+    // limit.
+    // Every may have multiple clusters and its runtime is considered to be
+    // bounded by the slowest cluster (i.e. the one with the most instructions).
+    // Stages are meant to be executed sequentially, so the ledger-wide
+    // instructions should be limited by the sum of the stages' instructions.
+    int64_t totalInstructions = 0;
+    for (auto const& stage : stages)
+    {
+        int64_t stageInstructions = 0;
+        for (auto const& cluster : stage)
+        {
+            int64_t clusterInstructions = 0;
+            for (auto const& tx : cluster)
+            {
+                // clusterInstructions + tx->sorobanResources().instructions >
+                //     std::numeric_limits<int64_t>::max()
+                if (clusterInstructions >
+                    std::numeric_limits<int64_t>::max() -
+                        tx->sorobanResources().instructions)
+                {
+                    CLOG_DEBUG(Herder, "Got bad txSet: Soroban sequential "
+                                       "instructions overflow");
+                    return false;
+                }
+                clusterInstructions += tx->sorobanResources().instructions;
+            }
+            stageInstructions =
+                std::max(stageInstructions, clusterInstructions);
+        }
+        // totalInstructions + stageInstructions >
+        //     std::numeric_limits<int64_t>::max()
+        if (totalInstructions >
+            std::numeric_limits<int64_t>::max() - stageInstructions)
+        {
+            CLOG_DEBUG(Herder,
+                       "Got bad txSet: Soroban total instructions overflow");
+            return false;
+        }
+        totalInstructions += stageInstructions;
+    }
+    if (totalInstructions > sorobanConfig.ledgerMaxInstructions())
+    {
+        CLOG_DEBUG(
+            Herder,
+            "Got bad txSet: Soroban total instructions exceed limit: {} > {}",
+            totalInstructions, sorobanConfig.ledgerMaxInstructions());
+        return false;
+    }
+
+    // Verify that there are no read-write conflicts between clusters within
+    // every stage.
+    for (auto const& stage : stages)
+    {
+        UnorderedSet<LedgerKey> stageReadOnlyKeys;
+        UnorderedSet<LedgerKey> stageReadWriteKeys;
+        for (auto const& cluster : stage)
+        {
+            std::vector<LedgerKey> clusterReadOnlyKeys;
+            std::vector<LedgerKey> clusterReadWriteKeys;
+            for (auto const& tx : cluster)
+            {
+                auto const& footprint = tx->sorobanResources().footprint;
+
+                for (auto const& key : footprint.readOnly)
+                {
+                    if (stageReadWriteKeys.count(key) > 0)
+                    {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Got bad generalized txSet: cluster footprint "
+                            "conflicts with another cluster within stage");
+                        return false;
+                    }
+                    clusterReadOnlyKeys.push_back(key);
+                }
+                for (auto const& key : footprint.readWrite)
+                {
+                    if (stageReadOnlyKeys.count(key) > 0 ||
+                        stageReadWriteKeys.count(key) > 0)
+                    {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Got bad generalized txSet: cluster footprint "
+                            "conflicts with another cluster within stage");
+                        return false;
+                    }
+                    clusterReadWriteKeys.push_back(key);
+                }
+            }
+            stageReadOnlyKeys.insert(clusterReadOnlyKeys.begin(),
+                                     clusterReadOnlyKeys.end());
+            stageReadWriteKeys.insert(clusterReadWriteKeys.begin(),
+                                      clusterReadWriteKeys.end());
+        }
+    }
+    return true;
+}
+
+// This assumes that the overall phase structure validation has already been
+// done, specifically that there are no transactions that belong to the same
+// source account.
+bool
+TxSetPhaseFrame::txsAreValid(Application& app,
+                             uint64_t lowerBoundCloseTimeOffset,
+                             uint64_t upperBoundCloseTimeOffset) const
+{
+    ZoneScoped;
+    // This is done so minSeqLedgerGap is validated against the next
+    // ledgerSeq, which is what will be used at apply time
+
+    // Grab read-only latest ledger state; This is only used to validate tx sets
+    // for LCL+1
+    LedgerSnapshot ls(app);
+    ls.getLedgerHeader().currentToModify().ledgerSeq =
+        app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    for (auto const& tx : *this)
+    {
+        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
+                                       lowerBoundCloseTimeOffset,
+                                       upperBoundCloseTimeOffset);
+        if (!txResult->isSuccess())
+        {
+
+            CLOG_DEBUG(
+                Herder, "Got bad txSet: tx invalid tx: {} result: {}",
+                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
+                txResult->getResultCode());
+            return false;
+        }
+    }
+    return true;
+}
+
+std::optional<Resource>
+TxSetPhaseFrame::getTotalResources() const
+{
+    auto total = mPhase == TxSetPhase::SOROBAN ? Resource::makeEmptySoroban()
+                                               : Resource::makeEmpty(1);
+    for (auto const& tx : *this)
+    {
+        if (total.canAdd(tx->getResources(/* useByteLimitInClassic */ false)))
+        {
+            total += tx->getResources(/* useByteLimitInClassic */ false);
+        }
+        else
+        {
+            return std::nullopt;
+        }
+    }
+    return std::make_optional<Resource>(total);
 }
 
 ApplicableTxSetFrame::ApplicableTxSetFrame(
@@ -1659,83 +1956,25 @@ ApplicableTxSetFrame::checkValid(Application& app,
 
     if (isGeneralizedTxSet())
     {
-        auto checkFeeMap = [&](auto const& feeMap) {
-            for (auto const& [tx, fee] : feeMap)
-            {
-                if (!fee)
-                {
-                    continue;
-                }
-                if (*fee < lcl.header.baseFee)
-                {
-
-                    CLOG_DEBUG(Herder,
-                               "Got bad txSet: {} has too low component "
-                               "base fee {}",
-                               hexAbbrev(mPreviousLedgerHash), *fee);
-                    return false;
-                }
-                if (tx->getInclusionFee() <
-                    getMinInclusionFee(*tx, lcl.header, fee))
-                {
-                    CLOG_DEBUG(
-                        Herder,
-                        "Got bad txSet: {} has tx with fee bid ({}) lower "
-                        "than base fee ({})",
-                        hexAbbrev(mPreviousLedgerHash), tx->getInclusionFee(),
-                        getMinInclusionFee(*tx, lcl.header, fee));
-                    return false;
-                }
-            }
-            return true;
-        };
         // Generalized transaction sets should always have 2 phases by
         // construction.
         releaseAssert(mPhases.size() ==
                       static_cast<size_t>(TxSetPhase::PHASE_COUNT));
-        for (auto const& phase : mPhases)
-        {
-            if (!checkFeeMap(phase.getInclusionFeeMap()))
-            {
-                return false;
-            }
-        }
-        if (mPhases[static_cast<size_t>(TxSetPhase::CLASSIC)].isParallel())
-        {
-            CLOG_DEBUG(Herder,
-                       "Got bad txSet: classic phase can't be parallel");
-            return false;
-        }
-        bool needParallelSorobanPhase = protocolVersionStartsFrom(
-            lcl.header.ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-        if (mPhases[static_cast<size_t>(TxSetPhase::SOROBAN)].isParallel() !=
-            needParallelSorobanPhase)
-        {
-            CLOG_DEBUG(Herder,
-                       "Got bad txSet: Soroban phase parallel support "
-                       "does not match the current protocol; '{}' was "
-                       "expected",
-                       needParallelSorobanPhase);
-            return false;
-        }
     }
-
-    if (this->size(lcl.header, TxSetPhase::CLASSIC) > lcl.header.maxTxSetSize)
+    else
     {
-        CLOG_DEBUG(Herder, "Got bad txSet: too many classic txs {} > {}",
-                   this->size(lcl.header, TxSetPhase::CLASSIC),
-                   lcl.header.maxTxSetSize);
-        return false;
+        // Legacy tx sets should have 1 phase by construction.
+        releaseAssert(mPhases.size() == 1);
     }
 
     if (needGeneralizedTxSet)
     {
-        // First, ensure the tx set does not contain multiple txs per source
+        // Ensure the tx set does not contain multiple txs per source
         // account
         std::unordered_set<AccountID> seenAccounts;
-        for (auto const& phaseTxs : mPhases)
+        for (auto const& phase : mPhases)
         {
-            for (auto const& tx : phaseTxs)
+            for (auto const& tx : phase)
             {
                 if (!seenAccounts.insert(tx->getSourceID()).second)
                 {
@@ -1746,64 +1985,34 @@ ApplicableTxSetFrame::checkValid(Application& app,
                 }
             }
         }
-
-        // Second, ensure total resources are not over ledger limit
-        auto totalTxSetRes = getTxSetSorobanResource();
-        if (!totalTxSetRes)
-        {
-            CLOG_DEBUG(Herder,
-                       "Got bad txSet: total Soroban resources overflow");
-            return false;
-        }
-
-        {
-            LedgerTxn ltx(app.getLedgerTxnRoot());
-            auto limits = app.getLedgerManager().maxLedgerResources(
-                /* isSoroban */ true);
-            if (anyGreater(*totalTxSetRes, limits))
-            {
-                CLOG_DEBUG(Herder,
-                           "Got bad txSet: needed resources exceed ledger "
-                           "limits {} > {}",
-                           totalTxSetRes->toString(), limits.toString());
-                return false;
-            }
-        }
     }
-    bool allValid = true;
-    for (auto const& txs : mPhases)
+
+    for (auto const& phase : mPhases)
     {
-        if (!phaseTxsAreValid(txs, app, lowerBoundCloseTimeOffset,
+        if (!phase.checkValid(app, lowerBoundCloseTimeOffset,
                               upperBoundCloseTimeOffset))
         {
-            allValid = false;
-            break;
+            return false;
         }
     }
-    return allValid;
+
+    return true;
 }
 
 size_t
 ApplicableTxSetFrame::size(LedgerHeader const& lh,
-                           std::optional<TxSetPhase> phase) const
+                           std::optional<TxSetPhase> phaseType) const
 {
+    ZoneScoped;
+    if (phaseType)
+    {
+        return mPhases.at(static_cast<size_t>(*phaseType)).size(lh);
+    }
+
     size_t sz = 0;
-    if (!phase)
+    for (auto const& phase : mPhases)
     {
-        if (numPhases() > static_cast<size_t>(TxSetPhase::SOROBAN))
-        {
-            sz += sizeOp(TxSetPhase::SOROBAN);
-        }
-    }
-    else if (phase.value() == TxSetPhase::SOROBAN)
-    {
-        sz += sizeOp(TxSetPhase::SOROBAN);
-    }
-    if (!phase || phase.value() == TxSetPhase::CLASSIC)
-    {
-        sz += protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11)
-                  ? sizeOp(TxSetPhase::CLASSIC)
-                  : sizeTx(TxSetPhase::CLASSIC);
+        sz += phase.size(lh);
     }
     return sz;
 }
@@ -1811,12 +2020,7 @@ ApplicableTxSetFrame::size(LedgerHeader const& lh,
 size_t
 ApplicableTxSetFrame::sizeOp(TxSetPhase phase) const
 {
-    ZoneScoped;
-    auto const& txs = mPhases.at(static_cast<size_t>(phase));
-    return std::accumulate(txs.begin(), txs.end(), size_t(0),
-                           [&](size_t a, TransactionFrameBasePtr const& tx) {
-                               return a + tx->getNumOperations();
-                           });
+    return mPhases.at(static_cast<size_t>(phase)).sizeOp();
 }
 
 size_t
@@ -1824,9 +2028,9 @@ ApplicableTxSetFrame::sizeOpTotal() const
 {
     ZoneScoped;
     size_t total = 0;
-    for (size_t i = 0; i < mPhases.size(); i++)
+    for (auto const& phase : mPhases)
     {
-        total += sizeOp(static_cast<TxSetPhase>(i));
+        total += phase.sizeOp();
     }
     return total;
 }
@@ -1834,7 +2038,7 @@ ApplicableTxSetFrame::sizeOpTotal() const
 size_t
 ApplicableTxSetFrame::sizeTx(TxSetPhase phase) const
 {
-    return mPhases.at(static_cast<size_t>(phase)).size();
+    return mPhases.at(static_cast<size_t>(phase)).sizeTx();
 }
 
 size_t
@@ -1842,9 +2046,9 @@ ApplicableTxSetFrame::sizeTxTotal() const
 {
     ZoneScoped;
     size_t total = 0;
-    for (size_t i = 0; i < mPhases.size(); i++)
+    for (auto const& phase : mPhases)
     {
-        total += sizeTx(static_cast<TxSetPhase>(i));
+        total += phase.sizeTx();
     }
     return total;
 }
@@ -1852,34 +2056,15 @@ ApplicableTxSetFrame::sizeTxTotal() const
 std::optional<int64_t>
 ApplicableTxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const
 {
-    for (auto const& phaseTxs : mPhases)
+    for (auto const& phase : mPhases)
     {
-        auto const& phaseMap = phaseTxs.getInclusionFeeMap();
+        auto const& phaseMap = phase.getInclusionFeeMap();
         if (auto it = phaseMap.find(tx); it != phaseMap.end())
         {
             return it->second;
         }
     }
     throw std::runtime_error("Transaction not found in tx set");
-}
-
-std::optional<Resource>
-ApplicableTxSetFrame::getTxSetSorobanResource() const
-{
-    releaseAssert(mPhases.size() > static_cast<size_t>(TxSetPhase::SOROBAN));
-    auto total = Resource::makeEmptySoroban();
-    for (auto const& tx : mPhases[static_cast<size_t>(TxSetPhase::SOROBAN)])
-    {
-        if (total.canAdd(tx->getResources(/* useByteLimitInClassic */ false)))
-        {
-            total += tx->getResources(/* useByteLimitInClassic */ false);
-        }
-        else
-        {
-            return std::nullopt;
-        }
-    }
-    return std::make_optional<Resource>(total);
 }
 
 int64_t

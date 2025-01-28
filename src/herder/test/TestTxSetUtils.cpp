@@ -31,7 +31,7 @@ makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 GeneralizedTransactionSet
-makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& phases,
+makeGeneralizedTxSetXDR(std::vector<PhaseComponents> const& phases,
                         Hash const& previousLedgerHash,
                         bool useParallelSorobanPhase)
 {
@@ -76,11 +76,11 @@ makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& phases,
                 }
                 if (!txs.empty())
                 {
-                    auto& thread =
+                    auto& cluster =
                         component.executionStages.emplace_back().emplace_back();
                     for (auto const& tx : txs)
                     {
-                        thread.emplace_back(tx->getEnvelope());
+                        cluster.emplace_back(tx->getEnvelope());
                     }
                 }
 #else
@@ -120,7 +120,7 @@ makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedGeneralizedTxSet(
-    std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
+    std::vector<PhaseComponents> const& txsPerBaseFee, Application& app,
     Hash const& previousLedgerHash, std::optional<bool> useParallelSorobanPhase)
 {
     if (!useParallelSorobanPhase.has_value())
@@ -156,6 +156,67 @@ makeNonValidatedTxSetBasedOnLedgerVersion(
         return makeNonValidatedTxSet(txs, app, previousLedgerHash);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+normalizeParallelPhaseXDR(TransactionPhase& phase)
+{
+    auto compareTxHash = [](TransactionEnvelope const& tx1,
+                            TransactionEnvelope const& tx2) -> bool {
+        return xdrSha256(tx1) < xdrSha256(tx2);
+    };
+    for (auto& stage : phase.parallelTxsComponent().executionStages)
+    {
+        for (auto& cluster : stage)
+        {
+            std::sort(cluster.begin(), cluster.end(), compareTxHash);
+        }
+        std::sort(stage.begin(), stage.end(),
+                  [&](auto const& c1, auto const& c2) {
+                      return compareTxHash(c1.front(), c2.front());
+                  });
+    }
+    std::sort(phase.parallelTxsComponent().executionStages.begin(),
+              phase.parallelTxsComponent().executionStages.end(),
+              [&](auto const& s1, auto const& s2) {
+                  return compareTxHash(s1.front().front(), s2.front().front());
+              });
+}
+
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+makeNonValidatedGeneralizedTxSet(PhaseComponents const& classicTxsPerBaseFee,
+                                 std::optional<int64_t> sorobanBaseFee,
+                                 TxStageFrameList const& sorobanTxsPerStage,
+                                 Application& app,
+                                 Hash const& previousLedgerHash)
+{
+    auto xdrTxSet = makeGeneralizedTxSetXDR({classicTxsPerBaseFee},
+                                            previousLedgerHash, false);
+    xdrTxSet.v1TxSet().phases.emplace_back(1);
+    auto& phase = xdrTxSet.v1TxSet().phases.back();
+    if (sorobanBaseFee)
+    {
+        phase.parallelTxsComponent().baseFee.activate() = *sorobanBaseFee;
+    }
+
+    auto& stages = phase.parallelTxsComponent().executionStages;
+    for (auto const& stage : sorobanTxsPerStage)
+    {
+        auto& xdrStage = stages.emplace_back();
+        for (auto const& cluster : stage)
+        {
+            auto& xdrCluster = xdrStage.emplace_back();
+            for (auto const& tx : cluster)
+            {
+                xdrCluster.emplace_back(tx->getEnvelope());
+            }
+        }
+    }
+    normalizeParallelPhaseXDR(phase);
+    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
+    return std::make_pair(txSet, txSet->prepareForApply(app));
+}
+#endif
 
 } // namespace testtxset
 } // namespace stellar

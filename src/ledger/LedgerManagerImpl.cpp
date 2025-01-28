@@ -438,15 +438,7 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban)
 
     if (isSoroban)
     {
-        auto conf = getSorobanNetworkConfigReadOnly();
-        std::vector<int64_t> limits = {conf.ledgerMaxTxCount(),
-                                       conf.ledgerMaxInstructions(),
-                                       conf.ledgerMaxTransactionSizesBytes(),
-                                       conf.ledgerMaxReadBytes(),
-                                       conf.ledgerMaxWriteBytes(),
-                                       conf.ledgerMaxReadLedgerEntries(),
-                                       conf.ledgerMaxWriteLedgerEntries()};
-        return Resource(limits);
+        return getSorobanNetworkConfigReadOnly().maxLedgerResources();
     }
     else
     {

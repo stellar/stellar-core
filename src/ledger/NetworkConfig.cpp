@@ -1993,6 +1993,19 @@ SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
     return mLedgerMaxDependentTxClusters;
 }
 
+Resource
+SorobanNetworkConfig::maxLedgerResources() const
+{
+    std::vector<int64_t> limits = {ledgerMaxTxCount(),
+                                   ledgerMaxInstructions(),
+                                   ledgerMaxTransactionSizesBytes(),
+                                   ledgerMaxReadBytes(),
+                                   ledgerMaxWriteBytes(),
+                                   ledgerMaxReadLedgerEntries(),
+                                   ledgerMaxWriteLedgerEntries()};
+    return Resource(limits);
+}
+
 #ifdef BUILD_TESTS
 StateArchivalSettings&
 SorobanNetworkConfig::stateArchivalSettings()
