@@ -23,6 +23,10 @@ class DownloadBucketsWork : public BatchWork
     TmpDir const& mDownloadDir;
     std::shared_ptr<HistoryArchive> mArchive;
 
+    // Store indexes of downloaded buckets
+    std::map<int, std::unique_ptr<LiveBucketIndex const>> mIndexMap;
+    int mIndexId{0};
+
   public:
     DownloadBucketsWork(
         Application& app,

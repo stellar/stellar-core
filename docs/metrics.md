@@ -44,7 +44,7 @@ bucketlistDB-<X>.bulk.loads                 | meter     | number of entries Buck
 bucketlistDB-live.bulk.inflationWinners     | timer     | time to load inflation winners
 bucketlistDB-live.bulk.poolshareTrustlines  | timer     | time to load poolshare trustlines by accountID and assetID
 bucketlistDB-live.bulk.prefetch             | timer     | time to prefetch
-bucketlistDB-<X>.point.<y>                | timer     | time to load single entry of type <Y> on BucketList <X> (live/hotArchive)
+bucketlistDB-<X>.point.<Y>                | timer     | time to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-cache.hit                    | meter     | number of cache hits on Live BucketList Disk random eviction cache
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
 crypto.verify.hit                         | meter     | number of signature cache hits

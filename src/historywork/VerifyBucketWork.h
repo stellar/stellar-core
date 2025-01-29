@@ -15,6 +15,8 @@ class Meter;
 namespace stellar
 {
 
+class LiveBucketIndex;
+
 class Bucket;
 
 class VerifyBucketWork : public BasicWork
@@ -23,14 +25,16 @@ class VerifyBucketWork : public BasicWork
     uint256 mHash;
     bool mDone{false};
     std::error_code mEc;
-
+    std::unique_ptr<LiveBucketIndex const>& mIndex;
     void spawnVerifier();
 
     OnFailureCallback mOnFailure;
 
   public:
     VerifyBucketWork(Application& app, std::string const& bucketFile,
-                     uint256 const& hash, OnFailureCallback failureCb);
+                     uint256 const& hash,
+                     std::unique_ptr<LiveBucketIndex const>& index,
+                     OnFailureCallback failureCb);
     ~VerifyBucketWork() = default;
 
   protected:

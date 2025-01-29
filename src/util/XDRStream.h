@@ -114,9 +114,11 @@ class XDRInputFileStream
         return sz;
     }
 
+    // If a hasher is provided, it will be updated with the raw XDR bytes
+    // read from the stream.
     template <typename T>
     bool
-    readOne(T& out)
+    readOne(T& out, SHA256* hasher = nullptr)
     {
         ZoneScoped;
         char szBuf[4];
@@ -147,6 +149,12 @@ class XDRInputFileStream
         {
             throw xdr::xdr_runtime_error(
                 "malformed XDR file or IO failure in readOne");
+        }
+
+        if (hasher)
+        {
+            hasher->add(ByteSlice(szBuf, sizeof(szBuf)));
+            hasher->add(ByteSlice(mBuf.data(), sz));
         }
 
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);

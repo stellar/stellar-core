@@ -65,7 +65,7 @@ DiskIndex<BucketT>::scan(IterT start, LedgerKey const& k) const
 
     // Search for the key in the index before checking the bloom filter so we
     // return the correct iterator to the caller. This may be slightly less
-    // effecient then checking the bloom filter first, but the filter's primary
+    // efficient then checking the bloom filter first, but the filter's primary
     // purpose is to avoid disk lookups, not to avoid in-memory index search.
     auto keyIter =
         std::lower_bound(start, mData.keysToOffset.end(), k, lower_bound_pred);
@@ -120,7 +120,7 @@ template <class BucketT>
 DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                               std::filesystem::path const& filename,
                               std::streamoff pageSize, Hash const& hash,
-                              asio::io_context& ctx)
+                              asio::io_context& ctx, SHA256* hasher)
     : mBloomLookupMeter(bm.getBloomLookupMeter<BucketT>())
     , mBloomMissMeter(bm.getBloomMissMeter<BucketT>())
 {
@@ -143,14 +143,14 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     std::streamoff pageUpperBound = 0;
     typename BucketT::EntryT be;
     size_t iter = 0;
-    [[maybe_unused]] size_t count = 0;
+    size_t count = 0;
 
     std::vector<uint64_t> keyHashes;
     auto seed = shortHash::getShortHashInitKey();
 
-    while (in && in.readOne(be))
+    while (in && in.readOne(be, hasher))
     {
-        // peridocially check if bucket manager is exiting to stop indexing
+        // periodically check if bucket manager is exiting to stop indexing
         // gracefully
         if (++iter >= 1000)
         {
@@ -238,6 +238,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
             {
                 mData.filter =
                     std::make_unique<BinaryFuseFilter16>(keyHashes, seed);
+                break;
             }
             catch (std::out_of_range& e)
             {
@@ -257,6 +258,9 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                 seed[0]++;
             }
         }
+
+        // Population failure is probabilistic is very, very unlikely.
+        releaseAssertOrThrow(mData.filter);
     }
 
     CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mData.keysToOffset.size(),

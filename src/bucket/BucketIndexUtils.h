@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SHA.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
@@ -100,7 +101,7 @@ std::streamoff getPageSizeFromConfig(Config const& cfg);
 template <class BucketT>
 std::unique_ptr<typename BucketT::IndexT const>
 createIndex(BucketManager& bm, std::filesystem::path const& filename,
-            Hash const& hash, asio::io_context& ctx);
+            Hash const& hash, asio::io_context& ctx, SHA256* hasher);
 
 // Loads index from given file. If file does not exist or if saved
 // index does not have expected version or pageSize, return null

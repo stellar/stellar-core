@@ -50,7 +50,8 @@ InMemoryBucketState::scan(IterT start, LedgerKey const& searchKey) const
 }
 
 InMemoryIndex::InMemoryIndex(BucketManager const& bm,
-                             std::filesystem::path const& filename)
+                             std::filesystem::path const& filename,
+                             SHA256* hasher)
 {
     XDRInputFileStream in;
     in.open(filename.string());
@@ -60,7 +61,7 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     std::optional<std::streamoff> firstOffer;
     std::optional<std::streamoff> lastOffer;
 
-    while (in && in.readOne(be))
+    while (in && in.readOne(be, hasher))
     {
         if (++iter >= 1000)
         {

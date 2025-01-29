@@ -439,10 +439,29 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
     {
         HistoryStateBucket b;
         auto& level = buckets.getLevel(i);
-        b.curr = binToHex(level.getCurr()->getHash());
+        auto const& curr = level.getCurr();
+        auto const& snap = level.getSnap();
+        b.curr = binToHex(curr->getHash());
         b.next = level.getNext();
-        b.snap = binToHex(level.getSnap()->getHash());
+        b.snap = binToHex(snap->getHash());
         currentBuckets.push_back(b);
+
+        auto checkBucketSize = [](auto const& bucket) {
+            if (bucket->getSize() > MAX_HISTORY_ARCHIVE_BUCKET_SIZE)
+            {
+                CLOG_FATAL(
+                    History,
+                    "Bucket size ({}) is greater than the maximum allowed "
+                    "size ({}) for Bucket {}. stellar-core must be upgraded "
+                    "to a version supporting larger buckets or new nodes "
+                    "will not be able to join the network!",
+                    bucket->getSize(), MAX_HISTORY_ARCHIVE_BUCKET_SIZE,
+                    binToHex(bucket->getHash()));
+            }
+        };
+
+        checkBucketSize(curr);
+        checkBucketSize(snap);
     }
 }
 

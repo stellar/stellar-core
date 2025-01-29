@@ -15,8 +15,9 @@ namespace stellar
 
 HotArchiveBucketIndex::HotArchiveBucketIndex(
     BucketManager& bm, std::filesystem::path const& filename, Hash const& hash,
-    asio::io_context& ctx)
-    : mDiskIndex(bm, filename, getPageSize(bm.getConfig(), 0), hash, ctx)
+    asio::io_context& ctx, SHA256* hasher)
+    : mDiskIndex(bm, filename, getPageSize(bm.getConfig(), 0), hash, ctx,
+                 hasher)
 {
     ZoneScoped;
     releaseAssert(!filename.empty());

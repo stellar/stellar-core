@@ -171,6 +171,9 @@ class EvictionStatistics
                                       EvictionCounters& counters);
 };
 
+// Enum for more granular LedgerEntry types for Bucket metric reporting.
+// Specifically, this enum differentiates between TEMPORARY and PERSISTENT
+// CONTRACT_DATA types, which the regular LedgerEntryType enum does not.
 enum class LedgerEntryTypeAndDurability : uint32_t
 {
     ACCOUNT = 0,
@@ -187,6 +190,7 @@ enum class LedgerEntryTypeAndDurability : uint32_t
     NUM_TYPES = 11,
 };
 
+// Metrics for BucketEntry state by LedgerEntryTypeAndDurability
 struct BucketEntryCounters
 {
     std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;

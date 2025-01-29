@@ -39,7 +39,8 @@ LiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
 
 LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                                  std::filesystem::path const& filename,
-                                 Hash const& hash, asio::io_context& ctx)
+                                 Hash const& hash, asio::io_context& ctx,
+                                 SHA256* hasher)
     : mCacheHitMeter(bm.getCacheHitMeter())
     , mCacheMissMeter(bm.getCacheMissMeter())
 {
@@ -54,7 +55,7 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                    "LiveBucketIndex::createIndex() using in-memory index for "
                    "bucket {}",
                    filename);
-        mInMemoryIndex = std::make_unique<InMemoryIndex>(bm, filename);
+        mInMemoryIndex = std::make_unique<InMemoryIndex>(bm, filename, hasher);
     }
     else
     {
@@ -63,7 +64,7 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                    "page size {} in bucket {}",
                    pageSize, filename);
         mDiskIndex = std::make_unique<DiskIndex<LiveBucket>>(
-            bm, filename, pageSize, hash, ctx);
+            bm, filename, pageSize, hash, ctx, hasher);
 
         auto percentCached = bm.getConfig().BUCKETLIST_DB_CACHED_PERCENT;
         if (percentCached > 0)

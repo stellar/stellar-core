@@ -90,21 +90,35 @@ DownloadBucketsWork::yieldMoreWork()
     };
     std::weak_ptr<DownloadBucketsWork> weak(
         std::static_pointer_cast<DownloadBucketsWork>(shared_from_this()));
-    auto successCb = [weak, ft, hash](Application& app) -> bool {
+
+    auto currId = mIndexId++;
+    auto [indexIter, inserted] = mIndexMap.emplace(currId, nullptr);
+    releaseAssertOrThrow(inserted);
+
+    auto successCb = [weak, ft, hash, currId](Application& app) -> bool {
         auto self = weak.lock();
         if (self)
         {
+            // To avoid dangling references, maintain a map of index pointers
+            // and do a lookup inside the callback instead of capturing anything
+            // by reference.
+            auto indexIter = self->mIndexMap.find(currId);
+            releaseAssertOrThrow(indexIter != self->mIndexMap.end());
+            releaseAssertOrThrow(indexIter->second);
+
             auto bucketPath = ft.localPath_nogz();
             auto b = app.getBucketManager().adoptFileAsBucket<LiveBucket>(
                 bucketPath, hexToBin256(hash),
                 /*mergeKey=*/nullptr,
-                /*index=*/nullptr);
+                /*index=*/std::move(indexIter->second));
             self->mBuckets[hash] = b;
+            self->mIndexMap.erase(currId);
         }
         return true;
     };
     auto w2 = std::make_shared<VerifyBucketWork>(mApp, ft.localPath_nogz(),
-                                                 hexToBin256(hash), failureCb);
+                                                 hexToBin256(hash),
+                                                 indexIter->second, failureCb);
     auto w3 = std::make_shared<WorkWithCallback>(mApp, "adopt-verified-bucket",
                                                  successCb);
     std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};

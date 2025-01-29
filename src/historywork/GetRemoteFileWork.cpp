@@ -38,6 +38,9 @@ GetRemoteFileWork::getCommand()
     {
         mCurrentArchive = mApp.getHistoryArchiveManager()
                               .selectRandomReadableHistoryArchive();
+        CLOG_INFO(History, "Selected archive {} to download {}",
+                  mCurrentArchive->getName(),
+                  std::filesystem::path(mRemote).filename().string());
     }
     releaseAssert(mCurrentArchive);
     releaseAssert(mCurrentArchive->hasGetCmd());
