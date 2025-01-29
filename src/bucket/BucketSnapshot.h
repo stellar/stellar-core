@@ -41,7 +41,7 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
     // reads until key is found or the end of the page. Returns <BucketEntry,
     // bloomMiss>, where bloomMiss is true if a bloomMiss occurred during the
     // load.
-    std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
+    std::pair<std::shared_ptr<typename BucketT::EntryT const>, bool>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                      size_t pageSize) const;
 

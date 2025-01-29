@@ -39,7 +39,7 @@ BucketSnapshotBase<BucketT>::isEmpty() const
 }
 
 template <class BucketT>
-std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
+std::pair<std::shared_ptr<typename BucketT::EntryT const>, bool>
 BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
                                               std::streamoff pos,
                                               size_t pageSize) const
@@ -58,12 +58,16 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     {
         if (stream.readOne(be))
         {
-            return {std::make_shared<typename BucketT::EntryT>(be), false};
+            auto entry = std::make_shared<typename BucketT::EntryT const>(be);
+            mBucket->getIndex().maybeAddToCache(entry);
+            return {entry, false};
         }
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return {std::make_shared<typename BucketT::EntryT>(be), false};
+        auto entry = std::make_shared<typename BucketT::EntryT const>(be);
+        mBucket->getIndex().maybeAddToCache(entry);
+        return {entry, false};
     }
 
     mBucket->getIndex().markBloomMiss();

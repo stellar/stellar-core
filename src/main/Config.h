@@ -461,6 +461,12 @@ class Config : public std::enable_shared_from_this<Config>
     // 2^BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT.
     size_t BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
 
+    // Percentage of entries cached by BucketListDB when Bucket size is larger
+    // than BUCKETLIST_DB_INDEX_CUTOFF. Note that this value does not impact
+    // Buckets smaller than BUCKETLIST_DB_INDEX_CUTOFF, as they are always
+    // completely held in memory.
+    size_t BUCKETLIST_DB_CACHED_PERCENT;
+
     // Size, in MB, determining whether a bucket should have an individual
     // key index or a key range index. If bucket size is below this value, range
     // based index will be used. If set to 0, all buckets are range indexed. If

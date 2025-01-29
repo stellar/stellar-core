@@ -11,6 +11,7 @@
 #include "util/Logging.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <ios>
+#include <shared_mutex>
 #include <vector>
 
 namespace stellar
@@ -60,6 +61,17 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                    pageSize, filename);
         mDiskIndex = std::make_unique<DiskIndex<LiveBucket>>(
             bm, filename, pageSize, hash, ctx);
+
+        auto percentCached = bm.getConfig().BUCKETLIST_DB_CACHED_PERCENT;
+        if (percentCached > 0)
+        {
+            auto const& counters = mDiskIndex->getBucketEntryCounters();
+            auto cacheSize = (counters.numEntries() * percentCached) / 100;
+
+            // Minimum cache size of 100 if we are going to cache a non-zero
+            // number of entries
+            mCache = std::make_unique<CacheT>(std::max<size_t>(cacheSize, 100));
+        }
     }
 }
 
@@ -108,11 +120,32 @@ LiveBucketIndex::markBloomMiss() const
     mDiskIndex->markBloomMiss();
 }
 
+std::shared_ptr<BucketEntry const>
+LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
+{
+    if (shouldUseCache())
+    {
+        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        auto cachePtr = mCache->maybeGet(k);
+        if (cachePtr)
+        {
+            return *cachePtr;
+        }
+    }
+
+    return nullptr;
+}
+
 IndexReturnT
 LiveBucketIndex::lookup(LedgerKey const& k) const
 {
     if (mDiskIndex)
     {
+        if (auto cached = getCachedEntry(k); cached)
+        {
+            return IndexReturnT(cached);
+        }
+
         return mDiskIndex->scan(mDiskIndex->begin(), k).first;
     }
     else
@@ -127,6 +160,11 @@ LiveBucketIndex::scan(IterT start, LedgerKey const& k) const
 {
     if (mDiskIndex)
     {
+        if (auto cached = getCachedEntry(k); cached)
+        {
+            return {IndexReturnT(cached), start};
+        }
+
         return mDiskIndex->scan(getDiskIter(start), k);
     }
 
@@ -205,6 +243,19 @@ LiveBucketIndex::getBucketEntryCounters() const
 
     releaseAssertOrThrow(mInMemoryIndex);
     return mInMemoryIndex->getBucketEntryCounters();
+}
+
+void
+LiveBucketIndex::maybeAddToCache(std::shared_ptr<BucketEntry const> entry) const
+{
+    if (shouldUseCache())
+    {
+        releaseAssertOrThrow(entry);
+        auto k = getBucketLedgerKey(*entry);
+
+        std::unique_lock<std::shared_mutex> lock(mCacheMutex);
+        mCache->put(k, entry);
+    }
 }
 
 #ifdef BUILD_TESTS

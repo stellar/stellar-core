@@ -9,13 +9,16 @@
 #include "bucket/InMemoryIndex.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "ledger/LedgerHashUtils.h" // IWYU pragma: keep
 #include "util/NonCopyable.h"
+#include "util/RandomEvictionCache.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include <filesystem>
 #include <optional>
 
 #include <cereal/archives/binary.hpp>
+#include <shared_mutex>
 
 namespace asio
 {
@@ -52,9 +55,18 @@ class LiveBucketIndex : public NonMovableOrCopyable
     using IterT =
         std::variant<InMemoryIndex::IterT, DiskIndex<LiveBucket>::IterT>;
 
+    using CacheT =
+        RandomEvictionCache<LedgerKey, std::shared_ptr<BucketEntry const>>;
+
   private:
     std::unique_ptr<DiskIndex<LiveBucket> const> mDiskIndex;
     std::unique_ptr<InMemoryIndex const> mInMemoryIndex;
+    std::unique_ptr<CacheT> mCache;
+
+    // The indexes themselves are thread safe, as they are immutable after
+    // construction. The cache is not, all accesses must first acquire this
+    // mutex.
+    mutable std::shared_mutex mCacheMutex;
 
     static inline DiskIndex<LiveBucket>::IterT
     getDiskIter(IterT const& iter)
@@ -67,6 +79,15 @@ class LiveBucketIndex : public NonMovableOrCopyable
     {
         return std::get<InMemoryIndex::IterT>(iter);
     }
+
+    bool
+    shouldUseCache() const
+    {
+        return mDiskIndex && mCache;
+    }
+
+    // Returns nullptr if cache is not enabled or entry not found
+    std::shared_ptr<BucketEntry const> getCachedEntry(LedgerKey const& k) const;
 
   public:
     inline static const std::string DB_BACKEND_STATE = "bl";
@@ -96,6 +117,8 @@ class LiveBucketIndex : public NonMovableOrCopyable
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
     getOfferRange() const;
+
+    void maybeAddToCache(std::shared_ptr<BucketEntry const> entry) const;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
     uint32_t getPageSize() const;
