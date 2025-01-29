@@ -157,6 +157,10 @@ BucketManager::BucketManager(Application& app)
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
     , mArchiveBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist-archive", "size", "bytes"}))
+    , mCacheHitMeter(app.getMetrics().NewMeter({"bucketlistDB", "cache", "hit"},
+                                               "bucketlistDB"))
+    , mCacheMissMeter(app.getMetrics().NewMeter(
+          {"bucketlistDB", "cache", "miss"}, "bucketlistDB"))
     , mBucketListEvictionCounters(app)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     , mConfig(app.getConfig())
@@ -349,6 +353,18 @@ BucketManager::readMergeCounters()
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     return mMergeCounters;
+}
+
+medida::Meter&
+BucketManager::getCacheHitMeter() const
+{
+    return mCacheHitMeter;
+}
+
+medida::Meter&
+BucketManager::getCacheMissMeter() const
+{
+    return mCacheMissMeter;
 }
 
 void

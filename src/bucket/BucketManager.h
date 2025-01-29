@@ -100,6 +100,8 @@ class BucketManager : NonMovableOrCopyable
     medida::Counter& mSharedBucketsSize;
     medida::Counter& mLiveBucketListSizeCounter;
     medida::Counter& mArchiveBucketListSizeCounter;
+    medida::Meter& mCacheHitMeter;
+    medida::Meter& mCacheMissMeter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
     std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
@@ -197,6 +199,8 @@ class BucketManager : NonMovableOrCopyable
 
     template <class BucketT> medida::Meter& getBloomMissMeter() const;
     template <class BucketT> medida::Meter& getBloomLookupMeter() const;
+    medida::Meter& getCacheHitMeter() const;
+    medida::Meter& getCacheMissMeter() const;
 
     // Reading and writing the merge counters is done in bulk, and takes a lock
     // briefly; this can be done from any thread.

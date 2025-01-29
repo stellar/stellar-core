@@ -249,16 +249,31 @@ class BucketIndexTest
     }
 
     virtual void
-    run()
+    run(bool testCache = false)
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
                                 .copySearchableLiveBucketListSnapshot();
 
+        auto& hitMeter = getBM().getCacheHitMeter();
+        auto& missMeter = getBM().getCacheMissMeter();
+        auto startingHitCount = hitMeter.count();
+        auto startingMissCount = missMeter.count();
+
         // Test bulk load lookup
         auto loadResult =
             searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
         validateResults(mTestEntries, loadResult);
+
+        if (testCache)
+        {
+            // We should have no cache hits
+            REQUIRE(hitMeter.count() == startingHitCount);
+            REQUIRE(missMeter.count() ==
+                    startingMissCount + mKeysToSearch.size());
+        }
+
+        auto missAfterFirstLoad = missMeter.count();
 
         // Test individual entry lookup
         loadResult.clear();
@@ -272,6 +287,23 @@ class BucketIndexTest
         }
 
         validateResults(mTestEntries, loadResult);
+
+        if (testCache)
+        {
+            // We should have no new cache hits and no new cache misses
+            REQUIRE(missMeter.count() == missAfterFirstLoad);
+            REQUIRE(hitMeter.count() ==
+                    startingHitCount + mKeysToSearch.size());
+
+            // Run bulk lookup again
+            auto loadResult2 =
+                searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
+            validateResults(mTestEntries, loadResult2);
+
+            REQUIRE(missMeter.count() == missAfterFirstLoad);
+            REQUIRE(hitMeter.count() ==
+                    startingHitCount + (mKeysToSearch.size() * 2));
+        }
     }
 
     // Do many lookups with subsets of sampled entries
@@ -493,7 +525,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    run() override
+    run(bool testCache = false) override
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
@@ -542,6 +574,20 @@ TEST_CASE("key-value lookup", "[bucket][bucketindex]")
     };
 
     testAllIndexTypes(f);
+}
+
+TEST_CASE("bl cache", "[bucket][bucketindex]")
+{
+    Config cfg(getTestConfig());
+
+    // Use disk index for all levels and cache all entries
+    // Note: Setting this to 100% will actually switch to in-memory index
+    cfg.BUCKETLIST_DB_CACHED_PERCENT = 99;
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+
+    auto test = BucketIndexTest(cfg);
+    test.buildGeneralTest();
+    test.run(/*testCache=*/true);
 }
 
 TEST_CASE("do not load outdated values", "[bucket][bucketindex]")

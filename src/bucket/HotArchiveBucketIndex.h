@@ -77,7 +77,8 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     // Hot Archive does not support the cache, so define empty function for
     // consistency with LiveBucketIndex
     void
-    maybeAddToCache(std::shared_ptr<HotArchiveBucketEntry const> entry) const
+    maybeAddToCache(
+        std::shared_ptr<HotArchiveBucketEntry const> const& entry) const
     {
     }
 

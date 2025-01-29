@@ -68,6 +68,9 @@ class LiveBucketIndex : public NonMovableOrCopyable
     // mutex.
     mutable std::shared_mutex mCacheMutex;
 
+    medida::Meter& mCacheHitMeter;
+    medida::Meter& mCacheMissMeter;
+
     static inline DiskIndex<LiveBucket>::IterT
     getDiskIter(IterT const& iter)
     {
@@ -118,7 +121,7 @@ class LiveBucketIndex : public NonMovableOrCopyable
     std::optional<std::pair<std::streamoff, std::streamoff>>
     getOfferRange() const;
 
-    void maybeAddToCache(std::shared_ptr<BucketEntry const> entry) const;
+    void maybeAddToCache(std::shared_ptr<BucketEntry const> const& entry) const;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
     uint32_t getPageSize() const;
@@ -128,6 +131,8 @@ class LiveBucketIndex : public NonMovableOrCopyable
     void markBloomMiss() const;
 #ifdef BUILD_TESTS
     bool operator==(LiveBucketIndex const& in) const;
+
+    void clearCache() const;
 #endif
 };
 }
