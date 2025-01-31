@@ -115,6 +115,8 @@ class ApplicationImpl : public Application
     manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 std::optional<TimePoint> const& manualCloseTime) override;
 
+    bool threadIsType(ThreadType type) const override;
+
 #ifdef BUILD_TESTS
     virtual void generateLoad(GeneratedLoadConfig cfg) override;
 
@@ -219,6 +221,11 @@ class ApplicationImpl : public Application
     // higher-priority worker thread type, but for now we only need a single
     // thread for eviction scans.
     std::optional<std::thread> mEvictionThread;
+
+    // NOTE: It is important that this map not be updated outside of the
+    // constructor. `unordered_map` is safe for multiple threads to read from,
+    // so long as there are no concurrent writers.
+    std::unordered_map<std::thread::id, Application::ThreadType> mThreadTypes;
 
     asio::signal_set mStopSignals;
 
