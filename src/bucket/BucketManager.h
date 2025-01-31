@@ -2,7 +2,9 @@
 
 #include "bucket/BucketMergeMap.h"
 #include "main/Config.h"
+#include "util/TmpDir.h"
 #include "util/types.h"
+#include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
 #include <filesystem>
@@ -32,8 +34,6 @@ class Application;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;
-class BucketBase;
-class BucketIndex;
 class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
@@ -98,8 +98,6 @@ class BucketManager : NonMovableOrCopyable
     medida::Timer& mBucketAddArchiveBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBBloomMisses;
-    medida::Meter& mBucketListDBBloomLookups;
     medida::Counter& mLiveBucketListSizeCounter;
     medida::Counter& mArchiveBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
@@ -136,16 +134,12 @@ class BucketManager : NonMovableOrCopyable
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
 
-    medida::Timer& recordBulkLoadMetrics(std::string const& label,
-                                         size_t numEntries) const;
-    medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
-
     void updateSharedBucketSize();
 
     template <class BucketT>
     std::shared_ptr<BucketT> adoptFileAsBucketInternal(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-        std::unique_ptr<BucketIndex const> index,
+        std::unique_ptr<typename BucketT::IndexT const> index,
         BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap);
 
     template <class BucketT>
@@ -201,6 +195,9 @@ class BucketManager : NonMovableOrCopyable
 
     medida::Timer& getMergeTimer();
 
+    template <class BucketT> medida::Meter& getBloomMissMeter() const;
+    template <class BucketT> medida::Meter& getBloomLookupMeter() const;
+
     // Reading and writing the merge counters is done in bulk, and takes a lock
     // briefly; this can be done from any thread.
     MergeCounters readMergeCounters();
@@ -221,7 +218,7 @@ class BucketManager : NonMovableOrCopyable
     std::shared_ptr<BucketT>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       MergeKey* mergeKey,
-                      std::unique_ptr<BucketIndex const> index);
+                      std::unique_ptr<typename BucketT::IndexT const> index);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
@@ -292,8 +289,9 @@ class BucketManager : NonMovableOrCopyable
     // for each bucket. However, during startup there are race conditions where
     // a bucket may be indexed twice. If there is an index race, set index with
     // this function, otherwise use BucketBase::setIndex().
-    void maybeSetIndex(std::shared_ptr<BucketBase> b,
-                       std::unique_ptr<BucketIndex const>&& index);
+    template <class BucketT>
+    void maybeSetIndex(std::shared_ptr<BucketT> b,
+                       std::unique_ptr<typename BucketT::IndexT const>&& index);
 
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries

@@ -122,9 +122,9 @@ HotArchiveBucket::getBucketVersion() const
     return it.getMetadata().ledgerVersion;
 }
 
-HotArchiveBucket::HotArchiveBucket(std::string const& filename,
-                                   Hash const& hash,
-                                   std::unique_ptr<BucketIndex const>&& index)
+HotArchiveBucket::HotArchiveBucket(
+    std::string const& filename, Hash const& hash,
+    std::unique_ptr<HotArchiveBucket::IndexT const>&& index)
     : BucketBase(filename, hash, std::move(index))
 {
 }
@@ -139,8 +139,9 @@ HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
     return e.type() == HOT_ARCHIVE_LIVE;
 }
 
-std::shared_ptr<HotArchiveBucket::LoadT>
-HotArchiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be)
+std::shared_ptr<HotArchiveBucket::LoadT const>
+HotArchiveBucket::bucketEntryToLoadResult(
+    std::shared_ptr<EntryT const> const& be)
 {
     return isTombstoneEntry(*be) ? nullptr : be;
 }

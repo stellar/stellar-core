@@ -2676,7 +2676,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
 
             if (protocolVersionStartsFrom(
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(!ltx.load(persistentKey));
@@ -2699,7 +2699,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                         // Only support persistent eviction meta >= p23
                         if (protocolVersionStartsFrom(
                                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                BucketBase::
+                                LiveBucket::
                                     FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                         {
                             // TLL and data key should both be in "deleted"
@@ -2741,7 +2741,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
 
                 if (protocolVersionStartsFrom(
                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                        BucketBase::
+                        LiveBucket::
                             FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
                     REQUIRE(evicted);
@@ -2793,7 +2793,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                             LedgerKey lk;
                             if (protocolVersionStartsFrom(
                                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    BucketBase::
+                                    LiveBucket::
                                         FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                             {
                                 REQUIRE(change.type() ==

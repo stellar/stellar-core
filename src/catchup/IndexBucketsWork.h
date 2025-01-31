@@ -12,7 +12,7 @@ namespace stellar
 {
 
 class Bucket;
-class BucketIndex;
+class LiveBucketIndex;
 class BucketManager;
 class LiveBucket;
 
@@ -21,7 +21,7 @@ class IndexBucketsWork : public Work
     class IndexWork : public BasicWork
     {
         std::shared_ptr<LiveBucket> mBucket;
-        std::unique_ptr<BucketIndex const> mIndex;
+        std::unique_ptr<LiveBucketIndex const> mIndex;
         BasicWork::State mState{BasicWork::State::WORK_WAITING};
 
         void postWork();

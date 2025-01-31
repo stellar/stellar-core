@@ -7,8 +7,8 @@
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "main/AppConnector.h"
 #include "util/NonCopyable.h"
-#include "util/UnorderedMap.h"
 
 #include <map>
 #include <memory>
@@ -43,7 +43,7 @@ using SearchableHotArchiveSnapshotConstPtr =
 class BucketSnapshotManager : NonMovableOrCopyable
 {
   private:
-    Application& mApp;
+    AppConnector mAppConnector;
 
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
@@ -60,15 +60,6 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     // Lock must be held when accessing any member variables holding snapshots
     mutable std::shared_mutex mSnapshotMutex;
-
-    mutable UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
-    mutable UnorderedMap<std::string, medida::Timer&> mBulkTimers{};
-
-    medida::Meter& mBulkLoadMeter;
-    medida::Meter& mBloomMisses;
-    medida::Meter& mBloomLookups;
-
-    mutable std::optional<VirtualClock::time_point> mTimerStart;
 
   public:
     // Called by main thread to update snapshots whenever the BucketList
@@ -98,11 +89,5 @@ class BucketSnapshotManager : NonMovableOrCopyable
     maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
     void maybeCopySearchableHotArchiveBucketListSnapshot(
         SearchableHotArchiveSnapshotConstPtr& snapshot);
-
-    // All metric recording functions must only be called by the main thread
-    void startPointLoadTimer() const;
-    void endPointLoadTimer(LedgerEntryType t, bool bloomMiss) const;
-    medida::Timer& recordBulkLoadMetrics(std::string const& label,
-                                         size_t numEntries) const;
 };
 }

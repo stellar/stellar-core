@@ -10,7 +10,6 @@
 #include "xdr/Stellar-types.h"
 
 #include <cereal/archives/binary.hpp>
-#include <xdrpp/xdrpp/cereal.h>
 
 namespace stellar
 {

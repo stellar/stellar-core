@@ -18,7 +18,7 @@ HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
     ZoneScoped;
     releaseAssertOrThrow(protocolVersionStartsFrom(
         currLedgerProtocol,
-        BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
     addBatchInternal(app, currLedger, currLedgerProtocol, archiveEntries,
                      restoredEntries, deletedEntries);
 }

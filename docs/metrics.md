@@ -38,13 +38,13 @@ bucketlist-archive.size.bytes             | counter   | total size of the hot ar
 bucketlist.size.bytes                     | counter   | total size of the BucketList in bytes
 bucketlist.entryCounts.-<X>               | counter   | number of entries of type <X> in the BucketList
 bucketlist.entrySizes.-<X>                | counter   | size of entries of type <X> in the BucketList
-bucketlistDB.bloom.lookups                | meter     | number of bloom filter lookups
-bucketlistDB.bloom.misses                 | meter     | number of bloom filter false positives
-bucketlistDB.bulk.loads                   | meter     | number of entries BucketListDB queried to prefetch
-bucketlistDB.bulk.inflationWinners        | timer     | time to load inflation winners
-bucketlistDB.bulk.poolshareTrustlines     | timer     | time to load poolshare trustlines by accountID and assetID
-bucketlistDB.bulk.prefetch                | timer     | time to prefetch
-bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X> (if no bloom miss occurred)
+bucketlistDB-<X>.bloom.lookups              | meter     | number of bloom filter lookups on BucketList <X> (live/hotArchive)
+bucketlistDB-<X>.bloom.misses               | meter     | number of bloom filter false positives on BucketList <X> (live/hotArchive)
+bucketlistDB-<X>.bulk.loads                 | meter     | number of entries BucketListDB queried to prefetch on BucketList <X> (live/hot-archive)
+bucketlistDB-live.bulk.inflationWinners     | timer     | time to load inflation winners
+bucketlistDB-live.bulk.poolshareTrustlines  | timer     | time to load poolshare trustlines by accountID and assetID
+bucketlistDB-live.bulk.prefetch             | timer     | time to prefetch
+bucketlistDB-<X>.point.<y>                | timer     | time to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 crypto.verify.hit                         | meter     | number of signature cache hits
 crypto.verify.miss                        | meter     | number of signature cache misses
 crypto.verify.total                       | meter     | sum of both hits and misses

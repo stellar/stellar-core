@@ -7,7 +7,6 @@
 // else.
 #include "util/asio.h" // IWYU pragma: keep
 #include "bucket/BucketBase.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
@@ -30,8 +29,9 @@
 namespace stellar
 {
 
-BucketIndex const&
-BucketBase::getIndex() const
+template <class BucketT, class IndexT>
+IndexT const&
+BucketBase<BucketT, IndexT>::getIndex() const
 {
     ZoneScoped;
     releaseAssertOrThrow(!mFilename.empty());
@@ -39,27 +39,25 @@ BucketBase::getIndex() const
     return *mIndex;
 }
 
+template <class BucketT, class IndexT>
 bool
-BucketBase::isIndexed() const
+BucketBase<BucketT, IndexT>::isIndexed() const
 {
     return static_cast<bool>(mIndex);
 }
 
-std::optional<std::pair<std::streamoff, std::streamoff>>
-BucketBase::getOfferRange() const
-{
-    return getIndex().getOfferRange();
-}
-
+template <class BucketT, class IndexT>
 void
-BucketBase::setIndex(std::unique_ptr<BucketIndex const>&& index)
+BucketBase<BucketT, IndexT>::setIndex(std::unique_ptr<IndexT const>&& index)
 {
     releaseAssertOrThrow(!mIndex);
     mIndex = std::move(index);
 }
 
-BucketBase::BucketBase(std::string const& filename, Hash const& hash,
-                       std::unique_ptr<BucketIndex const>&& index)
+template <class BucketT, class IndexT>
+BucketBase<BucketT, IndexT>::BucketBase(std::string const& filename,
+                                        Hash const& hash,
+                                        std::unique_ptr<IndexT const>&& index)
     : mFilename(filename), mHash(hash), mIndex(std::move(index))
 {
     releaseAssert(filename.empty() || fs::exists(filename));
@@ -71,30 +69,34 @@ BucketBase::BucketBase(std::string const& filename, Hash const& hash,
     }
 }
 
-BucketBase::BucketBase()
+template <class BucketT, class IndexT> BucketBase<BucketT, IndexT>::BucketBase()
 {
 }
 
+template <class BucketT, class IndexT>
 Hash const&
-BucketBase::getHash() const
+BucketBase<BucketT, IndexT>::getHash() const
 {
     return mHash;
 }
 
+template <class BucketT, class IndexT>
 std::filesystem::path const&
-BucketBase::getFilename() const
+BucketBase<BucketT, IndexT>::getFilename() const
 {
     return mFilename;
 }
 
+template <class BucketT, class IndexT>
 size_t
-BucketBase::getSize() const
+BucketBase<BucketT, IndexT>::getSize() const
 {
     return mSize;
 }
 
+template <class BucketT, class IndexT>
 bool
-BucketBase::isEmpty() const
+BucketBase<BucketT, IndexT>::isEmpty() const
 {
     if (mFilename.empty() || isZero(mHash))
     {
@@ -105,14 +107,17 @@ BucketBase::isEmpty() const
     return false;
 }
 
+template <class BucketT, class IndexT>
 void
-BucketBase::freeIndex()
+BucketBase<BucketT, IndexT>::freeIndex()
 {
     mIndex.reset(nullptr);
 }
 
+template <class BucketT, class IndexT>
 std::string
-BucketBase::randomFileName(std::string const& tmpDir, std::string ext)
+BucketBase<BucketT, IndexT>::randomFileName(std::string const& tmpDir,
+                                            std::string ext)
 {
     ZoneScoped;
     for (;;)
@@ -127,14 +132,16 @@ BucketBase::randomFileName(std::string const& tmpDir, std::string ext)
     }
 }
 
+template <class BucketT, class IndexT>
 std::string
-BucketBase::randomBucketName(std::string const& tmpDir)
+BucketBase<BucketT, IndexT>::randomBucketName(std::string const& tmpDir)
 {
     return randomFileName(tmpDir, ".xdr");
 }
 
+template <class BucketT, class IndexT>
 std::string
-BucketBase::randomBucketIndexName(std::string const& tmpDir)
+BucketBase<BucketT, IndexT>::randomBucketIndexName(std::string const& tmpDir)
 {
     return randomFileName(tmpDir, ".index");
 }
@@ -172,7 +179,7 @@ BucketBase::randomBucketIndexName(std::string const& tmpDir)
 // and shadowing protocol simultaneously, the moment the first new-protocol
 // bucket enters the youngest level. At least one new bucket is in every merge's
 // shadows from then on in, so they all upgrade (and preserve lifecycle events).
-template <class BucketT>
+template <class BucketT, class IndexT>
 static void
 calculateMergeProtocolVersion(
     MergeCounters& mc, uint32_t maxProtocolVersion,
@@ -253,7 +260,7 @@ calculateMergeProtocolVersion(
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
-template <class BucketT>
+template <class BucketT, class IndexT>
 static bool
 mergeCasesWithDefaultAcceptance(
     BucketEntryIdCmp<BucketT> const& cmp, MergeCounters& mc,
@@ -299,14 +306,15 @@ mergeCasesWithDefaultAcceptance(
     return false;
 }
 
-template <class BucketT>
+template <class BucketT, class IndexT>
 std::shared_ptr<BucketT>
-BucketBase::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
-                  std::shared_ptr<BucketT> const& oldBucket,
-                  std::shared_ptr<BucketT> const& newBucket,
-                  std::vector<std::shared_ptr<BucketT>> const& shadows,
-                  bool keepTombstoneEntries, bool countMergeEvents,
-                  asio::io_context& ctx, bool doFsync)
+BucketBase<BucketT, IndexT>::merge(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<BucketT> const& oldBucket,
+    std::shared_ptr<BucketT> const& newBucket,
+    std::vector<std::shared_ptr<BucketT>> const& shadows,
+    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -326,9 +334,9 @@ BucketBase::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 
     uint32_t protocolVersion;
     bool keepShadowedLifecycleEntries;
-    calculateMergeProtocolVersion<BucketT>(mc, maxProtocolVersion, oi, ni,
-                                           shadowIterators, protocolVersion,
-                                           keepShadowedLifecycleEntries);
+    calculateMergeProtocolVersion<BucketT, IndexT>(
+        mc, maxProtocolVersion, oi, ni, shadowIterators, protocolVersion,
+        keepShadowedLifecycleEntries);
 
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
@@ -340,14 +348,14 @@ BucketBase::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     {
         releaseAssertOrThrow(protocolVersionStartsFrom(
             maxProtocolVersion,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+            BucketT::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
         meta.ext = ni.getMetadata().ext;
     }
     else if (oi.getMetadata().ext.v() == 1)
     {
         releaseAssertOrThrow(protocolVersionStartsFrom(
             maxProtocolVersion,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+            BucketT::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
         meta.ext = oi.getMetadata().ext;
     }
 
@@ -374,9 +382,9 @@ BucketBase::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
             }
         }
 
-        if (!mergeCasesWithDefaultAcceptance(cmp, mc, oi, ni, out,
-                                             shadowIterators, protocolVersion,
-                                             keepShadowedLifecycleEntries))
+        if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT>(
+                cmp, mc, oi, ni, out, shadowIterators, protocolVersion,
+                keepShadowedLifecycleEntries))
         {
             BucketT::mergeCasesWithEqualKeys(mc, oi, ni, out, shadowIterators,
                                              protocolVersion,
@@ -400,19 +408,6 @@ BucketBase::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     return out.getBucket(bucketManager, &mk);
 }
 
-template std::shared_ptr<LiveBucket> BucketBase::merge<LiveBucket>(
-    BucketManager& bucketManager, uint32_t maxProtocolVersion,
-    std::shared_ptr<LiveBucket> const& oldBucket,
-    std::shared_ptr<LiveBucket> const& newBucket,
-    std::vector<std::shared_ptr<LiveBucket>> const& shadows,
-    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
-    bool doFsync);
-
-template std::shared_ptr<HotArchiveBucket> BucketBase::merge<HotArchiveBucket>(
-    BucketManager& bucketManager, uint32_t maxProtocolVersion,
-    std::shared_ptr<HotArchiveBucket> const& oldBucket,
-    std::shared_ptr<HotArchiveBucket> const& newBucket,
-    std::vector<std::shared_ptr<HotArchiveBucket>> const& shadows,
-    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
-    bool doFsync);
+template class BucketBase<LiveBucket, LiveBucket::IndexT>;
+template class BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>;
 }

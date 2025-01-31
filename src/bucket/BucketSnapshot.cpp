@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/SearchableBucketList.h"
@@ -67,13 +66,12 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
         return {std::make_shared<typename BucketT::EntryT>(be), false};
     }
 
-    // Mark entry miss for metrics
     mBucket->getIndex().markBloomMiss();
     return {nullptr, true};
 }
 
 template <class BucketT>
-std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
+std::pair<std::shared_ptr<typename BucketT::EntryT const>, bool>
 BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
@@ -82,14 +80,24 @@ BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
         return {nullptr, false};
     }
 
-    auto pos = mBucket->getIndex().lookup(k);
-    if (pos.has_value())
+    auto indexRes = mBucket->getIndex().lookup(k);
+    switch (indexRes.getState())
     {
-        return getEntryAtOffset(k, pos.value(),
+    case IndexReturnState::CACHE_HIT:
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            return {indexRes.cacheHit(), false};
+        }
+        else
+        {
+            throw std::runtime_error("Hot Archive reported cache hit");
+        }
+    case IndexReturnState::FILE_OFFSET:
+        return getEntryAtOffset(k, indexRes.fileOffset(),
                                 mBucket->getIndex().getPageSize());
+    case IndexReturnState::NOT_FOUND:
+        return {nullptr, false};
     }
-
-    return {nullptr, false};
 }
 
 // When searching for an entry, BucketList calls this function on every bucket.
@@ -114,51 +122,74 @@ BucketSnapshotBase<BucketT>::loadKeys(
     auto indexIter = index.begin();
     while (currKeyIt != keys.end() && indexIter != index.end())
     {
-        auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
+        // Scan for current key. Iterator returned is the lower_bound of the key
+        // which will be our starting point for search for the next key
+        auto [indexRes, newIndexIter] = index.scan(indexIter, *currKeyIt);
         indexIter = newIndexIter;
-        if (offOp)
-        {
-            auto [entryOp, bloomMiss] = getEntryAtOffset(
-                *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
 
-            if (entryOp)
+        // Check if the index actually found the key
+        std::shared_ptr<typename BucketT::EntryT const> entryOp;
+        switch (indexRes.getState())
+        {
+
+        // Index had entry in cache
+        case IndexReturnState::CACHE_HIT:
+            if constexpr (std::is_same_v<BucketT, LiveBucket>)
             {
-                // Don't return tombstone entries, as these do not exist wrt
-                // ledger state
-                if (!BucketT::isTombstoneEntry(*entryOp))
+                entryOp = indexRes.cacheHit();
+            }
+            else
+            {
+                throw std::runtime_error("Hot Archive reported cache hit");
+            }
+            break;
+        // Index had entry offset, so we need to load the entry
+        case IndexReturnState::FILE_OFFSET:
+            std::tie(entryOp, std::ignore) =
+                getEntryAtOffset(*currKeyIt, indexRes.fileOffset(),
+                                 mBucket->getIndex().getPageSize());
+            break;
+        // Index did not have entry or offset, move on to search for next key
+        case IndexReturnState::NOT_FOUND:
+            ++currKeyIt;
+            continue;
+        }
+
+        if (entryOp)
+        {
+            // Don't return tombstone entries, as these do not exist wrt
+            // ledger state
+            if (!BucketT::isTombstoneEntry(*entryOp))
+            {
+                // Only live bucket loads can be metered
+                if constexpr (std::is_same_v<BucketT, LiveBucket>)
                 {
-                    // Only live bucket loads can be metered
-                    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+                    bool addEntry = true;
+                    if (lkMeter)
                     {
-                        bool addEntry = true;
-                        if (lkMeter)
-                        {
-                            // Here, we are metering after the entry has been
-                            // loaded. This is because we need to know the size
-                            // of the entry to meter it. Future work will add
-                            // metering at the xdr level.
-                            auto entrySize =
-                                xdr::xdr_size(entryOp->liveEntry());
-                            addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                            lkMeter->updateReadQuotasForKey(*currKeyIt,
-                                                            entrySize);
-                        }
-                        if (addEntry)
-                        {
-                            result.push_back(entryOp->liveEntry());
-                        }
+                        // Here, we are metering after the entry has been
+                        // loaded. This is because we need to know the size
+                        // of the entry to meter it. Future work will add
+                        // metering at the xdr level.
+                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
+                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
+                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
                     }
-                    else
+                    if (addEntry)
                     {
-                        static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
-                                      "unexpected bucket type");
-                        result.push_back(*entryOp);
+                        result.push_back(entryOp->liveEntry());
                     }
                 }
-
-                currKeyIt = keys.erase(currKeyIt);
-                continue;
+                else
+                {
+                    static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                                  "unexpected bucket type");
+                    result.push_back(*entryOp);
+                }
             }
+
+            currKeyIt = keys.erase(currKeyIt);
+            continue;
         }
 
         ++currKeyIt;
@@ -225,7 +256,7 @@ LiveBucketSnapshot::scanForEviction(
     auto isEvictableType = [ledgerVers](auto const& le) {
         if (protocolVersionIsBefore(
                 ledgerVers,
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             return isTemporaryEntry(le);
         }

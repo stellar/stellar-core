@@ -432,7 +432,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
             while (entry && entry.current() == mEntry)
             {
                 releaseAssert(
-                    BucketIndex::typeNotSupported(mEntry.data.type()));
+                    LiveBucketIndex::typeNotSupported(mEntry.data.type()));
 
                 modifyOfferEntry(entry.current());
                 mModified = true;

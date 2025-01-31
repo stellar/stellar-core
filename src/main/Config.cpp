@@ -161,7 +161,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKGROUND_OVERLAY_PROCESSING = true;
     EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
-    BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
+    BUCKETLIST_DB_INDEX_CUTOFF = 250;            // 250 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:

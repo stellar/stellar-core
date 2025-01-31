@@ -263,7 +263,7 @@ Database::maybeUpgradeToBucketListDB()
 {
     if (mApp.getPersistentState().getState(PersistentState::kDBBackend,
                                            getSession()) !=
-        BucketIndex::DB_BACKEND_STATE)
+        LiveBucketIndex::DB_BACKEND_STATE)
     {
         CLOG_INFO(Database, "Upgrading to BucketListDB");
 
@@ -299,7 +299,7 @@ Database::maybeUpgradeToBucketListDB()
         getRawSession() << "DROP TABLE IF EXISTS ttl;";
 
         mApp.getPersistentState().setState(PersistentState::kDBBackend,
-                                           BucketIndex::DB_BACKEND_STATE,
+                                           LiveBucketIndex::DB_BACKEND_STATE,
                                            getSession());
     }
 }

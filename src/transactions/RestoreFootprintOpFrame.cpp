@@ -78,7 +78,7 @@ RestoreFootprintOpFrame::doApply(
     rustEntryRentChanges.reserve(footprint.readWrite.size());
     for (auto const& lk : footprint.readWrite)
     {
-        std::shared_ptr<HotArchiveBucketEntry> hotArchiveEntry{nullptr};
+        std::shared_ptr<HotArchiveBucketEntry const> hotArchiveEntry{nullptr};
         auto ttlKey = getTTLKey(lk);
         {
             // First check the live BucketList

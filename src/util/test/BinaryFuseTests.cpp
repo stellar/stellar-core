@@ -5,6 +5,7 @@
 #include "crypto/ShortHash.h"
 #include "lib/catch.hpp"
 #include "util/BinaryFuseFilter.h"
+#include "util/XDRCereal.h"
 #include "util/types.h"
 #include "xdr/Stellar-types.h"
 #include <cereal/archives/binary.hpp>
@@ -12,7 +13,6 @@
 #include <sstream>
 #include <xdrpp/autocheck.h>
 #include <xdrpp/marshal.h>
-#include <xdrpp/xdrpp/cereal.h>
 
 using namespace stellar;
 
