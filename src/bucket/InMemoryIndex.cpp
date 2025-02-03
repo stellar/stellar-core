@@ -10,7 +10,6 @@
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <algorithm>
-#include <asm-generic/errno.h>
 
 namespace stellar
 {
