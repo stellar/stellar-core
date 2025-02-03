@@ -44,47 +44,34 @@ struct BuilderTx
 {
     size_t mId = 0;
     uint32_t mInstructions = 0;
-    BitSet mReadOnlyFootprint;
-    BitSet mReadWriteFootprint;
+    // Set of ids of transactions that conflict with this transaction.
+    BitSet mConflictTxs;
 
-    BuilderTx(size_t txId, TransactionFrameBase const& tx,
-              UnorderedMap<LedgerKey, size_t> const& entryIdMap)
+    BuilderTx(size_t txId, TransactionFrameBase const& tx)
         : mId(txId), mInstructions(tx.sorobanResources().instructions)
     {
-        auto const& footprint = tx.sorobanResources().footprint;
-        for (auto const& key : footprint.readOnly)
-        {
-            mReadOnlyFootprint.set(entryIdMap.at(key));
-        }
-        for (auto const& key : footprint.readWrite)
-        {
-            mReadWriteFootprint.set(entryIdMap.at(key));
-        }
     }
 };
 
-// Cluster of (potentialy transitively) dependent transactions.
+// Cluster of (potentially transitively) dependent transactions.
 // Transactions are considered to be dependent if the have the same key in
 // their footprints and for at least one of them this key belongs to read-write
 // footprint.
 struct Cluster
 {
     // Total number of instructions in the cluster. Since transactions are
-    // dependenent, these are always 'sequential' instructions.
+    // dependent, these are always 'sequential' instructions.
     uint64_t mInstructions = 0;
-    // Union of read-only footprints of all transactions in the cluster.
-    BitSet mReadOnlyEntries;
-    // Union of read-write footprints of all transactions in the cluster.
-    BitSet mReadWriteEntries;
+    // Set of ids of transactions that conflict with this cluster.
+    BitSet mConflictTxs;
     // Set of transaction ids in the cluster.
     BitSet mTxIds;
     // Id of the bin within a stage in which the cluster is packed.
-    size_t mBinId = 0;
+    size_t mutable mBinId = 0;
 
     explicit Cluster(BuilderTx const& tx) : mInstructions(tx.mInstructions)
     {
-        mReadOnlyEntries.inplaceUnion(tx.mReadOnlyFootprint);
-        mReadWriteEntries.inplaceUnion(tx.mReadWriteFootprint);
+        mConflictTxs.inplaceUnion(tx.mConflictTxs);
         mTxIds.set(tx.mId);
     }
 
@@ -92,8 +79,7 @@ struct Cluster
     merge(Cluster const& other)
     {
         mInstructions += other.mInstructions;
-        mReadOnlyEntries.inplaceUnion(other.mReadOnlyEntries);
-        mReadWriteEntries.inplaceUnion(other.mReadWriteEntries);
+        mConflictTxs.inplaceUnion(other.mConflictTxs);
         mTxIds.inplaceUnion(other.mTxIds);
     }
 };
@@ -129,14 +115,12 @@ class Stage
         auto conflictingClusters = getConflictingClusters(tx);
 
         bool packed = false;
-        // Then, create new clusters by merging the conflicting clusters
+        // Then, try creating new clusters by merging the conflicting clusters
         // together and adding the new transaction to the resulting cluster.
         auto newClusters = createNewClusters(tx, conflictingClusters, packed);
-        releaseAssert(!newClusters.empty());
-
-        // If the new cluster exceeds the limit of instructions per cluster,
-        // we can't add the transaction.
-        if (newClusters.back().mInstructions > mConfig.mInstructionsPerCluster)
+        // Fail fast if a new cluster will end up too large to fit into the
+        // stage.
+        if (newClusters.empty())
         {
             return false;
         }
@@ -175,9 +159,9 @@ class Stage
         for (auto const& cluster : mClusters)
         {
             size_t txId = 0;
-            while (cluster.mTxIds.nextSet(txId))
+            while (cluster->mTxIds.nextSet(txId))
             {
-                visitor(cluster.mBinId, txId);
+                visitor(cluster->mBinId, txId);
                 ++txId;
             }
         }
@@ -188,49 +172,38 @@ class Stage
     getConflictingClusters(BuilderTx const& tx) const
     {
         std::unordered_set<Cluster const*> conflictingClusters;
-        for (Cluster const& cluster : mClusters)
+        for (auto const& cluster : mClusters)
         {
-            bool isConflicting = tx.mReadOnlyFootprint.intersectionCount(
-                                     cluster.mReadWriteEntries) > 0 ||
-                                 tx.mReadWriteFootprint.intersectionCount(
-                                     cluster.mReadOnlyEntries) > 0 ||
-                                 tx.mReadWriteFootprint.intersectionCount(
-                                     cluster.mReadWriteEntries) > 0;
-            if (isConflicting)
+            if (cluster->mConflictTxs.get(tx.mId))
             {
-                conflictingClusters.insert(&cluster);
+                conflictingClusters.insert(cluster.get());
             }
         }
         return conflictingClusters;
     }
 
-    std::vector<Cluster>
+    std::vector<std::shared_ptr<Cluster const>>
     createNewClusters(BuilderTx const& tx,
                       std::unordered_set<Cluster const*> const& txConflicts,
                       bool& packed)
     {
-        std::vector<Cluster> newClusters;
-        newClusters.reserve(mClusters.size());
-        for (auto const& cluster : mClusters)
-        {
-            if (txConflicts.find(&cluster) == txConflicts.end())
-            {
-                newClusters.push_back(cluster);
-            }
-        }
-
-        newClusters.emplace_back(tx);
+        int64_t newInstructions = tx.mInstructions;
         for (auto const* cluster : txConflicts)
         {
-            newClusters.back().merge(*cluster);
-        }
-        // Fast-fail condition to ensure that the new cluster doesn't exceed
-        // the instructions limit.
-        if (newClusters.back().mInstructions > mConfig.mInstructionsPerCluster)
-        {
-            return newClusters;
+            newInstructions += cluster->mInstructions;
         }
 
+        // Fast-fail condition to ensure that the new cluster doesn't exceed
+        // the instructions limit.
+        if (newInstructions > mConfig.mInstructionsPerCluster)
+        {
+            return {};
+        }
+        auto newCluster = std::make_shared<Cluster>(tx);
+        for (auto const* cluster : txConflicts)
+        {
+            newCluster->merge(*cluster);
+        }
         // Remove the clusters that were merged from their respective bins.
         for (auto const& cluster : txConflicts)
         {
@@ -244,16 +217,27 @@ class Stage
         // the bin-packing from scratch.
         for (size_t binId = 0; binId < mConfig.mClustersPerStage; ++binId)
         {
-            if (mBinInstructions[binId] + newClusters.back().mInstructions <=
+            if (mBinInstructions[binId] + newCluster->mInstructions <=
                 mConfig.mInstructionsPerCluster)
             {
-                mBinInstructions[binId] += newClusters.back().mInstructions;
-                mBinPacking[binId].inplaceUnion(newClusters.back().mTxIds);
-                newClusters.back().mBinId = binId;
+                mBinInstructions[binId] += newCluster->mInstructions;
+                mBinPacking[binId].inplaceUnion(newCluster->mTxIds);
+                newCluster->mBinId = binId;
                 packed = true;
                 break;
             }
         }
+
+        std::vector<std::shared_ptr<Cluster const>> newClusters;
+        newClusters.reserve(mClusters.size() + 1 - txConflicts.size());
+        for (auto const& cluster : mClusters)
+        {
+            if (txConflicts.find(cluster.get()) == txConflicts.end())
+            {
+                newClusters.push_back(cluster);
+            }
+        }
+        newClusters.push_back(newCluster);
         // If we couldn't pack the new cluster without full bin-packing, we
         // recover the state of the bins (so that the transaction is not
         // considered to have been added yet).
@@ -273,7 +257,7 @@ class Stage
     // This has around 11/9 maximum approximation ratio, which probably has
     // the best complexity/performance tradeoff out of all the heuristics.
     std::vector<BitSet>
-    binPacking(std::vector<Cluster>& clusters,
+    binPacking(std::vector<std::shared_ptr<Cluster const>>& clusters,
                std::vector<uint64_t>& binInsns) const
     {
         // We could consider dropping the sort here in order to save some time
@@ -281,23 +265,25 @@ class Stage
         // approximation ratio to 1.7.
         std::sort(clusters.begin(), clusters.end(),
                   [](auto const& a, auto const& b) {
-                      return a.mInstructions > b.mInstructions;
+                      return a->mInstructions > b->mInstructions;
                   });
         size_t const binCount = mConfig.mClustersPerStage;
         std::vector<BitSet> bins(binCount);
         binInsns.resize(binCount);
+        std::vector<size_t> newBinId(clusters.size());
         // Just add every cluster into the first bin it fits into.
-        for (auto& cluster : clusters)
+        for (size_t clusterId = 0; clusterId < clusters.size(); ++clusterId)
         {
+            auto const& cluster = clusters[clusterId];
             bool packed = false;
             for (size_t i = 0; i < binCount; ++i)
             {
-                if (binInsns[i] + cluster.mInstructions <=
+                if (binInsns[i] + cluster->mInstructions <=
                     mConfig.mInstructionsPerCluster)
                 {
-                    binInsns[i] += cluster.mInstructions;
-                    bins[i].inplaceUnion(cluster.mTxIds);
-                    cluster.mBinId = i;
+                    binInsns[i] += cluster->mInstructions;
+                    bins[i].inplaceUnion(cluster->mTxIds);
+                    newBinId[clusterId] = i;
                     packed = true;
                     break;
                 }
@@ -307,10 +293,14 @@ class Stage
                 return std::vector<BitSet>();
             }
         }
+        for (size_t clusterId = 0; clusterId < clusters.size(); ++clusterId)
+        {
+            clusters[clusterId]->mBinId = newBinId[clusterId];
+        }
         return bins;
     }
 
-    std::vector<Cluster> mClusters;
+    std::vector<std::shared_ptr<Cluster const>> mClusters;
     std::vector<BitSet> mBinPacking;
     std::vector<uint64_t> mBinInstructions;
     int64_t mInstructions = 0;
@@ -327,35 +317,79 @@ buildSurgePricedParallelSorobanPhase(
     std::vector<bool>& hadTxNotFittingLane)
 {
     ZoneScoped;
-    // Map all the entries in the footprints to integers in order to be able to
-    // use the bitset operations.
-    UnorderedMap<LedgerKey, size_t> entryIdMap;
-    auto addToMap = [&entryIdMap](LedgerKey const& key) {
-        auto sz = entryIdMap.size();
-        entryIdMap.emplace(key, sz);
-    };
-    for (auto const& txFrame : txFrames)
-    {
-        auto const& footprint = txFrame->sorobanResources().footprint;
-        for (auto const& key : footprint.readOnly)
-        {
-            addToMap(key);
-        }
-        for (auto const& key : footprint.readWrite)
-        {
-            addToMap(key);
-        }
-    }
-
     // Simplify the transactions to the minimum necessary amount of data.
-    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx> builderTxForTx;
+    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*>
+        builderTxForTx;
+    std::vector<std::unique_ptr<BuilderTx>> builderTxs;
+    builderTxs.reserve(txFrames.size());
     for (size_t i = 0; i < txFrames.size(); ++i)
     {
         auto const& txFrame = txFrames[i];
-        builderTxForTx.emplace(txFrame, BuilderTx(i, *txFrame, entryIdMap));
+        builderTxs.emplace_back(std::make_unique<BuilderTx>(i, *txFrame));
+        builderTxForTx.emplace(txFrame, builderTxs.back().get());
     }
 
-    // Process the transactions in the surge pricing (drecreasing fee) order.
+    // Before trying to include any transactions, find all the pairs of the
+    // conflicting transactions and mark the conflicts in the builderTxs.
+    //
+    // In order to find the conflicts, we build the maps from the footprint
+    // keys to transactions, then mark the conflicts between the transactions
+    // that share RW key, or between the transactions that share RO and RW key.
+    //
+    // The approach here is optimized towards the low number of conflicts,
+    // specifically when there are no conflicts at all, the complexity is just
+    // O(total_footprint_entry_count). The worst case is roughly
+    // O(max_tx_footprint_size * transaction_count ^ 2), which is equivalent
+    // to the complexity of the straightforward approach of iterating over all
+    // the transaction pairs.
+    //
+    // This also has the further optimization potential: we could populate the
+    // key maps and even the conflicting transactions eagerly in tx queue, thus
+    // amortizing the costs across the whole ledger duration.
+    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRoKey;
+    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRwKey;
+    for (size_t i = 0; i < txFrames.size(); ++i)
+    {
+        auto const& txFrame = txFrames[i];
+        auto const& footprint = txFrame->sorobanResources().footprint;
+        for (auto const& key : footprint.readOnly)
+        {
+            txsWithRoKey[key].push_back(i);
+        }
+        for (auto const& key : footprint.readWrite)
+        {
+            txsWithRwKey[key].push_back(i);
+        }
+    }
+
+    for (auto const& [key, rwTxIds] : txsWithRwKey)
+    {
+        // RW-RW conflicts
+        for (size_t i = 0; i < rwTxIds.size(); ++i)
+        {
+            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
+            {
+                builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
+                builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
+            }
+        }
+        // RO-RW conflicts
+        auto roIt = txsWithRoKey.find(key);
+        if (roIt != txsWithRoKey.end())
+        {
+            auto const& roTxIds = roIt->second;
+            for (size_t i = 0; i < roTxIds.size(); ++i)
+            {
+                for (size_t j = 0; j < rwTxIds.size(); ++j)
+                {
+                    builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
+                    builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
+                }
+            }
+        }
+    }
+
+    // Process the transactions in the surge pricing (decreasing fee) order.
     // This also automatically ensures that the resource limits are respected
     // for all the dimensions besides instructions.
     SurgePricingPriorityQueue queue(
@@ -378,7 +412,7 @@ buildSurgePricedParallelSorobanPhase(
         releaseAssert(builderTxIt != builderTxForTx.end());
         for (auto& stage : stages)
         {
-            if (stage.tryAdd(builderTxIt->second))
+            if (stage.tryAdd(*builderTxIt->second))
             {
                 added = true;
                 break;

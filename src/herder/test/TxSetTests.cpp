@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SHA.h"
+#include "herder/ParallelTxSetBuilder.h"
 #include "herder/TxSetFrame.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
@@ -2381,7 +2382,8 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-            // Conflicting transactions can be distributed into separate stages.
+            // Conflicting transactions can be distributed into separate
+            // stages.
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
             validateBaseFee(*txSet, 100);
         }
@@ -2410,22 +2412,36 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
         SECTION("one sparse conflict cluster")
         {
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            // A small dense cluster of RW conflicts on entry 1000.
+            // A small dense cluster of RW conflicts on entry 1000 with high
+            // fee to ensure these are included.
             for (int i = 0; i < STAGE_COUNT; ++i)
             {
-                sorobanTxs.push_back(createTx(100'000'000, {}, {i, 1000},
-                                              /* inclusionFee */ 1'000'000));
+                sorobanTxs.push_back(
+                    createTx(100'000'000, {}, {i, 1000},
+                             /* inclusionFee */ 1'000'000 - i));
             }
-            for (int i = 0; i < CLUSTER_COUNT; ++i)
+            // Create a (CLUSTER_COUNT - 1) txs with RO-RW conflict with one
+            // of the transactions in the small dense cluster, so that it's
+            // possible to fit them all into a stage with one of the dense
+            // cluster transactions.
+            for (int i = 0; i < STAGE_COUNT; ++i)
             {
-                // Create a tx with RO-RW conflict with one of the transactions
-                // in the small dense cluster.
-                for (int j = 0; j < STAGE_COUNT; ++j)
+                for (int j = 0; j < CLUSTER_COUNT - 1; ++j)
                 {
                     sorobanTxs.push_back(createTx(
-                        100'000'000, {j}, {i * STAGE_COUNT + j + 10'000},
-                        /* inclusionFee */ 100 + i * STAGE_COUNT + j));
+                        100'000'000, {i}, {i * CLUSTER_COUNT + j + 10'000},
+                        /* inclusionFee */ 1000 + i * CLUSTER_COUNT + j));
                 }
+            }
+            // This is the assumption under which this test operates.
+            releaseAssert(CLUSTER_COUNT > STAGE_COUNT);
+            // Add some cheap transactions that conflict with the dense cluster
+            // that shouldn't be included.
+            for (int i = 0; i < CLUSTER_COUNT - STAGE_COUNT; ++i)
+            {
+                sorobanTxs.push_back(createTx(100'000'000, {i % STAGE_COUNT},
+                                              {i + 100'000},
+                                              /* inclusionFee */ 100 + i));
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
@@ -2433,7 +2449,7 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             // transactions simply don't fit into instruction limits (hence 103
             // base fee).
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
-            validateBaseFee(*txSet, 103);
+            validateBaseFee(*txSet, 1000);
         }
         SECTION("many clusters with small transactions")
         {
@@ -2557,6 +2573,265 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             runTest();
         }
     }
+}
+
+TEST_CASE("parallel tx set building benchmark",
+          "[txset][soroban][bench][!hide]")
+{
+    int const STAGE_COUNT = 4;
+    int const CLUSTER_COUNT = 16;
+    int const MEAN_INCLUDED_TX_COUNT = 1000;
+    int const TX_COUNT_MEMPOOL_MULTIPLIER = 2;
+
+    int const MEAN_INSTRUCTIONS_PER_TX = 10'000'000;
+    int const MAX_INSTRUCTIONS_PER_TX = 100'000'000;
+    int const MEAN_READS_PER_TX = 30;
+    int const MAX_READS_PER_TX = 60;
+    int const MEAN_WRITES_PER_TX = 10;
+    int const MAX_WRITES_PER_TX = 30;
+    int const MEAN_TX_SIZE = 800;
+    int const MAX_TX_SIZE = 5000;
+    // The exact values for r/w bytes aren't meaningful for the performance,
+    // just give them high enough value to create some spread.
+    int const MEAN_READ_BYTES_PER_TX = 1000;
+    int const MAX_READ_BYTES_PER_TX = 5000;
+    int const MEAN_WRITE_BYTES_PER_TX = 500;
+    int const MAX_WRITE_BYTES_PER_TX = 2000;
+
+    auto cfg = getTestConfig();
+    cfg.SOROBAN_PHASE_STAGE_COUNT = STAGE_COUNT;
+
+    // Only per-ledger limits matter for tx set building, as we don't perform
+    // any validation.
+    SorobanNetworkConfig sorobanCfg;
+    sorobanCfg.mLedgerMaxTransactionsSizeBytes =
+        MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE * 2;
+    sorobanCfg.mLedgerMaxInstructions =
+        static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
+        MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
+    sorobanCfg.mLedgerMaxReadLedgerEntries =
+        MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX) * 2;
+    sorobanCfg.mLedgerMaxReadBytes =
+        MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX * 2;
+    sorobanCfg.mLedgerMaxWriteLedgerEntries =
+        MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX * 2;
+    sorobanCfg.mLedgerMaxWriteBytes =
+        MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX * 2;
+    // This doesn't need to be a real limit for this test.
+    sorobanCfg.mLedgerMaxTxCount = MEAN_INCLUDED_TX_COUNT * 10;
+    sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
+
+    auto limits = sorobanCfg.maxLedgerResources();
+    limits.setVal(Resource::Type::INSTRUCTIONS,
+                  std::numeric_limits<int64_t>::max());
+
+    auto surgePricingLaneConfig =
+        std::make_shared<SorobanGenericLaneConfig>(limits);
+
+    SCAddress contract(SC_ADDRESS_TYPE_CONTRACT);
+    auto generateKey = [&contract](int i) {
+        return stellar::contractDataKey(
+            contract, txtest::makeU32(i),
+            i % 2 == 0 ? ContractDataDurability::PERSISTENT
+                       : ContractDataDurability::TEMPORARY);
+    };
+
+    auto createTx = [&](int instructions, std::vector<int> const& roKeys,
+                        std::vector<int> const& rwKeys, int64_t inclusionFee,
+                        int readBytes, int writeBytes, int txSize) {
+        TransactionEnvelope txEnvelope(EnvelopeType::ENVELOPE_TYPE_TX);
+        txEnvelope.v1().tx.ext.v(1);
+        txEnvelope.v1().tx.fee = inclusionFee;
+        auto& resources = txEnvelope.v1().tx.ext.sorobanData().resources;
+
+        resources.instructions = instructions;
+        resources.readBytes = readBytes;
+        resources.writeBytes = writeBytes;
+        for (auto roKeyId : roKeys)
+        {
+            resources.footprint.readOnly.push_back(generateKey(roKeyId));
+        }
+        for (auto rwKeyId : rwKeys)
+        {
+            resources.footprint.readWrite.push_back(generateKey(rwKeyId));
+        }
+        auto& op = txEnvelope.v1().tx.operations.emplace_back();
+        op.body.type(OperationType::INVOKE_HOST_FUNCTION);
+
+        op.body.invokeHostFunctionOp().hostFunction.type(
+            HostFunctionType::HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+        auto currSize = xdr::xdr_size(txEnvelope);
+        if (currSize < txSize)
+        {
+            op.body.invokeHostFunctionOp().hostFunction.wasm().resize(txSize -
+                                                                      currSize);
+        }
+
+        return TransactionFrameBase::makeTransactionFromWire(Hash{},
+                                                             txEnvelope);
+    };
+    std::normal_distribution<> insnsDistr(MEAN_INSTRUCTIONS_PER_TX,
+                                          0.2 * MEAN_INSTRUCTIONS_PER_TX);
+    std::normal_distribution<> txSizeDistr(MEAN_TX_SIZE, 0.1 * MEAN_TX_SIZE);
+    std::normal_distribution<> readBytesDistr(MEAN_READ_BYTES_PER_TX,
+                                              0.3 * MEAN_READ_BYTES_PER_TX);
+    std::normal_distribution<> writeBytesDistr(MEAN_WRITE_BYTES_PER_TX,
+                                               0.05 * MEAN_WRITE_BYTES_PER_TX);
+    std::normal_distribution<> readCountDistr(MEAN_READS_PER_TX,
+                                              0.2 * MEAN_READS_PER_TX);
+    std::normal_distribution<> writeCountDistr(MEAN_WRITES_PER_TX,
+                                               0.1 * MEAN_WRITES_PER_TX);
+    stellar::uniform_int_distribution<> feeDistr(100, 100'000);
+
+    auto genValue = [](auto& distribution, int maxValue) {
+        return std::min(
+            maxValue, std::max(1, static_cast<int>(
+                                      std::round(distribution(Catch::rng())))));
+    };
+
+    auto generateConflictingTxs = [&](double mean_conflicts_per_tx,
+                                      double mean_ro_txs_per_conflict,
+                                      double mean_rw_txs_per_conflict) {
+        int maxKey = 0;
+        int txCount = MEAN_INCLUDED_TX_COUNT * TX_COUNT_MEMPOOL_MULTIPLIER;
+        std::vector<std::pair<std::vector<int>, std::vector<int>>> txKeys(
+            txCount);
+        // First, generate non-conflicting keys that follow the distributions
+        // for the respective resources.
+        for (int i = 0; i < txCount; ++i)
+        {
+            int readCount = genValue(readCountDistr, MAX_READS_PER_TX);
+            for (int j = 0; j < readCount; ++j)
+            {
+                txKeys[i].first.push_back(maxKey++);
+            }
+            int writeCount = genValue(writeCountDistr, MAX_WRITES_PER_TX);
+            for (int j = 0; j < writeCount; ++j)
+            {
+                txKeys[i].second.push_back(maxKey++);
+            }
+        }
+
+        // Then, generate the conflict 'clusters', such that the same key is
+        // present in the RO footprint of `mean_ro_txs_per_conflict` on average
+        // and in the RW footprint of `mean_rw_txs_per_conflict` on average.
+        // The total number of the conflicts generated is defined such that
+        // on average a transaction participates in `mean_conflicts_per_tx`
+        // clusters.
+        int currConflictKey = 0;
+        std::poisson_distribution<> roTxCountDistr(mean_ro_txs_per_conflict);
+        std::poisson_distribution<> rwTxCountDistr(mean_rw_txs_per_conflict);
+        int conflictsLeft = txCount * mean_conflicts_per_tx;
+        // Try to exhaust all the conflicts, but make sure we don't get stuck
+        // in an infinite loop.
+        for (int iter = 0; iter < 1000 && conflictsLeft > 0; ++iter)
+        {
+            int roTxCount = roTxCountDistr(Catch::rng());
+            int rwTxCount = std::max(1, rwTxCountDistr(Catch::rng()));
+            if (roTxCount + rwTxCount < 2)
+            {
+                continue;
+            }
+            stellar::shuffle(txKeys.begin(), txKeys.end(), Catch::rng());
+            int conflictsLeftToAdd = roTxCount + rwTxCount;
+            for (int i = 0; i < txCount && conflictsLeftToAdd > 0; ++i)
+            {
+                auto& keys = conflictsLeftToAdd > roTxCount ? txKeys[i].second
+                                                            : txKeys[i].first;
+
+                for (int j = 0; j < keys.size(); ++j)
+                {
+                    if (keys[j] < maxKey)
+                    {
+                        keys[j] = maxKey + currConflictKey;
+                        --conflictsLeftToAdd;
+                        --conflictsLeft;
+                        break;
+                    }
+                }
+            }
+            ++currConflictKey;
+        }
+
+        TxFrameList txs;
+        for (int i = 0; i < txCount; ++i)
+        {
+            int insns = genValue(insnsDistr, MAX_INSTRUCTIONS_PER_TX);
+            int txSize = genValue(txSizeDistr, MAX_TX_SIZE);
+            int readBytes = genValue(readBytesDistr, MAX_READ_BYTES_PER_TX);
+            int writeBytes = genValue(writeBytesDistr, MAX_WRITE_BYTES_PER_TX);
+            int readCount = genValue(readCountDistr, MAX_READS_PER_TX);
+            int writeCount = genValue(writeCountDistr, MAX_WRITES_PER_TX);
+            txs.push_back(createTx(insns, txKeys[i].first, txKeys[i].second,
+                                   feeDistr(Catch::rng()), readBytes,
+                                   writeBytes, txSize));
+        }
+        return txs;
+    };
+
+    auto runBenchmark = [&](double mean_conflicts_per_tx,
+                            double mean_ro_txs_per_conflict,
+                            double mean_rw_txs_per_conflict) {
+        const int iterCount = 5;
+        std::vector<TxFrameList> allTxs;
+        for (int i = 0; i < iterCount; ++i)
+        {
+            allTxs.push_back(generateConflictingTxs(mean_conflicts_per_tx,
+                                                    mean_ro_txs_per_conflict,
+                                                    mean_rw_txs_per_conflict));
+        }
+
+        for (int stageCount = 1; stageCount <= 4; ++stageCount)
+        {
+            int64_t totalDuration = 0;
+            int txsIncluded = 0;
+            int64_t insnsIncluded = 0;
+            for (int iter = 0; iter < 5; ++iter)
+            {
+                cfg.SOROBAN_PHASE_STAGE_COUNT = stageCount;
+                std::vector<bool> hadTxNotFittingLane;
+                auto start = std::chrono::steady_clock::now();
+                auto stages = buildSurgePricedParallelSorobanPhase(
+                    allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
+                    hadTxNotFittingLane);
+                auto end = std::chrono::steady_clock::now();
+                totalDuration +=
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(end -
+                                                                         start)
+                        .count();
+                for (auto const& stage : stages)
+                {
+                    for (auto const& cluster : stage)
+                    {
+                        txsIncluded += cluster.size();
+                        for (auto const& tx : cluster)
+                        {
+                            insnsIncluded +=
+                                tx->sorobanResources().instructions;
+                        }
+                    }
+                }
+            }
+            std::cout << "Stage count: " << stageCount
+                      << ", mean conflicts per tx: " << mean_conflicts_per_tx
+                      << ", mean RO txs per conflict: "
+                      << mean_ro_txs_per_conflict
+                      << ", mean RW txs per conflict: "
+                      << mean_rw_txs_per_conflict
+                      << ", mean txs included: " << txsIncluded / iterCount
+                      << ", insns included %: "
+                      << static_cast<double>(insnsIncluded) / iterCount *
+                             100.0 /
+                             (sorobanCfg.ledgerMaxInstructions() *
+                              sorobanCfg.ledgerMaxDependentTxClusters())
+                      << ", mean duration: " << 1e-6 * totalDuration / iterCount
+                      << " ms" << std::endl;
+        }
+    };
+    runBenchmark(0, 0, 0);
+    runBenchmark(10, 40, 1);
+    runBenchmark(20, 40, 1);
+    runBenchmark(10, 10, 10);
 }
 #endif
 } // namespace
