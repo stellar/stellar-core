@@ -237,7 +237,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                             .getSorobanNetworkConfigForApply());
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
-                        BucketBase::
+                        LiveBucket::
                             FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
                     std::vector<LedgerKey> restoredKeys;

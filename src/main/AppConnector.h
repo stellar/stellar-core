@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
 #include "main/Config.h"
 #include "medida/metrics_registry.h"
 

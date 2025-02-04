@@ -53,7 +53,7 @@ testBucketMetadata(uint32_t protocolVersion)
     meta.ledgerVersion = protocolVersion;
     if (protocolVersionStartsFrom(
             protocolVersion,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         meta.ext.v(1);
         meta.ext.bucketListType() = BucketListType::LIVE;

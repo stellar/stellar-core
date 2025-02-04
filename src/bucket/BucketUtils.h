@@ -4,10 +4,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <list>
+#include <map>
+#include <memory>
 #include <mutex>
 
 namespace medida
@@ -18,11 +19,24 @@ namespace stellar
 {
 
 class Application;
+class LiveBucket;
+class HotArchiveBucket;
+template <class BucketT> class BucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
+class SearchableHotArchiveBucketListSnapshot;
 
 #define BUCKET_TYPE_ASSERT(BucketT) \
     static_assert(std::is_same_v<BucketT, LiveBucket> || \
                       std::is_same_v<BucketT, HotArchiveBucket>, \
                   "BucketT must be a Bucket type")
+
+// BucketList types
+template <class BucketT>
+using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
+using SearchableSnapshotConstPtr =
+    std::shared_ptr<SearchableLiveBucketListSnapshot const>;
+using SearchableHotArchiveSnapshotConstPtr =
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>;
 
 // A fine-grained merge-operation-counter structure for tracking various
 // events during merges. These are not medida counters because we do not
@@ -156,4 +170,46 @@ class EvictionStatistics
     void submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
                                       EvictionCounters& counters);
 };
+
+enum class LedgerEntryTypeAndDurability : uint32_t
+{
+    ACCOUNT = 0,
+    TRUSTLINE = 1,
+    OFFER = 2,
+    DATA = 3,
+    CLAIMABLE_BALANCE = 4,
+    LIQUIDITY_POOL = 5,
+    TEMPORARY_CONTRACT_DATA = 6,
+    PERSISTENT_CONTRACT_DATA = 7,
+    CONTRACT_CODE = 8,
+    CONFIG_SETTING = 9,
+    TTL = 10,
+    NUM_TYPES = 11,
+};
+
+struct BucketEntryCounters
+{
+    std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;
+    std::map<LedgerEntryTypeAndDurability, size_t> entryTypeSizes;
+
+    template <class BucketT> void count(typename BucketT::EntryT const& be);
+    BucketEntryCounters& operator+=(BucketEntryCounters const& other);
+    bool operator==(BucketEntryCounters const& other) const;
+    bool operator!=(BucketEntryCounters const& other) const;
+
+    template <class Archive>
+    void
+    serialize(Archive& ar)
+    {
+        ar(entryTypeCounts, entryTypeSizes);
+    }
+};
+
+template <class BucketT>
+bool isBucketMetaEntry(typename BucketT::EntryT const& be);
+
+template <class BucketT>
+LedgerEntryTypeAndDurability
+bucketEntryToLedgerEntryAndDurabilityType(typename BucketT::EntryT const& be);
+std::string toString(LedgerEntryTypeAndDurability let);
 }

@@ -80,24 +80,4 @@ isPersistentEntry(T const& e)
            (e.type() == CONTRACT_DATA &&
             e.contractData().durability == PERSISTENT);
 }
-
-enum class LedgerEntryTypeAndDurability : uint32_t
-{
-    ACCOUNT = 0,
-    TRUSTLINE = 1,
-    OFFER = 2,
-    DATA = 3,
-    CLAIMABLE_BALANCE = 4,
-    LIQUIDITY_POOL = 5,
-    TEMPORARY_CONTRACT_DATA = 6,
-    PERSISTENT_CONTRACT_DATA = 7,
-    CONTRACT_CODE = 8,
-    CONFIG_SETTING = 9,
-    TTL = 10,
-    NUM_TYPES = 11,
-};
-
-LedgerEntryTypeAndDurability
-bucketEntryToLedgerEntryAndDurabilityType(BucketEntry const& be);
-std::string toString(LedgerEntryTypeAndDurability let);
 }

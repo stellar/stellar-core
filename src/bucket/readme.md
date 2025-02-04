@@ -89,9 +89,8 @@ lookup speed and memory overhead. The following configuration flags control thes
     Larger values slow down lookup speed but
     decrease memory usage.
 - `BUCKETLIST_DB_INDEX_CUTOFF`
-  - Bucket file size, in MB, that determines wether the `IndividualIndex` or
-   `RangeIndex` is used.
-    Default value is 20 MB, which indexes the first ~3 levels with the `IndividualIndex`.
+  - Bucket file size, in MB, that determines wether the Bucket is cached in memory or not.
+    Default value is 250 MB, which indexes the first ~5 levels with the `IndividualIndex`.
     Larger values speed up lookups but increase memory usage.
 - `BUCKETLIST_DB_PERSIST_INDEX`
   - When set to true, BucketListDB indexes are saved to disk to avoid reindexing

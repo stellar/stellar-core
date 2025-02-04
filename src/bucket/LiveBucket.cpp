@@ -310,6 +310,12 @@ LiveBucket::apply(Application& app) const
 }
 #endif // BUILD_TESTS
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+LiveBucket::getOfferRange() const
+{
+    return getIndex().getOfferRange();
+}
+
 std::vector<BucketEntry>
 LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerEntry> const& initEntries,
@@ -368,7 +374,7 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     if (protocolVersionStartsFrom(
             protocolVersion,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         meta.ext.v(1);
         meta.ext.bucketListType() = BucketListType::LIVE;
@@ -409,7 +415,7 @@ LiveBucket::checkProtocolLegality(BucketEntry const& entry,
 }
 
 LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
-                       std::unique_ptr<BucketIndex const>&& index)
+                       std::unique_ptr<LiveBucket::IndexT const>&& index)
     : BucketBase(filename, hash, std::move(index))
 {
 }
@@ -438,39 +444,11 @@ LiveBucket::isTombstoneEntry(BucketEntry const& e)
     return e.type() == DEADENTRY;
 }
 
-std::shared_ptr<LiveBucket::LoadT>
-LiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be)
+std::shared_ptr<LiveBucket::LoadT const>
+LiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be)
 {
     return isTombstoneEntry(*be)
                ? nullptr
                : std::make_shared<LedgerEntry>(be->liveEntry());
 }
-
-BucketEntryCounters&
-BucketEntryCounters::operator+=(BucketEntryCounters const& other)
-{
-    for (auto [type, count] : other.entryTypeCounts)
-    {
-        this->entryTypeCounts[type] += count;
-    }
-    for (auto [type, size] : other.entryTypeSizes)
-    {
-        this->entryTypeSizes[type] += size;
-    }
-    return *this;
-}
-
-bool
-BucketEntryCounters::operator==(BucketEntryCounters const& other) const
-{
-    return this->entryTypeCounts == other.entryTypeCounts &&
-           this->entryTypeSizes == other.entryTypeSizes;
-}
-
-bool
-BucketEntryCounters::operator!=(BucketEntryCounters const& other) const
-{
-    return !(*this == other);
-}
-
 }

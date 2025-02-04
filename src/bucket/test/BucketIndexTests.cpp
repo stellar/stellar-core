@@ -7,6 +7,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -643,7 +644,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         REQUIRE(b->isIndexed());
 
         auto onDiskIndex =
-            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+            loadIndex<LiveBucket>(test.getBM(), indexFilename, b->getSize());
         REQUIRE(onDiskIndex);
 
         auto& inMemoryIndex = b->getIndexForTesting();
@@ -686,7 +687,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         // Check if on-disk index rewritten with correct config params
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
         auto onDiskIndex =
-            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+            loadIndex<LiveBucket>(test.getBM(), indexFilename, b->getSize());
         REQUIRE((inMemoryIndex == *onDiskIndex));
     }
 }
@@ -712,37 +713,38 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
                                 .getBucketSnapshotManager()
                                 .copySearchableHotArchiveBucketListSnapshot();
 
-        auto checkLoad = [&](LedgerKey const& k,
-                             std::shared_ptr<HotArchiveBucketEntry> entryPtr) {
-            // Restored entries should be null
-            if (expectedRestoredEntries.find(k) !=
-                expectedRestoredEntries.end())
-            {
-                REQUIRE(!entryPtr);
-            }
+        auto checkLoad =
+            [&](LedgerKey const& k,
+                std::shared_ptr<HotArchiveBucketEntry const> entryPtr) {
+                // Restored entries should be null
+                if (expectedRestoredEntries.find(k) !=
+                    expectedRestoredEntries.end())
+                {
+                    REQUIRE(!entryPtr);
+                }
 
-            // Deleted entries should be HotArchiveBucketEntry of type
-            // DELETED
-            else if (expectedDeletedEntries.find(k) !=
-                     expectedDeletedEntries.end())
-            {
-                REQUIRE(entryPtr);
-                REQUIRE(entryPtr->type() ==
-                        HotArchiveBucketEntryType::HOT_ARCHIVE_DELETED);
-                REQUIRE(entryPtr->key() == k);
-            }
+                // Deleted entries should be HotArchiveBucketEntry of type
+                // DELETED
+                else if (expectedDeletedEntries.find(k) !=
+                         expectedDeletedEntries.end())
+                {
+                    REQUIRE(entryPtr);
+                    REQUIRE(entryPtr->type() ==
+                            HotArchiveBucketEntryType::HOT_ARCHIVE_DELETED);
+                    REQUIRE(entryPtr->key() == k);
+                }
 
-            // Archived entries should contain full LedgerEntry
-            else
-            {
-                auto expectedIter = expectedArchiveEntries.find(k);
-                REQUIRE(expectedIter != expectedArchiveEntries.end());
-                REQUIRE(entryPtr);
-                REQUIRE(entryPtr->type() ==
-                        HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
-                REQUIRE(entryPtr->archivedEntry() == expectedIter->second);
-            }
-        };
+                // Archived entries should contain full LedgerEntry
+                else
+                {
+                    auto expectedIter = expectedArchiveEntries.find(k);
+                    REQUIRE(expectedIter != expectedArchiveEntries.end());
+                    REQUIRE(entryPtr);
+                    REQUIRE(entryPtr->type() ==
+                            HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+                    REQUIRE(entryPtr->archivedEntry() == expectedIter->second);
+                }
+            };
 
         auto checkResult = [&] {
             LedgerKeySet bulkLoadKeys;
@@ -810,7 +812,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             app->getLedgerManager().getLastClosedLedgerHeader().header;
         header.ledgerSeq += 1;
         header.ledgerVersion = static_cast<uint32_t>(
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+            HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         addHotArchiveBatchAndUpdateSnapshot(*app, header, archivedEntries,
                                             restoredEntries, deletedEntries);
         app->getBucketManager()

@@ -959,7 +959,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
 
         bool tempOnly = protocolVersionIsBefore(
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
 
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
         auto& bm = app->getBucketManager();

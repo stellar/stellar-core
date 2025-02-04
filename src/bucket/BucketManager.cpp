@@ -153,10 +153,6 @@ BucketManager::BucketManager(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
-          {"bucketlistDB", "bloom", "misses"}, "bloom"))
-    , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
-          {"bucketlistDB", "bloom", "lookups"}, "bloom"))
     , mLiveBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
     , mArchiveBucketListSizeCounter(
@@ -330,6 +326,24 @@ BucketManager::getMergeTimer()
     return mBucketSnapMerge;
 }
 
+template <class BucketT>
+medida::Meter&
+BucketManager::getBloomMissMeter() const
+{
+    BUCKET_TYPE_ASSERT(BucketT);
+    return mApp.getMetrics().NewMeter(
+        {BucketT::METRIC_STRING, "bloom", "misses"}, "bloom");
+}
+
+template <class BucketT>
+medida::Meter&
+BucketManager::getBloomLookupMeter() const
+{
+    BUCKET_TYPE_ASSERT(BucketT);
+    return mApp.getMetrics().NewMeter(
+        {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom");
+}
+
 MergeCounters
 BucketManager::readMergeCounters()
 {
@@ -361,9 +375,9 @@ BucketManager::renameBucketDirFile(std::filesystem::path const& src,
 
 template <>
 std::shared_ptr<LiveBucket>
-BucketManager::adoptFileAsBucket(std::string const& filename,
-                                 uint256 const& hash, MergeKey* mergeKey,
-                                 std::unique_ptr<BucketIndex const> index)
+BucketManager::adoptFileAsBucket(
+    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+    std::unique_ptr<LiveBucket::IndexT const> index)
 {
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedLiveBuckets, mLiveBucketFutures);
@@ -371,9 +385,9 @@ BucketManager::adoptFileAsBucket(std::string const& filename,
 
 template <>
 std::shared_ptr<HotArchiveBucket>
-BucketManager::adoptFileAsBucket(std::string const& filename,
-                                 uint256 const& hash, MergeKey* mergeKey,
-                                 std::unique_ptr<BucketIndex const> index)
+BucketManager::adoptFileAsBucket(
+    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+    std::unique_ptr<HotArchiveBucket::IndexT const> index)
 {
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedHotArchiveBuckets,
@@ -384,8 +398,8 @@ template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketManager::adoptFileAsBucketInternal(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-    std::unique_ptr<BucketIndex const> index, BucketMapT<BucketT>& bucketMap,
-    FutureMapT<BucketT>& futureMap)
+    std::unique_ptr<typename BucketT::IndexT const> index,
+    BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap)
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
@@ -952,7 +966,7 @@ BucketManager::addHotArchiveBatch(
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
     releaseAssertOrThrow(protocolVersionStartsFrom(
         header.ledgerVersion,
-        BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -1011,7 +1025,8 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
     {
         if (protocolVersionStartsFrom(
                 currentHeader.ledgerVersion,
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                HotArchiveBucket::
+                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             // TODO: Hash Archive Bucket
             // Dependency: HAS supports Hot Archive BucketList
@@ -1036,9 +1051,11 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
     calculateSkipValues(currentHeader);
 }
 
+template <class BucketT>
 void
-BucketManager::maybeSetIndex(std::shared_ptr<BucketBase> b,
-                             std::unique_ptr<BucketIndex const>&& index)
+BucketManager::maybeSetIndex(
+    std::shared_ptr<BucketT> b,
+    std::unique_ptr<typename BucketT::IndexT const>&& index)
 {
     ZoneScoped;
 
@@ -1166,18 +1183,6 @@ BucketManager::resolveBackgroundEvictionScan(
 
     networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
     return EvictedStateVectors{deletedKeys, archivedEntries};
-}
-
-medida::Meter&
-BucketManager::getBloomMissMeter() const
-{
-    return mBucketListDBBloomMisses;
-}
-
-medida::Meter&
-BucketManager::getBloomLookupMeter() const
-{
-    return mBucketListDBBloomLookups;
 }
 
 void
@@ -1634,4 +1639,17 @@ BucketManager::reportBucketEntryCountMetrics()
             bucketEntryCounters.entryTypeSizes.at(type));
     }
 }
+
+template void BucketManager::maybeSetIndex<LiveBucket>(
+    std::shared_ptr<LiveBucket> b,
+    std::unique_ptr<LiveBucket::IndexT const>&& index);
+template void BucketManager::maybeSetIndex<HotArchiveBucket>(
+    std::shared_ptr<HotArchiveBucket> b,
+    std::unique_ptr<HotArchiveBucket::IndexT const>&& index);
+template medida::Meter& BucketManager::getBloomMissMeter<LiveBucket>() const;
+template medida::Meter& BucketManager::getBloomLookupMeter<LiveBucket>() const;
+template medida::Meter&
+BucketManager::getBloomMissMeter<HotArchiveBucket>() const;
+template medida::Meter&
+BucketManager::getBloomLookupMeter<HotArchiveBucket>() const;
 }
