@@ -1344,8 +1344,10 @@
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo="
 	],
-	"persistent entry archival|eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"persistent entry archival|expiration without eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"persistent entry archival|eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"persistent entry archival|eviction|key accessible after restore in same ledger" : [ "iLiZOFVcRzA=" ],
+	"persistent entry archival|expiration without eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger" : [ "iLiZOFVcRzA=" ],
 	"refund account merged" : [ "bKDF6V5IzTo=", "398Rd+u+jdE=", "b4KxXJCxvM0=", "7/h1q7KjqKA=" ],
 	"refund is sent to fee-bump source|protocol version 20" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund is sent to fee-bump source|protocol version 21" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
