@@ -250,9 +250,6 @@ class HerderImpl : public Herder
     void purgeOldPersistedTxSets();
     void writeDebugTxSet(LedgerCloseData const& lcd);
 
-    // TODO: Need some way to get these queues
-    // TODO: Maybe something else should create this and pass it in somehow,
-    // either via Application or explicitly in the constructor for HerderImpl.
     TransactionQueuesPtr const mTransactionQueues =
         std::make_shared<TransactionQueues>();
 

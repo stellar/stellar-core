@@ -199,7 +199,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     if (mConfig.BACKGROUND_TX_QUEUE)
     {
         // TODO: Keep priority unchanged as tx queue processes time-sensitive
-        // tasks? Or should tx queue priority be downgraded?
+        // tasks? Or should tx queue priority be downgraded? The priority
+        // locking mechanism in TransactionQueue is designed to prevent tx queue
+        // from starving other work, so it may be fine to keep priority
+        // unchanged.
         mTxQueueThread = std::thread{[this]() { mTxQueueIOContext->run(); }};
         mThreadTypes[mTxQueueThread->get_id()] = ThreadType::TX_QUEUE;
     }
