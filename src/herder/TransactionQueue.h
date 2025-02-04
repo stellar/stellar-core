@@ -67,6 +67,8 @@ class Application;
 //     incoming SCP messages need to wait for tx queue additions to occur, which
 //     is bad.
 //         * My note: Try both approaches and benchmark
+//         * Follow up note: The priority locking scheme also helps to address
+//           this.
 
 enum class TxQueueAddResultCode
 {
@@ -172,6 +174,9 @@ class TransactionQueue
   protected:
     // TODO: Docs?
     // TODO: Move?
+    // TODO: It might be worth benchmarking this against the solution that does
+    // not use priority locking (just uses std::mutex). The added complexity of
+    // this may not be worth it.
     class TxQueueLock : NonMovableOrCopyable
     {
       public:

@@ -1231,17 +1231,6 @@ OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
 
         // add it to our current set
         // and make sure it is valid
-        // TODO: I think I could pull this one call into Peer::recvTransaction
-        // and move basically all of the rest of this function to a new function
-        // called something like "recordTransactionStats" or something. Then,
-        // Peer:recvTransaction would invoke HerderImpl::recvTransaction in the
-        // background, and then pass the result to the new function on the main
-        // thread. That way I don't have to make OverlayManagerImpl and its
-        // dependencies (Floodgate, Peer, TxDemandsManager, maybe more), or much
-        // of Peer thread safe. Note that the recordTransactionStats function
-        // would probably need to take a shared ptr to the message so that the
-        // message doesn't get deleted before the function is called. The lambda
-        // capture will need to copy this pointer in.
         auto addResult = mApp.getHerder().recvTransaction(transaction, false);
         recordAddTransactionStats(addResult, transaction->getFullHash(), peer,
                                   index);

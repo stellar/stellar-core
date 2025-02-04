@@ -600,7 +600,7 @@ Herder::recvTransaction(TransactionQueuesPtr txQueues,
     // would be whatever is handling ledger close. However, that will only
     // decrease the sourceAccountPending value, which means this erroneously
     // rejects (which is safe). I guess it's possible for a user-submitted
-    // transaction to come in and conflict with the overlay thread, but that
+    // transaction to come in and conflict with the tx queue thread, but that
     // would require them to be simultaneously running two clients and
     // submitting from both of them. Still, it might be safest to use some kind
     // of atomic function that handles both this check AND the add.
