@@ -408,11 +408,11 @@ InvokeHostFunctionOpFrame::doApply(
                 // If ttlLtxe doesn't exist, this is a new Soroban entry
                 // Starting in protocol 23, we must check the Hot Archive for
                 // new keys. If a new key is actually archived, fail the op.
-                if (isPersistentEntry(lk) &&
-                    protocolVersionStartsFrom(
-                        ltx.getHeader().ledgerVersion,
-                        HotArchiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                else if (isPersistentEntry(lk) &&
+                         protocolVersionStartsFrom(
+                             ltx.getHeader().ledgerVersion,
+                             HotArchiveBucket::
+                                 FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
                     auto archiveEntry = hotArchive->load(lk);
                     if (archiveEntry)

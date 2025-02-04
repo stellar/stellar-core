@@ -3124,6 +3124,37 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             // Restored entries are deleted from Hot Archive
             REQUIRE(!hotArchive->load(lk));
         }
+
+        SECTION("key accessible after restore in same ledger")
+        {
+            auto writeSrcAccount = test.getRoot().create("src", 500000000);
+
+            SorobanResources restoreResources;
+            restoreResources.footprint.readWrite = {lk};
+            restoreResources.instructions = 0;
+            restoreResources.readBytes = 10'000;
+            restoreResources.writeBytes = 10'000;
+
+            auto resourceFee = 300'000 + 40'000;
+            auto restoreTx =
+                test.createRestoreTx(restoreResources, 1'000, resourceFee);
+
+            auto writeInvocation = client.getContract().prepareInvocation(
+                "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(200)},
+                client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
+
+            auto writeTx =
+                writeInvocation.withExactNonRefundableResourceFee().createTx(
+                    &writeSrcAccount);
+
+            closeLedger(test.getApp(), {restoreTx, writeTx},
+                        /*strictOrder=*/true);
+
+            // Restore should succeed and entry value should be updated since
+            // writeTx comes after restore
+            REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
+            client.get("key", ContractDataDurability::PERSISTENT, 200);
+        }
     };
 
     SECTION("eviction")
