@@ -1017,6 +1017,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
         emitNextMeta();
     }
 
+    releaseAssertOrThrow(ledgerSeq != 53514768);
+
     // The next 7 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
     // be so subtle, but for the time being this is where we are.

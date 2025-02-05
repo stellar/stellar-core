@@ -556,6 +556,7 @@ addBalanceSkipAuthorization(LedgerTxnHeader const& header,
 bool
 addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
 {
+    ZoneScoped;
     if (entry.current().data.type() == ACCOUNT)
     {
         if (delta == 0)
@@ -1142,6 +1143,7 @@ void
 releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                    LedgerTxnEntry const& offer)
 {
+    ZoneScoped;
     acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 

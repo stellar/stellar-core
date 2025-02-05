@@ -55,6 +55,7 @@ int64_t
 canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
               Asset const& asset, TrustLineWrapper const& trustLine)
 {
+    ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         // can only send above the minimum balance
@@ -73,6 +74,7 @@ int64_t
 canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
               Asset const& asset, ConstTrustLineWrapper const& trustLine)
 {
+    ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         // can only send above the minimum balance
@@ -91,6 +93,7 @@ int64_t
 canBuyAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
              Asset const& asset, TrustLineWrapper const& trustLine)
 {
+    ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return std::max({getMaxAmountReceive(header, account), int64_t(0)});
@@ -107,6 +110,7 @@ int64_t
 canBuyAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
              Asset const& asset, ConstTrustLineWrapper const& trustLine)
 {
+    ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return std::max({getMaxAmountReceive(header, account), int64_t(0)});
@@ -786,6 +790,7 @@ adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
             TrustLineWrapper const& wheatLine, Asset const& sheep,
             TrustLineWrapper const& sheepLine)
 {
+    ZoneScoped;
     OfferEntry& oe = offer.current().data.offer();
     int64_t maxWheatSend =
         std::min({oe.amount, canSellAtMost(header, account, wheat, wheatLine)});
@@ -1206,8 +1211,18 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     auto res = (offer.amount == 0) ? CrossOfferResult::eOfferTaken
                                    : CrossOfferResult::eOfferPartial;
     {
+        ZoneNamedN(commitZone, "offer_commit_parent", true);
+        // Construct == 238 MS
         LedgerTxn ltxInner(ltx);
+
+        ZoneNamedN(constructZone, "offer_ltx_construct_end", true);
+
+        // Copy header == 21 ms
         header = ltxInner.loadHeader();
+
+        ZoneNamedN(loadZone, "offer_ltx_header_end", true);
+
+        // Body: 457 MS
         sellingWheatOffer = loadOffer(ltxInner, accountBID, offerID);
         if (res == CrossOfferResult::eOfferTaken)
         {
@@ -1220,16 +1235,25 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
         {
             acquireLiabilities(ltxInner, header, sellingWheatOffer);
         }
-        ltxInner.commit();
+
+        {
+            // Commit == 257 MS
+            ZoneNamedN(commitZone, "offer_commit_actual", true);
+            ltxInner.commit();
+        }
     }
 
     // Note: The previous block creates a nested LedgerTxn so all entries are
     // deactivated at this point. Specifically, you cannot use sellingWheatOffer
     // or offer (which is a reference) since it is not active (and may have been
     // erased) at this point.
-    offerTrail.emplace_back(
-        makeClaimAtom(ltx.loadHeader().current().ledgerVersion, accountBID,
-                      offerID, wheat, numWheatReceived, sheep, numSheepSend));
+    {
+
+        ZoneNamedN(claimAtomZone, "offer_trail", true);
+        offerTrail.emplace_back(makeClaimAtom(
+            ltx.loadHeader().current().ledgerVersion, accountBID, offerID,
+            wheat, numWheatReceived, sheep, numSheepSend));
+    }
     return res;
 }
 
@@ -1513,7 +1537,11 @@ convertWithOffers(
 
     while (needMore)
     {
+        ZoneNamedN(offerStart, "convert_with_offers_start", true);
         LedgerTxn ltx(ltxOuter);
+
+        ZoneNamedN(convertOffersConstruct, "convert_with_offers_post_construct",
+                   true);
         auto wheatOffer = ltx.loadBestOffer(sheep, wheat);
         if (!wheatOffer)
         {
@@ -1583,7 +1611,11 @@ convertWithOffers(
         {
             return ConvertResult::ePartial;
         }
-        ltx.commit();
+
+        {
+            ZoneNamedN(commitZone, "convert_with_offers_commit", true);
+            ltx.commit();
+        }
 
         sheepSend += numSheepSend;
         maxSheepSend -= numSheepSend;

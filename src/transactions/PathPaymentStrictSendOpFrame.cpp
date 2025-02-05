@@ -12,6 +12,9 @@
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 
+#include <algorithm>
+#include <ledger/LedgerHashUtils.h>
+
 namespace stellar
 {
 
@@ -43,7 +46,6 @@ PathPaymentStrictSendOpFrame::doApply(
     }
     pathStr += "->";
     pathStr += assetToString(getDestAsset());
-    ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
 
     setResultSuccess(res);
 
@@ -63,11 +65,60 @@ PathPaymentStrictSendOpFrame::doApply(
         return false;
     }
 
+    // Hash(subPath) -> (sendAmount -> set of receiveAmounts)
+    static std::map<Hash, std::map<int64_t, std::set<int64_t>>> cache;
+
     // build the full path to the destination, ending with destAsset
     std::vector<Asset> fullPath;
     fullPath.insert(fullPath.end(), mPathPayment.path.begin(),
                     mPathPayment.path.end());
     fullPath.emplace_back(getDestAsset());
+
+    SHA256 fullPathHasher;
+    for (auto const& asset : fullPath)
+    {
+        auto hash = getAssetHash(asset);
+        fullPathHasher.add(
+            ByteSlice(reinterpret_cast<unsigned char*>(&hash), sizeof(hash)));
+    }
+
+    auto fullPathHash = fullPathHasher.finish();
+
+    if (auto iter = cache.find(fullPathHash); iter != cache.end())
+    {
+        auto const& sendAmountToReceiveAmounts = iter->second;
+
+        // Get set of receive amounts for which sendAmount is greater than or
+        // equal to our send amount
+        auto sendToReceiveAmountsIter = std::lower_bound(
+            sendAmountToReceiveAmounts.begin(),
+            sendAmountToReceiveAmounts.end(), mPathPayment.sendAmount,
+            [](const auto& pair, uint64_t value) {
+                // send amount -> set(minReceiveAmount)
+                return pair.first < value;
+            });
+
+        // For each op that has send the same or more than this op
+        for (; sendToReceiveAmountsIter != sendAmountToReceiveAmounts.end();
+             ++sendToReceiveAmountsIter)
+        {
+            auto const& receiveAmounts = sendToReceiveAmountsIter->second;
+
+            // If any received amount is less than or equal to destMin, we
+            // know the trade will fail since a previous trade sent more and
+            // received less than destMin but still failed
+            for (auto const& receiveAmount : receiveAmounts)
+            {
+                if (receiveAmount <= mPathPayment.destMin)
+                {
+                    setResultConstraintNotMet(res);
+                    pathStr += "-> hit";
+                    ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
+                    return false;
+                }
+            }
+        }
+    }
 
     // Walk the path
     Asset sendAsset = getSourceAsset();
@@ -98,6 +149,12 @@ PathPaymentStrictSendOpFrame::doApply(
                      amountSend, recvAsset, INT64_MAX, amountRecv,
                      RoundingType::PATH_PAYMENT_STRICT_SEND, offerTrail, res))
         {
+            static int i = 0;
+            CLOG_FATAL(
+                Bucket,
+                "PathPaymentStrictSendOpFrame::convert failed with {}, {}",
+                res.code(), i++);
+
             return false;
         }
 
@@ -111,15 +168,27 @@ PathPaymentStrictSendOpFrame::doApply(
     }
 
     if (maxAmountSend < mPathPayment.destMin)
-    { // make sure not over the max
+    {
         setResultConstraintNotMet(res);
+
+        cache[fullPathHash][mPathPayment.sendAmount].insert(
+            mPathPayment.destMin);
+
+        pathStr += "-> miss";
+        ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
         return false;
     }
 
     if (!updateDestBalance(ltx, maxAmountSend, bypassIssuerCheck, res))
     {
+
+        pathStr += "-> miss";
+        ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
         return false;
     }
+
+    pathStr += "-> miss";
+    ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
     innerResult(res).success().last =
         SimplePaymentResult(getDestID(), getDestAsset(), maxAmountSend);
     return true;
