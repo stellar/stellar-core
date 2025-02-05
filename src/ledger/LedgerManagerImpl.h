@@ -106,6 +106,13 @@ class LedgerManagerImpl : public LedgerManager
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
 
+    // Cache for path payment strict send operations
+    // Hash(subPath) -> (sendAmount -> set of receiveAmounts)
+    PathPaymentStrictSendMap mPathPaymentStrictSendFailureCache;
+
+    // Maps assets to the paths that contain them
+    AssetToPathsMap mAssetToPaths;
+
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
@@ -251,5 +258,18 @@ class LedgerManagerImpl : public LedgerManager
     {
         return mCurrentlyApplyingLedger;
     }
+
+    void clearPathPaymentStrictSendCache() override;
+    void cachePathPaymentStrictSendFailure(
+        Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
+        std::vector<Asset> const& assets) override;
+    PathPaymentStrictSendMap::const_iterator
+    getPathPaymentStrictSendCache(Hash const& pathHash) const override;
+
+    PathPaymentStrictSendMap::const_iterator
+    getPathPaymentStrictSendCacheEnd() const override;
+
+    void invalidatePathPaymentCachesForAssetPair(Asset const& selling,
+                                                 Asset const& buying) override;
 };
 }

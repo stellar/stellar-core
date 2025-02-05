@@ -65,9 +65,6 @@ PathPaymentStrictSendOpFrame::doApply(
         return false;
     }
 
-    // Hash(subPath) -> (sendAmount -> set of receiveAmounts)
-    static std::map<Hash, std::map<int64_t, std::set<int64_t>>> cache;
-
     // build the full path to the destination, ending with destAsset
     std::vector<Asset> fullPath;
     fullPath.insert(fullPath.end(), mPathPayment.path.begin(),
@@ -84,7 +81,9 @@ PathPaymentStrictSendOpFrame::doApply(
 
     auto fullPathHash = fullPathHasher.finish();
 
-    if (auto iter = cache.find(fullPathHash); iter != cache.end())
+    auto iter =
+        app.getLedgerManager().getPathPaymentStrictSendCache(fullPathHash);
+    if (iter != app.getLedgerManager().getPathPaymentStrictSendCacheEnd())
     {
         auto const& sendAmountToReceiveAmounts = iter->second;
 
@@ -98,7 +97,7 @@ PathPaymentStrictSendOpFrame::doApply(
                 return pair.first < value;
             });
 
-        // For each op that has send the same or more than this op
+        // For each op that has sent the same or more than this op
         for (; sendToReceiveAmountsIter != sendAmountToReceiveAmounts.end();
              ++sendToReceiveAmountsIter)
         {
@@ -171,8 +170,9 @@ PathPaymentStrictSendOpFrame::doApply(
     {
         setResultConstraintNotMet(res);
 
-        cache[fullPathHash][mPathPayment.sendAmount].insert(
-            mPathPayment.destMin);
+        app.getLedgerManager().cachePathPaymentStrictSendFailure(
+            fullPathHash, mPathPayment.sendAmount, mPathPayment.destMin,
+            fullPath);
 
         pathStr += "-> miss";
         ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());

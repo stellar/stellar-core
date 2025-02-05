@@ -235,6 +235,9 @@ ManageOfferOpFrameBase::doApply(
     uint32_t flags = 0;
     LedgerEntry::_ext_t extension;
 
+    Price oldSellSheepOfferPrice(Price(0, 0));
+    int64_t oldSheepAmount = 0;
+
     if (mOfferID)
     { // modifying an old offer
         auto sellSheepOffer = stellar::loadOffer(ltx, getSourceID(), mOfferID);
@@ -243,6 +246,9 @@ ManageOfferOpFrameBase::doApply(
             setResultNotFound(res);
             return false;
         }
+
+        oldSellSheepOfferPrice = sellSheepOffer.current().data.offer().price;
+        oldSheepAmount = sellSheepOffer.current().data.offer().amount;
 
         // We are releasing the liabilites associated with this offer. This is
         // required in order to produce available balance for the offer to be
@@ -539,6 +545,25 @@ ManageOfferOpFrameBase::doApply(
     }
 
     ltx.commit();
+
+    // Invalidate paths containing either asset in this offer
+    if (creatingNewOffer)
+    {
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(mSheep,
+                                                                       mWheat);
+    }
+    // Deleting an offer does not invalidate any cached fails
+    else if (!isDeleteOffer())
+    {
+        // Invalidate paths containing the asset pair if the offer is better
+        if (mPrice < oldSellSheepOfferPrice ||
+            (mPrice == oldSellSheepOfferPrice && amount > oldSheepAmount))
+        {
+            app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+                mSheep, mWheat);
+        }
+    }
+
     return true;
 }
 

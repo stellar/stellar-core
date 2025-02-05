@@ -16,6 +16,10 @@ class LedgerCloseData;
 class Database;
 class SorobanMetrics;
 
+using PathPaymentStrictSendMap =
+    std::map<Hash, std::map<int64_t, std::set<int64_t>>>;
+using AssetToPathsMap = std::map<Hash, std::vector<std::pair<Asset, Asset>>>;
+
 /**
  * LedgerManager maintains, in memory, a logical pair of ledgers:
  *
@@ -206,5 +210,27 @@ class LedgerManager
     }
 
     virtual bool isApplying() const = 0;
+
+    // Clear the path payment strict send failure cache
+    virtual void clearPathPaymentStrictSendCache() = 0;
+
+    // Cache a failed path payment strict send attempt
+    virtual void
+    cachePathPaymentStrictSendFailure(Hash const& pathHash, int64_t sendAmount,
+                                      int64_t receiveAmount,
+                                      std::vector<Asset> const& assets) = 0;
+
+    // Get cached failures for a path, or end iterator if not found
+    virtual PathPaymentStrictSendMap::const_iterator
+    getPathPaymentStrictSendCache(Hash const& pathHash) const = 0;
+
+    // Get the end iterator for the path payment cache
+    virtual PathPaymentStrictSendMap::const_iterator
+    getPathPaymentStrictSendCacheEnd() const = 0;
+
+    // Invalidate paths containing the given asset pair (in that order)
+    virtual void
+    invalidatePathPaymentCachesForAssetPair(Asset const& selling,
+                                            Asset const& buying) = 0;
 };
 }

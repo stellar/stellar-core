@@ -1017,7 +1017,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
         emitNextMeta();
     }
 
-    releaseAssertOrThrow(ledgerSeq != 53514768);
+    // releaseAssertOrThrow(ledgerSeq != 53514768);
 
     // The next 7 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
@@ -1115,7 +1115,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
                ledgerTimeSeconds.count());
     FrameMark;
+
+    // Clear the path payment cache at the start of processing a new ledger
+    clearPathPaymentStrictSendCache();
 }
+
 void
 LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
@@ -1875,5 +1879,60 @@ LedgerManagerImpl::ledgerClosed(
     });
 
     return res;
+}
+
+void
+LedgerManagerImpl::clearPathPaymentStrictSendCache()
+{
+    mPathPaymentStrictSendFailureCache.clear();
+}
+
+void
+LedgerManagerImpl::cachePathPaymentStrictSendFailure(
+    Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
+    std::vector<Asset> const& assets)
+{
+    mPathPaymentStrictSendFailureCache[pathHash][sendAmount].insert(
+        receiveAmount);
+
+    // Convert path into buy-sell pairs
+    std::vector<std::pair<Asset, Asset>> pairs;
+    for (size_t i = 0; i < assets.size() - 1; i++)
+    {
+        pairs.emplace_back(assets[i], assets[i + 1]);
+    }
+
+    mAssetToPaths[pathHash] = pairs;
+}
+
+PathPaymentStrictSendMap::const_iterator
+LedgerManagerImpl::getPathPaymentStrictSendCache(Hash const& pathHash) const
+{
+    return mPathPaymentStrictSendFailureCache.find(pathHash);
+}
+
+PathPaymentStrictSendMap::const_iterator
+LedgerManagerImpl::getPathPaymentStrictSendCacheEnd() const
+{
+    return mPathPaymentStrictSendFailureCache.end();
+}
+
+void
+LedgerManagerImpl::invalidatePathPaymentCachesForAssetPair(Asset const& selling,
+                                                           Asset const& buying)
+{
+    // For each path in the cache
+    for (auto const& [pathHash, pairs] : mAssetToPaths)
+    {
+        // Check if this path contains the asset pair in sequence
+        for (size_t i = 0; i < pairs.size(); i++)
+        {
+            if (pairs[i].first == selling && pairs[i].second == buying)
+            {
+                mPathPaymentStrictSendFailureCache.erase(pathHash);
+                break;
+            }
+        }
+    }
 }
 }
