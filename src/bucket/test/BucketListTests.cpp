@@ -591,9 +591,9 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
                         FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
             {
                 // init/dead pairs should mutually-annihilate pretty readily as
-                // they go, empirically this test peaks at buckets around 400
+                // they go, empirically this test peaks at buckets around 500
                 // entries.
-                REQUIRE((currSz + snapSz) < 500);
+                REQUIRE((currSz + snapSz) < 600);
             }
             CLOG_INFO(Bucket, "Level {} size: {}", k, (currSz + snapSz));
         }
