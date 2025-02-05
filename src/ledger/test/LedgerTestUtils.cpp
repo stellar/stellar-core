@@ -380,6 +380,12 @@ makeValid(ContractDataEntry& cde)
 void
 makeValid(ContractCodeEntry& cce)
 {
+    auto seed = rand_uniform<uint64_t>(0, UINT64_MAX);
+    auto size = rand_uniform<size_t>(64, 150);
+    auto wasmBuf = rust_bridge::get_random_wasm(size, seed);
+    cce.code.assign(wasmBuf.data.data(),
+                    wasmBuf.data.data() + wasmBuf.data.size());
+    cce.hash = sha256(cce.code);
 }
 
 void
