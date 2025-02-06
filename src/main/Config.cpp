@@ -65,7 +65,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
-    "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING"};
+    "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
+    "IN_MEMORY_SOROBAN_STATE_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -281,6 +282,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     ENTRY_CACHE_SIZE = 100000;
     PREFETCH_BATCH_SIZE = 1000;
+#ifdef BUILD_TESTS
+    IN_MEMORY_SOROBAN_STATE_FOR_TESTING = true;
+#endif
 
     HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(30);
 

@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -59,6 +60,8 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     std::streamoff lastOffset = 0;
     std::optional<std::streamoff> firstOffer;
     std::optional<std::streamoff> lastOffer;
+    std::optional<std::streamoff> firstContractEntry;
+    std::optional<std::streamoff> lastContractEntry;
 
     while (in && in.readOne(be))
     {
@@ -108,6 +111,35 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
             lastOffer = lastOffset;
         }
 
+        // Populate contractEntryRange
+        if (!firstContractEntry &&
+            (lk.type() == CONTRACT_DATA || lk.type() == CONTRACT_CODE ||
+             lk.type() == TTL))
+        {
+            CLOG_DEBUG(Ledger,
+                       "Found *first* contract entry type {} at offset {}",
+                       lk.type(), lastOffset);
+            firstContractEntry = lastOffset;
+        }
+        else
+        {
+            if (firstContractEntry)
+            {
+                CLOG_DEBUG(Ledger, "Found contract entry type {} at offset {}",
+                           lk.type(), lastOffset);
+            }
+            else
+            {
+                CLOG_DEBUG(Ledger, "Not a contract entry, type: {}", lk.type());
+            }
+        }
+        if (!lastContractEntry && firstContractEntry && lk.type() > TTL)
+        {
+            CLOG_DEBUG(Ledger, "Found last contract entry at offset {}",
+                       lastOffset);
+            lastContractEntry = lastOffset;
+        }
+
         lastOffset = in.pos();
     }
 
@@ -128,6 +160,31 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     else
     {
         mOfferRange = std::nullopt;
+    }
+
+    if (firstContractEntry)
+    {
+        if (lastContractEntry)
+        {
+            mContractEntryRange = {*firstContractEntry, *lastContractEntry};
+        }
+        // If we didn't see any entries after contract entries, then the upper
+        // bound is EOF
+        else
+        {
+            CLOG_DEBUG(
+                Ledger,
+                "No last contract entry found, setting upper bound to EOF");
+            mContractEntryRange = {*firstContractEntry,
+                                   std::numeric_limits<std::streamoff>::max()};
+        }
+        CLOG_DEBUG(Ledger, "Found contract entry range from {} to {}",
+                   *firstContractEntry, *lastContractEntry);
+    }
+    else
+    {
+        mContractEntryRange = std::nullopt;
+        CLOG_DEBUG(Ledger, "No contract entry range found");
     }
 }
 }

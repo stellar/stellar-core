@@ -19,6 +19,9 @@ typedef std::set<LedgerKey, LedgerEntryIdCmp> LedgerKeySet;
 
 LedgerKey LedgerEntryKey(LedgerEntry const& e);
 
+// Returns a dummy LedgerEntry with the same key as the given LedgerKey.
+LedgerEntry KeyToDummyLedgerEntry(LedgerKey const& k);
+
 bool isZero(uint256 const& b);
 
 Hash& operator^=(Hash& l, Hash const& r);

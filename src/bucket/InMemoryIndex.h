@@ -61,6 +61,8 @@ class InMemoryIndex
     AssetPoolIDMap mAssetPoolIDMap;
     BucketEntryCounters mCounters{};
     std::optional<std::pair<std::streamoff, std::streamoff>> mOfferRange;
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+        mContractEntryRange;
 
   public:
     using IterT = InMemoryBucketState::IterT;
@@ -101,6 +103,12 @@ class InMemoryIndex
     getOfferRange() const
     {
         return mOfferRange;
+    }
+
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getContractEntryRange() const
+    {
+        return mContractEntryRange;
     }
 
 #ifdef BUILD_TESTS

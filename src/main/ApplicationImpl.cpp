@@ -261,9 +261,10 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
                     mConfig.ENTRY_CACHE_SIZE);
     }
     mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-        *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
+        *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE,
+        mLedgerManager->getLedgerStateCache()
 #ifdef BEST_OFFER_DEBUGGING
-        ,
+            ,
         mConfig.BEST_OFFER_DEBUGGING_ENABLED
 #endif
     );

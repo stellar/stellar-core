@@ -7,6 +7,7 @@
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
+#include "catchup/PopulateLedgerCacheWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -20,6 +21,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerStateCache.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -156,8 +158,15 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
-    , mState(LM_BOOTING_STATE)
-
+#ifdef BUILD_TESTS
+    , mLedgerStateCache
+{
+    app.getConfig().IN_MEMORY_SOROBAN_STATE_FOR_TESTING
+        ? std::make_shared<LedgerStateCache>()
+        : std::optional<std::shared_ptr<LedgerStateCache>>(std::nullopt)
+}
+#endif
+, mState(LM_BOOTING_STATE)
 {
     setupLedgerCloseMetaStream();
 }
@@ -384,6 +393,23 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         {
             // Work should only fail during graceful shutdown
             releaseAssertOrThrow(mApp.isStopping());
+        }
+        if (mLedgerStateCache)
+        {
+            auto populateLedgerCacheWork =
+                mApp.getWorkScheduler().executeWork<PopulateLedgerCacheWork>();
+            if (populateLedgerCacheWork->getState() ==
+                BasicWork::State::WORK_SUCCESS)
+            {
+                CLOG_INFO(Ledger,
+                          "Populated global ledger cache with {} entries",
+                          (*mLedgerStateCache)->size());
+            }
+            else
+            {
+                // Work should only fail during graceful shutdown
+                releaseAssertOrThrow(mApp.isStopping());
+            }
         }
     }
 
@@ -1814,6 +1840,11 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
+        if (mLedgerStateCache)
+        {
+            (*mLedgerStateCache)
+                ->addEntries(initEntries, liveEntries, deadEntries);
+        }
         mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                              deadEntries);
     }
@@ -1873,5 +1904,21 @@ LedgerManagerImpl::ledgerClosed(
     });
 
     return res;
+}
+
+std::optional<std::shared_ptr<LedgerStateCache>>
+LedgerManagerImpl::getLedgerStateCache() const
+{
+    if (mLedgerStateCache)
+    {
+        CLOG_DEBUG(Ledger,
+                   "LedgerManagerImpl::getLedgerStateCache() (not nullopt)");
+    }
+    else
+    {
+        CLOG_DEBUG(Ledger,
+                   "LedgerManagerImpl::getLedgerStateCache() (nullopt)");
+    }
+    return mLedgerStateCache;
 }
 }

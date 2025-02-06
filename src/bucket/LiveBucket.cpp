@@ -316,6 +316,16 @@ LiveBucket::getOfferRange() const
     return getIndex().getOfferRange();
 }
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+LiveBucket::getContractEntryRange() const
+{
+    if (!getIndex().getContractEntryRange())
+    {
+        CLOG_DEBUG(Bucket, "LiveBucket::getContractEntryRange() = nullopt");
+    }
+    return getIndex().getContractEntryRange();
+}
+
 std::vector<BucketEntry>
 LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerEntry> const& initEntries,

@@ -71,6 +71,31 @@ LedgerEntryKey(LedgerEntry const& e)
     return k;
 }
 
+LedgerEntry
+KeyToDummyLedgerEntry(LedgerKey const& k)
+{
+    LedgerEntry e;
+    e.data.type(k.type());
+    // TODO support other types
+    switch (k.type())
+    {
+    case CONTRACT_DATA:
+        e.data.contractData().contract = k.contractData().contract;
+        e.data.contractData().key = k.contractData().key;
+        e.data.contractData().durability = k.contractData().durability;
+        break;
+    case CONTRACT_CODE:
+        e.data.contractCode().hash = k.contractCode().hash;
+        break;
+    case TTL:
+        e.data.ttl().keyHash = k.ttl().keyHash;
+        break;
+    default:
+        abort();
+    }
+    return e;
+}
+
 bool
 isZero(uint256 const& b)
 {

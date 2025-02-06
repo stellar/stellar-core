@@ -9,8 +9,10 @@
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
+#include "util/Logging.h"
 #include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -26,6 +28,7 @@ AssumeStateWork::AssumeStateWork(Application& app,
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
     auto& bm = mApp.getBucketManager();
+    int counter = 0;
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         auto curr = bm.getBucketByHash<LiveBucket>(
@@ -39,7 +42,13 @@ AssumeStateWork::AssumeStateWork(Application& app,
         }
 
         mBuckets.emplace_back(curr);
+        CLOG_DEBUG(Ledger, "AssumeStateWork: Adding bucket {} to mBuckets[{}]",
+                   xdr::xdr_to_string(curr->getHash()), counter);
+        counter++;
         mBuckets.emplace_back(snap);
+        CLOG_DEBUG(Ledger, "AssumeStateWork: Adding bucket {} to mBuckets[{}]",
+                   xdr::xdr_to_string(snap->getHash()), counter);
+        counter++;
         auto& nextFuture = mHas.currentBuckets.at(i).next;
         if (nextFuture.hasOutputHash())
         {
@@ -52,6 +61,10 @@ AssumeStateWork::AssumeStateWork(Application& app,
             }
 
             mBuckets.emplace_back(nextBucket);
+            CLOG_DEBUG(Ledger,
+                       "AssumeStateWork: Adding bucket {} to mBuckets[{}]",
+                       xdr::xdr_to_string(nextBucket->getHash()), counter);
+            counter++;
         }
     }
 }

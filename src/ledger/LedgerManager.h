@@ -8,12 +8,14 @@
 #include "history/HistoryManager.h"
 #include "ledger/NetworkConfig.h"
 #include <memory>
+#include <optional>
 
 namespace stellar
 {
 
-class LedgerCloseData;
 class Database;
+class LedgerCloseData;
+class LedgerStateCache;
 class SorobanMetrics;
 
 /**
@@ -206,5 +208,8 @@ class LedgerManager
     }
 
     virtual bool isApplying() const = 0;
+
+    virtual std::optional<std::shared_ptr<LedgerStateCache>>
+    getLedgerStateCache() const = 0;
 };
 }
