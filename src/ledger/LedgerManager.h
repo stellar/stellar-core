@@ -17,8 +17,11 @@ class Database;
 class SorobanMetrics;
 
 using PathPaymentStrictSendMap =
-    std::map<Hash, std::map<int64_t, std::set<int64_t>>>;
-using AssetToPathsMap = std::map<Hash, std::vector<std::pair<Asset, Asset>>>;
+    UnorderedMap<Hash, std::map<int64_t, std::set<int64_t>>>;
+
+// Change map definition to use unordered_map with asset pair as key
+using AssetToPathsMap =
+    UnorderedMap<AssetPair, std::vector<Hash>, AssetPairHash>;
 
 /**
  * LedgerManager maintains, in memory, a logical pair of ledgers:
@@ -229,7 +232,6 @@ class LedgerManager
 
     // Invalidate paths containing the given asset pair (in that order)
     virtual void
-    invalidatePathPaymentCachesForAssetPair(Asset const& selling,
-                                            Asset const& buying) = 0;
+    invalidatePathPaymentCachesForAssetPair(AssetPair const& pair) = 0;
 };
 }

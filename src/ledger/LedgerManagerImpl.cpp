@@ -160,6 +160,9 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
 
 {
     setupLedgerCloseMetaStream();
+
+    mPathPaymentStrictSendFailureCache.reserve(1000);
+    mAssetToPaths.reserve(1000);
 }
 
 void
@@ -1885,6 +1888,7 @@ void
 LedgerManagerImpl::clearPathPaymentStrictSendCache()
 {
     mPathPaymentStrictSendFailureCache.clear();
+    mAssetToPaths.clear();
 }
 
 void
@@ -1893,18 +1897,37 @@ LedgerManagerImpl::cachePathPaymentStrictSendFailure(
     Asset const& source, std::vector<Asset> const& assets)
 {
     ZoneScoped;
-    mPathPaymentStrictSendFailureCache[pathHash][sendAmount].insert(
-        receiveAmount);
-
-    // Convert path into buy-sell pairs
-    std::vector<std::pair<Asset, Asset>> pairs;
-    pairs.emplace_back(source, assets[0]);
-    for (size_t i = 0; i < assets.size() - 1; i++)
+    auto iter = mPathPaymentStrictSendFailureCache.find(pathHash);
+    if (iter == mPathPaymentStrictSendFailureCache.end())
     {
-        pairs.emplace_back(assets[i], assets[i + 1]);
+        auto val = std::map<int64_t, std::set<int64_t>>();
+        val[sendAmount].insert(receiveAmount);
+        mPathPaymentStrictSendFailureCache.emplace(pathHash, std::move(val));
+    }
+    else
+    {
+        auto& val = iter->second;
+        val[sendAmount].insert(receiveAmount);
     }
 
-    mAssetToPaths[pathHash] = pairs;
+    auto insert = [&](AssetPair const& pair) {
+        auto iter = mAssetToPaths.find(pair);
+        if (iter == mAssetToPaths.end())
+        {
+            mAssetToPaths.emplace(pair, std::vector<Hash>{pathHash});
+        }
+        else
+        {
+            iter->second.push_back(pathHash);
+        }
+    };
+
+    // Convert path into buy-sell pairs
+    insert(AssetPair{source, assets[0]});
+    for (size_t i = 0; i < assets.size() - 1; i++)
+    {
+        insert(AssetPair{assets[i], assets[i + 1]});
+    }
 }
 
 PathPaymentStrictSendMap::const_iterator
@@ -1920,22 +1943,19 @@ LedgerManagerImpl::getPathPaymentStrictSendCacheEnd() const
 }
 
 void
-LedgerManagerImpl::invalidatePathPaymentCachesForAssetPair(Asset const& selling,
-                                                           Asset const& buying)
+LedgerManagerImpl::invalidatePathPaymentCachesForAssetPair(
+    AssetPair const& pair)
 {
     ZoneScoped;
-    // For each path in the cache
-    for (auto const& [pathHash, pairs] : mAssetToPaths)
+
+    auto it = mAssetToPaths.find(pair);
+    if (it != mAssetToPaths.end())
     {
-        // Check if this path contains the asset pair in sequence
-        for (size_t i = 0; i < pairs.size(); i++)
+        for (auto const& pathHash : it->second)
         {
-            if (pairs[i].first == selling && pairs[i].second == buying)
-            {
-                mPathPaymentStrictSendFailureCache.erase(pathHash);
-                break;
-            }
+            mPathPaymentStrictSendFailureCache.erase(pathHash);
         }
+        mAssetToPaths.erase(it);
     }
 }
 }

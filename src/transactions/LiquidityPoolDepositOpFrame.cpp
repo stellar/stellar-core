@@ -314,9 +314,9 @@ LiquidityPoolDepositOpFrame::doApply(
     }
 
     app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        cpp().assetA, cpp().assetB);
+        AssetPair{cpp().assetA, cpp().assetB});
     app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        cpp().assetB, cpp().assetA);
+        AssetPair{cpp().assetB, cpp().assetA});
     innerResult(res).code(LIQUIDITY_POOL_DEPOSIT_SUCCESS);
     return true;
 }

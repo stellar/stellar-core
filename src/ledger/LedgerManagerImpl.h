@@ -269,7 +269,7 @@ class LedgerManagerImpl : public LedgerManager
     PathPaymentStrictSendMap::const_iterator
     getPathPaymentStrictSendCacheEnd() const override;
 
-    void invalidatePathPaymentCachesForAssetPair(Asset const& selling,
-                                                 Asset const& buying) override;
+    void
+    invalidatePathPaymentCachesForAssetPair(AssetPair const& pair) override;
 };
 }

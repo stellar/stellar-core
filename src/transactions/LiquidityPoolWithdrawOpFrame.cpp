@@ -100,10 +100,10 @@ LiquidityPoolWithdrawOpFrame::doApply(
         throw std::runtime_error("insufficient reserveB");
     }
 
-    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        constantProduct().params.assetA, constantProduct().params.assetB);
-    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        constantProduct().params.assetB, constantProduct().params.assetA);
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(AssetPair{
+        constantProduct().params.assetA, constantProduct().params.assetB});
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(AssetPair{
+        constantProduct().params.assetB, constantProduct().params.assetA});
 
     innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_SUCCESS);
     return true;

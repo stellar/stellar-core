@@ -194,12 +194,12 @@ PathPaymentStrictSendOpFrame::doApply(
 
     // Invalidate caches for filled offers, but in reverse because counter party
     app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        fullPath.front(), getSourceAsset());
+        AssetPair{fullPath.front(), getSourceAsset()});
 
     for (size_t i = 0; i < fullPath.size() - 1; i++)
     {
         app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-            fullPath[i + 1], fullPath[i]);
+            AssetPair{fullPath[i + 1], fullPath[i]});
     }
 
     pathStr += "-> miss";

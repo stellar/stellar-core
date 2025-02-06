@@ -551,10 +551,10 @@ ManageOfferOpFrameBase::doApply(
     {
         // Since the offer is new, we don't know which side of the trade has
         // improved, so invalidate both
-        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(mSheep,
-                                                                       mWheat);
-        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(mWheat,
-                                                                       mSheep);
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{mSheep, mWheat});
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{mWheat, mSheep});
     }
     // Deleting an offer does not invalidate any cached fails
     else if (!isDeleteOffer())
@@ -572,10 +572,10 @@ ManageOfferOpFrameBase::doApply(
         // }
 
         // TODO: Tighten this
-        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(mSheep,
-                                                                       mWheat);
-        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(mWheat,
-                                                                       mSheep);
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{mSheep, mWheat});
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{mWheat, mSheep});
     }
 
     return true;
