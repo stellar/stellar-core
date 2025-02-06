@@ -162,6 +162,9 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
         mOfferRange = std::nullopt;
     }
 
+    // TODO These bounds include config setting entries,
+    // which are not contract entries.
+    // Possibly consider adding more granular ranges for each contract type.
     if (firstContractEntry)
     {
         if (lastContractEntry)

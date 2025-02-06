@@ -32,7 +32,14 @@ class PopulateLedgerCacheWork;
 
 class LedgerStateCache
 {
+    enum class Mode
+    {
+        ALL_ENTRIES,
+        SOROBAN_ONLY
+    };
+
   private:
+    Mode mMode;
     std::unordered_set<LedgerEntry, LedgerEntryHash, LedgerEntryEqual> mState;
     mutable std::shared_mutex mMutex;
 
@@ -51,15 +58,17 @@ class LedgerStateCache
     void addEntry(LedgerEntry const& entry);
 
   public:
-    LedgerStateCache() = default;
+    LedgerStateCache(Mode mode) : mMode(mode)
+    {
+    }
 
     // Read an entry from the cache
     // Acquires a shared lock on the cache.
     std::optional<LedgerEntry> getEntry(LedgerKey const& key) const;
 
     size_t size() const;
-    // TODO support other types
-    static bool supportedKeyType(LedgerEntryType type);
+    Mode getMode() const;
+    bool supportedKeyType(LedgerEntryType type) const;
 
     // TODO Find a way to limit access to just the methods we need
     // PopulateLedgerCacheWork::doWork() / addEntry() and

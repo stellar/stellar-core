@@ -22,7 +22,6 @@ LedgerEntryHash::operator()(LedgerEntry const& entry) const
 std::optional<LedgerEntry>
 LedgerStateCache::getEntry(LedgerKey const& key) const
 {
-    // TODO support other types, for test mode.
     if (!supportedKeyType(key.type()))
     {
         return std::nullopt;
@@ -104,12 +103,20 @@ LedgerStateCache::size() const
     return mState.size();
 }
 
-bool
-LedgerStateCache::supportedKeyType(LedgerEntryType type)
+LedgerStateCache::Mode
+LedgerStateCache::getMode() const
 {
-    // TODO support other types
-    // possibly do something more sophisticated here
-    return type == CONTRACT_DATA || type == CONTRACT_CODE || type == TTL;
+    return mMode;
+}
+
+bool
+LedgerStateCache::supportedKeyType(LedgerEntryType type) const
+{
+    if (mMode == Mode::SOROBAN_ONLY)
+    {
+        return type == CONTRACT_DATA || type == CONTRACT_CODE || type == TTL;
+    }
+    return true;
 }
 
 }

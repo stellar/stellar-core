@@ -76,9 +76,30 @@ KeyToDummyLedgerEntry(LedgerKey const& k)
 {
     LedgerEntry e;
     e.data.type(k.type());
-    // TODO support other types
     switch (k.type())
     {
+    case ACCOUNT:
+        e.data.account().accountID = k.account().accountID;
+        break;
+    case TRUSTLINE:
+        e.data.trustLine().accountID = k.trustLine().accountID;
+        e.data.trustLine().asset = k.trustLine().asset;
+        break;
+    case OFFER:
+        e.data.offer().sellerID = k.offer().sellerID;
+        e.data.offer().offerID = k.offer().offerID;
+        break;
+    case DATA:
+        e.data.data().accountID = k.data().accountID;
+        e.data.data().dataName = k.data().dataName;
+        break;
+    case CLAIMABLE_BALANCE:
+        e.data.claimableBalance().balanceID = k.claimableBalance().balanceID;
+        break;
+    case LIQUIDITY_POOL:
+        e.data.liquidityPool().liquidityPoolID =
+            k.liquidityPool().liquidityPoolID;
+        break;
     case CONTRACT_DATA:
         e.data.contractData().contract = k.contractData().contract;
         e.data.contractData().key = k.contractData().key;
@@ -86,6 +107,10 @@ KeyToDummyLedgerEntry(LedgerKey const& k)
         break;
     case CONTRACT_CODE:
         e.data.contractCode().hash = k.contractCode().hash;
+        break;
+    case CONFIG_SETTING:
+        e.data.configSetting().configSettingID(
+            k.configSetting().configSettingID);
         break;
     case TTL:
         e.data.ttl().keyHash = k.ttl().keyHash;

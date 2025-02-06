@@ -158,14 +158,20 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
+    , mLedgerStateCache{
 #ifdef BUILD_TESTS
-    , mLedgerStateCache
-{
-    app.getConfig().IN_MEMORY_SOROBAN_STATE_FOR_TESTING
-        ? std::make_shared<LedgerStateCache>()
+    app.getConfig().USE_LEDGER_STATE_CACHE_FOR_TESTING
+        ? std::make_shared<LedgerStateCache>(LedgerStateCache::Mode::ALL_ENTRIES)
+        : (app.getConfig().USE_SOROBAN_LEDGER_STATE_CACHE
+               ? std::make_shared<LedgerStateCache>(
+                     LedgerStateCache::Mode::SOROBAN_ONLY)
+               : std::optional<std::shared_ptr<LedgerStateCache>>(std::nullopt))
+#else
+    app.getConfig().USE_SOROBAN_LEDGER_STATE_CACHE 
+        ? std::make_shared<LedgerStateCache>(LedgerStateCache::Mode::SOROBAN_ONLY)
         : std::optional<std::shared_ptr<LedgerStateCache>>(std::nullopt)
-}
 #endif
+}
 , mState(LM_BOOTING_STATE)
 {
     setupLedgerCloseMetaStream();

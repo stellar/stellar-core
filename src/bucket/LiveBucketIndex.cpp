@@ -188,7 +188,12 @@ LiveBucketIndex::getContractEntryRange() const
 {
     if (mDiskIndex)
     {
-        // Get the smallest and largest possible contract entry keys
+        // TODO These bounds include config setting entries,
+        // which are not contract entries.
+        // Possibly consider adding a function to get the range of
+        // each contract type individually, or one for CONTRACT_DATA and
+        // CONTRACT_CODE. and one for TTL. Get the smallest and largest possible
+        // contract entry keys
         LedgerKey upperBound(TTL /*9*/);
         upperBound.ttl().keyHash.fill(std::numeric_limits<uint8_t>::max());
 

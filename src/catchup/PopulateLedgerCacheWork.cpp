@@ -69,44 +69,61 @@ PopulateLedgerCacheWork::doWork()
                    mBucketToProcessIndex);
         return advance();
     }
-
-    auto contractEntryRange = bucket->getContractEntryRange();
     auto ledgerStateCache = mApp.getLedgerManager().getLedgerStateCache();
-    if (ledgerStateCache && contractEntryRange)
+    if (!ledgerStateCache)
     {
-        auto cache = ledgerStateCache.value();
-        auto [lowerBound, upperBound] = *contractEntryRange;
-        for (LiveBucketInputIterator iter(bucket);
-             iter && iter.pos() < upperBound; ++iter)
+        CLOG_DEBUG(Ledger, "LedgerStateCache is not enabled");
+        return State::WORK_FAILURE;
+    }
+
+    auto cache = ledgerStateCache.value();
+    std::streamoff upperBound = 0;
+    std::streamoff lowerBound = std::numeric_limits<std::streamoff>::max();
+    if (cache->getMode() == LedgerStateCache::Mode::SOROBAN_ONLY)
+    {
+        // Update the bounds to only iterate over soroban state.
+        auto contractEntryRange = bucket->getContractEntryRange();
+        if (contractEntryRange)
         {
-            if (iter.pos() < lowerBound)
+            lowerBound = std::get<0>(*contractEntryRange);
+            upperBound = std::get<1>(*contractEntryRange);
+        }
+    }
+
+    for (LiveBucketInputIterator iter(bucket); iter && iter.pos() < upperBound;
+         ++iter)
+    {
+        if (iter.pos() < lowerBound)
+        {
+            iter.seek(lowerBound);
+        }
+        BucketEntry const& entry = *iter;
+        if (entry.type() == LIVEENTRY || entry.type() == INITENTRY)
+        {
+            auto const& e = entry.liveEntry();
+            auto const& k = LedgerEntryKey(e);
+            if (!cache->supportedKeyType(k.type()))
             {
-                iter.seek(lowerBound);
-            }
-            BucketEntry const& entry = *iter;
-            if (entry.type() == LIVEENTRY || entry.type() == INITENTRY)
-            {
-                auto const& e = entry.liveEntry();
-                auto const& k = LedgerEntryKey(e);
-                // If the key is not in the dead keys set and not already in the
-                // cache, add it.
-                if (mDeadKeys.find(k) == mDeadKeys.end() && !cache->getEntry(k))
-                {
-                    cache->addEntry(e);
-                }
-            }
-            else if (entry.type() == DEADENTRY)
-            {
-                if (!cache->getEntry(entry.deadEntry()))
-                {
-                    mDeadKeys.insert(entry.deadEntry());
-                }
-            }
-            else
-            {
-                releaseAssert(false);
                 continue;
             }
+            // If the key is not in the dead keys set and not already in the
+            // cache, add it.
+            if (mDeadKeys.find(k) == mDeadKeys.end() && !cache->getEntry(k))
+            {
+                cache->addEntry(e);
+            }
+        }
+        else if (entry.type() == DEADENTRY)
+        {
+            if (!cache->getEntry(entry.deadEntry()))
+            {
+                mDeadKeys.insert(entry.deadEntry());
+            }
+        }
+        else
+        {
+            releaseAssert(false);
+            continue;
         }
     }
     return advance();
