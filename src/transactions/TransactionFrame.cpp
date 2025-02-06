@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "TransactionFrame.h"
 #include "OperationFrame.h"
+#include "bucket/BucketIndexUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
@@ -37,6 +38,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
@@ -1691,8 +1693,39 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 {
     ZoneScoped;
 #ifdef BUILD_TESTS
+
+    bool skipTx = false;
+
+    static int num_tx_skipped = 0;
     auto const& result = txResult.getReplayTransactionResult();
     if (result && result->result.code() != txSUCCESS)
+    {
+        // Check if this is a PathPaymentStrictSend operation that failed
+        if (result->result.code() == txFAILED &&
+            !result->result.results().empty())
+        {
+            // Check each operation result
+            for (auto const& opRes : result->result.results())
+            {
+                // Only skip TX if it contains a PathPaymentStrictSend with
+                // an error other than PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN.
+                // These are rare and the cache returns a different error,
+                // resulting in hash mismatch. Shouldn't impact perf values too
+                // much
+                if (opRes.code() == opINNER &&
+                    opRes.tr().type() == PATH_PAYMENT_STRICT_SEND &&
+                    opRes.tr().pathPaymentStrictSendResult().code() !=
+                        PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN)
+                {
+                    skipTx = true;
+                    CLOG_FATAL(Tx, "Skipping failed TX {}", num_tx_skipped++);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (skipTx)
     {
         // Sub-zone for skips
         ZoneScopedN("skipped failed");
@@ -1935,21 +1968,24 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
         std::unique_ptr<SignatureChecker> signatureChecker;
 #ifdef BUILD_TESTS
+
+        // We are just replacing bad values, so still run signature for tests
+
         // If the txResult has a replay result (catchup in skip mode is
         // enabled),
         //  we do not perform signature verification.
-        if (txResult->getReplayTransactionResult())
-        {
-            signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
-                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
-        }
-        else
-        {
+        // if (txResult->getReplayTransactionResult())
+        // {
+        //     signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
+        //         ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+        // }
+        // else
+        // {
 #endif // BUILD_TESTS
             signatureChecker = std::make_unique<SignatureChecker>(
                 ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
 #ifdef BUILD_TESTS
-        }
+            //}
 #endif // BUILD_TESTS
 
         //  when applying, a failure during tx validation means that

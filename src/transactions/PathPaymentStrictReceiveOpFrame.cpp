@@ -132,7 +132,11 @@ PathPaymentStrictReceiveOpFrame::doApply(
         return false;
     }
 
-    // Invalidate paths containing any asset pairs in the path
+    // Invalidate paths containing any asset pairs in the path, but reversed
+    // since the counter party is getting better
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+        getDestAsset(), fullPath.front());
+
     for (size_t i = 0; i < fullPath.size() - 1; i++)
     {
         app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(

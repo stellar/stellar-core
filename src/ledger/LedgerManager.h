@@ -215,10 +215,9 @@ class LedgerManager
     virtual void clearPathPaymentStrictSendCache() = 0;
 
     // Cache a failed path payment strict send attempt
-    virtual void
-    cachePathPaymentStrictSendFailure(Hash const& pathHash, int64_t sendAmount,
-                                      int64_t receiveAmount,
-                                      std::vector<Asset> const& assets) = 0;
+    virtual void cachePathPaymentStrictSendFailure(
+        Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
+        Asset const& source, std::vector<Asset> const& assets) = 0;
 
     // Get cached failures for a path, or end iterator if not found
     virtual PathPaymentStrictSendMap::const_iterator

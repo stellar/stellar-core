@@ -71,15 +71,19 @@ PathPaymentStrictSendOpFrame::doApply(
                     mPathPayment.path.end());
     fullPath.emplace_back(getDestAsset());
 
-    SHA256 fullPathHasher;
+    SHA256 sourceAndPathHasher;
+    auto sourceAssetHash = getAssetHash(getSourceAsset());
+    sourceAndPathHasher.add(
+        ByteSlice(reinterpret_cast<unsigned char*>(&sourceAssetHash),
+                  sizeof(sourceAssetHash)));
     for (auto const& asset : fullPath)
     {
         auto hash = getAssetHash(asset);
-        fullPathHasher.add(
+        sourceAndPathHasher.add(
             ByteSlice(reinterpret_cast<unsigned char*>(&hash), sizeof(hash)));
     }
 
-    auto fullPathHash = fullPathHasher.finish();
+    auto fullPathHash = sourceAndPathHasher.finish();
 
     auto iter =
         app.getLedgerManager().getPathPaymentStrictSendCache(fullPathHash);
@@ -102,6 +106,8 @@ PathPaymentStrictSendOpFrame::doApply(
              ++sendToReceiveAmountsIter)
         {
             auto const& receiveAmounts = sendToReceiveAmountsIter->second;
+            releaseAssert(sendToReceiveAmountsIter->first >=
+                          mPathPayment.sendAmount);
 
             // If any received amount is less than or equal to destMin, we
             // know the trade will fail since a previous trade sent more and
@@ -169,10 +175,9 @@ PathPaymentStrictSendOpFrame::doApply(
     if (maxAmountSend < mPathPayment.destMin)
     {
         setResultConstraintNotMet(res);
-
         app.getLedgerManager().cachePathPaymentStrictSendFailure(
             fullPathHash, mPathPayment.sendAmount, mPathPayment.destMin,
-            fullPath);
+            getSourceAsset(), fullPath);
 
         pathStr += "-> miss";
         ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
@@ -185,6 +190,16 @@ PathPaymentStrictSendOpFrame::doApply(
         pathStr += "-> miss";
         ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
         return false;
+    }
+
+    // Invalidate caches for filled offers, but in reverse because counter party
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+        fullPath.front(), getSourceAsset());
+
+    for (size_t i = 0; i < fullPath.size() - 1; i++)
+    {
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            fullPath[i + 1], fullPath[i]);
     }
 
     pathStr += "-> miss";

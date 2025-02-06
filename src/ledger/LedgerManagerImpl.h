@@ -262,7 +262,7 @@ class LedgerManagerImpl : public LedgerManager
     void clearPathPaymentStrictSendCache() override;
     void cachePathPaymentStrictSendFailure(
         Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
-        std::vector<Asset> const& assets) override;
+        Asset const& source, std::vector<Asset> const& assets) override;
     PathPaymentStrictSendMap::const_iterator
     getPathPaymentStrictSendCache(Hash const& pathHash) const override;
 

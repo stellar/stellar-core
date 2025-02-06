@@ -1890,13 +1890,15 @@ LedgerManagerImpl::clearPathPaymentStrictSendCache()
 void
 LedgerManagerImpl::cachePathPaymentStrictSendFailure(
     Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
-    std::vector<Asset> const& assets)
+    Asset const& source, std::vector<Asset> const& assets)
 {
+    ZoneScoped;
     mPathPaymentStrictSendFailureCache[pathHash][sendAmount].insert(
         receiveAmount);
 
     // Convert path into buy-sell pairs
     std::vector<std::pair<Asset, Asset>> pairs;
+    pairs.emplace_back(source, assets[0]);
     for (size_t i = 0; i < assets.size() - 1; i++)
     {
         pairs.emplace_back(assets[i], assets[i + 1]);
@@ -1921,6 +1923,7 @@ void
 LedgerManagerImpl::invalidatePathPaymentCachesForAssetPair(Asset const& selling,
                                                            Asset const& buying)
 {
+    ZoneScoped;
     // For each path in the cache
     for (auto const& [pathHash, pairs] : mAssetToPaths)
     {
