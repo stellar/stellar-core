@@ -21,6 +21,7 @@
 namespace stellar
 {
 
+class LedgerStateCache;
 class SearchableLiveBucketListSnapshot;
 
 class EntryIterator::AbstractImpl
@@ -647,6 +648,8 @@ class LedgerTxnRoot::Impl
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
 
+    std::optional<std::shared_ptr<LedgerStateCache>> mLedgerStateCache;
+
 #ifdef BEST_OFFER_DEBUGGING
     bool const mBestOfferDebuggingEnabled;
 #endif
@@ -716,7 +719,8 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Application& app, size_t entryCacheSize, size_t prefetchBatchSize
+    Impl(Application& app, size_t entryCacheSize, size_t prefetchBatchSize,
+         std::optional<std::shared_ptr<LedgerStateCache>> ledgerStateCache
 #ifdef BEST_OFFER_DEBUGGING
          ,
          bool bestOfferDebuggingEnabled

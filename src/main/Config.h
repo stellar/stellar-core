@@ -201,7 +201,12 @@ class Config : public std::enable_shared_from_this<Config>
     // application of failed transactions and will not verify signatures of
     // successful transactions.
     bool CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING;
+
+    // Whether to use an in-memory ledger state cache for testing.
+    bool USE_LEDGER_STATE_CACHE_FOR_TESTING;
 #endif // BUILD_TESTS
+    // Whether to use an in-memory ledger state cache for Soroban state.
+    bool USE_SOROBAN_LEDGER_STATE_CACHE;
 
     // Interval between automatic maintenance executions
     std::chrono::seconds AUTOMATIC_MAINTENANCE_PERIOD;

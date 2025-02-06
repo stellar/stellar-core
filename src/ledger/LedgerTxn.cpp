@@ -8,6 +8,7 @@
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
 #include "ledger/LedgerRange.h"
+#include "ledger/LedgerStateCache.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
@@ -534,6 +535,8 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
                              RestoredKeys const& restoredKeys,
                              LedgerTxnConsistency cons) noexcept
 {
+    // We will want to acquire the write lock to the cache in this function.
+
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
@@ -2569,14 +2572,16 @@ LedgerTxn::Impl::EntryIteratorImpl::clone() const
 // Implementation of LedgerTxnRoot ------------------------------------------
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
-LedgerTxnRoot::LedgerTxnRoot(Application& app, size_t entryCacheSize,
-                             size_t prefetchBatchSize
+LedgerTxnRoot::LedgerTxnRoot(
+    Application& app, size_t entryCacheSize, size_t prefetchBatchSize,
+    std::optional<std::shared_ptr<LedgerStateCache>> ledgerStateCache
 #ifdef BEST_OFFER_DEBUGGING
-                             ,
-                             bool bestOfferDebuggingEnabled
+    ,
+    bool bestOfferDebuggingEnabled
 #endif
-                             )
-    : mImpl(std::make_unique<Impl>(app, entryCacheSize, prefetchBatchSize
+    )
+    : mImpl(std::make_unique<Impl>(app, entryCacheSize, prefetchBatchSize,
+                                   ledgerStateCache
 #ifdef BEST_OFFER_DEBUGGING
                                    ,
                                    bestOfferDebuggingEnabled
@@ -2585,13 +2590,14 @@ LedgerTxnRoot::LedgerTxnRoot(Application& app, size_t entryCacheSize,
 {
 }
 
-LedgerTxnRoot::Impl::Impl(Application& app, size_t entryCacheSize,
-                          size_t prefetchBatchSize
+LedgerTxnRoot::Impl::Impl(
+    Application& app, size_t entryCacheSize, size_t prefetchBatchSize,
+    std::optional<std::shared_ptr<LedgerStateCache>> ledgerStateCache
 #ifdef BEST_OFFER_DEBUGGING
-                          ,
-                          bool bestOfferDebuggingEnabled
+    ,
+    bool bestOfferDebuggingEnabled
 #endif
-                          )
+    )
     : mMaxBestOffersBatchSize(
           std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
                    getMaxOffersToCross()))
@@ -2600,6 +2606,7 @@ LedgerTxnRoot::Impl::Impl(Application& app, size_t entryCacheSize,
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
+    , mLedgerStateCache(ledgerStateCache)
 #ifdef BEST_OFFER_DEBUGGING
     , mBestOfferDebuggingEnabled(bestOfferDebuggingEnabled)
 #endif
@@ -2949,6 +2956,8 @@ LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
     {
         insertIfNotLoaded(keysToSearch, key);
     }
+    // TODO look in the global ledger state cache
+    // before searching the bucket list.
     auto blLoad = getSearchableLiveBucketListSnapshot().loadKeysWithLimits(
         keysToSearch, lkMeter);
     cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
@@ -3466,6 +3475,19 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         std::string zoneTxt("miss");
         ZoneText(zoneTxt.c_str(), zoneTxt.size());
         ++mPrefetchMisses;
+    }
+
+    if (mLedgerStateCache)
+    {
+        auto e = (*mLedgerStateCache)->getEntry(key);
+        if (e)
+        {
+            // Add the entry to the ltx entry cache. In the future,
+            // we might bypass this for supported types.
+            putInEntryCache(key, std::make_shared<LedgerEntry const>(*e),
+                            LoadType::IMMEDIATE);
+            return std::make_shared<InternalLedgerEntry const>(*e);
+        }
     }
 
     std::shared_ptr<LedgerEntry const> entry;

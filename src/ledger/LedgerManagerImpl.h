@@ -15,6 +15,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 #include <filesystem>
+#include <optional>
 #include <string>
 
 /*
@@ -37,6 +38,7 @@ class AbstractLedgerTxn;
 class Application;
 class Database;
 class LedgerTxnHeader;
+class LedgerStateCache;
 class BasicWork;
 
 class LedgerManagerImpl : public LedgerManager
@@ -99,6 +101,9 @@ class LedgerManagerImpl : public LedgerManager
     mutable std::recursive_mutex mLedgerStateMutex;
 
     medida::Timer& mCatchupDuration;
+
+    std::optional<std::shared_ptr<LedgerStateCache>> mLedgerStateCache =
+        std::nullopt;
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
@@ -251,5 +256,8 @@ class LedgerManagerImpl : public LedgerManager
     {
         return mCurrentlyApplyingLedger;
     }
+
+    std::optional<std::shared_ptr<LedgerStateCache>>
+    getLedgerStateCache() const override;
 };
 }

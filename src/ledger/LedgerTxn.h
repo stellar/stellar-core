@@ -15,6 +15,7 @@
 #include <ledger/LedgerHashUtils.h>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <soci.h>
 
@@ -277,6 +278,7 @@ struct InflationVotes;
 struct LedgerEntry;
 struct LedgerKey;
 struct LedgerRange;
+class LedgerStateCache;
 class SessionWrapper;
 
 struct OfferDescriptor
@@ -854,11 +856,12 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::unique_ptr<Impl> const mImpl;
 
   public:
-    explicit LedgerTxnRoot(Application& app, size_t entryCacheSize,
-                           size_t prefetchBatchSize
+    explicit LedgerTxnRoot(
+        Application& app, size_t entryCacheSize, size_t prefetchBatchSize,
+        std::optional<std::shared_ptr<LedgerStateCache>> ledgerStateCache
 #ifdef BEST_OFFER_DEBUGGING
-                           ,
-                           bool bestOfferDebuggingEnabled
+        ,
+        bool bestOfferDebuggingEnabled
 #endif
     );
 

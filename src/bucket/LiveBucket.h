@@ -90,6 +90,11 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     std::optional<std::pair<std::streamoff, std::streamoff>>
     getOfferRange() const;
 
+    // Returns [lowerBound, upperBound) of file offsets for all contract entries
+    // in the bucket, or std::nullopt if no contract entries exist
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getContractEntryRange() const;
+
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
     // be sorted, hashed, and adopted in the provided BucketManager.
