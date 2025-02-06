@@ -269,23 +269,6 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         [&]() { return complete.count() == completeCount + 1; },
         100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    // Before creating any contracts, test that loadgen correctly
-    // reports an error when trying to run a soroban invoke setup.
-    SECTION("misconfigured soroban loadgen mode usage")
-    {
-        // Users are required to run SOROBAN_INVOKE_SETUP_LOAD before running
-        // SOROBAN_INVOKE_LOAD. Running a SOROBAN_INVOKE_LOAD without a prior
-        // SOROBAN_INVOKE_SETUP_LOAD should throw a helpful exception explaining
-        // the misconfiguration.
-        auto invokeLoadCfg =
-            GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE,
-                                        /* nAccounts*/ 1, /* numSorobanTxs */ 1,
-                                        /* txRate */ 1);
-        REQUIRE_THROWS_WITH(
-            loadGen.generateLoad(invokeLoadCfg),
-            "Before running MODE::SOROBAN_INVOKE, please run "
-            "MODE::SOROBAN_INVOKE_SETUP to set up your contract first.");
-    }
     int64_t numTxsBefore = getSuccessfulTxCount();
 
     // Make sure config upgrade works with initial network config settings

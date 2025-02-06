@@ -690,7 +690,7 @@ TEST_CASE("version test", "[tx][soroban]")
 
     executeUpgrade(test.getApp(), upgrade);
 
-    test.updateSorobanNetworkConfig();
+    test.updateSorobanNetworkConfig(true);
 
     TestContract& contract =
         test.deployWasmContract(rust_bridge::get_invoke_contract_wasm());
@@ -4676,6 +4676,7 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
     Config cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg);
+    test.getRoot().loadSequenceNumber();
     auto defaultSpec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())

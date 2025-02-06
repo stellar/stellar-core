@@ -875,6 +875,7 @@ SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources)
         previousLiveUntilLedger = getTTL(contractCodeLedgerKey);
     }
 
+    mRoot.loadSequenceNumber();
     auto tx =
         makeSorobanWasmUploadTx(getApp(), mRoot, wasm, uploadResources, 1000);
     REQUIRE(isSuccessResult(invokeTx(tx)));

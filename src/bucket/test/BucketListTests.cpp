@@ -868,16 +868,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
     for_versions_from(20, *app, [&] {
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
-        auto& networkConfig =
-            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
-
-        uint32_t windowSize = networkConfig.stateArchivalSettings()
-                                  .bucketListSizeWindowSampleSize;
         std::deque<uint64_t> correctWindow;
-        for (auto i = 0u; i < windowSize; ++i)
-        {
-            correctWindow.push_back(0);
-        }
 
         auto check = [&]() {
             // Check in-memory average from BucketManager
@@ -890,8 +881,9 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             uint64_t correctAverage = sum / correctWindow.size();
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto networkConfig =
+                app->getLedgerManager().getSorobanNetworkConfigReadOnly();
             REQUIRE(networkConfig.getAverageBucketListSize() == correctAverage);
-
             // Check on-disk sliding window
             LedgerKey key(CONFIG_SETTING);
             key.configSetting().configSettingID =
@@ -905,19 +897,26 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             REQUIRE(correctWindowVec == leVector);
         };
 
-        // Check initial conditions
-        check();
-
         // Take snapshots more frequently for faster testing
         modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
             cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 64;
         });
-
+        auto& networkConfig =
+            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        uint32_t windowSize = networkConfig.stateArchivalSettings()
+                                  .bucketListSizeWindowSampleSize;
+        for (auto i = 0u; i < windowSize; ++i)
+        {
+            correctWindow.push_back(0);
+        }
+        // Check initial conditions
+        check();
         // Generate enough ledgers to fill sliding window
         auto ledgersToGenerate =
             (windowSize + 1) *
             networkConfig.stateArchivalSettings().bucketListWindowSamplePeriod;
-        for (uint32_t ledger = 1; ledger < ledgersToGenerate; ++ledger)
+        auto lclSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
+        for (uint32_t ledger = lclSeq; ledger < ledgersToGenerate; ++ledger)
         {
             // Note: BucketList size in the sliding window is snapshotted before
             // adding new sliding window config entry with the resulting

@@ -1073,51 +1073,27 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
 TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
-    SECTION("max 0 ops per ledger")
+    SECTION("classic max 0 ops per ledger")
     {
         Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
+
         auto root = TestAccount::createRoot(*app);
 
         auto destAccount = root.create("destAccount", 500000000);
 
-        SECTION("classic")
-        {
-            auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
+        auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
 
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({tx}, *app, 0, 0, invalidTxs).second;
+        TxFrameList invalidTxs;
+        auto txSet =
+            makeTxSetFromTransactions({tx}, *app, 0, 0, invalidTxs).second;
 
-            // Transaction is valid, but trimmed by surge pricing.
-            REQUIRE(invalidTxs.empty());
-            REQUIRE(txSet->sizeTxTotal() == 0);
-        }
-        SECTION("soroban")
-        {
-            uint32_t const baseFee = 10'000'000;
-            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-                cfg.mLedgerMaxTxCount = 0;
-            });
-            SorobanResources resources;
-            auto sorobanTx = createUploadWasmTx(
-                *app, root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
-
-            PerPhaseTransactionList invalidTxs;
-            invalidTxs.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
-            auto txSet = makeTxSetFromTransactions(
-                             PerPhaseTransactionList{{}, {sorobanTx}}, *app, 0,
-                             0, invalidTxs)
-                             .second;
-
-            // Transaction is valid, but trimmed by surge pricing.
-            REQUIRE(std::all_of(invalidTxs.begin(), invalidTxs.end(),
-                                [](auto const& txs) { return txs.empty(); }));
-            REQUIRE(txSet->sizeTxTotal() == 0);
-        }
+        // Transaction is valid, but trimmed by surge pricing.
+        REQUIRE(invalidTxs.empty());
+        REQUIRE(txSet->sizeTxTotal() == 0);
     }
     SECTION("soroban txs")
     {

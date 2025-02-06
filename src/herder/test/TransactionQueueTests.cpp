@@ -2448,6 +2448,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             {
                 SECTION("balance sufficient with oldTx discount")
                 {
+                    root.loadSequenceNumber();
                     // Top off account3 balance to be able to pay for fb2
                     // (assuming discount from fb1)
                     root.pay(account3, (9 * fb1->getInclusionFee() - 1));

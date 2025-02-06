@@ -3,12 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
+#include "herder/TxSetFrame.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "work/WorkScheduler.h"
+#include "xdrpp/marshal.h"
+#include "xdrpp/printer.h"
 #include <limits>
 
 namespace stellar
@@ -289,7 +293,6 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
 }
-
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn)
@@ -298,19 +301,105 @@ modifySorobanNetworkConfig(Application& app,
     {
         return;
     }
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    app.getLedgerManager().updateNetworkConfig(ltx);
-    auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig();
-    modifyFn(cfg);
-    cfg.writeAllSettings(ltx, app);
-    ltx.commit();
+    TxGenerator txGenerator(app);
 
-    // Need to close a ledger following call to `addBatch` from config upgrade
-    // to refresh cached state
-    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        txtest::closeLedger(app);
-    }
+    // Step 1: Create an account.
+    auto creationOps = txGenerator.createAccounts(
+        0, 1, app.getLedgerManager().getLastClosedLedgerNum(), true);
+    auto root = TestAccount::createRoot(app);
+    auto rootPtr = std::make_shared<TestAccount>(root);
+    rootPtr->loadSequenceNumber();
+    auto createTxFrame = txGenerator.createTransactionFramePtr(
+        rootPtr, creationOps, false, std::nullopt);
+
+    auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    txtest::closeLedgerOn(app,
+                          app.getLedgerManager().getLastClosedLedgerNum() + 1,
+                          2, 1, 2016, {createTxFrame});
+    // Load the root accounts sequence number to avoid txBAD_SEQ
+    rootPtr->loadSequenceNumber();
+    lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto const& acc = txGenerator.getAccounts().begin();
+    auto accPtr = txGenerator.findAccount(
+        acc->first, app.getLedgerManager().getLastClosedLedgerNum());
+
+    // Step 2: Create upload wasm transaction.
+    auto wasm = rust_bridge::get_write_bytes();
+    xdr::opaque_vec<> wasmBytes;
+    wasmBytes.assign(wasm.data.begin(), wasm.data.end());
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(wasmBytes);
+    auto contractOverhead = 160 + wasmBytes.size();
+    acc->second->loadSequenceNumber();
+    auto createUploadWasmTxnPair = txGenerator.createUploadWasmTransaction(
+        app.getLedgerManager().getLastClosedLedgerNum(), acc->second, wasmBytes,
+        contractCodeLedgerKey, std::nullopt);
+    txtest::closeLedgerOn(app,
+                          app.getLedgerManager().getLastClosedLedgerNum() + 1,
+                          2, 1, 2016, {createUploadWasmTxnPair.second});
+    lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+
+    // Step 3: Create instance txn
+    auto instanceTxPair = txGenerator.createContractTransaction(
+        app.getLedgerManager().getLastClosedLedgerNum(), acc->first,
+        contractCodeLedgerKey, contractOverhead, sha256("upgrade"),
+        std::nullopt);
+    txtest::closeLedgerOn(app,
+                          app.getLedgerManager().getLastClosedLedgerNum() + 1,
+                          2, 1, 2016, {instanceTxPair.second});
+    auto instanceLk =
+        instanceTxPair.second->sorobanResources().footprint.readWrite.back();
+
+    // Step 4: Create upgrade transaction.
+    auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
+        LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
+    auto cfg = app.getLedgerManager().getSorobanNetworkConfigReadOnly();
+    modifyFn(cfg);
+    createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(cfg);
+    auto sorobanUpgradeCfg =
+        createUpgradeLoadGenConfig.getSorobanUpgradeConfig();
+    auto upgradeBytes =
+        txGenerator.getConfigUpgradeSetFromLoadConfig(sorobanUpgradeCfg);
+    auto txPair = txGenerator.invokeSorobanCreateUpgradeTransaction(
+        app.getLedgerManager().getLastClosedLedgerNum(), acc->first,
+        upgradeBytes, contractCodeLedgerKey, instanceLk, std::nullopt);
+    txtest::closeLedgerOn(app,
+                          app.getLedgerManager().getLastClosedLedgerNum() + 1,
+                          2, 1, 2016, {txPair.second});
+
+    auto contractID = instanceLk.contractData().contract.contractId();
+    auto upgradeSetKey =
+        txGenerator.getConfigUpgradeSetKey(sorobanUpgradeCfg, contractID);
+    ConfigUpgradeSet configUpgradeSet;
+    xdr::xdr_from_opaque(upgradeBytes, configUpgradeSet);
+
+    // Step 5: Arm for upgrade.
+    auto& lm = app.getLedgerManager();
+    lcl = lm.getLastClosedLedgerHeader();
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    scheduledUpgrades.mUpgradeTime =
+        VirtualClock::from_time_t(lcl.header.scpValue.closeTime + 1);
+    scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
+    app.getHerder().setUpgrades(scheduledUpgrades);
+    TimePoint closeTime = lcl.header.scpValue.closeTime + 1;
+    std::shared_ptr<ConfigUpgradeSetFrame> configSetFrame =
+        std::shared_ptr<ConfigUpgradeSetFrame>(
+            new ConfigUpgradeSetFrame(configUpgradeSet, upgradeSetKey,
+                                      app.getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.ledgerVersion));
+    auto ledgerUpgrade = txtest::makeConfigUpgrade(*configSetFrame);
+    auto upgrade = LedgerTestUtils::toUpgradeType(ledgerUpgrade);
+
+    // Externalize and ensure the upgrade is applied.
+    app.getHerder().externalizeValue(
+        TxSetXDRFrame::makeEmpty(lm.getLastClosedLedgerHeader()),
+        lm.getLastClosedLedgerNum() + 1, closeTime, {upgrade});
+    auto cfg2 = app.getLedgerManager().getSorobanNetworkConfigReadOnly();
+    releaseAssert(cfg2 == cfg);
+    rootPtr->loadSequenceNumber();
+    acc->second->loadSequenceNumber();
 }
 
 void
@@ -348,6 +437,11 @@ void
 overrideSorobanNetworkConfigForTest(Application& app)
 {
     modifySorobanNetworkConfig(app, setSorobanNetworkConfigForTest);
+    auto cfg = app.getLedgerManager().getSorobanNetworkConfigReadOnly();
+    auto cfg2 = app.getLedgerManager().getSorobanNetworkConfigReadOnly();
+    setSorobanNetworkConfigForTest(cfg);
+    // Possibly reload sequence number here?
+    releaseAssert(cfg2 == cfg);
 }
 
 bool

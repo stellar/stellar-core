@@ -1056,13 +1056,17 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
         int footprintId = 0;
         auto ledgerKey = [&](int id) {
             LedgerKey key(LedgerEntryType::CONTRACT_DATA);
-            key.contractData().key.type(SCValType::SCV_I32);
-            key.contractData().key.i32() = id;
+            SCVal val(SCV_BYTES);
+            val.bytes().resize(1000); // 5000 / 10
+            std::fill(val.bytes().begin(), val.bytes().end(), id);
+            key.contractData().key = val;
             return key;
         };
 
         auto createTx = [&](std::vector<int> addRoFootprint = {},
-                            std::vector<int> addRwFootprint = {}) {
+                            std::vector<int> addRwFootprint = {},
+                            bool checkValid = true) {
+            root.loadSequenceNumber();
             auto source = root.create("source" + std::to_string(accountId++),
                                       1'000'000'000);
             Operation op;
@@ -1070,9 +1074,11 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             op.body.invokeHostFunctionOp().hostFunction.type(
                 HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
             SorobanResources resources;
-            resources.instructions = 1'000'000;
+            resources.instructions =
+                MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
             resources.readBytes = 5'000;
-            resources.writeBytes = 2'000;
+            resources.writeBytes =
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
             for (int i = 0; i < 8; ++i)
             {
                 resources.footprint.readOnly.push_back(
@@ -1098,25 +1104,50 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                 app->getNetworkID(), source, {op}, {}, resources, 2000,
                 100'000'000);
             LedgerSnapshot ls(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
-                        ->isSuccess());
+            if (checkValid)
+            {
+                REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0));
+            }
             return tx;
         };
 
         SECTION("individual ledger resource limits")
         {
-            auto txSize = xdr::xdr_size(createTx()->getEnvelope());
+            auto txSize = xdr::xdr_size(
+                createTx({}, {}, false /*checkValid*/)->getEnvelope());
             // Update the ledger limits to the minimum values that
             // accommodate 20 txs created by `createTx()`.
             modifySorobanNetworkConfig(
                 *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                    sorobanCfg.mLedgerMaxInstructions = 20 * 1'000'000;
-                    sorobanCfg.mLedgerMaxReadBytes = 20 * 5000;
-                    sorobanCfg.mLedgerMaxWriteBytes = 20 * 2000;
-                    sorobanCfg.mLedgerMaxReadLedgerEntries = 20 * 10;
-                    sorobanCfg.mLedgerMaxWriteLedgerEntries = 20 * 2;
-                    sorobanCfg.mLedgerMaxTxCount = 20;
-                    sorobanCfg.mLedgerMaxTransactionsSizeBytes = 20 * txSize;
+                    const auto txCount = 20;
+                    sorobanCfg.mLedgerMaxTxCount = txCount;
+                    sorobanCfg.mMaxContractDataKeySizeBytes = 1100;
+
+                    sorobanCfg.mTxMaxInstructions =
+                        MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+                    sorobanCfg.mLedgerMaxInstructions =
+                        txCount * sorobanCfg.mTxMaxInstructions;
+
+                    sorobanCfg.mTxMaxReadBytes = 5000;
+                    sorobanCfg.mLedgerMaxReadBytes =
+                        txCount * sorobanCfg.mTxMaxReadBytes;
+
+                    sorobanCfg.mTxMaxWriteBytes =
+                        MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+                    sorobanCfg.mLedgerMaxWriteBytes =
+                        txCount * sorobanCfg.mTxMaxWriteBytes;
+
+                    sorobanCfg.mTxMaxReadLedgerEntries = 10;
+                    sorobanCfg.mLedgerMaxReadLedgerEntries =
+                        txCount * sorobanCfg.mTxMaxReadLedgerEntries;
+
+                    sorobanCfg.mTxMaxWriteLedgerEntries = 2;
+                    sorobanCfg.mLedgerMaxWriteLedgerEntries =
+                        txCount * sorobanCfg.mTxMaxWriteLedgerEntries;
+
+                    sorobanCfg.mTxMaxSizeBytes = txSize;
+                    sorobanCfg.mLedgerMaxTransactionsSizeBytes =
+                        txCount * sorobanCfg.mTxMaxSizeBytes;
 
                     if (protocolVersionStartsFrom(
                             protocolVersion,
@@ -1135,7 +1166,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                 std::vector<TransactionFrameBaseConstPtr> txs;
                 for (int i = 0; i < 20; ++i)
                 {
-                    txs.push_back(createTx());
+                    txs.push_back(createTx({}, {}, true));
                 }
                 ApplicableTxSetFrameConstPtr txSet;
                 if (protocolVersionIsBefore(

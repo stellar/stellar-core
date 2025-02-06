@@ -170,11 +170,11 @@ class ConfigUpgradeSetFrame
 
     std::string toJson() const;
 
-  private:
     ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR,
                           ConfigUpgradeSetKey const& key,
                           uint32_t ledgerVersion);
 
+  private:
     bool isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
                     ConfigUpgradeSetKey const& key) const;
 

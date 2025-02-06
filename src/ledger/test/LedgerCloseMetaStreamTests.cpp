@@ -399,7 +399,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 createResources, 1000);
 
             closeLedger(test.getApp(), {tx1, tx2, tx3, tx4, tx5});
-            targetSeq = 28;
+            targetSeq = 32;
         }
         else
         {
@@ -421,8 +421,8 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                             .bucketListWindowSamplePeriod = 1;
                     });
 
-                // Modify Soroban network config closes a ledger
-                ++targetSeq;
+                // Modify Soroban network config closes 4 ledgers
+                targetSeq += 5;
             }
 
             auto root = TestAccount::createRoot(*app);

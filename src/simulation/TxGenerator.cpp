@@ -273,7 +273,18 @@ TxGenerator::createUploadWasmTransaction(
     std::optional<SorobanResources> uploadResources)
 {
     auto account = findAccount(accountId, ledgerNum);
+    return createUploadWasmTransaction(ledgerNum, account, wasm,
+                                       contractCodeLedgerKey,
+                                       maxGeneratedFeeRate, uploadResources);
+}
 
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::createUploadWasmTransaction(
+    uint32_t ledgerNum, TestAccountPtr account, xdr::opaque_vec<> const& wasm,
+    LedgerKey const& contractCodeLedgerKey,
+    std::optional<uint32_t> maxGeneratedFeeRate,
+    std::optional<SorobanResources> uploadResources)
+{
     if (!uploadResources)
     {
         uploadResources = SorobanResources{};
@@ -739,6 +750,12 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     upgradeCfg.txMaxInstructions;
             }
 
+            if (upgradeCfg.feeRatePerInstructionsIncrement > 0)
+            {
+                setting.contractCompute().feeRatePerInstructionsIncrement =
+                    upgradeCfg.feeRatePerInstructionsIncrement;
+            }
+
             if (upgradeCfg.txMemoryLimit > 0)
             {
                 setting.contractCompute().txMemoryLimit =
@@ -793,8 +810,43 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                 setting.contractLedgerCost().txMaxWriteBytes =
                     upgradeCfg.txMaxWriteBytes;
             }
+
+            if (upgradeCfg.feeReadLedgerEntry > 0)
+            {
+                setting.contractLedgerCost().feeReadLedgerEntry =
+                    upgradeCfg.feeReadLedgerEntry;
+            }
+
+            if (upgradeCfg.feeWriteLedgerEntry > 0)
+            {
+                setting.contractLedgerCost().feeWriteLedgerEntry =
+                    upgradeCfg.feeWriteLedgerEntry;
+            }
+
+            if (upgradeCfg.feeRead1KB > 0)
+            {
+                setting.contractLedgerCost().feeRead1KB = upgradeCfg.feeRead1KB;
+            }
+
+            if (upgradeCfg.writeFee1KBBucketListLow > 0)
+            {
+                setting.contractLedgerCost().writeFee1KBBucketListLow =
+                    upgradeCfg.writeFee1KBBucketListLow;
+            }
+
+            if (upgradeCfg.writeFee1KBBucketListHigh > 0)
+            {
+                setting.contractLedgerCost().writeFee1KBBucketListHigh =
+                    upgradeCfg.writeFee1KBBucketListHigh;
+            }
+
             break;
         case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+            if (upgradeCfg.feeHistorical1KB > 0)
+            {
+                setting.contractHistoricalData().feeHistorical1KB =
+                    upgradeCfg.feeHistorical1KB;
+            }
             break;
         case CONFIG_SETTING_CONTRACT_EVENTS_V0:
             if (upgradeCfg.txMaxContractEventsSizeBytes > 0)
@@ -814,6 +866,12 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             {
                 setting.contractBandwidth().txMaxSizeBytes =
                     upgradeCfg.txMaxSizeBytes;
+            }
+
+            if (upgradeCfg.feeTransactionSize1KB > 0)
+            {
+                setting.contractBandwidth().feeTxSize1KB =
+                    upgradeCfg.feeTransactionSize1KB;
             }
             break;
         case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:

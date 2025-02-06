@@ -1543,6 +1543,8 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         minBaseFee = 0;
     }
+    CLOG_TRACE(Tx, "3 checkValidWithOptionallyChargedFee hash= {}",
+               hexAbbrev(getFullHash()));
 
     auto txResult = createSuccessResultWithFeeCharged(
         ls.getLedgerHeader().current(), minBaseFee, false);

@@ -25,6 +25,7 @@ struct SorobanUpgradeConfig
     // Compute settings for contracts (instructions and memory).
     int64_t ledgerMaxInstructions{};
     int64_t txMaxInstructions{};
+    int64_t feeRatePerInstructionsIncrement{};
     uint32_t txMemoryLimit{};
 
     // Ledger access settings for contracts.
@@ -32,11 +33,17 @@ struct SorobanUpgradeConfig
     uint32_t ledgerMaxReadBytes{};
     uint32_t ledgerMaxWriteLedgerEntries{};
     uint32_t ledgerMaxWriteBytes{};
+    int64_t feeReadLedgerEntry{};
+    int64_t feeWriteLedgerEntry{};
+    int64_t feeRead1KB{};
     uint32_t ledgerMaxTxCount{};
     uint32_t txMaxReadLedgerEntries{};
     uint32_t txMaxReadBytes{};
     uint32_t txMaxWriteLedgerEntries{};
     uint32_t txMaxWriteBytes{};
+
+    // Historical data (pushed to core archives) settings for contracts.
+    int64_t feeHistorical1KB{};
 
     // Contract events settings.
     uint32_t txMaxContractEventsSizeBytes{};
@@ -44,6 +51,7 @@ struct SorobanUpgradeConfig
     // Bandwidth related data settings for contracts
     uint32_t ledgerMaxTransactionsSizeBytes{};
     uint32_t txMaxSizeBytes{};
+    int64_t feeTransactionSize1KB{};
 
     // State Archival Settings
     uint32_t maxEntryTTL{};
@@ -56,6 +64,9 @@ struct SorobanUpgradeConfig
     uint32_t bucketListWindowSamplePeriod{};
     uint32_t evictionScanSize{};
     uint32_t startingEvictionScanLevel{};
+
+    int64_t writeFee1KBBucketListLow{};
+    int64_t writeFee1KBBucketListHigh{};
 };
 
 class TxGenerator
@@ -101,6 +112,12 @@ class TxGenerator
     createUploadWasmTransaction(
         uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
         LedgerKey const& contractCodeLedgerKey,
+        std::optional<uint32_t> maxGeneratedFeeRate,
+        std::optional<SorobanResources> resources = std::nullopt);
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    createUploadWasmTransaction(
+        uint32_t ledgerNum, TestAccountPtr account,
+        xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>

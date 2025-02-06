@@ -29,6 +29,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -2849,9 +2850,10 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         }
     }
 
-    auto makeSymbol = [](std::string const& str) -> SCVal {
-        SCVal val(SCV_SYMBOL);
-        val.sym().assign(str.begin(), str.end());
+    auto makeBytes = [](size_t size) -> SCVal {
+        SCVal val(SCV_BYTES);
+        val.bytes().resize(size);
+        std::fill(val.bytes().begin(), val.bytes().end(), 1);
         return val;
     };
 
@@ -2861,11 +2863,19 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        SECTION("success with default limits")
+        // Set The max contract data key size to be twice the default
+        // so that we can test the limit.
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mMaxContractDataKeySizeBytes =
+                MinimumSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES *
+                2;
+        });
+        auto keyBytes = makeBytes(
+            InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES);
+        SECTION("success within limits")
         {
             resources.footprint.readOnly.back() = contractDataKey(
-                SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT);
+                SCAddress{}, keyBytes, ContractDataDurability::PERSISTENT);
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), root, {op}, {}, resources, 100, 3'500'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -2876,14 +2886,17 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             resources.footprint.readOnly.resize(1);
             resources.footprint.readOnly.back() = contractDataKey(
-                SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT);
+                SCAddress{}, keyBytes, ContractDataDurability::PERSISTENT);
+            // Reset the max contract data key size to the minimum.
+            // Ensure that the key size is over the limit.
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-                cfg.mMaxContractDataKeySizeBytes = 64;
+                cfg.mMaxContractDataKeySizeBytes = MinimumSorobanNetworkConfig::
+                    MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
             });
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), root, {op}, {}, resources, 100, 3'500'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
+            // Ensure that the key size is over the limit.
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
         }
@@ -2891,14 +2904,16 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             resources.footprint.readWrite.resize(1);
             resources.footprint.readWrite.back() = contractDataKey(
-                SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT);
+                SCAddress{}, keyBytes, ContractDataDurability::PERSISTENT);
+            // Reset the max contract data key size to the minimum.
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-                cfg.mMaxContractDataKeySizeBytes = 64;
+                cfg.mMaxContractDataKeySizeBytes = MinimumSorobanNetworkConfig::
+                    MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
             });
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), root, {op}, {}, resources, 100, 3'500'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
+            // Ensure that the key size is over the limit.
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
         }
