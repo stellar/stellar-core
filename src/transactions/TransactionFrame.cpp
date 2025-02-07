@@ -1722,15 +1722,15 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     break;
                 }
 
-                if (opRes.code() == opINNER &&
-                    opRes.tr().type() == PATH_PAYMENT_STRICT_RECEIVE &&
-                    opRes.tr().pathPaymentStrictReceiveResult().code() !=
-                        PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
-                {
-                    skipTx = true;
-                    CLOG_FATAL(Tx, "Skipping failed TX {}", num_tx_skipped++);
-                    break;
-                }
+                // if (opRes.code() == opINNER &&
+                //     opRes.tr().type() == PATH_PAYMENT_STRICT_RECEIVE &&
+                //     opRes.tr().pathPaymentStrictReceiveResult().code() !=
+                //         PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
+                // {
+                //     skipTx = true;
+                //     CLOG_FATAL(Tx, "Skipping failed TX {}",
+                //     num_tx_skipped++); break;
+                // }
             }
         }
     }
@@ -1799,6 +1799,24 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             if (!txRes)
             {
                 success = false;
+
+                // Cache sometimes returns different error codes, is technically
+                // a protocol change. All success results should still succeed
+                // and all fails should still fail though.
+                if (result && result->result.code() == txFAILED &&
+                    !result->result.results().empty())
+                {
+                    auto const& correctRes = result->result.results().at(i);
+                    if (correctRes.code() == opINNER &&
+                        correctRes.tr().type() == PATH_PAYMENT_STRICT_RECEIVE &&
+                        correctRes.tr()
+                                .pathPaymentStrictReceiveResult()
+                                .code() !=
+                            PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
+                    {
+                        opResult = correctRes;
+                    }
+                }
             }
 
             // The operation meta will be empty if the transaction
