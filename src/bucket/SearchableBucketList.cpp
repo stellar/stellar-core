@@ -64,41 +64,6 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     return result;
 }
 
-template <class BucketT>
-std::optional<std::vector<typename BucketT::LoadT>>
-SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq) const
-{
-    ZoneScoped;
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    std::vector<typename BucketT::LoadT> entries;
-    auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(keys, entries, lkMeter);
-        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
-    };
-
-    if (!ledgerSeq || *ledgerSeq == mSnapshot->getLedgerSeq())
-    {
-        loopAllBuckets(loadKeysLoop, *mSnapshot);
-    }
-    else
-    {
-        auto iter = mHistoricalSnapshots.find(*ledgerSeq);
-        if (iter == mHistoricalSnapshots.end())
-        {
-            return std::nullopt;
-        }
-
-        releaseAssert(iter->second);
-        loopAllBuckets(loadKeysLoop, *iter->second);
-    }
-
-    return entries;
-}
-
 // This query has two steps:
 //  1. For each bucket, determine what PoolIDs contain the target asset via the
 //     assetToPoolID index
