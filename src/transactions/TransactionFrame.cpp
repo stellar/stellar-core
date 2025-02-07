@@ -1693,62 +1693,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 {
     ZoneScoped;
 #ifdef BUILD_TESTS
-
-    bool skipTx = false;
-
-    static int num_tx_skipped = 0;
     auto const& result = txResult.getReplayTransactionResult();
-    if (result && result->result.code() != txSUCCESS)
-    {
-        // Check if this is a PathPaymentStrictSend operation that failed
-        if (result->result.code() == txFAILED &&
-            !result->result.results().empty())
-        {
-            // Check each operation result
-            for (auto const& opRes : result->result.results())
-            {
-                // Only skip TX if it contains a PathPaymentStrictSend with
-                // an error other than PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN.
-                // These are rare and the cache returns a different error,
-                // resulting in hash mismatch. Shouldn't impact perf values too
-                // much
-                if (opRes.code() == opINNER &&
-                    opRes.tr().type() == PATH_PAYMENT_STRICT_SEND &&
-                    opRes.tr().pathPaymentStrictSendResult().code() !=
-                        PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN)
-                {
-                    skipTx = true;
-                    CLOG_FATAL(Tx, "Skipping failed TX {}", num_tx_skipped++);
-                    break;
-                }
-
-                // if (opRes.code() == opINNER &&
-                //     opRes.tr().type() == PATH_PAYMENT_STRICT_RECEIVE &&
-                //     opRes.tr().pathPaymentStrictReceiveResult().code() !=
-                //         PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
-                // {
-                //     skipTx = true;
-                //     CLOG_FATAL(Tx, "Skipping failed TX {}",
-                //     num_tx_skipped++); break;
-                // }
-            }
-        }
-    }
-
-    if (skipTx)
-    {
-        // Sub-zone for skips
-        ZoneScopedN("skipped failed");
-        CLOG_DEBUG(Tx, "Skipping replay of failed transaction: tx {}",
-                   binToHex(getContentsHash()));
-        txResult.setResultCode(result->result.code());
-        // results field is only active if code is txFAILED or txSUCCESS
-        if (result->result.code() == txFAILED)
-        {
-            txResult.getResult().result.results() = result->result.results();
-        }
-        return false;
-    }
 #endif
 
     auto& internalErrorCounter = app.getMetrics().NewCounter(
@@ -1813,6 +1758,16 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                 .pathPaymentStrictReceiveResult()
                                 .code() !=
                             PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
+                    {
+                        opResult = correctRes;
+                    }
+                    else if (correctRes.code() == opINNER &&
+                             correctRes.tr().type() ==
+                                 PATH_PAYMENT_STRICT_SEND &&
+                             correctRes.tr()
+                                     .pathPaymentStrictSendResult()
+                                     .code() !=
+                                 PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN)
                     {
                         opResult = correctRes;
                     }
