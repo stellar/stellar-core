@@ -120,6 +120,41 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
 
 template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
+SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq) const
+{
+    ZoneScoped;
+
+    // Make a copy of the key set, this loop is destructive
+    auto keys = inKeys;
+    std::vector<typename BucketT::LoadT> entries;
+    auto loadKeysLoop = [&](auto const& b) {
+        b.loadKeys(keys, entries, lkMeter);
+        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
+    };
+
+    if (!ledgerSeq || *ledgerSeq == mSnapshot->getLedgerSeq())
+    {
+        loopAllBuckets(loadKeysLoop, *mSnapshot);
+    }
+    else
+    {
+        auto iter = mHistoricalSnapshots.find(*ledgerSeq);
+        if (iter == mHistoricalSnapshots.end())
+        {
+            return std::nullopt;
+        }
+
+        releaseAssert(iter->second);
+        loopAllBuckets(loadKeysLoop, *iter->second);
+    }
+
+    return entries;
+}
+
+template <class BucketT>
+std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysFromLedger(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     uint32_t ledgerSeq) const
