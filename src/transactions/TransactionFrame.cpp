@@ -1721,6 +1721,16 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     CLOG_FATAL(Tx, "Skipping failed TX {}", num_tx_skipped++);
                     break;
                 }
+
+                if (opRes.code() == opINNER &&
+                    opRes.tr().type() == PATH_PAYMENT_STRICT_RECEIVE &&
+                    opRes.tr().pathPaymentStrictReceiveResult().code() !=
+                        PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
+                {
+                    skipTx = true;
+                    CLOG_FATAL(Tx, "Skipping failed TX {}", num_tx_skipped++);
+                    break;
+                }
             }
         }
     }

@@ -546,32 +546,13 @@ ManageOfferOpFrameBase::doApply(
 
     ltx.commit();
 
-    // Invalidate paths containing either asset in this offer
-    if (creatingNewOffer)
-    {
-        // Since the offer is new, we don't know which side of the trade has
-        // improved, so invalidate both
-        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-            AssetPair{mSheep, mWheat});
-        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-            AssetPair{mWheat, mSheep});
-    }
     // Deleting an offer does not invalidate any cached fails
-    else if (!isDeleteOffer())
+    if (!isDeleteOffer())
     {
-        // // Invalidate paths containing the asset pair if the offer is better
-        // if (mPrice < oldSellSheepOfferPrice ||
-        //     (mPrice == oldSellSheepOfferPrice && amount > oldSheepAmount))
-        // {
-        //     //
-        //     app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        //     //     mSheep, mWheat);
-        //     //
-        //     app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        //     //     mWheat, mSheep);
-        // }
-
-        // TODO: Tighten this
+        // Unfortunately, due to rounding errors we need to invalidate both side
+        // of the offer. Sometimes, even if an offer gets "worse", (like if the
+        // amount offer decreases), different rounding behavior can actually
+        // cause the "worse" offer to now favor the taker.
         app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
             AssetPair{mSheep, mWheat});
         app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(

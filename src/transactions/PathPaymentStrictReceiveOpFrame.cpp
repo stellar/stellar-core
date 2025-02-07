@@ -72,6 +72,56 @@ PathPaymentStrictReceiveOpFrame::doApply(
                     mPathPayment.path.rend());
     fullPath.emplace_back(getSourceAsset());
 
+    SHA256 pathHasher;
+    for (auto iter = fullPath.rbegin(); iter != fullPath.rend(); iter++)
+    {
+        auto hash = getAssetHash(*iter);
+        pathHasher.add(
+            ByteSlice(reinterpret_cast<unsigned char*>(&hash), sizeof(hash)));
+    }
+
+    auto destHash = getAssetHash(getDestAsset());
+    pathHasher.add(ByteSlice(reinterpret_cast<unsigned char*>(&destHash),
+                             sizeof(destHash)));
+
+    auto pathHash = pathHasher.finish();
+
+    // TODO: Optimize better by keeping max as well
+    auto iter = app.getLedgerManager().getPathPaymentStrictSendCache(pathHash);
+    if (iter != app.getLedgerManager().getPathPaymentStrictSendCacheEnd())
+    {
+        auto const& sendAmountToMinReceiveAmount = iter->second;
+
+        // Get set of receive amounts for which sendAmount is greater than or
+        // equal to our send amount
+        auto sendToReceiveAmountsIter = std::lower_bound(
+            sendAmountToMinReceiveAmount.begin(),
+            sendAmountToMinReceiveAmount.end(), mPathPayment.sendMax,
+            [](const auto& pair, uint64_t value) {
+                // Pair == {sendAmount, minReceiveAmount}
+                return pair.first < value;
+            });
+
+        // For each op that has sent the same or more than this op
+        for (; sendToReceiveAmountsIter != sendAmountToMinReceiveAmount.end();
+             ++sendToReceiveAmountsIter)
+        {
+            releaseAssert(sendToReceiveAmountsIter->first >=
+                          mPathPayment.sendMax);
+
+            // If minimum received amount is less than or equal to destAmount,
+            // we know the trade will fail since a previous trade sent more and
+            // received less than this op but still failed
+            if (sendToReceiveAmountsIter->second <= mPathPayment.destAmount)
+            {
+                setResultConstraintNotMet(res);
+                pathStr += "-> hit";
+                ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
+                return false;
+            }
+        }
+    }
+
     // Walk the path
     Asset recvAsset = getDestAsset();
     int64_t maxAmountRecv = mPathPayment.destAmount;
@@ -122,6 +172,16 @@ PathPaymentStrictReceiveOpFrame::doApply(
 
     if (maxAmountRecv > mPathPayment.sendMax)
     { // make sure not over the max
+
+        // Convert to strict send format for cache purposes
+        std::vector<Asset> path;
+        path.insert(path.end(), mPathPayment.path.begin(),
+                    mPathPayment.path.end());
+        path.emplace_back(getDestAsset());
+        app.getLedgerManager().cachePathPaymentStrictSendFailure(
+            pathHash, mPathPayment.sendMax, mPathPayment.destAmount,
+            getSourceAsset(), path);
+
         setResultConstraintNotMet(res);
         return false;
     }
