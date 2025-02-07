@@ -16,8 +16,11 @@ class LedgerCloseData;
 class Database;
 class SorobanMetrics;
 
-using PathPaymentStrictSendMap =
-    UnorderedMap<Hash, std::map<int64_t, std::set<int64_t>>>;
+// Maps the entire path hash to a map of {sendValue, minimumFailedRecvValue}
+// Essentially, for the given path hash, we check all memos from TXs that have
+// an equal or greater sendValue. If one of these asked to receive less than the
+// current op and failed, we can guarantee the op will also fail.
+using PathPaymentStrictSendMap = UnorderedMap<Hash, std::map<int64_t, int64_t>>;
 
 // Change map definition to use unordered_map with asset pair as key
 using AssetToPathsMap =

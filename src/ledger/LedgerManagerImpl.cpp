@@ -1900,14 +1900,30 @@ LedgerManagerImpl::cachePathPaymentStrictSendFailure(
     auto iter = mPathPaymentStrictSendFailureCache.find(pathHash);
     if (iter == mPathPaymentStrictSendFailureCache.end())
     {
-        auto val = std::map<int64_t, std::set<int64_t>>();
-        val[sendAmount].insert(receiveAmount);
+        // If path hash does not exist, populate
+        auto val = std::map<int64_t, int64_t>();
+        val[sendAmount] = receiveAmount;
         mPathPaymentStrictSendFailureCache.emplace(pathHash, std::move(val));
     }
     else
     {
-        auto& val = iter->second;
-        val[sendAmount].insert(receiveAmount);
+        // If hash path exists, but this send amount does not exist, insert the
+        // new send amount
+        auto& sendAmountToMinReceiveAmount = iter->second;
+        if (auto sendToRecIter = sendAmountToMinReceiveAmount.find(sendAmount);
+            sendToRecIter == sendAmountToMinReceiveAmount.end())
+        {
+            sendAmountToMinReceiveAmount[sendAmount] = receiveAmount;
+        }
+        else
+        {
+            // Else, update receive amount if it's lower than the current
+            // minimum for the given send amount
+            if (sendToRecIter->second > receiveAmount)
+            {
+                sendToRecIter->second = receiveAmount;
+            }
+        }
     }
 
     auto insert = [&](AssetPair const& pair) {
