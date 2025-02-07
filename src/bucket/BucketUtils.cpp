@@ -337,6 +337,17 @@ BucketEntryCounters::operator!=(BucketEntryCounters const& other) const
     return !(*this == other);
 }
 
+size_t
+BucketEntryCounters::numEntries() const
+{
+    size_t num = 0;
+    for (auto const& [_, count] : entryTypeCounts)
+    {
+        num += count;
+    }
+    return num;
+}
+
 template void
 BucketEntryCounters::count<LiveBucket>(LiveBucket::EntryT const& be);
 template void BucketEntryCounters::count<HotArchiveBucket>(

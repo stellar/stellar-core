@@ -196,6 +196,7 @@ struct BucketEntryCounters
     BucketEntryCounters& operator+=(BucketEntryCounters const& other);
     bool operator==(BucketEntryCounters const& other) const;
     bool operator!=(BucketEntryCounters const& other) const;
+    size_t numEntries() const;
 
     template <class Archive>
     void

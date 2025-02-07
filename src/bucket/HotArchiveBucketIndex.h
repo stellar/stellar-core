@@ -74,6 +74,14 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
         return mDiskIndex.scan(mDiskIndex.begin(), k).first;
     }
 
+    // Hot Archive does not support the cache, so define empty function for
+    // consistency with LiveBucketIndex
+    void
+    maybeAddToCache(
+        std::shared_ptr<HotArchiveBucketEntry const> const& entry) const
+    {
+    }
+
     std::pair<IndexReturnT, IterT> scan(IterT start, LedgerKey const& k) const;
 
     BucketEntryCounters const&

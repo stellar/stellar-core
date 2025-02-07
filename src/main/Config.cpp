@@ -162,6 +162,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 250;            // 250 mb
+    BUCKETLIST_DB_CACHED_PERCENT = 25;
     BUCKETLIST_DB_PERSIST_INDEX = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
@@ -1140,6 +1141,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
                          readInt<size_t>(item);
+                 }},
+                {"BUCKETLIST_DB_CACHED_PERCENT",
+                 [&]() {
+                     BUCKETLIST_DB_CACHED_PERCENT =
+                         readInt<size_t>(item, 0, 100);
                  }},
                 {"BUCKETLIST_DB_INDEX_CUTOFF",
                  [&]() { BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item); }},
