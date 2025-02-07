@@ -186,13 +186,15 @@ PathPaymentStrictSendOpFrame::doApply(
     }
 
     // Invalidate caches for filled offers, but in reverse because counter party
+    // is getting better. We don't need to invalidate paths we filled, as
+    // filling them made the path strictly worse
     app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-        AssetPair{fullPath.front(), getSourceAsset()});
+        AssetPair{getSourceAsset(), fullPath.front()});
 
     for (size_t i = 0; i < fullPath.size() - 1; i++)
     {
         app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
-            AssetPair{fullPath[i + 1], fullPath[i]});
+            AssetPair{fullPath[i], fullPath[i + 1]});
     }
 
     pathStr += "-> miss";

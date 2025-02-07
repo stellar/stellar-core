@@ -1939,10 +1939,10 @@ LedgerManagerImpl::cachePathPaymentStrictSendFailure(
     };
 
     // Convert path into buy-sell pairs
-    insert(AssetPair{source, assets[0]});
+    insert(AssetPair{assets[0], source});
     for (size_t i = 0; i < assets.size() - 1; i++)
     {
-        insert(AssetPair{assets[i], assets[i + 1]});
+        insert(AssetPair{assets[i + 1], assets[i]});
     }
 }
 
