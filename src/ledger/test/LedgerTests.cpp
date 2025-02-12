@@ -26,7 +26,7 @@ TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
             app->getConfig().NODE_SEED);
 
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-        app->getLedgerManager().closeLedger(ledgerData);
+        app->getLedgerManager().applyLedger(ledgerData);
     };
 
     applyEmptyLedger();

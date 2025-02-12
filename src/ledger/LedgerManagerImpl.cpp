@@ -253,9 +253,9 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
-    auto output =
-        ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr, /*initialLedgerVers*/ 0);
-    advanceLedgerPointers(output);
+    auto output = ledgerApplied(ltx, /*ledgerCloseMeta*/ nullptr,
+                                /*initialLedgerVers*/ 0);
+    advanceLastClosedLedgerPointers(output);
 
     ltx.commit();
 }
@@ -389,10 +389,10 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
 
     // Step 4. Restore LedgerManager's internal state
     auto output = advanceLedgerStateSnapshot(*latestLedgerHeader, has);
-    advanceLedgerPointers(output);
+    advanceLastClosedLedgerPointers(output);
 
     // Maybe truncate checkpoint files if we're restarting after a crash
-    // in closeLedger (in which case any modifications to the ledger state have
+    // in applyLedger (in which case any modifications to the ledger state have
     // been rolled back)
     mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader->ledgerSeq);
 
@@ -403,7 +403,7 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         // configs right away
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         updateNetworkConfig(ltx);
-        mSorobanNetworkConfigReadOnly = mSorobanNetworkConfigForApply;
+        mLastClosedSorobanNetworkConfig = mSorobanNetworkConfigForApply;
     }
 }
 
@@ -516,7 +516,7 @@ LedgerManagerImpl::getSorobanNetworkConfigReadOnly()
 {
     releaseAssert(threadIsMain());
     releaseAssert(hasSorobanNetworkConfig());
-    return *mSorobanNetworkConfigReadOnly;
+    return *mLastClosedSorobanNetworkConfig;
 }
 
 SorobanNetworkConfig const&
@@ -530,7 +530,7 @@ bool
 LedgerManagerImpl::hasSorobanNetworkConfig() const
 {
     releaseAssert(threadIsMain());
-    return static_cast<bool>(mSorobanNetworkConfigReadOnly);
+    return static_cast<bool>(mLastClosedSorobanNetworkConfig);
 }
 
 #ifdef BUILD_TESTS
@@ -761,7 +761,7 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
         releaseAssert(latestQueuedToApply <= latestHeardFromNetwork);
     }
 
-    // Without parallel ledger close, this should always be true
+    // Without parallel ledger apply, this should always be true
     bool doneApplying = lcl == latestQueuedToApply;
     releaseAssert(doneApplying || mApp.getConfig().parallelLedgerClose());
     if (doneApplying)
@@ -788,14 +788,12 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
     }
 }
 
-/*
-    This is the main method that closes the current ledger based on
-the close context that was computed by SCP or by the historical module
-during replays.
-
-*/
+// This is the main entrypoint for the apply thread (and/or synchronous
+// application happening on the main thread -- it can happen on either).
+// It is called from the LedgerApplyManager and will post its results
+// back to the main thread when done, if running on the apply thread.
 void
-LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
+LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                bool calledViaExternalize)
 {
     if (mApp.isStopping())
@@ -808,13 +806,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
 #endif
     ZoneScoped;
     auto ledgerTime = mLedgerClose.TimeScope();
-    LogSlowExecution closeLedgerTime{"closeLedger",
+    LogSlowExecution applyLedgerTime{"applyLedger",
                                      LogSlowExecution::Mode::MANUAL, "",
                                      std::chrono::milliseconds::max()};
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
-    // Note: closeLedger should be able to work correctly based on ledger header
+    // Note: applyLedger should be able to work correctly based on ledger header
     // stored in LedgerTxn. The issue is that in tests LedgerTxn is sometimes
     // modified manually, which changes ledger header hash compared to the
     // cached one and causes tests to fail.
@@ -830,7 +828,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     auto initialLedgerVers = header.current().ledgerVersion;
     ++header.current().ledgerSeq;
     header.current().previousLedgerHash = prevHash;
-    CLOG_DEBUG(Ledger, "starting closeLedger() on ledgerSeq={}",
+    CLOG_DEBUG(Ledger, "starting applyLedger() on ledgerSeq={}",
                header.current().ledgerSeq);
 
     ZoneValue(static_cast<int64_t>(header.current().ledgerSeq));
@@ -996,11 +994,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
         updateNetworkConfig(ltx);
     }
 
-    auto closeLedgerResult =
-        ledgerClosed(ltx, ledgerCloseMeta, initialLedgerVers);
+    auto applyLedgerResult =
+        ledgerApplied(ltx, ledgerCloseMeta, initialLedgerVers);
 
     if (ledgerData.getExpectedHash() &&
-        *ledgerData.getExpectedHash() != closeLedgerResult.ledgerHeader.hash)
+        *ledgerData.getExpectedHash() != applyLedgerResult.ledgerHeader.hash)
     {
         throw std::runtime_error("Local node's ledger corrupted during close");
     }
@@ -1008,7 +1006,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     if (mMetaStream || mMetaDebugStream)
     {
         releaseAssert(ledgerCloseMeta);
-        ledgerCloseMeta->ledgerHeader() = closeLedgerResult.ledgerHeader;
+        ledgerCloseMeta->ledgerHeader() = applyLedgerResult.ledgerHeader;
 
         // At this point we've got a complete meta and we can store it to the
         // member variable: if we throw while committing below, we will at worst
@@ -1074,9 +1072,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     // cleanup bucket files, notify herder to trigger next ledger
     auto completionHandler = [this, ledgerSeq, calledViaExternalize, ledgerData,
                               ledgerOutput =
-                                  std::move(closeLedgerResult)]() mutable {
+                                  std::move(applyLedgerResult)]() mutable {
         releaseAssert(threadIsMain());
-        advanceLedgerPointers(ledgerOutput);
+        advanceLastClosedLedgerPointers(ledgerOutput);
 
         // Step 5. Maybe kick off publishing on complete checkpoint files
         auto& hm = mApp.getHistoryManager();
@@ -1108,7 +1106,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     }
 
     maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
-                       closeLedgerTime);
+                       applyLedgerTime);
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
                ledgerTimeSeconds.count());
@@ -1146,7 +1144,8 @@ LedgerManagerImpl::setLastClosedLedger(
     ltx.commit();
 
     mRebuildInMemoryState = false;
-    advanceLedgerPointers(advanceLedgerStateSnapshot(lastClosed.header, has));
+    advanceLastClosedLedgerPointers(
+        advanceLedgerStateSnapshot(lastClosed.header, has));
 
     LedgerTxn ltx2(mApp.getLedgerTxnRoot());
     if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
@@ -1170,7 +1169,7 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
         PersistentState::kHistoryArchiveState,
         mApp.getDatabase().getSession()));
     auto output = advanceLedgerStateSnapshot(header, has);
-    advanceLedgerPointers(output);
+    advanceLastClosedLedgerPointers(output);
 }
 
 void
@@ -1304,20 +1303,20 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 }
 
 SearchableSnapshotConstPtr
-LedgerManagerImpl::getCurrentLedgerStateSnaphot()
+LedgerManagerImpl::getLastClosedSnaphot()
 {
-    if (!mReadOnlyLedgerStateSnapshot)
+    if (!mLastClosedSnapshot)
     {
-        mReadOnlyLedgerStateSnapshot =
-            mApp.getBucketManager()
-                .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot();
+        mLastClosedSnapshot = mApp.getBucketManager()
+                                  .getBucketSnapshotManager()
+                                  .copySearchableLiveBucketListSnapshot();
     }
-    return mReadOnlyLedgerStateSnapshot;
+    return mLastClosedSnapshot;
 }
 
 void
-LedgerManagerImpl::advanceLedgerPointers(CloseLedgerOutput const& output)
+LedgerManagerImpl::advanceLastClosedLedgerPointers(
+    ApplyLedgerOutput const& output)
 {
     releaseAssert(threadIsMain());
     CLOG_DEBUG(
@@ -1327,17 +1326,17 @@ LedgerManagerImpl::advanceLedgerPointers(CloseLedgerOutput const& output)
     // Update ledger state as seen by the main thread
     mLastClosedLedger = output.ledgerHeader;
     mLastClosedLedgerHAS = output.has;
-    mSorobanNetworkConfigReadOnly = output.sorobanConfig;
-    mReadOnlyLedgerStateSnapshot = output.snapshot;
+    mLastClosedSorobanNetworkConfig = output.sorobanConfig;
+    mLastClosedSnapshot = output.snapshot;
 }
 
-LedgerManagerImpl::CloseLedgerOutput
+LedgerManagerImpl::ApplyLedgerOutput
 LedgerManagerImpl::advanceLedgerStateSnapshot(LedgerHeader const& header,
                                               HistoryArchiveState const& has)
 {
     auto ledgerHash = xdrSha256(header);
 
-    CloseLedgerOutput res;
+    ApplyLedgerOutput res;
     res.ledgerHeader.hash = ledgerHash;
     res.ledgerHeader.header = header;
     res.has = has;
@@ -1758,7 +1757,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     LedgerHeader lh, uint32_t initialLedgerVers)
 {
     ZoneScoped;
-    // `ledgerClosed` protects this call with a mutex
+    // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
     auto blEnabled = mApp.getConfig().MODE_ENABLES_BUCKETLIST;
@@ -1767,7 +1766,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     // sealing the ledger with ltx.getAllEntries
     //
     // Any V20 features must be behind initialLedgerVers check, see comment
-    // in LedgerManagerImpl::ledgerClosed
+    // in LedgerManagerImpl::ledgerApplied
     if (blEnabled &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
@@ -1819,8 +1818,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     }
 }
 
-LedgerManagerImpl::CloseLedgerOutput
-LedgerManagerImpl::ledgerClosed(
+LedgerManagerImpl::ApplyLedgerOutput
+LedgerManagerImpl::ledgerApplied(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     uint32_t initialLedgerVers)
@@ -1837,10 +1836,10 @@ LedgerManagerImpl::ledgerClosed(
     // protocol 20. For a ledger that upgrades from protocol vN to vN+1,
     // there are two different assumptions in different parts of the
     // ledger-close path:
-    //   - In closeLedger we mostly treat the ledger as being on vN, eg.
+    //   - In applyLedger we mostly treat the ledger as being on vN, eg.
     //   during
     //     tx apply and LCM construction.
-    //   - In the final stage, when we call ledgerClosed, we pass vN+1
+    //   - In the final stage, when we call ledgerApplied, we pass vN+1
     //   because
     //     the upgrade completed and modified the ltx header, and we fish
     //     the protocol out of the ltx header
@@ -1864,7 +1863,7 @@ LedgerManagerImpl::ledgerClosed(
             mApp.getConfig().EMIT_LEDGER_CLOSE_META_EXT_V1);
     }
 
-    CloseLedgerOutput res;
+    ApplyLedgerOutput res;
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
         auto has = storeCurrentLedger(lh, /* storeHeader */ true,

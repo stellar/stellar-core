@@ -2062,7 +2062,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), closeTime, upgrades,
             app->getConfig().NODE_SEED);
-        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
@@ -2185,7 +2185,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), closeTime, upgrades,
             app->getConfig().NODE_SEED);
-        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())

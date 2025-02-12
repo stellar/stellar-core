@@ -236,7 +236,7 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     else
 #endif
         mGetter = std::make_unique<BucketSnapshotState>(
-            app.getLedgerManager().getCurrentLedgerStateSnaphot());
+            app.getLedgerManager().getLastClosedSnaphot());
 }
 
 LedgerHeaderWrapper

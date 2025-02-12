@@ -49,23 +49,10 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     std::map<uint32_t, LedgerCloseData> mSyncingLedgers;
     medida::Counter& mSyncingLedgersSize;
 
-    // Conceptually, there are three ledger sequences that LedgerManager, Herder
-    // and LedgerApplyManager rely on:
-    //  - L (mLargestLedgerSeqHeard) = maximum ledger that core heard the
-    //  network externalize, may or may not be applied.
-    //  - Q (mLastQueuedToApply) = Tracks maximum ledger dequeued from
-    //  mSyncingLedgers and passed to apply -- either synchronously or posted to
-    //  background thread queue. Note: Member variable is an optional<> only
-    //  because it is lazily initialized after LCL, it's supposed to have a
-    //  definite value (>= LCL) from then on.
-    //  - LCL = last closed ledger, the last ledger that was externalized, and
-    //  applied by core.
-    //  - Core maintains the following invariant: LCL <= Q <= L. New ledgers
-    //  cause each number to increment, from right to left. First externalize
-    //  enqueues a ledger in mSyncingLedgers, incrementing L. Then a ledger
-    //  is dequeued from mSyncingLedgers and sent to apply, incrementing Q
-    //  towards L. Then a ledger finishes apply, incrementing LCL towards Q.
-    //  Eventually every ledger passes through each of these phases.
+    // These state variables track the flow of ledgers through mSyncingLedgers,
+    // they are the variables Q and L in the diagram in LedgerManager.h. See
+    // that diagram for details and discussion of the threading model and
+    // flow of ledgers between LedgerApplyManager and LedgerManager.
     std::optional<uint32_t> mLastQueuedToApply;
     uint32_t mLargestLedgerSeqHeard;
 

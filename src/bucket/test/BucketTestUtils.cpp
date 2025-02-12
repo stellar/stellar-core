@@ -101,6 +101,11 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
                                      lcl.header.scpValue.closeTime, upgrades,
                                      skToSignValue);
+    // NB: this assert will probably stop being true when background apply is
+    // turned on by default: externalize will have handed the ledger off to
+    // apply but not yet received the results of apply or updated LCL. The fix
+    // should be just to crank here until LCL advances to ledgerSeq.
+    releaseAssert(lm.getLastClosedLedgerNum() == ledgerNum);
     return lm.getLastClosedLedgerHeader().hash;
 }
 
