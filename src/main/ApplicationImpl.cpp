@@ -160,11 +160,14 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     releaseAssert(mConfig.WORKER_THREADS > 0);
     releaseAssert(mEvictionIOContext);
 
+    mThreadTypes[std::this_thread::get_id()] = ThreadType::MAIN;
+
     // Allocate one thread for Eviction scan
     mEvictionThread = std::thread{[this]() {
         runCurrentThreadWithMediumPriority();
         mEvictionIOContext->run();
     }};
+    mThreadTypes[mEvictionThread->get_id()] = ThreadType::EVICTION;
 
     --t;
 
@@ -174,6 +177,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             runCurrentThreadWithLowPriority();
             mWorkerIOContext.run();
         }};
+        mThreadTypes[thread.get_id()] = ThreadType::WORKER;
         mWorkerThreads.emplace_back(std::move(thread));
     }
 
@@ -181,12 +185,14 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     {
         // Keep priority unchanged as overlay processes time-sensitive tasks
         mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
+        mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
     if (mConfig.parallelLedgerClose())
     {
         mLedgerCloseThread =
             std::thread{[this]() { mLedgerCloseIOContext->run(); }};
+        mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
     }
 }
 
@@ -1195,6 +1201,14 @@ medida::MetricsRegistry&
 ApplicationImpl::getMetrics()
 {
     return *mMetrics;
+}
+
+bool
+ApplicationImpl::threadIsType(ThreadType type) const
+{
+    auto it = mThreadTypes.find(std::this_thread::get_id());
+    releaseAssert(it != mThreadTypes.end());
+    return it->second == type;
 }
 
 void

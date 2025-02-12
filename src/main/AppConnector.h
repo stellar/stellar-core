@@ -1,12 +1,12 @@
 #pragma once
 
 #include "bucket/BucketUtils.h"
+#include "main/Application.h"
 #include "main/Config.h"
 #include "medida/metrics_registry.h"
 
 namespace stellar
 {
-class Application;
 class OverlayManager;
 class LedgerManager;
 class Herder;
@@ -57,6 +57,7 @@ class AppConnector
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
     SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() const;
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() const;
+    bool threadIsType(Application::ThreadType type) const;
 
     medida::MetricsRegistry& getMetrics() const;
     SearchableHotArchiveSnapshotConstPtr

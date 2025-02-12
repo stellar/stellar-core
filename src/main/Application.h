@@ -164,6 +164,16 @@ class Application
         APP_NUM_STATE
     };
 
+    // Types of threads that may be running
+    enum class ThreadType
+    {
+        MAIN,
+        WORKER,
+        EVICTION,
+        OVERLAY,
+        APPLY
+    };
+
     virtual ~Application(){};
 
     virtual void initialize(bool createNewDB, bool forceRebuild) = 0;
@@ -329,6 +339,9 @@ class Application
 
         return ret;
     }
+
+    // Returns true iff the calling thread has the same type as `type`
+    virtual bool threadIsType(ThreadType type) const = 0;
 
     virtual AppConnector& getAppConnector() = 0;
 
