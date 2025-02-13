@@ -1018,7 +1018,7 @@ TxGenerator::sorobanRandomUploadResources()
     // the chance that this instruction count is sufficient.
     ContractCostParamEntry vmInstantiationCosts =
         mApp.getLedgerManager()
-            .getSorobanNetworkConfigReadOnly()
+            .getLastClosedSorobanNetworkConfig()
             .cpuCostParams()[VmInstantiation];
     // Amount to right shift `vmInstantiationCosts.linearTerm * wasmSize` by
     uint32_t constexpr vmShiftTerm = 7;

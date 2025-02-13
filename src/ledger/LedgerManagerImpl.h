@@ -42,14 +42,6 @@ class BasicWork;
 class LedgerManagerImpl : public LedgerManager
 {
   protected:
-    struct ApplyLedgerOutput
-    {
-        LedgerHeaderHistoryEntry ledgerHeader;
-        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
-        HistoryArchiveState has;
-        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
-    };
-
     Application& mApp;
     std::unique_ptr<XDROutputFileStream> mMetaStream;
     std::unique_ptr<XDROutputFileStream> mMetaDebugStream;
@@ -57,43 +49,57 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
-    // Cache LCL state, accessible only from main thread
-    LedgerHeaderHistoryEntry mLastClosedLedger;
+    // Output of the apply process, also what gets held as "LCL".
+    struct LedgerState
+    {
+        LedgerHeaderHistoryEntry ledgerHeader;
+        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
+        HistoryArchiveState has;
+        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
+    };
 
-    // Read-only Soroban network configuration, accessible by main thread only.
-    // This config has to match the read-only ledger state snapshot managed by
-    // LedgerManager. Today this is only accessed by the main thread, but it can
-    // be used by multiple threads as long snapshot consistency
-    // requirement is preserved (though synchronization should be added in this
-    // case)
-    std::shared_ptr<SorobanNetworkConfig const> mLastClosedSorobanNetworkConfig;
+    // Any state that apply needs to access through the app connector should go
+    // here, at very least just to make it clear what is being accessed by which
+    // threads. We may try to further encapsulate it.
+    struct ApplyState
+    {
+        // Latest Soroban config during apply (should not be used outside of
+        // application, as it may be in half-valid state). Note that access to
+        // this variable is not synchronized, since it should only be used by
+        // one thread (main or ledger close).
+        std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
+    };
 
-    // Latest Soroban config during apply (should not be used outside of
-    // application, as it may be in half-valid state). Note that access to this
-    // variable is not synchronized, since it should only be used by one thread
-    // (main or ledger close).
-    std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfigForApply;
+    struct LedgerMetrics
+    {
+        medida::Timer& mTransactionApply;
+        medida::Histogram& mTransactionCount;
+        medida::Histogram& mOperationCount;
+        medida::Histogram& mPrefetchHitRate;
+        medida::Timer& mLedgerClose;
+        medida::Buckets& mLedgerAgeClosed;
+        medida::Counter& mLedgerAge;
+        medida::Counter& mTransactionApplySucceeded;
+        medida::Counter& mTransactionApplyFailed;
+        medida::Counter& mSorobanTransactionApplySucceeded;
+        medida::Counter& mSorobanTransactionApplyFailed;
+        medida::Meter& mMetaStreamBytes;
+        medida::Timer& mMetaStreamWriteTime;
+        LedgerMetrics(medida::MetricsRegistry& registry);
+    };
 
-    // Cache most recent HAS, accessible only from main thread
-    HistoryArchiveState mLastClosedLedgerHAS;
+    // This state is private to the apply thread and holds work-in-progress
+    // that gets accessed via the AppConnector, from inside transactions.
+    ApplyState mApplyState;
 
+    // Cached LCL state output from last apply (or loaded from DB on startup).
+    LedgerState mLastClosedLedgerState;
+
+    LedgerMetrics mLedgerMetrics;
     SorobanMetrics mSorobanMetrics;
-    medida::Timer& mTransactionApply;
-    medida::Histogram& mTransactionCount;
-    medida::Histogram& mOperationCount;
-    medida::Histogram& mPrefetchHitRate;
-    medida::Timer& mLedgerClose;
-    medida::Buckets& mLedgerAgeClosed;
-    medida::Counter& mLedgerAge;
-    medida::Counter& mTransactionApplySucceeded;
-    medida::Counter& mTransactionApplyFailed;
-    medida::Counter& mSorobanTransactionApplySucceeded;
-    medida::Counter& mSorobanTransactionApplyFailed;
-    medida::Meter& mMetaStreamBytes;
-    medida::Timer& mMetaStreamWriteTime;
+
     VirtualClock::time_point mLastClose;
     bool mRebuildInMemoryState{false};
-    SearchableSnapshotConstPtr mLastClosedSnapshot;
 
     // Use mutex to guard ledger state during apply
     mutable std::recursive_mutex mLedgerStateMutex;
@@ -120,14 +126,13 @@ class LedgerManagerImpl : public LedgerManager
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
-    ApplyLedgerOutput
-    ledgerApplied(AbstractLedgerTxn& ltx,
-                  std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-                  uint32_t initialLedgerVers);
+    LedgerState sealLedgerTxnAndStoreInBucketsAndDB(
+        AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t initialLedgerVers);
 
-    HistoryArchiveState storeCurrentLedger(LedgerHeader const& header,
-                                           bool storeHeader,
-                                           bool appendToCheckpoint);
+    HistoryArchiveState storePersistentStateAndLedgerHeaderInDB(
+        LedgerHeader const& header, bool storeHeader, bool appendToCheckpoint);
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
                                         Config const& config);
@@ -150,7 +155,7 @@ class LedgerManagerImpl : public LedgerManager
     void publishSorobanMetrics();
 
     // Update cached last closed ledger state values managed by this class.
-    void advanceLastClosedLedgerPointers(ApplyLedgerOutput const& output);
+    void advanceLastClosedLedgerState(LedgerState const& output);
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -161,17 +166,17 @@ class LedgerManagerImpl : public LedgerManager
 
     // NB: LedgerHeader is a copy here to prevent footguns in case ltx
     // invalidates any header references
-    virtual void transferLedgerEntriesToBucketList(
+    virtual void sealLedgerTxnAndTransferEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    // Update ledger state snapshot, and construct ApplyLedgerOutput return
+    // Update bucket list snapshot, and construct LedgerState return
     // value, which contains all information relevant to ledger state (HAS,
     // ledger header, network config, bucketlist snapshot).
-    ApplyLedgerOutput
-    advanceLedgerStateSnapshot(LedgerHeader const& header,
-                               HistoryArchiveState const& has);
+    LedgerState
+    advanceBucketListSnapshotAndMakeLedgerState(LedgerHeader const& header,
+                                                HistoryArchiveState const& has);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
@@ -181,7 +186,7 @@ class LedgerManagerImpl : public LedgerManager
     // Reloads the network configuration from the ledger.
     // This needs to be called every time a ledger is closed.
     // This call is read-only and hence `ltx` can be read-only.
-    void updateNetworkConfig(AbstractLedgerTxn& ltx) override;
+    void updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
     void beginApply() override;
     State getState() const override;
@@ -198,13 +203,13 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() override;
+    SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() override;
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
 
-    bool hasSorobanNetworkConfig() const override;
+    bool hasLastClosedSorobanNetworkConfig() const override;
 
 #ifdef BUILD_TESTS
-    SorobanNetworkConfig& getMutableSorobanNetworkConfig() override;
+    SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     TransactionResultSet mLatestTxResultSet{};

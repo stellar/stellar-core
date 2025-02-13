@@ -869,7 +869,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
         auto& networkConfig =
-            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         uint32_t windowSize = networkConfig.stateArchivalSettings()
                                   .bucketListSizeWindowSampleSize;
@@ -967,7 +967,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
 
         auto& networkCfg = [&]() -> SorobanNetworkConfig& {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            return app->getLedgerManager().getMutableSorobanNetworkConfig();
+            return app->getLedgerManager()
+                .getMutableSorobanNetworkConfigForApply();
         }();
 
         auto& stateArchivalSettings = networkCfg.stateArchivalSettings();

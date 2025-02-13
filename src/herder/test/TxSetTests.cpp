@@ -1768,7 +1768,7 @@ TEST_CASE("txset nomination", "[txset]")
             });
 
             auto const& sorobanConfig =
-                app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             stellar::uniform_int_distribution<> txReadEntriesDistr(
                 1, sorobanConfig.txMaxReadLedgerEntries());
 

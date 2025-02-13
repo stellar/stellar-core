@@ -47,10 +47,10 @@ AppConnector::getBanManager()
 }
 
 SorobanNetworkConfig const&
-AppConnector::getSorobanNetworkConfigReadOnly() const
+AppConnector::getLastClosedSorobanNetworkConfig() const
 {
     releaseAssert(threadIsMain());
-    return mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+    return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 }
 
 SorobanNetworkConfig const&

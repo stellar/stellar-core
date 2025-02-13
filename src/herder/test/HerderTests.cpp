@@ -995,7 +995,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
     });
 
     auto const& conf =
-        app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
     uint32_t maxContractSize = 0;
     maxContractSize = conf.maxContractSizeBytes();
 
@@ -1150,7 +1150,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
 
         SorobanNetworkConfig conf =
-            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         uint32_t const baseFee = 10'000'000;
         SorobanResources resources;
@@ -3390,7 +3390,7 @@ TEST_CASE("soroban txs accepted by the network",
             for (auto node : nodes)
             {
                 REQUIRE(node->getLedgerManager()
-                            .getSorobanNetworkConfigReadOnly()
+                            .getLastClosedSorobanNetworkConfig()
                             .ledgerMaxTxCount() == ledgerWideLimit * 10);
             }
 

@@ -1030,7 +1030,7 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
                 app.getLedgerManager()
                     .getLastClosedLedgerHeader()
                     .header.ledgerVersion,
-                app.getLedgerManager().getSorobanNetworkConfigReadOnly(),
+                app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
                 app.getConfig());
         REQUIRE(expectedNonRefundableFee == actualFeePair.non_refundable_fee);
 
@@ -1121,7 +1121,7 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
     // the test.
     test.getApp()
         .getLedgerManager()
-        .getMutableSorobanNetworkConfig()
+        .getMutableSorobanNetworkConfigForApply()
         .mFeeWrite1KB = 5000;
 
     SECTION("readBytes fee")
@@ -3455,7 +3455,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes
     // into play
     auto const& blSize = app->getLedgerManager()
-                             .getSorobanNetworkConfigReadOnly()
+                             .getLastClosedSorobanNetworkConfig()
                              .getAverageBucketListSize();
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());

@@ -1055,7 +1055,7 @@ SorobanTest::getDummyAccount()
 SorobanNetworkConfig const&
 SorobanTest::getNetworkCfg()
 {
-    return getApp().getLedgerManager().getMutableSorobanNetworkConfig();
+    return getApp().getLedgerManager().getMutableSorobanNetworkConfigForApply();
 }
 
 uint32_t

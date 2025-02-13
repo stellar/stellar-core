@@ -243,18 +243,18 @@ class LedgerManager
 
     virtual Resource maxLedgerResources(bool isSoroban) = 0;
     virtual Resource maxSorobanTransactionResources() = 0;
-    virtual void updateNetworkConfig(AbstractLedgerTxn& ltx) = 0;
+    virtual void updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx) = 0;
     // Return the network config for Soroban.
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
     // used most of the time.
-    virtual SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() = 0;
+    virtual SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() = 0;
     virtual SorobanNetworkConfig const& getSorobanNetworkConfigForApply() = 0;
 
-    virtual bool hasSorobanNetworkConfig() const = 0;
+    virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
 
 #ifdef BUILD_TESTS
-    virtual SorobanNetworkConfig& getMutableSorobanNetworkConfig() = 0;
+    virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;

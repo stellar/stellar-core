@@ -2145,7 +2145,7 @@ HerderImpl::maybeHandleUpgrade()
             return;
         }
         auto const& conf =
-            mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+            mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         auto maybeNewMaxTxSize =
             conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
@@ -2197,7 +2197,7 @@ HerderImpl::start()
         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
         {
             auto const& conf =
-                mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+                mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
             mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
                                                   getFlowControlExtraBuffer());
         }

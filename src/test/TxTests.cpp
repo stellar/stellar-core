@@ -933,7 +933,7 @@ sorobanResourceFee(Application& app, SorobanResources const& resources,
     auto feePair = TransactionFrame::computeSorobanResourceFee(
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion,
         resources, static_cast<uint32>(txSize), eventsSize,
-        app.getLedgerManager().getSorobanNetworkConfigReadOnly(),
+        app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
         app.getConfig());
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }

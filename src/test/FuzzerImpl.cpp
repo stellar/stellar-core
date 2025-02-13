@@ -929,7 +929,7 @@ class FuzzTransactionFrame : public TransactionFrame
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
             return !op->checkValid(
                 app.getAppConnector(), signatureChecker,
-                app.getAppConnector().getSorobanNetworkConfigReadOnly(),
+                app.getAppConnector().getLastClosedSorobanNetworkConfig(),
                 ltxStmt, false, opResult, mTxResult->getSorobanData());
         };
 

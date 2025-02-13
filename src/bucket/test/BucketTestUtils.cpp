@@ -188,7 +188,7 @@ template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
 template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
-LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
+LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
@@ -269,7 +269,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 ltxEvictions.commit();
             }
             mApp.getLedgerManager()
-                .getMutableSorobanNetworkConfig()
+                .getMutableSorobanNetworkConfigForApply()
                 .maybeSnapshotBucketListSize(lh.ledgerSeq, ltx, mApp);
         }
 
@@ -293,7 +293,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     }
     else
     {
-        LedgerManagerImpl::transferLedgerEntriesToBucketList(
+        LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
             ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
