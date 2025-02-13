@@ -3,8 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/VerifyBucketWork.h"
+#include "bucket/LiveBucketIndex.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "history/HistoryArchive.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Fs.h"
@@ -20,13 +22,13 @@
 namespace stellar
 {
 
-VerifyBucketWork::VerifyBucketWork(Application& app,
-                                   std::string const& bucketFile,
-                                   uint256 const& hash,
-                                   OnFailureCallback failureCb)
+VerifyBucketWork::VerifyBucketWork(
+    Application& app, std::string const& bucketFile, uint256 const& hash,
+    std::unique_ptr<LiveBucketIndex const>& index, OnFailureCallback failureCb)
     : BasicWork(app, "verify-bucket-hash-" + bucketFile, BasicWork::RETRY_NEVER)
     , mBucketFile(bucketFile)
     , mHash(hash)
+    , mIndex(index)
     , mOnFailure(failureCb)
 {
 }
@@ -52,12 +54,26 @@ void
 VerifyBucketWork::spawnVerifier()
 {
     std::string filename = mBucketFile;
+    if (auto size = fs::size(filename);
+        size > HistoryArchiveState::MAX_HISTORY_ARCHIVE_BUCKET_SIZE)
+    {
+        CLOG_WARNING(History,
+                     "Failed verification: Bucket size ({}) is greater than "
+                     "the maximum allowed size ({}). Expected hash: {}",
+                     size, HistoryArchiveState::MAX_HISTORY_ARCHIVE_BUCKET_SIZE,
+                     binToHex(mHash));
+
+        mEc = std::make_error_code(std::errc::io_error);
+        mDone = true;
+        return;
+    }
+
     uint256 hash = mHash;
     Application& app = this->mApp;
     std::weak_ptr<VerifyBucketWork> weak(
         std::static_pointer_cast<VerifyBucketWork>(shared_from_this()));
     app.postOnBackgroundThread(
-        [&app, filename, weak, hash]() {
+        [&app, filename, weak, hash, &index = mIndex]() {
             SHA256 hasher;
             asio::error_code ec;
 
@@ -71,23 +87,14 @@ VerifyBucketWork::spawnVerifier()
             try
             {
                 ZoneNamedN(verifyZone, "bucket verify", true);
-                CLOG_INFO(History, "Verifying bucket {}", binToHex(hash));
+                CLOG_INFO(History, "Verifying and indexing bucket {}",
+                          binToHex(hash));
 
-                // ensure that the stream gets its own scope to avoid race with
-                // main thread
-                std::ifstream in(filename, std::ifstream::binary);
-                if (!in)
-                {
-                    throw std::runtime_error(fmt::format(
-                        FMT_STRING("Error opening file {}"), filename));
-                }
-                in.exceptions(std::ios::badbit);
-                char buf[4096];
-                while (in)
-                {
-                    in.read(buf, sizeof(buf));
-                    hasher.add(ByteSlice(buf, in.gcount()));
-                }
+                index = createIndex<LiveBucket>(
+                    app.getBucketManager(), filename, hash,
+                    app.getWorkerIOContext(), &hasher);
+                releaseAssertOrThrow(index);
+
                 uint256 vHash = hasher.finish();
                 if (vHash == hash)
                 {

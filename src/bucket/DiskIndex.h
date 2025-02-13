@@ -31,6 +31,7 @@ class io_context;
 namespace stellar
 {
 class BucketManager;
+class SHA256;
 
 // maps smallest and largest LedgerKey on a given page inclusively
 // [lowerBound, upperbound]
@@ -118,7 +119,8 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
 
     // Constructor for creating a fresh index.
     DiskIndex(BucketManager& bm, std::filesystem::path const& filename,
-              std::streamoff pageSize, Hash const& hash, asio::io_context& ctx);
+              std::streamoff pageSize, Hash const& hash, asio::io_context& ctx,
+              SHA256* hasher);
 
     // Constructor for loading pre-existing index from disk. Must call preLoad
     // before calling this constructor to properly deserialize index.

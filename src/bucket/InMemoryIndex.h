@@ -14,6 +14,8 @@
 namespace stellar
 {
 
+class SHA256;
+
 // For small Buckets, we can cache all contents in memory. Because we cache all
 // entries, the index is just as large as the Bucket itself, so we never persist
 // this index type. It is always recreated on startup.
@@ -66,7 +68,7 @@ class InMemoryIndex
     using IterT = InMemoryBucketState::IterT;
 
     InMemoryIndex(BucketManager const& bm,
-                  std::filesystem::path const& filename);
+                  std::filesystem::path const& filename, SHA256* hasher);
 
     IterT
     begin() const

@@ -31,7 +31,7 @@ getPageSizeFromConfig(Config const& cfg)
 template <class BucketT>
 std::unique_ptr<typename BucketT::IndexT const>
 createIndex(BucketManager& bm, std::filesystem::path const& filename,
-            Hash const& hash, asio::io_context& ctx)
+            Hash const& hash, asio::io_context& ctx, SHA256* hasher)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -41,7 +41,7 @@ createIndex(BucketManager& bm, std::filesystem::path const& filename,
     try
     {
         return std::unique_ptr<typename BucketT::IndexT const>(
-            new typename BucketT::IndexT(bm, filename, hash, ctx));
+            new typename BucketT::IndexT(bm, filename, hash, ctx, hasher));
     }
     // BucketIndex throws if BucketManager shuts down before index finishes,
     // so return empty index instead of partial index
@@ -88,11 +88,12 @@ loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
 template std::unique_ptr<typename LiveBucket::IndexT const>
 createIndex<LiveBucket>(BucketManager& bm,
                         std::filesystem::path const& filename, Hash const& hash,
-                        asio::io_context& ctx);
+                        asio::io_context& ctx, SHA256* hasher);
 template std::unique_ptr<typename HotArchiveBucket::IndexT const>
 createIndex<HotArchiveBucket>(BucketManager& bm,
                               std::filesystem::path const& filename,
-                              Hash const& hash, asio::io_context& ctx);
+                              Hash const& hash, asio::io_context& ctx,
+                              SHA256* hasher);
 
 template std::unique_ptr<typename LiveBucket::IndexT const>
 loadIndex<LiveBucket>(BucketManager const& bm,

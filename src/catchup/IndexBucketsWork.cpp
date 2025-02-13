@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/DiskIndex.h"
 #include "bucket/LiveBucket.h"
+#include "crypto/SHA.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/UnorderedSet.h"
@@ -86,9 +87,9 @@ IndexBucketsWork::IndexWork::postWork()
             if (!self->mIndex)
             {
                 // TODO: Fix this when archive BucketLists assume state
-                self->mIndex =
-                    createIndex<LiveBucket>(bm, self->mBucket->getFilename(),
-                                            self->mBucket->getHash(), ctx);
+                self->mIndex = createIndex<LiveBucket>(
+                    bm, self->mBucket->getFilename(), self->mBucket->getHash(),
+                    ctx, nullptr);
             }
 
             app.postOnMainThread(

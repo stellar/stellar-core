@@ -198,7 +198,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
         !b || !b->isIndexed())
     {
-        index = createIndex<BucketT>(bucketManager, mFilename, hash, mCtx);
+        index =
+            createIndex<BucketT>(bucketManager, mFilename, hash, mCtx, nullptr);
     }
 
     return bucketManager.adoptFileAsBucket<BucketT>(mFilename.string(), hash,

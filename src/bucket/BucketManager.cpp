@@ -1593,6 +1593,13 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
     releaseAssert(threadIsMain());
     std::set<Hash> hashes = getAllReferencedBuckets(has);
     std::vector<std::shared_ptr<BasicWork>> seq;
+
+    // Persist a map of indexes so we don't have dangling references in
+    // VerifyBucketsWork. We don't actually need to use the indexes created by
+    // VerifyBucketsWork here, so a throwaway static map is fine.
+    static std::map<int, std::unique_ptr<LiveBucketIndex const>> indexMap;
+
+    int i = 0;
     for (auto const& h : hashes)
     {
         if (isZero(h))
@@ -1608,8 +1615,11 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
             throw std::runtime_error(fmt::format(
                 FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
         }
+
+        auto [indexIter, _] = indexMap.emplace(i++, nullptr);
         seq.emplace_back(std::make_shared<VerifyBucketWork>(
-            mApp, b->getFilename().string(), b->getHash(), nullptr));
+            mApp, b->getFilename().string(), b->getHash(), indexIter->second,
+            nullptr));
     }
     return mApp.getWorkScheduler().scheduleWork<WorkSequence>(
         "verify-referenced-buckets", seq);

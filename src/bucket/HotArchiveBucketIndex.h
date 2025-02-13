@@ -57,7 +57,8 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
 
     HotArchiveBucketIndex(BucketManager& bm,
                           std::filesystem::path const& filename,
-                          Hash const& hash, asio::io_context& ctx);
+                          Hash const& hash, asio::io_context& ctx,
+                          SHA256* hasher);
 
     template <class Archive>
     HotArchiveBucketIndex(BucketManager const& bm, Archive& ar,
