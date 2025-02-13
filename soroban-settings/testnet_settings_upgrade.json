@@ -14,7 +14,7 @@
     {
       "contract_ledger_cost_v0": {
         "ledger_max_read_ledger_entries": 500,
-        "ledger_max_read_bytes": 500000,
+        "ledger_max_read_bytes": 3500000,
         "ledger_max_write_ledger_entries": 250,
         "ledger_max_write_bytes": 143360,
         "tx_max_read_ledger_entries": 100,
