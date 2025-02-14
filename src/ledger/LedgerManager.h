@@ -54,7 +54,7 @@ class SorobanMetrics;
 //        │    │   │    │  │ ┌───────────────────┐     │    ┌───┐
 //      p │    │ T │    │  ▼ │  mSyncingLedgers  │─────┼───►│   │
 //      a │    │ h │    │    └───────────────────┘     │    │   │
-//      s │    │ r │    │   L                     Q    │    │   │
+//      s │    │ r │    │   H                     Q    │    │   │
 //      s │    │ e │    └──────────────────────────────┘    │   │
 //      i │    │ a │                                        │ A │
 //      n │    │ d │                                        │ p │
@@ -91,7 +91,7 @@ class SorobanMetrics;
 // These are points where we can identify and relate some state variables and an
 // invariant order between them:
 //
-//     L -- LedgerApplyManagerImpl::mLargestLedgerSeqHeard tracks this, it is
+//     H -- LedgerApplyManagerImpl::mLargestLedgerSeqHeard tracks this, it is
 //          the ledger sequence number of the most recent ledger added to
 //          mSyncingLedgers (whether or not any ledgers are still _in_
 //          mSyncingLedgers, it may have been emptied by the apply thread).
@@ -117,7 +117,7 @@ class SorobanMetrics;
 //          A is closing quickly and the main thread is busy: results are posted
 //          back to the main thread using a queue.
 //
-// The invariant is that LCL <= A <= Q <= L. Each can get arbitrarily far ahead
+// The invariant is that LCL <= A <= Q <= H. Each can get arbitrarily far ahead
 // of the previous (for example of the network votes ahead of the current node,
 // or the current node is doing bulk catchup), and they can also all be equal
 // (for example if the current node just booted up, or is idle between ledgers);

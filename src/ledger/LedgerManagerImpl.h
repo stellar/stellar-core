@@ -70,7 +70,7 @@ class LedgerManagerImpl : public LedgerManager
         std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
     };
 
-    struct LedgerMetrics
+    struct LedgerApplyMetrics
     {
         medida::Timer& mTransactionApply;
         medida::Histogram& mTransactionCount;
@@ -85,7 +85,7 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mSorobanTransactionApplyFailed;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
-        LedgerMetrics(medida::MetricsRegistry& registry);
+        LedgerApplyMetrics(medida::MetricsRegistry& registry);
     };
 
     // This state is private to the apply thread and holds work-in-progress
@@ -95,7 +95,7 @@ class LedgerManagerImpl : public LedgerManager
     // Cached LCL state output from last apply (or loaded from DB on startup).
     LedgerState mLastClosedLedgerState;
 
-    LedgerMetrics mLedgerMetrics;
+    LedgerApplyMetrics mLedgerApplyMetrics;
     SorobanMetrics mSorobanMetrics;
 
     VirtualClock::time_point mLastClose;
@@ -111,6 +111,9 @@ class LedgerManagerImpl : public LedgerManager
     // Use in the context of parallel ledger apply to indicate background thread
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
+
+    LedgerState &getLCLState();
+    LedgerState const&getLCLState() const;
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
