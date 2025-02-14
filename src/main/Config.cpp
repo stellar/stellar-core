@@ -159,7 +159,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
-    EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = false;
+    EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 250;            // 250 mb
     BUCKETLIST_DB_CACHED_PERCENT = 10;
@@ -1070,9 +1070,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_OVERLAY_PROCESSING",
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
-                {"EXPERIMENTAL_PARALLEL_LEDGER_CLOSE",
+                {"EXPERIMENTAL_PARALLEL_LEDGER_APPLY",
                  [&]() {
-                     EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = readBool(item);
+                     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = readBool(item);
                  }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
@@ -1793,12 +1793,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
-        if (EXPERIMENTAL_PARALLEL_LEDGER_CLOSE && !parallelLedgerClose())
+        if (EXPERIMENTAL_PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
         {
             std::string msg =
-                "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_CLOSE "
+                "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_APPLY "
                 "does not support SQLite. Either switch to Postgres or set "
-                "EXPERIMENTAL_PARALLEL_LEDGER_CLOSE=false";
+                "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
             throw std::runtime_error(msg);
         }
 
@@ -2105,9 +2105,9 @@ Config::logBasicInfo() const
              "{}",
              BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
     LOG_INFO(DEFAULT_LOG,
-             "EXPERIMENTAL_PARALLEL_LEDGER_CLOSE="
+             "EXPERIMENTAL_PARALLEL_LEDGER_APPLY="
              "{}",
-             EXPERIMENTAL_PARALLEL_LEDGER_CLOSE ? "true" : "false");
+             EXPERIMENTAL_PARALLEL_LEDGER_APPLY ? "true" : "false");
 }
 
 void
@@ -2405,7 +2405,7 @@ Config::modeStoresAnyHistory() const
 bool
 Config::parallelLedgerClose() const
 {
-    return EXPERIMENTAL_PARALLEL_LEDGER_CLOSE &&
+    return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
            !(DATABASE.value.find("sqlite3://") != std::string::npos);
 }
 

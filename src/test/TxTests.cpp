@@ -372,7 +372,7 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
         recordOrCheckGlobalTestTxMetadata(tm.getXDR());
     }
 
-    // TODO: in-memory mode doesn't work with parallel ledger close because
+    // TODO: in-memory mode doesn't work with parallel ledger apply because
     // it manually modifies LedgerTxn without closing a ledger; this results
     // in a different ledger header stored inside of LedgerTxn
     ltx.commit();
@@ -568,6 +568,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      upgrades);
+    // NB: this assert will probably stop being true when background apply is
+    // turned on by default: externalize will have handed the ledger off to
+    // apply but not yet received the results of apply or updated LCL. The fix
+    // should be just to crank here until LCL advances to ledgerSeq.
     releaseAssert(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
     auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
     return lm.mLatestTxResultSet;
@@ -929,7 +933,7 @@ sorobanResourceFee(Application& app, SorobanResources const& resources,
     auto feePair = TransactionFrame::computeSorobanResourceFee(
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion,
         resources, static_cast<uint32>(txSize), eventsSize,
-        app.getLedgerManager().getSorobanNetworkConfigReadOnly(),
+        app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
         app.getConfig());
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }

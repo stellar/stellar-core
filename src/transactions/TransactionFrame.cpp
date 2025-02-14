@@ -1558,7 +1558,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         isSoroban())
     {
         sorobanConfig =
-            app.getLedgerManager().getSorobanNetworkConfigReadOnly();
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
         sorobanResourceFee = computePreApplySorobanResourceFee(
             ls.getLedgerHeader().current().ledgerVersion, sorobanConfig.value(),
             app.getConfig());

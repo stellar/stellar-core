@@ -251,7 +251,7 @@ makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
 {
     // Modify window size
     auto sas = app.getLedgerManager()
-                   .getSorobanNetworkConfigReadOnly()
+                   .getLastClosedSorobanNetworkConfig()
                    .stateArchivalSettings();
     sas.bucketListSizeWindowSampleSize = newWindowSize;
 
@@ -917,7 +917,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
     auto const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
     SECTION("unknown config upgrade set is ignored")
     {
         auto contractID = autocheck::generator<Hash>()(5);
@@ -958,8 +958,8 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ConfigUpgradeSetFrameConstPtr configUpgradeSet;
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
-                auto& cfg =
-                    app->getLedgerManager().getMutableSorobanNetworkConfig();
+                auto& cfg = app->getLedgerManager()
+                                .getMutableSorobanNetworkConfigForApply();
 
                 // Populate sliding window with interesting values
                 auto i = 0;
@@ -985,7 +985,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             auto const newSize = 20;
             populateValuesAndUpgradeSize(newSize);
             auto const& cfg2 =
-                app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
             // Verify that we popped the 10 oldest values
             auto sum = 0;
@@ -1007,7 +1007,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             auto const newSize = 40;
             populateValuesAndUpgradeSize(newSize);
             auto const& cfg2 =
-                app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
@@ -1037,7 +1037,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
 
                 auto const& cfg =
-                    app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+                    app->getLedgerManager().getLastClosedSorobanNetworkConfig();
                 initialSize =
                     cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
                 initialWindow = cfg.mBucketListSizeSnapshots;
@@ -1053,7 +1053,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
 
             auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
                     initialSize);
             REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
@@ -1167,7 +1167,7 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
     auto const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
     REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
@@ -2062,7 +2062,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), closeTime, upgrades,
             app->getConfig().NODE_SEED);
-        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
@@ -2185,7 +2185,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), closeTime, upgrades,
             app->getConfig().NODE_SEED);
-        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
@@ -2326,7 +2326,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
 
     // Check that BucketList size window initialized with current BL size
     auto& networkConfig =
-        app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
     REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
 
     // Check in memory window
@@ -2396,7 +2396,7 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
         // Check that BucketList size window initialized with current BL
         // size
         auto const& networkConfig =
-            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
         REQUIRE(networkConfig.ledgerMaxDependentTxClusters() ==
                 InitialSorobanNetworkConfig::LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
     }
@@ -2417,7 +2417,7 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
                 .contractParallelCompute()
                 .ledgerMaxDependentTxClusters == 5);
     REQUIRE(app->getLedgerManager()
-                .getSorobanNetworkConfigReadOnly()
+                .getLastClosedSorobanNetworkConfig()
                 .ledgerMaxDependentTxClusters() == 5);
 }
 #endif

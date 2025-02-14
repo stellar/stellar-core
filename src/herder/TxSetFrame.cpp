@@ -1610,7 +1610,7 @@ TxSetPhaseFrame::checkValid(Application& app,
         isSoroban
             ? checkValidSoroban(
                   lcl.header,
-                  app.getLedgerManager().getSorobanNetworkConfigReadOnly())
+                  app.getLedgerManager().getLastClosedSorobanNetworkConfig())
             : checkValidClassic(lcl.header);
     if (!checkPhaseSpecific)
     {

@@ -995,7 +995,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
     });
 
     auto const& conf =
-        app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
     uint32_t maxContractSize = 0;
     maxContractSize = conf.maxContractSizeBytes();
 
@@ -1150,7 +1150,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
 
         SorobanNetworkConfig conf =
-            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         uint32_t const baseFee = 10'000'000;
         SorobanResources resources;
@@ -3232,7 +3232,7 @@ TEST_CASE("overlay parallel processing")
             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = true;
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(500);
                 return cfg;
@@ -3390,7 +3390,7 @@ TEST_CASE("soroban txs accepted by the network",
             for (auto node : nodes)
             {
                 REQUIRE(node->getLedgerManager()
-                            .getSorobanNetworkConfigReadOnly()
+                            .getLastClosedSorobanNetworkConfig()
                             .ledgerMaxTxCount() == ledgerWideLimit * 10);
             }
 
@@ -3535,14 +3535,14 @@ herderExternalizesValuesWithProtocol(uint32_t version,
 #ifdef USE_POSTGRES
                 dbMode = Config::TESTDB_POSTGRESQL;
 #else
-                FAIL("Parallel ledger close requires postgres");
+                FAIL("Parallel ledger apply requires postgres");
 #endif
             }
             auto cfg = getTestConfig(i, dbMode);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
             if (parallelLedgerClose)
             {
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_CLOSE = true;
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
                 // Add artifical delay to ledger close to increase chances of
                 // conflicts
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =

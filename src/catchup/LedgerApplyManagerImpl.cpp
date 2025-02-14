@@ -494,7 +494,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    uint32_t nextToClose = *mLastQueuedToApply + 1;
+    uint32_t nextToApply = *mLastQueuedToApply + 1;
     auto lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     // We can apply multiple ledgers here, which might be slow. This is a rare
@@ -505,7 +505,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
         auto const& lcd = it->second;
 
         // we still have a missing ledger
-        if (nextToClose != lcd.getLedgerSeq())
+        if (nextToApply != lcd.getLedgerSeq())
         {
             break;
         }
@@ -513,12 +513,12 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
         // If we have too many ledgers queued to apply, just stop scheduling
         // more and let the node gracefully go into catchup.
         releaseAssert(mLastQueuedToApply >= lcl);
-        if (nextToClose - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT)
+        if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT)
         {
             CLOG_INFO(History,
                       "Next ledger to apply is {}, but LCL {} is too far "
                       "behind, waiting",
-                      nextToClose, lcl);
+                      nextToApply, lcl);
             break;
         }
 
@@ -533,19 +533,19 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
                     {
                         return;
                     }
-                    app.getLedgerManager().closeLedger(lcd,
+                    app.getLedgerManager().applyLedger(lcd,
                                                        /* externalize */ true);
                 },
-                "closeLedger queue");
+                "applyLedger queue");
         }
         else
         {
-            mApp.getLedgerManager().closeLedger(lcd, /* externalize */ true);
+            mApp.getLedgerManager().applyLedger(lcd, /* externalize */ true);
         }
         mLastQueuedToApply = lcd.getLedgerSeq();
 
         ++it;
-        ++nextToClose;
+        ++nextToApply;
     }
 
     mSyncingLedgers.erase(mSyncingLedgers.cbegin(), it);

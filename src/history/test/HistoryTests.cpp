@@ -1241,7 +1241,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             StellarValue sv = a->getHerder().makeStellarValue(
                 txSet->getContentsHash(), closeTime, upgrades,
                 a->getConfig().NODE_SEED);
-            lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+            lm.applyLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         }
 
         // Check that we did in fact use INITENTRY code.

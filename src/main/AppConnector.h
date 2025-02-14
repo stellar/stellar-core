@@ -55,7 +55,7 @@ class AppConnector
     // This method is always exclusively called from one thread
     bool
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
-    SorobanNetworkConfig const& getSorobanNetworkConfigReadOnly() const;
+    SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() const;
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() const;
     bool threadIsType(Application::ThreadType type) const;
 

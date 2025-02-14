@@ -1165,7 +1165,7 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
     {
         // Re-start heartbeat tracking _after_ applying the most up-to-date
         // ledger. This guarantees out-of-sync timer won't fire while we have
-        // ledgers to apply (applicable during parallel ledger close).
+        // ledgers to apply (applicable during parallel ledger apply).
         trackingHeartBeat();
 
         // Ensure out of sync recovery did not get triggered while we were
@@ -2145,7 +2145,7 @@ HerderImpl::maybeHandleUpgrade()
             return;
         }
         auto const& conf =
-            mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+            mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         auto maybeNewMaxTxSize =
             conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
@@ -2197,7 +2197,7 @@ HerderImpl::start()
         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
         {
             auto const& conf =
-                mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+                mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
             mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
                                                   getFlowControlExtraBuffer());
         }

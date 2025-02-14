@@ -744,7 +744,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
 
-    if (lm.hasSorobanNetworkConfig())
+    if (lm.hasLastClosedSorobanNetworkConfig())
     {
         std::map<std::string, std::string> retMap;
         http::server::server::parseParams(params, retMap);
@@ -761,7 +761,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         if (format == "basic")
         {
             Json::Value res;
-            auto const& conf = lm.getSorobanNetworkConfigReadOnly();
+            auto const& conf = lm.getLastClosedSorobanNetworkConfig();
 
             // Contract size
             res["max_contract_size"] = conf.maxContractSizeBytes();

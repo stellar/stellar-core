@@ -101,6 +101,11 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
                                      lcl.header.scpValue.closeTime, upgrades,
                                      skToSignValue);
+    // NB: this assert will probably stop being true when background apply is
+    // turned on by default: externalize will have handed the ledger off to
+    // apply but not yet received the results of apply or updated LCL. The fix
+    // should be just to crank here until LCL advances to ledgerSeq.
+    releaseAssert(lm.getLastClosedLedgerNum() == ledgerNum);
     return lm.getLastClosedLedgerHeader().hash;
 }
 
@@ -183,7 +188,7 @@ template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
 template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
-LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
+LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
@@ -264,7 +269,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 ltxEvictions.commit();
             }
             mApp.getLedgerManager()
-                .getMutableSorobanNetworkConfig()
+                .getMutableSorobanNetworkConfigForApply()
                 .maybeSnapshotBucketListSize(lh.ledgerSeq, ltx, mApp);
         }
 
@@ -288,7 +293,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     }
     else
     {
-        LedgerManagerImpl::transferLedgerEntriesToBucketList(
+        LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
             ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
