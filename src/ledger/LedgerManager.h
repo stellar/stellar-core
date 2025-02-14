@@ -25,7 +25,7 @@ class SorobanMetrics;
 // A "logical" ledger takes on more structure as it flows through the system. It
 // begins as LedgerCloseData, which is just a txset and hash reference to a
 // ledger, coming out of SCP. But during apply it is transformed into an
-// ApplyLedgerOutput, which carries with it a full shapshot of the bucketlist.
+// ApplyLedgerOutput, which carries with it a full snapshot of the bucketlist.
 //
 // The tricky part of this flow involves the fact that work is being done by
 // _two threads_: on the left there is work by the main thread, and on the right
