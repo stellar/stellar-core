@@ -220,8 +220,7 @@ LedgerManagerImpl::getLCLState() const
     return mLastClosedLedgerState;
 }
 
-
-LedgerManagerImpl::LedgerState &
+LedgerManagerImpl::LedgerState&
 LedgerManagerImpl::getLCLState()
 {
     releaseAssert(threadIsMain());
@@ -365,11 +364,9 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     {
         // In no-history mode, this method should only be called when
         // the LCL is genesis.
-        releaseAssertOrThrow(getLCLState().ledgerHeader.hash ==
-                             lastLedgerHash);
-        releaseAssertOrThrow(
-            getLCLState().ledgerHeader.header.ledgerSeq ==
-            GENESIS_LEDGER_SEQ);
+        releaseAssertOrThrow(getLCLState().ledgerHeader.hash == lastLedgerHash);
+        releaseAssertOrThrow(getLCLState().ledgerHeader.header.ledgerSeq ==
+                             GENESIS_LEDGER_SEQ);
         CLOG_INFO(Ledger, "LCL is genesis: {}",
                   ledgerAbbrev(getLCLState().ledgerHeader));
         latestLedgerHeader = getLCLState().ledgerHeader.header;
@@ -425,8 +422,7 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         // configs right away
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         updateSorobanNetworkConfigForApply(ltx);
-        getLCLState().sorobanConfig =
-            mApplyState.mSorobanNetworkConfig;
+        getLCLState().sorobanConfig = mApplyState.mSorobanNetworkConfig;
     }
 }
 
@@ -1334,10 +1330,9 @@ LedgerManagerImpl::getLastClosedSnaphot()
 {
     if (!getLCLState().snapshot)
     {
-        getLCLState().snapshot =
-            mApp.getBucketManager()
-                .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot();
+        getLCLState().snapshot = mApp.getBucketManager()
+                                     .getBucketSnapshotManager()
+                                     .copySearchableLiveBucketListSnapshot();
     }
     return getLCLState().snapshot;
 }
@@ -1612,10 +1607,12 @@ LedgerManagerImpl::applyTransactions(
     // Record counts
     if (numTxs > 0)
     {
-        mLedgerApplyMetrics.mTransactionCount.Update(static_cast<int64_t>(numTxs));
+        mLedgerApplyMetrics.mTransactionCount.Update(
+            static_cast<int64_t>(numTxs));
         TracyPlot("ledger.transaction.count", static_cast<int64_t>(numTxs));
 
-        mLedgerApplyMetrics.mOperationCount.Update(static_cast<int64_t>(numOps));
+        mLedgerApplyMetrics.mOperationCount.Update(
+            static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
         CLOG_INFO(Tx, "applying ledger {} ({})",
                   ltx.loadHeader().current().ledgerSeq, txSet.summary());
@@ -1707,7 +1704,8 @@ LedgerManagerImpl::applyTransactions(
 
     mLedgerApplyMetrics.mTransactionApplySucceeded.inc(txSucceeded);
     mLedgerApplyMetrics.mTransactionApplyFailed.inc(txFailed);
-    mLedgerApplyMetrics.mSorobanTransactionApplySucceeded.inc(sorobanTxSucceeded);
+    mLedgerApplyMetrics.mSorobanTransactionApplySucceeded.inc(
+        sorobanTxSucceeded);
     mLedgerApplyMetrics.mSorobanTransactionApplyFailed.inc(sorobanTxFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
     return txResultSet;

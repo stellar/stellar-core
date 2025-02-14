@@ -112,8 +112,8 @@ class LedgerManagerImpl : public LedgerManager
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
 
-    LedgerState &getLCLState();
-    LedgerState const&getLCLState() const;
+    LedgerState& getLCLState();
+    LedgerState const& getLCLState() const;
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
