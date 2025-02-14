@@ -138,7 +138,7 @@ class SorobanMetrics;
 // To complicate matters a little more: applyLedger _can_ be called
 // synchronously from the main thread. It detects this condition and
 // synchronously completes ledger close, rather than posting back to itself.
-// This happens in the testsuite, we well as if the user disables parallel
+// This happens in the testsuite, as well as if the user disables parallel
 // ledger apply.
 //
 // Finally, a terminology note: the LedgerManager was originally only accessed
