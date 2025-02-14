@@ -16,6 +16,16 @@ class LedgerCloseData;
 class Database;
 class SorobanMetrics;
 
+// Maps the entire path hash to a map of {sendValue, minimumFailedRecvValue}
+// Essentially, for the given path hash, we check all memos from TXs that have
+// an equal or greater sendValue. If one of these asked to receive less than the
+// current op and failed, we can guarantee the op will also fail.
+using PathPaymentStrictSendMap = UnorderedMap<Hash, std::map<int64_t, int64_t>>;
+
+// Change map definition to use unordered_map with asset pair as key
+using AssetToPathsMap =
+    UnorderedMap<AssetPair, std::vector<Hash>, AssetPairHash>;
+
 /**
  * LedgerManager maintains, in memory, a logical pair of ledgers:
  *
@@ -206,5 +216,25 @@ class LedgerManager
     }
 
     virtual bool isApplying() const = 0;
+
+    // Clear the path payment strict send failure cache
+    virtual void clearPathPaymentStrictSendCache() = 0;
+
+    // Cache a failed path payment strict send attempt
+    virtual void cachePathPaymentStrictSendFailure(
+        Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
+        Asset const& source, std::vector<Asset> const& assets) = 0;
+
+    // Get cached failures for a path, or end iterator if not found
+    virtual PathPaymentStrictSendMap::const_iterator
+    getPathPaymentStrictSendCache(Hash const& pathHash) const = 0;
+
+    // Get the end iterator for the path payment cache
+    virtual PathPaymentStrictSendMap::const_iterator
+    getPathPaymentStrictSendCacheEnd() const = 0;
+
+    // Invalidate paths containing the given asset pair (in that order)
+    virtual void
+    invalidatePathPaymentCachesForAssetPair(AssetPair const& pair) = 0;
 };
 }

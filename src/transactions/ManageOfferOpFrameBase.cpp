@@ -235,6 +235,9 @@ ManageOfferOpFrameBase::doApply(
     uint32_t flags = 0;
     LedgerEntry::_ext_t extension;
 
+    Price oldSellSheepOfferPrice(Price(0, 0));
+    int64_t oldSheepAmount = 0;
+
     if (mOfferID)
     { // modifying an old offer
         auto sellSheepOffer = stellar::loadOffer(ltx, getSourceID(), mOfferID);
@@ -243,6 +246,9 @@ ManageOfferOpFrameBase::doApply(
             setResultNotFound(res);
             return false;
         }
+
+        oldSellSheepOfferPrice = sellSheepOffer.current().data.offer().price;
+        oldSheepAmount = sellSheepOffer.current().data.offer().amount;
 
         // We are releasing the liabilites associated with this offer. This is
         // required in order to produce available balance for the offer to be
@@ -539,6 +545,20 @@ ManageOfferOpFrameBase::doApply(
     }
 
     ltx.commit();
+
+    // Deleting an offer does not invalidate any cached fails
+    if (!isDeleteOffer())
+    {
+        // Unfortunately, due to rounding errors we need to invalidate both side
+        // of the offer. Sometimes, even if an offer gets "worse", (like if the
+        // amount offer decreases), different rounding behavior can actually
+        // cause the "worse" offer to now favor the taker.
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{mSheep, mWheat});
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{mWheat, mSheep});
+    }
+
     return true;
 }
 

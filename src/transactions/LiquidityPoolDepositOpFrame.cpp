@@ -313,6 +313,10 @@ LiquidityPoolDepositOpFrame::doApply(
         throw std::runtime_error("insufficient liquidity pool limit");
     }
 
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+        AssetPair{cpp().assetA, cpp().assetB});
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+        AssetPair{cpp().assetB, cpp().assetA});
     innerResult(res).code(LIQUIDITY_POOL_DEPOSIT_SUCCESS);
     return true;
 }

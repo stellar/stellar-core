@@ -160,6 +160,9 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
 
 {
     setupLedgerCloseMetaStream();
+
+    mPathPaymentStrictSendFailureCache.reserve(1000);
+    mAssetToPaths.reserve(1000);
 }
 
 void
@@ -1017,6 +1020,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
         emitNextMeta();
     }
 
+    // releaseAssertOrThrow(ledgerSeq != 53514768);
+
     // The next 7 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
     // be so subtle, but for the time being this is where we are.
@@ -1113,7 +1118,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
                ledgerTimeSeconds.count());
     FrameMark;
+
+    // Clear the path payment cache at the start of processing a new ledger
+    clearPathPaymentStrictSendCache();
 }
+
 void
 LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
@@ -1873,5 +1882,96 @@ LedgerManagerImpl::ledgerClosed(
     });
 
     return res;
+}
+
+void
+LedgerManagerImpl::clearPathPaymentStrictSendCache()
+{
+    mPathPaymentStrictSendFailureCache.clear();
+    mAssetToPaths.clear();
+}
+
+void
+LedgerManagerImpl::cachePathPaymentStrictSendFailure(
+    Hash const& pathHash, int64_t sendAmount, int64_t receiveAmount,
+    Asset const& source, std::vector<Asset> const& assets)
+{
+    ZoneScoped;
+    auto iter = mPathPaymentStrictSendFailureCache.find(pathHash);
+    if (iter == mPathPaymentStrictSendFailureCache.end())
+    {
+        // If path hash does not exist, populate
+        auto val = std::map<int64_t, int64_t>();
+        val[sendAmount] = receiveAmount;
+        mPathPaymentStrictSendFailureCache.emplace(pathHash, std::move(val));
+    }
+    else
+    {
+        // If hash path exists, but this send amount does not exist, insert the
+        // new send amount
+        auto& sendAmountToMinReceiveAmount = iter->second;
+        if (auto sendToRecIter = sendAmountToMinReceiveAmount.find(sendAmount);
+            sendToRecIter == sendAmountToMinReceiveAmount.end())
+        {
+            sendAmountToMinReceiveAmount[sendAmount] = receiveAmount;
+        }
+        else
+        {
+            // Else, update receive amount if it's lower than the current
+            // minimum for the given send amount
+            if (sendToRecIter->second > receiveAmount)
+            {
+                sendToRecIter->second = receiveAmount;
+            }
+        }
+    }
+
+    auto insert = [&](AssetPair const& pair) {
+        auto iter = mAssetToPaths.find(pair);
+        if (iter == mAssetToPaths.end())
+        {
+            mAssetToPaths.emplace(pair, std::vector<Hash>{pathHash});
+        }
+        else
+        {
+            iter->second.push_back(pathHash);
+        }
+    };
+
+    // Convert path into buy-sell pairs
+    insert(AssetPair{assets[0], source});
+    for (size_t i = 0; i < assets.size() - 1; i++)
+    {
+        insert(AssetPair{assets[i + 1], assets[i]});
+    }
+}
+
+PathPaymentStrictSendMap::const_iterator
+LedgerManagerImpl::getPathPaymentStrictSendCache(Hash const& pathHash) const
+{
+    return mPathPaymentStrictSendFailureCache.find(pathHash);
+}
+
+PathPaymentStrictSendMap::const_iterator
+LedgerManagerImpl::getPathPaymentStrictSendCacheEnd() const
+{
+    return mPathPaymentStrictSendFailureCache.end();
+}
+
+void
+LedgerManagerImpl::invalidatePathPaymentCachesForAssetPair(
+    AssetPair const& pair)
+{
+    ZoneScoped;
+
+    auto it = mAssetToPaths.find(pair);
+    if (it != mAssetToPaths.end())
+    {
+        for (auto const& pathHash : it->second)
+        {
+            mPathPaymentStrictSendFailureCache.erase(pathHash);
+        }
+        mAssetToPaths.erase(it);
+    }
 }
 }

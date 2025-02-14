@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "TransactionFrame.h"
 #include "OperationFrame.h"
+#include "bucket/BucketIndexUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
@@ -37,6 +38,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
@@ -1692,20 +1694,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     ZoneScoped;
 #ifdef BUILD_TESTS
     auto const& result = txResult.getReplayTransactionResult();
-    if (result && result->result.code() != txSUCCESS)
-    {
-        // Sub-zone for skips
-        ZoneScopedN("skipped failed");
-        CLOG_DEBUG(Tx, "Skipping replay of failed transaction: tx {}",
-                   binToHex(getContentsHash()));
-        txResult.setResultCode(result->result.code());
-        // results field is only active if code is txFAILED or txSUCCESS
-        if (result->result.code() == txFAILED)
-        {
-            txResult.getResult().result.results() = result->result.results();
-        }
-        return false;
-    }
 #endif
 
     auto& internalErrorCounter = app.getMetrics().NewCounter(
@@ -1756,6 +1744,34 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             if (!txRes)
             {
                 success = false;
+
+                // Cache sometimes returns different error codes, is technically
+                // a protocol change. All success results should still succeed
+                // and all fails should still fail though.
+                if (result && result->result.code() == txFAILED &&
+                    !result->result.results().empty())
+                {
+                    auto const& correctRes = result->result.results().at(i);
+                    if (correctRes.code() == opINNER &&
+                        correctRes.tr().type() == PATH_PAYMENT_STRICT_RECEIVE &&
+                        correctRes.tr()
+                                .pathPaymentStrictReceiveResult()
+                                .code() !=
+                            PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX)
+                    {
+                        opResult = correctRes;
+                    }
+                    else if (correctRes.code() == opINNER &&
+                             correctRes.tr().type() ==
+                                 PATH_PAYMENT_STRICT_SEND &&
+                             correctRes.tr()
+                                     .pathPaymentStrictSendResult()
+                                     .code() !=
+                                 PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN)
+                    {
+                        opResult = correctRes;
+                    }
+                }
             }
 
             // The operation meta will be empty if the transaction
@@ -1935,21 +1951,24 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
         std::unique_ptr<SignatureChecker> signatureChecker;
 #ifdef BUILD_TESTS
+
+        // We are just replacing bad values, so still run signature for tests
+
         // If the txResult has a replay result (catchup in skip mode is
         // enabled),
         //  we do not perform signature verification.
-        if (txResult->getReplayTransactionResult())
-        {
-            signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
-                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
-        }
-        else
-        {
+        // if (txResult->getReplayTransactionResult())
+        // {
+        //     signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
+        //         ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+        // }
+        // else
+        // {
 #endif // BUILD_TESTS
             signatureChecker = std::make_unique<SignatureChecker>(
                 ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
 #ifdef BUILD_TESTS
-        }
+            //}
 #endif // BUILD_TESTS
 
         //  when applying, a failure during tx validation means that

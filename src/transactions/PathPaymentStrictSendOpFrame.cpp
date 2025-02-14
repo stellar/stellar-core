@@ -12,6 +12,9 @@
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 
+#include <algorithm>
+#include <ledger/LedgerHashUtils.h>
+
 namespace stellar
 {
 
@@ -43,7 +46,6 @@ PathPaymentStrictSendOpFrame::doApply(
     }
     pathStr += "->";
     pathStr += assetToString(getDestAsset());
-    ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
 
     setResultSuccess(res);
 
@@ -68,6 +70,56 @@ PathPaymentStrictSendOpFrame::doApply(
     fullPath.insert(fullPath.end(), mPathPayment.path.begin(),
                     mPathPayment.path.end());
     fullPath.emplace_back(getDestAsset());
+
+    SHA256 sourceAndPathHasher;
+    auto sourceAssetHash = getAssetHash(getSourceAsset());
+    sourceAndPathHasher.add(
+        ByteSlice(reinterpret_cast<unsigned char*>(&sourceAssetHash),
+                  sizeof(sourceAssetHash)));
+    for (auto const& asset : fullPath)
+    {
+        auto hash = getAssetHash(asset);
+        sourceAndPathHasher.add(
+            ByteSlice(reinterpret_cast<unsigned char*>(&hash), sizeof(hash)));
+    }
+
+    auto fullPathHash = sourceAndPathHasher.finish();
+
+    auto iter =
+        app.getLedgerManager().getPathPaymentStrictSendCache(fullPathHash);
+    if (iter != app.getLedgerManager().getPathPaymentStrictSendCacheEnd())
+    {
+        auto const& sendAmountToMinReceiveAmount = iter->second;
+
+        // Get set of receive amounts for which sendAmount is greater than or
+        // equal to our send amount
+        auto sendToReceiveAmountsIter = std::lower_bound(
+            sendAmountToMinReceiveAmount.begin(),
+            sendAmountToMinReceiveAmount.end(), mPathPayment.sendAmount,
+            [](const auto& pair, uint64_t value) {
+                // Pair == {sendAmount, minReceiveAmount}
+                return pair.first < value;
+            });
+
+        // For each op that has sent the same or more than this op
+        for (; sendToReceiveAmountsIter != sendAmountToMinReceiveAmount.end();
+             ++sendToReceiveAmountsIter)
+        {
+            releaseAssert(sendToReceiveAmountsIter->first >=
+                          mPathPayment.sendAmount);
+
+            // If minimum received amount is less than or equal to destMin,
+            // we know the trade will fail since a previous trade sent more and
+            // received less than this op but still failed
+            if (sendToReceiveAmountsIter->second <= mPathPayment.destMin)
+            {
+                setResultConstraintNotMet(res);
+                pathStr += "-> hit";
+                ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
+                return false;
+            }
+        }
+    }
 
     // Walk the path
     Asset sendAsset = getSourceAsset();
@@ -111,15 +163,42 @@ PathPaymentStrictSendOpFrame::doApply(
     }
 
     if (maxAmountSend < mPathPayment.destMin)
-    { // make sure not over the max
+    {
         setResultConstraintNotMet(res);
+
+        // Bound as much as possible. mPathPayment.destMin failed, but so would
+        // maxAmountSend + 1.
+        app.getLedgerManager().cachePathPaymentStrictSendFailure(
+            fullPathHash, mPathPayment.sendAmount, maxAmountSend + 1,
+            getSourceAsset(), fullPath);
+
+        pathStr += "-> miss";
+        ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
         return false;
     }
 
     if (!updateDestBalance(ltx, maxAmountSend, bypassIssuerCheck, res))
     {
+
+        pathStr += "-> miss";
+        ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
         return false;
     }
+
+    // Invalidate caches for filled offers, but in reverse because counter party
+    // is getting better. We don't need to invalidate paths we filled, as
+    // filling them made the path strictly worse
+    app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+        AssetPair{getSourceAsset(), fullPath.front()});
+
+    for (size_t i = 0; i < fullPath.size() - 1; i++)
+    {
+        app.getLedgerManager().invalidatePathPaymentCachesForAssetPair(
+            AssetPair{fullPath[i], fullPath[i + 1]});
+    }
+
+    pathStr += "-> miss";
+    ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
     innerResult(res).success().last =
         SimplePaymentResult(getDestID(), getDestAsset(), maxAmountSend);
     return true;

@@ -500,6 +500,7 @@ LedgerTxn::commit() noexcept
 void
 LedgerTxn::Impl::commit() noexcept
 {
+    ZoneNamedN(commitZone, "child_commit", true);
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
         // commitChild has the strong exception safety guarantee
