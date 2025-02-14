@@ -148,7 +148,7 @@ class SorobanMetrics;
 // ledger" is fairly atomic, and there is no distinction made between "apply"
 // and "close". But now that we have two threads, at least _within these
 // classes_ we endeavour to use the term "close" and "last closed" to refer to
-// the actions taken and varaibles updated by the main thread _after_ apply, and
+// the actions taken and variables updated by the main thread _after_ apply, and
 // the term "apply" to refer to actions taken and variables updated by the apply
 // thread.
 class LedgerManager
