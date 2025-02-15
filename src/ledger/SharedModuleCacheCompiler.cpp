@@ -75,6 +75,7 @@ bool
 SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
                                              std::unique_lock<std::mutex>& lock)
 {
+    ZoneScoped;
 
     releaseAssert(lock.owns_lock());
 
@@ -131,6 +132,7 @@ SharedModuleCacheCompiler::start()
              mNumThreads - 1);
 
     mThreads.emplace_back(std::thread([this]() {
+        ZoneScopedN("load wasm contracts");
         std::set<Hash> seenContracts;
         this->mSnap->scanForContractCode([&](BucketEntry const& entry) {
             Hash h;
@@ -159,6 +161,7 @@ SharedModuleCacheCompiler::start()
     for (auto thread = 1; thread < this->mNumThreads; ++thread)
     {
         mThreads.emplace_back(std::thread([this, thread]() {
+            ZoneScopedN("compile wasm contracts");
             size_t nContractsCompiled = 0;
             std::unique_lock<std::mutex> lock(this->mMutex);
             while (!this->isFinishedCompiling(lock))
