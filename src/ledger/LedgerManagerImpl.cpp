@@ -2076,6 +2076,7 @@ void
 LedgerManagerImpl::ApplyState::evictFromModuleCache(
     uint32_t ledgerVersion, EvictedStateVectors const& evictedState)
 {
+    ZoneScoped;
     std::vector<Hash> keys;
     for (auto const& key : evictedState.deletedKeys)
     {
@@ -2110,6 +2111,7 @@ void
 LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
     uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
 {
+    ZoneScoped;
     for (auto const& e : le)
     {
         if (e.data.type() == CONTRACT_CODE)
