@@ -82,7 +82,7 @@ jobs:
       # bother filing another.
       - name: Probe Cache
         id: cache
-        uses: actions/cache/restore@v3.3.1
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-${{ github.sha }}
@@ -92,7 +92,7 @@ jobs:
       # This will restore the most-recently-written cache (github does this date ordering itself).
       - name: Restore Cache
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v3.3.1
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
@@ -144,7 +144,7 @@ jobs:
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
 
       # We only _save_ to the cache when we had a cache miss, are running on master, and are the non-txmeta scenario.
-      - uses: actions/cache/save@v3.3.1
+      - uses: actions/cache/save@v4
         if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' && matrix.scenario == ''}}
         with:
           path: ${{ env.CACHED_PATHS }}

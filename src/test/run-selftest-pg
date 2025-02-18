@@ -84,6 +84,7 @@ logging_collector = yes
 fsync = no
 synchronous_commit = off
 full_page_writes = off
+max_connections = 1000
 EOF
     $PGCTL start -w -s &> /dev/null
 }
