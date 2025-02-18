@@ -147,10 +147,10 @@ EvictionResultCandidates::isValid(uint32_t currLedgerSeq,
     // affect evictions scans.
     if (protocolVersionIsBefore(
             initialLedgerVers,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION) &&
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION) &&
         protocolVersionStartsFrom(
             currLedgerVers,
-            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         return false;
     }
