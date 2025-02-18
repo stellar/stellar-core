@@ -215,7 +215,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 }
 
 // This query needs to load all the given ledger entries and their "state"
-// (live, archived, evicted, new). This requires a loading entry and TTL from
+// (live, archived, new). This requires loading an entry and TTL from
 // the live BucketList and then checking the Hot Archive for any keys we didn't
 // find. We do three passes:
 // 1. Load all keys from the live BucketList
@@ -285,6 +285,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     }
 
     liveEntries = std::move(*liveEntriesOp);
+    liveEntriesOp->clear();
 
     // Remove keys found in live bucketList
     for (auto const& le : liveEntries)
@@ -388,7 +389,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
 
         Json::Value entry;
         entry["e"] = toOpaqueBase64(le);
-        entry["state"] = "evicted";
+        entry["state"] = "archived";
         root["entries"].append(entry);
     }
 

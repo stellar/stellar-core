@@ -154,7 +154,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
                     }
                     else
                     {
-                        expectedState = "evicted";
+                        expectedState = "archived";
                     }
                 }
 
