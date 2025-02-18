@@ -1250,10 +1250,10 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
     {
         if (protocolVersionEquals(
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             testUpgrade(
-                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         }
     }
 }

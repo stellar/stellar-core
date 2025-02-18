@@ -11,7 +11,6 @@
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
 #include "work/WorkWithCallback.h"
-#include "xdr/Stellar-contract-config-setting.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -73,13 +72,13 @@ DownloadBucketsWork::resetIter()
     mNextHotBucketIter = mHotHashes.begin();
 }
 
-template<typename BucketT>
+template <typename BucketT>
 bool
 DownloadBucketsWork::onSuccessCb(
     Application& app, FileTransferInfo const& ft, std::string const& hash,
-    int currId,
-    std::map<std::string, std::shared_ptr<BucketT>>& buckets,
-    std::map<int, std::unique_ptr<typename BucketT::IndexT const>>& indexMap)
+    int currId, std::map<std::string, std::shared_ptr<BucketT>>& buckets,
+    std::map<int, std::unique_ptr<typename BucketT::IndexT const>>& indexMap,
+    std::lock_guard<std::mutex> const& indexMapLock)
 {
     auto bucketPath = ft.localPath_nogz();
     auto indexIter = indexMap.find(currId);
@@ -140,14 +139,23 @@ DownloadBucketsWork::yieldMoreWork()
     if (isHotHash)
     {
         auto currId = mHotIndexId++;
+        mHotIndexMapMutex.lock();
         auto [indexIter, inserted] = mHotIndexMap.emplace(currId, nullptr);
+        mHotIndexMapMutex.unlock();
         releaseAssertOrThrow(inserted);
         verifyWork = std::make_shared<VerifyBucketWork<HotArchiveBucket>>(mApp, ft.localPath_nogz(),
                                                 hexToBin256(hash),
                                                 indexIter->second, failureCb);
-        adoptBucketCb = [this, &ft, hash, currId](Application& app) {
-            return onSuccessCb<HotArchiveBucket>(app, ft, hash, currId,
-                                               mHotBuckets, mHotIndexMap);
+        adoptBucketCb = [weakSelf, ft, hash, currId](Application& app) {
+            auto self = weakSelf.lock();
+            if (self)
+            {
+                std::lock_guard lock(self->mHotIndexMapMutex);
+                return onSuccessCb<HotArchiveBucket>(app, ft, hash, currId,
+                                                     self->mHotBuckets,
+                                                     self->mHotIndexMap, lock);
+            }
+            return true;
         };
 
         mNextHotBucketIter++;
@@ -155,14 +163,23 @@ DownloadBucketsWork::yieldMoreWork()
     else
     {
         auto currId = mLiveIndexId++;
+        mLiveIndexMapMutex.lock();
         auto [indexIter, inserted] = mLiveIndexMap.emplace(currId, nullptr);
+        mLiveIndexMapMutex.unlock();
         releaseAssertOrThrow(inserted);
         verifyWork = std::make_shared<VerifyBucketWork<LiveBucket>>(mApp, ft.localPath_nogz(),
                                                 hexToBin256(hash),
                                                 indexIter->second, failureCb);
-        adoptBucketCb = [this, &ft, hash, currId](Application& app) {
-            return onSuccessCb<LiveBucket>(app, ft, hash, currId,
-                                               mLiveBuckets, mLiveIndexMap);
+        adoptBucketCb = [weakSelf, ft, hash, currId](Application& app) {
+            auto self = weakSelf.lock();
+            if (self)
+            {
+                std::lock_guard lock(self->mLiveIndexMapMutex);
+                return onSuccessCb<LiveBucket>(app, ft, hash, currId,
+                                               self->mLiveBuckets,
+                                               self->mLiveIndexMap, lock);
+            }
+            return true;
         };
 
         mNextLiveBucketIter++;
@@ -181,10 +198,12 @@ DownloadBucketsWork::yieldMoreWork()
 template bool DownloadBucketsWork::onSuccessCb<LiveBucket>(
     Application&, FileTransferInfo const&, std::string const&, int,
     std::map<std::string, std::shared_ptr<LiveBucket>>&,
-    std::map<int, std::unique_ptr<LiveBucketIndex const>>&);
+    std::map<int, std::unique_ptr<LiveBucketIndex const>>&,
+    std::lock_guard<std::mutex> const&);
 
 template bool DownloadBucketsWork::onSuccessCb<HotArchiveBucket>(
     Application&, FileTransferInfo const&, std::string const&, int,
     std::map<std::string, std::shared_ptr<HotArchiveBucket>>&,
-    std::map<int, std::unique_ptr<HotArchiveBucketIndex const>>&);
+    std::map<int, std::unique_ptr<HotArchiveBucketIndex const>>&,
+    std::lock_guard<std::mutex> const&);
 }

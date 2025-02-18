@@ -27,9 +27,14 @@ class DownloadBucketsWork : public BatchWork
     TmpDir const& mDownloadDir;
     std::shared_ptr<HistoryArchive> mArchive;
 
-    // Store indexes of downloaded buckets
+    // Store indexes of downloaded buckets. Child processes will actually create
+    // the indexes, but DownloadBucketsWork needs to maintain actual ownership
+    // of the pointers so that the success callback can pass them to the
+    // BucketManager. Must be protected by a mutex to avoid race conditions.
     std::map<int, std::unique_ptr<LiveBucketIndex const>> mLiveIndexMap;
     std::map<int, std::unique_ptr<HotArchiveBucketIndex const>> mHotIndexMap;
+    std::mutex mLiveIndexMapMutex;
+    std::mutex mHotIndexMapMutex;
     int mLiveIndexId{0};
     int mHotIndexId{0};
 
@@ -39,7 +44,8 @@ class DownloadBucketsWork : public BatchWork
                 std::string const& hash, int currId,
                 std::map<std::string, std::shared_ptr<BucketT>>& buckets,
                 std::map<int, std::unique_ptr<typename BucketT::IndexT const>>&
-                    indexMap);
+                    indexMap,
+                std::lock_guard<std::mutex> const& indexMapLock);
 
   public:
     // Note: hashes must contain both live and hot archive bucket hashes
