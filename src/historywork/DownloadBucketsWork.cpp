@@ -11,7 +11,6 @@
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
 #include "work/WorkWithCallback.h"
-#include "xdr/Stellar-contract-config-setting.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <mutex>
@@ -75,7 +74,7 @@ DownloadBucketsWork::resetIter()
 }
 
 template <typename BucketT>
-bool
+void
 DownloadBucketsWork::onSuccessCb(
     Application& app, FileTransferInfo const& ft, std::string const& hash,
     int currId, std::map<std::string, std::shared_ptr<BucketT>>& buckets,
@@ -106,7 +105,6 @@ DownloadBucketsWork::onSuccessCb(
     // Lock for buckets access
     std::lock_guard<std::mutex> lock(indexMutex);
     buckets[hash] = b;
-    return true;
 }
 
 std::shared_ptr<BasicWork>
@@ -165,11 +163,12 @@ DownloadBucketsWork::yieldMoreWork()
             auto self = weakSelf.lock();
             if (self)
             {
-                return onSuccessCb<HotArchiveBucket>(
-                    app, ft, hash, currId, self->mHotBuckets,
-                    self->mHotIndexMap, self->mHotMapMutex);
+                onSuccessCb<HotArchiveBucket>(app, ft, hash, currId,
+                                                    self->mHotBuckets,
+                                                    self->mHotIndexMap,
+                                                    self->mHotIndexMapMutex);
             }
-            return false;
+            return true;
         };
 
         mNextHotBucketIter++;
@@ -187,11 +186,12 @@ DownloadBucketsWork::yieldMoreWork()
             auto self = weakSelf.lock();
             if (self)
             {
-                return onSuccessCb<LiveBucket>(
-                    app, ft, hash, currId, self->mLiveBuckets,
-                    self->mLiveIndexMap, self->mLiveMapMutex);
+                onSuccessCb<LiveBucket>(app, ft, hash, currId,
+                                               self->mLiveBuckets,
+                                               self->mLiveIndexMap,
+                                               self->mLiveIndexMapMutex);
             }
-            return false;
+            return true;
         };
 
         mNextLiveBucketIter++;
@@ -208,12 +208,12 @@ DownloadBucketsWork::yieldMoreWork()
 }
 
 // Add explicit template instantiations
-template bool DownloadBucketsWork::onSuccessCb<LiveBucket>(
+template void DownloadBucketsWork::onSuccessCb<LiveBucket>(
     Application&, FileTransferInfo const&, std::string const&, int,
     std::map<std::string, std::shared_ptr<LiveBucket>>&,
     std::map<int, std::unique_ptr<LiveBucketIndex const>>&, std::mutex&);
 
-template bool DownloadBucketsWork::onSuccessCb<HotArchiveBucket>(
+template void DownloadBucketsWork::onSuccessCb<HotArchiveBucket>(
     Application&, FileTransferInfo const&, std::string const&, int,
     std::map<std::string, std::shared_ptr<HotArchiveBucket>>&,
     std::map<int, std::unique_ptr<HotArchiveBucketIndex const>>&, std::mutex&);
