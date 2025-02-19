@@ -36,7 +36,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     if (countMergeEvents)
     {
-        bucketManager.incrMergeCounters(mc);
+        bucketManager.incrMergeCounters<HotArchiveBucket>(mc);
     }
 
     return out.getBucket(bucketManager);

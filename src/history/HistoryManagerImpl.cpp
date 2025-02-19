@@ -8,6 +8,7 @@
 #include "util/asio.h"
 
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "herder/HerderImpl.h"
 #include <cereal/archives/binary.hpp>
@@ -375,7 +376,8 @@ HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 }
 
 bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
+HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
+                                                uint32_t ledgerVers)
 {
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()))
     {
@@ -389,12 +391,12 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
         return false;
     }
 
-    queueCurrentHistory(lcl);
+    queueCurrentHistory(lcl, ledgerVers);
     return true;
 }
 
 void
-HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
+HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
 {
     ZoneScoped;
 
@@ -406,7 +408,20 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
         bl = mApp.getBucketManager().getLiveBucketList();
     }
 
-    HistoryArchiveState has(ledger, bl, mApp.getConfig().NETWORK_PASSPHRASE);
+    HistoryArchiveState has;
+    if (protocolVersionStartsFrom(
+            ledgerVers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        auto hotBl = mApp.getBucketManager().getHotArchiveBucketList();
+        has = HistoryArchiveState(ledger, bl, hotBl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
+    else
+    {
+        has = HistoryArchiveState(ledger, bl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
 
     CLOG_DEBUG(History, "Queueing publish state for ledger {}", ledger);
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());

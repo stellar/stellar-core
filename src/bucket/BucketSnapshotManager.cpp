@@ -74,6 +74,17 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
             copyHistoricalSnapshots(mHotArchiveHistoricalSnapshots)));
 }
 
+namespace
+{
+template <typename T, typename U>
+bool
+needsUpdate(std::shared_ptr<T const> const& snapshot,
+            SnapshotPtrT<U> const& curr)
+{
+    return !snapshot || snapshot->getLedgerSeq() < curr->getLedgerSeq();
+}
+}
+
 void
 BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     SearchableSnapshotConstPtr& snapshot)
@@ -82,9 +93,7 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
-
-    if (!snapshot ||
-        snapshot->getLedgerSeq() < mCurrLiveSnapshot->getLedgerSeq())
+    if (needsUpdate(snapshot, mCurrLiveSnapshot))
     {
         snapshot = copySearchableLiveBucketListSnapshot();
     }
@@ -98,11 +107,30 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
-
-    if (!snapshot ||
-        snapshot->getLedgerSeq() < mCurrHotArchiveSnapshot->getLedgerSeq())
+    if (needsUpdate(snapshot, mCurrHotArchiveSnapshot))
     {
         snapshot = copySearchableHotArchiveBucketListSnapshot();
+    }
+}
+
+void
+BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
+    SearchableSnapshotConstPtr& liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
+{
+    // The canonical snapshot held by the BucketSnapshotManager is not being
+    // modified. Rather, a thread is checking it's copy against the canonical
+    // snapshot, so use a shared lock. For consistency we hold the lock while
+    // updating both snapshots.
+    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    if (needsUpdate(liveSnapshot, mCurrLiveSnapshot))
+    {
+        liveSnapshot = copySearchableLiveBucketListSnapshot();
+    }
+
+    if (needsUpdate(hotArchiveSnapshot, mCurrHotArchiveSnapshot))
+    {
+        hotArchiveSnapshot = copySearchableHotArchiveBucketListSnapshot();
     }
 }
 

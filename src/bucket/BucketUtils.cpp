@@ -136,10 +136,26 @@ MergeCounters::operator==(MergeCounters const& other) const
 // Check that eviction scan is based off of current ledger snapshot and that
 // archival settings have not changed
 bool
-EvictionResultCandidates::isValid(uint32_t currLedger,
+EvictionResultCandidates::isValid(uint32_t currLedgerSeq,
+                                  uint32_t currLedgerVers,
                                   StateArchivalSettings const& currSas) const
 {
-    return initialLedger == currLedger &&
+    // If the eviction scan started before a protocol upgrade, and the protocol
+    // upgrade changes eviction scan behavior during the scan, we need
+    // to restart with the new protocol version. We only care about
+    // `FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION`, other upgrades don't
+    // affect evictions scans.
+    if (protocolVersionIsBefore(
+            initialLedgerVers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION) &&
+        protocolVersionStartsFrom(
+            currLedgerVers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        return false;
+    }
+
+    return initialLedgerSeq == currLedgerSeq &&
            initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&
            initialSas.evictionScanSize == currSas.evictionScanSize &&
            initialSas.startingEvictionScanLevel ==
