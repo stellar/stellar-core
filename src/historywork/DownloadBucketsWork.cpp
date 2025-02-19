@@ -12,6 +12,7 @@
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <mutex>
 
 namespace stellar
 {
@@ -92,7 +93,9 @@ DownloadBucketsWork::yieldMoreWork()
         std::static_pointer_cast<DownloadBucketsWork>(shared_from_this()));
 
     auto currId = mIndexId++;
+    mIndexMapMutex.lock();
     auto [indexIter, inserted] = mIndexMap.emplace(currId, nullptr);
+    mIndexMapMutex.unlock();
     releaseAssertOrThrow(inserted);
 
     auto successCb = [weak, ft, hash, currId](Application& app) -> bool {
@@ -102,17 +105,20 @@ DownloadBucketsWork::yieldMoreWork()
             // To avoid dangling references, maintain a map of index pointers
             // and do a lookup inside the callback instead of capturing anything
             // by reference.
+            self->mIndexMapMutex.lock();
             auto indexIter = self->mIndexMap.find(currId);
             releaseAssertOrThrow(indexIter != self->mIndexMap.end());
             releaseAssertOrThrow(indexIter->second);
+            auto index = std::move(indexIter->second);
+            self->mIndexMap.erase(indexIter);
+            self->mIndexMapMutex.unlock();
 
             auto bucketPath = ft.localPath_nogz();
             auto b = app.getBucketManager().adoptFileAsBucket<LiveBucket>(
                 bucketPath, hexToBin256(hash),
                 /*mergeKey=*/nullptr,
-                /*index=*/std::move(indexIter->second));
+                /*index=*/std::move(index));
             self->mBuckets[hash] = b;
-            self->mIndexMap.erase(currId);
         }
         return true;
     };

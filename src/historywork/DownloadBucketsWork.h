@@ -25,6 +25,9 @@ class DownloadBucketsWork : public BatchWork
 
     // Store indexes of downloaded buckets
     std::map<int, std::unique_ptr<LiveBucketIndex const>> mIndexMap;
+
+    // Must be held when accessing mIndexMap
+    std::mutex mIndexMapMutex;
     int mIndexId{0};
 
   public:
