@@ -21,6 +21,9 @@ LiveBucketList::addBatch(Application& app, uint32_t currLedger,
     ZoneScoped;
     addBatchInternal(app, currLedger, currLedgerProtocol, initEntries,
                      liveEntries, deadEntries);
+
+    // Initialize caches for any new buckets we might have added
+    maybeInitializeCaches(app.getConfig().maxAccountsInBucketListCache());
 }
 
 BucketEntryCounters
@@ -39,6 +42,30 @@ LiveBucketList::sumBucketEntryCounters() const
         }
     }
     return counters;
+}
+
+void
+LiveBucketList::maybeInitializeCaches(size_t maxBucketListAccountsToCache) const
+{
+    auto blCounters = sumBucketEntryCounters();
+    size_t totalAccounts =
+        blCounters.entryTypeCounts.at(LedgerEntryTypeAndDurability::ACCOUNT);
+    for (uint32_t i = 0; i < kNumLevels; ++i)
+    {
+        auto curr = mLevels[i].getCurr();
+        if (!curr->isEmpty())
+        {
+            curr->maybeInitializeCache(totalAccounts,
+                                       maxBucketListAccountsToCache);
+        }
+
+        auto snap = mLevels[i].getSnap();
+        if (!snap->isEmpty())
+        {
+            snap->maybeInitializeCache(totalAccounts,
+                                       maxBucketListAccountsToCache);
+        }
+    }
 }
 
 void

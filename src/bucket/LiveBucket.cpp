@@ -431,6 +431,15 @@ LiveBucket::getBucketVersion() const
     return it.getMetadata().ledgerVersion;
 }
 
+void
+LiveBucket::maybeInitializeCache(size_t bucketListTotalAccounts,
+                                 size_t maxBucketListAccountsToCache) const
+{
+    releaseAssert(mIndex);
+    mIndex->maybeInitializeCache(bucketListTotalAccounts,
+                                 maxBucketListAccountsToCache);
+}
+
 BucketEntryCounters const&
 LiveBucket::getBucketEntryCounters() const
 {

@@ -208,6 +208,8 @@ struct BucketEntryCounters
     {
         ar(entryTypeCounts, entryTypeSizes);
     }
+
+    BucketEntryCounters();
 };
 
 template <class BucketT>

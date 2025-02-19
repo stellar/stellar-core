@@ -120,6 +120,9 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
 
     uint32_t getBucketVersion() const;
 
+    void maybeInitializeCache(size_t bucketListTotalAccounts,
+                              size_t maxBucketListAccountsToCache) const;
+
     BucketEntryCounters const& getBucketEntryCounters() const;
 
     friend class LiveBucketSnapshot;

@@ -63,15 +63,20 @@ class BucketIndexTest
     }
 
     void
-    buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f)
+    buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f,
+                    bool accountOnly = false)
     {
         uint32_t ledger = 0;
         do
         {
             ++ledger;
             std::vector<LedgerEntry> entries =
-                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10);
+                accountOnly
+                    ? LedgerTestUtils::
+                          generateValidUniqueLedgerEntriesWithTypes({ACCOUNT},
+                                                                    10)
+                    : LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                          {CONFIG_SETTING}, 10);
             f(entries);
             closeLedger(*mApp);
         } while (!LiveBucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
@@ -92,7 +97,7 @@ class BucketIndexTest
     }
 
     virtual void
-    buildGeneralTest()
+    buildGeneralTest(bool accountOnly = false)
     {
         auto f = [&](std::vector<LedgerEntry> const& entries) {
             // Sample ~4% of entries
@@ -109,7 +114,7 @@ class BucketIndexTest
                 {}, entries, {});
         };
 
-        buildBucketList(f);
+        buildBucketList(f, accountOnly);
     }
 
     void
@@ -513,7 +518,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    buildGeneralTest() override
+    buildGeneralTest(bool accountOnly = false) override
     {
         buildTest(false);
     }
@@ -581,12 +586,11 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
     Config cfg(getTestConfig());
 
     // Use disk index for all levels and cache all entries
-    // Note: Setting this to 100% will actually switch to in-memory index
-    cfg.BUCKETLIST_DB_CACHED_PERCENT = 99;
     cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.BUCKETLIST_DB_MEMORY_FOR_CACHING = 5'000;
 
     auto test = BucketIndexTest(cfg);
-    test.buildGeneralTest();
+    test.buildGeneralTest(/*accountOnly=*/true);
     test.run(/*testCache=*/true);
 }
 

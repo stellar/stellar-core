@@ -5,6 +5,7 @@
 #include "bucket/LiveBucketIndex.h"
 #include "bucket/BucketIndexUtils.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/DiskIndex.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
@@ -65,21 +66,6 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                    pageSize, filename);
         mDiskIndex = std::make_unique<DiskIndex<LiveBucket>>(
             bm, filename, pageSize, hash, ctx, hasher);
-
-        auto percentCached = bm.getConfig().BUCKETLIST_DB_CACHED_PERCENT;
-        if (percentCached > 0)
-        {
-            auto const& counters = mDiskIndex->getBucketEntryCounters();
-            auto cacheSize = (counters.numEntries() * percentCached) / 100;
-
-            // Minimum cache size of 100 if we are going to cache a non-zero
-            // number of entries
-            // We don't want to reserve here, since caches only live as long as
-            // the lifetime of the Bucket and fill relatively slowly
-            mCache = std::make_unique<CacheT>(std::max<size_t>(cacheSize, 100),
-                                              /*separatePRNG=*/false,
-                                              /*reserve=*/false);
-        }
     }
 }
 
@@ -93,6 +79,50 @@ LiveBucketIndex::LiveBucketIndex(BucketManager const& bm, Archive& ar,
 {
     // Only disk indexes are serialized
     releaseAssertOrThrow(pageSize != 0);
+}
+
+void
+LiveBucketIndex::maybeInitializeCache(size_t bucketListTotalAccounts,
+                                      size_t maxBucketListAccountsToCache) const
+{
+    // Everything is already in memory, no need for a redundant cache.
+    if (mInMemoryIndex)
+    {
+        return;
+    }
+
+    // Cache is already initialized
+    if (std::shared_lock<std::shared_mutex> lock(mCacheMutex); mCache)
+    {
+        return;
+    }
+
+    releaseAssert(mDiskIndex);
+
+    auto accountsInThisBucket =
+        mDiskIndex->getBucketEntryCounters().entryTypeCounts.at(
+            LedgerEntryTypeAndDurability::ACCOUNT);
+
+    // Nothing to cache
+    if (accountsInThisBucket == 0)
+    {
+        return;
+    }
+
+    std::unique_lock<std::shared_mutex> lock(mCacheMutex);
+    if (bucketListTotalAccounts < maxBucketListAccountsToCache)
+    {
+        // We can cache the entire bucket
+        mCache = std::make_unique<CacheT>(bucketListTotalAccounts);
+    }
+    else
+    {
+        double percentAccountsInBucket =
+            static_cast<double>(accountsInThisBucket) / bucketListTotalAccounts;
+        auto cacheSize = static_cast<size_t>(bucketListTotalAccounts *
+                                             percentAccountsInBucket);
+        mCache = std::make_unique<CacheT>(cacheSize);
+    }
 }
 
 LiveBucketIndex::IterT
@@ -133,7 +163,7 @@ LiveBucketIndex::markBloomMiss() const
 std::shared_ptr<BucketEntry const>
 LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
 {
-    if (shouldUseCache())
+    if (shouldUseCache() && isCachedType(k))
     {
         std::shared_lock<std::shared_mutex> lock(mCacheMutex);
         auto cachePtr = mCache->maybeGet(k);
@@ -262,6 +292,24 @@ LiveBucketIndex::getBucketEntryCounters() const
     return mInMemoryIndex->getBucketEntryCounters();
 }
 
+bool
+LiveBucketIndex::shouldUseCache() const
+{
+    if (mDiskIndex)
+    {
+        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        return mCache != nullptr;
+    }
+
+    return false;
+}
+
+bool
+LiveBucketIndex::isCachedType(LedgerKey const& lk)
+{
+    return lk.type() == ACCOUNT;
+}
+
 void
 LiveBucketIndex::maybeAddToCache(
     std::shared_ptr<BucketEntry const> const& entry) const
@@ -270,6 +318,10 @@ LiveBucketIndex::maybeAddToCache(
     {
         releaseAssertOrThrow(entry);
         auto k = getBucketLedgerKey(*entry);
+        if (!isCachedType(k))
+        {
+            return;
+        }
 
         // If we are adding an entry to the cache, we must have missed it
         // earlier.

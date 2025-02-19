@@ -98,6 +98,8 @@ std::streamoff getPageSizeFromConfig(Config const& cfg);
 // Builds index for given bucketfile. This is expensive (> 20 seconds
 // for the largest buckets) and should only be called once. Constructs a
 // DiskIndex or InMemoryIndex depending on config and Bucket size.
+// Note: Constructor does not initialize the cache for live bucket indexes,
+// as this must be done when the Bucket is being added to the BucketList
 template <class BucketT>
 std::unique_ptr<typename BucketT::IndexT const>
 createIndex(BucketManager& bm, std::filesystem::path const& filename,
@@ -105,6 +107,8 @@ createIndex(BucketManager& bm, std::filesystem::path const& filename,
 
 // Loads index from given file. If file does not exist or if saved
 // index does not have expected version or pageSize, return null
+// Note: Constructor does not initialize the cache for live bucket indexes,
+// as this must be done when the Bucket is being added to the BucketList
 template <class BucketT>
 std::unique_ptr<typename BucketT::IndexT const>
 loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
