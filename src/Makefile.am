@@ -81,7 +81,8 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
              $(TESTDATA_DIR)/stellar-core_testnet.cfg $(TESTDATA_DIR)/stellar-core_testnet_legacy.cfg \
              $(TESTDATA_DIR)/stellar-history.testnet.6714239.json $(TESTDATA_DIR)/stellar-history.livenet.15686975.json \
              $(TESTDATA_DIR)/stellar-core_testnet_validator.cfg $(TESTDATA_DIR)/stellar-core_example_validators.cfg \
-             $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json
+             $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json \
+             $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.v2.json
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(TEST_FILES)
 

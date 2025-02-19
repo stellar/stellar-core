@@ -14,7 +14,8 @@ namespace stellar
 class AssumeStateWork;
 class LiveBucketList;
 class Bucket;
-class IndexBucketsWork;
+template <class BucketT> class IndexBucketsWork;
+class LiveBucket;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
@@ -25,7 +26,7 @@ class ApplyBucketsWork : public Work
 
     bool mSpawnedAssumeStateWork{false};
     std::shared_ptr<AssumeStateWork> mAssumeStateWork{};
-    std::shared_ptr<IndexBucketsWork> mIndexBucketsWork{};
+    std::shared_ptr<IndexBucketsWork<LiveBucket>> mIndexBucketsWork{};
     size_t mTotalBuckets{0};
     size_t mAppliedBuckets{0};
     size_t mAppliedEntries{0};
