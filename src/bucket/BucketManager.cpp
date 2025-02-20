@@ -1291,8 +1291,7 @@ BucketManager::assumeState(HistoryArchiveState const& has,
         mLiveBucketList->getLevel(i).setNext(nextFuture);
     }
 
-    mLiveBucketList->maybeInitializeCaches(
-        mConfig.maxAccountsInBucketListCache());
+    mLiveBucketList->maybeInitializeCaches(mConfig);
 
     if (restartMerges)
     {

@@ -53,7 +53,7 @@ class LiveBucketList : public BucketListBase<LiveBucket>
 
     // Initializes any uninitialized caches in the BucketIndex. Should be called
     // after every time buckets may have changed in the LiveBucketList.
-    void maybeInitializeCaches(size_t maxBucketListAccountsToCache) const;
+    void maybeInitializeCaches(Config const& cfg) const;
 };
 
 }

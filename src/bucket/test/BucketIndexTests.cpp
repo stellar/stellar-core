@@ -7,6 +7,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
@@ -35,6 +36,7 @@ class BucketIndexTest
 
     // Mapping of Key->value that BucketList should return
     UnorderedMap<LedgerKey, LedgerEntry> mTestEntries;
+    UnorderedSet<LedgerKey> mGeneratedKeys;
 
     // Set of keys to query BucketList for
     LedgerKeySet mKeysToSearch;
@@ -64,17 +66,17 @@ class BucketIndexTest
 
     void
     buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f,
-                    bool accountOnly = false)
+                    bool isCacheTest = false)
     {
         uint32_t ledger = 0;
         do
         {
             ++ledger;
             std::vector<LedgerEntry> entries =
-                accountOnly
+                isCacheTest
                     ? LedgerTestUtils::
-                          generateValidUniqueLedgerEntriesWithTypes({ACCOUNT},
-                                                                    10)
+                          generateValidUniqueLedgerEntriesWithTypes(
+                              {ACCOUNT}, 10, mGeneratedKeys)
                     : LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
                           {CONFIG_SETTING}, 10);
             f(entries);
@@ -97,11 +99,13 @@ class BucketIndexTest
     }
 
     virtual void
-    buildGeneralTest(bool accountOnly = false)
+    buildGeneralTest(bool isCacheTest = false)
     {
         auto f = [&](std::vector<LedgerEntry> const& entries) {
-            // Sample ~4% of entries
-            if (mDist(gRandomEngine) < 10)
+            // Sample ~4% of entries if not a cache test
+            // For cache tests we want to load all entries to test eviction
+            // behavior
+            if (isCacheTest || mDist(gRandomEngine) < 10)
             {
                 for (auto const& e : entries)
                 {
@@ -114,7 +118,7 @@ class BucketIndexTest
                 {}, entries, {});
         };
 
-        buildBucketList(f, accountOnly);
+        buildBucketList(f, isCacheTest);
     }
 
     void
@@ -254,7 +258,7 @@ class BucketIndexTest
     }
 
     virtual void
-    run(bool testCache = false)
+    run(std::optional<double> expectedHitRate = std::nullopt)
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
@@ -265,26 +269,79 @@ class BucketIndexTest
         auto startingHitCount = hitMeter.count();
         auto startingMissCount = missMeter.count();
 
+        // Checks hit rate then sets startingHitCount and startingMissCount
+        // to current values
+        auto checkHitRate = [&](auto expectedHitRate, auto& startingHitCount,
+                                auto& startingMissCount, auto numLoads) {
+            if (!expectedHitRate)
+            {
+                return;
+            }
+
+            if (*expectedHitRate == 1.0)
+            {
+                // We should have no misses
+                REQUIRE(missMeter.count() == startingMissCount);
+
+                // All point loads should be hits
+                REQUIRE(hitMeter.count() == startingHitCount + numLoads);
+            }
+            else
+            {
+                auto newMisses = missMeter.count() - startingMissCount;
+                auto newHits = hitMeter.count() - startingHitCount;
+                REQUIRE(newMisses > 0);
+                REQUIRE(newHits > 0);
+                REQUIRE(newMisses + newHits == numLoads);
+
+                auto hitRate =
+                    static_cast<double>(newHits) / (newMisses + newHits);
+
+                // Allow 15% deviation from expected hit rate
+                REQUIRE(hitRate < *expectedHitRate * 1.15);
+                REQUIRE(hitRate > *expectedHitRate * 0.85);
+            }
+
+            startingHitCount = hitMeter.count();
+            startingMissCount = missMeter.count();
+        };
+
         // Test bulk load lookup
         auto loadResult =
             searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
         validateResults(mTestEntries, loadResult);
 
-        if (testCache)
+        if (expectedHitRate)
         {
-            // We should have no cache hits
+            // We should have no cache hits since we're starting from an empty
+            // cache
             REQUIRE(hitMeter.count() == startingHitCount);
             REQUIRE(missMeter.count() ==
                     startingMissCount + mKeysToSearch.size());
+
+            startingHitCount = hitMeter.count();
+            startingMissCount = missMeter.count();
         }
 
-        auto missAfterFirstLoad = missMeter.count();
+        loadResult.clear();
 
         // Test individual entry lookup
-        loadResult.clear();
-        for (auto const& key : mKeysToSearch)
+        // Subtle: We use a "randomized LIFO" cache eviction policy, where we
+        // select two random elements and evict the older one. Our first load
+        // loads mKeysToSearch in order. If we were to do that again, we would
+        // hit the worst case cache performance, since we'd always be loading
+        // the oldest entry in the cache. We really just want to test that the
+        // cache size is respected, so we load keys in reverse order here. That
+        // way, our three loads are:
+        // 1. mKeysToSearch in-order (cache warming pass above)
+        // 2. mKeysToSearch in reverse order
+        // 3. mKeysToSearch in-order
+        // This avoids the worst case cache performance so metrics are more what
+        // we would expect for tests
+        for (auto iter = mKeysToSearch.rbegin(); iter != mKeysToSearch.rend();
+             ++iter)
         {
-            auto entryPtr = searchableBL->load(key);
+            auto entryPtr = searchableBL->load(*iter);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -293,21 +350,18 @@ class BucketIndexTest
 
         validateResults(mTestEntries, loadResult);
 
-        if (testCache)
+        if (expectedHitRate)
         {
-            // We should have no new cache hits and no new cache misses
-            REQUIRE(missMeter.count() == missAfterFirstLoad);
-            REQUIRE(hitMeter.count() ==
-                    startingHitCount + mKeysToSearch.size());
+            checkHitRate(expectedHitRate, startingHitCount, startingMissCount,
+                         mKeysToSearch.size());
 
             // Run bulk lookup again
             auto loadResult2 =
                 searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
             validateResults(mTestEntries, loadResult2);
 
-            REQUIRE(missMeter.count() == missAfterFirstLoad);
-            REQUIRE(hitMeter.count() ==
-                    startingHitCount + (mKeysToSearch.size() * 2));
+            checkHitRate(expectedHitRate, startingHitCount, startingMissCount,
+                         mKeysToSearch.size());
         }
     }
 
@@ -323,8 +377,8 @@ class BucketIndexTest
             LedgerKeySet searchSubset;
             UnorderedMap<LedgerKey, LedgerEntry> testEntriesSubset;
 
-            // Not actual size, as there may be duplicated elements, but good
-            // enough
+            // Not actual size, as there may be duplicated elements, but
+            // good enough
             auto subsetSize = 500;
             for (auto j = 0; j < subsetSize; ++j)
             {
@@ -518,7 +572,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    buildGeneralTest(bool accountOnly = false) override
+    buildGeneralTest(bool isCacheTest = false) override
     {
         buildTest(false);
     }
@@ -530,7 +584,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    run(bool testCache = false) override
+    run(std::optional<double> expectedHitRate = std::nullopt) override
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
@@ -583,15 +637,76 @@ TEST_CASE("key-value lookup", "[bucket][bucketindex]")
 
 TEST_CASE("bl cache", "[bucket][bucketindex]")
 {
-    Config cfg(getTestConfig());
+    auto runCacheTest = [](size_t cacheSizeMb, auto checkCacheSize,
+                           double expectedHitRate) {
+        // Use disk index for all levels so each bucket has a cache
+        Config cfg(getTestConfig());
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+        cfg.BUCKETLIST_DB_MEMORY_FOR_CACHING = cacheSizeMb;
 
-    // Use disk index for all levels and cache all entries
-    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
-    cfg.BUCKETLIST_DB_MEMORY_FOR_CACHING = 5'000;
+        auto test = BucketIndexTest(cfg);
+        test.buildGeneralTest(/*isCacheTest=*/true);
+        test.run(expectedHitRate);
+        auto& liveBL = test.getBM().getLiveBucketList();
 
-    auto test = BucketIndexTest(cfg);
-    test.buildGeneralTest(/*accountOnly=*/true);
-    test.run(/*testCache=*/true);
+        for (auto i = 0; i < LiveBucketList::kNumLevels; ++i)
+        {
+            auto level = liveBL.getLevel(i);
+
+            checkCacheSize(level.getCurr());
+            checkCacheSize(level.getSnap());
+        }
+
+        return liveBL.sumBucketEntryCounters().entryTypeSizes.at(
+            LedgerEntryTypeAndDurability::ACCOUNT);
+    };
+
+    auto checkCompleteCacheSize = [](auto b) {
+        if (!b->isEmpty())
+        {
+            auto cacheSize = b->getMaxCacheSize();
+            auto accountsInBucket =
+                b->getBucketEntryCounters().entryTypeCounts.at(
+                    LedgerEntryTypeAndDurability::ACCOUNT);
+            REQUIRE(cacheSize == accountsInBucket);
+        }
+    };
+
+    // First run the test with a very large cache limit so we cache everything
+    auto approximateCacheSizeBytes =
+        runCacheTest(5'000, checkCompleteCacheSize, 1.0);
+
+    // Run the test again, but with a partial cache
+    auto cachedAccountEntries = 0;
+    auto totalAccountCount = 0;
+    auto checkPartialCacheSize = [&cachedAccountEntries,
+                                  &totalAccountCount](auto b) {
+        if (!b->isEmpty())
+        {
+            cachedAccountEntries += b->getMaxCacheSize();
+            totalAccountCount += b->getBucketEntryCounters().entryTypeCounts.at(
+                LedgerEntryTypeAndDurability::ACCOUNT);
+        }
+    };
+
+    // Cache approximately half of all entries
+    auto fullCacheSizeMB = approximateCacheSizeBytes / 1024 / 1024;
+    auto smallCacheSizeMB = fullCacheSizeMB / 2;
+
+    // Make sure we don't round down to 0
+    REQUIRE(smallCacheSizeMB > 0);
+
+    // Because we configure in MB, actual ratio won't be 0.5 because of rounding
+    // errors, so calculate it here
+    double expectedCachedRatio =
+        smallCacheSizeMB * 1024.0 * 1024.0 / approximateCacheSizeBytes;
+
+    runCacheTest(smallCacheSizeMB, checkPartialCacheSize, expectedCachedRatio);
+
+    REQUIRE(cachedAccountEntries >
+            totalAccountCount * (expectedCachedRatio - 0.15));
+    REQUIRE(cachedAccountEntries <
+            totalAccountCount * (expectedCachedRatio + 0.15));
 }
 
 TEST_CASE("do not load outdated values", "[bucket][bucketindex]")

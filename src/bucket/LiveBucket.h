@@ -83,6 +83,7 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // entry in the database (respectively; if the entry is dead (a
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
+    size_t getMaxCacheSize() const;
 #endif
 
     // Returns [lowerBound, upperBound) of file offsets for all offers in the
@@ -120,8 +121,12 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
 
     uint32_t getBucketVersion() const;
 
-    void maybeInitializeCache(size_t bucketListTotalAccounts,
-                              size_t maxBucketListAccountsToCache) const;
+    // Initializes the random eviction cache if it has not already been
+    // initialized. totalBucketListAccountsSizeBytes is the total size, in
+    // bytes, of all BucketEntries in the BucketList that hold ACCOUNT entries,
+    // including INIT, LIVE and DEAD entries.
+    void maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
+                              Config const& cfg) const;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
 

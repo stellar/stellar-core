@@ -812,10 +812,6 @@ class Config : public std::enable_shared_from_this<Config>
     void setNoListen();
     void setNoPublish();
 
-    // Returns max number of accounts that can be cached in the entire
-    // BucketList
-    size_t maxAccountsInBucketListCache() const;
-
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);
 

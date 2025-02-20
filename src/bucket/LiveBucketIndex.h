@@ -113,8 +113,12 @@ class LiveBucketIndex : public NonMovableOrCopyable
     // expose a memory limit in the validator config. To account for this, we
     // check what percentage of the total number of accounts are in this bucket
     // and allocate space accordingly.
-    void maybeInitializeCache(size_t bucketListTotalAccounts,
-                              size_t maxBucketListAccountsToCache) const;
+    //
+    // bucketListTotalAccountSizeBytes is the total size, in bytes, of all
+    // BucketEntries in the BucketList that hold ACCOUNT entries, including
+    // INIT, LIVE and DEAD entries.
+    void maybeInitializeCache(size_t bucketListTotalAccountSizeBytes,
+                              Config const& cfg) const;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
@@ -142,8 +146,7 @@ class LiveBucketIndex : public NonMovableOrCopyable
     void markBloomMiss() const;
 #ifdef BUILD_TESTS
     bool operator==(LiveBucketIndex const& in) const;
-
-    void clearCache() const;
+    size_t getMaxCacheSize() const;
 #endif
 };
 }

@@ -82,8 +82,8 @@ LiveBucketIndex::LiveBucketIndex(BucketManager const& bm, Archive& ar,
 }
 
 void
-LiveBucketIndex::maybeInitializeCache(size_t bucketListTotalAccounts,
-                                      size_t maxBucketListAccountsToCache) const
+LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
+                                      Config const& cfg) const
 {
     // Everything is already in memory, no need for a redundant cache.
     if (mInMemoryIndex)
@@ -109,19 +109,46 @@ LiveBucketIndex::maybeInitializeCache(size_t bucketListTotalAccounts,
         return;
     }
 
+    // Convert from MB to bytes, max size for entire BucketList cache
+    auto maxBucketListBytesToCache =
+        cfg.BUCKETLIST_DB_MEMORY_FOR_CACHING * 1024 * 1024;
+
     std::unique_lock<std::shared_mutex> lock(mCacheMutex);
-    if (bucketListTotalAccounts < maxBucketListAccountsToCache)
+    if (totalBucketListAccountsSizeBytes < maxBucketListBytesToCache)
     {
         // We can cache the entire bucket
-        mCache = std::make_unique<CacheT>(bucketListTotalAccounts);
+        mCache = std::make_unique<CacheT>(accountsInThisBucket);
     }
     else
     {
-        double percentAccountsInBucket =
-            static_cast<double>(accountsInThisBucket) / bucketListTotalAccounts;
-        auto cacheSize = static_cast<size_t>(bucketListTotalAccounts *
-                                             percentAccountsInBucket);
-        mCache = std::make_unique<CacheT>(cacheSize);
+        // The random eviction cache has an entry limit, but we expose a memory
+        // limit in the validator config. We can't do an exact 1 to 1 mapping
+        // because account entries have different sizes.
+        //
+        // First we take the fraction of the total BucketList size that this
+        // bucket occupies to figure out how much memory to allocate. Then we
+        // use the average account size to convert that to an entry count for
+        // the cache.
+
+        auto accountBytesInThisBucket =
+            mDiskIndex->getBucketEntryCounters().entryTypeSizes.at(
+                LedgerEntryTypeAndDurability::ACCOUNT);
+
+        double fractionOfTotalBucketListBytes =
+            static_cast<double>(accountBytesInThisBucket) /
+            totalBucketListAccountsSizeBytes;
+
+        size_t bytesAvailableForBucketCache = static_cast<size_t>(
+            maxBucketListBytesToCache * fractionOfTotalBucketListBytes);
+
+        double averageAccountSize =
+            static_cast<double>(accountBytesInThisBucket) /
+            accountsInThisBucket;
+
+        auto accountsToCache = static_cast<size_t>(
+            bytesAvailableForBucketCache / averageAccountSize);
+
+        mCache = std::make_unique<CacheT>(accountsToCache);
     }
 }
 
@@ -359,6 +386,18 @@ LiveBucketIndex::operator==(LiveBucketIndex const& in) const
     }
 
     return true;
+}
+
+size_t
+LiveBucketIndex::getMaxCacheSize() const
+{
+    if (shouldUseCache())
+    {
+        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        return mCache->maxSize();
+    }
+
+    return 0;
 }
 #endif
 

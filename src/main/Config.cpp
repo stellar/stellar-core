@@ -2428,18 +2428,6 @@ Config::setNoPublish()
     }
 }
 
-size_t
-Config::maxAccountsInBucketListCache() const
-{
-    // Default BucketEntry is a LIVEENTRY with an account, so we can use it to
-    // convert from max memory to max account entries
-    size_t const accountSize =
-        xdr::xdr_traits<BucketEntry>::serial_size(BucketEntry{});
-
-    // Convert from MB to bytes
-    return (BUCKETLIST_DB_MEMORY_FOR_CACHING * 1024 * 1024) / accountSize;
-}
-
 SCPQuorumSet
 Config::generateQuorumSetHelper(
     std::vector<ValidatorEntry>::const_iterator begin,
