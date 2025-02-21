@@ -119,6 +119,10 @@ RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
 
+# we pass RUST_TOOLCHAIN_CHANNEL by environment variable
+# to tests since they can't take command-line arguments.
+export RUST_TOOLCHAIN_CHANNEL
+
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(top_builddir)/target
@@ -313,6 +317,7 @@ else # !USE_POSTGRES
 TESTS=test/selftest-nopg
 endif # !USE_POSTGRES
 TESTS += test/check-nondet
+TESTS += test/check-sorobans
 
 format: always
 if USE_CLANG_FORMAT
