@@ -116,10 +116,10 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
     auto app = createTestApplication(clock, cfg);
     OrderBookIsNotCrossed::registerAndEnableInvariant(*app);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
-    auto const cur1 = root.asset("CUR1");
-    auto const cur2 = root.asset("CUR2");
+    auto const cur1 = root->asset("CUR1");
+    auto const cur2 = root->asset("CUR2");
 
     LedgerTxn ltxOuter{app->getLedgerTxnRoot()};
 
@@ -192,13 +192,13 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     auto app = createTestApplication(clock, cfg);
     OrderBookIsNotCrossed::registerAndEnableInvariant(*app);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
-    auto const cur1 = root.asset("CUR1");
-    auto const cur2 = root.asset("CUR2");
-    auto const cur3 = root.asset("CUR3");
-    auto const cur4 = root.asset("CUR4");
-    auto const cur5 = root.asset("CUR5");
+    auto const cur1 = root->asset("CUR1");
+    auto const cur2 = root->asset("CUR2");
+    auto const cur3 = root->asset("CUR3");
+    auto const cur4 = root->asset("CUR4");
+    auto const cur5 = root->asset("CUR5");
 
     // the initial set up for the order book follows where:
     // A = cur1, B = cur2, and C = cur3

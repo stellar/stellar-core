@@ -31,7 +31,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
     auto minBal = [&](int32_t n) {
         return app.getLedgerManager().getLastMinBalance(n);
     };
-    auto root = TestAccount::createRoot(app);
+    auto root = app.getRoot();
 
     auto checkLiquidityPool12 = [&](int64_t reserveA, int64_t reserveB,
                                     int64_t totalPoolShares,
@@ -57,19 +57,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("chooses best price")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
         a1.changeTrust(cur2, INT64_MAX);
         a1.changeTrust(share12, INT64_MAX);
-        root.pay(a1, cur1, 10000);
-        root.pay(a1, cur2, 10000);
+        root->pay(a1, cur1, 10000);
+        root->pay(a1, cur2, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur1, INT64_MAX);
         a2.changeTrust(cur2, INT64_MAX);
         a2.changeTrust(share12, INT64_MAX);
-        root.pay(a2, cur1, 10000);
-        root.pay(a2, cur2, 10000);
+        root->pay(a2, cur1, 10000);
+        root->pay(a2, cur2, 10000);
 
         SECTION("pool has strictly better price")
         {
@@ -85,7 +85,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE(res.success().offers.size() == 1);
             REQUIRE(res.success().offers[0].type() ==
                     CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
-        }
+       }
 
         SECTION("both prices equal")
         {
@@ -126,39 +126,39 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
     {
         TempReduceLimitsForTesting limitUpdater(100, 10);
 
-        auto cur3 = makeAsset(root, "CUR3");
+        auto cur3 = makeAsset(*root, "CUR3");
 
-        auto a1 = root.create("a1", minBal(2000));
+        auto a1 = root->create("a1", minBal(2000));
         a1.changeTrust(cur1, INT64_MAX);
         a1.changeTrust(cur2, INT64_MAX);
         a1.changeTrust(cur3, INT64_MAX);
         a1.changeTrust(share12, INT64_MAX);
-        root.pay(a1, cur1, 10000);
-        root.pay(a1, cur2, 10000);
-        root.pay(a1, cur3, 10000);
+        root->pay(a1, cur1, 10000);
+        root->pay(a1, cur2, 10000);
+        root->pay(a1, cur3, 10000);
 
-        auto a2 = root.create("a2", minBal(2000));
+        auto a2 = root->create("a2", minBal(2000));
         a2.changeTrust(cur1, INT64_MAX);
         a2.changeTrust(cur2, INT64_MAX);
         a2.changeTrust(cur3, INT64_MAX);
-        root.pay(a2, cur1, 10000);
-        root.pay(a2, cur2, 10000);
-        root.pay(a2, cur3, 10000);
+        root->pay(a2, cur1, 10000);
+        root->pay(a2, cur2, 10000);
+        root->pay(a2, cur3, 10000);
 
-        auto a3 = root.create("a3", minBal(10));
-        a3.changeTrust(cur1, INT64_MAX);
-        a3.changeTrust(cur2, INT64_MAX);
-        a3.changeTrust(cur3, INT64_MAX);
-        root.pay(a3, cur1, 10000);
-        root.pay(a3, cur2, 10000);
-        root.pay(a3, cur3, 10000);
+       auto a3 = root->create("a3", minBal(10));
+       a3.changeTrust(cur1, INT64_MAX);
+       a3.changeTrust(cur2, INT64_MAX);
+       a3.changeTrust(cur3, INT64_MAX);
+        root->pay(a3, cur1, 10000);
+        root->pay(a3, cur2, 10000);
+        root->pay(a3, cur3, 10000);
 
         REQUIRE(getMaxOffersToCross() == 10);
         for (size_t i = 0; i < 5; ++i)
         {
             a1.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
             a2.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
-        }
+       }
 
         SECTION("order book succeeds when crossing limit")
         {
@@ -207,19 +207,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("liquidity pool charges the correct fee")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
         depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
 
@@ -235,7 +235,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1001, {}),
                 ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
             a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1000, {});
-        }
+       }
 
         SECTION("strict receive")
         {
@@ -247,19 +247,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("trade fails due to excess reserves")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, INT64_MAX);
-        root.pay(mm12, cur2, INT64_MAX);
+        root->pay(mm12, cur1, INT64_MAX);
+        root->pay(mm12, cur2, INT64_MAX);
         depositIntoPool12(mm12, INT64_MAX - 10, INT64_MAX - 10,
                           Price{1, INT32_MAX}, Price{INT32_MAX, 1});
 
@@ -269,7 +269,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pathPaymentStrictSend(a2, cur1, 11, cur2, 9, {}),
                 ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
             a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-        }
+       }
 
         SECTION("strict receive")
         {
@@ -281,31 +281,31 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("payment through empty liquidity pools")
     {
-        auto cur3 = makeAsset(root, "CUR3");
+        auto cur3 = makeAsset(*root, "CUR3");
         auto share23 =
             makeChangeTrustAssetPoolShare(cur2, cur3, LIQUIDITY_POOL_FEE_V18);
 
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
         a2.changeTrust(cur3, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, INT64_MAX);
-        root.pay(mm12, cur2, INT64_MAX);
+        root->pay(mm12, cur1, INT64_MAX);
+        root->pay(mm12, cur2, INT64_MAX);
 
-        auto mm23 = root.create("mm23", minBal(10));
-        mm23.changeTrust(cur2, INT64_MAX);
-        mm23.changeTrust(cur3, INT64_MAX);
-        mm23.changeTrust(share23, INT64_MAX);
-        root.pay(mm23, cur2, INT64_MAX);
-        root.pay(mm23, cur3, INT64_MAX);
+       auto mm23 = root->create("mm23", minBal(10));
+       mm23.changeTrust(cur2, INT64_MAX);
+       mm23.changeTrust(cur3, INT64_MAX);
+       mm23.changeTrust(share23, INT64_MAX);
+        root->pay(mm23, cur2, INT64_MAX);
+        root->pay(mm23, cur3, INT64_MAX);
 
         SECTION("strict send")
         {
@@ -315,7 +315,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur3, 1, {cur2}),
                 ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-        }
+       }
 
         SECTION("strict receive")
         {
@@ -328,19 +328,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("payment through pool that yields nothing")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, INT64_MAX);
-        root.pay(mm12, cur2, INT64_MAX);
+        root->pay(mm12, cur1, INT64_MAX);
+        root->pay(mm12, cur2, INT64_MAX);
         depositIntoPool12(mm12, 1000, 1000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
 
@@ -352,39 +352,39 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pathPaymentStrictSend(a2, cur1, 1, cur2, 1, {}),
                 ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-        }
+       }
 
         // Not possible with PathPaymentStrictReceive.
     }
 
     SECTION("payment through pool after offer that yields nothing")
     {
-        auto cur3 = makeAsset(root, "CUR3");
+        auto cur3 = makeAsset(*root, "CUR3");
         auto share23 =
             makeChangeTrustAssetPoolShare(cur2, cur3, LIQUIDITY_POOL_FEE_V18);
         auto pool23 = xdrSha256(share23.liquidityPool());
 
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur3, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
         mm12.manageOffer(0, cur2, cur1, Price{2, 1}, 10);
 
-        auto mm23 = root.create("mm23", minBal(10));
+        auto mm23 = root->create("mm23", minBal(10));
         mm23.changeTrust(cur2, INT64_MAX);
         mm23.changeTrust(cur3, INT64_MAX);
         mm23.changeTrust(share23, INT64_MAX);
-        root.pay(mm23, cur2, INT64_MAX);
-        root.pay(mm23, cur3, INT64_MAX);
+        root->pay(mm23, cur2, INT64_MAX);
+        root->pay(mm23, cur3, INT64_MAX);
         mm23.liquidityPoolDeposit(pool23, 100, 100, Price{1, INT32_MAX},
                                   Price{INT32_MAX, 1});
 
@@ -402,23 +402,23 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pathPaymentStrictSend(a2, cur1, 1, cur3, 1, {cur2}),
                 ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-        }
+       }
 
         // Not possible with PathPaymentStrictReceive.
     }
 
     SECTION("payment through a pool that the sender participates in")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
         a1.changeTrust(cur2, INT64_MAX);
         a1.changeTrust(share12, INT64_MAX);
-        root.pay(a1, cur1, 10000);
-        root.pay(a1, cur2, 10000);
+        root->pay(a1, cur1, 10000);
+        root->pay(a1, cur2, 10000);
         depositIntoPool12(a1, 1000, 1000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
         SECTION("strict send")
@@ -436,16 +436,16 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("payment through a pool that the destination participates in")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur1, INT64_MAX);
         a2.changeTrust(cur2, INT64_MAX);
         a2.changeTrust(share12, INT64_MAX);
-        root.pay(a2, cur1, 10000);
-        root.pay(a2, cur2, 10000);
+        root->pay(a2, cur1, 10000);
+        root->pay(a2, cur2, 10000);
         depositIntoPool12(a2, 1000, 1000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
 
@@ -453,7 +453,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         {
             a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
             checkLiquidityPool12(1010, 991, 1000, 1);
-        }
+       }
 
         SECTION("strict receive")
         {
@@ -464,19 +464,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("payment through a pool that a market maker participates in")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
         mm12.manageOffer(0, cur2, cur1, Price{10, 9}, 10);
         depositIntoPool12(mm12, 1000, 1000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
@@ -485,7 +485,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         {
             a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
             checkLiquidityPool12(1010, 991, 1000, 1);
-        }
+       }
 
         SECTION("strict receive")
         {
@@ -496,24 +496,24 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("order book is better, but there is a self-trade")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
         a1.changeTrust(cur2, INT64_MAX);
         a1.changeTrust(share12, INT64_MAX);
-        root.pay(a1, cur1, 10000);
-        root.pay(a1, cur2, 10000);
+        root->pay(a1, cur1, 10000);
+        root->pay(a1, cur2, 10000);
         depositIntoPool12(a1, 1000, 1000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
 
         SECTION("strict send")
         {
@@ -552,19 +552,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("payment would receive more than the reserve")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, INT64_MAX);
+        root->pay(a1, cur1, INT64_MAX);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
         depositIntoPool12(mm12, 1000, 1000, Price{1, INT32_MAX},
                           Price{INT32_MAX, 1});
 
@@ -583,24 +583,24 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             // Below the reserve
             a1.pay(a2, cur1, INT64_MAX, cur2, 999, {});
             checkLiquidityPool12(1003007, 1, 1000, 1);
-        }
+       }
     }
 
     SECTION("payment into pool would be larger than INT64_MAX")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, INT64_MAX);
+        root->pay(a1, cur1, INT64_MAX);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, INT64_MAX / 2);
-        root.pay(mm12, cur2, INT64_MAX / 2);
+        root->pay(mm12, cur1, INT64_MAX / 2);
+        root->pay(mm12, cur2, INT64_MAX / 2);
         depositIntoPool12(mm12, INT64_MAX / 2, INT64_MAX / 2,
                           Price{1, INT32_MAX}, Price{INT32_MAX, 1});
 
@@ -611,39 +611,39 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pay(a2, cur1, INT64_MAX, cur2, INT64_MAX / 2 - 1, {}),
                 ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-        }
+       }
     }
 
     SECTION("cross the same pair twice in the same direction")
     {
-        auto cur3 = makeAsset(root, "CUR3");
+        auto cur3 = makeAsset(*root, "CUR3");
 
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur2, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
 
-        auto mm23 = root.create("mm23", minBal(10));
-        mm23.changeTrust(cur2, INT64_MAX);
-        mm23.changeTrust(cur3, INT64_MAX);
-        root.pay(mm23, cur2, 10000);
-        root.pay(mm23, cur3, 10000);
+       auto mm23 = root->create("mm23", minBal(10));
+       mm23.changeTrust(cur2, INT64_MAX);
+       mm23.changeTrust(cur3, INT64_MAX);
+        root->pay(mm23, cur2, 10000);
+        root->pay(mm23, cur3, 10000);
         mm23.manageOffer(0, cur3, cur2, Price{1, 1}, 1000);
 
-        auto mm31 = root.create("mm31", minBal(10));
+        auto mm31 = root->create("mm31", minBal(10));
         mm31.changeTrust(cur1, INT64_MAX);
         mm31.changeTrust(cur3, INT64_MAX);
-        root.pay(mm31, cur1, 10000);
-        root.pay(mm31, cur3, 10000);
+        root->pay(mm31, cur1, 10000);
+        root->pay(mm31, cur3, 10000);
         mm31.manageOffer(0, cur1, cur3, Price{1, 1}, 1000);
 
         SECTION("liquidity pool both times")
@@ -689,15 +689,15 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pay(a2, cur1, 107, cur2, 256, {cur2, cur3, cur1});
                 checkLiquidityPool12(1255, 1596, 1414, 1);
             }
-        }
+       }
 
         SECTION("liquidity pool both times, fails on the second hop")
         {
             SECTION("strict send")
             {
                 // Need higher balances for this test
-                root.pay(mm12, cur1, INT64_MAX - 10000);
-                root.pay(mm12, cur2, INT64_MAX - 10000);
+                root->pay(mm12, cur1, INT64_MAX - 10000);
+                root->pay(mm12, cur2, INT64_MAX - 10000);
 
                 depositIntoPool12(mm12, INT64_MAX - 1000, INT64_MAX - 1000,
                                   Price{1, INT32_MAX}, Price{INT32_MAX, 1});
@@ -723,7 +723,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             SECTION("strict receive")
             {
                 // Need higher balances for this test
-                root.pay(a1, cur1, INT64_MAX - 10000);
+                root->pay(a1, cur1, INT64_MAX - 10000);
 
                 depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
                                   Price{INT32_MAX, 1});
@@ -924,19 +924,19 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("cross the same pair twice in opposite directions")
     {
-        auto a1 = root.create("a1", minBal(10));
+        auto a1 = root->create("a1", minBal(10));
         a1.changeTrust(cur1, INT64_MAX);
-        root.pay(a1, cur1, 10000);
+        root->pay(a1, cur1, 10000);
 
-        auto a2 = root.create("a2", minBal(10));
+        auto a2 = root->create("a2", minBal(10));
         a2.changeTrust(cur1, INT64_MAX);
 
-        auto mm12 = root.create("mm12", minBal(10));
+        auto mm12 = root->create("mm12", minBal(10));
         mm12.changeTrust(cur1, INT64_MAX);
         mm12.changeTrust(cur2, INT64_MAX);
         mm12.changeTrust(share12, INT64_MAX);
-        root.pay(mm12, cur1, 10000);
-        root.pay(mm12, cur2, 10000);
+        root->pay(mm12, cur1, 10000);
+        root->pay(mm12, cur2, 10000);
 
         SECTION("liquidity pool both times")
         {
@@ -975,7 +975,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pay(a2, cur1, 100, cur1, 99, {cur2});
                 checkLiquidityPool12(1001, 2000, 1414, 1);
             }
-        }
+       }
     }
 }
 
@@ -989,10 +989,10 @@ TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
     auto minBal = [&](int32_t n) {
         return app->getLedgerManager().getLastMinBalance(n);
     };
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto native = makeNativeAsset();
-    auto cur1 = makeAsset(root, "CUR1");
-    auto cur2 = makeAsset(root, "CUR2");
+    auto cur1 = makeAsset(*root, "CUR1");
+    auto cur2 = makeAsset(*root, "CUR2");
     auto share12 =
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
     auto pool12 = xdrSha256(share12.liquidityPool());
@@ -1003,21 +1003,21 @@ TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
     for_versions_from(18, *app, [&] {
         SECTION("without offers")
         {
-            auto a1 = root.create("a1", minBal(10));
+            auto a1 = root->create("a1", minBal(10));
             a1.changeTrust(cur1, INT64_MAX);
             a1.changeTrust(cur2, INT64_MAX);
             a1.changeTrust(share12, INT64_MAX);
             a1.changeTrust(shareNative1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-            root.pay(a1, cur2, 10000);
+            root->pay(a1, cur1, 10000);
+            root->pay(a1, cur2, 10000);
 
-            auto a2 = root.create("a2", minBal(10));
+            auto a2 = root->create("a2", minBal(10));
             a2.changeTrust(cur1, INT64_MAX);
             a2.changeTrust(cur2, INT64_MAX);
             a2.changeTrust(share12, INT64_MAX);
             a2.changeTrust(shareNative1, INT64_MAX);
-            root.pay(a2, cur1, 10000);
-            root.pay(a2, cur2, 10000);
+            root->pay(a2, cur1, 10000);
+            root->pay(a2, cur2, 10000);
 
             a1.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
                                     Price{INT32_MAX, 1});
@@ -1162,7 +1162,7 @@ TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
                 {
                     testStrictReceive(cur1, 112, cur2, 100);
                 }
-            }
+           }
 
             SECTION("one native, strict receive")
             {

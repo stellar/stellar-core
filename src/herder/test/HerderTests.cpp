@@ -75,7 +75,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         Application::pointer app = createTestApplication(clock, cfg1);
 
         // set up world
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         auto a1 = TestAccount{*app, getAccount("A")};
         auto b1 = TestAccount{*app, getAccount("B")};
         auto c1 = TestAccount{*app, getAccount("C")};
@@ -108,9 +108,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
             auto setup = [&](asio::error_code const& error) {
                 REQUIRE(!error);
                 // create accounts
-                auto txFrame = root.tx({createAccount(a1, startingBalance),
-                                        createAccount(b1, startingBalance),
-                                        createAccount(c1, startingBalance)});
+                auto txFrame = root->tx({createAccount(a1, startingBalance),
+                                         createAccount(b1, startingBalance),
+                                         createAccount(c1, startingBalance)});
 
                 feedTx(txFrame,
                        TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
@@ -137,11 +137,11 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 }
 
                 std::vector<TransactionTestFramePtr> txAs, txBs, txCs;
-                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-                txAs.emplace_back(b1.tx({payment(root, paymentAmount)}));
+                txAs.emplace_back(a1.tx({payment(*root, paymentAmount)}));
+                txAs.emplace_back(b1.tx({payment(*root, paymentAmount)}));
                 if (hasC)
                 {
-                    txAs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+                    txAs.emplace_back(c1.tx({payment(*root, paymentAmount)}));
                 }
 
                 for (auto a : txAs)
@@ -151,8 +151,8 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 }
                 waitForExternalize();
 
-                txBs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-                txBs.emplace_back(b1.tx({accountMerge(root)}));
+                txBs.emplace_back(a1.tx({payment(*root, paymentAmount)}));
+                txBs.emplace_back(b1.tx({accountMerge(*root)}));
                 auto expectedC1Seq = c1.getLastSequenceNumber() + 10;
                 if (hasC)
                 {
@@ -166,9 +166,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 }
                 waitForExternalize();
 
-                txCs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+                txCs.emplace_back(a1.tx({payment(*root, paymentAmount)}));
                 txCs.emplace_back(b1.tx({payment(a1, paymentAmount)}));
-                txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+                txCs.emplace_back(c1.tx({payment(*root, paymentAmount)}));
 
                 feedTx(txCs[0],
                        TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
@@ -246,7 +246,7 @@ testTxSet(uint32 protocolVersion)
     Application::pointer app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     const int nbAccounts = 3;
 
@@ -260,7 +260,7 @@ testTxSet(uint32 protocolVersion)
     std::vector<TransactionFrameBasePtr> txs;
     auto genTx = [&]() {
         std::string accountName = fmt::format("A{}", accounts.size());
-        accounts.push_back(root.create(accountName.c_str(), accountBalance));
+        accounts.push_back(root->create(accountName.c_str(), accountBalance));
         auto& account = accounts.back();
 
         // payment to self
@@ -290,7 +290,7 @@ testTxSet(uint32 protocolVersion)
         SECTION("no user")
         {
             auto newUser = TestAccount{*app, getAccount("doesnotexist")};
-            txs.push_back(newUser.tx({payment(root, 1)}));
+            txs.push_back(newUser.tx({payment(*root, 1)}));
             TxFrameList removed;
             auto txSet =
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
@@ -311,7 +311,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("insufficient balance")
         {
-            accounts.push_back(root.create("insufficient", accountBalance - 1));
+            accounts.push_back(
+                root->create("insufficient", accountBalance - 1));
             txs.back() = accounts.back().tx(
                 {payment(accounts.back().getPublicKey(), 10000)});
 
@@ -356,10 +357,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
 
     auto compareTxs = [](TxFrameList const& actual,
                          TxFrameList const& expected) {
@@ -489,9 +490,9 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
     Application::pointer app = createTestApplication(clock, cfg);
 
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
-    auto root = TestAccount::createRoot(*app);
-    auto a1 = root.create("a1", minBalance2);
-    auto a2 = root.create("a2", minBalance2);
+    auto root = app->getRoot();
+    auto a1 = root->create("a1", minBalance2);
+    auto a2 = root->create("a2", minBalance2);
 
     // Move close time past 0
     closeLedgerOn(*app, 1, 1, 2022);
@@ -632,7 +633,7 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
     {
         SignerKey rootSigner;
         rootSigner.type(SIGNER_KEY_TYPE_ED25519);
-        rootSigner.ed25519() = root.getPublicKey().ed25519();
+        rootSigner.ed25519() = root->getPublicKey().ed25519();
 
         PreconditionsV2 cond;
         cond.extraSigners.emplace_back(rootSigner);
@@ -642,7 +643,7 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
             SECTION("success")
             {
-                tx->addSignature(root.getSecretKey());
+                tx->addSignature(root->getSecretKey());
                 TxFrameList removed;
                 auto txSet =
                     makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
@@ -664,7 +665,7 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
 
             cond.extraSigners.emplace_back(a2Signer);
             auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
-            tx->addSignature(root.getSecretKey());
+            tx->addSignature(root->getSecretKey());
 
             SECTION("success")
             {
@@ -687,7 +688,7 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             cond.extraSigners.emplace_back(rootSigner);
             auto txDupeSigner =
                 transactionWithV2Precondition(*app, a1, 1, 100, cond);
-            txDupeSigner->addSignature(root.getSecretKey());
+            txDupeSigner->addSignature(root->getSecretKey());
             TxFrameList removed;
             auto txSet =
                 makeTxSetFromTransactions({txDupeSigner}, *app, 0, 0, removed);
@@ -697,7 +698,7 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
         SECTION("signer overlap with default account signer")
         {
             auto rootTx =
-                transactionWithV2Precondition(*app, root, 1, 100, cond);
+                transactionWithV2Precondition(*app, *root, 1, 100, cond);
             TxFrameList removed;
             auto txSet =
                 makeTxSetFromTransactions({rootTx}, *app, 0, 0, removed);
@@ -705,13 +706,13 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
         }
         SECTION("signer overlap with added account signer")
         {
-            auto sk1 = makeSigner(root, 100);
+            auto sk1 = makeSigner(*root, 100);
             a1.setOptions(setSigner(sk1));
 
             auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
             SECTION("signature present")
             {
-                tx->addSignature(root.getSecretKey());
+                tx->addSignature(root->getSecretKey());
 
                 TxFrameList removed;
                 auto txSet =
@@ -729,12 +730,12 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
         SECTION("signer overlap with added account signer - both "
                 "signers used")
         {
-            auto sk1 = makeSigner(root, 100);
+            auto sk1 = makeSigner(*root, 100);
             a1.setOptions(setSigner(sk1));
 
             auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
-                                              {root.op(payment(a1, 1))}, {root},
-                                              cond);
+                                              {root->op(payment(a1, 1))},
+                                              {*root}, cond);
 
             TxFrameList removed;
             auto txSet = makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
@@ -765,7 +766,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         }
 
         // set up world
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
 
         int64 startingBalance =
             app->getLedgerManager().getLastMinBalance(0) + 10000000;
@@ -776,7 +777,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         for (uint32 i = 0; i < nbTransactions; i++)
         {
             std::string nameI = fmt::format("Base{}", i);
-            auto aI = root.create(nameI, startingBalance);
+            auto aI = root->create(nameI, startingBalance);
             accounts.push_back(aI);
 
             auto tx = makeMultiPayment(aI, aI, 1, 1000, 0, 10);
@@ -786,7 +787,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         for (uint32 k = 1; k <= extraAccounts; k++)
         {
             std::string nameI = fmt::format("Extra{}", k);
-            auto aI = root.create(nameI, startingBalance);
+            auto aI = root->create(nameI, startingBalance);
             accounts.push_back(aI);
 
             auto tx = makeMultiPayment(aI, aI, 2, 1000, k, 100);
@@ -982,7 +983,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     modifySorobanNetworkConfig(*app, [max](SorobanNetworkConfig& cfg) {
         cfg.mLedgerMaxTxCount = max;
@@ -1024,7 +1025,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
         while (totalSize < MAX_TX_SET_ALLOWANCE)
         {
-            auto a = root.create(fmt::format("A{}", txCount++), 500000000);
+            auto a = root->create(fmt::format("A{}", txCount++), 500000000);
             txs.emplace_back(makeTx(a, phase));
             totalSize += xdr::xdr_size(txs.back()->getEnvelope());
         }
@@ -1080,13 +1081,13 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
 
-        auto destAccount = root.create("destAccount", 500000000);
+        auto destAccount = root->create("destAccount", 500000000);
 
         SECTION("classic")
         {
-            auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
+            auto tx = makeMultiPayment(destAccount, *root, 1, 100, 0, 1);
 
             TxFrameList invalidTxs;
             auto txSet =
@@ -1104,7 +1105,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             });
             SorobanResources resources;
             auto sorobanTx = createUploadWasmTx(
-                *app, root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
+                *app, *root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             PerPhaseTransactionList invalidTxs;
             invalidTxs.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
@@ -1133,13 +1134,13 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         modifySorobanNetworkConfig(
             *app, [](SorobanNetworkConfig& cfg) { cfg.mLedgerMaxTxCount = 2; });
 
-        auto root = TestAccount::createRoot(*app);
-        auto acc1 = root.create("account1", 500000000);
-        auto acc2 = root.create("account2", 500000000);
-        auto acc3 = root.create("account3", 500000000);
-        auto acc4 = root.create("account4", 500000000);
-        auto acc5 = root.create("account5", 500000000);
-        auto acc6 = root.create("account6", 500000000);
+        auto root = app->getRoot();
+        auto acc1 = root->create("account1", 500000000);
+        auto acc2 = root->create("account2", 500000000);
+        auto acc3 = root->create("account3", 500000000);
+        auto acc4 = root->create("account4", 500000000);
+        auto acc5 = root->create("account5", 500000000);
+        auto acc6 = root->create("account6", 500000000);
 
         // Ensure these accounts don't overlap with classic tx (with root source
         // account)
@@ -1147,7 +1148,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                                              acc4, acc5, acc6};
 
         // Valid classic
-        auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
+        auto tx = makeMultiPayment(acc1, *root, 1, 100, 0, 1);
 
         SorobanNetworkConfig conf =
             app->getLedgerManager().getLastClosedSorobanNetworkConfig();
@@ -1396,12 +1397,12 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
-    auto accountA = root.create("accountA", 5000000000);
-    auto accountB = root.create("accountB", 5000000000);
-    auto accountC = root.create("accountC", 5000000000);
-    auto accountD = root.create("accountD", 5000000000);
+    auto accountA = root->create("accountA", 5000000000);
+    auto accountB = root->create("accountB", 5000000000);
+    auto accountC = root->create("accountC", 5000000000);
+    auto accountD = root->create("accountD", 5000000000);
 
     auto seqNumA = accountA.getLastSequenceNumber();
     auto seqNumB = accountB.getLastSequenceNumber();
@@ -1593,12 +1594,12 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
         uniform_int_distribution<> addFeeDistr(0, 5);
         uniform_int_distribution<> txCountDistr(1, 30);
 
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
 
         int nextAccId = 1;
 
         auto genTx = [&]() {
-            auto account = root.create(std::to_string(nextAccId), 5000000000);
+            auto account = root->create(std::to_string(nextAccId), 5000000000);
             ++nextAccId;
             uint32 ops = numOpsDistr(Catch::rng());
             int fee = ops * feeDistr(Catch::rng()) + addFeeDistr(Catch::rng());
@@ -1705,7 +1706,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     overrideSorobanNetworkConfigForTest(*app);
     int64 startingBalance =
         app->getLedgerManager().getLastMinBalance(0) + 10000000;
@@ -1713,7 +1714,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     std::vector<TestAccount> accounts;
     int txCnt = 0;
     auto addTx = [&](int nbOps, uint32_t fee) {
-        auto account = root.create(std::to_string(txCnt++), startingBalance);
+        auto account = root->create(std::to_string(txCnt++), startingBalance);
         accounts.push_back(account);
         return makeSelfPayment(account, nbOps, fee);
     };
@@ -1722,7 +1723,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     resources.instructions = 3'000'000;
     resources.readBytes = 0;
     resources.writeBytes = 2000;
-    auto dummyAccount = root.create("dummy", startingBalance);
+    auto dummyAccount = root->create("dummy", startingBalance);
     auto dummyUploadTx =
         createUploadWasmTx(*app, dummyAccount, 100, 1000, resources);
     resources.footprint.readWrite.emplace_back();
@@ -1735,7 +1736,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     resourceFee += rentFee;
     resources.footprint.readWrite.pop_back();
     auto addSorobanTx = [&](uint32_t inclusionFee) {
-        auto account = root.create(std::to_string(txCnt++), startingBalance);
+        auto account = root->create(std::to_string(txCnt++), startingBalance);
         accounts.push_back(account);
         return createUploadWasmTx(*app, account, inclusionFee, resourceFee,
                                   resources);
@@ -1862,24 +1863,24 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     std::vector<TestAccount> accounts;
     for (int i = 0; i < 1000; ++i)
     {
         std::string accountName = fmt::format("A{}", accounts.size());
-        accounts.push_back(root.create(accountName.c_str(), 500000000));
+        accounts.push_back(root->create(accountName.c_str(), 500000000));
     }
 
     using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
-    auto makeTxUpgradePair = [&](HerderImpl& herder,
-                                 TxSetXDRFrameConstPtr txSet,
-                                 uint64_t closeTime,
-                                 SVUpgrades const& upgrades) {
-        StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), closeTime, upgrades, root.getSecretKey());
-        auto v = xdr::xdr_to_opaque(sv);
-        return TxPair{v, txSet};
-    };
+    auto makeTxUpgradePair =
+        [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
+            SVUpgrades const& upgrades) {
+            StellarValue sv =
+                herder.makeStellarValue(txSet->getContentsHash(), closeTime,
+                                        upgrades, root->getSecretKey());
+            auto v = xdr::xdr_to_opaque(sv);
+            return TxPair{v, txSet};
+        };
     auto makeTxPair = [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet,
                           uint64_t closeTime) {
         return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps);
@@ -1912,7 +1913,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
         std::generate(std::begin(txs), std::end(txs), [&]() {
             accounts[index].loadSequenceNumber();
-            return makeMultiPayment(root, accounts[index++], nbOps, 1000, 0,
+            return makeMultiPayment(*root, accounts[index++], nbOps, 1000, 0,
                                     feeMulti);
         });
 
@@ -2143,14 +2144,14 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // Build a transaction set containing one transaction (which
             // could be any transaction that is valid in all ways aside from
             // its time bounds) with the given minTime and maxTime.
-            auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
+            auto tx = makeMultiPayment(*root, *root, 10, 1000, 0, 100);
             setMinTime(tx, minTime);
             setMaxTime(tx, maxTime);
             auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
                             ? tx->getMutableEnvelope().v0().signatures
                             : tx->getMutableEnvelope().v1().signatures;
             sig.clear();
-            tx->addSignature(root.getSecretKey());
+            tx->addSignature(root->getSecretKey());
             auto [txSet, applicableTxSet] =
                 testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
                     {tx}, *app,
@@ -2908,14 +2909,14 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
 
     auto makeTxs = [&](Application::pointer app) {
         auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         auto a1 = TestAccount{*app, getAccount("A")};
         auto b1 = TestAccount{*app, getAccount("B")};
 
-        auto tx1 = root.tx({createAccount(a1, minBalance2)});
-        auto tx2 = root.tx({createAccount(b1, minBalance2)});
+        auto tx1 = root->tx({createAccount(a1, minBalance2)});
+        auto tx2 = root->tx({createAccount(b1, minBalance2)});
 
-        return std::make_tuple(root, a1, b1, tx1, tx2);
+        return std::make_tuple(*root, a1, b1, tx1, tx2);
     };
 
     setup();
@@ -3629,10 +3630,10 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             [&]() {
                 if (currentALedger() == (destinationLedger - 1) && !submitted)
                 {
-                    auto root = TestAccount::createRoot(*A);
+                    auto root = A->getRoot();
                     SorobanResources resources;
                     auto sorobanTx = createUploadWasmTx(
-                        *A, root, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
+                        *A, *root, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
                     REQUIRE(
                         herderA.recvTransaction(sorobanTx, true).code ==
                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
@@ -4313,13 +4314,13 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& tq = herder.getTransactionQueue();
 
-    auto root = TestAccount::createRoot(*app);
-    auto acc = root.create("A", lm.getLastMinBalance(2));
+    auto root = app->getRoot();
+    auto acc = root->create("A", lm.getLastMinBalance(2));
 
     auto tx1a = acc.tx({payment(acc, 1)});
-    auto tx1r = root.tx({bumpSequence(INT64_MAX)});
+    auto tx1r = root->tx({bumpSequence(INT64_MAX)});
     // this will be invalid after tx1r gets applied
-    auto tx2r = root.tx({payment(root, 1)});
+    auto tx2r = root->tx({payment(*root, 1)});
 
     herder.recvTransaction(tx1a, false);
     herder.recvTransaction(tx1r, false);
@@ -4397,7 +4398,7 @@ TEST_CASE("do not flood too many soroban transactions",
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& tq = herder.getSorobanTransactionQueue();
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     std::vector<TestAccount> accs;
 
     // number of accounts to use
@@ -4410,7 +4411,7 @@ TEST_CASE("do not flood too many soroban transactions",
     for (int i = 0; i < nbAccounts; ++i)
     {
         accs.emplace_back(
-            root.create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
+            root->create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
     }
     std::deque<uint32> inclusionFees;
 
@@ -4442,7 +4443,7 @@ TEST_CASE("do not flood too many soroban transactions",
     };
 
     auto tx1a = genTx(accs[0], false);
-    auto tx1r = genTx(root, false);
+    auto tx1r = genTx(*root, false);
     int numTx = 2;
     for (int i = 1; i < accs.size(); i++)
     {
@@ -4496,7 +4497,7 @@ TEST_CASE("do not flood too many soroban transactions",
 
         // Submit an expensive tx that will be broadcasted before cheaper ones
         simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
-        genTx(root, true);
+        genTx(*root, true);
 
         // Wait half a ledger to flood _at least_ 1 ledger worth of traffic
         simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
@@ -4518,7 +4519,7 @@ TEST_CASE("do not flood too many soroban transactions",
         // enough quota
         resources.readBytes = 200 * 1024;
 
-        genTx(root, true);
+        genTx(*root, true);
         simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
         REQUIRE(numBroadcast == 0);
         simulation->crankForAtLeast(std::chrono::milliseconds(1000), false);
@@ -4562,7 +4563,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& tq = herder.getTransactionQueue();
 
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         std::vector<TestAccount> accs;
 
         // number of accounts to use
@@ -4576,11 +4577,11 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         uint32 curFeeOffset = 10000;
 
         accs.reserve(nbAccounts);
-        accs.emplace_back(root);
+        accs.emplace_back(*root);
         for (int i = 0; i < nbAccounts; ++i)
         {
             accs.emplace_back(
-                root.create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
+                root->create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
         }
         std::deque<uint32> fees;
 
@@ -4753,7 +4754,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& tq = herder.getTransactionQueue();
 
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         std::vector<TestAccount> accs;
 
         // number of accounts to use
@@ -4770,7 +4771,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
         for (int i = 0; i < nbAccounts; ++i)
         {
             auto accKey = getAccount(fmt::format("A{}", i));
-            accs.emplace_back(root.create(accKey, lm.getLastMinBalance(2)));
+            accs.emplace_back(root->create(accKey, lm.getLastMinBalance(2)));
             accountToIndex[accKey.getPublicKey()] = i;
         }
         std::vector<std::deque<std::pair<int64_t, bool>>> accountFees(
@@ -5245,9 +5246,9 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto cfg = getTestConfig();
         Application::pointer app = createTestApplication(clock, cfg);
 
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         auto acc = getAccount("acc");
-        auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
         REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
@@ -5260,9 +5261,9 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {CREATE_ACCOUNT};
         Application::pointer app = createTestApplication(clock, cfg);
 
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         auto acc = getAccount("acc");
-        auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
         REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
@@ -5276,9 +5277,9 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {MANAGE_DATA};
         Application::pointer app = createTestApplication(clock, cfg);
 
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         auto acc = getAccount("acc");
-        auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
         REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);

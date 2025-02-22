@@ -62,16 +62,16 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
         for_all_versions(*app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
 
-            auto root = TestAccount::createRoot(*app);
+            auto root = app->getRoot();
 
             Transaction tx;
-            tx.sourceAccount = toMuxedAccount(root);
+            tx.sourceAccount = toMuxedAccount(*root);
             tx.fee = baseFee;
-            tx.seqNum = root.nextSequenceNumber();
-            tx.operations.emplace_back(payment(root, 1));
+            tx.seqNum = root->nextSequenceNumber();
+            tx.operations.emplace_back(payment(*root, 1));
 
             xdr::xvector<DecoratedSignature, 20> signatures;
-            sign(signatures, root, ENVELOPE_TYPE_TX, tx);
+            sign(signatures, *root, ENVELOPE_TYPE_TX, tx);
             REQUIRE(submit(tx, signatures) == PENDING_RESULT);
         });
     }
@@ -83,17 +83,17 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
             for_all_versions(*app, [&]() {
                 closeLedgerOn(*app, 2, 1, 1, 2017);
 
-                auto root = TestAccount::createRoot(*app);
+                auto root = app->getRoot();
 
                 TransactionEnvelope env(ENVELOPE_TYPE_TX_V0);
                 auto& tx = env.v0().tx;
-                tx.sourceAccountEd25519 = root.getPublicKey().ed25519();
+                tx.sourceAccountEd25519 = root->getPublicKey().ed25519();
                 tx.fee = baseFee;
-                tx.seqNum = root.nextSequenceNumber();
-                tx.operations.emplace_back(payment(root, 1));
+                tx.seqNum = root->nextSequenceNumber();
+                tx.operations.emplace_back(payment(*root, 1));
                 tx.timeBounds = timeBounds;
 
-                sign(env.v0().signatures, root, ENVELOPE_TYPE_TX, 0, tx);
+                sign(env.v0().signatures, *root, ENVELOPE_TYPE_TX, 0, tx);
 
                 REQUIRE(submit(env) == res);
             });
@@ -131,16 +131,16 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
     }
 
     auto createV1 = [&]() {
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
 
         TransactionEnvelope env(ENVELOPE_TYPE_TX);
         auto& tx = env.v1().tx;
-        tx.sourceAccount = toMuxedAccount(root);
+        tx.sourceAccount = toMuxedAccount(*root);
         tx.fee = baseFee;
-        tx.seqNum = root.nextSequenceNumber();
-        tx.operations.emplace_back(payment(root, 1));
+        tx.seqNum = root->nextSequenceNumber();
+        tx.operations.emplace_back(payment(*root, 1));
 
-        sign(env.v1().signatures, root, ENVELOPE_TYPE_TX, tx);
+        sign(env.v1().signatures, *root, ENVELOPE_TYPE_TX, tx);
         return env;
     };
 
@@ -161,16 +161,17 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
     SECTION("fee-bump")
     {
         auto createFeeBump = [&]() {
-            auto root = TestAccount::createRoot(*app);
+            auto root = app->getRoot();
 
             TransactionEnvelope env(ENVELOPE_TYPE_TX_FEE_BUMP);
             auto& fb = env.feeBump().tx;
-            fb.feeSource = toMuxedAccount(root.getPublicKey());
+            fb.feeSource = toMuxedAccount(root->getPublicKey());
             fb.fee = 2 * baseFee;
             fb.innerTx.type(ENVELOPE_TYPE_TX);
             fb.innerTx.v1() = createV1().v1();
 
-            sign(env.feeBump().signatures, root, ENVELOPE_TYPE_TX_FEE_BUMP, fb);
+            sign(env.feeBump().signatures, *root, ENVELOPE_TYPE_TX_FEE_BUMP,
+                 fb);
             return env;
         };
 
@@ -458,7 +459,7 @@ TEST_CASE("manualclose", "[commandhandler]")
         REQUIRE(lastCloseTime() == initialCloseTime);
         REQUIRE(VirtualClock::to_time_t(app->getClock().system_now()) ==
                 initialCloseTime);
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
 
         SECTION("A single transaction is applied by a manual close")
         {
@@ -466,11 +467,11 @@ TEST_CASE("manualclose", "[commandhandler]")
             dle.lastModifiedLedgerSeq = lastLedgerNum();
             dle.data.type(DATA);
             auto de = LedgerTestUtils::generateValidDataEntry();
-            de.accountID = root.getPublicKey();
+            de.accountID = root->getPublicKey();
             dle.data.data() = de;
 
             auto dataOp = txtest::manageData(de.dataName, &de.dataValue);
-            auto txFrame = root.tx({dataOp});
+            auto txFrame = root->tx({dataOp});
             submitTx(txFrame->getEnvelope(), retStr);
 
             {
@@ -493,11 +494,11 @@ TEST_CASE("manualclose", "[commandhandler]")
             dle.lastModifiedLedgerSeq = lastLedgerNum();
             dle.data.type(DATA);
             auto de = LedgerTestUtils::generateValidDataEntry();
-            de.accountID = root.getPublicKey();
+            de.accountID = root->getPublicKey();
             dle.data.data() = de;
 
             auto dataOp = txtest::manageData(de.dataName, &de.dataValue);
-            auto txFrame = root.tx({dataOp});
+            auto txFrame = root->tx({dataOp});
             REQUIRE(txFrame->getEnvelope().type() == stellar::ENVELOPE_TYPE_TX);
             setMinTime(txFrame, 0);
             TimePoint const maxTime =
@@ -505,7 +506,7 @@ TEST_CASE("manualclose", "[commandhandler]")
                 getUpperBoundCloseTimeOffset(*app, lastCloseTime());
             setMaxTime(txFrame, maxTime);
             txFrame->getMutableEnvelope().v1().signatures.clear();
-            txFrame->addSignature(root);
+            txFrame->addSignature(*root);
 
             {
                 LedgerTxn checkLtx(app->getLedgerTxnRoot());

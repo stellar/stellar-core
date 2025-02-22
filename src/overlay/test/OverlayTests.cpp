@@ -2570,8 +2570,8 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 
     SECTION("do not advertise to peers that know about tx")
     {
-        auto root = TestAccount::createRoot(*apps[0]);
-        auto tx = root.tx({txtest::createAccount(
+        auto root = apps[0]->getRoot();
+        auto tx = root->tx({txtest::createAccount(
             txtest::getAccount("acc").getPublicKey(), 100)});
         auto adv =
             createAdvert(std::vector<std::shared_ptr<StellarMessage const>>{

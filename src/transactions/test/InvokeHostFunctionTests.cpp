@@ -3181,7 +3181,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto& lm = app->getLedgerManager();
 
     // Update the snapshot period and close a ledger to update
@@ -3195,7 +3195,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     const int64_t startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
-    auto a1 = root.create("A", startingBalance);
+    auto a1 = root->create("A", startingBalance);
 
     std::vector<TransactionEnvelope> txsToSign;
 

@@ -36,16 +36,16 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
     auto app = createTestApplication(
         clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
 
     SECTION("not supported")
     {
         for_versions({13}, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
+            auto a1 = root->create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(endSponsoringFutureReserves())}, {});
+                app->getNetworkID(), *root,
+                {root->op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
@@ -58,10 +58,10 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
     SECTION("not sponsored")
     {
         for_versions_from(14, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
+            auto a1 = root->create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(endSponsoringFutureReserves())}, {});
+                app->getNetworkID(), *root,
+                {root->op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);

@@ -146,7 +146,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
                                  bool claimIsSponsored = false)
 {
     // use root to merge and/or sponsor entries if desired
-    auto root = TestAccount::createRoot(app);
+    auto root = app.getRoot();
 
     auto const& lm = app.getLedgerManager();
     bool const isNative = asset.type() == ASSET_TYPE_NATIVE;
@@ -160,7 +160,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     // verify the delta in balances
     auto createAccNativeBeforeCreate = createAcc.getAvailableBalance();
     auto claimAccBalanceBeforeCreate = getAccAssetBalance(claimAcc);
-    auto rootBalanceBeforeCreate = root.getAvailableBalance();
+    auto rootBalanceBeforeCreate = root->getAvailableBalance();
 
     auto createAccAssetBeforeCreate = getAccAssetBalance(createAcc);
 
@@ -169,8 +169,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     if (createIsSponsored)
     {
         auto tx = transactionFrameFromOps(
-            app.getNetworkID(), root,
-            {root.op(beginSponsoringFutureReserves(createAcc)),
+            app.getNetworkID(), *root,
+            {root->op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(createClaimableBalance(asset, amount, claimants)),
              createAcc.op(endSponsoringFutureReserves())},
             {createAcc});
@@ -182,9 +182,9 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         REQUIRE(tx->getResultCode() == txSUCCESS);
 
         // the create is the second op in the tx
-        balanceID = root.getBalanceID(1);
+        balanceID = root->getBalanceID(1);
         checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
-                         &root.getPublicKey());
+                         &root->getPublicKey());
 
         ltx.commit();
     }
@@ -204,7 +204,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
     auto createAccNativeAfterCreate = createAcc.getAvailableBalance();
     auto claimAccBalanceAfterCreate = getAccAssetBalance(claimAcc);
-    auto rootBalanceAfterCreate = root.getAvailableBalance();
+    auto rootBalanceAfterCreate = root->getAvailableBalance();
 
     if (createIsSponsored)
     {
@@ -228,8 +228,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     {
         // We need to transfer the sponsorship before we can merge
         auto tx = transactionFrameFromOps(
-            app.getNetworkID(), root,
-            {root.op(beginSponsoringFutureReserves(createAcc)),
+            app.getNetworkID(), *root,
+            {root->op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(revokeSponsorship(claimableBalanceKey(balanceID))),
              createAcc.op(endSponsoringFutureReserves())},
             {createAcc});
@@ -242,15 +242,15 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         REQUIRE(tx->getResultCode() == txSUCCESS);
 
-        createAcc.merge(root);
+        createAcc.merge(*root);
     }
 
     // claim claimable balance
     if (claimIsSponsored)
     {
         auto tx = transactionFrameFromOps(
-            app.getNetworkID(), root,
-            {root.op(beginSponsoringFutureReserves(claimAcc)),
+            app.getNetworkID(), *root,
+            {root->op(beginSponsoringFutureReserves(claimAcc)),
              claimAcc.op(claimClaimableBalance(balanceID)),
              claimAcc.op(endSponsoringFutureReserves())},
             {claimAcc});
@@ -272,7 +272,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     {
         // check that entries are no longer sponsored
         auto createAccNativeAfterClaim = createAcc.getAvailableBalance();
-        auto rootBalanceAfterClaim = root.getAvailableBalance();
+        auto rootBalanceAfterClaim = root->getAvailableBalance();
 
         if (createIsSponsored)
         {
@@ -304,17 +304,17 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
 
     int64_t const trustLineLimit = INT64_MAX;
     int64_t const minBalance1 = lm.getLastMinBalance(1);
     int64_t const minBalance3 = lm.getLastMinBalance(3);
 
-    auto acc1 = root.create("acc1", minBalance3);
-    auto acc2 = root.create("acc2", minBalance3);
+    auto acc1 = root->create("acc1", minBalance3);
+    auto acc2 = root->create("acc2", minBalance3);
 
-    auto issuer = root.create("issuer", minBalance3);
+    auto issuer = root->create("issuer", minBalance3);
     auto usd = makeAsset(issuer, "USD");
     auto native = makeNativeAsset();
 
@@ -349,7 +349,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 }
                 else
                 {
-                    root.pay(acc1, amount);
+                    root->pay(acc1, amount);
                 }
             };
 
@@ -423,7 +423,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                         // to add in that case
                         if (i > 1)
                         {
-                            root.pay(acc1, lm.getLastReserve() * (i - 1));
+                            root->pay(acc1, lm.getLastReserve() * (i - 1));
                         }
 
                         c.v0().predicate = pred;
@@ -868,7 +868,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     acc1.createClaimableBalance(asset, amount, validClaimants);
 
                 // add reserve so we can create another balance entry
-                root.pay(acc1, minBalance1);
+                root->pay(acc1, minBalance1);
 
                 fundForClaimableBalance();
                 validateBalancesOnCreateAndClaim(acc1, acc2, asset, amount,
@@ -960,7 +960,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
         {
             issuer.pay(acc2, usd, trustLineLimit);
 
-            auto acc3 = root.create("acc3", minBalance3);
+            auto acc3 = root->create("acc3", minBalance3);
 
             auto balanceID = acc2.createClaimableBalance(
                 usd, trustLineLimit - 100, {makeClaimant(acc3, simplePred)});
@@ -996,7 +996,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                                INT64_MAX - issuer.getBalance());
 
             auto amount = issuer.getBalance();
-            root.pay(acc2, amount);
+            root->pay(acc2, amount);
 
             auto balanceId = acc2.createClaimableBalance(
                 native, amount, {makeClaimant(issuer, simplePred)});
@@ -1007,7 +1007,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
         SECTION("multiple creates in tx to test index in hash")
         {
-            root.pay(acc1, minBalance1);
+            root->pay(acc1, minBalance1);
             auto op1 = createClaimableBalance(native, 1, validClaimants);
             auto op2 = createClaimableBalance(native, 2, validClaimants);
 
@@ -1047,7 +1047,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
             issuer.setOptions(setSigner(sk1));
 
             validClaimants.emplace_back(
-                makeClaimant(root, makeSimplePredicate(2)));
+                makeClaimant(*root, makeSimplePredicate(2)));
 
             // acc2 and root are claimants
             auto balanceID =
@@ -1081,7 +1081,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
         SECTION("tx account is different than op account on successful create")
         {
             // Allow acc1 to submit an op from acc2.
-            root.pay(acc2, lm.getLastMinBalance(1));
+            root->pay(acc2, lm.getLastMinBalance(1));
             auto sk1 = makeSigner(acc1, 100);
             acc2.setOptions(setSigner(sk1));
 
@@ -1097,8 +1097,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
         SECTION("validate tx account is used in hash")
         {
             // make new accounts so sequence numbers are the same
-            auto accA = root.create("accA", minBalance3);
-            auto accB = root.create("accB", lm.getLastMinBalance(4));
+            auto accA = root->create("accA", minBalance3);
+            auto accB = root->create("accB", lm.getLastMinBalance(4));
 
             // Allow accA to submit an op from accB.
             auto sk1 = makeSigner(accA, 100);
@@ -1151,13 +1151,13 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
             closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2, 1, 2016);
 
-            REQUIRE_THROWS_AS(acc1.merge(root), ex_ACCOUNT_MERGE_IS_SPONSOR);
+            REQUIRE_THROWS_AS(acc1.merge(*root), ex_ACCOUNT_MERGE_IS_SPONSOR);
         }
         SECTION("claimable balance sponsorship can only be transferred")
         {
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(acc1)),
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(acc1)),
                  acc1.op(createClaimableBalance(native, 1, validClaimants)),
                  acc1.op(endSponsoringFutureReserves())},
                 {acc1});
@@ -1169,12 +1169,12 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
             REQUIRE(tx->getResultCode() == txSUCCESS);
 
-            auto balanceID = root.getBalanceID(1);
+            auto balanceID = root->getBalanceID(1);
 
             // try to remove sponsorship
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(revokeSponsorship(claimableBalanceKey(balanceID)))},
+                app->getNetworkID(), *root,
+                {root->op(revokeSponsorship(claimableBalanceKey(balanceID)))},
                 {});
 
             TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);
@@ -1201,7 +1201,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
         SECTION("too many sponsoring multiple claimants")
         {
             validClaimants.emplace_back(
-                makeClaimant(root, makeSimplePredicate(1)));
+                makeClaimant(*root, makeSimplePredicate(1)));
             validClaimants.emplace_back(
                 makeClaimant(acc1, makeSimplePredicate(1)));
 
@@ -1234,8 +1234,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     issuer.pay(acc2, idr, 1);
 
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
-                        {root.op(beginSponsoringFutureReserves(acc2)),
+                        app->getNetworkID(), *root,
+                        {root->op(beginSponsoringFutureReserves(acc2)),
                          acc2.op(
                              createClaimableBalance(idr, 1, validClaimants)),
                          acc2.op(endSponsoringFutureReserves())},
@@ -1263,13 +1263,13 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 }
 
                 {
-                    auto balanceID = root.getBalanceID(1);
+                    auto balanceID = root->getBalanceID(1);
 
                     auto claimOp = isClawback
                                        ? clawbackClaimableBalance(balanceID)
                                        : claimClaimableBalance(balanceID);
                     auto tx2 = transactionFrameFromOps(
-                        app->getNetworkID(), root, {claimAccount.op(claimOp)},
+                        app->getNetworkID(), *root, {claimAccount.op(claimOp)},
                         {claimAccount});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());

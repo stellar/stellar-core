@@ -50,7 +50,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         nodes = simulation->getNodes();
         std::shared_ptr<Application> app0 = nodes[0];
 
-        auto root = TestAccount::createRoot(*app0);
+        auto root = app0->getRoot();
 
         // directly create a bunch of accounts by cloning the root account (one
         // per tx so that we can easily identify them)
@@ -58,7 +58,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             LedgerEntry gen;
             {
                 LedgerTxn ltx(app0->getLedgerTxnRoot());
-                gen = stellar::loadAccount(ltx, root.getPublicKey()).current();
+                gen = stellar::loadAccount(ltx, root->getPublicKey()).current();
             }
 
             for (int i = 0; i < nbTx; i++)
@@ -96,7 +96,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             simulation->crankForAtLeast(std::chrono::seconds(1), false);
         }
 
-        expectedSeq = root.getLastSequenceNumber() + 1;
+        expectedSeq = root->getLastSequenceNumber() + 1;
 
         LOG_DEBUG(DEFAULT_LOG, "Injecting work");
 

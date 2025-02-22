@@ -787,7 +787,7 @@ SorobanTest::updateSorobanNetworkConfig(
 SorobanTest::SorobanTest(Config cfg, bool useTestLimits,
                          std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
     : mApp(createTestApplication(mClock, cfg))
-    , mRoot(TestAccount::createRoot(getApp()))
+    , mRoot(*getApp().getRoot())
     , mDummyAccount(mRoot.create(
           "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
 {
@@ -798,7 +798,7 @@ SorobanTest::SorobanTest(Application::pointer app, Config cfg,
                          bool useTestLimits,
                          std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
     : mApp(app)
-    , mRoot(TestAccount::createRoot(getApp()))
+    , mRoot(*getApp().getRoot())
     , mDummyAccount(mRoot.create(
           "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
 {

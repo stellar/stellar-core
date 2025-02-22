@@ -261,10 +261,10 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
 
     auto txSeqA1T0 = transaction(*app, account1, 0, 1, 200);
     auto txSeqA1T1 = transaction(*app, account1, 1, 1, 200);
@@ -530,10 +530,10 @@ testTransactionQueueBasicScenarios()
     auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
 
     auto txSeqA1T0 = transaction(*app, account1, 0, 1, 200);
     auto txSeqA1T1 = transaction(*app, account1, 1, 1, 200);
@@ -773,13 +773,13 @@ TEST_CASE("TransactionQueue hitting the rate limit",
     auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
-    auto account4 = root.create("a4", minBalance2);
-    auto account5 = root.create("a5", minBalance2);
-    auto account6 = root.create("a6", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
+    auto account4 = root->create("a4", minBalance2);
+    auto account5 = root->create("a5", minBalance2);
+    auto account6 = root->create("a6", minBalance2);
 
     TransactionQueueTest testQueue{queue};
     std::vector<TransactionFrameBasePtr> txs;
@@ -854,9 +854,9 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
     auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
 
     // use bumpSequence to update account1's seqLedger
     account1.bumpSequence(1);
@@ -965,7 +965,7 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
         {
             SignerKey rootKey;
             rootKey.type(SIGNER_KEY_TYPE_ED25519);
-            rootKey.ed25519() = root.getPublicKey().ed25519();
+            rootKey.ed25519() = root->getPublicKey().ed25519();
 
             cond.extraSigners.emplace_back(rootKey);
             auto tx =
@@ -976,7 +976,7 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
 
             SECTION("first signature missing")
             {
-                tx->addSignature(root.getSecretKey());
+                tx->addSignature(root->getSecretKey());
                 test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
                 tx->addSignature(account2.getSecretKey());
@@ -989,7 +989,7 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
                 tx->addSignature(account2.getSecretKey());
                 test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
-                tx->addSignature(root.getSecretKey());
+                tx->addSignature(root->getSecretKey());
                 test.add(tx,
                          TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             }
@@ -1127,14 +1127,14 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
 
     auto app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
 
-    auto tx = createUploadWasmTx(*app, root, 10'000'000,
+    auto tx = createUploadWasmTx(*app, *root, 10'000'000,
                                  DEFAULT_TEST_RESOURCE_FEE, resources);
 
     // Soroban tx is not supported
@@ -1152,8 +1152,8 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
     const int64_t startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
-    auto root = TestAccount::createRoot(*app);
-    auto a1 = root.create("A", startingBalance);
+    auto root = app->getRoot();
+    auto a1 = root->create("A", startingBalance);
 
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     auto resources = defaultUploadWasmResourcesWithoutFootprint(
@@ -1254,9 +1254,9 @@ TEST_CASE("Soroban TransactionQueue limits",
         cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions;
     });
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
 
     SorobanNetworkConfig conf =
         app->getLedgerManager().getLastClosedSorobanNetworkConfig();
@@ -1272,7 +1272,7 @@ TEST_CASE("Soroban TransactionQueue limits",
     auto resAdjusted = resources;
     resAdjusted.instructions = static_cast<uint32>(conf.txMaxInstructions());
 
-    auto tx = createUploadWasmTx(*app, root, initialInclusionFee, resourceFee,
+    auto tx = createUploadWasmTx(*app, *root, initialInclusionFee, resourceFee,
                                  resAdjusted);
 
     REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
@@ -1290,12 +1290,12 @@ TEST_CASE("Soroban TransactionQueue limits",
             ihf0.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
 
             badTx =
-                transactionFrameFromOps(app->getNetworkID(), root, {op0}, {});
+                transactionFrameFromOps(app->getNetworkID(), *root, {op0}, {});
         }
         SECTION("negative inclusion fee")
         {
             badTx =
-                feeBump(*app, root, tx, tx->declaredSorobanResourceFee() - 1,
+                feeBump(*app, *root, tx, tx->declaredSorobanResourceFee() - 1,
                         /* useInclusionAsFullFee */ true);
 
             REQUIRE(badTx->getFullFee() < badTx->declaredSorobanResourceFee());
@@ -1311,7 +1311,7 @@ TEST_CASE("Soroban TransactionQueue limits",
             {
                 fee = INT64_MIN;
             }
-            badTx = feeBump(*app, root, tx, fee,
+            badTx = feeBump(*app, *root, tx, fee,
                             /* useInclusionAsFullFee */ true);
 
             REQUIRE(badTx->getFullFee() < 0);
@@ -1573,7 +1573,7 @@ TEST_CASE("Soroban TransactionQueue limits",
         // Generic tx, takes 1/2 of instruction limits
         resources.instructions =
             static_cast<uint32>(conf.ledgerMaxInstructions() / 2);
-        tx = createUploadWasmTx(*app, root, initialInclusionFee, resourceFee,
+        tx = createUploadWasmTx(*app, *root, initialInclusionFee, resourceFee,
                                 resources);
 
         SECTION("generic fits")
@@ -1692,14 +1692,14 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
     auto app = createTestApplication(clock, cfg);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
-    auto account4 = root.create("a4", minBalance2);
-    auto account5 = root.create("a5", minBalance2);
-    auto account6 = root.create("a6", minBalance2);
-    auto account7 = root.create("a7", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
+    auto account4 = root->create("a4", minBalance2);
+    auto account5 = root->create("a5", minBalance2);
+    auto account6 = root->create("a6", minBalance2);
+    auto account7 = root->create("a7", minBalance2);
 
     TxQueueLimiter limiter(1, *app, false);
 
@@ -1873,13 +1873,13 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
     auto app = createTestApplication(clock, cfg);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
-    auto account4 = root.create("a4", minBalance2);
-    auto account5 = root.create("a5", minBalance2);
-    auto account6 = root.create("a6", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
+    auto account4 = root->create("a4", minBalance2);
+    auto account5 = root->create("a5", minBalance2);
+    auto account6 = root->create("a6", minBalance2);
 
     // 3 * 3 = 9 operations limit, 3 * 1 = 3 DEX operations limit.
     TxQueueLimiter limiter(3, *app, false);
@@ -2115,8 +2115,8 @@ TEST_CASE("transaction queue starting sequence boundary",
     auto app = createTestApplication(clock, getTestConfig());
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto acc1 = root.create("a1", minBalance2);
+    auto root = app->getRoot();
+    auto acc1 = root->create("a1", minBalance2);
 
     closeLedger(*app);
     closeLedger(*app);
@@ -2158,10 +2158,10 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2) +
                              DEFAULT_TEST_RESOURCE_FEE;
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
-    auto account3 = root.create("a3", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
 
     overrideSorobanNetworkConfigForTest(*app);
 
@@ -2450,7 +2450,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                 {
                     // Top off account3 balance to be able to pay for fb2
                     // (assuming discount from fb1)
-                    root.pay(account3, (9 * fb1->getInclusionFee() - 1));
+                    root->pay(account3, (9 * fb1->getInclusionFee() - 1));
                     auto tx2 =
                         transaction(*app, account1, 1, 1, 100, 1, isSoroban);
                     auto fb2 = feeBump(*app, account3, tx2,
@@ -2529,9 +2529,9 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
     auto app = createTestApplication(clock, cfg);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto root = TestAccount::createRoot(*app);
-    auto account1 = root.create("a1", minBalance2);
-    auto account2 = root.create("a2", minBalance2);
+    auto root = app->getRoot();
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
 
     auto setupTransactions = [&](TransactionQueueTest& test, bool isSoroban) {
         std::vector<TransactionFrameBasePtr> txs;
@@ -2708,17 +2708,17 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& tq = herder.getTransactionQueue();
 
-    auto root = TestAccount::createRoot(*app);
-    auto acc = root.create("A", lm.getLastMinBalance(2));
-    auto acc2 = root.create("B", lm.getLastMinBalance(2));
-    auto acc3 = root.create("C", lm.getLastMinBalance(2));
+    auto root = app->getRoot();
+    auto acc = root->create("A", lm.getLastMinBalance(2));
+    auto acc2 = root->create("B", lm.getLastMinBalance(2));
+    auto acc3 = root->create("C", lm.getLastMinBalance(2));
 
-    auto tx1a = root.tx({payment(root, 1)});
-    root.loadSequenceNumber();
-    auto tx1b = root.tx({payment(root, 2)});
-    auto tx2 = acc.tx({payment(root, 1)});
-    auto tx3 = acc2.tx({payment(root, 1)});
-    auto tx4 = acc3.tx({payment(root, 1)});
+    auto tx1a = root->tx({payment(*root, 1)});
+    root->loadSequenceNumber();
+    auto tx1b = root->tx({payment(*root, 2)});
+    auto tx2 = acc.tx({payment(*root, 1)});
+    auto tx3 = acc2.tx({payment(*root, 1)});
+    auto tx4 = acc3.tx({payment(*root, 1)});
 
     herder.recvTransaction(tx1a, false);
     herder.recvTransaction(tx2, false);
@@ -2728,7 +2728,7 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
-        root.loadSequenceNumber();
+        root->loadSequenceNumber();
         auto [txSet, _] = makeTxSetFromTransactions({tx1b, tx2}, *app, 0, 0);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);

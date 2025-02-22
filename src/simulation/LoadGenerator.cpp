@@ -96,6 +96,7 @@ LoadGenerator::LoadGenerator(Application& app)
           mApp.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mApplyOpTimer(
           mApp.getMetrics().NewTimer({"ledger", "operation", "apply"}))
+    , mRoot(app.getRoot())
     , mLoadgenComplete(
           mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
     , mLoadgenFail(
@@ -150,18 +151,6 @@ LoadGenerator::getMode(std::string const& mode)
     {
         throw std::runtime_error(
             fmt::format(FMT_STRING("Unknown loadgen mode: {}"), mode));
-    }
-}
-
-void
-LoadGenerator::createRootAccount()
-{
-    releaseAssert(!mRoot);
-    auto rootTestAccount = TestAccount::createRoot(mApp);
-    mRoot = make_shared<TestAccount>(rootTestAccount);
-    if (!mTxGenerator.loadAccount(mRoot))
-    {
-        CLOG_ERROR(LoadGen, "Could not retrieve root account!");
     }
 }
 
@@ -255,7 +244,6 @@ LoadGenerator::reset()
     mCreationSourceAccounts.clear();
     mContractInstances.clear();
     mLoadTimer.reset();
-    mRoot.reset();
     mStartTime.reset();
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
@@ -300,8 +288,6 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     {
         return;
     }
-
-    createRootAccount();
 
     if (cfg.txRate == 0)
     {

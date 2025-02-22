@@ -31,11 +31,11 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto& lm = app->getLedgerManager();
 
-    auto a = root.create("A", lm.getLastMinBalance(0) + 1000);
-    auto b = root.create("B", lm.getLastMinBalance(0) + 1000);
+    auto a = root->create("A", lm.getLastMinBalance(0) + 1000);
+    auto b = root->create("B", lm.getLastMinBalance(0) + 1000);
 
     SECTION("test success")
     {
@@ -55,7 +55,7 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
                 {
                     REQUIRE_THROWS_AS(
                         applyTx(
-                            {a.tx({payment(root, 1)},
+                            {a.tx({payment(*root, 1)},
                                   std::numeric_limits<SequenceNumber>::min())},
                             *app),
                         ex_txBAD_SEQ);
@@ -95,7 +95,7 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
 
             a.bumpSequence(newSeq);
             REQUIRE(a.loadSequenceNumber() == newSeq);
-            REQUIRE_THROWS_AS(applyTx({a.tx({payment(root, 1)})}, *app),
+            REQUIRE_THROWS_AS(applyTx({a.tx({payment(*root, 1)})}, *app),
                               ex_txBAD_SEQ);
         });
     }
@@ -106,7 +106,7 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
             closeLedger(*app);
             closeLedger(*app);
 
-            auto tx1 = transactionFrameFromOps(app->getNetworkID(), root,
+            auto tx1 = transactionFrameFromOps(app->getNetworkID(), *root,
                                                {a.op(bumpSequence(0))}, {a});
 
             auto runTest = [&](PreconditionsV2 const& cond) {

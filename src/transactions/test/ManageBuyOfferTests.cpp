@@ -59,9 +59,9 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
     int64_t const minBalance4PlusFees =
         app->getLedgerManager().getLastMinBalance(4) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer1 = root.create("issuer1", minBalancePlusFees);
-    auto issuer2 = root.create("issuer2", minBalancePlusFees);
+    auto root = app->getRoot();
+    auto issuer1 = root->create("issuer1", minBalancePlusFees);
+    auto issuer2 = root->create("issuer2", minBalancePlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer1.asset("CUR1");
@@ -70,7 +70,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
     SECTION("not supported before version 11")
     {
         for_versions({10}, *app, [&]() {
-            auto a1 = root.create("a1", minBalance1PlusFees);
+            auto a1 = root->create("a1", minBalance1PlusFees);
             REQUIRE_THROWS_AS(a1.manageBuyOffer(0, cur1, cur2, Price{1, 1}, 1),
                               ex_opNOT_SUPPORTED);
         });
@@ -84,7 +84,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("selling asset not valid")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, invalid, native, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -92,7 +92,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("buying asset not valid")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, native, invalid, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -100,7 +100,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("buying and selling same asset")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, cur1, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -108,7 +108,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("negative amount")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, cur2, Price{1, 1}, -1),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -116,7 +116,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("non-positive price numerator")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, cur2, Price{0, 1}, 1),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -127,7 +127,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("non-positive price denominator")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, cur2, Price{1, 0}, 1),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -138,7 +138,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("delete and create")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, cur2, Price{1, 1}, 0),
                     ex_MANAGE_BUY_OFFER_MALFORMED);
@@ -151,12 +151,12 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("no issuer")
             {
-                auto a1 = root.create("a1", minBalance3PlusFees);
+                auto a1 = root->create("a1", minBalance3PlusFees);
                 a1.changeTrust(cur1, INT64_MAX);
                 issuer1.pay(a1, cur1, 1);
 
                 // remove issuer
-                issuer1.merge(root);
+                issuer1.merge(*root);
 
                 SECTION("sell no issuer")
                 {
@@ -191,7 +191,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("sell no trust")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, native, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_SELL_NO_TRUST);
@@ -199,7 +199,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("sell no balance")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 a1.changeTrust(cur1, INT64_MAX);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, native, Price{1, 1}, 1),
@@ -211,7 +211,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
                 auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
                              static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
                 issuer1.setOptions(setFlags(toSet));
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 a1.changeTrust(cur1, INT64_MAX);
                 issuer1.allowTrust(cur1, a1);
                 issuer1.pay(a1, cur1, 1);
@@ -223,7 +223,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("buy no trust")
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, native, cur2, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_BUY_NO_TRUST);
@@ -233,7 +233,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
             {
                 auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
                 issuer2.setOptions(setFlags(toSet));
-                auto a1 = root.create("a1", minBalance1PlusFees);
+                auto a1 = root->create("a1", minBalance1PlusFees);
                 a1.changeTrust(cur2, INT64_MAX);
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, native, cur2, Price{1, 1}, 1),
@@ -244,7 +244,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
         SECTION("offer must exist and be owned by source account to modify or "
                 "delete")
         {
-            auto a1 = root.create("a1", minBalance3PlusFees);
+            auto a1 = root->create("a1", minBalance3PlusFees);
             a1.changeTrust(cur1, INT64_MAX);
             a1.changeTrust(cur2, INT64_MAX);
             issuer1.pay(a1, cur1, 1);
@@ -253,7 +253,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
             REQUIRE_THROWS_AS(a1.manageBuyOffer(1, cur1, cur2, Price{1, 1}, 1),
                               ex_MANAGE_BUY_OFFER_NOT_FOUND);
 
-            auto a2 = root.create("a2", minBalance3PlusFees);
+            auto a2 = root->create("a2", minBalance3PlusFees);
             a2.changeTrust(cur1, INT64_MAX);
             a2.changeTrust(cur2, INT64_MAX);
             issuer1.pay(a2, cur1, 1);
@@ -276,7 +276,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
                 const int64_t minBalance =
                     app->getLedgerManager().getLastMinBalance(3) + 3 * txfee;
 
-                auto a1 = root.create("a1", minBalance - 1);
+                auto a1 = root->create("a1", minBalance - 1);
                 a1.changeTrust(cur1, INT64_MAX);
                 a1.changeTrust(cur2, INT64_MAX);
                 issuer1.pay(a1, cur1, 1);
@@ -286,7 +286,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
                     a1.manageBuyOffer(0, cur1, cur2, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_LOW_RESERVE);
 
-                auto a2 = root.create("a2", minBalance);
+                auto a2 = root->create("a2", minBalance);
                 a2.changeTrust(cur1, INT64_MAX);
                 a2.changeTrust(cur2, INT64_MAX);
                 issuer1.pay(a2, cur1, 1);
@@ -297,7 +297,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("buying liabilities")
             {
-                auto a1 = root.create("a1", minBalance4PlusFees);
+                auto a1 = root->create("a1", minBalance4PlusFees);
                 a1.changeTrust(cur1, INT64_MAX);
                 a1.changeTrust(cur2, 2000);
                 issuer1.pay(a1, cur1, INT64_MAX);
@@ -316,7 +316,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
             SECTION("selling liabilities")
             {
-                auto a1 = root.create("a1", minBalance4PlusFees);
+                auto a1 = root->create("a1", minBalance4PlusFees);
                 a1.changeTrust(cur1, INT64_MAX);
                 a1.changeTrust(cur2, INT64_MAX);
                 issuer1.pay(a1, cur1, 1000);
@@ -446,10 +446,10 @@ TEST_CASE_VERSIONS("manage buy offer exactly crosses existing offers",
     int64_t const minBalance3PlusFees =
         app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", minBalancePlusFees);
-    auto a1 = root.create("a1", minBalance3PlusFees);
-    auto a2 = root.create("a2", minBalance3PlusFees);
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", minBalancePlusFees);
+    auto a1 = root->create("a1", minBalance3PlusFees);
+    auto a2 = root->create("a2", minBalance3PlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer.asset("CUR1");
@@ -499,10 +499,10 @@ TEST_CASE_VERSIONS(
     int64_t const minBalance3PlusFees =
         app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", minBalancePlusFees);
-    auto a1 = root.create("a1", minBalance3PlusFees);
-    auto a2 = root.create("a2", minBalance3PlusFees);
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", minBalancePlusFees);
+    auto a1 = root->create("a1", minBalance3PlusFees);
+    auto a2 = root->create("a2", minBalance3PlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer.asset("CUR1");
@@ -627,12 +627,12 @@ TEST_CASE_VERSIONS(
     int64_t const minBalance3PlusFees =
         app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", minBalancePlusFees);
-    auto a1 = root.create("a1", minBalance3PlusFees);
-    auto a2 = root.create("a2", minBalance3PlusFees);
-    auto a3 = root.create("a3", minBalance3PlusFees);
-    auto a4 = root.create("a4", minBalance3PlusFees);
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", minBalancePlusFees);
+    auto a1 = root->create("a1", minBalance3PlusFees);
+    auto a2 = root->create("a2", minBalance3PlusFees);
+    auto a3 = root->create("a3", minBalance3PlusFees);
+    auto a4 = root->create("a4", minBalance3PlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer.asset("CUR1");
@@ -782,12 +782,12 @@ TEST_CASE_VERSIONS(
     int64_t const minBalance3PlusFees =
         app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", minBalancePlusFees);
-    auto a1 = root.create("a1", minBalance3PlusFees);
-    auto a2 = root.create("a2", minBalance3PlusFees);
-    auto a3 = root.create("a3", minBalance3PlusFees);
-    auto a4 = root.create("a4", minBalance3PlusFees);
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", minBalancePlusFees);
+    auto a1 = root->create("a1", minBalance3PlusFees);
+    auto a2 = root->create("a2", minBalance3PlusFees);
+    auto a3 = root->create("a3", minBalance3PlusFees);
+    auto a4 = root->create("a4", minBalance3PlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer.asset("CUR1");
@@ -935,10 +935,10 @@ TEST_CASE_VERSIONS("manage buy offer with zero liabilities", "[tx][offers]")
     int64_t const minBalance3PlusFees =
         app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", minBalancePlusFees);
-    auto a1 = root.create("a1", minBalance3PlusFees);
-    auto a2 = root.create("a2", minBalance3PlusFees);
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", minBalancePlusFees);
+    auto a1 = root->create("a1", minBalance3PlusFees);
+    auto a2 = root->create("a2", minBalance3PlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer.asset("CUR1");
@@ -991,9 +991,9 @@ TEST_CASE_VERSIONS("manage buy offer releases liabilities before modify",
     int64_t const minBalance3PlusFees =
         app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", minBalancePlusFees);
-    auto a1 = root.create("a1", minBalance3PlusFees);
+    auto root = app->getRoot();
+    auto issuer = root->create("issuer", minBalancePlusFees);
+    auto a1 = root->create("a1", minBalance3PlusFees);
 
     auto native = makeNativeAsset();
     auto cur1 = issuer.asset("CUR1");

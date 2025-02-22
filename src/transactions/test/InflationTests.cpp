@@ -43,7 +43,7 @@ createTestAccounts(Application& app, int nbAccounts,
                    std::function<int(int)> getVote)
 {
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = app.getRoot();
 
     for (int i = 0; i < nbAccounts; i++)
     {
@@ -51,7 +51,7 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            root.create(to, bal);
+            root->create(to, bal);
 
             LedgerTxn ltx(app.getLedgerTxnRoot());
             auto account = stellar::loadAccount(ltx, to.getPublicKey());
@@ -222,8 +222,8 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
     std::vector<int64> expectedBalances;
 
-    auto root = TestAccount::createRoot(app);
-    auto txFrame = root.tx({inflation()});
+    auto root = app.getRoot();
+    auto txFrame = root->tx({inflation()});
     expectedFees += txFrame->getInclusionFee();
 
     expectedBalances = simulateInflation(
@@ -307,7 +307,7 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
 
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     auto getFeePool = [&] {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -334,15 +334,15 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
     auto target2 = TestAccount{*app, getAccount("target2"), 0};
 
     auto minBalance = app->getLedgerManager().getLastMinBalance(0);
-    auto rootBalance = root.getBalance();
+    auto rootBalance = root->getBalance();
 
-    auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
+    auto voter1tx = root->tx({createAccount(voter1, rootBalance / 6)});
     voter1tx->getMutableEnvelope().v0().tx.fee = 999999999;
     voter1tx->getMutableEnvelope().v0().signatures.clear();
-    voter1tx->addSignature(root.getSecretKey());
-    auto voter2tx = root.tx({createAccount(voter2, rootBalance / 3)});
-    auto target1tx = root.tx({createAccount(target1, minBalance)});
-    auto target2tx = root.tx({createAccount(target2, minBalance)});
+    voter1tx->addSignature(root->getSecretKey());
+    auto voter2tx = root->tx({createAccount(voter2, rootBalance / 3)});
+    auto target1tx = root->tx({createAccount(target1, minBalance)});
+    auto target2tx = root->tx({createAccount(target2, minBalance)});
 
     closeLedgerOn(*app, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx},
                   true);
@@ -361,7 +361,7 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
     REQUIRE(getFeePool() == 1000000499);
     REQUIRE(getTotalCoins() == 1000000000000000000);
 
-    auto beforeInflationRoot = root.getBalance();
+    auto beforeInflationRoot = root->getBalance();
     auto beforeInflationVoter1 = voter1.getBalance();
     auto beforeInflationVoter2 = voter2.getBalance();
     auto beforeInflationTarget1 = target1.getBalance();
@@ -372,7 +372,7 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
                 beforeInflationTarget2 + getFeePool() ==
             getTotalCoins());
 
-    auto inflationTx = root.tx({inflation()});
+    auto inflationTx = root->tx({inflation()});
 
     updateVersion();
 
@@ -382,7 +382,7 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
         REQUIRE(getFeePool() == 95361000000301);
         REQUIRE(getTotalCoins() == 1000095361000000298);
 
-        auto afterInflationRoot = root.getBalance();
+        auto afterInflationRoot = root->getBalance();
         auto afterInflationVoter1 = voter1.getBalance();
         auto afterInflationVoter2 = voter2.getBalance();
         auto afterInflationTarget1 = target1.getBalance();
@@ -409,7 +409,7 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
         REQUIRE(getFeePool() == 95361000000301);
         REQUIRE(getTotalCoins() == 1000190721000000000);
 
-        auto afterInflationRoot = root.getBalance();
+        auto afterInflationRoot = root->getBalance();
         auto afterInflationVoter1 = voter1.getBalance();
         auto afterInflationVoter2 = voter2.getBalance();
         auto afterInflationTarget1 = target1.getBalance();
@@ -444,7 +444,7 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
 
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     auto getFeePool = [&] {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -467,34 +467,34 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
     {
         for_versions_to(11, *app, [&] {
             closeLedgerOn(*app, 30, 6, 2014);
-            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root->inflation(), ex_INFLATION_NOT_TIME);
 
             REQUIRE(getInflationSeq() == 0);
 
             closeLedgerOn(*app, 1, 7, 2014);
 
-            auto txFrame = root.tx({inflation()});
+            auto txFrame = root->tx({inflation()});
 
             closeLedgerOn(*app, 7, 7, 2014, {txFrame});
             REQUIRE(getInflationSeq() == 1);
 
-            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root->inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 1);
 
             closeLedgerOn(*app, 8, 7, 2014);
-            root.inflation();
+            root->inflation();
             REQUIRE(getInflationSeq() == 2);
 
             closeLedgerOn(*app, 14, 7, 2014);
-            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root->inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 2);
 
             closeLedgerOn(*app, 15, 7, 2014);
-            root.inflation();
+            root->inflation();
             REQUIRE(getInflationSeq() == 3);
 
             closeLedgerOn(*app, 21, 7, 2014);
-            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root->inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 3);
         });
     }
@@ -633,7 +633,7 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
                 return market.addOffer(
                     a0, {cur1, native, Price{1, 1}, offerAmount});
             });
-            root.pay(a0, txfee);
+            root->pay(a0, txfee);
 
             closeLedgerOn(*app, 21, 7, 2014);
 
@@ -684,7 +684,7 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
     SECTION("not supported")
     {
         for_versions_from(12, *app, [&] {
-            REQUIRE_THROWS_AS(root.inflation(), ex_opNOT_SUPPORTED);
+            REQUIRE_THROWS_AS(root->inflation(), ex_opNOT_SUPPORTED);
         });
     }
 }

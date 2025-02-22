@@ -24,11 +24,11 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
-    auto a1 = root.create("A1", minBalance4);
-    auto gateway = root.create("gw", minBalance4);
+    auto a1 = root->create("A1", minBalance4);
+    auto gateway = root->create("gw", minBalance4);
     auto idr = makeAsset(gateway, "IDR");
     auto native = makeNativeAsset();
 
@@ -147,7 +147,7 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
             }
             SECTION("sponsor is not issuer")
             {
-                sponsoredClaimableBalance(root);
+                sponsoredClaimableBalance(*root);
             }
         }
 
@@ -196,7 +196,7 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
                     auto balanceID =
                         a1.createClaimableBalance(idr, 99, {validClaimant});
                     // root is not the issuer
-                    REQUIRE_THROWS_AS(root.clawbackClaimableBalance(balanceID),
+                    REQUIRE_THROWS_AS(root->clawbackClaimableBalance(balanceID),
                                       ex_CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
                 }
                 SECTION("assetCode12")
@@ -208,7 +208,7 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
                     auto balanceID =
                         a1.createClaimableBalance(asset12, 99, {validClaimant});
                     // root is not the issuer
-                    REQUIRE_THROWS_AS(root.clawbackClaimableBalance(balanceID),
+                    REQUIRE_THROWS_AS(root->clawbackClaimableBalance(balanceID),
                                       ex_CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
                 }
             }

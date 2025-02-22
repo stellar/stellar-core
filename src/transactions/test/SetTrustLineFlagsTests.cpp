@@ -116,10 +116,10 @@ TEST_CASE_VERSIONS("set trustline flags", "[tx][settrustlineflags]")
     auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
-    auto gateway = root.create("gw", minBalance4);
-    auto a1 = root.create("A1", minBalance4 + 10000);
-    auto a2 = root.create("A2", minBalance4);
+    auto root = app->getRoot();
+    auto gateway = root->create("gw", minBalance4);
+    auto a1 = root->create("A1", minBalance4 + 10000);
+    auto a2 = root->create("A2", minBalance4);
 
     auto idr = makeAsset(gateway, "IDR");
     auto native = makeNativeAsset();
@@ -383,21 +383,21 @@ TEST_CASE_VERSIONS("revoke from pool",
         clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     auto& lm = app->getLedgerManager();
     auto txFee = lm.getLastTxFee();
 
     auto minBal = [&](int32_t n) { return lm.getLastMinBalance(n); };
 
-    auto acc1 = root.create("acc1", minBal(10));
-    auto wrongBalanceIDAcc = root.create("wrong", minBal(0));
+    auto acc1 = root->create("acc1", minBal(10));
+    auto wrongBalanceIDAcc = root->create("wrong", minBal(0));
 
     auto native = makeNativeAsset();
-    auto cur1 = makeAsset(root, "CUR1");
-    auto cur2 = makeAsset(root, "CUR2");
+    auto cur1 = makeAsset(*root, "CUR1");
+    auto cur2 = makeAsset(*root, "CUR2");
 
-    root.setOptions(setFlags(AUTH_REVOCABLE_FLAG));
+    root->setOptions(setFlags(AUTH_REVOCABLE_FLAG));
 
     auto share12 =
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
@@ -428,25 +428,25 @@ TEST_CASE_VERSIONS("revoke from pool",
         {
             // try the incorrect balance ID
             REQUIRE_THROWS_AS(
-                root.clawbackClaimableBalance(wrongEnvelopeTypeBalanceID),
+                root->clawbackClaimableBalance(wrongEnvelopeTypeBalanceID),
                 ex_CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
 
             REQUIRE_THROWS_AS(
-                root.clawbackClaimableBalance(wrongOpIndexBalanceID),
+                root->clawbackClaimableBalance(wrongOpIndexBalanceID),
                 ex_CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
 
             REQUIRE_THROWS_AS(
-                root.clawbackClaimableBalance(wrongSourceAccountBalanceID),
+                root->clawbackClaimableBalance(wrongSourceAccountBalanceID),
                 ex_CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
 
             if (asset.type() == ASSET_TYPE_NATIVE)
             {
-                REQUIRE_THROWS_AS(root.clawbackClaimableBalance(balanceID),
+                REQUIRE_THROWS_AS(root->clawbackClaimableBalance(balanceID),
                                   ex_CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
             }
             else
             {
-                root.clawbackClaimableBalance(balanceID);
+                root->clawbackClaimableBalance(balanceID);
             }
         }
         else
@@ -467,7 +467,7 @@ TEST_CASE_VERSIONS("revoke from pool",
             if (asset.type() != ASSET_TYPE_NATIVE)
             {
                 REQUIRE_THROWS_AS(
-                    root.clawbackClaimableBalance(balanceID),
+                    root->clawbackClaimableBalance(balanceID),
                     ex_CLAWBACK_CLAIMABLE_BALANCE_NOT_CLAWBACK_ENABLED);
             }
 
@@ -490,8 +490,8 @@ TEST_CASE_VERSIONS("revoke from pool",
                 return acc1;
             }
 
-            REQUIRE(getIssuer(asset) == root.getPublicKey());
-            return root;
+            REQUIRE(getIssuer(asset) == root->getPublicKey());
+            return *root;
         };
 
         if (assetA.type() != ASSET_TYPE_NATIVE && !isIssuer(account, assetA))
@@ -527,7 +527,7 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                 auto preRevokeNumSponsoring = getNumSponsoring(*app, account);
 
-                root.denyTrust(asset, account, flagOp);
+                root->denyTrust(asset, account, flagOp);
                 REQUIRE(preRevokeNumSubEntries == account.getNumSubEntries() +
                                                       numOffers +
                                                       (2 * ctAssets.size()));
@@ -548,7 +548,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                                           Asset const& assetB) {
                 if (testClawback)
                 {
-                    root.setOptions(setFlags(AUTH_CLAWBACK_ENABLED_FLAG));
+                    root->setOptions(setFlags(AUTH_CLAWBACK_ENABLED_FLAG));
                 }
 
                 auto ctAsset = depositIntoPool(acc1, assetA, assetB);
@@ -570,18 +570,18 @@ TEST_CASE_VERSIONS("revoke from pool",
                     }
 
                     // this seqnum was used to create the balance ID's
-                    auto revokeSeqNum = root.getLastSequenceNumber();
-                    root.allowTrust(assetB, acc1);
+                    auto revokeSeqNum = root->getLastSequenceNumber();
+                    root->allowTrust(assetB, acc1);
 
-                    redeemBalance(testClawback, acc1, root, assetA, poolID,
+                    redeemBalance(testClawback, acc1, *root, assetA, poolID,
                                   revokeSeqNum, 0, 200);
-                    redeemBalance(testClawback, acc1, root, assetB, poolID,
+                    redeemBalance(testClawback, acc1, *root, assetB, poolID,
                                   revokeSeqNum, 0, 50);
                 }
 
                 SECTION("pool still exists")
                 {
-                    auto acc2 = root.create("acc2", minBal(10));
+                    auto acc2 = root->create("acc2", minBal(10));
 
                     // deposit from second account
                     depositIntoPool(acc2, assetA, assetB);
@@ -594,12 +594,12 @@ TEST_CASE_VERSIONS("revoke from pool",
                     checkPoolUseCounts(acc1, assetB, 0);
 
                     // this seqnum was used to create the balance ID's
-                    auto revokeSeqNum = root.getLastSequenceNumber();
-                    root.allowTrust(assetB, acc1);
+                    auto revokeSeqNum = root->getLastSequenceNumber();
+                    root->allowTrust(assetB, acc1);
 
-                    redeemBalance(testClawback, acc1, root, assetA, poolID,
+                    redeemBalance(testClawback, acc1, *root, assetA, poolID,
                                   revokeSeqNum, 0, 200);
-                    redeemBalance(testClawback, acc1, root, assetB, poolID,
+                    redeemBalance(testClawback, acc1, *root, assetB, poolID,
                                   revokeSeqNum, 0, 50);
                 }
             };
@@ -631,18 +631,18 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                 // Allow acc1 to submit an op from root
                 auto sk1 = makeSigner(acc1, 100);
-                root.setOptions(setSigner(sk1));
+                root->setOptions(setSigner(sk1));
 
                 auto revokeOp =
                     flagOp == TrustFlagOp::ALLOW_TRUST
-                        ? root.op(allowTrust(acc1, cur1, 0))
-                        : root.op(setTrustLineFlags(
+                        ? root->op(allowTrust(acc1, cur1, 0))
+                        : root->op(setTrustLineFlags(
                               acc1, cur1,
                               clearTrustLineFlags(AUTHORIZED_FLAG)));
-                applyCheck(acc1.tx({root.op(payment(acc1, 1)), revokeOp}),
+                applyCheck(acc1.tx({root->op(payment(acc1, 1)), revokeOp}),
                            *app);
 
-                root.allowTrust(cur1, acc1);
+                root->allowTrust(cur1, acc1);
 
                 auto revokeSeqNum = acc1.getLastSequenceNumber();
 
@@ -671,16 +671,16 @@ TEST_CASE_VERSIONS("revoke from pool",
                         REQUIRE(!loadLiquidityPool(ltx, poolBtc1));
                     }
 
-                    auto revokeSeqNum = root.getLastSequenceNumber();
-                    root.allowTrust(cur1, acc1);
+                    auto revokeSeqNum = root->getLastSequenceNumber();
+                    root->allowTrust(cur1, acc1);
 
-                    redeemBalance(false, acc1, root, cur1, poolBtc1,
+                    redeemBalance(false, acc1, *root, cur1, poolBtc1,
                                   revokeSeqNum, 0, 50);
 
                     // A claimable balance was not created for btc because acc1
                     // is the issuer
                     auto btcBalanceID =
-                        getRevokeBalanceID(root, root.getLastSequenceNumber(),
+                        getRevokeBalanceID(*root, root->getLastSequenceNumber(),
                                            acc1Btc, poolBtc1, 0);
                     REQUIRE_THROWS_AS(
                         acc1.claimClaimableBalance(btcBalanceID),
@@ -705,16 +705,16 @@ TEST_CASE_VERSIONS("revoke from pool",
                         REQUIRE(!loadLiquidityPool(ltx, pool1Usd));
                     }
 
-                    auto revokeSeqNum = root.getLastSequenceNumber();
-                    root.allowTrust(cur1, acc1);
+                    auto revokeSeqNum = root->getLastSequenceNumber();
+                    root->allowTrust(cur1, acc1);
 
-                    redeemBalance(false, acc1, root, cur1, pool1Usd,
+                    redeemBalance(false, acc1, *root, cur1, pool1Usd,
                                   revokeSeqNum, 0, 200);
 
                     // A claimable balance was not created for usd because acc1
                     // is the issuer
                     auto usdBalanceID =
-                        getRevokeBalanceID(root, root.getLastSequenceNumber(),
+                        getRevokeBalanceID(*root, root->getLastSequenceNumber(),
                                            acc1Usd, pool1Usd, 0);
                     REQUIRE_THROWS_AS(
                         acc1.claimClaimableBalance(usdBalanceID),
@@ -732,7 +732,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                     auto ctAsset = depositIntoPool(acc1, assetA, assetB);
                     auto poolID = xdrSha256(ctAsset.liquidityPool());
 
-                    auto acc2 = root.create("acc2", minBal(10));
+                    auto acc2 = root->create("acc2", minBal(10));
                     depositIntoPool(acc2, assetA, assetB);
 
                     checkLiquidityPool(*app, poolID, 400, 100, 200, 2);
@@ -743,8 +743,8 @@ TEST_CASE_VERSIONS("revoke from pool",
                         Asset const& destAsset, int64_t destAmount,
                         bool sendAssetA, ChangeTrustAsset const& ctAsset,
                         uint32_t numClaimableBalancesCreated) {
-                        root.pay(acc1, sendAsset, sendMax, destAsset,
-                                 destAmount, {});
+                        root->pay(acc1, sendAsset, sendMax, destAsset,
+                                  destAmount, {});
                         auto poolID = xdrSha256(ctAsset.liquidityPool());
 
                         if (sendAssetA)
@@ -784,24 +784,24 @@ TEST_CASE_VERSIONS("revoke from pool",
                 auto validateClaimableBalances =
                     [&](PoolID poolID, Asset const& claimAsset,
                         Asset const& failClaimAsset, int64_t amount) {
-                        auto revokeSeqNum = root.getLastSequenceNumber();
+                        auto revokeSeqNum = root->getLastSequenceNumber();
 
                         // we use cur2 to trigger the revoke, so authorize it
                         // here in case it's the claimAsset
-                        root.allowTrust(cur2, acc1);
+                        root->allowTrust(cur2, acc1);
 
                         if (claimAsset.type() != ASSET_TYPE_NATIVE)
                         {
                             acc1.changeTrust(claimAsset, amount);
                         }
 
-                        redeemBalance(false, acc1, root, claimAsset, poolID,
+                        redeemBalance(false, acc1, *root, claimAsset, poolID,
                                       revokeSeqNum, 0, amount);
 
                         // verify that no claimable balance was created for the
                         // other asset
                         auto balanceID = getRevokeBalanceID(
-                            root, revokeSeqNum, failClaimAsset, poolID, 0);
+                            *root, revokeSeqNum, failClaimAsset, poolID, 0);
                         REQUIRE_THROWS_AS(
                             acc1.claimClaimableBalance(balanceID),
                             ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
@@ -870,12 +870,12 @@ TEST_CASE_VERSIONS("revoke from pool",
                 auto noClaimableBalancesCreated = [&](PoolID poolID,
                                                       Asset const& assetA,
                                                       Asset const& assetB) {
-                    auto revokeSeqNum = root.getLastSequenceNumber();
+                    auto revokeSeqNum = root->getLastSequenceNumber();
 
                     auto balanceIdAssetA = getRevokeBalanceID(
-                        root, revokeSeqNum, assetA, poolID, 0);
+                        *root, revokeSeqNum, assetA, poolID, 0);
                     auto balanceIdAssetB = getRevokeBalanceID(
-                        root, revokeSeqNum, assetB, poolID, 0);
+                        *root, revokeSeqNum, assetB, poolID, 0);
 
                     REQUIRE_THROWS_AS(
                         acc1.claimClaimableBalance(balanceIdAssetA),
@@ -899,8 +899,8 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                     // the root account is used to make the trade in
                     // tradeAndRevoke
-                    root.changeTrust(acc1Btc, 39720);
-                    acc1.pay(root, acc1Btc, 39720);
+                    root->changeTrust(acc1Btc, 39720);
+                    acc1.pay(*root, acc1Btc, 39720);
 
                     // ceil((400*99)/(100-99)/(1-.003)) = 39720
                     tradeAndRevoke(acc1Btc, 39720, cur2, 99, true, shareBtc2,
@@ -921,8 +921,8 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                     // the root account is used to make the trade in
                     // tradeAndRevoke
-                    root.changeTrust(acc1Usd, 40021);
-                    acc1.pay(root, acc1Usd, 40021);
+                    root->changeTrust(acc1Usd, 40021);
+                    acc1.pay(*root, acc1Usd, 40021);
 
                     // ceil((100*399)/(400-399)/(1-.003)) = 40021
                     tradeAndRevoke(acc1Usd, 40021, cur2, 399, false, share2Usd,
@@ -946,9 +946,9 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                 // no claimable balance should've been created
                 auto cur1BalanceID = getRevokeBalanceID(
-                    root, root.getLastSequenceNumber(), cur1, pool12, 0);
+                    *root, root->getLastSequenceNumber(), cur1, pool12, 0);
                 auto cur2BalanceID = getRevokeBalanceID(
-                    root, root.getLastSequenceNumber(), cur2, pool12, 0);
+                    *root, root->getLastSequenceNumber(), cur2, pool12, 0);
 
                 REQUIRE_THROWS_AS(acc1.claimClaimableBalance(cur1BalanceID),
                                   ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
@@ -978,13 +978,13 @@ TEST_CASE_VERSIONS("revoke from pool",
                     auto ctAsset = depositIntoPool(acc1, assetA, assetB);
                     auto poolID = xdrSha256(ctAsset.liquidityPool());
 
-                    auto acc2 = root.create("acc2", minBal(10));
+                    auto acc2 = root->create("acc2", minBal(10));
                     depositIntoPool(acc2, assetA, assetB);
 
                     checkLiquidityPool(*app, poolID, 400, 100, 200, 2);
 
                     // ceil((400*10)/(100-10)/(1-.003)) = 45
-                    root.pay(acc2, assetA, 45, assetB, 10, {});
+                    root->pay(acc2, assetA, 45, assetB, 10, {});
 
                     checkLiquidityPool(*app, poolID, 445, 90, 200, 2);
 
@@ -993,23 +993,23 @@ TEST_CASE_VERSIONS("revoke from pool",
                     checkLiquidityPool(*app, poolID, 223, 45, 100, 1);
 
                     // redeem the claimable balances
-                    auto revokeSeqNum = root.getLastSequenceNumber();
-                    root.allowTrust(assetB, acc1);
+                    auto revokeSeqNum = root->getLastSequenceNumber();
+                    root->allowTrust(assetB, acc1);
 
-                    redeemBalance(false, acc1, root, assetA, poolID,
+                    redeemBalance(false, acc1, *root, assetA, poolID,
                                   revokeSeqNum, 0, 222);
-                    redeemBalance(false, acc1, root, assetB, poolID,
+                    redeemBalance(false, acc1, *root, assetB, poolID,
                                   revokeSeqNum, 0, 45);
 
                     // ceil((223*20)/(45-20)/(1-.003)) = 179
-                    root.pay(acc2, assetA, 179, assetB, 20, {});
+                    root->pay(acc2, assetA, 179, assetB, 20, {});
 
                     checkLiquidityPool(*app, poolID, 402, 25, 100, 1);
 
                     // now trade the other way
 
                     // ceil((25*40)/(402-40)/(1-.003)) = 3
-                    root.pay(acc2, assetB, 3, assetA, 40, {});
+                    root->pay(acc2, assetB, 3, assetA, 40, {});
 
                     checkLiquidityPool(*app, poolID, 362, 28, 100, 1);
                 };
@@ -1032,7 +1032,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                     auto ctAsset = depositIntoPool(acc1, assetA, assetB);
                     auto poolID = xdrSha256(ctAsset.liquidityPool());
 
-                    root.pay(acc1, assetA, 10);
+                    root->pay(acc1, assetA, 10);
 
                     auto market = TestMarket{*app};
                     auto offer = market.requireChangesWithOffer({}, [&] {
@@ -1044,12 +1044,12 @@ TEST_CASE_VERSIONS("revoke from pool",
                         {{offer.key, OfferState::DELETED}}, [&] {
                             revoke(acc1, assetToRevoke, {ctAsset}, 2);
 
-                            auto revokeSeqNum = root.getLastSequenceNumber();
-                            root.allowTrust(assetToRevoke, acc1);
+                            auto revokeSeqNum = root->getLastSequenceNumber();
+                            root->allowTrust(assetToRevoke, acc1);
 
-                            redeemBalance(false, acc1, root, assetA, poolID,
+                            redeemBalance(false, acc1, *root, assetA, poolID,
                                           revokeSeqNum, 0, 200);
-                            redeemBalance(false, acc1, root, assetB, poolID,
+                            redeemBalance(false, acc1, *root, assetB, poolID,
                                           revokeSeqNum, 0, 50);
                         });
                 };
@@ -1070,9 +1070,9 @@ TEST_CASE_VERSIONS("revoke from pool",
 
             SECTION("revoke from multiple pools")
             {
-                auto usd = makeAsset(root, "usd");
-                auto btc = makeAsset(root, "btc");
-                auto eur = makeAsset(root, "eur");
+                auto usd = makeAsset(*root, "usd");
+                auto btc = makeAsset(*root, "btc");
+                auto eur = makeAsset(*root, "eur");
 
                 auto shareBtcUsd = makeChangeTrustAssetPoolShare(
                     btc, usd, LIQUIDITY_POOL_FEE_V18);
@@ -1088,7 +1088,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                 for (int i = 0; i < 3; ++i)
                 {
                     auto acc =
-                        root.create(fmt::format("account{}", i), minBal(10));
+                        root->create(fmt::format("account{}", i), minBal(10));
 
                     depositIntoPool(acc, btc, usd);
                     depositIntoPool(acc, eur, usd);
@@ -1103,16 +1103,16 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                         revoke(acc, btc, {shareBtcUsd, shareBtcEur}, 4);
 
-                        auto revokeSeqNum = root.getLastSequenceNumber();
-                        root.allowTrust(btc, acc);
+                        auto revokeSeqNum = root->getLastSequenceNumber();
+                        root->allowTrust(btc, acc);
 
-                        redeemBalance(false, acc, root, btc, poolBtcUsd,
+                        redeemBalance(false, acc, *root, btc, poolBtcUsd,
                                       revokeSeqNum, 0, 200);
-                        redeemBalance(false, acc, root, btc, poolBtcEur,
+                        redeemBalance(false, acc, *root, btc, poolBtcEur,
                                       revokeSeqNum, 0, 200);
-                        redeemBalance(false, acc, root, usd, poolBtcUsd,
+                        redeemBalance(false, acc, *root, usd, poolBtcUsd,
                                       revokeSeqNum, 0, 50);
-                        redeemBalance(false, acc, root, eur, poolBtcEur,
+                        redeemBalance(false, acc, *root, eur, poolBtcEur,
                                       revokeSeqNum, 0, 50);
 
                         checkPoolUseCounts(acc, btc, 0);
@@ -1128,15 +1128,15 @@ TEST_CASE_VERSIONS("revoke from pool",
 
             SECTION("sponsorships")
             {
-                auto acc2 = root.create("acc2", lm.getLastMinBalance(3));
-                auto acc3 = root.create("acc3", lm.getLastMinBalance(3));
+                auto acc2 = root->create("acc2", lm.getLastMinBalance(3));
+                auto acc3 = root->create("acc3", lm.getLastMinBalance(3));
 
                 auto depositIntoMaybeSponsoredPoolShare =
                     [&](bool poolShareTrustlineIsSponsored) {
                         acc1.changeTrust(cur1, 10);
                         acc1.changeTrust(cur2, 10);
-                        root.pay(acc1, cur1, 10);
-                        root.pay(acc1, cur2, 10);
+                        root->pay(acc1, cur1, 10);
+                        root->pay(acc1, cur2, 10);
 
                         if (poolShareTrustlineIsSponsored)
                         {
@@ -1172,7 +1172,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                                                  0);
                             }
 
-                            acc3.pay(root, acc3.getAvailableBalance() - txFee);
+                            acc3.pay(*root, acc3.getAvailableBalance() - txFee);
                         }
                         else
                         {
@@ -1187,7 +1187,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                         checkLiquidityPool(*app, pool12, 10, 10, 10, 1);
 
                         // get rid of rest of available native balance
-                        acc1.pay(root, acc1.getAvailableBalance() - txFee);
+                        acc1.pay(*root, acc1.getAvailableBalance() - txFee);
                     };
 
                 auto claimAndValidatePoolCounters =
@@ -1195,9 +1195,9 @@ TEST_CASE_VERSIONS("revoke from pool",
                         auto revokeSeqNum = txSourceAcc.getLastSequenceNumber();
 
                         // pay acc1 so it can pay the fee to claim the balances
-                        root.pay(acc1, lm.getLastMinBalance(2));
+                        root->pay(acc1, lm.getLastMinBalance(2));
 
-                        root.allowTrust(cur1, acc1);
+                        root->allowTrust(cur1, acc1);
 
                         redeemBalance(false, acc1, txSourceAcc, cur1, pool12,
                                       revokeSeqNum, opIndex, 10);
@@ -1227,16 +1227,17 @@ TEST_CASE_VERSIONS("revoke from pool",
                                                         TRUSTLINE_AUTH_FLAGS));
 
                         std::vector<SecretKey> opKeys = {sponsoredAcc};
-                        if (sponsoringAcc.getAccountId() != root.getAccountId())
+                        if (sponsoringAcc.getAccountId() !=
+                            root->getAccountId())
                         {
-                            opKeys.emplace_back(root);
+                            opKeys.emplace_back(*root);
                         }
 
                         auto tx = transactionFrameFromOps(
                             app->getNetworkID(), sponsoringAcc,
                             {sponsoringAcc.op(
                                  beginSponsoringFutureReserves(sponsoredAcc)),
-                             root.op(op),
+                             root->op(op),
                              sponsoredAcc.op(endSponsoringFutureReserves())},
                             opKeys);
 
@@ -1318,15 +1319,15 @@ TEST_CASE_VERSIONS("revoke from pool",
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
 
-                    root.denyTrust(cur1, acc1, flagOp);
-                    claimAndValidatePoolCounters(root, 0);
+                    root->denyTrust(cur1, acc1, flagOp);
+                    claimAndValidatePoolCounters(*root, 0);
                 }
                 SECTION("same reserve - sponsored pool share trustline - no "
                         "sandwich on revoke")
                 {
                     depositIntoMaybeSponsoredPoolShare(true);
 
-                    root.denyTrust(cur1, acc1, flagOp);
+                    root->denyTrust(cur1, acc1, flagOp);
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         // verify that acc1 lost two numSubEntries and 2
@@ -1337,7 +1338,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                         checkSponsorship(ltx, acc3, 0, nullptr, 0, 2, 2, 0);
                     }
 
-                    claimAndValidatePoolCounters(root, 0);
+                    claimAndValidatePoolCounters(*root, 0);
                 }
                 SECTION("same reserve - sponsored account is the sponsor "
                         "of the pool share trustline")
@@ -1357,8 +1358,8 @@ TEST_CASE_VERSIONS("revoke from pool",
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
 
-                    submitRevokeInSandwich(root, acc1, true, 1);
-                    claimAndValidatePoolCounters(root, 1);
+                    submitRevokeInSandwich(*root, acc1, true, 1);
+                    claimAndValidatePoolCounters(*root, 1);
                 }
                 SECTION("same reserve - issuer sandwich on revoke - fail")
                 {
@@ -1366,8 +1367,8 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                     // leave enough to pay for this tx and the sponsorship
                     // sandwich
-                    root.pay(acc2, root.getAvailableBalance() - txFee * 4);
-                    submitRevokeInSandwich(root, acc1, false, 1);
+                    root->pay(acc2, root->getAvailableBalance() - txFee * 4);
+                    submitRevokeInSandwich(*root, acc1, false, 1);
                 }
                 SECTION("same reserve - sandwich on revoke - fail")
                 {
@@ -1375,7 +1376,7 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                     // leave enough to pay for this tx and the sponsorship
                     // sandwich
-                    acc2.pay(root, acc2.getAvailableBalance() - txFee * 4);
+                    acc2.pay(*root, acc2.getAvailableBalance() - txFee * 4);
                     submitRevokeInSandwich(acc2, acc1, false, 1);
                 }
                 SECTION("same reserve - sponsoring account is the sponsor of "
@@ -1384,7 +1385,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(true);
 
                     // acc3 is the sponsor of the pool share trustline
-                    root.pay(acc3, lm.getLastMinBalance(1));
+                    root->pay(acc3, lm.getLastMinBalance(1));
                     submitRevokeInSandwich(acc3, acc1, true, 1);
                     claimAndValidatePoolCounters(acc3, 1);
                 }
@@ -1395,14 +1396,14 @@ TEST_CASE_VERSIONS("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(true);
 
                     // pay acc1 so it can deposit into another pool
-                    root.pay(acc1, lm.getLastMinBalance(6));
+                    root->pay(acc1, lm.getLastMinBalance(6));
                     depositIntoPool(acc1, native, cur1);
 
                     submitRevokeInSandwich(acc2, acc3, true, 2);
 
                     auto revokeSeqNum = acc2.getLastSequenceNumber();
 
-                    root.allowTrust(cur1, acc1);
+                    root->allowTrust(cur1, acc1);
 
                     redeemBalance(false, acc1, acc2, cur1, pool12, revokeSeqNum,
                                   1, 10);
@@ -1439,15 +1440,15 @@ TEST_CASE_VERSIONS("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
-                    root.denyTrust(cur1, acc1, flagOp);
-                    claimAndValidatePoolCounters(root, 0);
+                    root->denyTrust(cur1, acc1, flagOp);
+                    claimAndValidatePoolCounters(*root, 0);
                 }
                 SECTION("increase reserve - sandwich on revoke - success")
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
-                    root.pay(acc2, lm.getLastMinBalance(1));
+                    root->pay(acc2, lm.getLastMinBalance(1));
                     submitRevokeInSandwich(acc2, acc1, true, 1);
                     claimAndValidatePoolCounters(acc2, 1);
                 }
@@ -1457,17 +1458,17 @@ TEST_CASE_VERSIONS("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
-                    submitRevokeInSandwich(root, acc1, true, 1);
-                    claimAndValidatePoolCounters(root, 1);
+                    submitRevokeInSandwich(*root, acc1, true, 1);
+                    claimAndValidatePoolCounters(*root, 1);
                 }
                 SECTION("increase reserve - issuer sandwich on revoke - fail")
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
-                    root.pay(acc2, root.getAvailableBalance() -
-                                       lm.getLastMinBalance(1));
+                    root->pay(acc2, root->getAvailableBalance() -
+                                        lm.getLastMinBalance(1));
 
                     increaseReserve();
-                    submitRevokeInSandwich(root, acc1, false, 1);
+                    submitRevokeInSandwich(*root, acc1, false, 1);
                 }
                 SECTION("increase reserve - sandwich on revoke - fail")
                 {
@@ -1491,7 +1492,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                     increaseReserve();
 
                     // acc3 is the sponsor of the pool share trustline
-                    root.pay(acc3, lm.getLastMinBalance(1));
+                    root->pay(acc3, lm.getLastMinBalance(1));
                     submitRevokeInSandwich(acc3, acc1, true, 1);
                     claimAndValidatePoolCounters(acc3, 1);
                 }
@@ -1506,12 +1507,12 @@ TEST_CASE_VERSIONS("revoke from pool",
                     auto poolID = xdrSha256(share1Usd.liquidityPool());
 
                     acc1.changeTrust(cur1, 100);
-                    root.pay(acc1, cur1, 10);
+                    root->pay(acc1, cur1, 10);
 
                     {
                         auto tx = transactionFrameFromOps(
-                            app->getNetworkID(), root,
-                            {root.op(beginSponsoringFutureReserves(acc1)),
+                            app->getNetworkID(), *root,
+                            {root->op(beginSponsoringFutureReserves(acc1)),
                              acc1.op(changeTrust(share1Usd, 10)),
                              acc1.op(endSponsoringFutureReserves())},
                             {acc1});
@@ -1527,9 +1528,9 @@ TEST_CASE_VERSIONS("revoke from pool",
                         auto tlAsset =
                             changeTrustAssetToTrustLineAsset(share1Usd);
                         checkSponsorship(ltx, trustlineKey(acc1, tlAsset), 1,
-                                         &root.getPublicKey());
+                                         &root->getPublicKey());
                         checkSponsorship(ltx, acc1, 0, nullptr, 3, 2, 0, 2);
-                        checkSponsorship(ltx, root, 0, nullptr, 0, 2, 2, 0);
+                        checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 2, 0);
 
                         ltx.commit();
                     }
@@ -1537,7 +1538,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                     acc1.liquidityPoolDeposit(poolID, 10, 10, Price{1, 1},
                                               Price{1, 1});
 
-                    auto preRevokeNumSponsoring = getNumSponsoring(*app, root);
+                    auto preRevokeNumSponsoring = getNumSponsoring(*app, *root);
 
                     // No claimable balances are sponsored by acc1, which is why
                     // 0 is passed in here
@@ -1546,7 +1547,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                     // root is no longer sponsoring the trustline, but it is
                     // sponsoring one claimable balance after the revoke
                     REQUIRE(preRevokeNumSponsoring ==
-                            getNumSponsoring(*app, root) + 1);
+                            getNumSponsoring(*app, *root) + 1);
 
                     checkPoolUseCounts(acc1, cur1, 0);
 
@@ -1557,14 +1558,14 @@ TEST_CASE_VERSIONS("revoke from pool",
                         REQUIRE(!loadLiquidityPool(ltx, poolID));
                     }
 
-                    auto revokeSeqNum = root.getLastSequenceNumber();
-                    root.allowTrust(cur1, acc1);
+                    auto revokeSeqNum = root->getLastSequenceNumber();
+                    root->allowTrust(cur1, acc1);
 
-                    redeemBalance(false, acc1, root, cur1, poolID, revokeSeqNum,
-                                  0, 10);
+                    redeemBalance(false, acc1, *root, cur1, poolID,
+                                  revokeSeqNum, 0, 10);
 
                     auto usdBalanceID = getRevokeBalanceID(
-                        root, root.getLastSequenceNumber(), usd, poolID, 0);
+                        *root, root->getLastSequenceNumber(), usd, poolID, 0);
 
                     REQUIRE_THROWS_AS(
                         acc1.claimClaimableBalance(usdBalanceID),
@@ -1601,16 +1602,16 @@ TEST_CASE_VERSIONS("revoke from pool",
                 SECTION("allow trust")
                 {
                     tooManySponsoring(*app, acc1,
-                                      root.op(allowTrust(acc1, cur1, 0)),
-                                      root.op(allowTrust(acc1, cur2, 0)), 1);
+                                      root->op(allowTrust(acc1, cur1, 0)),
+                                      root->op(allowTrust(acc1, cur2, 0)), 1);
                 }
                 SECTION("set trustline flags")
                 {
                     tooManySponsoring(
                         *app, acc1,
-                        root.op(setTrustLineFlags(
+                        root->op(setTrustLineFlags(
                             acc1, cur1, clearTrustLineFlags(AUTHORIZED_FLAG))),
-                        root.op(setTrustLineFlags(
+                        root->op(setTrustLineFlags(
                             acc1, cur2, clearTrustLineFlags(AUTHORIZED_FLAG))),
                         1);
                 }
@@ -1618,7 +1619,7 @@ TEST_CASE_VERSIONS("revoke from pool",
 
             SECTION("two claimable balances")
             {
-                auto cur3 = makeAsset(root, "CUR3");
+                auto cur3 = makeAsset(*root, "CUR3");
 
                 depositIntoPool(acc1, cur1, cur2);
                 depositIntoPool(acc1, cur2, cur3);
@@ -1626,16 +1627,16 @@ TEST_CASE_VERSIONS("revoke from pool",
                 SECTION("allow trust")
                 {
                     tooManySponsoring(*app, acc1,
-                                      root.op(allowTrust(acc1, cur1, 0)),
-                                      root.op(allowTrust(acc1, cur2, 0)), 2);
+                                      root->op(allowTrust(acc1, cur1, 0)),
+                                      root->op(allowTrust(acc1, cur2, 0)), 2);
                 }
                 SECTION("set trustline flags")
                 {
                     tooManySponsoring(
                         *app, acc1,
-                        root.op(setTrustLineFlags(
+                        root->op(setTrustLineFlags(
                             acc1, cur1, clearTrustLineFlags(AUTHORIZED_FLAG))),
-                        root.op(setTrustLineFlags(
+                        root->op(setTrustLineFlags(
                             acc1, cur2, clearTrustLineFlags(AUTHORIZED_FLAG))),
                         2);
                 }

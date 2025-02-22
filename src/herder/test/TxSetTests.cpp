@@ -487,7 +487,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
         sorobanCfg.mLedgerMaxTxCount = 5;
     });
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     int accountId = 0;
     auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
@@ -495,8 +495,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         for (int i = 0; i < cnt; ++i)
         {
             auto source =
-                root.create("unique " + std::to_string(accountId++),
-                            app->getLedgerManager().getLastMinBalance(2));
+                root->create("unique " + std::to_string(accountId++),
+                             app->getLedgerManager().getLastMinBalance(2));
             if (isSoroban)
             {
                 SorobanResources resources;
@@ -966,12 +966,12 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         auto app = createTestApplication(clock, cfg);
         overrideSorobanNetworkConfigForTest(*app);
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         int accountId = 0;
         auto createTx = [&](bool isSoroban) {
             auto source =
-                root.create("source" + std::to_string(accountId++),
-                            app->getLedgerManager().getLastMinBalance(2));
+                root->create("source" + std::to_string(accountId++),
+                             app->getLedgerManager().getLastMinBalance(2));
             TransactionFrameBaseConstPtr tx = nullptr;
             if (isSoroban)
             {
@@ -1070,7 +1070,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
 
         auto app = createTestApplication(clock, cfg);
         overrideSorobanNetworkConfigForTest(*app);
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
 
         int accountId = 0;
         int footprintId = 0;
@@ -1083,8 +1083,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
 
         auto createTx = [&](std::vector<int> addRoFootprint = {},
                             std::vector<int> addRwFootprint = {}) {
-            auto source = root.create("source" + std::to_string(accountId++),
-                                      1'000'000'000);
+            auto source = root->create("source" + std::to_string(accountId++),
+                                       1'000'000'000);
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             op.body.invokeHostFunctionOp().hostFunction.type(
@@ -1408,7 +1408,7 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     Application::pointer app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     int accountId = 1;
 
     auto createTx = [&](int opCnt, int fee, bool unique) {
@@ -1423,16 +1423,17 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         {
             // Create a new unique accounts to ensure there are no collisions
             auto source =
-                root.create("unique " + std::to_string(accountId),
-                            app->getLedgerManager().getLastMinBalance(2));
+                root->create("unique " + std::to_string(accountId),
+                             app->getLedgerManager().getLastMinBalance(2));
             return transactionFromOperations(*app, source.getSecretKey(),
                                              source.nextSequenceNumber(), ops,
                                              fee);
         }
         else
         {
-            return transactionFromOperations(
-                *app, root.getSecretKey(), root.nextSequenceNumber(), ops, fee);
+            return transactionFromOperations(*app, root->getSecretKey(),
+                                             root->nextSequenceNumber(), ops,
+                                             fee);
         }
     };
 
@@ -1472,7 +1473,7 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         resources.writeBytes = 1000;
         uint32_t inclusionFee = 500;
         int64_t resourceFee = sorobanResourceFee(*app, resources, 5000, 100);
-        auto sorobanTx = createUploadWasmTx(*app, root, inclusionFee,
+        auto sorobanTx = createUploadWasmTx(*app, *root, inclusionFee,
                                             resourceFee, resources);
         // Make sure fees got computed correctly
         REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
@@ -1505,13 +1506,14 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
         sorobanCfg.mLedgerMaxTxCount = 10;
     });
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     int accountId = 1;
 
     auto createTx = [&](int opCnt, int inclusionFee, bool isSoroban = false,
                         bool validateTx = true) {
-        auto source = root.create("unique " + std::to_string(accountId++),
-                                  app->getLedgerManager().getLastMinBalance(2));
+        auto source =
+            root->create("unique " + std::to_string(accountId++),
+                         app->getLedgerManager().getLastMinBalance(2));
         if (isSoroban)
         {
             SorobanResources resources;
@@ -1705,11 +1707,11 @@ TEST_CASE("txset nomination", "[txset]")
         cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(54321);
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-        auto root = TestAccount::createRoot(*app);
+        auto root = app->getRoot();
         std::vector<std::pair<TestAccount, int64_t>> accounts;
         for (int i = 0; i < 1000; ++i)
         {
-            auto account = root.create(std::to_string(i), 1'000'000'000);
+            auto account = root->create(std::to_string(i), 1'000'000'000);
             accounts.emplace_back(account, account.getLastSequenceNumber() + 1);
         }
 
@@ -1828,7 +1830,7 @@ TEST_CASE("txset nomination", "[txset]")
                 {
                     for (uint32_t j = 1; j <= numOps; ++j)
                     {
-                        ops.emplace_back(payment(root, j));
+                        ops.emplace_back(payment(*root, j));
                     }
                 }
                 auto& [account, seqNum] = accounts[accountId++];
