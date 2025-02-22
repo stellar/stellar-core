@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# Copyright 2025 Stellar Development Foundation and contributors. Licensed
+# under the Apache License, Version 2.0. See the COPYING file at the root
+# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+# This file re-runs all the tests in each soroban submodule, using the rustc
+# that stellar-core is compiled with. In theory these tests shouldn't be broken
+# very often since there's CI on the soroban repos, but it's still possible that
+# the soroban CI ran on a different rust compiler / stdlib version than
+# stellar-core was built with, and the fine-grained "observations" stored in the
+# soroban repos are worth re-checking.
+
+if [ -z "${RUST_TOOLCHAIN_CHANNEL}" ];
+then
+    echo "RUST_TOOLCHAIN_CHANNEL must be set to the channel of the rust compiler that stellar-core was built with"
+    exit 1
+fi
+
+set -e
+set -x
+
+cd rust/soroban
+for i in p??; do
+    cd $i
+    RUSTFLAGS="-Cmetadata=${i}" cargo +${RUST_TOOLCHAIN_CHANNEL} \
+        test \
+        --locked \
+        --package soroban-env-host \
+        --features testutils \
+        --profile test-opt
+    cd ..
+done
