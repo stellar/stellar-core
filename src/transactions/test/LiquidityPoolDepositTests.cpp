@@ -23,10 +23,10 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     // set up world
     auto const& lm = app->getLedgerManager();
     auto minBal = [&](int32_t n) { return lm.getLastMinBalance(n); };
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto native = makeNativeAsset();
-    auto cur1 = makeAsset(root, "CUR1");
-    auto cur2 = makeAsset(root, "CUR2");
+    auto cur1 = makeAsset(*root, "CUR1");
+    auto cur2 = makeAsset(*root, "CUR2");
     auto share12 =
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
     auto pool12 = xdrSha256(share12.liquidityPool());
@@ -37,7 +37,7 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     SECTION("not supported before protocol 18")
     {
         for_versions_to(17, *app, [&] {
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, 1}, Price{1, 1}),
                               ex_opNOT_SUPPORTED);
         });
@@ -47,50 +47,50 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     {
         for_versions_from(18, *app, [&] {
             // bad maxAmountA
-            REQUIRE_THROWS_AS(
-                root.liquidityPoolDeposit({}, 0, 100, Price{1, 1}, Price{1, 1}),
-                ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
+                                  {}, 0, 100, Price{1, 1}, Price{1, 1}),
+                              ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, -1, 100, Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
             // bad maxAmountB
-            REQUIRE_THROWS_AS(
-                root.liquidityPoolDeposit({}, 100, 0, Price{1, 1}, Price{1, 1}),
-                ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
+                                  {}, 100, 0, Price{1, 1}, Price{1, 1}),
+                              ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, -1, Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
             // bad minPrice.n
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{0, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{-1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
             // bad minPrice.d
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, 0}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, -1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
             // bad maxPrice.n
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, 1}, Price{0, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, 1}, Price{-1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
             // bad maxPrice.d
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, 1}, Price{1, 0}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{1, 1}, Price{1, -1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
 
             // minPrice > maxPrice
-            REQUIRE_THROWS_AS(root.liquidityPoolDeposit(
+            REQUIRE_THROWS_AS(root->liquidityPoolDeposit(
                                   {}, 100, 100, Price{2, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED);
         });
@@ -99,10 +99,10 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     SECTION("both non-native without liabilities")
     {
         for_versions_from(18, *app, [&] {
-            root.setOptions(setFlags(AUTH_REQUIRED_FLAG));
+            root->setOptions(setFlags(AUTH_REQUIRED_FLAG));
 
             // This section is all about depositing into an empty pool
-            auto a1 = root.create("a1", minBal(10));
+            auto a1 = root->create("a1", minBal(10));
 
             // No trust
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 400, 900,
@@ -110,29 +110,29 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                               ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST);
             a1.changeTrust(cur1, 2000);
             a1.changeTrust(cur2, 2000);
-            root.allowMaintainLiabilities(cur1, a1);
-            root.allowMaintainLiabilities(cur2, a1);
+            root->allowMaintainLiabilities(cur1, a1);
+            root->allowMaintainLiabilities(cur2, a1);
             a1.changeTrust(share12, 1);
 
             // Not authorized
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED);
-            root.allowTrust(cur1, a1);
+            root->allowTrust(cur1, a1);
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED);
-            root.allowTrust(cur2, a1);
+            root->allowTrust(cur2, a1);
 
             // Underfunded
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a1, cur1, 800);
+            root->pay(a1, cur1, 800);
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a1, cur2, 1800);
+            root->pay(a1, cur2, 1800);
 
             // Bad price
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 400, 900,
@@ -153,7 +153,7 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
             checkLiquidityPool(*app, pool12, 400, 900, 600, 1);
 
             // This section is all about depositing into a non-empty pool
-            auto a2 = root.create("a2", minBal(10));
+            auto a2 = root->create("a2", minBal(10));
 
             // No trust
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(pool12, 400, 900,
@@ -161,29 +161,29 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                               ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST);
             a2.changeTrust(cur1, INT64_MAX);
             a2.changeTrust(cur2, INT64_MAX);
-            root.allowMaintainLiabilities(cur1, a2);
-            root.allowMaintainLiabilities(cur2, a2);
+            root->allowMaintainLiabilities(cur1, a2);
+            root->allowMaintainLiabilities(cur2, a2);
             a2.changeTrust(share12, 1);
 
             // Not authorized
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED);
-            root.allowTrust(cur1, a2);
+            root->allowTrust(cur1, a2);
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED);
-            root.allowTrust(cur2, a2);
+            root->allowTrust(cur2, a2);
 
             // Underfunded
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a2, cur1, INT64_MAX);
+            root->pay(a2, cur1, INT64_MAX);
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(pool12, 400, 900,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a2, cur2, INT64_MAX);
+            root->pay(a2, cur2, INT64_MAX);
 
             // Bad price
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(pool12, 400, 900,
@@ -214,34 +214,34 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     SECTION("one non-native without liabilities")
     {
         for_versions_from(18, *app, [&] {
-            root.setOptions(setFlags(AUTH_REQUIRED_FLAG));
+            root->setOptions(setFlags(AUTH_REQUIRED_FLAG));
 
             // This section is all about depositing into an empty pool
-            auto a1 = root.create("a1", minBal(3) + 6 * 100);
+            auto a1 = root->create("a1", minBal(3) + 6 * 100);
 
             // No trust
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST);
             a1.changeTrust(cur1, INT64_MAX);
-            root.allowMaintainLiabilities(cur1, a1);
+            root->allowMaintainLiabilities(cur1, a1);
             a1.changeTrust(shareNative1, 1);
 
             // Not authorized
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED);
-            root.allowTrust(cur1, a1);
+            root->allowTrust(cur1, a1);
 
             // Underfunded
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a1, minBal(10));
+            root->pay(a1, minBal(10));
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a1, cur1, INT64_MAX);
+            root->pay(a1, cur1, INT64_MAX);
 
             // Bad price
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
@@ -265,31 +265,31 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
             checkLiquidityPool(*app, poolNative1, 1, INT32_MAX, 46340, 1);
 
             // This section is all about depositing into a non-empty pool
-            auto a2 = root.create("a2", minBal(3) + 6 * 100);
+            auto a2 = root->create("a2", minBal(3) + 6 * 100);
 
             // No trust
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST);
             a2.changeTrust(cur1, INT64_MAX);
-            root.allowMaintainLiabilities(cur1, a2);
+            root->allowMaintainLiabilities(cur1, a2);
             a2.changeTrust(shareNative1, 1);
 
             // Not authorized
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED);
-            root.allowTrust(cur1, a2);
+            root->allowTrust(cur1, a2);
 
             // Underfunded
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a2, minBal(10) + 5000000000);
+            root->pay(a2, minBal(10) + 5000000000);
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
                                                       Price{1, 1}, Price{1, 1}),
                               ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            root.pay(a2, cur1, INT64_MAX);
+            root->pay(a2, cur1, INT64_MAX);
 
             // Bad price
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
@@ -326,8 +326,8 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     SECTION("pool share calculation overflows for one asset")
     {
         for_versions_from(18, *app, [&] {
-            auto a1 = root.create("a1", minBal(10));
-            auto a2 = root.create("a2", minBal(10));
+            auto a1 = root->create("a1", minBal(10));
+            auto a2 = root->create("a2", minBal(10));
 
             a1.changeTrust(cur1, INT64_MAX);
             a1.changeTrust(cur2, INT64_MAX);
@@ -337,11 +337,11 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
             a2.changeTrust(cur2, INT64_MAX);
             a2.changeTrust(share12, INT64_MAX);
 
-            root.pay(a1, cur1, 1000);
-            root.pay(a1, cur2, 1000);
+            root->pay(a1, cur1, 1000);
+            root->pay(a1, cur2, 1000);
 
-            root.pay(a2, cur1, INT64_MAX);
-            root.pay(a2, cur2, INT64_MAX);
+            root->pay(a2, cur1, INT64_MAX);
+            root->pay(a2, cur2, INT64_MAX);
 
             // verify that the pool share calculation overflows. In both
             // sections below there are 600 pool shares in the pool after the
@@ -392,7 +392,7 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 REQUIRE(a1.getTrustlineBalance(cur1) == 1000);
                 REQUIRE(a1.getTrustlineBalance(cur2) == 1001);
                 checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
-            }
+           }
             SECTION("deposit then withdraw - rounding results in extra asset "
                     "in pool - "
                     "assetA fail")
@@ -442,15 +442,15 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
     SECTION("underfunded due to liabilities")
     {
         for_versions_from(18, *app, [&] {
-            auto a1 = root.create("a1", minBal(10));
-            auto buyingAsset = makeAsset(root, "BUY1");
+            auto a1 = root->create("a1", minBal(10));
+            auto buyingAsset = makeAsset(*root, "BUY1");
 
             a1.changeTrust(cur1, 1);
             a1.changeTrust(cur2, 1);
             a1.changeTrust(buyingAsset, 1);
 
-            root.pay(a1, cur1, 1);
-            root.pay(a1, cur2, 1);
+            root->pay(a1, cur1, 1);
+            root->pay(a1, cur2, 1);
             a1.changeTrust(share12, 2);
 
             auto underfundedTest = [&](Asset const& sellingAsset) {
@@ -460,9 +460,9 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 if (isNative)
                 {
                     // leave enough for fees and offer
-                    a1.pay(root, a1.getAvailableBalance() -
-                                     lm.getLastTxFee() * 3 -
-                                     lm.getLastReserve() - 1);
+                    a1.pay(*root, a1.getAvailableBalance() -
+                                      lm.getLastTxFee() * 3 -
+                                      lm.getLastReserve() - 1);
                 }
 
                 auto offerID1 = a1.manageOffer(0, sellingAsset, buyingAsset,
@@ -474,7 +474,7 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 if (isNative)
                 {
                     // pay enough for the fees for the next two ops
-                    root.pay(a1, lm.getLastTxFee() * 2);
+                    root->pay(a1, lm.getLastTxFee() * 2);
                 }
 
                 // delete offer
@@ -490,8 +490,8 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 underfundedTest(cur1);
 
                 // do it again so we can test with an existing pool
-                root.pay(a1, cur1, 1);
-                root.pay(a1, cur2, 1);
+                root->pay(a1, cur1, 1);
+                root->pay(a1, cur2, 1);
                 underfundedTest(cur1);
             }
 
@@ -500,8 +500,8 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 underfundedTest(cur2);
 
                 // do it again so we can test with an existing pool
-                root.pay(a1, cur1, 1);
-                root.pay(a1, cur2, 1);
+                root->pay(a1, cur1, 1);
+                root->pay(a1, cur2, 1);
                 underfundedTest(cur2);
             }
 
@@ -511,8 +511,8 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 underfundedTest(native);
 
                 // do it again so we can test with an existing pool
-                root.pay(a1, minBal(10));
-                root.pay(a1, cur1, 1);
+                root->pay(a1, minBal(10));
+                root->pay(a1, cur1, 1);
                 underfundedTest(native);
             }
         });
@@ -522,14 +522,14 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
             "for both assets")
     {
         for_versions_from(18, *app, [&] {
-            auto a1 = root.create("a1", minBal(10));
+            auto a1 = root->create("a1", minBal(10));
 
             a1.changeTrust(cur1, 10000);
             a1.changeTrust(cur2, 10000);
             a1.changeTrust(share12, 1000);
 
-            root.pay(a1, cur1, 10000);
-            root.pay(a1, cur2, 10000);
+            root->pay(a1, cur1, 10000);
+            root->pay(a1, cur2, 10000);
 
             a1.liquidityPoolDeposit(pool12, 500, 1000, Price{1, 2},
                                     Price{1, 2});

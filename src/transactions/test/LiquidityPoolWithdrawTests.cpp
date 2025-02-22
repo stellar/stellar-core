@@ -23,16 +23,16 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     auto minBal = [&](int32_t n) {
         return app->getLedgerManager().getLastMinBalance(n);
     };
 
-    auto acc1 = root.create("acc1", minBal(10));
+    auto acc1 = root->create("acc1", minBal(10));
     auto native = makeNativeAsset();
-    auto cur1 = makeAsset(root, "CUR1");
-    auto cur2 = makeAsset(root, "CUR2");
+    auto cur1 = makeAsset(*root, "CUR1");
+    auto cur2 = makeAsset(*root, "CUR2");
     auto share12 =
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
     auto pool12 = xdrSha256(share12.liquidityPool());
@@ -68,8 +68,8 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
 
             acc1.changeTrust(cur1, 200);
             acc1.changeTrust(cur2, 50);
-            root.pay(acc1, cur1, 200);
-            root.pay(acc1, cur2, 50);
+            root->pay(acc1, cur1, 200);
+            root->pay(acc1, cur2, 50);
 
             acc1.changeTrust(share12, 100);
 
@@ -98,9 +98,9 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
 
             // withdrawal should work even if just authorized to maintain
             // liabililties
-            root.setOptions(setFlags(AUTH_REVOCABLE_FLAG));
-            root.allowMaintainLiabilities(cur1, acc1);
-            root.allowMaintainLiabilities(cur2, acc1);
+            root->setOptions(setFlags(AUTH_REVOCABLE_FLAG));
+            root->allowMaintainLiabilities(cur1, acc1);
+            root->allowMaintainLiabilities(cur2, acc1);
 
             // success
             acc1.liquidityPoolWithdraw(pool12, 50, 100, 25);
@@ -110,9 +110,9 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
             checkLiquidityPool(*app, pool12, 100, 25, 50, 1);
 
             // add a different depositor
-            root.changeTrust(share12, 50);
-            root.liquidityPoolDeposit(pool12, 100, 25, Price{4, 1},
-                                      Price{4, 1});
+            root->changeTrust(share12, 50);
+            root->liquidityPoolDeposit(pool12, 100, 25, Price{4, 1},
+                                       Price{4, 1});
             checkLiquidityPool(*app, pool12, 200, 50, 100, 2);
 
             // empty the pool share trustline
@@ -123,12 +123,12 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
             checkLiquidityPool(*app, pool12, 100, 25, 50, 2);
 
             // empty the pool
-            root.liquidityPoolWithdraw(pool12, 50, 100, 25);
+            root->liquidityPoolWithdraw(pool12, 50, 100, 25);
             checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
 
             // Do another deposit/withdraw where rounding comes into play
-            root.allowTrust(cur1, acc1);
-            root.allowTrust(cur2, acc1);
+            root->allowTrust(cur1, acc1);
+            root->allowTrust(cur2, acc1);
 
             // sqrt(90*24) = is ~46.48, which should get rounded down to 46
             acc1.liquidityPoolDeposit(pool12, 90, 24, Price{90, 24},
@@ -160,7 +160,7 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
                               ex_LIQUIDITY_POOL_WITHDRAW_NO_TRUST);
 
             acc1.changeTrust(cur1, 200);
-            root.pay(acc1, cur1, 200);
+            root->pay(acc1, cur1, 200);
 
             acc1.changeTrust(shareNative1, 100);
 
@@ -193,9 +193,9 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
             checkLiquidityPool(*app, poolNative1, 25, 100, 50, 1);
 
             // add a different depositor
-            root.changeTrust(shareNative1, 50);
-            root.liquidityPoolDeposit(poolNative1, 25, 100, Price{1, 4},
-                                      Price{1, 4});
+            root->changeTrust(shareNative1, 50);
+            root->liquidityPoolDeposit(poolNative1, 25, 100, Price{1, 4},
+                                       Price{1, 4});
             checkLiquidityPool(*app, poolNative1, 50, 200, 100, 2);
 
             // empty pool share trustline
@@ -207,17 +207,17 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
             checkLiquidityPool(*app, poolNative1, 25, 100, 50, 2);
 
             // empty the other pool share trustline
-            balance = root.getBalance();
-            root.liquidityPoolWithdraw(poolNative1, 50, 25, 100);
-            REQUIRE(root.getBalance() == balance - 100 + 25);
-            REQUIRE(root.getTrustlineBalance(poolNative1) == 0);
+            balance = root->getBalance();
+            root->liquidityPoolWithdraw(poolNative1, 50, 25, 100);
+            REQUIRE(root->getBalance() == balance - 100 + 25);
+            REQUIRE(root->getTrustlineBalance(poolNative1) == 0);
             checkLiquidityPool(*app, poolNative1, 0, 0, 0, 2);
         }
 
         SECTION("line full on native balance")
         {
             acc1.changeTrust(cur1, INT64_MAX);
-            root.pay(acc1, cur1, 1000);
+            root->pay(acc1, cur1, 1000);
 
             acc1.changeTrust(shareNative1, INT64_MAX);
 
@@ -227,7 +227,7 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
             // use cur2 so it's clear withdraw failures will be due to the
             // native balance and not cur1
             acc1.changeTrust(cur2, INT64_MAX);
-            root.pay(acc1, cur2, INT64_MAX);
+            root->pay(acc1, cur2, INT64_MAX);
 
             // acc1 native line is full (minus the fee paid for this op)
             acc1.manageOffer(0, cur2, native, Price{1, 1},
@@ -247,8 +247,8 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
         {
             acc1.changeTrust(cur1, 100);
             acc1.changeTrust(cur2, 100);
-            root.pay(acc1, cur1, 100);
-            root.pay(acc1, cur2, 100);
+            root->pay(acc1, cur1, 100);
+            root->pay(acc1, cur2, 100);
 
             acc1.changeTrust(share12, 100);
 
@@ -285,9 +285,9 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
 
         SECTION("both non-native issuer deposit and withdraw")
         {
-            root.changeTrust(share12, INT64_MAX);
-            root.liquidityPoolDeposit(pool12, INT64_MAX, INT64_MAX, Price{1, 1},
-                                      Price{1, 1});
+            root->changeTrust(share12, INT64_MAX);
+            root->liquidityPoolDeposit(pool12, INT64_MAX, INT64_MAX,
+                                       Price{1, 1}, Price{1, 1});
             checkLiquidityPool(*app, pool12, INT64_MAX, INT64_MAX, INT64_MAX,
                                1);
 
@@ -295,8 +295,8 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
                 // test pool full
                 acc1.changeTrust(cur1, 1);
                 acc1.changeTrust(cur2, 1);
-                root.pay(acc1, cur1, 1);
-                root.pay(acc1, cur2, 1);
+                root->pay(acc1, cur1, 1);
+                root->pay(acc1, cur2, 1);
                 acc1.changeTrust(share12, 1);
 
                 REQUIRE_THROWS_AS(acc1.liquidityPoolDeposit(
@@ -304,27 +304,27 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
                                   ex_LIQUIDITY_POOL_DEPOSIT_POOL_FULL);
             }
 
-            root.liquidityPoolWithdraw(pool12, INT64_MAX, INT64_MAX, 1);
+            root->liquidityPoolWithdraw(pool12, INT64_MAX, INT64_MAX, 1);
             checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
-            root.changeTrust(share12, 0);
+            root->changeTrust(share12, 0);
         }
 
         SECTION("one non-native issuer deposit and withdraw")
         {
-            root.changeTrust(shareNative1, INT64_MAX);
-            root.liquidityPoolDeposit(poolNative1, 1000, 1000, Price{1, 1},
-                                      Price{1, 1});
-            root.liquidityPoolWithdraw(poolNative1, 1000, 1000, 1000);
+            root->changeTrust(shareNative1, INT64_MAX);
+            root->liquidityPoolDeposit(poolNative1, 1000, 1000, Price{1, 1},
+                                       Price{1, 1});
+            root->liquidityPoolWithdraw(poolNative1, 1000, 1000, 1000);
             checkLiquidityPool(*app, poolNative1, 0, 0, 0, 1);
-            root.changeTrust(shareNative1, 0);
+           root->changeTrust(shareNative1, 0);
         }
 
         SECTION("both non-native one asset withdraw is zero")
         {
             acc1.changeTrust(cur1, 10);
             acc1.changeTrust(cur2, 10);
-            root.pay(acc1, cur1, 1);
-            root.pay(acc1, cur2, 10);
+            root->pay(acc1, cur1, 1);
+            root->pay(acc1, cur2, 10);
             acc1.changeTrust(share12, 4);
 
             acc1.liquidityPoolDeposit(pool12, 1, 10, Price{1, 10},
@@ -344,8 +344,8 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
             checkLiquidityPool(*app, pool12, 0, 0, 0, 1);
 
             // now make assetB withdraw 0
-            root.pay(acc1, cur1, 9);
-            acc1.pay(root, cur2, 9);
+            root->pay(acc1, cur1, 9);
+            acc1.pay(*root, cur2, 9);
 
             acc1.liquidityPoolDeposit(pool12, 10, 1, Price{10, 1},
                                       Price{10, 1});
@@ -367,7 +367,7 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
         SECTION("native asset withdraw is zero")
         {
             acc1.changeTrust(cur1, 10);
-            root.pay(acc1, cur1, 10);
+            root->pay(acc1, cur1, 10);
             acc1.changeTrust(shareNative1, 4);
 
             int64_t balance = acc1.getBalance();
@@ -407,7 +407,7 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
                         trades.emplace_back(tradeSize % 2 == 0, tradeSize);
                     }
 
-                    depositTradeWithdrawTest(*app, root, i, trades);
+                    depositTradeWithdrawTest(*app, *root, i, trades);
                 }
             }
         }

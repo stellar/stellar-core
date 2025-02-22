@@ -420,7 +420,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
-    auto root = TestAccount{getApp(), getRoot(getApp().getNetworkID())};
+    auto root = getApp().getRoot();
     auto alice = TestAccount{getApp(), getAccount("alice")};
     auto bob = TestAccount{getApp(), getAccount("bob")};
     auto carol = TestAccount{getApp(), getAccount("carol")};
@@ -433,7 +433,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     if (ledgerSeq < 5)
     {
-        txs.push_back(root.tx(
+        txs.push_back(root->tx(
             {createAccount(alice, big), createAccount(bob, big),
              createAccount(carol, big), createAccount(stroopy, big * 10),
              createAccount(eve, big * 10)}));
@@ -446,11 +446,11 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         // They all randomly send a little to one another every ledger after #4
         if (rand_flip())
         {
-            txs.push_back(root.tx({payment(alice, big)}));
+            txs.push_back(root->tx({payment(alice, big)}));
         }
         else
         {
-            txs.push_back(root.tx({payment(bob, big)}));
+            txs.push_back(root->tx({payment(bob, big)}));
         }
 
         if (rand_flip())
@@ -558,14 +558,14 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                  .getCurr()
                                  ->getHash());
 
-    rootBalances.push_back(root.getBalance());
+    rootBalances.push_back(root->getBalance());
     aliceBalances.push_back(alice.getBalance());
     bobBalances.push_back(bob.getBalance());
     carolBalances.push_back(carol.getBalance());
     eveBalances.push_back(eve.getBalance());
     stroopyBalances.push_back(stroopy.getBalance());
 
-    rootSeqs.push_back(root.loadSequenceNumber());
+    rootSeqs.push_back(root->loadSequenceNumber());
     aliceSeqs.push_back(alice.loadSequenceNumber());
     bobSeqs.push_back(bob.loadSequenceNumber());
     carolSeqs.push_back(carol.loadSequenceNumber());

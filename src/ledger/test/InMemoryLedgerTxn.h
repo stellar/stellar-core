@@ -27,7 +27,7 @@
 // that never issues _any_ SQL, and then substituting a subclass of LedgerTxn as
 // a fake root that stores LEs in memory (like any other LedgerTxn) but that we
 // never commit to its parent at all -- only commit children _to_. This class is
-// that subclass of LedgerTxn used as a fake root.
+// that subclass of LedgerTxn used as a fakeroot->
 //
 // Put diagrammatically:
 //
