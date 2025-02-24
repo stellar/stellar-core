@@ -160,6 +160,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     auto setupApp = [txSize, tx1](Application& app) {
         app.getHerder().setMaxClassicTxSize(txSize);
 
+        app.start();
         if (appProtocolVersionStartsFrom(app, SOROBAN_PROTOCOL_VERSION))
         {
             overrideSorobanNetworkConfigForTest(app);
@@ -168,8 +169,6 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     static_cast<uint32_t>(xdr::xdr_size(tx1.transaction()));
             });
         }
-
-        app.start();
     };
 
     auto test = [&](bool shouldRequestMore) {
@@ -629,6 +628,9 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     {
         modifySorobanNetworkConfig(*app1, [txSize](SorobanNetworkConfig& cfg) {
             cfg.mTxMaxSizeBytes = txSize;
+            // Set the ledger max transactions size to the tx max size
+            // to have a valid upgrade.
+            cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes;
         });
     }
 

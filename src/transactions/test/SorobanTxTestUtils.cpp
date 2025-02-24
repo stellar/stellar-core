@@ -771,24 +771,13 @@ SorobanTest::initialize(bool useTestLimits,
     modifySorobanNetworkConfig(getApp(), cfgModifyFn);
 }
 
-void
-SorobanTest::updateSorobanNetworkConfig(
-    bool useTestLimits, std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
-{
-    if (useTestLimits)
-    {
-        overrideSorobanNetworkConfigForTest(getApp());
-    }
-    modifySorobanNetworkConfig(getApp(), cfgModifyFn);
-};
-
 // This constructor duplication exists because mClock cannot be accessed in a
 // delegate constructor, which keeps us from calling createTestApplication
 SorobanTest::SorobanTest(Config cfg, bool useTestLimits,
                          std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
     : mApp(createTestApplication(mClock, cfg))
-    , mRoot(*getApp().getRoot())
-    , mDummyAccount(mRoot.create(
+    , mRoot(getApp().getRoot())
+    , mDummyAccount(mRoot->create(
           "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
 {
     initialize(useTestLimits, cfgModifyFn);
@@ -798,8 +787,8 @@ SorobanTest::SorobanTest(Application::pointer app, Config cfg,
                          bool useTestLimits,
                          std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
     : mApp(app)
-    , mRoot(*getApp().getRoot())
-    , mDummyAccount(mRoot.create(
+    , mRoot(getApp().getRoot())
+    , mDummyAccount(mRoot->create(
           "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
 {
     initialize(useTestLimits, cfgModifyFn);
@@ -876,7 +865,7 @@ SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources)
     }
 
     auto tx =
-        makeSorobanWasmUploadTx(getApp(), mRoot, wasm, uploadResources, 1000);
+        makeSorobanWasmUploadTx(getApp(), *mRoot, wasm, uploadResources, 1000);
     REQUIRE(isSuccessResult(invokeTx(tx)));
 
     // Verify the uploaded contract code is correct.
@@ -908,7 +897,7 @@ SorobanTest::createContract(ContractIDPreimage const& idPreimage,
                             ConstructorParams const& constructorParams)
 {
     auto tx =
-        makeSorobanCreateContractTx(getApp(), mRoot, idPreimage, executable,
+        makeSorobanCreateContractTx(getApp(), *mRoot, idPreimage, executable,
                                     createResources, 1000, constructorParams);
     REQUIRE(isSuccessResult(invokeTx(tx)));
     Hash contractID = xdrSha256(
@@ -998,7 +987,7 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
     }
     Hash wasmHash = uploadWasm(wasm, *uploadResources);
     SCAddress contractAddress = createContract(
-        makeContractIDPreimage(mRoot,
+        makeContractIDPreimage(*mRoot,
                                sha256(std::to_string(mContracts.size()))),
         makeWasmExecutable(wasmHash), *createResources, constructorParams);
     xdr::xvector<LedgerKey> contractKeys = {
@@ -1012,7 +1001,7 @@ SCAddress
 SorobanTest::nextContractID()
 {
     auto idPreimage = makeContractIDPreimage(
-        mRoot, sha256(std::to_string(mContracts.size())));
+        *mRoot, sha256(std::to_string(mContracts.size())));
     auto contractID = xdrSha256(
         makeFullContractIdPreimage(getApp().getNetworkID(), idPreimage));
     return makeContractAddress(contractID);
@@ -1042,8 +1031,8 @@ SorobanTest::getRoot()
     // TestAccount caches the next seqno in-memory, assuming all invoked TXs
     // succeed. This is not true for these tests, so we load the seqno from
     // disk to circumvent the cache.
-    mRoot.loadSequenceNumber();
-    return mRoot;
+    mRoot->loadSequenceNumber();
+    return *mRoot;
 }
 
 TestAccount&

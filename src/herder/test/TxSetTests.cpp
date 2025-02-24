@@ -1089,10 +1089,23 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             op.body.type(INVOKE_HOST_FUNCTION);
             op.body.invokeHostFunctionOp().hostFunction.type(
                 HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+
+            // Make sure that our transactions are large enough so our upgrade
+            // maintains at least the minimum required max tx size
+            auto randomWasm = rust_bridge::get_random_wasm(
+                MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES, 0);
+            op.body.invokeHostFunctionOp().hostFunction.wasm().insert(
+                op.body.invokeHostFunctionOp().hostFunction.wasm().begin(),
+                randomWasm.data.data(),
+                randomWasm.data.data() + randomWasm.data.size());
+
             SorobanResources resources;
-            resources.instructions = 1'000'000;
+            resources.instructions =
+                MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
             resources.readBytes = 5'000;
-            resources.writeBytes = 2'000;
+            resources.writeBytes =
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+
             for (int i = 0; i < 8; ++i)
             {
                 resources.footprint.readOnly.push_back(
@@ -1130,13 +1143,34 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             // accommodate 20 txs created by `createTx()`.
             modifySorobanNetworkConfig(
                 *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                    sorobanCfg.mLedgerMaxInstructions = 20 * 1'000'000;
-                    sorobanCfg.mLedgerMaxReadBytes = 20 * 5000;
-                    sorobanCfg.mLedgerMaxWriteBytes = 20 * 2000;
-                    sorobanCfg.mLedgerMaxReadLedgerEntries = 20 * 10;
-                    sorobanCfg.mLedgerMaxWriteLedgerEntries = 20 * 2;
-                    sorobanCfg.mLedgerMaxTxCount = 20;
-                    sorobanCfg.mLedgerMaxTransactionsSizeBytes = 20 * txSize;
+                    auto const txCount = 20;
+                    sorobanCfg.mLedgerMaxTxCount = txCount;
+
+                    sorobanCfg.mTxMaxInstructions =
+                        MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+                    sorobanCfg.mLedgerMaxInstructions =
+                        txCount * sorobanCfg.mTxMaxInstructions;
+
+                    sorobanCfg.mTxMaxReadBytes = 5000;
+                    sorobanCfg.mLedgerMaxReadBytes =
+                        txCount * sorobanCfg.mTxMaxReadBytes;
+
+                    sorobanCfg.mTxMaxWriteBytes =
+                        MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+                    sorobanCfg.mLedgerMaxWriteBytes =
+                        txCount * sorobanCfg.mTxMaxWriteBytes;
+
+                    sorobanCfg.mTxMaxReadLedgerEntries = 10;
+                    sorobanCfg.mLedgerMaxReadLedgerEntries =
+                        txCount * sorobanCfg.mTxMaxReadLedgerEntries;
+
+                    sorobanCfg.mTxMaxWriteLedgerEntries = 2;
+                    sorobanCfg.mLedgerMaxWriteLedgerEntries =
+                        txCount * sorobanCfg.mTxMaxWriteLedgerEntries;
+
+                    sorobanCfg.mTxMaxSizeBytes = txSize;
+                    sorobanCfg.mLedgerMaxTransactionsSizeBytes =
+                        txCount * sorobanCfg.mTxMaxSizeBytes;
 
                     if (protocolVersionStartsFrom(
                             protocolVersion,
