@@ -167,18 +167,32 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     // We may release reading capacity, which gets taken by the background
     // thread immediately, so we can't assert `canRead` here
     auto res = mFlowControl->endMessageProcessing(msg);
-    if (res.first > 0 || res.second > 0)
+    if (res.numFloodMessages > 0 || res.numFloodBytes > 0)
     {
-        sendSendMore(static_cast<uint32>(res.first),
-                     static_cast<uint32>(res.second));
+        sendSendMore(static_cast<uint32>(res.numFloodMessages),
+                     static_cast<uint32>(res.numFloodBytes));
     }
 
-    // Now that we've released some capacity, maybe schedule more reads
-    if (mFlowControl->stopThrottling())
+    // If throttled, schedule read as soon as a full batch is processed
+    if (mFlowControl->isThrottled() && res.numTotalMessages > 0)
     {
-        maybeExecuteInBackground(
-            "Peer::stopThrottling scheduleRead",
-            [](std::shared_ptr<Peer> self) { self->scheduleRead(); });
+        mFlowControl->stopThrottling();
+#ifdef BUILD_TESTS
+        // For LoopbackPeer tests, do so asynchronously to ensure
+        // LoopbackPeer::processInQueue function completes.
+        if (!useBackgroundThread() && threadIsMain())
+        {
+            mAppConnector.postOnMainThread(
+                [self = shared_from_this()]() { self->scheduleRead(); },
+                "Peer::stopThrottling scheduleRead");
+        }
+        else
+#endif
+        {
+            maybeExecuteInBackground(
+                "Peer::stopThrottling scheduleRead",
+                [](std::shared_ptr<Peer> self) { self->scheduleRead(); });
+        }
     }
 }
 
@@ -660,8 +674,6 @@ Peer::msgSummary(StellarMessage const& msg)
         return fmt::format(FMT_STRING("GET_SCP_STATE {:d}"),
                            msg.getSCPLedgerSeq());
 
-    case SURVEY_REQUEST:
-    case SURVEY_RESPONSE:
     case TIME_SLICED_SURVEY_REQUEST:
     case TIME_SLICED_SURVEY_RESPONSE:
     case TIME_SLICED_SURVEY_START_COLLECTING:
@@ -726,11 +738,9 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     case GET_SCP_STATE:
         mOverlayMetrics.mSendGetSCPStateMeter.Mark();
         break;
-    case SURVEY_REQUEST:
     case TIME_SLICED_SURVEY_REQUEST:
         mOverlayMetrics.mSendSurveyRequestMeter.Mark();
         break;
-    case SURVEY_RESPONSE:
     case TIME_SLICED_SURVEY_RESPONSE:
         mOverlayMetrics.mSendSurveyResponseMeter.Mark();
         break;
@@ -1128,7 +1138,6 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     }
     break;
 
-    case SURVEY_REQUEST:
     case TIME_SLICED_SURVEY_REQUEST:
     {
         auto t = mOverlayMetrics.mRecvSurveyRequestTimer.TimeScope();
@@ -1136,7 +1145,6 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     }
     break;
 
-    case SURVEY_RESPONSE:
     case TIME_SLICED_SURVEY_RESPONSE:
     {
         auto t = mOverlayMetrics.mRecvSurveyResponseTimer.TimeScope();

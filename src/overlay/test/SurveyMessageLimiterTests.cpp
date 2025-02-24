@@ -36,12 +36,12 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
     auto ledgerNum = app->getHerder().trackingConsensusLedgerIndex();
     SurveyRequestMessage firstRequest(v0SecretKey.getPublicKey(),
                                       v1SecretKey.getPublicKey(), ledgerNum,
-                                      temp, SURVEY_TOPOLOGY);
+                                      temp, TIME_SLICED_SURVEY_TOPOLOGY);
     // Second request with a _different_ surveyor, ensure it's processed
     // correctly
     SurveyRequestMessage secondRequest(v3SecretKey.getPublicKey(),
                                        v1SecretKey.getPublicKey(), ledgerNum,
-                                       temp, SURVEY_TOPOLOGY);
+                                       temp, TIME_SLICED_SURVEY_TOPOLOGY);
 
     auto success = [&]() -> bool { return true; };
 
@@ -57,11 +57,11 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
     {
         SurveyRequestMessage thirdRequest(v0SecretKey.getPublicKey(),
                                           v2SecretKey.getPublicKey(), ledgerNum,
-                                          temp, SURVEY_TOPOLOGY);
+                                          temp, TIME_SLICED_SURVEY_TOPOLOGY);
 
-        SurveyRequestMessage fourthRequest(v0SecretKey.getPublicKey(),
-                                           v3SecretKey.getPublicKey(),
-                                           ledgerNum, temp, SURVEY_TOPOLOGY);
+        SurveyRequestMessage fourthRequest(
+            v0SecretKey.getPublicKey(), v3SecretKey.getPublicKey(), ledgerNum,
+            temp, TIME_SLICED_SURVEY_TOPOLOGY);
 
         REQUIRE(rm.addAndValidateRequest(thirdRequest, success));
         // Hit the surveyed node limit
@@ -72,31 +72,31 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
         // Reject other nodes when at capacity
         SurveyRequestMessage otherRequest(v2SecretKey.getPublicKey(),
                                           v1SecretKey.getPublicKey(), ledgerNum,
-                                          temp, SURVEY_TOPOLOGY);
+                                          temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(!rm.addAndValidateRequest(otherRequest, success));
 
         // Allow self to start survey
         SurveyRequestMessage selfRequest(v1SecretKey.getPublicKey(),
                                          v3SecretKey.getPublicKey(), ledgerNum,
-                                         temp, SURVEY_TOPOLOGY);
+                                         temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(rm.addAndValidateRequest(selfRequest, success));
 
         // Allow self to survey more nodes
         SurveyRequestMessage selfRequest2(v1SecretKey.getPublicKey(),
                                           v0SecretKey.getPublicKey(), ledgerNum,
-                                          temp, SURVEY_TOPOLOGY);
+                                          temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(rm.addAndValidateRequest(selfRequest2, success));
 
         SurveyRequestMessage selfRequest3(v1SecretKey.getPublicKey(),
                                           v2SecretKey.getPublicKey(), ledgerNum,
-                                          temp, SURVEY_TOPOLOGY);
+                                          temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(rm.addAndValidateRequest(selfRequest3, success));
     }
     SECTION("receive corresponding response")
     {
         SurveyResponseMessage response(v0SecretKey.getPublicKey(),
                                        v1SecretKey.getPublicKey(), ledgerNum,
-                                       SURVEY_TOPOLOGY, 0);
+                                       TIME_SLICED_SURVEY_TOPOLOGY, 0);
 
         // validation should fail, so state should not change
         REQUIRE(!rm.recordAndValidateResponse(response, failure));
@@ -107,17 +107,17 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
 
     SECTION("corresponding response ledgernum too high")
     {
-        SurveyResponseMessage response(v0SecretKey.getPublicKey(),
-                                       v1SecretKey.getPublicKey(),
-                                       ledgerNum + 2, SURVEY_TOPOLOGY, 0);
+        SurveyResponseMessage response(
+            v0SecretKey.getPublicKey(), v1SecretKey.getPublicKey(),
+            ledgerNum + 2, TIME_SLICED_SURVEY_TOPOLOGY, 0);
         REQUIRE(!rm.recordAndValidateResponse(response, success));
     }
 
     SECTION("corresponding response ledgernum too low")
     {
-        SurveyResponseMessage response(v0SecretKey.getPublicKey(),
-                                       v1SecretKey.getPublicKey(),
-                                       ledgerNum - 1, SURVEY_TOPOLOGY, 0);
+        SurveyResponseMessage response(
+            v0SecretKey.getPublicKey(), v1SecretKey.getPublicKey(),
+            ledgerNum - 1, TIME_SLICED_SURVEY_TOPOLOGY, 0);
         REQUIRE(!rm.recordAndValidateResponse(response, success));
     }
 
@@ -125,7 +125,7 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
     {
         SurveyResponseMessage response(v0SecretKey.getPublicKey(),
                                        v1SecretKey.getPublicKey(), ledgerNum,
-                                       SURVEY_TOPOLOGY, 0);
+                                       TIME_SLICED_SURVEY_TOPOLOGY, 0);
 
         // rate limiter will return false for a response to the requestor if
         // onSuccessValidation fails
@@ -138,7 +138,7 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
         // different surveyor
         SurveyResponseMessage response(v2SecretKey.getPublicKey(),
                                        v1SecretKey.getPublicKey(), ledgerNum,
-                                       SURVEY_TOPOLOGY, 0);
+                                       TIME_SLICED_SURVEY_TOPOLOGY, 0);
         REQUIRE(!rm.recordAndValidateResponse(response, success));
     }
 
@@ -146,7 +146,7 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
     {
         SurveyRequestMessage request(v0SecretKey.getPublicKey(),
                                      v1SecretKey.getPublicKey(), ledgerNum + 2,
-                                     temp, SURVEY_TOPOLOGY);
+                                     temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(!rm.addAndValidateRequest(request, success));
     }
 
@@ -154,7 +154,7 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
     {
         SurveyRequestMessage request(v0SecretKey.getPublicKey(),
                                      v1SecretKey.getPublicKey(), ledgerNum - 1,
-                                     temp, SURVEY_TOPOLOGY);
+                                     temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(!rm.addAndValidateRequest(request, success));
     }
 
@@ -163,7 +163,7 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
         // Hit the surveyor node limit
         SurveyRequestMessage request(v2SecretKey.getPublicKey(),
                                      v3SecretKey.getPublicKey(), ledgerNum,
-                                     temp, SURVEY_TOPOLOGY);
+                                     temp, TIME_SLICED_SURVEY_TOPOLOGY);
         REQUIRE(!rm.addAndValidateRequest(request, success));
 
         rm.clearOldLedgers(ledgerNum + 1);

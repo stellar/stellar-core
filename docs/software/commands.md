@@ -397,9 +397,6 @@ Most commands return their results in JSON format.
 
 * **stopsurvey**
   `stopsurvey`<br>
-  **This command is deprecated and will be removed in a future release. It is no
-  longer necessary to explicitly stop a survey in the new time sliced survey
-  interface as these surveys expire automatically.**
   Will stop the survey if one is running. Noop if no survey is running
 
 * **startsurveycollecting**

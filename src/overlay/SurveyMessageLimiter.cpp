@@ -24,6 +24,8 @@ SurveyMessageLimiter::addAndValidateRequest(
     SurveyRequestMessage const& request,
     std::function<bool()> onSuccessValidation)
 {
+    releaseAssert(request.commandType == TIME_SLICED_SURVEY_TOPOLOGY);
+
     if (!surveyLedgerNumValid(request.ledgerNum))
     {
         return false;
