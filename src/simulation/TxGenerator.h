@@ -67,6 +67,13 @@ struct SorobanUpgradeConfig
 
     std::optional<int64_t> writeFee1KBBucketListLow{};
     std::optional<int64_t> writeFee1KBBucketListHigh{};
+
+    // Parallel execution settings
+    std::optional<uint32_t> ledgerMaxDependentTxClusters{};
+
+    // Ledger cost extension settings
+    std::optional<uint32_t> txMaxInMemoryReadEntries{};
+    std::optional<int64_t> flatRateFeeWrite1KB{};
 };
 
 class TxGenerator

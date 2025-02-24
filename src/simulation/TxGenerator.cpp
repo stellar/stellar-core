@@ -713,13 +713,28 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     xdr::xvector<ConfigSettingEntry> updatedEntries;
 
     LedgerSnapshot lsg(mApp);
-    for (uint32_t i = 0;
-         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
+    for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
     {
-        auto entry = lsg.load(configSettingKey(static_cast<ConfigSettingID>(i)))
-                         .current();
+        auto type = static_cast<ConfigSettingID>(t);
+        if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(type))
+        {
+            continue;
+        }
+
+        auto entryPtr = lsg.load(configSettingKey(type));
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // This could happen if we have not yet upgraded
+        if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
+             t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0) &&
+            !entryPtr)
+        {
+            continue;
+        }
+#endif
+        auto entry = entryPtr.current();
+
         auto& setting = entry.data.configSetting();
-        switch (static_cast<ConfigSettingID>(i))
+        switch (type)
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
             if (upgradeCfg.maxContractSizeBytes.has_value())
@@ -949,6 +964,28 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.ledgerMaxTxCount;
             }
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
+            if (upgradeCfg.ledgerMaxDependentTxClusters.has_value())
+            {
+                setting.contractParallelCompute().ledgerMaxDependentTxClusters =
+                    *upgradeCfg.ledgerMaxDependentTxClusters;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
+            if (upgradeCfg.txMaxInMemoryReadEntries.has_value())
+            {
+                setting.contractLedgerCostExt().txMaxInMemoryReadEntries =
+                    *upgradeCfg.txMaxInMemoryReadEntries;
+            }
+
+            if (upgradeCfg.flatRateFeeWrite1KB.has_value())
+            {
+                setting.contractLedgerCostExt().feeWrite1KB =
+                    *upgradeCfg.flatRateFeeWrite1KB;
+            }
+            break;
+#endif
         default:
             releaseAssert(false);
             break;

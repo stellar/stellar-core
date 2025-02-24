@@ -1561,6 +1561,13 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
 
     upgradeCfg.writeFee1KBBucketListLow = cfg.writeFee1KBBucketListLow();
     upgradeCfg.writeFee1KBBucketListHigh = cfg.writeFee1KBBucketListHigh();
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    upgradeCfg.ledgerMaxDependentTxClusters =
+        cfg.ledgerMaxDependentTxClusters();
+    upgradeCfg.txMaxInMemoryReadEntries = cfg.txMaxInMemoryReadEntries();
+    upgradeCfg.flatRateFeeWrite1KB = cfg.flatRateFeeWrite1KB();
+#endif
 }
 
 GeneratedLoadConfig

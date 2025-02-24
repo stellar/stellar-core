@@ -920,6 +920,19 @@ initialParallelComputeEntry()
         InitialSorobanNetworkConfig::LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
     return entry;
 }
+
+ConfigSettingEntry
+initialLedgerCostExtEntry()
+{
+    // TODO: Define better initial values
+    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
+    entry.contractLedgerCostExt().txMaxInMemoryReadEntries =
+        InitialSorobanNetworkConfig::TX_MAX_IN_MEMORY_READ_ENTRIES;
+    entry.contractLedgerCostExt().feeWrite1KB =
+        InitialSorobanNetworkConfig::FEE_WRITE_1KB;
+    return entry;
+}
+
 #endif
 
 ConfigSettingEntry
@@ -1076,6 +1089,14 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                     ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
                 cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0;
         break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
+        // TODO: Stricter validity checks
+        valid =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+            cfg.contractLedgerCostExt().txMaxInMemoryReadEntries >
+                MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
+            cfg.contractLedgerCostExt().feeWrite1KB >= 0;
+        break;
 #endif
     default:
         break;
@@ -1171,6 +1192,8 @@ SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     ZoneScoped;
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
+    createConfigSettingEntry(initialLedgerCostExtEntry(), ltx,
+                             static_cast<uint32_t>(ProtocolVersion::V_23));
 #endif
 }
 void
@@ -1238,6 +1261,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
     {
         loadParallelComputeConfig(ltx);
+        loadLedgerCostExtConfig(ltx);
     }
     // NB: this should follow loading/updating bucket list window
     // size and state archival settings
@@ -1454,6 +1478,21 @@ SorobanNetworkConfig::loadParallelComputeConfig(AbstractLedgerTxn& ltx)
     auto const& configSetting =
         le.data.configSetting().contractParallelCompute();
     mLedgerMaxDependentTxClusters = configSetting.ledgerMaxDependentTxClusters;
+#endif
+}
+
+void
+SorobanNetworkConfig::loadLedgerCostExtConfig(AbstractLedgerTxn& ltx)
+{
+    ZoneScoped;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
+    auto le = ltx.loadWithoutRecord(key).current();
+    auto const& configSetting = le.data.configSetting().contractLedgerCostExt();
+    mTxMaxInMemoryReadEntries = configSetting.txMaxInMemoryReadEntries;
+    mFlatRateFeeWrite1KB = configSetting.feeWrite1KB;
 #endif
 }
 
@@ -1929,6 +1968,15 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
             .ledgerMaxDependentTxClusters = mLedgerMaxDependentTxClusters;
         entries.emplace_back(
             writeConfigSettingEntry(parallelComputeEntry, ltx, app));
+
+        ConfigSettingEntry ledgerCostExtEntry(
+            CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
+        ledgerCostExtEntry.contractLedgerCostExt().txMaxInMemoryReadEntries =
+            mTxMaxInMemoryReadEntries;
+        ledgerCostExtEntry.contractLedgerCostExt().feeWrite1KB =
+            mFlatRateFeeWrite1KB;
+        entries.emplace_back(
+            writeConfigSettingEntry(ledgerCostExtEntry, ltx, app));
     }
 #endif
 
@@ -1991,6 +2039,18 @@ uint32_t
 SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
 {
     return mLedgerMaxDependentTxClusters;
+}
+
+uint32_t
+SorobanNetworkConfig::txMaxInMemoryReadEntries() const
+{
+    return mTxMaxInMemoryReadEntries;
+}
+
+int64_t
+SorobanNetworkConfig::flatRateFeeWrite1KB() const
+{
+    return mFlatRateFeeWrite1KB;
 }
 
 Resource
@@ -2276,6 +2336,14 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
 
            mCpuCostParams == other.cpuCostParams() &&
            mMemCostParams == other.memCostParams() &&
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+           mLedgerMaxDependentTxClusters ==
+               other.ledgerMaxDependentTxClusters() &&
+
+           mTxMaxInMemoryReadEntries == other.txMaxInMemoryReadEntries() &&
+           mFlatRateFeeWrite1KB == other.flatRateFeeWrite1KB() &&
+#endif
 
            mStateArchivalSettings == other.stateArchivalSettings() &&
            mEvictionIterator == other.evictionIterator();
