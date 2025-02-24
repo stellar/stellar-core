@@ -348,6 +348,18 @@ BucketEntryCounters::numEntries() const
     return num;
 }
 
+BucketEntryCounters::BucketEntryCounters()
+{
+    for (uint32_t type =
+             static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
+         type < static_cast<uint32_t>(LedgerEntryTypeAndDurability::NUM_TYPES);
+         ++type)
+    {
+        entryTypeCounts[static_cast<LedgerEntryTypeAndDurability>(type)] = 0;
+        entryTypeSizes[static_cast<LedgerEntryTypeAndDurability>(type)] = 0;
+    }
+}
+
 template void
 BucketEntryCounters::count<LiveBucket>(LiveBucket::EntryT const& be);
 template void BucketEntryCounters::count<HotArchiveBucket>(

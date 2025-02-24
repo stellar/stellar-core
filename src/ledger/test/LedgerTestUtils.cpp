@@ -788,6 +788,28 @@ generateValidUniqueLedgerEntriesWithTypes(
     return entries;
 }
 
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
+{
+    std::vector<LedgerEntry> entries;
+    entries.reserve(n);
+    while (entries.size() < n)
+    {
+        auto entry = generateValidLedgerEntryWithTypes(types);
+        auto key = LedgerEntryKey(entry);
+        if (seenKeys.find(key) != seenKeys.end())
+        {
+            continue;
+        }
+
+        seenKeys.insert(key);
+        entries.push_back(entry);
+    }
+    return entries;
+}
+
 AccountEntry
 generateValidAccountEntry(size_t b)
 {

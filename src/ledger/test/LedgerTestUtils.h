@@ -69,6 +69,10 @@ LedgerEntry generateValidLedgerEntryWithTypes(
 std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n);
 
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys);
+
 AccountEntry generateValidAccountEntry(size_t b = 3);
 std::vector<AccountEntry> generateValidAccountEntries(size_t n);
 

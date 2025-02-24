@@ -4,6 +4,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
+#include "bucket/BucketIndexUtils.h"
 #include "bucket/LiveBucketList.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -162,7 +163,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 250;            // 250 mb
-    BUCKETLIST_DB_CACHED_PERCENT = 10;
+    BUCKETLIST_DB_MEMORY_FOR_CACHING = 3'000;    // 3000 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
@@ -1142,10 +1143,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
                          readInt<size_t>(item);
                  }},
-                {"BUCKETLIST_DB_CACHED_PERCENT",
+                {"BUCKETLIST_DB_MEMORY_FOR_CACHING",
                  [&]() {
-                     BUCKETLIST_DB_CACHED_PERCENT =
-                         readInt<size_t>(item, 0, 100);
+                     BUCKETLIST_DB_MEMORY_FOR_CACHING = readInt<size_t>(item);
                  }},
                 {"BUCKETLIST_DB_INDEX_CUTOFF",
                  [&]() { BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item); }},

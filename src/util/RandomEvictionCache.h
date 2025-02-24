@@ -95,14 +95,11 @@ class RandomEvictionCache : public NonMovableOrCopyable
         mValuePtrs.reserve(maxSize + 1);
     }
 
-    RandomEvictionCache(size_t maxSize, bool separatePRNG, bool reserve = true)
+    RandomEvictionCache(size_t maxSize, bool separatePRNG)
         : mMaxSize(maxSize), mSeparatePRNG(separatePRNG)
     {
-        if (reserve)
-        {
-            mValueMap.reserve(maxSize + 1);
-            mValuePtrs.reserve(maxSize + 1);
-        }
+        mValueMap.reserve(maxSize + 1);
+        mValuePtrs.reserve(maxSize + 1);
     }
 
     void

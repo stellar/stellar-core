@@ -97,8 +97,8 @@ lookup speed and memory overhead. The following configuration flags control thes
     on startup. Defaults to true, should only be set to false for testing purposes.
     Validators do not currently support persisted indexes. If NODE_IS_VALIDATOR=true,
     this value is ignored and indexes are never persisted.
-- `BUCKETLIST_DB_CACHED_PERCENT`
-  - Percentage of entries cached by BucketListDB when Bucket size is larger
-    than `BUCKETLIST_DB_INDEX_CUTOFF`. Note that this value does not impact
+- `BUCKETLIST_DB_MEMORY_FOR_CACHING`
+  - Memory used for caching entries by BucketListDB when Bucket size is larger
+    than `BUCKETLIST_DB_INDEX_CUTOFF`, in MB. Note that this value does not impact
     Buckets smaller than `BUCKETLIST_DB_INDEX_CUTOFF`, as they are always
     completely held in memory.

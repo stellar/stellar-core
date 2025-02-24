@@ -50,6 +50,10 @@ class LiveBucketList : public BucketListBase<LiveBucket>
                   std::vector<LedgerKey> const& deadEntries);
 
     BucketEntryCounters sumBucketEntryCounters() const;
+
+    // Initializes any uninitialized caches in the BucketIndex. Should be called
+    // after every time buckets may have changed in the LiveBucketList.
+    void maybeInitializeCaches(Config const& cfg) const;
 };
 
 }

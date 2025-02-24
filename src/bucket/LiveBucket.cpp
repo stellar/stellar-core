@@ -308,6 +308,17 @@ LiveBucket::apply(Application& app) const
     }
     counters.logInfo("direct", 0, app.getClock().now());
 }
+
+size_t
+LiveBucket::getMaxCacheSize() const
+{
+    if (!isEmpty())
+    {
+        return getIndex().getMaxCacheSize();
+    }
+
+    return 0;
+}
 #endif // BUILD_TESTS
 
 std::optional<std::pair<std::streamoff, std::streamoff>>
@@ -429,6 +440,14 @@ LiveBucket::getBucketVersion() const
 {
     LiveBucketInputIterator it(shared_from_this());
     return it.getMetadata().ledgerVersion;
+}
+
+void
+LiveBucket::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
+                                 Config const& cfg) const
+{
+    releaseAssert(mIndex);
+    mIndex->maybeInitializeCache(totalBucketListAccountsSizeBytes, cfg);
 }
 
 BucketEntryCounters const&
