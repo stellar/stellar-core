@@ -18,44 +18,55 @@ uint64_t footprintSize(Application& app,
 struct SorobanUpgradeConfig
 {
     // Network Upgrade Parameters
-    uint32_t maxContractSizeBytes{};
-    uint32_t maxContractDataKeySizeBytes{};
-    uint32_t maxContractDataEntrySizeBytes{};
+    std::optional<uint32_t> maxContractSizeBytes{};
+    std::optional<uint32_t> maxContractDataKeySizeBytes{};
+    std::optional<uint32_t> maxContractDataEntrySizeBytes{};
 
     // Compute settings for contracts (instructions and memory).
-    int64_t ledgerMaxInstructions{};
-    int64_t txMaxInstructions{};
-    uint32_t txMemoryLimit{};
+    std::optional<int64_t> ledgerMaxInstructions{};
+    std::optional<int64_t> txMaxInstructions{};
+    std::optional<int64_t> feeRatePerInstructionsIncrement{};
+    std::optional<uint32_t> txMemoryLimit{};
 
     // Ledger access settings for contracts.
-    uint32_t ledgerMaxReadLedgerEntries{};
-    uint32_t ledgerMaxReadBytes{};
-    uint32_t ledgerMaxWriteLedgerEntries{};
-    uint32_t ledgerMaxWriteBytes{};
-    uint32_t ledgerMaxTxCount{};
-    uint32_t txMaxReadLedgerEntries{};
-    uint32_t txMaxReadBytes{};
-    uint32_t txMaxWriteLedgerEntries{};
-    uint32_t txMaxWriteBytes{};
+    std::optional<uint32_t> ledgerMaxReadLedgerEntries{};
+    std::optional<uint32_t> ledgerMaxReadBytes{};
+    std::optional<uint32_t> ledgerMaxWriteLedgerEntries{};
+    std::optional<uint32_t> ledgerMaxWriteBytes{};
+    std::optional<int64_t> feeReadLedgerEntry{};
+    std::optional<int64_t> feeWriteLedgerEntry{};
+    std::optional<int64_t> feeRead1KB{};
+    std::optional<uint32_t> ledgerMaxTxCount{};
+    std::optional<uint32_t> txMaxReadLedgerEntries{};
+    std::optional<uint32_t> txMaxReadBytes{};
+    std::optional<uint32_t> txMaxWriteLedgerEntries{};
+    std::optional<uint32_t> txMaxWriteBytes{};
+
+    // Historical data (pushed to core archives) settings for contracts.
+    std::optional<int64_t> feeHistorical1KB{};
 
     // Contract events settings.
-    uint32_t txMaxContractEventsSizeBytes{};
+    std::optional<uint32_t> txMaxContractEventsSizeBytes{};
 
     // Bandwidth related data settings for contracts
-    uint32_t ledgerMaxTransactionsSizeBytes{};
-    uint32_t txMaxSizeBytes{};
+    std::optional<uint32_t> ledgerMaxTransactionsSizeBytes{};
+    std::optional<uint32_t> txMaxSizeBytes{};
+    std::optional<int64_t> feeTransactionSize1KB{};
 
     // State Archival Settings
-    uint32_t maxEntryTTL{};
-    uint32_t minTemporaryTTL{};
-    uint32_t minPersistentTTL{};
-    int64_t persistentRentRateDenominator{};
-    int64_t tempRentRateDenominator{};
-    uint32_t maxEntriesToArchive{};
-    uint32_t bucketListSizeWindowSampleSize{};
-    uint32_t bucketListWindowSamplePeriod{};
-    uint32_t evictionScanSize{};
-    uint32_t startingEvictionScanLevel{};
+    std::optional<uint32_t> maxEntryTTL{};
+    std::optional<uint32_t> minTemporaryTTL{};
+    std::optional<uint32_t> minPersistentTTL{};
+    std::optional<int64_t> persistentRentRateDenominator{};
+    std::optional<int64_t> tempRentRateDenominator{};
+    std::optional<uint32_t> maxEntriesToArchive{};
+    std::optional<uint32_t> bucketListSizeWindowSampleSize{};
+    std::optional<uint32_t> bucketListWindowSamplePeriod{};
+    std::optional<uint32_t> evictionScanSize{};
+    std::optional<uint32_t> startingEvictionScanLevel{};
+
+    std::optional<int64_t> writeFee1KBBucketListLow{};
+    std::optional<int64_t> writeFee1KBBucketListHigh{};
 };
 
 class TxGenerator
@@ -97,14 +108,16 @@ class TxGenerator
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
 
+    // If accountId is nullopt, the root test account is used.
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(
-        uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
-        LedgerKey const& contractCodeLedgerKey,
+        uint32_t ledgerNum, std::optional<uint64_t> accountId,
+        xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
+    createContractTransaction(uint32_t ledgerNum,
+                              std::optional<uint64_t> accountId,
                               LedgerKey const& codeKey,
                               uint64_t contractOverheadBytes,
                               uint256 const& salt,
@@ -123,8 +136,9 @@ class TxGenerator
                                    std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
-        uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
-        LedgerKey const& codeKey, LedgerKey const& instanceKey,
+        uint32_t ledgerNum, std::optional<uint64_t> accountId,
+        SCBytes const& upgradeBytes, LedgerKey const& codeKey,
+        LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>

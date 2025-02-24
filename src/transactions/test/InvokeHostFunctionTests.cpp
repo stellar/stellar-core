@@ -690,7 +690,7 @@ TEST_CASE("version test", "[tx][soroban]")
 
     executeUpgrade(test.getApp(), upgrade);
 
-    test.updateSorobanNetworkConfig();
+    overrideSorobanNetworkConfigForTest(test.getApp());
 
     TestContract& contract =
         test.deployWasmContract(rust_bridge::get_invoke_contract_wasm());
