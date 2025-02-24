@@ -392,7 +392,7 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
                 REQUIRE(a1.getTrustlineBalance(cur1) == 1000);
                 REQUIRE(a1.getTrustlineBalance(cur2) == 1001);
                 checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
-           }
+            }
             SECTION("deposit then withdraw - rounding results in extra asset "
                     "in pool - "
                     "assetA fail")

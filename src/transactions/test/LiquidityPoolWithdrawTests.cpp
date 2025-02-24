@@ -316,7 +316,7 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
                                        Price{1, 1});
             root->liquidityPoolWithdraw(poolNative1, 1000, 1000, 1000);
             checkLiquidityPool(*app, poolNative1, 0, 0, 0, 1);
-           root->changeTrust(shareNative1, 0);
+            root->changeTrust(shareNative1, 0);
         }
 
         SECTION("both non-native one asset withdraw is zero")

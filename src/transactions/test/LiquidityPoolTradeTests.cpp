@@ -85,7 +85,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE(res.success().offers.size() == 1);
             REQUIRE(res.success().offers[0].type() ==
                     CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
-       }
+        }
 
         SECTION("both prices equal")
         {
@@ -145,10 +145,10 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         root->pay(a2, cur2, 10000);
         root->pay(a2, cur3, 10000);
 
-       auto a3 = root->create("a3", minBal(10));
-       a3.changeTrust(cur1, INT64_MAX);
-       a3.changeTrust(cur2, INT64_MAX);
-       a3.changeTrust(cur3, INT64_MAX);
+        auto a3 = root->create("a3", minBal(10));
+        a3.changeTrust(cur1, INT64_MAX);
+        a3.changeTrust(cur2, INT64_MAX);
+        a3.changeTrust(cur3, INT64_MAX);
         root->pay(a3, cur1, 10000);
         root->pay(a3, cur2, 10000);
         root->pay(a3, cur3, 10000);
@@ -158,7 +158,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         {
             a1.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
             a2.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
-       }
+        }
 
         SECTION("order book succeeds when crossing limit")
         {
@@ -235,7 +235,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1001, {}),
                 ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
             a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1000, {});
-       }
+        }
 
         SECTION("strict receive")
         {
@@ -269,7 +269,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pathPaymentStrictSend(a2, cur1, 11, cur2, 9, {}),
                 ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
             a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-       }
+        }
 
         SECTION("strict receive")
         {
@@ -300,10 +300,10 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         root->pay(mm12, cur1, INT64_MAX);
         root->pay(mm12, cur2, INT64_MAX);
 
-       auto mm23 = root->create("mm23", minBal(10));
-       mm23.changeTrust(cur2, INT64_MAX);
-       mm23.changeTrust(cur3, INT64_MAX);
-       mm23.changeTrust(share23, INT64_MAX);
+        auto mm23 = root->create("mm23", minBal(10));
+        mm23.changeTrust(cur2, INT64_MAX);
+        mm23.changeTrust(cur3, INT64_MAX);
+        mm23.changeTrust(share23, INT64_MAX);
         root->pay(mm23, cur2, INT64_MAX);
         root->pay(mm23, cur3, INT64_MAX);
 
@@ -315,7 +315,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur3, 1, {cur2}),
                 ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-       }
+        }
 
         SECTION("strict receive")
         {
@@ -352,7 +352,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pathPaymentStrictSend(a2, cur1, 1, cur2, 1, {}),
                 ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-       }
+        }
 
         // Not possible with PathPaymentStrictReceive.
     }
@@ -402,7 +402,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pathPaymentStrictSend(a2, cur1, 1, cur3, 1, {cur2}),
                 ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-       }
+        }
 
         // Not possible with PathPaymentStrictReceive.
     }
@@ -453,7 +453,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         {
             a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
             checkLiquidityPool12(1010, 991, 1000, 1);
-       }
+        }
 
         SECTION("strict receive")
         {
@@ -485,7 +485,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         {
             a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
             checkLiquidityPool12(1010, 991, 1000, 1);
-       }
+        }
 
         SECTION("strict receive")
         {
@@ -583,7 +583,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             // Below the reserve
             a1.pay(a2, cur1, INT64_MAX, cur2, 999, {});
             checkLiquidityPool12(1003007, 1, 1000, 1);
-       }
+        }
     }
 
     SECTION("payment into pool would be larger than INT64_MAX")
@@ -611,7 +611,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(
                 a1.pay(a2, cur1, INT64_MAX, cur2, INT64_MAX / 2 - 1, {}),
                 ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-       }
+        }
     }
 
     SECTION("cross the same pair twice in the same direction")
@@ -632,9 +632,9 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         root->pay(mm12, cur1, 10000);
         root->pay(mm12, cur2, 10000);
 
-       auto mm23 = root->create("mm23", minBal(10));
-       mm23.changeTrust(cur2, INT64_MAX);
-       mm23.changeTrust(cur3, INT64_MAX);
+        auto mm23 = root->create("mm23", minBal(10));
+        mm23.changeTrust(cur2, INT64_MAX);
+        mm23.changeTrust(cur3, INT64_MAX);
         root->pay(mm23, cur2, 10000);
         root->pay(mm23, cur3, 10000);
         mm23.manageOffer(0, cur3, cur2, Price{1, 1}, 1000);
@@ -689,7 +689,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pay(a2, cur1, 107, cur2, 256, {cur2, cur3, cur1});
                 checkLiquidityPool12(1255, 1596, 1414, 1);
             }
-       }
+        }
 
         SECTION("liquidity pool both times, fails on the second hop")
         {
@@ -975,7 +975,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 a1.pay(a2, cur1, 100, cur1, 99, {cur2});
                 checkLiquidityPool12(1001, 2000, 1414, 1);
             }
-       }
+        }
     }
 }
 
@@ -1162,7 +1162,7 @@ TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
                 {
                     testStrictReceive(cur1, 112, cur2, 100);
                 }
-           }
+            }
 
             SECTION("one native, strict receive")
             {
