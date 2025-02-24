@@ -219,6 +219,16 @@ fromResourceUsageJson(QuorumCheckerResource& usage, Json::Value const& value)
     usage.mem_bytes = static_cast<size_t>(value["memory_bytes"].asUInt64());
 }
 
+void
+updateResourceLimits(QuorumCheckerResource& limits,
+                     QuorumCheckerResource const& usage)
+{
+    // only the time limit carries through. memory is a transient resource that
+    // we reclaim back after each run so we don't need to deduct the actual
+    // usage
+    limits.time_ms -= usage.time_ms;
+}
+
 }
 
 namespace stellar
@@ -297,6 +307,8 @@ RustQuorumCheckerAdaptor::networkEnjoysQuorumIntersection(
         QuorumCheckerResource limits{timeLimitMs, memoryLimitBytes};
         QuorumCheckerResource usage;
         status = checkQuorumIntersectionInner(qmap, split, limits, usage);
+        updateResourceLimits(limits, usage);
+
         // only run critical analysis if quorum enjoys intersection (`UNSAT`).
         // otherwise we want to return as soon as possible.
         if (status == QuorumCheckerStatus::UNSAT && analyzeCriticalGroups)
@@ -304,10 +316,10 @@ RustQuorumCheckerAdaptor::networkEnjoysQuorumIntersection(
             auto cb = [&](QuorumIntersectionChecker::QuorumSetMap const& qmap,
                           std::optional<stellar::Config> const& _cfg) -> bool {
                 QuorumSplit _potentialSplit;
-                QuorumCheckerResource _usage;
-                return checkQuorumIntersectionInner(qmap, _potentialSplit,
-                                                    limits, _usage) ==
-                       QuorumCheckerStatus::UNSAT;
+                QuorumCheckerStatus status = checkQuorumIntersectionInner(
+                    qmap, _potentialSplit, limits, usage);
+                updateResourceLimits(limits, usage);
+                return status == QuorumCheckerStatus::UNSAT;
             };
             auto criticalGroups =
                 QuorumIntersectionChecker::getIntersectionCriticalGroups(
