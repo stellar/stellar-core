@@ -31,6 +31,7 @@ pub(crate) mod soroban_proto_all;
 mod b64;
 mod i128;
 mod log;
+mod quorum_checker;
 mod soroban_invoke;
 mod soroban_module_cache;
 mod soroban_test_wasm;

@@ -715,6 +715,16 @@ class Config : public std::enable_shared_from_this<Config>
     // Whether to run online quorum intersection checks.
     bool QUORUM_INTERSECTION_CHECKER;
 
+    // Whether to use the new Rust SAT-solving based quorum intersection
+    // checker.
+    bool USE_QUORUM_INTERSECTION_CHECKER_V2;
+
+    // (V2 only) Time limit in milliseconds for the quorum intersection checker
+    uint64_t QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS;
+
+    // (V2 only) Memory limit in bytes for the quorum intersection checker
+    uint64_t QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES;
+
     // Invariants
     std::vector<std::string> INVARIANT_CHECKS;
 

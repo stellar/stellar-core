@@ -13,6 +13,7 @@
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/QuorumIntersectionChecker.h"
+#include "herder/RustQuorumCheckerAdaptor.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
@@ -22,6 +23,7 @@
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
+#include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "transactions/MutableTransactionResult.h"
@@ -96,6 +98,9 @@ HerderImpl::HerderImpl(Application& app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
+    , mLastQuorumMapIntersectionState(
+          std::make_shared<QuorumMapIntersectionState>(
+              app.getTmpDirManager().tmpDir("herder-qic")))
     , mState(Herder::HERDER_BOOTING_STATE)
 {
     auto ln = getSCP().getLocalNode();
@@ -266,14 +271,6 @@ HerderImpl::shutdown()
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
-    if (mLastQuorumMapIntersectionState.mRecalculating)
-    {
-        // We want to interrupt any calculation-in-progress at shutdown to
-        // avoid a long pause joining worker threads.
-        CLOG_DEBUG(Herder,
-                   "Shutdown interrupting quorum transitive closure analysis.");
-        mLastQuorumMapIntersectionState.mInterruptFlag = true;
-    }
     mTransactionQueue.shutdown();
     if (mSorobanTransactionQueue)
     {
@@ -478,7 +475,16 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         newSlotExternalized(false, value);
 
         // Check to see if quorums have changed and we need to reanalyze.
-        checkAndMaybeReanalyzeQuorumMap();
+        if (mApp.getConfig().USE_QUORUM_INTERSECTION_CHECKER_V2)
+        {
+            // v2. performs quorum analysis in a separate process that runs the
+            // Rust SAT solver.
+            checkAndMaybeReanalyzeQuorumMapV2();
+        }
+        else
+        {
+            checkAndMaybeReanalyzeQuorumMap();
+        }
 
         // heart beat *after* doing all the work (ensures that we do not include
         // the overhead of externalization in the way we track SCP)
@@ -1649,16 +1655,16 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
 {
     Json::Value ret;
     ret["intersection"] =
-        mLastQuorumMapIntersectionState.enjoysQuorunIntersection();
+        mLastQuorumMapIntersectionState->enjoysQuorunIntersection();
     ret["node_count"] =
-        static_cast<Json::UInt64>(mLastQuorumMapIntersectionState.mNumNodes);
+        static_cast<Json::UInt64>(mLastQuorumMapIntersectionState->mNumNodes);
     ret["last_check_ledger"] = static_cast<Json::UInt64>(
-        mLastQuorumMapIntersectionState.mLastCheckLedger);
-    if (mLastQuorumMapIntersectionState.enjoysQuorunIntersection())
+        mLastQuorumMapIntersectionState->mLastCheckLedger);
+    if (mLastQuorumMapIntersectionState->enjoysQuorunIntersection())
     {
         Json::Value critical;
         for (auto const& group :
-             mLastQuorumMapIntersectionState.mIntersectionCriticalNodes)
+             mLastQuorumMapIntersectionState->mIntersectionCriticalNodes)
         {
             Json::Value jg;
             for (auto const& k : group)
@@ -1673,9 +1679,9 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
     else
     {
         ret["last_good_ledger"] = static_cast<Json::UInt64>(
-            mLastQuorumMapIntersectionState.mLastGoodLedger);
+            mLastQuorumMapIntersectionState->mLastGoodLedger);
         Json::Value split, a, b;
-        auto const& pair = mLastQuorumMapIntersectionState.mPotentialSplit;
+        auto const& pair = mLastQuorumMapIntersectionState->mPotentialSplit;
         for (auto const& k : pair.first)
         {
             auto s = mApp.getConfig().toStrKey(k, fullKeys);
@@ -1704,7 +1710,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     bool isSelf = id == mApp.getConfig().NODE_SEED.getPublicKey();
     if (isSelf)
     {
-        if (mLastQuorumMapIntersectionState.hasAnyResults())
+        if (mLastQuorumMapIntersectionState->hasAnyResults())
         {
             ret["transitive"] =
                 getJsonTransitiveQuorumIntersectionInfo(fullKeys);
@@ -1724,7 +1730,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
 {
     Json::Value ret;
     bool isSelf = rootID == mApp.getConfig().NODE_SEED.getPublicKey();
-    if (isSelf && mLastQuorumMapIntersectionState.hasAnyResults())
+    if (isSelf && mLastQuorumMapIntersectionState->hasAnyResults())
     {
         ret = getJsonTransitiveQuorumIntersectionInfo(fullKeys);
     }
@@ -1872,6 +1878,53 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
 }
 
 void
+HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
+{
+    ZoneScoped;
+    if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
+    {
+        return;
+    }
+    auto& qmap = getCurrentlyTrackedQuorum();
+    Hash curr = getQmapHash(qmap);
+    if (mLastQuorumMapIntersectionState->mLastCheckQuorumMapHash == curr)
+    {
+        // Everything's stable, nothing to do.
+        return;
+    }
+    if (mLastQuorumMapIntersectionState->mRecalculating)
+    {
+        if (mLastQuorumMapIntersectionState->mCheckingQuorumMapHash == curr)
+        {
+            CLOG_DEBUG(Herder, "Transitive closure of quorum has "
+                               "changed, already analyzing new "
+                               "configuration.");
+        }
+        else
+        {
+            CLOG_DEBUG(Herder, "Transitive closure of quorum has changed,"
+                               "however the previous analysis is still "
+                               "in progress, the new analysis will start after "
+                               "the previous one finishes or gets interrupted "
+                               "by the timer");
+        }
+        return;
+    }
+
+    CLOG_INFO(Herder,
+              "Transitive closure of quorum has changed, re-analyzing.");
+    mLastQuorumMapIntersectionState->mRecalculating = true;
+    mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
+    RustQuorumCheckerAdaptor::runQuorumIntersectionCheckAsync(
+        curr, trackingConsensusLedgerIndex(),
+        mLastQuorumMapIntersectionState->mTmpDir->getName(), qmap,
+        mLastQuorumMapIntersectionState, mApp.getProcessManager(), true,
+        mApp.getConfig().QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
+        mApp.getConfig().QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
+    // TODO: parse the metrics and send to medida
+}
+
+void
 HerderImpl::checkAndMaybeReanalyzeQuorumMap()
 {
     if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
@@ -1881,13 +1934,13 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
     ZoneScoped;
     QuorumTracker::QuorumMap const& qmap = getCurrentlyTrackedQuorum();
     Hash curr = getQmapHash(qmap);
-    if (mLastQuorumMapIntersectionState.mLastCheckQuorumMapHash == curr)
+    if (mLastQuorumMapIntersectionState->mLastCheckQuorumMapHash == curr)
     {
         // Everything's stable, nothing to do.
         return;
     }
 
-    if (mLastQuorumMapIntersectionState.mRecalculating)
+    if (mLastQuorumMapIntersectionState->mRecalculating)
     {
         // Already recalculating. If we're recalculating for the hash we want,
         // we do nothing, just wait for it to finish. If we're recalculating for
@@ -1895,7 +1948,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         // _interrupt_ the calculation-in-progress: we'll return to this
         // function on the next externalize and start a new calculation for the
         // new hash we want.
-        if (mLastQuorumMapIntersectionState.mCheckingQuorumMapHash == curr)
+        if (mLastQuorumMapIntersectionState->mCheckingQuorumMapHash == curr)
         {
             CLOG_DEBUG(Herder, "Transitive closure of quorum has "
                                "changed, already analyzing new "
@@ -1906,7 +1959,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
             CLOG_DEBUG(Herder, "Transitive closure of quorum has "
                                "changed, interrupting existing "
                                "analysis.");
-            mLastQuorumMapIntersectionState.mInterruptFlag = true;
+            mLastQuorumMapIntersectionState->mInterruptFlag = true;
         }
     }
     else
@@ -1914,48 +1967,59 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         CLOG_INFO(Herder,
                   "Transitive closure of quorum has changed, re-analyzing.");
         // Not currently recalculating: start doing so.
-        mLastQuorumMapIntersectionState.mRecalculating = true;
-        mLastQuorumMapIntersectionState.mInterruptFlag = false;
-        mLastQuorumMapIntersectionState.mCheckingQuorumMapHash = curr;
+        mLastQuorumMapIntersectionState->mRecalculating = true;
+        mLastQuorumMapIntersectionState->mInterruptFlag = false;
+        mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
         auto& cfg = mApp.getConfig();
         releaseAssert(threadIsMain());
         auto seed = gRandomEngine();
-        auto qic = QuorumIntersectionChecker::create(
-            qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag, seed);
+
         auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
         auto& hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
-        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, seed, &app,
-                       &hState] {
+        auto worker = [curr, ledger, nNodes, qmap, cfg, seed, &app, &hState] {
             try
             {
                 ZoneScoped;
-                bool ok = qic->networkEnjoysQuorumIntersection();
-                auto split = qic->getPotentialSplit();
+                bool ok = false;
+                std::pair<std::vector<PublicKey>, std::vector<PublicKey>> split;
+                auto qic = QuorumIntersectionChecker::create(
+                    qmap, cfg, hState->mInterruptFlag, seed);
+                ok = qic->networkEnjoysQuorumIntersection();
+                split = qic->getPotentialSplit();
                 std::set<std::set<PublicKey>> critical;
                 if (ok)
                 {
                     // Only bother calculating the _critical_ groups if we're
                     // intersecting; if not intersecting we should finish ASAP
                     // and raise an alarm.
+                    auto cb = [&hState, seed](
+                                  QuorumIntersectionChecker::QuorumSetMap const&
+                                      qSetMap,
+                                  std::optional<Config> const& config) -> bool {
+                        auto checker = QuorumIntersectionChecker::create(
+                            qSetMap, config, hState->mInterruptFlag, seed,
+                            /*quiet=*/true);
+                        return checker->networkEnjoysQuorumIntersection();
+                    };
                     critical = QuorumIntersectionChecker::
                         getIntersectionCriticalGroups(
-                            qmap, cfg, hState.mInterruptFlag, seed);
+                            toQuorumIntersectionMap(qmap), cfg, cb);
                 }
                 app.postOnMainThread(
                     [ok, curr, ledger, nNodes, split, critical, &hState] {
-                        hState.mRecalculating = false;
-                        hState.mInterruptFlag = false;
-                        hState.mNumNodes = nNodes;
-                        hState.mLastCheckLedger = ledger;
-                        hState.mLastCheckQuorumMapHash = curr;
-                        hState.mCheckingQuorumMapHash = Hash{};
-                        hState.mPotentialSplit = split;
-                        hState.mIntersectionCriticalNodes = critical;
+                        hState->mRecalculating = false;
+                        hState->mInterruptFlag = false;
+                        hState->mNumNodes = nNodes;
+                        hState->mLastCheckLedger = ledger;
+                        hState->mLastCheckQuorumMapHash = curr;
+                        hState->mCheckingQuorumMapHash = Hash{};
+                        hState->mPotentialSplit = split;
+                        hState->mIntersectionCriticalNodes = critical;
                         if (ok)
                         {
-                            hState.mLastGoodLedger = ledger;
+                            hState->mLastGoodLedger = ledger;
                         }
                     },
                     "QuorumIntersectionChecker finished");
@@ -1966,11 +2030,25 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                            "Quorum transitive closure analysis interrupted.");
                 app.postOnMainThread(
                     [&hState] {
-                        hState.mRecalculating = false;
-                        hState.mInterruptFlag = false;
-                        hState.mCheckingQuorumMapHash = Hash{};
+                        hState->mRecalculating = false;
+                        hState->mInterruptFlag = false;
+                        hState->mCheckingQuorumMapHash = Hash{};
                     },
                     "QuorumIntersectionChecker interrupted");
+            }
+            catch (const RustQuorumCheckerError& e)
+            {
+                CLOG_DEBUG(Herder,
+                           "Quorum transitive closure analysis failed due to "
+                           "Rust solver error: {}",
+                           e.what());
+                app.postOnMainThread(
+                    [&hState] {
+                        hState->mRecalculating = false;
+                        hState->mInterruptFlag = false;
+                        hState->mCheckingQuorumMapHash = Hash{};
+                    },
+                    "QuorumIntersectionChecker rust error");
             }
         };
         mApp.postOnBackgroundThread(worker, "QuorumIntersectionChecker");

@@ -15,6 +15,7 @@
 #include "catchup/ReplayDebugMetaWork.h"
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
+#include "herder/RustQuorumCheckerAdaptor.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/WriteVerifiedCheckpointHashesWork.h"
@@ -1376,10 +1377,103 @@ int
 runCheckQuorumIntersection(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    std::optional<Config> cfg = std::nullopt;
     std::string jsonPath;
+    std::string resultJson;
+    bool analyzeCriticalGroups;
+    uint64_t timeLimitMs = 5000;                 // Default: 5 seconds
+    size_t memoryLimitBytes = 100 * 1024 * 1024; // Default: 100 MiB
+    bool v2 = true;
+
+    auto runV2 = [&]() -> int {
+        try
+        {
+            QuorumCheckerStatus status =
+                RustQuorumCheckerAdaptor::networkEnjoysQuorumIntersection(
+                    jsonPath, timeLimitMs, memoryLimitBytes,
+                    analyzeCriticalGroups, resultJson);
+
+            if (status == QuorumCheckerStatus::UNSAT)
+            {
+                CLOG_INFO(SCP, "Network enjoys quorum intersection");
+            }
+            else if (status == QuorumCheckerStatus::SAT)
+            {
+                CLOG_WARNING(SCP, "Network does not enjoy quorum intersection");
+            }
+            else
+            {
+                CLOG_WARNING(SCP, "Quorum check was interrupted");
+            }
+            return static_cast<int>(status);
+        }
+        catch (KeyUtils::InvalidStrKey const& e)
+        {
+            CLOG_FATAL(
+                SCP,
+                "check-quorum-intersection encountered an "
+                "error: Invalid public key in JSON file. JSON file must be "
+                "generated with the 'fullkeys' parameter set to 'true'.");
+            return -1;
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_FATAL(SCP,
+                       "check-quorum-intersection encountered an error: {}",
+                       e.what());
+            return -1;
+        }
+    };
+
+    auto runV1 = [&]() -> int {
+        try
+        {
+            if (checkQuorumIntersectionFromJson(jsonPath, cfg))
+            {
+                CLOG_INFO(SCP, "Network enjoys quorum intersection");
+                return 0;
+            }
+            else
+            {
+                CLOG_WARNING(SCP, "Network does not enjoy quorum intersection");
+                return 1;
+            }
+        }
+        catch (KeyUtils::InvalidStrKey const& e)
+        {
+            CLOG_FATAL(
+                SCP,
+                "check-quorum-intersection encountered an "
+                "error: Invalid public key in JSON file. JSON file must be "
+                "generated with the 'fullkeys' parameter set to 'true'.");
+            return 2;
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_FATAL(SCP,
+                       "check-quorum-intersection encountered an error: {}",
+                       e.what());
+            return 2;
+        }
+    };
+
     return runWithHelp(
         args,
         {logLevelParser(configOption.mLogLevel), fileNameParser(jsonPath),
+         clara::Opt{v2,
+                    "V2"}["--v2"]("Runs v2, the SAT-solving based approach"),
+         clara::Opt{resultJson, "RESULT-JSON"}["--result-json"](
+             "File to store the analysis results"),
+         clara::Opt{analyzeCriticalGroups}["--analyze-critical-groups"](
+             "additionally runs critical groups analysis (only if network "
+             "enjoys quorum intersection)"),
+         clara::Opt{timeLimitMs, "TIME-LIMIT-MS"}["--time-limit-ms"](
+             "maximum time to spend on quorum intersection check in "
+             "milliseconds (default: 5000)"),
+         clara::Opt{memoryLimitBytes,
+                    "MEMORY-LIMIT-BYTES"}["--memory-limit-bytes"](
+             "maximum memory to use for quorum intersection check in bytes "
+             "(default: 100MiB)"),
          consoleParser(configOption.mConsoleLog),
          clara::Opt{configOption.mConfigFile,
                     "FILE-NAME"}["--conf"](fmt::format(
@@ -1387,48 +1481,26 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
                         "node names (optional, '{}' for STDIN)"),
              Config::STDIN_SPECIAL_NAME))},
         [&] {
-            try
+            if (configOption.mConfigFile.empty())
             {
-                std::optional<Config> cfg = std::nullopt;
-                if (configOption.mConfigFile.empty())
-                {
-                    // Need to set up logging in this case because there is no
-                    // `getConfig` call (which would otherwise set up logging)
-                    Logging::setLoggingToConsole(true);
-                    Logging::setLogLevel(configOption.mLogLevel, nullptr);
-                }
-                else
-                {
-                    cfg.emplace(configOption.getConfig(true));
-                }
-                if (checkQuorumIntersectionFromJson(jsonPath, cfg))
-                {
-                    CLOG_INFO(SCP, "Network enjoys quorum intersection");
-                    return 0;
-                }
-                else
-                {
-                    CLOG_WARNING(SCP,
-                                 "Network does not enjoy quorum intersection");
-                    return 1;
-                }
+                // Need to set up logging in this case because there is no
+                // `getConfig` call (which would otherwise set up logging)
+                Logging::setLoggingToConsole(true);
+                Logging::setLogLevel(configOption.mLogLevel, nullptr);
             }
-            catch (KeyUtils::InvalidStrKey const& e)
+            else
             {
-                CLOG_FATAL(
-                    SCP,
-                    "check-quorum-intersection encountered an "
-                    "error: Invalid public key in JSON file. JSON file must be "
-                    "generated with the 'fullkeys' parameter set to 'true'.");
-                return 2;
+                cfg.emplace(configOption.getConfig(true));
             }
-            catch (std::exception const& e)
+
+            if (v2 && resultJson.empty())
             {
                 CLOG_FATAL(SCP,
-                           "check-quorum-intersection encountered an error: {}",
-                           e.what());
-                return 2;
+                           "When using --v2, --result-json must be specified");
+                return -1;
             }
+
+            return v2 ? runV2() : runV1();
         });
 }
 

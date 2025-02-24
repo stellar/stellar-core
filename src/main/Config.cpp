@@ -302,6 +302,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
     QUORUM_INTERSECTION_CHECKER = true;
+    USE_QUORUM_INTERSECTION_CHECKER_V2 = true;
+    QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 5000; // 5 secs
+    QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
+        100 * 1024 * 1024; // 100 MiB
+
     DATABASE = SecretValue{"sqlite3://:memory:"};
 
     ENTRY_CACHE_SIZE = 100000;
@@ -337,6 +342,14 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EMIT_CLASSIC_EVENTS = false;
     BACKFILL_STELLAR_ASSET_EVENTS = false;
     BACKFILL_RESTORE_META = false;
+
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
+    LOADGEN_OP_COUNT_FOR_TESTING = {};
+    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    COMMANDS = {};
+    REPORT_METRICS = {};
+    INVARIANT_CHECKS = {};
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1378,6 +1391,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"QUORUM_INTERSECTION_CHECKER",
                  [&]() { QUORUM_INTERSECTION_CHECKER = readBool(item); }},
+                {"USE_QUORUM_INTERSECTION_CHECKER_V2",
+                 [&]() {
+                     USE_QUORUM_INTERSECTION_CHECKER_V2 = readBool(item);
+                 }},
+                {"QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS",
+                 [&]() {
+                     QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS =
+                         readInt<uint64_t>(item, 1);
+                 }},
+                {"QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES",
+                 [&]() {
+                     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
+                         readInt<uint64_t>(item, 1024);
+                 }},
                 {"HISTORY",
                  [&]() {
                      auto hist = item.second->as_table();
