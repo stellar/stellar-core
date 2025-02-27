@@ -103,15 +103,15 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
         mDiskIndex->getBucketEntryCounters().entryTypeCounts.at(
             LedgerEntryTypeAndDurability::ACCOUNT);
 
-    // Nothing to cache
-    if (accountsInThisBucket == 0)
-    {
-        return;
-    }
-
     // Convert from MB to bytes, max size for entire BucketList cache
     auto maxBucketListBytesToCache =
         cfg.BUCKETLIST_DB_MEMORY_FOR_CACHING * 1024 * 1024;
+
+    // Nothing to cache. or cache is disabled
+    if (accountsInThisBucket == 0 || maxBucketListBytesToCache == 0)
+    {
+        return;
+    }
 
     std::unique_lock<std::shared_mutex> lock(mCacheMutex);
     if (totalBucketListAccountsSizeBytes < maxBucketListBytesToCache)

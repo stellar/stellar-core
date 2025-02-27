@@ -637,6 +637,31 @@ TEST_CASE("key-value lookup", "[bucket][bucketindex]")
 
 TEST_CASE("bl cache", "[bucket][bucketindex]")
 {
+    SECTION("disable cache")
+    {
+        Config cfg(getTestConfig());
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+        cfg.BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
+
+        auto test = BucketIndexTest(cfg);
+        test.buildGeneralTest(/*isCacheTest=*/true);
+        test.run();
+
+        auto& liveBL = test.getBM().getLiveBucketList();
+        for (auto i = 0; i < LiveBucketList::kNumLevels; ++i)
+        {
+            auto level = liveBL.getLevel(i);
+            REQUIRE(level.getCurr()->getMaxCacheSize() == 0);
+            REQUIRE(level.getSnap()->getMaxCacheSize() == 0);
+        }
+
+        // We shouldn't meter anything when cache is disabled
+        auto& hitMeter = test.getBM().getCacheHitMeter();
+        auto& missMeter = test.getBM().getCacheMissMeter();
+        REQUIRE(hitMeter.count() == 0);
+        REQUIRE(missMeter.count() == 0);
+    }
+
     auto runCacheTest = [](size_t cacheSizeMb, auto checkCacheSize,
                            double expectedHitRate) {
         // Use disk index for all levels so each bucket has a cache
