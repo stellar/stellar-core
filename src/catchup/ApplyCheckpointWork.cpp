@@ -8,6 +8,7 @@
 #include "catchup/ApplyLedgerWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
+#include "history/HistoryUtils.h"
 #include "historywork/Progress.h"
 #include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
@@ -139,36 +140,22 @@ ApplyCheckpointWork::getCurrentTxSet()
     auto& lm = mApp.getLedgerManager();
     auto seq = lm.getLastClosedLedgerNum() + 1;
 
-    // Check mTxHistoryEntry prior to loading next history entry.
-    // This order is important because it accounts for ledger "gaps"
-    // in the history archives (which are caused by ledgers with empty tx
-    // sets, as those are not uploaded).
-    do
+    auto foundEntry = getHistoryEntryForLedger<TransactionHistoryEntry>(
+        mTxIn, mTxHistoryEntry, seq);
+
+    if (foundEntry)
     {
-        if (mTxHistoryEntry.ledgerSeq < seq)
+        CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
+        if (mTxHistoryEntry.ext.v() == 0)
         {
-            CLOG_DEBUG(History, "Skipping txset for ledger {}",
-                       mTxHistoryEntry.ledgerSeq);
-        }
-        else if (mTxHistoryEntry.ledgerSeq > seq)
-        {
-            break;
+            return TxSetXDRFrame::makeFromWire(mTxHistoryEntry.txSet);
         }
         else
         {
-            releaseAssert(mTxHistoryEntry.ledgerSeq == seq);
-            CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
-            if (mTxHistoryEntry.ext.v() == 0)
-            {
-                return TxSetXDRFrame::makeFromWire(mTxHistoryEntry.txSet);
-            }
-            else
-            {
-                return TxSetXDRFrame::makeFromWire(
-                    mTxHistoryEntry.ext.generalizedTxSet());
-            }
+            return TxSetXDRFrame::makeFromWire(
+                mTxHistoryEntry.ext.generalizedTxSet());
         }
-    } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
+    }
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
     return TxSetXDRFrame::makeEmpty(lm.getLastClosedLedgerHeader());
@@ -181,29 +168,18 @@ ApplyCheckpointWork::getCurrentTxResultSet()
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
     auto seq = lm.getLastClosedLedgerNum() + 1;
-    // Check mTxResultSet prior to loading next result set.
-    // This order is important because it accounts for ledger "gaps"
-    // in the history archives (which are caused by ledgers with empty tx
-    // sets, as those are not uploaded).
-    while (mTxResultIn && mTxResultIn->readOne(*mTxHistoryResultEntry))
+    releaseAssertOrThrow(mTxHistoryResultEntry);
+
+    if (mTxResultIn)
     {
-        if (mTxHistoryResultEntry)
+        auto foundEntry =
+            getHistoryEntryForLedger<TransactionHistoryResultEntry>(
+                *mTxResultIn, *mTxHistoryResultEntry, seq);
+
+        if (foundEntry)
         {
-            if (mTxHistoryResultEntry->ledgerSeq < seq)
-            {
-                CLOG_DEBUG(History, "Advancing past txresultset for ledger {}",
-                           mTxHistoryResultEntry->ledgerSeq);
-            }
-            else if (mTxHistoryResultEntry->ledgerSeq > seq)
-            {
-                break;
-            }
-            else
-            {
-                releaseAssert(mTxHistoryResultEntry->ledgerSeq == seq);
-                CLOG_DEBUG(History, "Loaded txresultset for ledger {}", seq);
-                return std::make_optional(mTxHistoryResultEntry->txResultSet);
-            }
+            CLOG_DEBUG(History, "Loaded txresultset for ledger {}", seq);
+            return std::make_optional(mTxHistoryResultEntry->txResultSet);
         }
     }
     CLOG_DEBUG(History, "No txresultset for ledger {}", seq);
