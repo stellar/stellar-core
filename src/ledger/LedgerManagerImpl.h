@@ -99,7 +99,6 @@ class LedgerManagerImpl : public LedgerManager
     SorobanMetrics mSorobanMetrics;
 
     VirtualClock::time_point mLastClose;
-    bool mRebuildInMemoryState{false};
 
     // Use mutex to guard ledger state during apply
     mutable std::recursive_mutex mLedgerStateMutex;

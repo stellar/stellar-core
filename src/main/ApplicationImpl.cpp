@@ -725,7 +725,7 @@ ApplicationImpl::validateAndLogConfig()
 
     if (getHistoryArchiveManager().publishEnabled())
     {
-        if (!mConfig.modeStoresAllHistory())
+        if (!mConfig.MODE_STORES_HISTORY_MISC)
         {
             throw std::invalid_argument(
                 "Core is not configured to store history, but "

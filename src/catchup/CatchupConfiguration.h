@@ -102,7 +102,6 @@ class CatchupConfiguration
     uint32_t mCount;
     LedgerNumHashPair mLedgerHashPair;
     Mode mMode;
-    void checkInvariants() const;
 };
 
 uint32_t parseLedger(std::string const& str);

@@ -10,29 +10,21 @@
 namespace stellar
 {
 
-void
-CatchupConfiguration::checkInvariants() const
-{
-}
-
 CatchupConfiguration::CatchupConfiguration(LedgerNumHashPair ledgerHashPair,
                                            uint32_t count, Mode mode)
     : mCount{count}, mLedgerHashPair{ledgerHashPair}, mMode{mode}
 {
-    checkInvariants();
 }
 
 CatchupConfiguration::CatchupConfiguration(uint32_t toLedger, uint32_t count,
                                            Mode mode)
     : mCount{count}, mLedgerHashPair{toLedger, std::nullopt}, mMode{mode}
 {
-    checkInvariants();
 }
 
 CatchupConfiguration
 CatchupConfiguration::resolve(uint32_t remoteCheckpoint) const
 {
-    checkInvariants();
     auto cfg = *this;
     if (toLedger() == CatchupConfiguration::CURRENT)
     {

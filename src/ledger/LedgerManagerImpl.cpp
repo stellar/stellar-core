@@ -328,49 +328,23 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // Step 2. Restore LedgerHeader from DB based on the ledger hash derived
     // earlier, or verify we're at genesis if in no-history mode
     std::optional<LedgerHeader> latestLedgerHeader;
-    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
+    auto currentLedger =
+        LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
+    if (!currentLedger)
     {
-        if (mRebuildInMemoryState)
-        {
-            LedgerHeader lh;
-            CLOG_INFO(Ledger,
-                      "Setting empty ledger while core rebuilds state: {}",
-                      ledgerAbbrev(lh));
-            setLedgerTxnHeader(lh, mApp);
-            latestLedgerHeader = lh;
-        }
-        else
-        {
-            auto currentLedger =
-                LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
-            if (!currentLedger)
-            {
-                throw std::runtime_error("Could not load ledger from database");
-            }
-
-            if (currentLedger->ledgerSeq != has.currentLedger)
-            {
-                throw std::runtime_error("Invalid database state: last known "
-                                         "ledger does not agree with HAS");
-            }
-
-            CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
-                      ledgerAbbrev(*currentLedger));
-            setLedgerTxnHeader(*currentLedger, mApp);
-            latestLedgerHeader = *currentLedger;
-        }
+        throw std::runtime_error("Could not load ledger from database");
     }
-    else
+
+    if (currentLedger->ledgerSeq != has.currentLedger)
     {
-        // In no-history mode, this method should only be called when
-        // the LCL is genesis.
-        releaseAssertOrThrow(getLCLState().ledgerHeader.hash == lastLedgerHash);
-        releaseAssertOrThrow(getLCLState().ledgerHeader.header.ledgerSeq ==
-                             GENESIS_LEDGER_SEQ);
-        CLOG_INFO(Ledger, "LCL is genesis: {}",
-                  ledgerAbbrev(getLCLState().ledgerHeader));
-        latestLedgerHeader = getLCLState().ledgerHeader.header;
+        throw std::runtime_error("Invalid database state: last known "
+                                 "ledger does not agree with HAS");
     }
+
+    CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
+              ledgerAbbrev(*currentLedger));
+    setLedgerTxnHeader(*currentLedger, mApp);
+    latestLedgerHeader = *currentLedger;
 
     releaseAssert(latestLedgerHeader.has_value());
 
@@ -1758,14 +1732,10 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString(), sess);
-
-    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS && storeHeader)
+    LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
+    if (appendToCheckpoint)
     {
-        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
-        if (appendToCheckpoint)
-        {
-            mApp.getHistoryManager().appendLedgerHeader(header);
-        }
+        mApp.getHistoryManager().appendLedgerHeader(header);
     }
 
     return has;
