@@ -198,8 +198,8 @@ deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count)
 }
 
 size_t
-copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
-             uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder)
+copyToStream(soci::session& sess, uint32_t ledgerSeq, uint32_t ledgerCount,
+             CheckpointBuilder& checkpointBuilder)
 {
     ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders history", true);
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;

@@ -230,7 +230,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
 }
 
 size_t
-HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
+HerderPersistence::copySCPHistoryToStream(soci::session& sess,
                                           uint32_t ledgerSeq,
                                           uint32_t ledgerCount,
                                           XDROutputFileStream& scpHistory)
@@ -300,7 +300,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
         {
             std::string qset64, qSetHashHex;
 
-            auto qset = getQuorumSet(db, sess, q);
+            auto qset = getQuorumSet(sess, q);
             if (!qset)
             {
                 throw std::runtime_error(
@@ -319,8 +319,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
 }
 
 std::optional<Hash>
-HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
-                                    NodeID const& nodeID)
+HerderPersistence::getNodeQuorumSet(soci::session& sess, NodeID const& nodeID)
 {
     ZoneScoped;
     std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
@@ -345,8 +344,7 @@ HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
 }
 
 SCPQuorumSetPtr
-HerderPersistence::getQuorumSet(Database& db, soci::session& sess,
-                                Hash const& qSetHash)
+HerderPersistence::getQuorumSet(soci::session& sess, Hash const& qSetHash)
 {
     ZoneScoped;
     SCPQuorumSetPtr res;
@@ -412,13 +410,13 @@ HerderPersistence::dropAll(Database& db)
 }
 
 void
-HerderPersistence::deleteOldEntries(Database& db, uint32_t ledgerSeq,
+HerderPersistence::deleteOldEntries(soci::session& sess, uint32_t ledgerSeq,
                                     uint32_t count)
 {
     ZoneScoped;
-    DatabaseUtils::deleteOldEntriesHelper(db.getRawSession(), ledgerSeq, count,
-                                          "scphistory", "ledgerseq");
-    DatabaseUtils::deleteOldEntriesHelper(db.getRawSession(), ledgerSeq, count,
-                                          "scpquorums", "lastledgerseq");
+    DatabaseUtils::deleteOldEntriesHelper(sess, ledgerSeq, count, "scphistory",
+                                          "ledgerseq");
+    DatabaseUtils::deleteOldEntriesHelper(sess, ledgerSeq, count, "scpquorums",
+                                          "lastledgerseq");
 }
 }

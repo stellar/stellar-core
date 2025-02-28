@@ -187,7 +187,7 @@ HistoryManagerImpl::dropSQLBasedPublish()
         auto begin = firstLedgerInCheckpointContaining(checkpoint, cfg);
         populateCheckpointFilesFromDB(mApp, sess.session(), begin, freq,
                                       mCheckpointBuilder);
-        LedgerHeaderUtils::copyToStream(db, sess.session(), begin, freq,
+        LedgerHeaderUtils::copyToStream(sess.session(), begin, freq,
                                         mCheckpointBuilder);
         // Checkpoints in publish queue are complete, so we can finalize them
         mCheckpointBuilder.checkpointComplete(checkpoint);
@@ -203,8 +203,8 @@ HistoryManagerImpl::dropSQLBasedPublish()
             mApp, sess.session(), firstLedgerInCheckpointContaining(lcl, cfg),
             freq, mCheckpointBuilder);
         LedgerHeaderUtils::copyToStream(
-            db, sess.session(), firstLedgerInCheckpointContaining(lcl, cfg),
-            freq, mCheckpointBuilder);
+            sess.session(), firstLedgerInCheckpointContaining(lcl, cfg), freq,
+            mCheckpointBuilder);
     }
     db.clearPreparedStatementCache(sess);
 
@@ -360,14 +360,14 @@ HistoryManager::getMinLedgerQueuedToPublish(Config const& cfg)
     forEveryQueuedCheckpoint(
         publishQueuePath(cfg).string(),
         [&](uint32_t seq, std::string const& f) { min = std::min(min, seq); });
-    return min;
+    return min == std::numeric_limits<uint32_t>::max() ? 0 : min;
 }
 
 uint32_t
 HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 {
     ZoneScoped;
-    auto max = std::numeric_limits<uint32_t>::min();
+    uint32_t max = 0;
     forEveryQueuedCheckpoint(
         publishQueuePath(cfg).string(),
         [&](uint32_t seq, std::string const& f) { max = std::max(max, seq); });
@@ -514,7 +514,7 @@ HistoryManagerImpl::publishQueuedHistory()
 
     ZoneScoped;
     auto seq = getMinLedgerQueuedToPublish(mApp.getConfig());
-    if (seq == std::numeric_limits<uint32_t>::max())
+    if (seq == 0)
     {
         return 0;
     }

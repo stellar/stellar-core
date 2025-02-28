@@ -745,7 +745,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     else
     {
         auto& db = mApp.getDatabase();
-        qset = HerderPersistence::getQuorumSet(db, db.getRawSession(), hash);
+        qset = HerderPersistence::getQuorumSet(db.getRawSession(), hash);
     }
     if (qset)
     {
@@ -813,8 +813,8 @@ PendingEnvelopes::rebuildQuorumTrackerState()
             {
                 // see if we had some information for that node
                 auto& db = mApp.getDatabase();
-                auto h = HerderPersistence::getNodeQuorumSet(
-                    db, db.getRawSession(), id);
+                auto h =
+                    HerderPersistence::getNodeQuorumSet(db.getRawSession(), id);
                 if (h)
                 {
                     res = getQSet(*h);

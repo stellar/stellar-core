@@ -544,7 +544,7 @@ LedgerManagerImpl::getLastClosedLedgerTxMeta()
 void
 LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
-    storePersistentStateAndLedgerHeaderInDB(header, true, true);
+    storePersistentStateAndLedgerHeaderInDB(header, true);
 }
 #endif
 
@@ -1108,39 +1108,20 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                ledgerTimeSeconds.count());
     FrameMark;
 }
-void
-LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
-                                    uint32_t count)
-{
-    ZoneScoped;
-    if (mApp.getConfig().parallelLedgerClose())
-    {
-        auto session =
-            std::make_unique<soci::session>(mApp.getDatabase().getPool());
-        LedgerHeaderUtils::deleteOldEntries(*session, ledgerSeq, count);
-    }
-    else
-    {
-        LedgerHeaderUtils::deleteOldEntries(db.getRawSession(), ledgerSeq,
-                                            count);
-    }
-}
 
 void
 LedgerManagerImpl::setLastClosedLedger(
-    LedgerHeaderHistoryEntry const& lastClosed, bool storeInDB)
+    LedgerHeaderHistoryEntry const& lastClosed)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
-    auto has =
-        storePersistentStateAndLedgerHeaderInDB(header.current(), storeInDB,
-                                                /* appendToCheckpoint */ false);
+    auto has = storePersistentStateAndLedgerHeaderInDB(
+        header.current(), /* appendToCheckpoint */ false);
     ltx.commit();
 
-    mRebuildInMemoryState = false;
     advanceLastClosedLedgerState(
         advanceBucketListSnapshotAndMakeLedgerState(lastClosed.header, has));
 
@@ -1702,7 +1683,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 
 HistoryArchiveState
 LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
-    LedgerHeader const& header, bool storeHeader, bool appendToCheckpoint)
+    LedgerHeader const& header, bool appendToCheckpoint)
 {
     ZoneScoped;
 
@@ -1860,8 +1841,7 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
         auto has = storePersistentStateAndLedgerHeaderInDB(
-            lh, /* storeHeader */ true,
-            /* appendToCheckpoint */ true);
+            lh, /* appendToCheckpoint */ true);
         res = advanceBucketListSnapshotAndMakeLedgerState(lh, has);
     });
 
