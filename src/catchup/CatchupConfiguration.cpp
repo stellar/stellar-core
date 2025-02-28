@@ -13,33 +13,11 @@ namespace stellar
 void
 CatchupConfiguration::checkInvariants() const
 {
-    if (mMode == CatchupConfiguration::Mode::LOCAL_BUCKETS_ONLY)
-    {
-        releaseAssert(mHAS && mHistoryEntry);
-        releaseAssert(toLedger() != CatchupConfiguration::CURRENT);
-        releaseAssert(count() == 0);
-    }
-    else
-    {
-        releaseAssert(!mHAS && !mHistoryEntry);
-    }
 }
 
 CatchupConfiguration::CatchupConfiguration(LedgerNumHashPair ledgerHashPair,
                                            uint32_t count, Mode mode)
     : mCount{count}, mLedgerHashPair{ledgerHashPair}, mMode{mode}
-{
-    checkInvariants();
-}
-
-CatchupConfiguration::CatchupConfiguration(HistoryArchiveState has,
-                                           LedgerHeaderHistoryEntry lhhe)
-    : mCount(0)
-    , mLedgerHashPair(LedgerNumHashPair(lhhe.header.ledgerSeq,
-                                        std::make_optional(lhhe.hash)))
-    , mMode(CatchupConfiguration::Mode::LOCAL_BUCKETS_ONLY)
-    , mHAS(std::make_optional(has))
-    , mHistoryEntry(std::make_optional(lhhe))
 {
     checkInvariants();
 }

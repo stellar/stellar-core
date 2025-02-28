@@ -283,10 +283,8 @@ LedgerApplyManagerImpl::startCatchup(
             configuration.toLedger(), lastClosedLedger));
     }
 
-    // Offline and local catchup types aren't triggered by buffered ledgers
-    auto offlineCatchup =
-        configuration.offline() || configuration.localBucketsOnly();
-    releaseAssert(offlineCatchup == mSyncingLedgers.empty());
+    // Offline catchup isn't triggered by buffered ledgers
+    releaseAssert(configuration.offline() == mSyncingLedgers.empty());
 
     releaseAssert(!mCatchupWork);
 
