@@ -4289,14 +4289,14 @@ TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
     auto const minBalance15 = lm.getLastMinBalance(15);
 
     auto native = txtest::makeNativeAsset();
-    auto cur1 = txtest::makeAsset(root, "CUR1");
+    auto cur1 = txtest::makeAsset(*root, "CUR1");
 
-    auto a1 = root.create("a1", minBalance15);
+    auto a1 = root->create("a1", minBalance15);
 
     LedgerEntry offerEntry;
     offerEntry.data.type(OFFER);
@@ -4331,24 +4331,24 @@ TEST_CASE("InMemoryLedgerTxn getOffersByAccountAndAsset", "[ledgertxn]")
 
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
     auto const minBalance15 = lm.getLastMinBalance(15);
 
     auto native = txtest::makeNativeAsset();
-    auto cur1 = txtest::makeAsset(root, "CUR1");
-    auto cur2 = txtest::makeAsset(root, "CUR2");
+    auto cur1 = txtest::makeAsset(*root, "CUR1");
+    auto cur2 = txtest::makeAsset(*root, "CUR2");
 
-    auto a1 = root.create("a1", minBalance15);
-    auto a2 = root.create("a2", minBalance15);
+    auto a1 = root->create("a1", minBalance15);
+    auto a2 = root->create("a2", minBalance15);
 
     a1.changeTrust(cur1, 100);
     a1.changeTrust(cur2, 100);
     a2.changeTrust(cur1, 100);
     a2.changeTrust(cur2, 100);
 
-    root.pay(a1, cur1, 10);
-    root.pay(a2, cur1, 10);
+    root->pay(a1, cur1, 10);
+    root->pay(a2, cur1, 10);
 
     a1.manageOffer(0, native, cur1, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
     a1.manageOffer(0, cur1, native, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
@@ -4375,13 +4375,13 @@ TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
 
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
     auto const minBalance15 = lm.getLastMinBalance(15);
 
     auto native = txtest::makeNativeAsset();
-    auto cur1 = txtest::makeAsset(root, "CUR1");
-    auto cur2 = txtest::makeAsset(root, "CUR2");
+    auto cur1 = txtest::makeAsset(*root, "CUR1");
+    auto cur2 = txtest::makeAsset(*root, "CUR2");
 
     auto share12 = txtest::makeChangeTrustAssetPoolShare(
         cur1, cur2, LIQUIDITY_POOL_FEE_V18);
@@ -4390,8 +4390,8 @@ TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
     auto shareNative2 = txtest::makeChangeTrustAssetPoolShare(
         native, cur2, LIQUIDITY_POOL_FEE_V18);
 
-    auto a1 = root.create("a1", minBalance15);
-    auto a2 = root.create("a2", minBalance15);
+    auto a1 = root->create("a1", minBalance15);
+    auto a2 = root->create("a2", minBalance15);
 
     a1.changeTrust(cur1, 10);
     a1.changeTrust(cur2, 10);
@@ -4424,17 +4424,17 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
 
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
-    auto a1 = root.create("a1", lm.getLastMinBalance(1));
-    auto b1 = root.create("b1", lm.getLastMinBalance(1));
+    auto a1 = root->create("a1", lm.getLastMinBalance(1));
+    auto b1 = root->create("b1", lm.getLastMinBalance(1));
 
     for_versions_from(19, *app, [&] {
         auto tx1 = txtest::transactionFrameFromOps(
-            app->getNetworkID(), root, {a1.op(txtest::accountMerge(root))},
+            app->getNetworkID(), *root, {a1.op(txtest::accountMerge(*root))},
             {a1});
         auto tx2 = txtest::transactionFrameFromOps(
-            app->getNetworkID(), root, {b1.op(txtest::accountMerge(root))},
+            app->getNetworkID(), *root, {b1.op(txtest::accountMerge(*root))},
             {b1});
         txtest::closeLedger(*app, {tx1});
         txtest::closeLedger(*app, {tx2});
@@ -4447,11 +4447,11 @@ TEST_CASE("InMemoryLedgerTxn filtering", "[ledgertxn]")
     Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     auto app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
-    auto a1 = root.create("a1", app->getLedgerManager().getLastMinBalance(1));
+    auto root = app->getRoot();
+    auto a1 = root->create("a1", app->getLedgerManager().getLastMinBalance(1));
 
     InternalLedgerEntry entry(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
-    entry.maxSeqNumToApplyEntry().sourceAccount = root;
+    entry.maxSeqNumToApplyEntry().sourceAccount = *root;
     entry.maxSeqNumToApplyEntry().maxSeqNum = 1;
 
     InternalLedgerEntry entry2(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);

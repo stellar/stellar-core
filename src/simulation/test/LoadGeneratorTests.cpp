@@ -355,6 +355,14 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
     upgradeCfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                  ProtocolVersion::V_23))
+    {
+        upgradeCfg.ledgerMaxDependentTxClusters = rand_uniform<uint32_t>(2, 10);
+    }
+#endif
+
     auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(
         createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
 
@@ -398,10 +406,16 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                              upgrades);
     }
 
-    // Loadgen doesn't update the cost types.
-    REQUIRE(upgrades.updatedEntry.size() == 10);
     for (auto const& setting : upgrades.updatedEntry)
     {
+        // Loadgen doesn't update the cost types and non-upgradeable settings
+        REQUIRE(!SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+            setting.configSettingID()));
+        REQUIRE(setting.configSettingID() !=
+                CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
+        REQUIRE(setting.configSettingID() !=
+                CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
+
         switch (setting.configSettingID())
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
@@ -471,6 +485,13 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
                     upgradeCfg.ledgerMaxTxCount);
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
+            REQUIRE(setting.contractParallelCompute()
+                        .ledgerMaxDependentTxClusters ==
+                    upgradeCfg.ledgerMaxDependentTxClusters);
+            break;
+#endif
         default:
             REQUIRE(false);
             break;

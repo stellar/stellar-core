@@ -34,7 +34,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     size_t numAccounts = 50;
     std::vector<TestAccount> accs;
     for (size_t i = 0; i < numAccounts; i++)
@@ -72,7 +72,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(n <= accs.size());
         std::vector<TransactionFrameBasePtr> txs(n);
         std::generate(std::begin(txs), std::end(txs),
-                      [&]() { return accs[index++].tx({payment(root, 1)}); });
+                      [&]() { return accs[index++].tx({payment(*root, 1)}); });
         return makeTxSetFromTransactions(txs, *app, 0, 0).first;
     };
 

@@ -37,16 +37,16 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
 
     SECTION("not supported")
     {
         for_versions({13}, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
+            auto a1 = root->create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1))}, {});
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
@@ -61,8 +61,8 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     {
         for_versions_from(14, *app, [&] {
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(root))}, {});
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(*root))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
@@ -77,11 +77,11 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     SECTION("already sponsored")
     {
         for_versions_from(14, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
+            auto a1 = root->create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1)),
-                 root.op(beginSponsoringFutureReserves(a1))},
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1)),
+                 root->op(beginSponsoringFutureReserves(a1))},
                 {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -102,10 +102,10 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     SECTION("bad sponsorship")
     {
         for_versions_from(14, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
+            auto a1 = root->create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1))}, {});
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -121,11 +121,11 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     SECTION("sponsoring account is sponsored")
     {
         for_versions_from(14, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
-            auto a2 = root.create("a2", minBalance);
+            auto a1 = root->create("a1", minBalance);
+            auto a2 = root->create("a2", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1)),
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1)),
                  a1.op(beginSponsoringFutureReserves(a2)),
                  a2.op(endSponsoringFutureReserves()),
                  a1.op(endSponsoringFutureReserves())},
@@ -149,12 +149,12 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     SECTION("sponsored account is sponsoring")
     {
         for_versions_from(14, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
-            auto a2 = root.create("a2", minBalance);
+            auto a1 = root->create("a1", minBalance);
+            auto a2 = root->create("a2", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
+                app->getNetworkID(), *root,
                 {a1.op(beginSponsoringFutureReserves(a2)),
-                 root.op(beginSponsoringFutureReserves(a1)),
+                 root->op(beginSponsoringFutureReserves(a1)),
                  a2.op(endSponsoringFutureReserves()),
                  a1.op(endSponsoringFutureReserves())},
                 {a1, a2});
@@ -177,10 +177,10 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
     SECTION("success")
     {
         for_versions_from(14, *app, [&] {
-            auto a1 = root.create("a1", minBalance);
+            auto a1 = root->create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1)),
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1)),
                  a1.op(endSponsoringFutureReserves())},
                 {a1});
 
@@ -200,15 +200,15 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
         for_versions_from(14, *app, [&] {
             auto const minBalance0 =
                 app->getLedgerManager().getLastMinBalance(0);
-            auto a1 = root.create("a1", minBalance0);
-            auto cur1 = makeAsset(root, "CUR1");
+            auto a1 = root->create("a1", minBalance0);
+            auto cur1 = makeAsset(*root, "CUR1");
             auto signer = makeSigner(getAccount("S1"), 1);
 
             // creating the sponsored trustline first will make sure the account
             // is using a V2 extension before the first signer is added
             auto tx1 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1)),
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1)),
                  a1.op(changeTrust(cur1, 1000)),
                  a1.op(endSponsoringFutureReserves())},
                 {a1});
@@ -220,11 +220,11 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
             REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
 
             checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
-                             &root.getPublicKey());
+                             &root->getPublicKey());
 
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1)),
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1)),
                  a1.op(setOptions(setSigner(signer))),
                  a1.op(endSponsoringFutureReserves())},
                 {a1});
@@ -235,22 +235,22 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
             REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
 
             checkSponsorship(ltx, a1.getPublicKey(), signer.key, 2,
-                             &root.getPublicKey());
+                             &root->getPublicKey());
         });
     }
 
     SECTION("sponsorships with precondition that uses v3 extension")
     {
-        auto a1 = root.create("a1", minBalance + 301);
+        auto a1 = root->create("a1", minBalance + 301);
         for_versions_from(19, *app, [&] {
             {
-                auto cur1 = makeAsset(root, "CUR1");
+                auto cur1 = makeAsset(*root, "CUR1");
 
                 // creating the sponsored trustline first will make sure the
                 // account is using a V2 extension
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), root,
-                    {root.op(beginSponsoringFutureReserves(a1)),
+                    app->getNetworkID(), *root,
+                    {root->op(beginSponsoringFutureReserves(a1)),
                      a1.op(changeTrust(cur1, 1000)),
                      a1.op(endSponsoringFutureReserves())},
                     {a1});
@@ -259,7 +259,7 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
-                                 &root.getPublicKey());
+                                 &root->getPublicKey());
             }
 
             // set seqLedger

@@ -690,7 +690,7 @@ TEST_CASE("version test", "[tx][soroban]")
 
     executeUpgrade(test.getApp(), upgrade);
 
-    test.updateSorobanNetworkConfig();
+    overrideSorobanNetworkConfigForTest(test.getApp());
 
     TestContract& contract =
         test.deployWasmContract(rust_bridge::get_invoke_contract_wasm());
@@ -1526,10 +1526,14 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         // CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW are not upgradeable, so they
         // won't be included in the upgrade.
         xdr::xvector<ConfigSettingEntry> updatedEntries;
-        for (uint32_t i = 0;
-             i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
-             ++i)
+        for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
         {
+            auto type = static_cast<ConfigSettingID>(t);
+            if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(type))
+            {
+                continue;
+            }
+
             // Because we added more cost types in v21, the initial
             // contractDataEntrySizeBytes setting of 2000 is too low to write
             // all settings at once. This isn't an issue in practice because 1.
@@ -1537,15 +1541,13 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             // don't need to upgrade every setting at once. To get around this
             // in the test, we will remove the memory bytes cost types from the
             // upgrade.
-            if (i == static_cast<uint32_t>(
-                         CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES))
+            if (type == CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
             {
                 continue;
             }
 
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            auto costEntry =
-                ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+            auto costEntry = ltx.load(configSettingKey(type));
             updatedEntries.emplace_back(
                 costEntry.current().data.configSetting());
         }
@@ -3013,7 +3015,8 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         SorobanTest test(cfg, true, [evict](SorobanNetworkConfig& cfg) {
             cfg.stateArchivalSettings().startingEvictionScanLevel =
                 evict ? 1 : 5;
-            cfg.stateArchivalSettings().minPersistentTTL = 4;
+            cfg.stateArchivalSettings().minPersistentTTL =
+                MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
         });
 
         ContractStorageTestClient client(test);
@@ -3025,16 +3028,20 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
             client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
         REQUIRE(writeInvocation.withExactNonRefundableResourceFee().invoke());
-        auto lk = client.getContract().getDataKey(
-            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-        auto evictionLedger = 14;
+        auto evictionLedger =
+            test.getLCLSeq() +
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         // Close ledgers until entry is evicted
-        for (uint32_t i = test.getLCLSeq(); i < evictionLedger; ++i)
+        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+             ledgerSeq <= evictionLedger; ++ledgerSeq)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
         }
+
+        auto lk = client.getContract().getDataKey(
+            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
         auto hotArchive = test.getApp()
                               .getBucketManager()
@@ -3181,7 +3188,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto& lm = app->getLedgerManager();
 
     // Update the snapshot period and close a ledger to update
@@ -3195,7 +3202,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     const int64_t startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
-    auto a1 = root.create("A", startingBalance);
+    auto a1 = root->create("A", startingBalance);
 
     std::vector<TransactionEnvelope> txsToSign;
 
@@ -3213,12 +3220,16 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
     xdr::xvector<ConfigSettingEntry> initialEntries;
     xdr::xvector<ConfigSettingEntry> updatedEntries;
-    for (uint32_t i = 0;
-         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
+    for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
     {
+        auto type = static_cast<ConfigSettingID>(t);
+        if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(type))
+        {
+            continue;
+        }
+
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto entry =
-            ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+        auto entry = ltx.load(configSettingKey(type));
 
         // Store the initial entries before we modify the cost types below
         initialEntries.emplace_back(entry.current().data.configSetting());
@@ -3503,15 +3514,21 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     REQUIRE(ret == "");
 
     auto checkSettings = [&](xdr::xvector<ConfigSettingEntry> const& entries) {
-        for (uint32_t i = 0;
-             i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
-             ++i)
+        auto expectedIndex = 0;
+        for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto entry =
-                ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+            auto type = static_cast<ConfigSettingID>(t);
+            if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(type))
+            {
+                continue;
+            }
 
-            REQUIRE(entry.current().data.configSetting() == entries.at(i));
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto entry = ltx.load(configSettingKey(type));
+
+            REQUIRE(entry.current().data.configSetting() ==
+                    entries.at(expectedIndex));
+            ++expectedIndex;
         }
     };
 

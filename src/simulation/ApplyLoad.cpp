@@ -87,6 +87,7 @@ getUpgradeConfig(Config const& cfg)
 ApplyLoad::ApplyLoad(Application& app)
     : mTxGenerator(app)
     , mApp(app)
+    , mRoot(app.getRoot())
     , mNumAccounts(mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
                        SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
                    1)
@@ -111,9 +112,6 @@ ApplyLoad::ApplyLoad(Application& app)
 void
 ApplyLoad::setup()
 {
-
-    auto rootTestAccount = TestAccount::createRoot(mApp);
-    mRoot = std::make_shared<TestAccount>(rootTestAccount);
     releaseAssert(mTxGenerator.loadAccount(mRoot));
 
     setupAccounts();

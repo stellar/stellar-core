@@ -121,13 +121,6 @@ TestAccount::op(Operation operation)
 }
 
 TestAccount
-TestAccount::createRoot(Application& app)
-{
-    auto secretKey = getRoot(app.getNetworkID());
-    return TestAccount{app, secretKey};
-}
-
-TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
     auto publicKey = secretKey.getPublicKey();

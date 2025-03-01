@@ -2277,6 +2277,11 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
            mCpuCostParams == other.cpuCostParams() &&
            mMemCostParams == other.memCostParams() &&
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+           mLedgerMaxDependentTxClusters ==
+               other.ledgerMaxDependentTxClusters() &&
+#endif
+
            mStateArchivalSettings == other.stateArchivalSettings() &&
            mEvictionIterator == other.evictionIterator();
 }
