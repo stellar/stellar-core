@@ -1363,7 +1363,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"QUERY_SNAPSHOT_LEDGERS",
                  [&]() {
-                     QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
+                     QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0);
                  }},
                 {"MAX_CONCURRENT_SUBPROCESSES",
                  [&]() {
