@@ -6,6 +6,7 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "catchup/LedgerApplyManagerImpl.h"
 #include "catchup/test/CatchupWorkTests.h"
+#include "herder/HerderPersistence.h"
 #include "history/CheckpointBuilder.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
@@ -15,6 +16,7 @@
 #include "historywork/GunzipFileWork.h"
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
@@ -1440,12 +1442,29 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
             // Trim history after publishing whenever possible.
             app1->getMaintainer().performMaintenance(50000);
         }
+
+        // Verify old history got trimmed
+        XDROutputFileStream out(app1->getClock().getIOContext(), true);
+        // Ledgers to add to genesis, maintenance keeps at least one checkpoint
+        // of data, so last ledger trimmed is (5 * 8 - 1) - 8 = 31
+        uint32_t publishedCount = 30;
+        auto scp = app1->getHerderPersistence().copySCPHistoryToStream(
+            app1->getDatabase().getRawSession(),
+            LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, out);
+        REQUIRE(scp == 0);
+
+        CheckpointBuilder cb(*app1);
+        auto headers = LedgerHeaderUtils::copyToStream(
+            app1->getDatabase().getRawSession(),
+            LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, cb);
+        REQUIRE(headers == 0);
+
         // We should have either an empty publish queue or a
-        // ledger sometime after the 5th checkpoint
+        // ledger sometime after the 5th checkpoint (ledger 5 * 8 - 1 = 39)
         auto minLedger =
             HistoryManager::getMinLedgerQueuedToPublish(hm1.getConfig());
         LOG_INFO(DEFAULT_LOG, "minLedger {}", minLedger);
-        bool okQueue = minLedger == 0 || minLedger >= 35;
+        bool okQueue = minLedger == 0 || minLedger >= 39;
         REQUIRE(okQueue);
     }
 }

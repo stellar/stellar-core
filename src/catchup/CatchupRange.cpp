@@ -17,8 +17,7 @@ void
 checkCatchupPreconditions(uint32_t lastClosedLedger,
                           CatchupConfiguration const& configuration)
 {
-    if (lastClosedLedger < LedgerManager::GENESIS_LEDGER_SEQ &&
-        !configuration.localBucketsOnly())
+    if (lastClosedLedger < LedgerManager::GENESIS_LEDGER_SEQ)
     {
         throw std::invalid_argument{"lastClosedLedger == 0"};
     }
@@ -58,7 +57,7 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     }
 
     // All remaining cases have LCL == genesis.
-    releaseAssert(lcl == init || cfg.localBucketsOnly());
+    releaseAssert(lcl == init);
     LedgerRange fullReplay(init + 1, fullReplayCount);
 
     // Case 2: full replay because count >= target - init.
@@ -70,8 +69,7 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     // Case 3: special case of buckets only, no replay; only
     // possible when targeting the exact end of a checkpoint.
     if (cfg.count() == 0 && (HistoryManager::isLastLedgerInCheckpoint(
-                                 cfg.toLedger(), hm.getConfig()) ||
-                             cfg.localBucketsOnly()))
+                                cfg.toLedger(), hm.getConfig())))
     {
         return CatchupRange(cfg.toLedger());
     }
@@ -128,10 +126,6 @@ CatchupRange::CatchupRange(uint32_t lastClosedLedger,
     : CatchupRange(calculateCatchupRange(lastClosedLedger, configuration,
                                          historyManager))
 {
-    if (configuration.localBucketsOnly())
-    {
-        releaseAssert(applyBuckets());
-    }
     checkInvariants();
 }
 

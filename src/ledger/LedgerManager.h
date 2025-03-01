@@ -304,12 +304,8 @@ class LedgerManager
     }
 #endif
 
-    // deletes old entries stored in the database
-    virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
-                                  uint32_t count) = 0;
-
-    virtual void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
-                                     bool storeInDB) = 0;
+    virtual void
+    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 

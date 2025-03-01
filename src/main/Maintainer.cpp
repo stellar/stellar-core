@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Maintainer.h"
+#include "herder/HerderPersistence.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -25,6 +27,7 @@ void
 Maintainer::start()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto& c = mApp.getConfig();
     if (c.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
         c.AUTOMATIC_MAINTENANCE_COUNT > 0)
@@ -51,6 +54,7 @@ Maintainer::start()
 void
 Maintainer::scheduleMaintenance()
 {
+    releaseAssert(threadIsMain());
     mTimer.expires_from_now(mApp.getConfig().AUTOMATIC_MAINTENANCE_PERIOD);
     mTimer.async_wait([this]() { tick(); }, VirtualTimer::onFailureNoop);
 }
@@ -59,6 +63,7 @@ void
 Maintainer::tick()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     performMaintenance(mApp.getConfig().AUTOMATIC_MAINTENANCE_COUNT);
     scheduleMaintenance();
 }
@@ -67,6 +72,8 @@ void
 Maintainer::performMaintenance(uint32_t count)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     LOG_INFO(DEFAULT_LOG, "Performing maintenance");
     auto logSlow = LogSlowExecution(
         "Performing maintenance", LogSlowExecution::Mode::AUTOMATIC_RAII,
@@ -88,6 +95,25 @@ Maintainer::performMaintenance(uint32_t count)
 
     CLOG_INFO(History, "Trimming history <= ledger {}", lmin);
 
-    mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), lmin, count);
+    // Cleanup SCP history, always from main
+    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawSession(),
+                                        lmin, count);
+
+    if (mApp.getConfig().parallelLedgerClose())
+    {
+        // Cleanup headers from background, to avoid conflicts with closing
+        // ledgers
+        mApp.postOnLedgerCloseThread(
+            [&db = mApp.getDatabase(), lmin, count]() {
+                auto session = std::make_unique<soci::session>(db.getPool());
+                LedgerHeaderUtils::deleteOldEntries(*session, lmin, count);
+            },
+            "maintenance: deleteOldEntries");
+    }
+    else
+    {
+        LedgerHeaderUtils::deleteOldEntries(mApp.getDatabase().getRawSession(),
+                                            lmin, count);
+    }
 }
 }

@@ -85,7 +85,7 @@ StateSnapshot::writeSCPMessages() const
                    count, begin);
 
         nbSCPMessages = HerderPersistence::copySCPHistoryToStream(
-            mApp.getDatabase(), sess, begin, count, scpHistory);
+            sess, begin, count, scpHistory);
 
         CLOG_DEBUG(History, "Wrote {} SCP messages to {}", nbSCPMessages,
                    mSCPHistorySnapFile->localPath_nogz());

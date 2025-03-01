@@ -99,7 +99,6 @@ class LedgerManagerImpl : public LedgerManager
     SorobanMetrics mSorobanMetrics;
 
     VirtualClock::time_point mLastClose;
-    bool mRebuildInMemoryState{false};
 
     // Use mutex to guard ledger state during apply
     mutable std::recursive_mutex mLedgerStateMutex;
@@ -134,8 +133,9 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
 
-    HistoryArchiveState storePersistentStateAndLedgerHeaderInDB(
-        LedgerHeader const& header, bool storeHeader, bool appendToCheckpoint);
+    HistoryArchiveState
+    storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
+                                            bool appendToCheckpoint);
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
                                         Config const& config);
@@ -241,11 +241,8 @@ class LedgerManagerImpl : public LedgerManager
                      bool calledViaExternalize) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData);
-    void deleteOldEntries(Database& db, uint32_t ledgerSeq,
-                          uint32_t count) override;
-
-    void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
-                             bool storeInDB) override;
+    void
+    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 

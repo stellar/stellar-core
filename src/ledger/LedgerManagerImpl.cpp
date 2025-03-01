@@ -328,49 +328,23 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // Step 2. Restore LedgerHeader from DB based on the ledger hash derived
     // earlier, or verify we're at genesis if in no-history mode
     std::optional<LedgerHeader> latestLedgerHeader;
-    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
+    auto currentLedger =
+        LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
+    if (!currentLedger)
     {
-        if (mRebuildInMemoryState)
-        {
-            LedgerHeader lh;
-            CLOG_INFO(Ledger,
-                      "Setting empty ledger while core rebuilds state: {}",
-                      ledgerAbbrev(lh));
-            setLedgerTxnHeader(lh, mApp);
-            latestLedgerHeader = lh;
-        }
-        else
-        {
-            auto currentLedger =
-                LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
-            if (!currentLedger)
-            {
-                throw std::runtime_error("Could not load ledger from database");
-            }
-
-            if (currentLedger->ledgerSeq != has.currentLedger)
-            {
-                throw std::runtime_error("Invalid database state: last known "
-                                         "ledger does not agree with HAS");
-            }
-
-            CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
-                      ledgerAbbrev(*currentLedger));
-            setLedgerTxnHeader(*currentLedger, mApp);
-            latestLedgerHeader = *currentLedger;
-        }
+        throw std::runtime_error("Could not load ledger from database");
     }
-    else
+
+    if (currentLedger->ledgerSeq != has.currentLedger)
     {
-        // In no-history mode, this method should only be called when
-        // the LCL is genesis.
-        releaseAssertOrThrow(getLCLState().ledgerHeader.hash == lastLedgerHash);
-        releaseAssertOrThrow(getLCLState().ledgerHeader.header.ledgerSeq ==
-                             GENESIS_LEDGER_SEQ);
-        CLOG_INFO(Ledger, "LCL is genesis: {}",
-                  ledgerAbbrev(getLCLState().ledgerHeader));
-        latestLedgerHeader = getLCLState().ledgerHeader.header;
+        throw std::runtime_error("Invalid database state: last known "
+                                 "ledger does not agree with HAS");
     }
+
+    CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
+              ledgerAbbrev(*currentLedger));
+    setLedgerTxnHeader(*currentLedger, mApp);
+    latestLedgerHeader = *currentLedger;
 
     releaseAssert(latestLedgerHeader.has_value());
 
@@ -570,7 +544,7 @@ LedgerManagerImpl::getLastClosedLedgerTxMeta()
 void
 LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
-    storePersistentStateAndLedgerHeaderInDB(header, true, true);
+    storePersistentStateAndLedgerHeaderInDB(header, true);
 }
 #endif
 
@@ -1134,39 +1108,20 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                ledgerTimeSeconds.count());
     FrameMark;
 }
-void
-LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
-                                    uint32_t count)
-{
-    ZoneScoped;
-    if (mApp.getConfig().parallelLedgerClose())
-    {
-        auto session =
-            std::make_unique<soci::session>(mApp.getDatabase().getPool());
-        LedgerHeaderUtils::deleteOldEntries(*session, ledgerSeq, count);
-    }
-    else
-    {
-        LedgerHeaderUtils::deleteOldEntries(db.getRawSession(), ledgerSeq,
-                                            count);
-    }
-}
 
 void
 LedgerManagerImpl::setLastClosedLedger(
-    LedgerHeaderHistoryEntry const& lastClosed, bool storeInDB)
+    LedgerHeaderHistoryEntry const& lastClosed)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
-    auto has =
-        storePersistentStateAndLedgerHeaderInDB(header.current(), storeInDB,
-                                                /* appendToCheckpoint */ false);
+    auto has = storePersistentStateAndLedgerHeaderInDB(
+        header.current(), /* appendToCheckpoint */ false);
     ltx.commit();
 
-    mRebuildInMemoryState = false;
     advanceLastClosedLedgerState(
         advanceBucketListSnapshotAndMakeLedgerState(lastClosed.header, has));
 
@@ -1728,7 +1683,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 
 HistoryArchiveState
 LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
-    LedgerHeader const& header, bool storeHeader, bool appendToCheckpoint)
+    LedgerHeader const& header, bool appendToCheckpoint)
 {
     ZoneScoped;
 
@@ -1758,14 +1713,10 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString(), sess);
-
-    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS && storeHeader)
+    LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
+    if (appendToCheckpoint)
     {
-        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
-        if (appendToCheckpoint)
-        {
-            mApp.getHistoryManager().appendLedgerHeader(header);
-        }
+        mApp.getHistoryManager().appendLedgerHeader(header);
     }
 
     return has;
@@ -1890,8 +1841,7 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
         auto has = storePersistentStateAndLedgerHeaderInDB(
-            lh, /* storeHeader */ true,
-            /* appendToCheckpoint */ true);
+            lh, /* appendToCheckpoint */ true);
         res = advanceBucketListSnapshotAndMakeLedgerState(lh, has);
     });
 

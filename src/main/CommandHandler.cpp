@@ -85,7 +85,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
-    if (mApp.getConfig().modeStoresAnyHistory())
+    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         addRoute("maintenance", &CommandHandler::maintenance);
     }
