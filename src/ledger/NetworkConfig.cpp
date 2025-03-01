@@ -1072,9 +1072,11 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
         break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
-        valid = protocolVersionStartsFrom(
-                    ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
-                cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0;
+        valid =
+            protocolVersionStartsFrom(
+                ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
+            cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0 &&
+            cfg.contractParallelCompute().ledgerMaxDependentTxClusters < 128;
         break;
 #endif
     default:
