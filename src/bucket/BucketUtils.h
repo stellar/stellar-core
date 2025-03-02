@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/NonCopyable.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <list>
@@ -100,7 +101,7 @@ struct EvictionResultEntry
 // Hold the list of entries eligible for eviction on the given ledger. Note that
 // if these entries are updated during the given ledger, they may not actually
 // be evicted.
-struct EvictionResultCandidates
+struct EvictionResultCandidates : public NonMovableOrCopyable
 {
     // List of entries eligible for eviction in the order in which they occur in
     // the bucket

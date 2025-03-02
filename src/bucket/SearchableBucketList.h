@@ -30,7 +30,7 @@ class SearchableLiveBucketListSnapshot
     loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                        std::string const& label, LedgerKeyMeter* lkMeter) const;
 
-    EvictionResultCandidates scanForEviction(
+    std::unique_ptr<EvictionResultCandidates> scanForEviction(
         uint32_t ledgerSeq, EvictionCounters& counters, EvictionIterator iter,
         std::shared_ptr<EvictionStatistics> stats,
         StateArchivalSettings const& sas, uint32_t ledgerVers) const;
