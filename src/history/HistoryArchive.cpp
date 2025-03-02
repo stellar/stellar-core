@@ -171,8 +171,8 @@ HistoryArchiveState::load(std::string const& inFile)
     in.exceptions(std::ios::badbit);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
-    if (version != HISTORY_ARCHIVE_STATE_VERSION_PRE_PROTOCOL_22 &&
-        version != HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22)
+    if (version != HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE &&
+        version != HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
     {
         CLOG_ERROR(History, "Unexpected history archive state version: {}",
                    version);
@@ -571,7 +571,7 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
                                          std::string const& passphrase)
     : HistoryArchiveState(ledgerSeq, liveBuckets, passphrase)
 {
-    version = HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22;
+    version = HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE;
     for (uint32_t i = 0; i < HotArchiveBucketList::kNumLevels; ++i)
     {
         HistoryStateBucket<HotArchiveBucket> b;

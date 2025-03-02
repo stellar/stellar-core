@@ -163,10 +163,9 @@ DownloadBucketsWork::yieldMoreWork()
             auto self = weakSelf.lock();
             if (self)
             {
-                onSuccessCb<HotArchiveBucket>(app, ft, hash, currId,
-                                                    self->mHotBuckets,
-                                                    self->mHotIndexMap,
-                                                    self->mHotIndexMapMutex);
+                onSuccessCb<HotArchiveBucket>(
+                    app, ft, hash, currId, self->mHotBuckets,
+                    self->mHotIndexMap, self->mHotIndexMapMutex);
             }
             return true;
         };
@@ -187,9 +186,8 @@ DownloadBucketsWork::yieldMoreWork()
             if (self)
             {
                 onSuccessCb<LiveBucket>(app, ft, hash, currId,
-                                               self->mLiveBuckets,
-                                               self->mLiveIndexMap,
-                                               self->mLiveIndexMapMutex);
+                                        self->mLiveBuckets, self->mLiveIndexMap,
+                                        self->mLiveIndexMapMutex);
             }
             return true;
         };

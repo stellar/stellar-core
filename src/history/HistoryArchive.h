@@ -82,10 +82,10 @@ struct HistoryArchiveState
     static constexpr size_t MAX_HISTORY_ARCHIVE_BUCKET_SIZE =
         1024ull * 1024ull * 1024ull * 100ull; // 100 GB
 
-    static inline unsigned const HISTORY_ARCHIVE_STATE_VERSION_PRE_PROTOCOL_22 =
-        1;
     static inline unsigned const
-        HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22 = 2;
+        HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE = 1;
+    static inline unsigned const
+        HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE = 2;
 
     struct BucketHashReturnT
     {
@@ -99,7 +99,7 @@ struct HistoryArchiveState
         }
     };
 
-    unsigned version{HISTORY_ARCHIVE_STATE_VERSION_PRE_PROTOCOL_22};
+    unsigned version{HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE};
     std::string server;
     std::string networkPassphrase;
     uint32_t currentLedger{0};
@@ -150,13 +150,13 @@ struct HistoryArchiveState
             // This is expected when the input file does not contain it, but
             // should only ever happen for older versions of History Archive
             // State.
-            if (version >= HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22)
+            if (version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
             {
                 throw e;
             }
         }
         ar(CEREAL_NVP(currentBuckets));
-        if (version >= HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22)
+        if (version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
         {
             ar(CEREAL_NVP(hotArchiveBuckets));
         }
@@ -176,10 +176,10 @@ struct HistoryArchiveState
             // New versions of HistoryArchiveState should always have a
             // networkPassphrase.
             releaseAssertOrThrow(
-                version < HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22);
+                version < HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE);
         }
         ar(CEREAL_NVP(currentBuckets));
-        if (version >= HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22)
+        if (version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
         {
             ar(CEREAL_NVP(hotArchiveBuckets));
         }
@@ -213,7 +213,7 @@ struct HistoryArchiveState
     bool
     hasHotArchiveBuckets() const
     {
-        return version >= HISTORY_ARCHIVE_STATE_VERSION_POST_PROTOCOL_22;
+        return version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE;
     }
 };
 
