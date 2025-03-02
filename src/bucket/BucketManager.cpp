@@ -1120,9 +1120,8 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
         [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
          ledgerVers, sas, &counters = mBucketListEvictionCounters,
          stats = mEvictionStatistics] {
-            return std::make_unique<EvictionResultCandidates>(
-                bl->scanForEviction(ledgerSeq, counters, iter, stats, sas,
-                                    ledgerVers));
+            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas,
+                                       ledgerVers);
         });
 
     mEvictionFuture = task->get_future();
@@ -1269,8 +1268,6 @@ BucketManager::assumeState(HistoryArchiveState const& has,
     ZoneScoped;
     releaseAssert(threadIsMain());
     releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
-
-    // Dependency: HAS supports Hot Archive BucketList
 
     auto processBucketList = [&](auto& bl, auto const& hasBuckets) {
         auto kNumLevels = std::remove_reference<decltype(bl)>::type::kNumLevels;
@@ -1652,46 +1649,36 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
             continue;
         }
 
-        // Returns filename, hash, and whether it's a hot archive bucket
-        auto loadFilenameAndHash =
-            [&]() -> std::tuple<std::string, Hash, bool> {
-            auto live = getBucketByHashInternal(h, mSharedLiveBuckets);
-            if (!live)
-            {
-                auto hot = getBucketByHashInternal(h, mSharedHotArchiveBuckets);
-
-                // Check both live and hot archive buckets for hash. If we don't
-                // find it in either, we're missing a bucket. Note that live and
-                // hot archive buckets are guaranteed to have no hash collisions
-                // due to type field in MetaEntry.
-                if (!hot)
-                {
-                    throw std::runtime_error(
-                        fmt::format(FMT_STRING("Missing referenced bucket {}"),
-                                    binToHex(h)));
-                }
-                return std::make_tuple(hot->getFilename().string(),
-                                       hot->getHash(), true);
-            }
-            else
-            {
-                return std::make_tuple(live->getFilename().string(),
-                                       live->getHash(), false);
-            }
-        };
-
-        auto [filename, hash, isHot] = loadFilenameAndHash();
-
-        if (isHot)
+        auto maybeLiveBucket = getBucketByHashInternal(h, mSharedLiveBuckets);
+        if (!maybeLiveBucket)
         {
+            auto hotBucket =
+                getBucketByHashInternal(h, mSharedHotArchiveBuckets);
+
+            // Check both live and hot archive buckets for hash. If we don't
+            // find it in either, we're missing a bucket. Note that live and
+            // hot archive buckets are guaranteed to have no hash collisions
+            // due to type field in MetaEntry.
+            if (!hotBucket)
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
+            }
+
+            auto filename = hotBucket->getFilename().string();
+            auto hash = hotBucket->getHash();
             auto [indexIter, _] = hotIndexMap.emplace(i++, nullptr);
+
             seq.emplace_back(
                 std::make_shared<VerifyBucketWork<HotArchiveBucket>>(
                     mApp, filename, hash, indexIter->second, nullptr));
         }
         else
         {
+            auto filename = maybeLiveBucket->getFilename().string();
+            auto hash = maybeLiveBucket->getHash();
             auto [indexIter, _] = liveIndexMap.emplace(i++, nullptr);
+
             seq.emplace_back(std::make_shared<VerifyBucketWork<LiveBucket>>(
                 mApp, filename, hash, indexIter->second, nullptr));
         }
