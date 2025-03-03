@@ -709,7 +709,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
             auto cTxSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
             releaseAssert(cTxSet);
             // Only valid applicable tx sets should be combined.
-            auto cApplicableTxSet = cTxSet->prepareForApply(mApp);
+            auto cApplicableTxSet = cTxSet->prepareForApply(mApp, lcl.header);
             releaseAssert(cApplicableTxSet);
             if (cTxSet->previousLedgerHash() == lcl.hash)
             {
@@ -1246,7 +1246,7 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
         ApplicableTxSetFrameConstPtr applicableTxSet;
         if (txSet.previousLedgerHash() == lcl.hash)
         {
-            applicableTxSet = txSet.prepareForApply(mApp);
+            applicableTxSet = txSet.prepareForApply(mApp, lcl.header);
         }
 
         bool res = true;

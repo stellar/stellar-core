@@ -783,7 +783,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
 #endif
 
     ApplicableTxSetFrameConstPtr outputApplicableTxSet =
-        outputTxSet->prepareForApply(app);
+        outputTxSet->prepareForApply(app, lclHeader.header);
 
     if (!outputApplicableTxSet)
     {
@@ -934,7 +934,8 @@ TxSetXDRFrame::toStellarMessage() const
 #endif
 
 ApplicableTxSetFrameConstPtr
-TxSetXDRFrame::prepareForApply(Application& app) const
+TxSetXDRFrame::prepareForApply(Application& app,
+                               LedgerHeader const& lclHeader) const
 {
 #ifdef BUILD_TESTS
     if (mApplicableTxSetOverride)
@@ -972,8 +973,7 @@ TxSetXDRFrame::prepareForApply(Application& app) const
     {
         auto const& xdrTxSet = std::get<TransactionSet>(mXDRTxSet);
         auto maybePhase = TxSetPhaseFrame::makeFromWireLegacy(
-            app.getLedgerManager().getLastClosedLedgerHeader().header,
-            app.getNetworkID(), xdrTxSet.txs);
+            lclHeader, app.getNetworkID(), xdrTxSet.txs);
         if (!maybePhase)
         {
             return nullptr;
