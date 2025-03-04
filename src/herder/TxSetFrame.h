@@ -143,7 +143,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     // This may *only* be called when LCL hash matches the `previousLedgerHash`
     // of this `TxSetFrame` - tx sets with a wrong ledger hash shouldn't even
     // be attempted to be interpreted.
-    ApplicableTxSetFrameConstPtr prepareForApply(Application& app) const;
+    ApplicableTxSetFrameConstPtr
+    prepareForApply(Application& app, LedgerHeader const& lclHeader) const;
 
     bool isGeneralizedTxSet() const;
 

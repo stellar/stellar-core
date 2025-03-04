@@ -41,13 +41,21 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     SECTION("no phases")
     {
         auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-        REQUIRE(txSet->prepareForApply(*app) == nullptr);
+        REQUIRE(
+            txSet->prepareForApply(
+                *app,
+                app->getLedgerManager().getLastClosedLedgerHeader().header) ==
+            nullptr);
     }
     SECTION("one phase")
     {
         auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
         xdrTxSet.v1TxSet().phases.emplace_back();
-        REQUIRE(txSet->prepareForApply(*app) == nullptr);
+        REQUIRE(
+            txSet->prepareForApply(
+                *app,
+                app->getLedgerManager().getLastClosedLedgerHeader().header) ==
+            nullptr);
     }
     SECTION("too many phases")
     {
@@ -55,7 +63,11 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
         xdrTxSet.v1TxSet().phases.emplace_back();
         xdrTxSet.v1TxSet().phases.emplace_back();
         auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-        REQUIRE(txSet->prepareForApply(*app) == nullptr);
+        REQUIRE(
+            txSet->prepareForApply(
+                *app,
+                app->getLedgerManager().getLastClosedLedgerHeader().header) ==
+            nullptr);
     }
 
     SECTION("two phase scenarios")
@@ -442,11 +454,17 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                 bool valid = classicIsValid && sorobanIsValid;
                 if (valid)
                 {
-                    REQUIRE(txSet->prepareForApply(*app) != nullptr);
+                    REQUIRE(txSet->prepareForApply(
+                                *app, app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header) != nullptr);
                 }
                 else
                 {
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
+                    REQUIRE(txSet->prepareForApply(
+                                *app, app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header) == nullptr);
                 }
             }
         }
@@ -502,7 +520,9 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     auto checkXdrRoundtrip = [&](GeneralizedTransactionSet const& txSetXdr) {
         auto txSetFrame = TxSetXDRFrame::makeFromWire(txSetXdr);
         ApplicableTxSetFrameConstPtr applicableFrame =
-            txSetFrame->prepareForApply(*app);
+            txSetFrame->prepareForApply(
+                *app,
+                app->getLedgerManager().getLastClosedLedgerHeader().header);
         REQUIRE(applicableFrame->checkValid(*app, 0, 0));
         GeneralizedTransactionSet newXdr;
         applicableFrame->toWireTxSetFrame()->toXDR(newXdr);

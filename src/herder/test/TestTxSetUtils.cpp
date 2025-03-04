@@ -113,7 +113,8 @@ makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
 {
     auto xdrTxSet = makeTxSetXDR(txs, previousLedgerHash);
     auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-    auto applicableTxSet = txSet->prepareForApply(app);
+    auto applicableTxSet = txSet->prepareForApply(
+        app, app.getLedgerManager().getLastClosedLedgerHeader().header);
     return std::make_pair(txSet, std::move(applicableTxSet));
 }
 } // namespace
@@ -135,7 +136,10 @@ makeNonValidatedGeneralizedTxSet(
     auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash,
                                             *useParallelSorobanPhase);
     auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-    return std::make_pair(txSet, txSet->prepareForApply(app));
+    return std::make_pair(
+        txSet,
+        txSet->prepareForApply(
+            app, app.getLedgerManager().getLastClosedLedgerHeader().header));
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -214,7 +218,10 @@ makeNonValidatedGeneralizedTxSet(PhaseComponents const& classicTxsPerBaseFee,
     }
     normalizeParallelPhaseXDR(phase);
     auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-    return std::make_pair(txSet, txSet->prepareForApply(app));
+    return std::make_pair(
+        txSet,
+        txSet->prepareForApply(
+            app, app.getLedgerManager().getLastClosedLedgerHeader().header));
 }
 #endif
 
