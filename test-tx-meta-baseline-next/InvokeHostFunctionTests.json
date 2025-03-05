@@ -31,6 +31,18 @@
 		23
 	],
 	"Module cache" : [ "MR6BJ3xmn2c=" ],
+	"Module cache across protocol versions" : [ "bKDF6V5IzTo=" ],
+	"Module cache cost with restore gaps" : 
+	[
+		"bKDF6V5IzTo=",
+		"fVnnyPKfgnU=",
+		"YnNeU4W0Cgs=",
+		"bKDF6V5IzTo=",
+		"fVnnyPKfgnU=",
+		"YnNeU4W0Cgs="
+	],
+	"Module cache miss on immediate execution" : [ "MR6BJ3xmn2c=", "MR6BJ3xmn2c=" ],
+	"Module cache miss on immediate execution|same ledger upload and execution" : [ "QSCQ/YjOFns=", "7QKjOYy3bsI=", "5aakTsJq3KQ=", "t04mND/GpFg=" ],
 	"Native stellar asset contract" : [ "bKDF6V5IzTo=", "iasg+Zj14uo=" ],
 	"Soroban authorization" : 
 	[
