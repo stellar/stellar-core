@@ -14,27 +14,49 @@ namespace stellar
 {
 
 class HistoryArchive;
+class FileTransferInfo;
 
 class DownloadBucketsWork : public BatchWork
 {
-    std::map<std::string, std::shared_ptr<LiveBucket>>& mBuckets;
-    std::vector<std::string> mHashes;
-    std::vector<std::string>::const_iterator mNextBucketIter;
+    std::map<std::string, std::shared_ptr<LiveBucket>>& mLiveBuckets;
+    std::map<std::string, std::shared_ptr<HotArchiveBucket>>& mHotBuckets;
+    std::vector<std::string> mLiveHashes;
+    std::vector<std::string> mHotHashes;
+    std::vector<std::string>::const_iterator mNextLiveBucketIter;
+    std::vector<std::string>::const_iterator mNextHotBucketIter;
     TmpDir const& mDownloadDir;
     std::shared_ptr<HistoryArchive> mArchive;
 
-    // Store indexes of downloaded buckets
-    std::map<int, std::unique_ptr<LiveBucketIndex const>> mIndexMap;
+    // Store indexes of downloaded buckets. Child processes will actually create
+    // the indexes, but DownloadBucketsWork needs to maintain actual ownership
+    // of the pointers so that the success callback can pass them to the
+    // BucketManager. Must be protected by a mutex to avoid race conditions.
+    std::map<int, std::unique_ptr<LiveBucketIndex const>> mLiveIndexMap;
+    std::map<int, std::unique_ptr<HotArchiveBucketIndex const>> mHotIndexMap;
 
-    // Must be held when accessing mIndexMap
-    std::mutex mIndexMapMutex;
-    int mIndexId{0};
+    // Must be held when accessing mIndexMaps
+    std::mutex mLiveIndexMapMutex;
+    std::mutex mHotIndexMapMutex;
+    int mLiveIndexId{0};
+    int mHotIndexId{0};
+
+    template <typename BucketT>
+    static void
+    onSuccessCb(Application& app, FileTransferInfo const& ft,
+                std::string const& hash, int currId,
+                std::map<std::string, std::shared_ptr<BucketT>>& buckets,
+                std::map<int, std::unique_ptr<typename BucketT::IndexT const>>&
+                    indexMap,
+                std::mutex& indexMutex);
 
   public:
+    // Note: hashes must contain both live and hot archive bucket hashes
     DownloadBucketsWork(
         Application& app,
-        std::map<std::string, std::shared_ptr<LiveBucket>>& buckets,
-        std::vector<std::string> hashes, TmpDir const& downloadDir,
+        std::map<std::string, std::shared_ptr<LiveBucket>>& liveBuckets,
+        std::map<std::string, std::shared_ptr<HotArchiveBucket>>& hotBuckets,
+        std::vector<std::string> liveHashes, std::vector<std::string> hotHashes,
+        TmpDir const& downloadDir,
         std::shared_ptr<HistoryArchive> archive = nullptr);
     ~DownloadBucketsWork() = default;
     std::string getStatus() const override;

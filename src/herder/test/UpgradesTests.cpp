@@ -2070,7 +2070,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bl.resolveAnyReadyFutures();
         }
-        auto mc = bm.readMergeCounters();
+        auto mc = bm.readMergeCounters<LiveBucket>();
 
         CLOG_INFO(Bucket,
                   "Ledger {} did {} old-protocol merges, {} new-protocol "
@@ -2193,7 +2193,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bl.resolveAnyReadyFutures();
         }
-        auto mc = bm.readMergeCounters();
+        auto mc = bm.readMergeCounters<LiveBucket>();
 
         if (ledgerSeq < 5)
         {
