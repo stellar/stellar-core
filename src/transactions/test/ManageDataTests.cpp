@@ -32,12 +32,12 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     const int64_t minBalance =
         app->getLedgerManager().getLastMinBalance(3) - 100;
 
-    auto gateway = root.create("gw", minBalance);
+    auto gateway = root->create("gw", minBalance);
 
     DataValue value, value2;
     value.resize(64);
@@ -124,7 +124,7 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
         auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
         auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
-        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        auto acc1 = root->create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
 
         auto cur1 = acc1.asset("CUR1");
@@ -137,7 +137,7 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
         for_versions_from(10, *app, [&] {
             REQUIRE_THROWS_AS(acc1.manageData(t1, &value),
                               ex_MANAGE_DATA_LOW_RESERVE);
-            root.pay(acc1, txfee + 1);
+            root->pay(acc1, txfee + 1);
             acc1.manageData(t1, &value);
         });
     }
@@ -147,7 +147,7 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
         auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
         auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
-        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        auto acc1 = root->create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
 
         auto cur1 = acc1.asset("CUR1");
@@ -163,8 +163,8 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
     {
         auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
         auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
-        auto acc1 = root.create("a1", minBalance1 - 1);
-        auto acc2 = root.create("a2", minBalance0);
+        auto acc1 = root->create("a1", minBalance1 - 1);
+        auto acc2 = root->create("a2", minBalance0);
         createSponsoredEntryButSponsorHasInsufficientBalance(
             *app, acc1, acc2, manageData(t1, &value),
             [](OperationResult const& opRes) {
@@ -181,7 +181,7 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
     SECTION("too many subentries")
     {
         auto acc1 =
-            root.create("acc1", app->getLedgerManager().getLastMinBalance(0));
+            root->create("acc1", app->getLedgerManager().getLastMinBalance(0));
         tooManySubentries(*app, acc1, manageData(t1, &value),
                           manageData(t2, &value2));
     }

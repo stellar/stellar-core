@@ -83,7 +83,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     };
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto xlm = makeNativeAsset();
     auto txfee = app->getLedgerManager().getLastTxFee();
 
@@ -108,10 +108,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
     // sets up gateway account
     auto const gatewayPayment = minBalance2 + morePayment;
-    auto gateway = root.create("gate", gatewayPayment);
+    auto gateway = root->create("gate", gatewayPayment);
 
     // sets up gateway2 account
-    auto gateway2 = root.create("gate2", gatewayPayment);
+    auto gateway2 = root->create("gate2", gatewayPayment);
 
     auto idr = makeAsset(gateway, "IDR");
     auto cur1 = makeAsset(gateway, "CUR1");
@@ -122,8 +122,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
     SECTION("transact more than INT64_MAX in a path payment")
     {
-        auto a1 = root.create("A1", minBalance4);
-        auto a2 = root.create("A2", minBalance4);
+        auto a1 = root->create("A1", minBalance4);
+        auto a2 = root->create("A2", minBalance4);
 
         a1.changeTrust(idr, trustLineLimit);
         a1.changeTrust(cur1, trustLineLimit);
@@ -203,8 +203,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination amount 0")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -221,8 +221,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination amount negative")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -239,8 +239,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment send max 0")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -257,8 +257,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment send max negative")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -275,8 +275,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment send currency invalid")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -294,8 +294,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination currency invalid")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -313,8 +313,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination path currency invalid")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -331,22 +331,24 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
     SECTION("dest amount too big for XLM")
     {
-        auto a = root.create("a", minBalance1);
+        auto a = root->create("a", minBalance1);
         for_versions_to(10, *app, [&] {
-            REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
-                                       std::numeric_limits<int64_t>::max(), {}),
+            REQUIRE_THROWS_AS(root->pay(a, xlm, 20, xlm,
+                                        std::numeric_limits<int64_t>::max(),
+                                        {}),
                               ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
         });
         for_versions_from(11, *app, [&] {
-            REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
-                                       std::numeric_limits<int64_t>::max(), {}),
+            REQUIRE_THROWS_AS(root->pay(a, xlm, 20, xlm,
+                                        std::numeric_limits<int64_t>::max(),
+                                        {}),
                               ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
         });
     }
 
     SECTION("dest amount too big for asset")
     {
-        auto a = root.create("a", minBalance1);
+        auto a = root->create("a", minBalance1);
         a.changeTrust(idr, std::numeric_limits<int64_t>::max());
         gateway.pay(a, idr, 10);
         for_all_versions(*app, [&] {
@@ -362,10 +364,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         auto market = TestMarket{*app};
         // see https://github.com/stellar/stellar-core/pull/1239
         auto minimumAccount =
-            root.create("minimum-account", minBalanceNoTx + 2 * txfee + 20);
+            root->create("minimum-account", minBalanceNoTx + 2 * txfee + 20);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
-                minimumAccount.pay(root, xlm, txfee + 21, xlm, txfee + 21, {}),
+                minimumAccount.pay(*root, xlm, txfee + 21, xlm, txfee + 21, {}),
                 ex_PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
             // clang-format off
             market.requireBalances(
@@ -377,8 +379,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment asset with not enough funds")
     {
         auto market = TestMarket{*app};
-        auto minimumAccount = root.create("minimum-account", minBalance1);
-        auto destination = root.create("destination", minBalance1);
+        auto minimumAccount = root->create("minimum-account", minBalance1);
+        auto destination = root->create("destination", minBalance1);
         minimumAccount.changeTrust(idr, 20);
         destination.changeTrust(idr, 20);
         gateway.pay(minimumAccount, idr, 10);
@@ -404,8 +406,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment source does not have trustline")
     {
         auto market = TestMarket{*app};
-        auto noSourceTrust = root.create("no-source-trust", minBalance);
-        auto destination = root.create("destination", minBalance1);
+        auto noSourceTrust = root->create("no-source-trust", minBalance);
+        auto destination = root->create("destination", minBalance1);
         destination.changeTrust(idr, 20);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(noSourceTrust.pay(gateway, idr, 1, idr, 1, {}),
@@ -430,8 +432,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     {
         auto market = TestMarket{*app};
         auto noAuthorizedSourceTrust =
-            root.create("no-authorized-source-trust", minBalance1);
-        auto destination = root.create("destination", minBalance1);
+            root->create("no-authorized-source-trust", minBalance1);
+        auto destination = root->create("destination", minBalance1);
         noAuthorizedSourceTrust.changeTrust(idr, 20);
         gateway.pay(noAuthorizedSourceTrust, idr, 10);
         destination.changeTrust(idr, 20);
@@ -477,7 +479,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination does not exists")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
+        auto source = root->create("source", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -497,11 +499,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "paths")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
+        auto source = root->create("source", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            gateway.merge(root);
+            gateway.merge(*root);
             auto offers = source.pay(gateway, idr, 10, idr, 10, {});
             std::vector<ClaimAtom> expected;
             REQUIRE(offers.success().offers == expected);
@@ -516,11 +518,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "complex paths")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
+        auto source = root->create("source", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            gateway.merge(root);
+            gateway.merge(*root);
             REQUIRE_THROWS_AS(source.pay(gateway, idr, 10, usd, 10, {}),
                               ex_PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION);
             // clang-format off
@@ -533,9 +535,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination does not have trustline")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
+        auto source = root->create("source", minBalance1);
         auto noDestinationTrust =
-            root.create("no-destination-trust", minBalance);
+            root->create("no-destination-trust", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
@@ -561,9 +563,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination is not authorized")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
+        auto source = root->create("source", minBalance1);
         auto noAuthorizedDestinationTrust =
-            root.create("no-authorized-destination-trust", minBalance1);
+            root->create("no-authorized-destination-trust", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         noAuthorizedDestinationTrust.changeTrust(idr, 20);
@@ -609,8 +611,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination line full")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
@@ -636,8 +638,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination line overflow")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(idr, INT64_MAX);
         gateway.pay(source, idr, 10);
@@ -666,8 +668,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         // successful path payment test with no issuers
 
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(usd, 20);
         gateway.pay(source, idr, 10);
@@ -695,7 +697,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
             SECTION("path payment send issuer missing")
             {
-                gateway.merge(root);
+                gateway.merge(*root);
                 pathPayment({}, idr);
             }
 
@@ -707,7 +709,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
             SECTION("path payment last issuer missing")
             {
-                gateway2.merge(root);
+                gateway2.merge(*root);
                 pathPayment({}, usd);
             }
 
@@ -722,11 +724,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment not enough offers for first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         mm12.changeTrust(cur1, 20);
@@ -774,11 +776,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment not enough offers for middle exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         mm12.changeTrust(cur1, 20);
@@ -826,11 +828,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment not enough offers for last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         mm12.changeTrust(cur1, 20);
@@ -878,10 +880,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment crosses own offer for first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance3);
-        auto destination = root.create("destination", minBalance1);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance3);
+        auto destination = root->create("destination", minBalance1);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         source.changeTrust(cur2, 20);
@@ -927,10 +929,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment crosses own offer for middle exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         source.changeTrust(cur2, 20);
@@ -977,10 +979,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment crosses own offer for last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
 
         source.changeTrust(cur1, 20);
         source.changeTrust(cur3, 20);
@@ -1028,11 +1030,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance3);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance3);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 30);
         source.changeTrust(cur2, 30);
@@ -1095,11 +1097,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "middle exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 30);
         source.changeTrust(cur2, 30);
@@ -1163,11 +1165,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 30);
         source.changeTrust(cur3, 30);
@@ -1230,8 +1232,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment over send max XLM")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance);
-        auto destination = root.create("destination", minBalance);
+        auto source = root->create("source", minBalance);
+        auto destination = root->create("destination", minBalance);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, xlm, 10, xlm, 11, {}),
                               ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
@@ -1244,8 +1246,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment over send max asset")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance1);
         source.changeTrust(idr, 10);
         destination.changeTrust(idr, 10);
         gateway.pay(source, idr, 10);
@@ -1264,11 +1266,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment over send max with real path")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -1316,7 +1318,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment to self XLM")
     {
         auto market = TestMarket{*app};
-        auto account = root.create("account", minBalance + txfee + 20);
+        auto account = root->create("account", minBalance + txfee + 20);
 
         for_versions_to(7, *app, [&] {
             auto offers = account.pay(account, xlm, 20, xlm, 20, {});
@@ -1334,7 +1336,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment to self asset")
     {
         auto market = TestMarket{*app};
-        auto account = root.create("account", minBalance1 + 2 * txfee);
+        auto account = root->create("account", minBalance1 + 2 * txfee);
         account.changeTrust(idr, 20);
         gateway.pay(account, idr, 10);
 
@@ -1349,7 +1351,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment to self asset over the limit")
     {
         auto market = TestMarket{*app};
-        auto account = root.create("account", minBalance1 + 2 * txfee);
+        auto account = root->create("account", minBalance1 + 2 * txfee);
         account.changeTrust(idr, 20);
         gateway.pay(account, idr, 19);
 
@@ -1363,10 +1365,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment crosses destination offer for first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance4);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance4);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         mm23.changeTrust(cur2, 20);
@@ -1422,10 +1424,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment crosses destination offer for middle exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance4);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance4);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 20);
         mm12.changeTrust(cur1, 20);
@@ -1481,10 +1483,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment crosses destination offer for last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance4);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
+        auto source = root->create("source", minBalance1);
+        auto destination = root->create("destination", minBalance4);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
 
         source.changeTrust(cur1, 20);
         mm12.changeTrust(cur1, 20);
@@ -1563,12 +1565,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         SECTION("path payment uses whole best offer for first exchange")
         {
             auto market = TestMarket{*app};
-            auto source = root.create("source", minBalance4);
-            auto destination = root.create("destination", minBalance1);
-            auto mm12a = root.create("mm12a", minBalance3);
-            auto mm12b = root.create("mm12b", minBalance3);
-            auto mm23 = root.create("mm23", minBalance3);
-            auto mm34 = root.create("mm34", minBalance3);
+            auto source = root->create("source", minBalance4);
+            auto destination = root->create("destination", minBalance1);
+            auto mm12a = root->create("mm12a", minBalance3);
+            auto mm12b = root->create("mm12b", minBalance3);
+            auto mm23 = root->create("mm23", minBalance3);
+            auto mm34 = root->create("mm34", minBalance3);
 
             source.changeTrust(cur1, 200);
             mm12a.changeTrust(cur1, 200);
@@ -1635,12 +1637,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         SECTION("path payment uses whole best offer for second exchange")
         {
             auto market = TestMarket{*app};
-            auto source = root.create("source", minBalance4);
-            auto destination = root.create("destination", minBalance1);
-            auto mm12 = root.create("mm12a", minBalance3);
-            auto mm23a = root.create("mm23a", minBalance3);
-            auto mm23b = root.create("mm23b", minBalance3);
-            auto mm34 = root.create("mm34", minBalance3);
+            auto source = root->create("source", minBalance4);
+            auto destination = root->create("destination", minBalance1);
+            auto mm12 = root->create("mm12a", minBalance3);
+            auto mm23a = root->create("mm23a", minBalance3);
+            auto mm23b = root->create("mm23b", minBalance3);
+            auto mm34 = root->create("mm34", minBalance3);
 
             source.changeTrust(cur1, 200);
             mm12.changeTrust(cur1, 200);
@@ -1707,12 +1709,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         SECTION("path payment uses whole best offer for last exchange")
         {
             auto market = TestMarket{*app};
-            auto source = root.create("source", minBalance4);
-            auto destination = root.create("destination", minBalance1);
-            auto mm12 = root.create("mm12a", minBalance3);
-            auto mm23 = root.create("mm23", minBalance3);
-            auto mm34a = root.create("mm34a", minBalance3);
-            auto mm34b = root.create("mm34b", minBalance3);
+            auto source = root->create("source", minBalance4);
+            auto destination = root->create("destination", minBalance1);
+            auto mm12 = root->create("mm12a", minBalance3);
+            auto mm23 = root->create("mm23", minBalance3);
+            auto mm34a = root->create("mm34a", minBalance3);
+            auto mm34b = root->create("mm34b", minBalance3);
 
             source.changeTrust(cur1, 200);
             mm12.changeTrust(cur1, 200);
@@ -1790,12 +1792,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment reaches limit for offer for first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12a = root.create("mm12a", minBalance3);
-        auto mm12b = root.create("mm12b", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12a = root->create("mm12a", minBalance3);
+        auto mm12b = root->create("mm12b", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12a.changeTrust(cur1, 200);
@@ -1867,12 +1869,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment reaches limit for offer for second exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23a = root.create("mm23a", minBalance3);
-        auto mm23b = root.create("mm23b", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23a = root->create("mm23a", minBalance3);
+        auto mm23b = root->create("mm23b", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -1944,12 +1946,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment reaches limit for offer for last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34a = root.create("mm34a", minBalance3);
-        auto mm34b = root.create("mm34b", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34a = root->create("mm34a", minBalance3);
+        auto mm34b = root->create("mm34b", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2021,12 +2023,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment missing trust line for offer for first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12a = root.create("mm12a", minBalance3);
-        auto mm12b = root.create("mm12b", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12a = root->create("mm12a", minBalance3);
+        auto mm12b = root->create("mm12b", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12a.changeTrust(cur1, 200);
@@ -2141,12 +2143,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment missing trust line for offer for second exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23a = root.create("mm23a", minBalance3);
-        auto mm23b = root.create("mm23b", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23a = root->create("mm23a", minBalance3);
+        auto mm23b = root->create("mm23b", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2261,12 +2263,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment missing trust line for offer for last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34a = root.create("mm34a", minBalance3);
-        auto mm34b = root.create("mm34b", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34a = root->create("mm34a", minBalance3);
+        auto mm34b = root->create("mm34b", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2382,12 +2384,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12a = root.create("mm12a", minBalance3);
-        auto mm12b = root.create("mm12b", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12a = root->create("mm12a", minBalance3);
+        auto mm12b = root->create("mm12b", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12a.changeTrust(cur1, 200);
@@ -2460,12 +2462,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "second exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23a = root.create("mm23a", minBalance3);
-        auto mm23b = root.create("mm23b", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23a = root->create("mm23a", minBalance3);
+        auto mm23b = root->create("mm23b", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2538,12 +2540,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34a = root.create("mm34a", minBalance3);
-        auto mm34b = root.create("mm34b", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34a = root->create("mm34a", minBalance3);
+        auto mm34b = root->create("mm34b", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2616,12 +2618,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12a = root.create("mm12a", minBalance3);
-        auto mm12b = root.create("mm12b", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12a = root->create("mm12a", minBalance3);
+        auto mm12b = root->create("mm12b", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12a.changeTrust(cur1, 200);
@@ -2694,12 +2696,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "second exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23a = root.create("mm23a", minBalance3);
-        auto mm23b = root.create("mm23b", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23a = root->create("mm23a", minBalance3);
+        auto mm23b = root->create("mm23b", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2772,12 +2774,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34a = root.create("mm34a", minBalance3);
-        auto mm34b = root.create("mm34b", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34a = root->create("mm34a", minBalance3);
+        auto mm34b = root->create("mm34b", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -2850,12 +2852,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12a = root.create("mm12a", minBalance3);
-        auto mm12b = root.create("mm12b", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12a = root->create("mm12a", minBalance3);
+        auto mm12b = root->create("mm12b", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12a.changeTrust(cur1, 200);
@@ -2964,12 +2966,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "second exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23a = root.create("mm23a", minBalance3);
-        auto mm23b = root.create("mm23b", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23a = root->create("mm23a", minBalance3);
+        auto mm23b = root->create("mm23b", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3078,12 +3080,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34a = root.create("mm34a", minBalance3);
-        auto mm34b = root.create("mm34b", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34a = root->create("mm34a", minBalance3);
+        auto mm34b = root->create("mm34b", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3192,12 +3194,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "first exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12a = root.create("mm12a", minBalance3);
-        auto mm12b = root.create("mm12b", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12a = root->create("mm12a", minBalance3);
+        auto mm12b = root->create("mm12b", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12a.changeTrust(cur1, 200);
@@ -3280,12 +3282,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "second exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23a = root.create("mm23a", minBalance3);
-        auto mm23b = root.create("mm23b", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23a = root->create("mm23a", minBalance3);
+        auto mm23b = root->create("mm23b", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3368,12 +3370,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             "last exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12a", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34a = root.create("mm34a", minBalance3);
-        auto mm34b = root.create("mm34b", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12a", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34a = root->create("mm34a", minBalance3);
+        auto mm34b = root->create("mm34b", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3455,11 +3457,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment takes all offers, one offer per exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance3);
+        auto mm23 = root->create("mm23", minBalance3);
+        auto mm34 = root->create("mm34", minBalance3);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3516,11 +3518,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment takes all offers, multiple offers per exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance5);
-        auto mm23 = root.create("mm23", minBalance5);
-        auto mm34 = root.create("mm34", minBalance5);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance5);
+        auto mm23 = root->create("mm23", minBalance5);
+        auto mm34 = root->create("mm34", minBalance5);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3650,11 +3652,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment takes all offers, multiple offers per exchange V10")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance5);
-        auto mm23 = root.create("mm23", minBalance5);
-        auto mm34 = root.create("mm34", minBalance5);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance5);
+        auto mm23 = root->create("mm23", minBalance5);
+        auto mm34 = root->create("mm34", minBalance5);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3738,11 +3740,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment takes best offers, multiple offers per exchange")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance5);
-        auto mm23 = root.create("mm23", minBalance5);
-        auto mm34 = root.create("mm34", minBalance5);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance5);
+        auto mm23 = root->create("mm23", minBalance5);
+        auto mm34 = root->create("mm34", minBalance5);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3872,11 +3874,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment takes best offers, multiple offers per exchange V10")
     {
         auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance5);
-        auto mm23 = root.create("mm23", minBalance5);
-        auto mm34 = root.create("mm34", minBalance5);
+        auto source = root->create("source", minBalance4);
+        auto destination = root->create("destination", minBalance1);
+        auto mm12 = root->create("mm12", minBalance5);
+        auto mm23 = root->create("mm23", minBalance5);
+        auto mm34 = root->create("mm34", minBalance5);
 
         source.changeTrust(cur1, 200);
         mm12.changeTrust(cur1, 200);
@@ -3959,10 +3961,10 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     SECTION("path payment with rounding errors")
     {
         auto market = TestMarket{*app};
-        auto issuer = root.create("issuer", 5999999400);
-        auto source = root.create("source", 1989999000);
-        auto destination = root.create("destination", 499999700);
-        auto seller = root.create("seller", 20999999300);
+        auto issuer = root->create("issuer", 5999999400);
+        auto source = root->create("source", 1989999000);
+        auto destination = root->create("destination", 499999700);
+        auto seller = root->create("seller", 20999999300);
 
         auto cny = issuer.asset("CNY");
         destination.changeTrust(cny, INT64_MAX);
@@ -4017,9 +4019,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         auto offerSize = paymentToReceive / 2;
         auto initialBalance = app->getLedgerManager().getLastMinBalance(10) +
                               txfee * 10 + 1000000000;
-        auto mm = root.create("mm", initialBalance);
-        auto source = root.create("source", initialBalance);
-        auto destination = root.create("destination", initialBalance);
+        auto mm = root->create("mm", initialBalance);
+        auto source = root->create("source", initialBalance);
+        auto destination = root->create("destination", initialBalance);
         mm.changeTrust(idr, trustLineLimit);
         mm.changeTrust(usd, trustLineLimit);
         destination.changeTrust(idr, trustLineLimit);
@@ -4124,7 +4126,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             auto setupAccount = [&](const std::string& name) {
                 // setup account with required trustlines and money both in
                 // native and assets
-                auto account = root.create(name, initialBalance);
+                auto account = root->create(name, initialBalance);
                 account.changeTrust(idr, trustLineLimit);
                 gateway.pay(account, idr, initialBalance);
                 account.changeTrust(usd, trustLineLimit);
@@ -4283,12 +4285,12 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment rounding")
     {
-        auto source =
-            root.create("source", app->getLedgerManager().getLastMinBalance(1) +
-                                      10 * txfee);
-        auto mm = root.create(
+        auto source = root->create(
+            "source",
+            app->getLedgerManager().getLastMinBalance(1) + 10 * txfee);
+        auto mm = root->create(
             "mm", app->getLedgerManager().getLastMinBalance(4) + 10 * txfee);
-        auto destination = root.create(
+        auto destination = root->create(
             "destination",
             app->getLedgerManager().getLastMinBalance(1) + 10 * txfee);
 
@@ -4355,9 +4357,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         SECTION("cannot pay balance below selling liabilities")
         {
             TestMarket market(*app);
-            auto source = root.create("source", minBalance2);
-            auto destination = root.create("destination", minBalance2);
-            auto mm12 = root.create("mm12", minBalance3);
+            auto source = root->create("source", minBalance2);
+            auto destination = root->create("destination", minBalance2);
+            auto mm12 = root->create("mm12", minBalance3);
 
             source.changeTrust(cur1, 200);
             mm12.changeTrust(cur1, 200);
@@ -4389,9 +4391,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                 " limit")
         {
             TestMarket market(*app);
-            auto source = root.create("source", minBalance2);
-            auto destination = root.create("destination", minBalance2);
-            auto mm12 = root.create("mm12", minBalance3);
+            auto source = root->create("source", minBalance2);
+            auto destination = root->create("destination", minBalance2);
+            auto mm12 = root->create("mm12", minBalance3);
 
             source.changeTrust(cur1, 200);
             mm12.changeTrust(cur1, 200);
@@ -4445,7 +4447,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
             auto const initBalance =
                 app->getLedgerManager().getLastMinBalance(10);
 
-            auto acc = root.create(seed, initBalance);
+            auto acc = root->create(seed, initBalance);
             acc.changeTrust(usd, INT64_MAX);
             acc.changeTrust(idr, INT64_MAX);
             gateway2.pay(acc, usd, 1000);
@@ -4809,18 +4811,18 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
         auto const minBal1 = app->getLedgerManager().getLastMinBalance(1);
 
         for_versions_from(14, *app, [&]() {
-            auto payor = root.create("payor", minBal1);
+            auto payor = root->create("payor", minBal1);
 
-            auto payee = root.create("payee", minBal1 + txfee);
+            auto payee = root->create("payee", minBal1 + txfee);
             payee.changeTrust(usd, 10000);
 
-            auto mm = root.create("mm", minBal1 + txfee + 10000);
+            auto mm = root->create("mm", minBal1 + txfee + 10000);
             mm.changeTrust(usd, 10000);
             gateway2.pay(mm, usd, 10000);
 
             {
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), root,
+                    app->getNetworkID(), *root,
                     {payor.op(beginSponsoringFutureReserves(mm)),
                      mm.op(manageOffer(0, usd, xlm, Price{1, 1}, 10000)),
                      mm.op(endSponsoringFutureReserves())},
@@ -4835,11 +4837,11 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                 ltx.commit();
             }
 
-            root.pay(payor, txfee);
+            root->pay(payor, txfee);
             REQUIRE_THROWS_AS(payor.pay(payee, xlm, 10000),
                               ex_PAYMENT_UNDERFUNDED);
 
-            root.pay(payor, txfee);
+            root->pay(payor, txfee);
             REQUIRE_NOTHROW(payor.pay(payee, xlm, 10000, usd, 10000, {}));
         });
     }
@@ -4861,7 +4863,7 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
     };
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto xlm = makeNativeAsset();
     auto txfee = app->getLedgerManager().getLastTxFee();
 
@@ -4879,10 +4881,10 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
 
     // sets up gateway account
     auto const gatewayPayment = minBalance2 + morePayment;
-    auto gateway = root.create("gate", gatewayPayment);
+    auto gateway = root->create("gate", gatewayPayment);
 
     // sets up gateway2 account
-    auto gateway2 = root.create("gate2", gatewayPayment);
+    auto gateway2 = root->create("gate2", gatewayPayment);
 
     auto cur1 = makeAsset(gateway, "CUR1");
     auto cur2 = makeAsset(gateway, "CUR2");
@@ -4891,11 +4893,11 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
     auto useAllOffersInLoop = [&](TestAccount* issuerToDelete) {
         for_all_versions(*app, [&] {
             auto market = TestMarket{*app};
-            auto source = root.create("source", minBalance4);
-            auto destination = root.create("destination", minBalance1);
-            auto mm12 = root.create("mm12", minBalance3);
-            auto mm23 = root.create("mm23", minBalance3);
-            auto mm31 = root.create("mm31", minBalance3);
+            auto source = root->create("source", minBalance4);
+            auto destination = root->create("destination", minBalance1);
+            auto mm12 = root->create("mm12", minBalance3);
+            auto mm23 = root->create("mm23", minBalance3);
+            auto mm31 = root->create("mm31", minBalance3);
 
             source.changeTrust(cur1, 16000);
             mm12.changeTrust(cur1, 16000);
@@ -4927,7 +4929,7 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
                 protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13))
             {
                 // remove issuer
-                issuerToDelete->merge(root);
+                issuerToDelete->merge(*root);
             }
 
             std::vector<ClaimAtom> actual;

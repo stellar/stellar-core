@@ -917,7 +917,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         auto ledgersToGenerate =
             (windowSize + 1) *
             networkConfig.stateArchivalSettings().bucketListWindowSamplePeriod;
-        for (uint32_t ledger = 1; ledger < ledgersToGenerate; ++ledger)
+        auto lclSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
+        for (uint32_t ledger = lclSeq; ledger < ledgersToGenerate; ++ledger)
         {
             // Note: BucketList size in the sliding window is snapshotted before
             // adding new sliding window config entry with the resulting

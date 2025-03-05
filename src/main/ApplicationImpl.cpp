@@ -62,6 +62,7 @@
 #include "ledger/test/InMemoryLedgerTxn.h"
 #include "ledger/test/InMemoryLedgerTxnRoot.h"
 #include "simulation/LoadGenerator.h"
+#include "test/TestAccount.h"
 #endif
 
 #include <Tracy.hpp>
@@ -314,6 +315,7 @@ void
 ApplicationImpl::resetLedgerState()
 {
 #ifdef BUILD_TESTS
+    mRootAccount.reset();
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         mNeverCommittingLedgerTxn.reset();
@@ -1121,6 +1123,18 @@ Config&
 ApplicationImpl::getMutableConfig()
 {
     return mConfig;
+}
+
+std::shared_ptr<TestAccount>
+ApplicationImpl::getRoot()
+{
+    if (!mRootAccount)
+    {
+        auto secretKey = txtest::getRoot(getNetworkID());
+        mRootAccount = std::make_shared<TestAccount>(*this, secretKey);
+    }
+
+    return mRootAccount;
 }
 #endif
 

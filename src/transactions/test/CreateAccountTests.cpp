@@ -34,7 +34,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
         clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalance2 =
@@ -45,12 +45,12 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
         for_versions({13}, *app, [&] {
             auto key = SecretKey::pseudoRandomForTesting();
             auto tx1 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), 0))}, {});
-            root.loadSequenceNumber();
+                app->getNetworkID(), *root,
+                {root->op(createAccount(key.getPublicKey(), 0))}, {});
+            root->loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), 1))}, {});
+                app->getNetworkID(), *root,
+                {root->op(createAccount(key.getPublicKey(), 1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx1->checkValidForTesting(app->getAppConnector(), ltx, 0,
@@ -65,12 +65,12 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
         for_versions_from(14, *app, [&] {
             auto key = SecretKey::pseudoRandomForTesting();
             auto tx1 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), -1))}, {});
-            root.loadSequenceNumber();
+                app->getNetworkID(), *root,
+                {root->op(createAccount(key.getPublicKey(), -1))}, {});
+            root->loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), 0))}, {});
+                app->getNetworkID(), *root,
+                {root->op(createAccount(key.getPublicKey(), 0))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx1->checkValidForTesting(app->getAppConnector(), ltx, 0,
@@ -86,9 +86,9 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
     SECTION("malformed with destination")
     {
         for_versions({13}, *app, [&] {
-            auto tx =
-                transactionFrameFromOps(app->getNetworkID(), root,
-                                        {root.op(createAccount(root, -1))}, {});
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), *root,
+                {root->op(createAccount(*root, -1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
@@ -102,12 +102,12 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
     {
         for_all_versions(*app, [&] {
             auto b1 =
-                root.create("B", app->getLedgerManager().getLastMinBalance(0));
+                root->create("B", app->getLedgerManager().getLastMinBalance(0));
             SECTION("Account already exists")
             {
                 REQUIRE_THROWS_AS(
-                    root.create("B",
-                                app->getLedgerManager().getLastMinBalance(0)),
+                    root->create("B",
+                                 app->getLedgerManager().getLastMinBalance(0)),
                     ex_CREATE_ACCOUNT_ALREADY_EXIST);
             }
         });
@@ -117,7 +117,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
     {
         for_all_versions(*app, [&] {
             int64_t gatewayPayment = minBalance2 + 1;
-            auto gateway = root.create("gate", gatewayPayment);
+            auto gateway = root->create("gate", gatewayPayment);
             REQUIRE_THROWS_AS(gateway.create("B", gatewayPayment),
                               ex_CREATE_ACCOUNT_UNDERFUNDED);
         });
@@ -127,8 +127,8 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
     {
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
-                root.create("B",
-                            app->getLedgerManager().getLastMinBalance(0) - 1),
+                root->create("B",
+                             app->getLedgerManager().getLastMinBalance(0) - 1),
                 ex_CREATE_ACCOUNT_LOW_RESERVE);
         });
     }
@@ -140,7 +140,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
 
             auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
+            auto acc1 = root->create("acc1", minBal3 + 2 * txfee + 500);
             auto cur1 = acc1.asset("CUR1");
 
             TestMarket market(*app);
@@ -150,7 +150,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
 
             REQUIRE_THROWS_AS(acc1.create("acc2", minBal0 + 1),
                               ex_CREATE_ACCOUNT_UNDERFUNDED);
-            root.pay(acc1, txfee);
+            root->pay(acc1, txfee);
             acc1.create("acc2", minBal0);
         });
     }
@@ -162,7 +162,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
 
             auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
+            auto acc1 = root->create("acc1", minBal3 + 2 * txfee + 500);
             auto cur1 = acc1.asset("CUR1");
 
             TestMarket market(*app);
@@ -180,9 +180,9 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto key = SecretKey::pseudoRandomForTesting();
             TestAccount a1(*app, key);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(beginSponsoringFutureReserves(a1)),
-                 root.op(createAccount(a1, 0)),
+                app->getNetworkID(), *root,
+                {root->op(beginSponsoringFutureReserves(a1)),
+                 root->op(createAccount(a1, 0)),
                  a1.op(endSponsoringFutureReserves())},
                 {key});
 
@@ -199,8 +199,8 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 checkSponsorship(ltx, key.getPublicKey(), 1,
-                                 &root.getPublicKey(), 0, 2, 0, 2);
-                checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2,
+                                 &root->getPublicKey(), 0, 2, 0, 2);
+                checkSponsorship(ltx, root->getPublicKey(), 0, nullptr, 0, 2, 2,
                                  0);
             }
         });
@@ -215,7 +215,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
 
         // This works because root is the sponsoring account in
         // tooManySponsoring
-        tooManySponsoring(*app, a1, a2, root.op(createAccount(a1, 0)),
-                          root.op(createAccount(a2, 0)), 2);
+        tooManySponsoring(*app, a1, a2, root->op(createAccount(a1, 0)),
+                          root->op(createAccount(a2, 0)), 2);
     }
 }

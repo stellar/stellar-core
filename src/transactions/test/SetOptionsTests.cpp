@@ -42,9 +42,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto a1 =
-        root.create("A", app->getLedgerManager().getLastMinBalance(0) + 1000);
+        root->create("A", app->getLedgerManager().getLastMinBalance(0) + 1000);
 
     SECTION("Signers")
     {
@@ -66,7 +66,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
             auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
             auto txfee = app->getLedgerManager().getLastTxFee();
             auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+            auto acc1 = root->create("acc1", minBal2 + 2 * txfee + 500 - 1);
             TestMarket market(*app);
 
             auto cur1 = acc1.asset("CUR1");
@@ -79,7 +79,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
             for_versions_from(10, *app, [&] {
                 REQUIRE_THROWS_AS(acc1.setOptions(th | setSigner(sk1)),
                                   ex_SET_OPTIONS_LOW_RESERVE);
-                root.pay(acc1, txfee + 1);
+                root->pay(acc1, txfee + 1);
                 acc1.setOptions(th | setSigner(sk1));
             });
         }
@@ -89,7 +89,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
             auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
             auto txfee = app->getLedgerManager().getLastTxFee();
             auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+            auto acc1 = root->create("acc1", minBal2 + 2 * txfee + 500 - 1);
             TestMarket market(*app);
 
             auto cur1 = acc1.asset("CUR1");
@@ -133,7 +133,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
         SECTION("invalid signer weight")
         {
-            root.pay(a1, app->getLedgerManager().getLastMinBalance(2));
+            root->pay(a1, app->getLedgerManager().getLastMinBalance(2));
 
             auto sk1_over = makeSigner(s1, 256);
             for_versions_to(9, *app,
@@ -164,7 +164,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
             for_versions_to(2, *app, [&] {
                 // add some funds
-                root.pay(a1, app->getLedgerManager().getLastMinBalance(2));
+                root->pay(a1, app->getLedgerManager().getLastMinBalance(2));
 
                 a1.setOptions(th | setSigner(sk1));
 
@@ -219,7 +219,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
             for_versions_from(3, *app, [&] {
                 // add some funds
-                root.pay(a1, app->getLedgerManager().getLastMinBalance(2));
+                root->pay(a1, app->getLedgerManager().getLastMinBalance(2));
                 a1.setOptions(th | setSigner(sk1));
 
                 countSubEntriesAndSigners(1);
@@ -284,11 +284,11 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
                     if (i < MAX_SIGNERS)
                     {
-                        root.setOptions(setSigner(signer));
+                        root->setOptions(setSigner(signer));
                     }
                     else
                     {
-                        REQUIRE_THROWS_AS(root.setOptions(setSigner(signer)),
+                        REQUIRE_THROWS_AS(root->setOptions(setSigner(signer)),
                                           ex_SET_OPTIONS_TOO_MANY_SIGNERS);
                     }
                 }
@@ -301,8 +301,8 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 app->getLedgerManager().getLastMinBalance(0);
             auto const minBalance1 =
                 app->getLedgerManager().getLastMinBalance(1);
-            auto acc1 = root.create("a1", minBalance1 - 1);
-            auto acc2 = root.create("a2", minBalance0);
+            auto acc1 = root->create("a1", minBalance1 - 1);
+            auto acc2 = root->create("a2", minBalance0);
             createSponsoredEntryButSponsorHasInsufficientBalance(
                 *app, acc1, acc2, setOptions(setSigner(sk1)),
                 [](OperationResult const& opRes) {
@@ -343,13 +343,13 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
                 auto const minBalance1 =
                     app->getLedgerManager().getLastMinBalance(1);
-                auto acc1 = root.create("a1", minBalance1);
+                auto acc1 = root->create("a1", minBalance1);
 
                 AccountEntryExtensionV2 extV2;
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
-                        {root.op(beginSponsoringFutureReserves(acc1)),
+                        app->getNetworkID(), *root,
+                        {root->op(beginSponsoringFutureReserves(acc1)),
                          acc1.op(setOptions(setSigner(makeSigner(s1, 1)))),
                          acc1.op(endSponsoringFutureReserves()),
                          acc1.op(setOptions(setSigner(makeSigner(s2, 1))))},
@@ -375,7 +375,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                         REQUIRE(ae.signers[0] == makeSigner(s1, 1));
                         REQUIRE(ae.signers[1] == makeSigner(s2, 1));
                         REQUIRE(*extV2.signerSponsoringIDs[0] ==
-                                root.getPublicKey());
+                                root->getPublicKey());
                         REQUIRE(!extV2.signerSponsoringIDs[1]);
                     }
                     else
@@ -384,7 +384,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                         REQUIRE(ae.signers[1] == makeSigner(s1, 1));
                         REQUIRE(!extV2.signerSponsoringIDs[0]);
                         REQUIRE(*extV2.signerSponsoringIDs[1] ==
-                                root.getPublicKey());
+                                root->getPublicKey());
                     }
 
                     ltx.commit();
@@ -392,7 +392,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
+                        app->getNetworkID(), *root,
                         {acc1.op(setOptions(setSigner(makeSigner(s3, 0))))},
                         {acc1.getSecretKey()});
 
@@ -429,7 +429,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                           });
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto rootAcc = stellar::loadAccount(ltx, root.getPublicKey());
+                auto rootAcc = stellar::loadAccount(ltx, root->getPublicKey());
                 auto const& ae = rootAcc.current().data.account();
 
                 REQUIRE(ae.signers.size() == sortedSigners.size());
@@ -472,7 +472,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
                 std::vector<Operation> ops;
                 std::vector<SecretKey> keys;
-                ops.emplace_back(root.op(setOptions(setSigner(signer))));
+                ops.emplace_back(root->op(setOptions(setSigner(signer))));
 
                 stellar::uniform_int_distribution<size_t> dist(0, 1);
                 if (dist(Catch::rng()))
@@ -480,21 +480,21 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                     auto sk = SecretKey::pseudoRandomForTesting();
                     keys.emplace_back(sk);
 
-                    auto sponsor =
-                        std::make_shared<TestAccount>(root.create(sk, minBal1));
+                    auto sponsor = std::make_shared<TestAccount>(
+                        root->create(sk, minBal1));
                     signers.push_back({signer, sponsor});
 
                     ops.insert(
                         ops.begin(),
-                        sponsor->op(beginSponsoringFutureReserves(root)));
-                    ops.emplace_back(root.op(endSponsoringFutureReserves()));
+                        sponsor->op(beginSponsoringFutureReserves(*root)));
+                    ops.emplace_back(root->op(endSponsoringFutureReserves()));
                 }
                 else
                 {
                     signers.push_back({signer, nullptr});
                 }
 
-                auto tx = transactionFrameFromOps(app->getNetworkID(), root,
+                auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
                                                   ops, keys);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaFrame txm(
@@ -511,7 +511,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 REQUIRE(!signers.empty());
                 auto signer = signers.back().first;
                 signer.weight = 0;
-                root.setOptions(setSigner(signer));
+                root->setOptions(setSigner(signer));
 
                 signers.pop_back();
                 checkSigners();
@@ -560,22 +560,22 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
             Signer skEmptyPayload(a1Signer, 1);
 
             for_versions_to(18, *app, [&]() {
-                REQUIRE_THROWS_AS(root.setOptions(setSigner(sk)),
+                REQUIRE_THROWS_AS(root->setOptions(setSigner(sk)),
                                   ex_SET_OPTIONS_BAD_SIGNER);
 
-                REQUIRE_THROWS_AS(root.setOptions(setSigner(skEmptyPayload)),
+                REQUIRE_THROWS_AS(root->setOptions(setSigner(skEmptyPayload)),
                                   ex_SET_OPTIONS_BAD_SIGNER);
             });
 
             for_versions_from(19, *app, [&]() {
-                root.setOptions(setSigner(sk));
-                REQUIRE(root.getNumSubEntries() == 1);
+                root->setOptions(setSigner(sk));
+                REQUIRE(root->getNumSubEntries() == 1);
 
                 sk.weight = 0;
-                root.setOptions(setSigner(sk));
-                REQUIRE(root.getNumSubEntries() == 0);
+                root->setOptions(setSigner(sk));
+                REQUIRE(root->getNumSubEntries() == 0);
 
-                REQUIRE_THROWS_AS(root.setOptions(setSigner(skEmptyPayload)),
+                REQUIRE_THROWS_AS(root->setOptions(setSigner(skEmptyPayload)),
                                   ex_SET_OPTIONS_BAD_SIGNER);
             });
         }
