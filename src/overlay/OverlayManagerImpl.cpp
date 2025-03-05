@@ -1249,11 +1249,10 @@ OverlayManagerImpl::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
 
 bool
 OverlayManagerImpl::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
-                                     std::optional<Hash> const hash,
-                                     uint32_t minOverlayVersion)
+                                     std::optional<Hash> const hash)
 {
     ZoneScoped;
-    auto res = mFloodGate.broadcast(msg, hash, minOverlayVersion);
+    auto res = mFloodGate.broadcast(msg, hash);
     if (res)
     {
         mOverlayMetrics.mMessagesBroadcast.Mark();
@@ -1339,8 +1338,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     };
 
     bool flood = false;
-    if (isFloodMessage(stellarMsg) || stellarMsg.type() == SURVEY_REQUEST ||
-        stellarMsg.type() == SURVEY_RESPONSE ||
+    if (isFloodMessage(stellarMsg) ||
         stellarMsg.type() == TIME_SLICED_SURVEY_START_COLLECTING ||
         stellarMsg.type() == TIME_SLICED_SURVEY_STOP_COLLECTING ||
         stellarMsg.type() == TIME_SLICED_SURVEY_REQUEST ||

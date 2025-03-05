@@ -73,11 +73,9 @@ class OverlayManager
     // returns true if message was sent to at least one peer
     // When passing a transaction message,
     // the hash of TransactionEnvelope must be passed also for pull mode.
-    // `minOverlayVersion` is the minimum overlay version a peer must have in
-    // order to be sent the message.
-    virtual bool broadcastMessage(std::shared_ptr<StellarMessage const> msg,
-                                  std::optional<Hash> const hash = std::nullopt,
-                                  uint32_t minOverlayVersion = 0) = 0;
+    virtual bool
+    broadcastMessage(std::shared_ptr<StellarMessage const> msg,
+                     std::optional<Hash> const hash = std::nullopt) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a
     // given broadcast message, so that it is inhibited from being resent to

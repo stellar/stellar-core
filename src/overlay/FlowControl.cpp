@@ -245,6 +245,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
     mFloodDataProcessed += mFlowControlCapacity.releaseLocalCapacity(msg);
     mFloodDataProcessedBytes +=
         mFlowControlBytesCapacity.releaseLocalCapacity(msg);
+    mTotalMsgsProcessed++;
 
     releaseAssert(mFloodDataProcessed <=
                   mAppConnector.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
@@ -256,12 +257,18 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
     shouldSendMore =
         shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
 
-    SendMoreCapacity res{0, 0};
+    SendMoreCapacity res{0, 0, 0};
+    if (mTotalMsgsProcessed == mAppConnector.getConfig().PEER_READING_CAPACITY)
+    {
+        res.numTotalMessages = mTotalMsgsProcessed;
+        mTotalMsgsProcessed = 0;
+    }
+
     if (shouldSendMore)
     {
         // First save result to return
-        res.first = mFloodDataProcessed;
-        res.second = mFloodDataProcessedBytes;
+        res.numFloodMessages = mFloodDataProcessed;
+        res.numFloodBytes = mFloodDataProcessedBytes;
 
         // Reset counters
         mFloodDataProcessed = 0;
@@ -554,20 +561,16 @@ FlowControl::maybeThrottleRead()
     return false;
 }
 
-bool
+void
 FlowControl::stopThrottling()
 {
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
-    if (mLastThrottle)
-    {
-        CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
-                   mAppConnector.getConfig().toShortString(mNodeID));
-        mOverlayMetrics.mConnectionReadThrottle.Update(mAppConnector.now() -
-                                                       *mLastThrottle);
-        mLastThrottle.reset();
-        return true;
-    }
-    return false;
+    releaseAssert(mLastThrottle);
+    CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
+               mAppConnector.getConfig().toShortString(mNodeID));
+    mOverlayMetrics.mConnectionReadThrottle.Update(mAppConnector.now() -
+                                                   *mLastThrottle);
+    mLastThrottle.reset();
 }
 
 bool

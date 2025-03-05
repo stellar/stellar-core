@@ -101,7 +101,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         addRoute("stopsurvey", &CommandHandler::stopSurvey);
 #ifndef BUILD_TESTS
         addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
-        addRoute("surveytopology", &CommandHandler::surveyTopology);
         addRoute("startsurveycollecting",
                  &CommandHandler::startSurveyCollecting);
         addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
@@ -128,7 +127,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("testacc", &CommandHandler::testAcc);
     addRoute("testtx", &CommandHandler::testTx);
     addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
-    addRoute("surveytopology", &CommandHandler::surveyTopology);
     addRoute("startsurveycollecting", &CommandHandler::startSurveyCollecting);
     addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
     addRoute("surveytopologytimesliced",
@@ -1052,45 +1050,9 @@ CommandHandler::checkBooted() const
 }
 
 void
-CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-
-    CLOG_WARNING(
-        Overlay,
-        "`surveytopology` is deprecated and will be removed in a future "
-        "release.  Please use the new time sliced survey interface.");
-
-    checkBooted();
-
-    std::map<std::string, std::string> map;
-    http::server::server::parseParams(params, map);
-
-    auto duration =
-        std::chrono::seconds(parseRequiredParam<uint32>(map, "duration"));
-    auto idString = parseRequiredParam<std::string>(map, "node");
-    NodeID id = KeyUtils::fromStrKey<NodeID>(idString);
-
-    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
-
-    bool success = surveyManager.startSurveyReporting(
-        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration);
-
-    surveyManager.addNodeToRunningSurveyBacklog(
-        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration, id, std::nullopt,
-        std::nullopt);
-    retStr = "Adding node.";
-
-    retStr += success ? "Survey started " : "Survey already running!";
-}
-
-void
 CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
     ZoneScoped;
-    CLOG_WARNING(Overlay,
-                 "`stopsurvey` is deprecated and will be removed in a future "
-                 "release.  Please use the new time sliced survey interface.");
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     surveyManager.stopSurveyReporting();
     retStr = "survey stopped";
@@ -1164,14 +1126,10 @@ CommandHandler::surveyTopologyTimeSliced(std::string const& params,
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
 
-    bool success = surveyManager.startSurveyReporting(
-        SurveyMessageCommandType::TIME_SLICED_SURVEY_TOPOLOGY,
-        /*surveyDuration*/ std::nullopt);
+    bool success = surveyManager.startSurveyReporting();
 
-    surveyManager.addNodeToRunningSurveyBacklog(
-        SurveyMessageCommandType::TIME_SLICED_SURVEY_TOPOLOGY,
-        /*surveyDuration*/ std::nullopt, id, inboundPeerIndex,
-        outboundPeerIndex);
+    surveyManager.addNodeToRunningSurveyBacklog(id, inboundPeerIndex,
+                                                outboundPeerIndex);
     retStr = "Adding node.";
 
     retStr += success ? "Survey started " : "Survey already running!";
