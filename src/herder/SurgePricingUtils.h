@@ -133,6 +133,9 @@ class SurgePricingPriorityQueue
         // Transaction should be skipped and not counted towards the lane
         // limits.
         SKIPPED,
+        // Like `SKIPPED`, but marks the fact that the transaction didn't fit
+        // into the lane due to reasons beyond the lane's resource limit.
+        REJECTED,
         // Transaction has been processed and should be counted towards the
         // lane limits.
         PROCESSED
@@ -183,6 +186,17 @@ class SurgePricingPriorityQueue
         TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
         std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
         const;
+
+    // Generalized method for visiting and popping the top transactions in the
+    // queue until the lane limits are reached.
+    // This is a destructive method that removes all or most of the queue
+    // elements and thus should be used with care.
+    void popTopTxs(
+        bool allowGaps,
+        std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
+            visitor,
+        std::vector<Resource>& laneResourcesLeftUntilLimit,
+        std::vector<bool>& hadTxNotFittingLane);
 
   private:
     class TxComparator
@@ -235,17 +249,6 @@ class SurgePricingPriorityQueue
         SurgePricingPriorityQueue const& mParent;
         std::vector<LaneIter> mutable mIters;
     };
-
-    // Generalized method for visiting and popping the top transactions in the
-    // queue until the lane limits are reached.
-    // This is a destructive method that removes all or most of the queue
-    // elements and thus should be used with care.
-    void popTopTxs(
-        bool allowGaps,
-        std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
-            visitor,
-        std::vector<Resource>& laneResourcesLeftUntilLimit,
-        std::vector<bool>& hadTxNotFittingLane);
 
     void erase(Iterator const& it);
     void erase(size_t lane,

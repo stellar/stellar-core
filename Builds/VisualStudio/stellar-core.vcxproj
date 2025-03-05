@@ -518,6 +518,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\HerderSCPDriver.cpp" />
     <ClCompile Include="..\..\src\herder\HerderUtils.cpp" />
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp" />
+    <ClCompile Include="..\..\src\herder\ParallelTxSetBuilder.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
@@ -972,6 +973,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\HerderSCPDriver.h" />
     <ClInclude Include="..\..\src\herder\HerderUtils.h" />
     <ClInclude Include="..\..\src\herder\LedgerCloseData.h" />
+    <ClInclude Include="..\..\src\herder\ParallelTxSetBuilder.h" />
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
