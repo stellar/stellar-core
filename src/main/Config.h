@@ -474,7 +474,7 @@ class Config : public std::enable_shared_from_this<Config>
     // index.
     size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
-    // Enable parallel processing of overlay operations (experimental)
+    // Enable parallel processing of overlay operations
     bool BACKGROUND_OVERLAY_PROCESSING;
 
     // Enable parallel block application (experimental)
