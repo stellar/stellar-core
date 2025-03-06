@@ -171,7 +171,7 @@ class Application
         WORKER,
         EVICTION,
         OVERLAY,
-        LEDGER_CLOSE,
+        APPLY,
         TX_QUEUE
     };
 

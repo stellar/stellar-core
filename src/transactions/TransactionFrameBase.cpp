@@ -31,7 +31,7 @@ SorobanNetworkConfig const&
 AppValidationWrapper::getSorobanNetworkConfig() const
 {
     return mForApply ? mApp.getSorobanNetworkConfigForApply()
-                     : mApp.getSorobanNetworkConfigReadOnly();
+                     : mApp.getLastClosedSorobanNetworkConfig();
 }
 
 uint32_t

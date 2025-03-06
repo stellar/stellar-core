@@ -56,6 +56,8 @@ AppConnector::getLastClosedSorobanNetworkConfig() const
 SorobanNetworkConfig const&
 AppConnector::getSorobanNetworkConfigForApply() const
 {
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
 }
 
@@ -63,9 +65,9 @@ std::optional<SorobanNetworkConfig>
 AppConnector::maybeGetSorobanNetworkConfigReadOnly() const
 {
     releaseAssert(threadIsMain());
-    if (mApp.getLedgerManager().hasSorobanNetworkConfig())
+    if (mApp.getLedgerManager().hasLastClosedSorobanNetworkConfig())
     {
-        return mApp.getLedgerManager().getSorobanNetworkConfigReadOnly();
+        return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
     }
     return std::nullopt;
 }

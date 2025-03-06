@@ -145,6 +145,16 @@ LedgerManager::maxSorobanLedgerResources(SorobanNetworkConfig const& conf)
     return Resource(limits);
 }
 
+uint32_t
+LedgerManager::getMaxTxSetSizeOps(LedgerHeader const& header)
+{
+    auto n = header.maxTxSetSize;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_11)
+               ? n
+               : (n * MAX_OPS_PER_TX);
+}
+
 Resource
 LedgerManager::maxSorobanTransactionResources(SorobanNetworkConfig const& conf)
 {
@@ -158,60 +168,6 @@ LedgerManager::maxSorobanTransactionResources(SorobanNetworkConfig const& conf)
                                    conf.txMaxReadLedgerEntries(),
                                    conf.txMaxWriteLedgerEntries()};
     return Resource(limits);
-}
-
-uint32_t
-LedgerManager::getMaxTxSetSizeOps(LedgerHeader const& header)
-{
-    auto n = header.maxTxSetSize;
-    return protocolVersionStartsFrom(header.ledgerVersion,
-                                     ProtocolVersion::V_11)
-               ? n
-               : (n * MAX_OPS_PER_TX);
-}
-
-Resource
-LedgerManager::maxClassicLedgerResources(LedgerHeader const& header)
-{
-    return Resource(LedgerManager::getMaxTxSetSizeOps(header));
-}
-
-Resource
-LedgerManager::maxSorobanLedgerResources(SorobanNetworkConfig const& conf)
-{
-    ZoneScoped std::vector<int64_t> limits = {
-        conf.ledgerMaxTxCount(),
-        conf.ledgerMaxInstructions(),
-        conf.ledgerMaxTransactionSizesBytes(),
-        conf.ledgerMaxReadBytes(),
-        conf.ledgerMaxWriteBytes(),
-        conf.ledgerMaxReadLedgerEntries(),
-        conf.ledgerMaxWriteLedgerEntries()};
-    return Resource(limits);
-}
-
-Resource
-LedgerManager::maxSorobanTransactionResources(SorobanNetworkConfig const& conf)
-{
-    ZoneScoped int64_t const opCount = 1;
-    std::vector<int64_t> limits = {opCount,
-                                   conf.txMaxInstructions(),
-                                   conf.txMaxSizeBytes(),
-                                   conf.txMaxReadBytes(),
-                                   conf.txMaxWriteBytes(),
-                                   conf.txMaxReadLedgerEntries(),
-                                   conf.txMaxWriteLedgerEntries()};
-    return Resource(limits);
-}
-
-uint32_t
-LedgerManager::getMaxTxSetSizeOps(LedgerHeader const& header)
-{
-    auto n = header.maxTxSetSize;
-    return protocolVersionStartsFrom(header.ledgerVersion,
-                                     ProtocolVersion::V_11)
-               ? n
-               : (n * MAX_OPS_PER_TX);
 }
 
 LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
@@ -506,7 +462,7 @@ uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
     releaseAssert(threadIsMain());
-    return LedgerManager::getMaxTxSetSizeOps(mLastClosedLedger.header);
+    return LedgerManager::getMaxTxSetSizeOps(getLCLState().ledgerHeader.header);
 }
 
 Resource
@@ -518,12 +474,12 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban)
     if (isSoroban)
     {
         return LedgerManager::maxSorobanLedgerResources(
-            getSorobanNetworkConfigReadOnly());
+            getLastClosedSorobanNetworkConfig());
     }
     else
     {
         return LedgerManager::maxClassicLedgerResources(
-            mLastClosedLedger.header);
+            getLCLState().ledgerHeader.header);
     }
 }
 
@@ -533,7 +489,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
     ZoneScoped;
 
     return LedgerManager::maxSorobanTransactionResources(
-        mApp.getLedgerManager().getSorobanNetworkConfigReadOnly());
+        getLastClosedSorobanNetworkConfig());
 }
 
 int64_t

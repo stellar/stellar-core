@@ -72,7 +72,6 @@ class AppConnector
     // `getSorobanNetworkConfig` will throw an assertion error in that case.
     std::optional<SorobanNetworkConfig>
     maybeGetSorobanNetworkConfigReadOnly() const;
-    bool threadIsType(Application::ThreadType type) const;
 
     bool threadIsType(Application::ThreadType type) const;
 

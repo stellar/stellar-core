@@ -17,6 +17,7 @@ namespace stellar
 {
 
 class Application;
+class AppConnector;
 class Config;
 class ConstLedgerTxnEntry;
 class ConstTrustLineWrapper;
