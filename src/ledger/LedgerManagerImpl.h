@@ -8,6 +8,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateCache.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/SorobanMetrics.h"
 #include "main/PersistentState.h"
@@ -68,6 +69,9 @@ class LedgerManagerImpl : public LedgerManager
         // this variable is not synchronized, since it should only be used by
         // one thread (main or ledger close).
         std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
+
+        // Cache of live Soroban state for the current ledger.
+        std::unique_ptr<LedgerStateCache> mLedgerStateCache;
     };
 
     struct LedgerApplyMetrics
@@ -217,6 +221,13 @@ class LedgerManagerImpl : public LedgerManager
     getLastClosedLedgerTxMeta() override;
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
+
+    LedgerStateCache const& getLedgerStateCacheForTesting() const override;
+    void
+    clearLedgerStateCacheForTesting() override
+    {
+        mApplyState.mLedgerStateCache = nullptr;
+    }
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -243,6 +254,8 @@ class LedgerManagerImpl : public LedgerManager
                              LedgerCloseData const& ledgerData);
     void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
+
+    void populateApplyStateCacheFromBucketList() override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 

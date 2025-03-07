@@ -295,6 +295,30 @@ LiveBucketIndex::getOfferRange() const
     return mInMemoryIndex->getOfferRange();
 }
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+LiveBucketIndex::getSorobanRange() const
+{
+    if (mDiskIndex)
+    {
+        // LedgerKey ordering in the bucket is CONTRACT_DATA, CONTRACT_CODE,
+        // so for the range we need the smallest CONTRACT_DATA entry and the
+        // largest CONTRACT_CODE entry.
+        LedgerKey lowerBound(CONTRACT_DATA);
+        lowerBound.contractData().contract.type(SC_ADDRESS_TYPE_ACCOUNT);
+        lowerBound.contractData().contract.accountId().ed25519().fill(
+            std::numeric_limits<uint8_t>::min());
+
+        LedgerKey upperBound(CONTRACT_CODE);
+        upperBound.contractCode().hash.fill(
+            std::numeric_limits<uint8_t>::max());
+
+        return mDiskIndex->getOffsetBounds(lowerBound, upperBound);
+    }
+
+    releaseAssertOrThrow(mInMemoryIndex);
+    return mInMemoryIndex->getSorobanRange();
+}
+
 uint32_t
 LiveBucketIndex::getPageSize() const
 {

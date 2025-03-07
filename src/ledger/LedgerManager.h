@@ -15,6 +15,7 @@ namespace stellar
 class LedgerCloseData;
 class Database;
 class SorobanMetrics;
+class LedgerStateCache;
 
 // This diagram provides a schematic of the flow of (logical) ledgers coming in
 // from the SCP-and-Herder consensus complex, passing through the
@@ -302,10 +303,17 @@ class LedgerManager
     {
         applyLedger(ledgerData, /* externalize */ false);
     }
+
+    virtual LedgerStateCache const& getLedgerStateCacheForTesting() const = 0;
+    virtual void clearLedgerStateCacheForTesting() = 0;
 #endif
 
     virtual void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
+
+    // Populates the live Soroban state cache based on the current live
+    // BucketList.
+    virtual void populateApplyStateCacheFromBucketList() = 0;
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 

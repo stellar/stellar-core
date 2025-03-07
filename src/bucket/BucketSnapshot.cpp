@@ -317,6 +317,44 @@ LiveBucketSnapshot::scanForEviction(
     return Loop::INCOMPLETE;
 }
 
+Loop
+LiveBucketSnapshot::scanForSorobanEntries(
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+    ZoneScoped;
+    if (isEmpty())
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    auto range = mBucket->getSorobanRange();
+    if (!range)
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    // Open new stream to not interfere with TTL lookups during the scan
+    XDRInputFileStream stream{};
+    stream.open(mBucket->getFilename());
+    stream.seek(range->first);
+
+    BucketEntry be;
+    while (stream.pos() < range->second && stream.readOne(be))
+    {
+        if (((be.type() == LIVEENTRY || be.type() == INITENTRY) &&
+             isSorobanEntry(be.liveEntry().data)) ||
+            (be.type() == DEADENTRY && isSorobanEntry(be.deadEntry())))
+        {
+            if (callback(be) == Loop::COMPLETE)
+            {
+                return Loop::COMPLETE;
+            }
+        }
+    }
+
+    return Loop::INCOMPLETE;
+}
+
 template <class BucketT>
 XDRInputFileStream&
 BucketSnapshotBase<BucketT>::getStream() const

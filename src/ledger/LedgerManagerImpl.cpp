@@ -23,6 +23,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
@@ -40,6 +41,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/printer.h"
 
@@ -546,6 +548,14 @@ LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
     storePersistentStateAndLedgerHeaderInDB(header, true);
 }
+
+LedgerStateCache const&
+LedgerManagerImpl::getLedgerStateCacheForTesting() const
+{
+    releaseAssertOrThrow(mApplyState.mLedgerStateCache);
+    return *mApplyState.mLedgerStateCache;
+}
+
 #endif
 
 SorobanMetrics&
@@ -1131,6 +1141,62 @@ LedgerManagerImpl::setLastClosedLedger(
     {
         mApp.getLedgerManager().updateSorobanNetworkConfigForApply(ltx2);
     }
+}
+
+void
+LedgerManagerImpl::populateApplyStateCacheFromBucketList()
+{
+    releaseAssertOrThrow(!mApplyState.mLedgerStateCache);
+    mApplyState.mLedgerStateCache = std::make_unique<LedgerStateCache>();
+
+    std::unordered_set<LedgerKey> deletedKeys;
+    auto bl = getLastClosedSnaphot();
+    auto f = [&cache = *mApplyState.mLedgerStateCache, &deletedKeys,
+              &bl](BucketEntry const& be) {
+        if (be.type() == DEADENTRY)
+        {
+            deletedKeys.insert(be.deadEntry());
+            return Loop::INCOMPLETE;
+        }
+
+        releaseAssertOrThrow(be.type() == LIVEENTRY || be.type() == INITENTRY);
+
+        auto lk = LedgerEntryKey(be.liveEntry());
+        releaseAssertOrThrow(lk.type() == CONTRACT_CODE ||
+                             lk.type() == CONTRACT_DATA);
+
+        // Skip key if we've already cached it, or if it has been deleted by an
+        // earlier BucketEntry
+        if (deletedKeys.find(lk) != deletedKeys.end())
+        {
+            return Loop::INCOMPLETE;
+        }
+        if (lk.type() == CONTRACT_CODE && cache.getContractCodeTTL(lk))
+        {
+            return Loop::INCOMPLETE;
+        }
+        else if (lk.type() == CONTRACT_DATA && cache.getContractDataEntry(lk))
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        auto ttlEntry = bl->load(getTTLKey(lk));
+        releaseAssertOrThrow(ttlEntry);
+        if (lk.type() == CONTRACT_CODE)
+        {
+            cache.addContractCodeTTL(lk,
+                                     ttlEntry->data.ttl().liveUntilLedgerSeq);
+        }
+        else
+        {
+            cache.addContractDataEntry(be.liveEntry(),
+                                       ttlEntry->data.ttl().liveUntilLedgerSeq);
+        }
+
+        return Loop::INCOMPLETE;
+    };
+
+    bl->scanForSorobanEntries(f);
 }
 
 void

@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -60,6 +61,8 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     std::streamoff lastOffset = 0;
     std::optional<std::streamoff> firstOffer;
     std::optional<std::streamoff> lastOffer;
+    std::optional<std::streamoff> firstSoroban;
+    std::optional<std::streamoff> lastSoroban;
 
     while (in && in.readOne(be, hasher))
     {
@@ -109,6 +112,16 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
             lastOffer = lastOffset;
         }
 
+        // populate sorobanRange
+        if (!firstSoroban && isSorobanEntry(lk))
+        {
+            firstSoroban = lastOffset;
+        }
+        if (!lastSoroban && lk.type() > CONTRACT_CODE)
+        {
+            lastSoroban = lastOffset;
+        }
+
         lastOffset = in.pos();
     }
 
@@ -129,6 +142,25 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     else
     {
         mOfferRange = std::nullopt;
+    }
+
+    if (firstSoroban)
+    {
+        if (lastSoroban)
+        {
+            mSorobanRange = {*firstSoroban, *lastSoroban};
+        }
+        // If we didn't see any entries after our last data/code entry, then the
+        // upper bound is EOF
+        else
+        {
+            mSorobanRange = {*firstSoroban,
+                             std::numeric_limits<std::streamoff>::max()};
+        }
+    }
+    else
+    {
+        mSorobanRange = std::nullopt;
     }
 }
 }
