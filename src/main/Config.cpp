@@ -1030,12 +1030,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"PEER_FLOOD_READING_CAPACITY_BYTES",
                  [&]() {
                      PEER_FLOOD_READING_CAPACITY_BYTES =
-                         readInt<uint32_t>(item, 1);
+                         readInt<uint32_t>(item, 0);
                  }},
                 {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES",
                  [&]() {
                      FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
-                         readInt<uint32_t>(item, 1);
+                         readInt<uint32_t>(item, 0);
                  }},
                 {"OUTBOUND_TX_QUEUE_BYTE_LIMIT",
                  [&]() {
