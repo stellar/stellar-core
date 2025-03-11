@@ -49,7 +49,6 @@ class LedgerManagerImpl : public LedgerManager
     std::weak_ptr<BasicWork> mFlushAndRotateMetaDebugWork;
     std::filesystem::path mMetaDebugPath;
 
-  private:
     // Output of the apply process, also what gets held as "LCL".
     struct LedgerState
     {
@@ -164,7 +163,6 @@ class LedgerManagerImpl : public LedgerManager
     // Update cached last closed ledger state values managed by this class.
     void advanceLastClosedLedgerState(LedgerState const& output);
 
-  protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
     // values are the same except on the ledger in which a protocol upgrade from
@@ -222,13 +220,14 @@ class LedgerManagerImpl : public LedgerManager
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
 
-    LedgerStateCache const& getLedgerStateCacheForTesting() const override;
     void
     clearLedgerStateCacheForTesting() override
     {
         mApplyState.mLedgerStateCache = nullptr;
     }
 #endif
+
+    LedgerStateCache const& getLedgerStateCache() const override;
 
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;

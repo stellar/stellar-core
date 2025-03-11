@@ -304,9 +304,10 @@ class LedgerManager
         applyLedger(ledgerData, /* externalize */ false);
     }
 
-    virtual LedgerStateCache const& getLedgerStateCacheForTesting() const = 0;
     virtual void clearLedgerStateCacheForTesting() = 0;
 #endif
+
+    virtual LedgerStateCache const& getLedgerStateCache() const = 0;
 
     virtual void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;

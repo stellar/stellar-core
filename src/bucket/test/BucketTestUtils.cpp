@@ -10,6 +10,7 @@
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "test/test.h"
 #include "util/ProtocolVersion.h"
@@ -290,6 +291,37 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
         mUseTestEntries = false;
+        if (protocolVersionStartsFrom(initialLedgerVers,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            auto insertLiveEntries = [&](auto const& entries) {
+                for (auto const& entry : entries)
+                {
+                    // TODO: Properly maintain TTL
+                    if (entry.data.type() == CONTRACT_CODE)
+                    {
+                        mApplyState.mLedgerStateCache->updateContractCodeTTL(
+                            LedgerEntryKey(entry), 0);
+                    }
+                    else if (entry.data.type() == CONTRACT_DATA)
+                    {
+                        mApplyState.mLedgerStateCache->updateContractDataEntry(
+                            entry, std::nullopt);
+                    }
+                }
+            };
+
+            insertLiveEntries(mTestInitEntries);
+            insertLiveEntries(mTestLiveEntries);
+
+            for (auto const& key : mTestDeadEntries)
+            {
+                if (isSorobanEntry(key))
+                {
+                    mApplyState.mLedgerStateCache->evictKey(key);
+                }
+            }
+        }
     }
     else
     {

@@ -549,14 +549,14 @@ LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
     storePersistentStateAndLedgerHeaderInDB(header, true);
 }
 
+#endif
+
 LedgerStateCache const&
-LedgerManagerImpl::getLedgerStateCacheForTesting() const
+LedgerManagerImpl::getLedgerStateCache() const
 {
     releaseAssertOrThrow(mApplyState.mLedgerStateCache);
     return *mApplyState.mLedgerStateCache;
 }
-
-#endif
 
 SorobanMetrics&
 LedgerManagerImpl::getSorobanMetrics()
@@ -1184,13 +1184,13 @@ LedgerManagerImpl::populateApplyStateCacheFromBucketList()
         releaseAssertOrThrow(ttlEntry);
         if (lk.type() == CONTRACT_CODE)
         {
-            cache.addContractCodeTTL(lk,
-                                     ttlEntry->data.ttl().liveUntilLedgerSeq);
+            cache.updateContractCodeTTL(
+                lk, ttlEntry->data.ttl().liveUntilLedgerSeq);
         }
         else
         {
-            cache.addContractDataEntry(be.liveEntry(),
-                                       ttlEntry->data.ttl().liveUntilLedgerSeq);
+            cache.updateContractDataEntry(
+                be.liveEntry(), ttlEntry->data.ttl().liveUntilLedgerSeq);
         }
 
         return Loop::INCOMPLETE;
@@ -1855,6 +1855,35 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     {
         mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                              deadEntries);
+
+        if (protocolVersionStartsFrom(initialLedgerVers,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            auto insertLiveEntries = [&](auto const& entries) {
+                for (auto const& entry : entries)
+                {
+                    // TODO: Properly maintain TTL
+                    if (entry.data.type() == CONTRACT_CODE)
+                    {
+                        mApplyState.mLedgerStateCache->updateContractCodeTTL(
+                            LedgerEntryKey(entry), 0);
+                    }
+                    else if (entry.data.type() == CONTRACT_DATA)
+                    {
+                        mApplyState.mLedgerStateCache->updateContractDataEntry(
+                            entry, std::nullopt);
+                    }
+                }
+            };
+
+            insertLiveEntries(initEntries);
+            insertLiveEntries(liveEntries);
+
+            for (auto const& key : deadEntries)
+            {
+                mApplyState.mLedgerStateCache->evictKey(key);
+            }
+        }
     }
 }
 

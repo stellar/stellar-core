@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -16,10 +17,12 @@
 namespace stellar
 {
 
+class LedgerStateCache;
+
 struct ContractDataCacheT
 {
     std::shared_ptr<LedgerEntry const> ledgerEntry;
-    uint32_t liveUntilLedgerSeq;
+    mutable uint32_t liveUntilLedgerSeq;
 
     explicit ContractDataCacheT(LedgerEntry const& ledgerEntry,
                                 uint32_t liveUntilLedgerSeq)
@@ -27,6 +30,19 @@ struct ContractDataCacheT
         , liveUntilLedgerSeq(liveUntilLedgerSeq)
     {
     }
+
+  private:
+    // This is a little hacky, but we want to be able to just update the TTL
+    // without having to re-insert the ledgerEntry as well. This entry will be
+    // stored in a set and always be returned const, but we know the ttl value
+    // is not used by the hashing or comparison operations, so this is safe.
+    void
+    updateTTL(uint32_t newLiveUntilLedgerSeq) const
+    {
+        liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+    }
+
+    friend class LedgerStateCache;
 };
 
 // Soroban keys sizes usually dominate LedgerEntry size, so we don't want to
@@ -180,11 +196,24 @@ class LedgerStateCache : public NonMovableOrCopyable
     std::unordered_map<LedgerKey, uint32_t> mContractCodeTTLs;
 
   public:
-    void addContractDataEntry(LedgerEntry const& ledgerEntry,
-                              uint32_t liveUntilLedgerSeq);
-    void addContractCodeTTL(LedgerKey const& ledgerKey,
-                            uint32_t liveUntilLedgerSeq);
+    // Update the TTL of an existing entry in the cache, or inserts a new entry
+    // if no key exists.
+    void updateContractCodeTTL(LedgerKey const& ledgerKey,
+                               uint32_t liveUntilLedgerSeq);
 
+    // Update ContractData entry, or create a new entry if it doesn't exist.
+    // If liveUntilLedgerSeq is not nullopt, update the TTL of the entry.
+    // Otherwise, the TTL will remained unchanged if the entry already exists,
+    // or will default to 0 if the entry is new.
+    void updateContractDataEntry(LedgerEntry const& ledgerEntry,
+                                 std::optional<uint32_t> liveUntilLedgerSeq);
+
+    // Update the TTL of an existing ContractData entry. Throws if the entry
+    // does not exist.
+    void updateContractDataTTL(LedgerKey const& ledgerKey,
+                               uint32_t liveUntilLedgerSeq);
+
+    // Evict a key from the cache.
     void evictKey(LedgerKey const& ledgerKey);
 
     // Returns nullopt if the entry is not in the cache

@@ -282,12 +282,16 @@ class BucketIndexTest
                 // key in entries may also be in toUpdate
                 if (sorobanOnly)
                 {
-                    toUpdate.insert(toUpdate.end(), entries.begin(),
-                                    entries.end());
+                    mApp->getLedgerManager()
+                        .setNextLedgerEntryBatchForBucketTesting(
+                            entries, toUpdate, toDestroy);
                 }
-                mApp->getLedgerManager()
-                    .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
-                                                             toDestroy);
+                else
+                {
+                    mApp->getLedgerManager()
+                        .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
+                                                                 toDestroy);
+                }
                 toDestroy.clear();
                 toUpdate.clear();
             }
@@ -828,7 +832,7 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
 
 // Note: this test checks that the soroban cache is initialized correctly, but
 // does not check that the cache is maintained as ledger state changes.
-TEST_CASE("soroban cache initialization", "[soroban]")
+TEST_CASE("soroban cache", "[soroban]")
 {
     auto f = [&](Config& cfg) {
         auto test = BucketIndexTest(cfg);
@@ -836,15 +840,42 @@ TEST_CASE("soroban cache initialization", "[soroban]")
         test.run();
 
         auto& lm = test.getApp().getLedgerManager();
-        lm.clearLedgerStateCacheForTesting();
-        lm.populateApplyStateCacheFromBucketList();
-        auto& cache = lm.getLedgerStateCacheForTesting();
+        auto& cache = lm.getLedgerStateCache();
         auto codeEntries = test.getContractCodeEntries();
         auto dataEntries = test.getContractDataEntries();
 
         auto snapshot = test.getBM()
                             .getBucketSnapshotManager()
                             .copySearchableLiveBucketListSnapshot();
+
+        // First, test that the cache is maintained correctly via `addBatch`
+        REQUIRE(codeEntries.size() == cache.mContractCodeTTLs.size());
+        for (auto const& [k, v] : codeEntries)
+        {
+            auto ttl = cache.getContractCodeTTL(k);
+            REQUIRE(ttl);
+
+            // TODO: maintain TTL values correctly
+            REQUIRE(*ttl == 0);
+        }
+
+        REQUIRE(dataEntries.size() == cache.mEntries.size());
+        for (auto const& [k, v] : dataEntries)
+        {
+            auto cacheEntry = cache.getContractDataEntry(k);
+            REQUIRE(cacheEntry);
+
+            // TODO: maintain TTL values correctly
+            REQUIRE(cacheEntry->liveUntilLedgerSeq == 0);
+
+            auto liveEntry = snapshot->load(k);
+            REQUIRE(liveEntry);
+            REQUIRE(*liveEntry == *cacheEntry->ledgerEntry);
+        }
+
+        // Now wipe cache and repopulate from scratch to test initialization
+        lm.clearLedgerStateCacheForTesting();
+        lm.populateApplyStateCacheFromBucketList();
 
         REQUIRE(codeEntries.size() == cache.mContractCodeTTLs.size());
         for (auto const& [k, v] : codeEntries)

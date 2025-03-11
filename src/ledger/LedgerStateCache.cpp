@@ -9,18 +9,59 @@ namespace stellar
 {
 
 void
-LedgerStateCache::addContractDataEntry(LedgerEntry const& ledgerEntry,
-                                       uint32_t liveUntilLedgerSeq)
+LedgerStateCache::updateContractDataTTL(LedgerKey const& ledgerKey,
+                                        uint32_t liveUntilLedgerSeq)
 {
-    mEntries.emplace(
-        InternalContractDataCacheEntry(ledgerEntry, liveUntilLedgerSeq));
+    releaseAssertOrThrow(ledgerKey.type() == LedgerEntryType::CONTRACT_DATA);
+    auto it = mEntries.find(InternalContractDataCacheEntry(ledgerKey));
+    releaseAssertOrThrow(it != mEntries.end());
+    it->get().updateTTL(liveUntilLedgerSeq);
 }
 
 void
-LedgerStateCache::addContractCodeTTL(LedgerKey const& ledgerKey,
-                                     uint32_t liveUntilLedgerSeq)
+LedgerStateCache::updateContractDataEntry(
+    LedgerEntry const& ledgerEntry,
+    std::optional<uint32_t> liveUntilLedgerSeqOp)
 {
-    mContractCodeTTLs.emplace(ledgerKey, liveUntilLedgerSeq);
+    releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_DATA);
+    auto it = mEntries.find(
+        InternalContractDataCacheEntry(LedgerEntryKey(ledgerEntry)));
+    if (it == mEntries.end())
+    {
+        mEntries.emplace(InternalContractDataCacheEntry(
+            ledgerEntry, liveUntilLedgerSeqOp ? *liveUntilLedgerSeqOp : 0));
+    }
+    else
+    {
+        if (liveUntilLedgerSeqOp)
+        {
+            mEntries.erase(it);
+            mEntries.emplace(InternalContractDataCacheEntry(
+                ledgerEntry, *liveUntilLedgerSeqOp));
+        }
+        else
+        {
+            auto liveUntilLedgerSeq = it->get().liveUntilLedgerSeq;
+            mEntries.erase(it);
+            mEntries.emplace(InternalContractDataCacheEntry(
+                ledgerEntry, liveUntilLedgerSeq));
+        }
+    }
+}
+
+void
+LedgerStateCache::updateContractCodeTTL(LedgerKey const& ledgerKey,
+                                        uint32_t liveUntilLedgerSeq)
+{
+    auto it = mContractCodeTTLs.find(ledgerKey);
+    if (it == mContractCodeTTLs.end())
+    {
+        mContractCodeTTLs.emplace(ledgerKey, liveUntilLedgerSeq);
+    }
+    else
+    {
+        it->second = liveUntilLedgerSeq;
+    }
 }
 
 void
