@@ -95,10 +95,10 @@ class OverlayManager
     // TODO: Docs
     // TODO: This is going to be called in a lambda. Be careful about those
     // pointers and references
-    virtual void
-    recordAddTransactionStats(TxQueueAddResult const& addResult,
-                              Hash const& txHash, Peer::pointer peer,
-                              Hash const& index) = 0;
+    virtual void recordAddTransactionStats(TxQueueAddResult const& addResult,
+                                           Hash const& txHash,
+                                           Peer::pointer peer,
+                                           Hash const& index) = 0;
 
     // Process incoming transaction, pass it down to the transaction queue
     virtual void recvTransaction(StellarMessage const& msg, Peer::pointer peer,

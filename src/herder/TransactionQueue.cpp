@@ -343,7 +343,6 @@ TransactionQueue::lock() const
     return TxQueueLock(std::move(lock), mTxQueueCv);
 }
 
-
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,

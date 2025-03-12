@@ -585,7 +585,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 // TODO: Move to Herder.cpp?
 TransactionQueue::AddResult
 Herder::recvTransaction(TransactionQueuesPtr txQueues,
-                            TransactionFrameBasePtr tx, bool submittedFromSelf)
+                        TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
     ClassicTransactionQueue& classicTxQueue =
@@ -2521,7 +2521,9 @@ HerderImpl::getTx(Hash const& hash) const
     return mTransactionQueues->getTx(hash);
 }
 
-TransactionQueuesPtr HerderImpl::getTransactionQueues() const {
+TransactionQueuesPtr
+HerderImpl::getTransactionQueues() const
+{
     releaseAssert(mTransactionQueues);
     return mTransactionQueues;
 }
