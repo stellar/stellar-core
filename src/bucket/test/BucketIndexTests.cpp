@@ -310,7 +310,7 @@ class BucketIndexTest
 
         // Test bulk load lookup
         auto loadResult =
-            searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
+            searchableBL->loadKeysWithLimits(mKeysToSearch, "test", nullptr);
         validateResults(mTestEntries, loadResult);
 
         if (expectedHitRate)
@@ -358,8 +358,8 @@ class BucketIndexTest
                          mKeysToSearch.size());
 
             // Run bulk lookup again
-            auto loadResult2 =
-                searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
+            auto loadResult2 = searchableBL->loadKeysWithLimits(
+                mKeysToSearch, "test", nullptr);
             validateResults(mTestEntries, loadResult2);
 
             checkHitRate(expectedHitRate, startingHitCount, startingMissCount,
@@ -403,7 +403,7 @@ class BucketIndexTest
             }
 
             auto blLoad =
-                searchableBL->loadKeysWithLimits(searchSubset, nullptr);
+                searchableBL->loadKeysWithLimits(searchSubset, "test", nullptr);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -422,8 +422,8 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(searchableBL->loadKeysWithLimits(invalidKeys, nullptr).size() ==
-                0);
+        REQUIRE(searchableBL->loadKeysWithLimits(invalidKeys, "test", nullptr)
+                    .size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)

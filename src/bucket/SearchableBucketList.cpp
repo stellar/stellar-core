@@ -204,9 +204,9 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 std::vector<LedgerEntry>
 SearchableLiveBucketListSnapshot::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter) const
+    std::string const& label, LedgerKeyMeter* lkMeter) const
 {
-    auto timer = getBulkLoadTimer("prefetch", inKeys.size()).TimeScope();
+    auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
     auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
