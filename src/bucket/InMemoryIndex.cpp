@@ -79,6 +79,8 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
             continue;
         }
 
+        mCounters.template count<LiveBucket>(be);
+
         // Populate assetPoolIDMap
         LedgerKey lk = getBucketLedgerKey(be);
         if (be.type() == INITENTRY)
