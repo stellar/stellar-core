@@ -576,9 +576,6 @@
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -1365,6 +1362,24 @@
     <ClCompile Include="..\..\src\catchup\LedgerApplyManagerImpl.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\HotArchiveBucketIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\LiveBucketIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\DiskIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketIndexUtils.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\InMemoryIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryUtils.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -1776,12 +1791,6 @@
       <Filter>bucket\tests</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketIndex.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h">
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h">
@@ -2409,6 +2418,24 @@
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\LedgerApplyManagerImpl.h">
       <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\HotArchiveBucketIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\LiveBucketIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\DiskIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketIndexUtils.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\InMemoryIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryUtils.h">
+      <Filter>history</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

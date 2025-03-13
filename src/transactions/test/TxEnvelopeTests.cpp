@@ -2531,6 +2531,70 @@ TEST_CASE("XDR protocol compatibility validation", "[tx][envelope]")
     }
 }
 
+// This is a temporary case until we have released the next minor version.
+// This can be safely removed after that (the test will also fail as soon as we
+// caught up with the next XDR on the Rust side).
+TEST_CASE("new ScAddress variants are not decodable by Rust", "[tx][envelope]")
+{
+
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    auto app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    op.body.invokeHostFunctionOp().hostFunction.type(
+        HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+
+    LedgerSnapshot ls(*app);
+    SECTION("Invalid ScAddress in function args")
+    {
+        auto& val = op.body.invokeHostFunctionOp()
+                        .hostFunction.invokeContract()
+                        .args.emplace_back();
+        val.type(SCV_ADDRESS);
+        val.address().type(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
+        val.address().muxedAccount().id = 123;
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
+                                           SorobanResources(), 1000, 1'000'000);
+
+        auto res = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        REQUIRE(res->getResult().result.code() == txMALFORMED);
+    }
+    SECTION("Invalid ScAddress in auth")
+    {
+        auto& authEntry = op.body.invokeHostFunctionOp().auth.emplace_back();
+        authEntry.rootInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        auto& address =
+            authEntry.rootInvocation.function.contractFn().contractAddress;
+        address.type(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
+        address.claimableBalanceId().v0()[0] = 1;
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
+                                           SorobanResources(), 1000, 1'000'000);
+        auto res = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        REQUIRE(res->getResult().result.code() == txMALFORMED);
+    }
+    SECTION("Invalid ScAddress in footprint")
+    {
+        SorobanResources resources;
+        auto& key = resources.footprint.readOnly.emplace_back();
+        key.type(CONTRACT_DATA);
+        auto& address = key.contractData().contract;
+
+        address.type(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
+        address.liquidityPoolId()[1] = 10;
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 1000, 1'000'000);
+        auto res = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        REQUIRE(res->getResult().result.code() == txMALFORMED);
+    }
+}
+
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
                    "[tx][envelope][soroban]")
 {

@@ -1986,10 +1986,15 @@ isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
     uint32_t maxProtocol = cfg.CURRENT_LEDGER_PROTOCOL_VERSION;
     // If we could parse the XDR when ledger is using the maximum supported
     // protocol version, then XDR has to be valid.
+    // This check is temporarily disabled because we're using different XDR in
+    // Rust and Core, and thus even at max protocol the check is necessary.
+    // if (maxProtocol == currProtocol)
+    //{
+    //    return true;
+    //}
     // This check also is pointless before protocol 21 as Soroban environment
     // doesn't support XDR versions before 21.
-    if (maxProtocol == currProtocol ||
-        protocolVersionIsBefore(currProtocol, ProtocolVersion::V_21))
+    if (protocolVersionIsBefore(currProtocol, ProtocolVersion::V_21))
     {
         return true;
     }

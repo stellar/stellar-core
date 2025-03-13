@@ -186,6 +186,18 @@ checkXDRFileIdentity()
         {
             continue;
         }
+        // Temporarily (until we have cut the next minor release) disable the
+        // check for the XDR changes necessary for the minor release. These
+        // are mostly binary compatible with the Rust XDR, and the incompatible
+        // part (ScAddress change) is actually supposed to be not decodable on
+        // the Rust side.
+        if (cpp.first.filename() == "Stellar-types.x" ||
+            cpp.first.filename() == "Stellar-contract.x" ||
+            cpp.first.filename() == "Stellar-ledger-entries.x" ||
+            cpp.first.filename() == "Stellar-ledger.x")
+        {
+            continue;
+        }
         bool found = false;
         for (auto const& rust : rustHashes)
         {
@@ -351,7 +363,7 @@ main(int argc, char* const* argv)
     rust_bridge::check_sensible_soroban_config_for_protocol(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-    // Disable XDR hash checking in vnext builds
+    // Temporarily disable XDR hash checking in vnext builds
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     checkXDRFileIdentity();
 #endif

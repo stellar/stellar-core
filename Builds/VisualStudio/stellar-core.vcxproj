@@ -457,7 +457,7 @@ exit /b 0
     <ClCompile Include="..\..\lib\util\siphash.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketBase.cpp" />
-    <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketIndexUtils.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketListBase.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketListSnapshotBase.cpp" />
@@ -467,10 +467,14 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketUtils.cpp" />
+    <ClCompile Include="..\..\src\bucket\DiskIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\HotArchiveBucket.cpp" />
+    <ClCompile Include="..\..\src\bucket\HotArchiveBucketIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\HotArchiveBucketList.cpp" />
+    <ClCompile Include="..\..\src\bucket\InMemoryIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\LiveBucket.cpp" />
+    <ClCompile Include="..\..\src\bucket\LiveBucketIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\LiveBucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp" />
     <ClCompile Include="..\..\src\bucket\SearchableBucketList.cpp" />
@@ -565,6 +569,7 @@ exit /b 0
     <ClCompile Include="..\..\src\history\HistoryArchiveManager.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchiveReportWork.cpp" />
     <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp" />
+    <ClCompile Include="..\..\src\history\HistoryUtils.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp" />
@@ -912,8 +917,7 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\stdrandom.h" />
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h" />
     <ClInclude Include="..\..\src\bucket\BucketBase.h" />
-    <ClInclude Include="..\..\src\bucket\BucketIndex.h" />
-    <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h" />
+    <ClInclude Include="..\..\src\bucket\BucketIndexUtils.h" />
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h" />
     <ClInclude Include="..\..\src\bucket\BucketListBase.h" />
     <ClInclude Include="..\..\src\bucket\BucketListSnapshotBase.h" />
@@ -923,11 +927,15 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\BucketSnapshot.h" />
     <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketUtils.h" />
+    <ClInclude Include="..\..\src\bucket\DiskIndex.h" />
     <ClInclude Include="..\..\src\bucket\FutureBucket.h" />
     <ClInclude Include="..\..\src\bucket\HotArchiveBucket.h" />
+    <ClInclude Include="..\..\src\bucket\HotArchiveBucketIndex.h" />
     <ClInclude Include="..\..\src\bucket\HotArchiveBucketList.h" />
+    <ClInclude Include="..\..\src\bucket\InMemoryIndex.h" />
     <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
     <ClInclude Include="..\..\src\bucket\LiveBucket.h" />
+    <ClInclude Include="..\..\src\bucket\LiveBucketIndex.h" />
     <ClInclude Include="..\..\src\bucket\LiveBucketList.h" />
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
     <ClInclude Include="..\..\src\bucket\SearchableBucketList.h" />
@@ -1013,6 +1021,7 @@ exit /b 0
     <ClInclude Include="..\..\src\history\HistoryArchiveReportWork.h" />
     <ClInclude Include="..\..\src\history\HistoryManager.h" />
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h" />
+    <ClInclude Include="..\..\src\history\HistoryUtils.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\history\test\HistoryTestsUtils.h" />
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
