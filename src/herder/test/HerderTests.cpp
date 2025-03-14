@@ -3225,6 +3225,8 @@ TEST_CASE("overlay parallel processing")
 
 // Background ledger close requires postgres
 #ifdef USE_POSTGRES
+    // TODO: This is broken wtih background tx queue. Fix it. (note that this
+    // test doesn't run at all when --disable-postgres is set)
     SECTION("background ledger close")
     {
         // Set threshold to 1 so all have to vote

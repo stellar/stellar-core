@@ -143,7 +143,7 @@ class LedgerManagerImpl : public LedgerManager
                                     ApplicableTxSetFrame const& txSet,
                                     Config const& config);
 
-    State mState;
+    std::atomic<State> mState;
 
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;

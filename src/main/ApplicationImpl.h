@@ -49,7 +49,7 @@ class ApplicationImpl : public Application
 
     virtual uint64_t timeNow() override;
 
-    virtual Config const& getConfig() override;
+    virtual Config const& getConfig() const override;
 
     virtual State getState() const override;
     virtual std::string getStateHuman() const override;
@@ -61,7 +61,7 @@ class ApplicationImpl : public Application
     virtual void clearMetrics(std::string const& domain) override;
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
-    virtual BucketManager& getBucketManager() override;
+    virtual BucketManager& getBucketManager() const override;
     virtual LedgerApplyManager& getLedgerApplyManager() override;
     virtual HistoryArchiveManager& getHistoryArchiveManager() override;
     virtual HistoryManager& getHistoryManager() override;
@@ -77,7 +77,7 @@ class ApplicationImpl : public Application
     virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
-    virtual AppConnector& getAppConnector() override;
+    virtual AppConnector& getAppConnector() const override;
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
@@ -92,6 +92,8 @@ class ApplicationImpl : public Application
                                                 std::string jobName) override;
 
     virtual void postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName) override;
+    virtual void postOnTxQueueThread(std::function<void()>&& f,
                                      std::string jobName) override;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) override;
@@ -138,7 +140,7 @@ class ApplicationImpl : public Application
 
     virtual Hash const& getNetworkID() const override;
 
-    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() override;
+    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() const override;
 
   private:
     VirtualClock& mVirtualClock;
@@ -162,6 +164,9 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
+
+    std::unique_ptr<asio::io_context> mTxQueueIOContext;
+    std::unique_ptr<asio::io_context::work> mTxQueueWork;
 
     std::unique_ptr<asio::io_context> mLedgerCloseIOContext;
     std::unique_ptr<asio::io_context::work> mLedgerCloseWork;
@@ -214,6 +219,7 @@ class ApplicationImpl : public Application
 
     std::vector<std::thread> mWorkerThreads;
     std::optional<std::thread> mOverlayThread;
+    std::optional<std::thread> mTxQueueThread;
     std::optional<std::thread> mLedgerCloseThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
@@ -240,6 +246,7 @@ class ApplicationImpl : public Application
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
+    medida::Timer& mPostOnTxQueueThreadDelay;
     medida::Timer& mPostOnLedgerCloseThreadDelay;
 
     VirtualClock::system_time_point mStartedOn;

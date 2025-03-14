@@ -480,6 +480,11 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool EXPERIMENTAL_PARALLEL_LEDGER_APPLY;
 
+    // TODO: Docs, both here and in the example cfg
+    // TODO: Require BACKGROUND_OVERLAY_PROCESSING to be set to true if this is
+    // enabled?
+    bool BACKGROUND_TX_QUEUE;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes
