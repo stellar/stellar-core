@@ -29,42 +29,42 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
     auto const minBalance2 = lm.getLastMinBalance(2);
-    auto gateway = root.create("gw", minBalance2);
+    auto gateway = root->create("gw", minBalance2);
     Asset idr = makeAsset(gateway, "IDR");
 
     SECTION("basic tests")
     {
         for_all_versions(*app, [&] {
             // create a trustline with a limit of 0
-            REQUIRE_THROWS_AS(root.changeTrust(idr, 0),
+            REQUIRE_THROWS_AS(root->changeTrust(idr, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // create a trustline with a limit of 100
-            root.changeTrust(idr, 100);
+            root->changeTrust(idr, 100);
 
             // fill it to 90
-            gateway.pay(root, idr, 90);
+            gateway.pay(*root, idr, 90);
 
             // can't lower the limit below balance
-            REQUIRE_THROWS_AS(root.changeTrust(idr, 89),
+            REQUIRE_THROWS_AS(root->changeTrust(idr, 89),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // can't delete if there is a balance
-            REQUIRE_THROWS_AS(root.changeTrust(idr, 0),
+            REQUIRE_THROWS_AS(root->changeTrust(idr, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // lower the limit at the balance
-            root.changeTrust(idr, 90);
+            root->changeTrust(idr, 90);
 
             // clear the balance
-            root.pay(gateway, idr, 90);
+            root->pay(gateway, idr, 90);
 
             // delete the trust line
-            root.changeTrust(idr, 0);
-            REQUIRE(!root.hasTrustLine(idr));
+            root->changeTrust(idr, 0);
+            REQUIRE(!root->hasTrustLine(idr));
         });
     }
     SECTION("issuer does not exist")
@@ -73,18 +73,18 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
         {
             for_all_versions(*app, [&] {
                 Asset usd = makeAsset(getAccount("non-existing"), "IDR");
-                REQUIRE_THROWS_AS(root.changeTrust(usd, 100),
+                REQUIRE_THROWS_AS(root->changeTrust(usd, 100),
                                   ex_CHANGE_TRUST_NO_ISSUER);
             });
         }
         SECTION("edit existing")
         {
             for_all_versions(*app, [&] {
-                root.changeTrust(idr, 100);
+                root->changeTrust(idr, 100);
                 // Merge gateway back into root (the trustline still exists)
-                gateway.merge(root);
+                gateway.merge(*root);
 
-                REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
+                REQUIRE_THROWS_AS(root->changeTrust(idr, 99),
                                   ex_CHANGE_TRUST_NO_ISSUER);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -194,7 +194,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
         auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
         auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
-        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        auto acc1 = root->create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
 
         auto cur1 = acc1.asset("CUR1");
@@ -206,7 +206,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
         for_versions_from(10, *app, [&] {
             REQUIRE_THROWS_AS(acc1.changeTrust(idr, 1000),
                               ex_CHANGE_TRUST_LOW_RESERVE);
-            root.pay(acc1, txfee + 1);
+            root->pay(acc1, txfee + 1);
             acc1.changeTrust(idr, 1000);
         });
     }
@@ -216,7 +216,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
         auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
         auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
-        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        auto acc1 = root->create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
 
         auto cur1 = acc1.asset("CUR1");
@@ -232,7 +232,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
         for_versions_from(10, *app, [&] {
             auto txfee = app->getLedgerManager().getLastTxFee();
             auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBalance2 + 10 * txfee);
+            auto acc1 = root->create("acc1", minBalance2 + 10 * txfee);
             TestMarket market(*app);
 
             acc1.changeTrust(idr, 1000);
@@ -251,8 +251,8 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
     {
         auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
         auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
-        auto acc1 = root.create("a1", minBalance1 - 1);
-        auto acc2 = root.create("a2", minBalance0);
+        auto acc1 = root->create("a1", minBalance1 - 1);
+        auto acc2 = root->create("a2", minBalance0);
         createSponsoredEntryButSponsorHasInsufficientBalance(
             *app, acc1, acc2, changeTrust(idr, 1000),
             [](OperationResult const& opRes) {
@@ -269,7 +269,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
     SECTION("too many")
     {
         auto acc1 =
-            root.create("acc1", app->getLedgerManager().getLastMinBalance(0));
+            root->create("acc1", app->getLedgerManager().getLastMinBalance(0));
         auto usd = makeAsset(gateway, "USD");
 
         SECTION("too many sponsoring")
@@ -287,10 +287,10 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
     SECTION("create and delete trustline in same tx")
     {
         for_versions_from(13, *app, [&] {
-            auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(changeTrust(idr, 100)), root.op(changeTrust(idr, 0))},
-                {});
+            auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
+                                              {root->op(changeTrust(idr, 100)),
+                                               root->op(changeTrust(idr, 0))},
+                                              {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -310,10 +310,10 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
     auto const& lm = app->getLedgerManager();
     auto const minBalance2 = lm.getLastMinBalance(2);
-    auto gateway = root.create("gw", minBalance2);
+    auto gateway = root->create("gw", minBalance2);
     Asset idr = makeAsset(gateway, "IDR");
 
     SECTION("pool trustline sponsorship")
@@ -323,7 +323,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             makeChangeTrustAssetPoolShare(idr, usd, LIQUIDITY_POOL_FEE_V18);
 
         auto acc1 =
-            root.create("a1", app->getLedgerManager().getLastMinBalance(3));
+            root->create("a1", app->getLedgerManager().getLastMinBalance(3));
         acc1.changeTrust(idr, 10);
         acc1.changeTrust(usd, 10);
 
@@ -348,7 +348,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
             if (startWithPool)
             {
-                auto acc1 = root.create(
+                auto acc1 = root->create(
                     "a1",
                     app->getLedgerManager().getLastMinBalance(4) + 3 * 100);
                 if (assetA.type() != ASSET_TYPE_NATIVE)
@@ -365,13 +365,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             // trustlines will be deauthorized initially
             gateway.setOptions(setFlags(AUTH_REQUIRED_FLAG));
 
-            bool rootIsIssuerA = isIssuer(root, assetA);
-            bool rootIsIssuerB = isIssuer(root, assetB);
+            bool rootIsIssuerA = isIssuer(*root, assetA);
+            bool rootIsIssuerB = isIssuer(*root, assetB);
 
             if (!rootIsIssuerA || !rootIsIssuerB)
             {
                 // root is missing trustline(s)
-                REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 10),
+                REQUIRE_THROWS_AS(root->changeTrust(poolShareAsset, 10),
                                   ex_CHANGE_TRUST_TRUST_LINE_MISSING);
             }
 
@@ -382,51 +382,51 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
             if (hasTrustA)
             {
-                root.changeTrust(assetA, 10);
+                root->changeTrust(assetA, 10);
 
                 REQUIRE_THROWS_AS(
-                    root.changeTrust(poolShareAsset, 10),
+                    root->changeTrust(poolShareAsset, 10),
                     ex_CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
-                gateway.allowMaintainLiabilities(assetA, root);
+                gateway.allowMaintainLiabilities(assetA, *root);
             }
 
             if (hasTrustB)
             {
                 // root is still missing assetB trustline
-                REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 10),
+                REQUIRE_THROWS_AS(root->changeTrust(poolShareAsset, 10),
                                   ex_CHANGE_TRUST_TRUST_LINE_MISSING);
-                root.changeTrust(assetB, 10);
+                root->changeTrust(assetB, 10);
 
                 // assetB trustline is not authorized to maintain liabilities
                 REQUIRE_THROWS_AS(
-                    root.changeTrust(poolShareAsset, 10),
+                    root->changeTrust(poolShareAsset, 10),
                     ex_CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
-                gateway.allowMaintainLiabilities(assetB, root);
+                gateway.allowMaintainLiabilities(assetB, *root);
             }
 
             // this should create a LiquidityPoolEntry, and modify
             // liquidityPoolUseCount on the asset trustlines
-            auto prePoolNumSubEntries = getNumSubEntries(root);
-            root.changeTrust(poolShareAsset, 10);
+            auto prePoolNumSubEntries = getNumSubEntries(*root);
+            root->changeTrust(poolShareAsset, 10);
 
-            REQUIRE(getNumSubEntries(root) - prePoolNumSubEntries == 2);
+            REQUIRE(getNumSubEntries(*root) - prePoolNumSubEntries == 2);
 
             auto poolShareTlAsset =
                 changeTrustAssetToTrustLineAsset(poolShareAsset);
 
             // pool share trustline shouldn't have any flags set
-            REQUIRE(root.loadTrustLine(poolShareTlAsset).flags == 0);
+            REQUIRE(root->loadTrustLine(poolShareTlAsset).flags == 0);
 
             if (hasTrustA)
             {
-                auto assetATl = root.loadTrustLine(assetA);
+                auto assetATl = root->loadTrustLine(assetA);
                 REQUIRE(getTrustLineEntryExtensionV2(assetATl)
                             .liquidityPoolUseCount == 1);
             }
 
             if (hasTrustB)
             {
-                auto assetBTl = root.loadTrustLine(assetB);
+                auto assetBTl = root->loadTrustLine(assetB);
                 REQUIRE(getTrustLineEntryExtensionV2(assetBTl)
                             .liquidityPoolUseCount == 1);
             }
@@ -446,12 +446,12 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             // can't delete asset trustlines while they are used in a pool
             if (hasTrustA)
             {
-                REQUIRE_THROWS_AS(root.changeTrust(assetA, 0),
+                REQUIRE_THROWS_AS(root->changeTrust(assetA, 0),
                                   ex_CHANGE_TRUST_CANNOT_DELETE);
             }
             if (hasTrustB)
             {
-                REQUIRE_THROWS_AS(root.changeTrust(assetB, 0),
+                REQUIRE_THROWS_AS(root->changeTrust(assetB, 0),
                                   ex_CHANGE_TRUST_CANNOT_DELETE);
             }
 
@@ -460,13 +460,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             {
                 gateway.setOptions(clearFlags(AUTH_REQUIRED_FLAG));
                 auto assetZ = makeAssetAlphanum12(gateway, "ZZZ12");
-                root.changeTrust(assetZ, 10);
+                root->changeTrust(assetZ, 10);
 
                 auto poolAZ = makeChangeTrustAssetPoolShare(
                     assetA, assetZ, LIQUIDITY_POOL_FEE_V18);
-                root.changeTrust(poolAZ, 10);
+                root->changeTrust(poolAZ, 10);
 
-                auto assetATl = root.loadTrustLine(assetA);
+                auto assetATl = root->loadTrustLine(assetA);
                 REQUIRE(getTrustLineEntryExtensionV2(assetATl)
                             .liquidityPoolUseCount == 2);
                 {
@@ -481,49 +481,50 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                                 .poolSharesTrustLineCount == 1);
                 }
 
-                root.changeTrust(poolAZ, 0);
+                root->changeTrust(poolAZ, 0);
             }
 
             // try to reduce limit of pool share trust line below the balance
             if (hasTrustA)
             {
-                gateway.allowTrust(assetA, root);
-                gateway.pay(root, assetA, 10);
+                gateway.allowTrust(assetA, *root);
+                gateway.pay(*root, assetA, 10);
             }
             if (hasTrustB)
             {
-                gateway.allowTrust(assetB, root);
-                gateway.pay(root, assetB, 10);
+                gateway.allowTrust(assetB, *root);
+                gateway.pay(*root, assetB, 10);
             }
 
             auto poolID = xdrSha256(poolShareAsset.liquidityPool());
-            root.liquidityPoolDeposit(poolID, 10, 10, Price{1, 1}, Price{1, 1});
+            root->liquidityPoolDeposit(poolID, 10, 10, Price{1, 1},
+                                       Price{1, 1});
 
-            REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 9),
+            REQUIRE_THROWS_AS(root->changeTrust(poolShareAsset, 9),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
-            REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 0),
+            REQUIRE_THROWS_AS(root->changeTrust(poolShareAsset, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // increase the limit
-            root.changeTrust(poolShareAsset, 11);
-            root.liquidityPoolWithdraw(poolID, 10, 10, 10);
+            root->changeTrust(poolShareAsset, 11);
+            root->liquidityPoolWithdraw(poolID, 10, 10, 10);
 
             // delete the pool sharetrust line
-            auto postPoolNumSubEntries = getNumSubEntries(root);
-            root.changeTrust(poolShareAsset, 0);
-            REQUIRE(!root.hasTrustLine(poolShareTlAsset));
+            auto postPoolNumSubEntries = getNumSubEntries(*root);
+            root->changeTrust(poolShareAsset, 0);
+            REQUIRE(!root->hasTrustLine(poolShareTlAsset));
 
-            REQUIRE(getNumSubEntries(root) == postPoolNumSubEntries - 2);
+            REQUIRE(getNumSubEntries(*root) == postPoolNumSubEntries - 2);
 
             if (hasTrustA)
             {
-                auto assetATl = root.loadTrustLine(assetA);
+                auto assetATl = root->loadTrustLine(assetA);
                 REQUIRE(getTrustLineEntryExtensionV2(assetATl)
                             .liquidityPoolUseCount == 0);
             }
             if (hasTrustB)
             {
-                auto assetBTl = root.loadTrustLine(assetB);
+                auto assetBTl = root->loadTrustLine(assetB);
                 REQUIRE(getTrustLineEntryExtensionV2(assetBTl)
                             .liquidityPoolUseCount == 0);
             }
@@ -538,13 +539,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             // now the asset trustlines can be deleted
             if (hasTrustA)
             {
-                root.pay(gateway, assetA, 10);
-                root.changeTrust(assetA, 0);
+                root->pay(gateway, assetA, 10);
+                root->changeTrust(assetA, 0);
             }
             if (hasTrustB)
             {
-                root.pay(gateway, assetB, 10);
-                root.changeTrust(assetB, 0);
+                root->pay(gateway, assetB, 10);
+                root->changeTrust(assetB, 0);
             }
         };
 
@@ -554,7 +555,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
         // Liquidity pools not supported pre V18
         for_versions_to(17, *app, [&] {
-            REQUIRE_THROWS_AS(root.changeTrust(idrUsd, 10),
+            REQUIRE_THROWS_AS(root->changeTrust(idrUsd, 10),
                               ex_CHANGE_TRUST_MALFORMED);
         });
 
@@ -562,7 +563,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             // CHANGE_TRUST_MALFORMED tests
             auto invalidFee = makeChangeTrustAssetPoolShare(
                 idr, usd, LIQUIDITY_POOL_FEE_V18 - 1);
-            REQUIRE_THROWS_AS(root.changeTrust(invalidFee, 10),
+            REQUIRE_THROWS_AS(root->changeTrust(invalidFee, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 
             // makeChangeTrustAssetPoolShare forbids invalid order so need to
@@ -573,7 +574,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             invalidOrder.liquidityPool().constantProduct().assetB = idr;
             invalidOrder.liquidityPool().constantProduct().fee =
                 LIQUIDITY_POOL_FEE_V18;
-            REQUIRE_THROWS_AS(root.changeTrust(invalidOrder, 10),
+            REQUIRE_THROWS_AS(root->changeTrust(invalidOrder, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 
             // makeChangeTrustAssetPoolShare forbids invalid order so need to
@@ -585,7 +586,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                 makeNativeAsset();
             invalidOrderNative.liquidityPool().constantProduct().fee =
                 LIQUIDITY_POOL_FEE_V18;
-            REQUIRE_THROWS_AS(root.changeTrust(invalidOrderNative, 10),
+            REQUIRE_THROWS_AS(root->changeTrust(invalidOrderNative, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 
             // makeChangeTrustAssetPoolShare forbids invalid order so need to
@@ -596,11 +597,11 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             sameAssets.liquidityPool().constantProduct().assetB = idr;
             sameAssets.liquidityPool().constantProduct().fee =
                 LIQUIDITY_POOL_FEE_V18;
-            REQUIRE_THROWS_AS(root.changeTrust(sameAssets, 10),
+            REQUIRE_THROWS_AS(root->changeTrust(sameAssets, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 
             // create a pool trustline with a limit of 0
-            REQUIRE_THROWS_AS(root.changeTrust(idrUsd, 0),
+            REQUIRE_THROWS_AS(root->changeTrust(idrUsd, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
 
             SECTION("new pool with two non-native assets")
@@ -626,25 +627,25 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             }
             SECTION("new pool with one issuer asset")
             {
-                poolShareTest(idr, makeAsset(root, "USD"), false);
+                poolShareTest(idr, makeAsset(*root, "USD"), false);
             }
             SECTION("existing pool with one issuer asset")
             {
-                poolShareTest(idr, makeAsset(root, "USD"), true);
+                poolShareTest(idr, makeAsset(*root, "USD"), true);
             }
             SECTION("new pool with two issuer assets")
             {
-                poolShareTest(makeAsset(root, "IDR"), makeAsset(root, "USD"),
+                poolShareTest(makeAsset(*root, "IDR"), makeAsset(*root, "USD"),
                               false);
             }
             SECTION("existing pool with two issuer assets")
             {
-                poolShareTest(makeAsset(root, "IDR"), makeAsset(root, "USD"),
+                poolShareTest(makeAsset(*root, "IDR"), makeAsset(*root, "USD"),
                               true);
             }
             SECTION("too many")
             {
-                auto acc1 = root.create(
+                auto acc1 = root->create(
                     "acc1", app->getLedgerManager().getLastMinBalance(3));
                 auto native = makeNativeAsset();
                 auto shareNative1 = makeChangeTrustAssetPoolShare(
@@ -667,7 +668,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
             }
             SECTION("low reserve")
             {
-                auto acc1 = root.create("acc1", lm.getLastMinBalance(3));
+                auto acc1 = root->create("acc1", lm.getLastMinBalance(3));
 
                 acc1.changeTrust(idr, 10);
                 acc1.changeTrust(usd, 10);
@@ -675,13 +676,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                 REQUIRE_THROWS_AS(acc1.changeTrust(idrUsd, 10),
                                   ex_CHANGE_TRUST_LOW_RESERVE);
 
-                root.pay(acc1, lm.getLastMinBalance(0));
+                root->pay(acc1, lm.getLastMinBalance(0));
                 acc1.changeTrust(idrUsd, 10);
             }
             SECTION("sponsored pool share trustline where sponsor is issuer of "
                     "both assets")
             {
-                auto acc1 = root.create("acc1", lm.getLastMinBalance(4));
+                auto acc1 = root->create("acc1", lm.getLastMinBalance(4));
 
                 // gateway is the issuer of usd and idr
                 acc1.changeTrust(idr, 10);
@@ -689,7 +690,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
                 // get rid of available balance so acc1 needs a sponsor for new
                 // entries
-                acc1.pay(root, acc1.getAvailableBalance() - 100);
+                acc1.pay(*root, acc1.getAvailableBalance() - 100);
 
                 {
                     auto tx = transactionFrameFromOps(
@@ -720,7 +721,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                 }
 
                 // give gateway enough fees for three operations
-                root.pay(gateway, 300);
+                root->pay(gateway, 300);
 
                 SECTION("try to revoke the sponsorship but fail")
                 {
@@ -745,7 +746,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
                 SECTION("try to transfer the sponsorship but fail")
                 {
-                    auto acc2 = root.create(
+                    auto acc2 = root->create(
                         "acc2", app->getLedgerManager().getLastMinBalance(1));
 
                     auto tx = transactionFrameFromOps(
@@ -772,8 +773,8 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                 SECTION("give owner enough reserves to take on the pool share "
                         "trustline")
                 {
-                    root.pay(acc1,
-                             app->getLedgerManager().getLastMinBalance(0));
+                    root->pay(acc1,
+                              app->getLedgerManager().getLastMinBalance(0));
 
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), gateway,
@@ -793,7 +794,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                 SECTION(
                     "give account enough reserves to transfer the sponsorship")
                 {
-                    auto acc2 = root.create(
+                    auto acc2 = root->create(
                         "acc2", app->getLedgerManager().getLastMinBalance(2));
 
                     auto tx = transactionFrameFromOps(
@@ -824,13 +825,13 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                             .baseReserve == newReserve);
                 };
 
-                auto acc1 = root.create("acc1", lm.getLastMinBalance(5));
+                auto acc1 = root->create("acc1", lm.getLastMinBalance(5));
 
                 auto deletePoolTl = [&]() {
                     // delete the pool share trustline. acc1 can't pay the fee
                     // so use root
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
+                        app->getNetworkID(), *root,
                         {acc1.op(changeTrust(idrUsd, 0))}, {acc1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -849,7 +850,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                     acc1.changeTrust(idrUsd, 1);
 
                     // get rid of rest of available native balance
-                    acc1.pay(root, acc1.getAvailableBalance() - 100);
+                    acc1.pay(*root, acc1.getAvailableBalance() - 100);
 
                     REQUIRE(acc1.getAvailableBalance() == 0);
 
@@ -872,7 +873,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                     acc1.changeTrust(usd, 1);
 
                     auto sponsoringAcc =
-                        root.create("sponsoringAcc", lm.getLastMinBalance(5));
+                        root->create("sponsoringAcc", lm.getLastMinBalance(5));
 
                     {
                         auto tx = transactionFrameFromOps(
@@ -893,9 +894,9 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                     }
 
                     // get rid of rest of available native balance
-                    acc1.pay(root, acc1.getAvailableBalance() - 100);
+                    acc1.pay(*root, acc1.getAvailableBalance() - 100);
                     sponsoringAcc.pay(
-                        root, sponsoringAcc.getAvailableBalance() - 100);
+                        *root, sponsoringAcc.getAvailableBalance() - 100);
 
                     REQUIRE(acc1.getAvailableBalance() == 0);
                     REQUIRE(sponsoringAcc.getAvailableBalance() == 0);

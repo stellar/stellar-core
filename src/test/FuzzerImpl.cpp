@@ -1517,8 +1517,8 @@ TransactionFuzzer::initialize()
     reinitializeAllGlobalStateWithSeed(1);
     mApp = createTestApplication(mClock, getFuzzConfig(0));
     OrderBookIsNotCrossed::registerAndEnableInvariant(*mApp);
-    auto root = TestAccount::createRoot(*mApp);
-    mSourceAccountID = root.getPublicKey();
+    auto root = mApp->getRoot();
+    mSourceAccountID = root->getPublicKey();
 
     resetTxInternalState(*mApp);
     LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
@@ -1825,7 +1825,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
         PublicKey account;
         FuzzUtils::setShortKey(account, param.mShortKey);
 
-        // Reduce "account"'s native balance by paying the root, so that
+        // Reduce "account"'s native balance by paying the *root, so that
         // fuzzing has a better chance of exercising edge cases.
         auto ae = stellar::loadAccount(ltx, account);
         auto const availableBalance = getAvailableBalance(ltx.loadHeader(), ae);

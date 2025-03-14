@@ -238,7 +238,7 @@ class SorobanTest
   private:
     VirtualClock mClock;
     Application::pointer mApp;
-    TestAccount mRoot;
+    std::shared_ptr<TestAccount> mRoot;
     TestAccount mDummyAccount;
     std::vector<std::unique_ptr<TestContract>> mContracts;
 
@@ -264,10 +264,6 @@ class SorobanTest
   public:
     SorobanTest(
         Config cfg = getTestConfig(), bool useTestLimits = true,
-        std::function<void(SorobanNetworkConfig&)> cfgModifyFn = nullptr);
-
-    void updateSorobanNetworkConfig(
-        bool useTestLimits = true,
         std::function<void(SorobanNetworkConfig&)> cfgModifyFn = nullptr);
 
     SorobanTest(

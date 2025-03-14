@@ -123,6 +123,8 @@ class ApplicationImpl : public Application
     virtual LoadGenerator& getLoadGenerator() override;
 
     virtual Config& getMutableConfig() override;
+
+    virtual std::shared_ptr<TestAccount> getRoot() override;
 #endif
 
     virtual void applyCfgCommands() override;
@@ -204,6 +206,7 @@ class ApplicationImpl : public Application
 #ifdef BUILD_TESTS
     std::unique_ptr<InMemoryLedgerTxnRoot> mInMemoryLedgerTxnRoot;
     std::unique_ptr<InMemoryLedgerTxn> mNeverCommittingLedgerTxn;
+    std::shared_ptr<TestAccount> mRootAccount{};
 #endif
 
     std::unique_ptr<CommandHandler> mCommandHandler;

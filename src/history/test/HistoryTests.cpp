@@ -1213,7 +1213,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
         // Now that a is caught up, start advancing it at catchup point.
         for (auto i = 0; i < 3; ++i)
         {
-            auto root = TestAccount{*a, txtest::getRoot(a->getNetworkID())};
+            auto root = a->getRoot();
             auto stranger = TestAccount{
                 *a, txtest::getAccount(fmt::format("stranger{}", i))};
             auto& lm = a->getLedgerManager();
@@ -1223,7 +1223,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             uint64_t closeTime = 60 * 5 * ledgerSeq;
 
             auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
-                {root.tx({txtest::createAccount(stranger, big)})}, *a, 0, 0);
+                {root->tx({txtest::createAccount(stranger, big)})}, *a, 0, 0);
 
             // On first iteration of advance, perform a ledger-protocol version
             // upgrade to the new protocol, to activate INITENTRY behaviour.
