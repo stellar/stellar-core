@@ -4,6 +4,7 @@
 
 #include "historywork/DownloadBucketsWork.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucket.h"
 #include "catchup/LedgerApplyManager.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
@@ -19,13 +20,17 @@ namespace stellar
 
 DownloadBucketsWork::DownloadBucketsWork(
     Application& app,
-    std::map<std::string, std::shared_ptr<LiveBucket>>& buckets,
-    std::vector<std::string> hashes, TmpDir const& downloadDir,
-    std::shared_ptr<HistoryArchive> archive)
+    std::map<std::string, std::shared_ptr<LiveBucket>>& liveBuckets,
+    std::map<std::string, std::shared_ptr<HotArchiveBucket>>& hotBuckets,
+    std::vector<std::string> liveHashes, std::vector<std::string> hotHashes,
+    TmpDir const& downloadDir, std::shared_ptr<HistoryArchive> archive)
     : BatchWork{app, "download-verify-buckets"}
-    , mBuckets{buckets}
-    , mHashes{hashes}
-    , mNextBucketIter{mHashes.begin()}
+    , mLiveBuckets{liveBuckets}
+    , mHotBuckets{hotBuckets}
+    , mLiveHashes{liveHashes}
+    , mHotHashes{hotHashes}
+    , mNextLiveBucketIter{mLiveHashes.begin()}
+    , mNextHotBucketIter{mHotHashes.begin()}
     , mDownloadDir{downloadDir}
     , mArchive{archive}
 {
@@ -36,11 +41,14 @@ DownloadBucketsWork::getStatus() const
 {
     if (!isDone() && !isAborting())
     {
-        if (!mHashes.empty())
+        if (!mLiveHashes.empty())
         {
-            auto numStarted = std::distance(mHashes.begin(), mNextBucketIter);
+            auto numStarted =
+                std::distance(mLiveHashes.begin(), mNextLiveBucketIter) +
+                std::distance(mHotHashes.begin(), mNextHotBucketIter);
             auto numDone = numStarted - getNumWorksInBatch();
-            auto total = static_cast<uint32_t>(mHashes.size());
+            auto total =
+                static_cast<uint32_t>(mLiveHashes.size() + mHotHashes.size());
             auto pct = (100 * numDone) / total;
             return fmt::format(
                 FMT_STRING(
@@ -54,13 +62,43 @@ DownloadBucketsWork::getStatus() const
 bool
 DownloadBucketsWork::hasNext() const
 {
-    return mNextBucketIter != mHashes.end();
+    return mNextLiveBucketIter != mLiveHashes.end() ||
+           mNextHotBucketIter != mHotHashes.end();
 }
 
 void
 DownloadBucketsWork::resetIter()
 {
-    mNextBucketIter = mHashes.begin();
+    mNextLiveBucketIter = mLiveHashes.begin();
+    mNextHotBucketIter = mHotHashes.begin();
+}
+
+template <typename BucketT>
+void
+DownloadBucketsWork::onSuccessCb(
+    Application& app, FileTransferInfo const& ft, std::string const& hash,
+    int currId, std::map<std::string, std::shared_ptr<BucketT>>& buckets,
+    std::map<int, std::unique_ptr<typename BucketT::IndexT const>>& indexMap,
+    std::mutex& indexMutex)
+{
+
+    // To avoid dangling references, maintain a map of index pointers
+    // and do a lookup inside the callback instead of capturing anything
+    // by reference.
+    indexMutex.lock();
+    auto bucketPath = ft.localPath_nogz();
+    auto indexIter = indexMap.find(currId);
+    releaseAssertOrThrow(indexIter != indexMap.end());
+    releaseAssertOrThrow(indexIter->second);
+    auto index = std::move(indexIter->second);
+    indexMap.erase(indexIter);
+    indexMutex.unlock();
+
+    auto b = app.getBucketManager().adoptFileAsBucket<BucketT>(
+        bucketPath, hexToBin256(hash),
+        /*mergeKey=*/nullptr,
+        /*index=*/std::move(index));
+    buckets[hash] = b;
 }
 
 std::shared_ptr<BasicWork>
@@ -72,13 +110,23 @@ DownloadBucketsWork::yieldMoreWork()
         throw std::runtime_error("Nothing to iterate over!");
     }
 
-    auto hash = *mNextBucketIter;
-    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_BUCKET, hash);
-    auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
+    // Every Bucket we need to download goes through three steps each, which are
+    // all handled by a separate work:
+    // 1. Download the bucket file from the archive and unzip it (getFileWork)
+    // 2. Verify and index the bucket file (verifyWork)
+    // 3. Once verified, pass the Bucket to the BucketManager to be adopted and
+    // tracked (adoptWork) First, we iterate through all the live buckets, then
+    // the hot archive buckets.
+    auto isHotHash = mNextLiveBucketIter == mLiveHashes.end();
+    auto hash = isHotHash ? *mNextHotBucketIter : *mNextLiveBucketIter;
 
-    auto getFileWeak = std::weak_ptr<GetAndUnzipRemoteFileWork>(w1);
-    OnFailureCallback failureCb = [getFileWeak, hash]() {
-        auto getFile = getFileWeak.lock();
+    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_BUCKET, hash);
+    auto getFileWork =
+        std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
+
+    auto getFileWeakPtr = std::weak_ptr<GetAndUnzipRemoteFileWork>(getFileWork);
+    OnFailureCallback failureCb = [getFileWeakPtr, hash]() {
+        auto getFile = getFileWeakPtr.lock();
         if (getFile)
         {
             auto ar = getFile->getArchive();
@@ -89,49 +137,78 @@ DownloadBucketsWork::yieldMoreWork()
             }
         }
     };
-    std::weak_ptr<DownloadBucketsWork> weak(
+
+    std::weak_ptr<DownloadBucketsWork> weakSelf(
         std::static_pointer_cast<DownloadBucketsWork>(shared_from_this()));
 
-    auto currId = mIndexId++;
-    mIndexMapMutex.lock();
-    auto [indexIter, inserted] = mIndexMap.emplace(currId, nullptr);
-    mIndexMapMutex.unlock();
-    releaseAssertOrThrow(inserted);
+    std::shared_ptr<BasicWork> verifyWork;
+    std::function<bool(Application & app)> adoptBucketCb;
 
-    auto successCb = [weak, ft, hash, currId](Application& app) -> bool {
-        auto self = weak.lock();
-        if (self)
-        {
-            // To avoid dangling references, maintain a map of index pointers
-            // and do a lookup inside the callback instead of capturing anything
-            // by reference.
-            self->mIndexMapMutex.lock();
-            auto indexIter = self->mIndexMap.find(currId);
-            releaseAssertOrThrow(indexIter != self->mIndexMap.end());
-            releaseAssertOrThrow(indexIter->second);
-            auto index = std::move(indexIter->second);
-            self->mIndexMap.erase(indexIter);
-            self->mIndexMapMutex.unlock();
+    if (isHotHash)
+    {
+        auto currId = mHotIndexId++;
+        mHotIndexMapMutex.lock();
+        auto [indexIter, inserted] = mHotIndexMap.emplace(currId, nullptr);
+        mHotIndexMapMutex.unlock();
+        releaseAssertOrThrow(inserted);
+        verifyWork = std::make_shared<VerifyBucketWork<HotArchiveBucket>>(
+            mApp, ft.localPath_nogz(), hexToBin256(hash), indexIter->second,
+            failureCb);
+        adoptBucketCb = [weakSelf, ft, hash, currId](Application& app) {
+            auto self = weakSelf.lock();
+            if (self)
+            {
+                onSuccessCb<HotArchiveBucket>(
+                    app, ft, hash, currId, self->mHotBuckets,
+                    self->mHotIndexMap, self->mHotIndexMapMutex);
+            }
+            return true;
+        };
 
-            auto bucketPath = ft.localPath_nogz();
-            auto b = app.getBucketManager().adoptFileAsBucket<LiveBucket>(
-                bucketPath, hexToBin256(hash),
-                /*mergeKey=*/nullptr,
-                /*index=*/std::move(index));
-            self->mBuckets[hash] = b;
-        }
-        return true;
-    };
-    auto w2 = std::make_shared<VerifyBucketWork>(mApp, ft.localPath_nogz(),
-                                                 hexToBin256(hash),
-                                                 indexIter->second, failureCb);
-    auto w3 = std::make_shared<WorkWithCallback>(mApp, "adopt-verified-bucket",
-                                                 successCb);
-    std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};
-    auto w4 = std::make_shared<WorkSequence>(
+        mNextHotBucketIter++;
+    }
+    else
+    {
+        auto currId = mLiveIndexId++;
+        mLiveIndexMapMutex.lock();
+        auto [indexIter, inserted] = mLiveIndexMap.emplace(currId, nullptr);
+        mLiveIndexMapMutex.unlock();
+        releaseAssertOrThrow(inserted);
+        verifyWork = std::make_shared<VerifyBucketWork<LiveBucket>>(
+            mApp, ft.localPath_nogz(), hexToBin256(hash), indexIter->second,
+            failureCb);
+        adoptBucketCb = [weakSelf, ft, hash, currId](Application& app) {
+            auto self = weakSelf.lock();
+            if (self)
+            {
+                onSuccessCb<LiveBucket>(app, ft, hash, currId,
+                                        self->mLiveBuckets, self->mLiveIndexMap,
+                                        self->mLiveIndexMapMutex);
+            }
+            return true;
+        };
+
+        mNextLiveBucketIter++;
+    }
+
+    auto adoptWork = std::make_shared<WorkWithCallback>(
+        mApp, "adopt-verified-bucket", adoptBucketCb);
+    std::vector<std::shared_ptr<BasicWork>> seq{getFileWork, verifyWork,
+                                                adoptWork};
+    auto workSequence = std::make_shared<WorkSequence>(
         mApp, "download-verify-sequence-" + hash, seq);
 
-    ++mNextBucketIter;
-    return w4;
+    return workSequence;
 }
+
+// Add explicit template instantiations
+template void DownloadBucketsWork::onSuccessCb<LiveBucket>(
+    Application&, FileTransferInfo const&, std::string const&, int,
+    std::map<std::string, std::shared_ptr<LiveBucket>>&,
+    std::map<int, std::unique_ptr<LiveBucketIndex const>>&, std::mutex&);
+
+template void DownloadBucketsWork::onSuccessCb<HotArchiveBucket>(
+    Application&, FileTransferInfo const&, std::string const&, int,
+    std::map<std::string, std::shared_ptr<HotArchiveBucket>>&,
+    std::map<int, std::unique_ptr<HotArchiveBucketIndex const>>&, std::mutex&);
 }
