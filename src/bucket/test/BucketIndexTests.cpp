@@ -5,12 +5,14 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -308,7 +310,7 @@ class BucketIndexTest
 
         // Test bulk load lookup
         auto loadResult =
-            searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
+            searchableBL->loadKeysWithLimits(mKeysToSearch, "test", nullptr);
         validateResults(mTestEntries, loadResult);
 
         if (expectedHitRate)
@@ -356,8 +358,8 @@ class BucketIndexTest
                          mKeysToSearch.size());
 
             // Run bulk lookup again
-            auto loadResult2 =
-                searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
+            auto loadResult2 = searchableBL->loadKeysWithLimits(
+                mKeysToSearch, "test", nullptr);
             validateResults(mTestEntries, loadResult2);
 
             checkHitRate(expectedHitRate, startingHitCount, startingMissCount,
@@ -401,7 +403,7 @@ class BucketIndexTest
             }
 
             auto blLoad =
-                searchableBL->loadKeysWithLimits(searchSubset, nullptr);
+                searchableBL->loadKeysWithLimits(searchSubset, "test", nullptr);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -420,8 +422,8 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(searchableBL->loadKeysWithLimits(invalidKeys, nullptr).size() ==
-                0);
+        REQUIRE(searchableBL->loadKeysWithLimits(invalidKeys, "test", nullptr)
+                    .size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
@@ -745,6 +747,124 @@ TEST_CASE("do not load outdated values", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
+TEST_CASE("bucket entry counters", "[bucket][bucketindex]")
+{
+    // Initialize global counter for all of bucketlist
+    std::map<LedgerEntryTypeAndDurability, size_t> totalEntryTypeCounts;
+    std::map<LedgerEntryTypeAndDurability, size_t> totalEntryTypeSizes;
+    for (uint32_t type =
+             static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
+         type < static_cast<uint32_t>(LedgerEntryTypeAndDurability::NUM_TYPES);
+         ++type)
+    {
+        totalEntryTypeCounts[static_cast<LedgerEntryTypeAndDurability>(type)] =
+            0;
+        totalEntryTypeSizes[static_cast<LedgerEntryTypeAndDurability>(type)] =
+            0;
+    }
+
+    auto checkBucket = [&](auto bucket) {
+        if (bucket->isEmpty())
+        {
+            return;
+        }
+
+        // Local counter for each bucket
+        std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;
+        std::map<LedgerEntryTypeAndDurability, size_t> entryTypeSizes;
+        for (uint32_t type =
+                 static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
+             type <
+             static_cast<uint32_t>(LedgerEntryTypeAndDurability::NUM_TYPES);
+             ++type)
+        {
+            entryTypeCounts[static_cast<LedgerEntryTypeAndDurability>(type)] =
+                0;
+            entryTypeSizes[static_cast<LedgerEntryTypeAndDurability>(type)] = 0;
+        }
+
+        for (LiveBucketInputIterator iter(bucket); iter; ++iter)
+        {
+            auto be = *iter;
+            LedgerKey lk = getBucketLedgerKey(be);
+
+            auto count = [&](LedgerEntryTypeAndDurability type) {
+                entryTypeCounts[type]++;
+                entryTypeSizes[type] += xdr::xdr_size(be);
+                totalEntryTypeCounts[type]++;
+                totalEntryTypeSizes[type] += xdr::xdr_size(be);
+            };
+
+            switch (lk.type())
+            {
+            case ACCOUNT:
+                count(LedgerEntryTypeAndDurability::ACCOUNT);
+                break;
+            case TRUSTLINE:
+                count(LedgerEntryTypeAndDurability::TRUSTLINE);
+                break;
+            case OFFER:
+                count(LedgerEntryTypeAndDurability::OFFER);
+                break;
+            case DATA:
+                count(LedgerEntryTypeAndDurability::DATA);
+                break;
+            case CLAIMABLE_BALANCE:
+                count(LedgerEntryTypeAndDurability::CLAIMABLE_BALANCE);
+                break;
+            case LIQUIDITY_POOL:
+                count(LedgerEntryTypeAndDurability::LIQUIDITY_POOL);
+                break;
+            case CONTRACT_DATA:
+                if (isPersistentEntry(lk))
+                {
+                    count(
+                        LedgerEntryTypeAndDurability::PERSISTENT_CONTRACT_DATA);
+                }
+                else
+                {
+                    count(
+                        LedgerEntryTypeAndDurability::TEMPORARY_CONTRACT_DATA);
+                }
+                break;
+            case CONTRACT_CODE:
+                count(LedgerEntryTypeAndDurability::CONTRACT_CODE);
+                break;
+            case CONFIG_SETTING:
+                count(LedgerEntryTypeAndDurability::CONFIG_SETTING);
+                break;
+            case TTL:
+                count(LedgerEntryTypeAndDurability::TTL);
+                break;
+            }
+        }
+
+        auto const& indexCounters =
+            bucket->getIndexForTesting().getBucketEntryCounters();
+        REQUIRE(indexCounters.entryTypeCounts == entryTypeCounts);
+        REQUIRE(indexCounters.entryTypeSizes == entryTypeSizes);
+    };
+
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg);
+        test.buildMultiVersionTest();
+
+        for (auto i = 0; i < LiveBucketList::kNumLevels; ++i)
+        {
+            auto level = test.getBM().getLiveBucketList().getLevel(i);
+            checkBucket(level.getCurr());
+            checkBucket(level.getSnap());
+        }
+
+        auto summedCounters =
+            test.getBM().getLiveBucketList().sumBucketEntryCounters();
+        REQUIRE(summedCounters.entryTypeCounts == totalEntryTypeCounts);
+        REQUIRE(summedCounters.entryTypeSizes == totalEntryTypeSizes);
+    };
+
+    testAllIndexTypes(f);
+}
+
 TEST_CASE("load from historical snapshots", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
@@ -839,6 +959,9 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 
         auto& inMemoryIndex = b->getIndexForTesting();
         REQUIRE((inMemoryIndex == *onDiskIndex));
+        auto inMemoryCounters = inMemoryIndex.getBucketEntryCounters();
+        auto onDiskCounters = onDiskIndex->getBucketEntryCounters();
+        REQUIRE(inMemoryCounters == onDiskCounters);
     }
 
     // Restart app with different config to test that indexes created with
@@ -862,17 +985,6 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 
         auto& inMemoryIndex = b->getIndexForTesting();
         REQUIRE(inMemoryIndex.getPageSize() == (1UL << 10));
-        auto inMemoryCoutners = inMemoryIndex.getBucketEntryCounters();
-        // Ensure the inMemoryIndex has some non-zero counters.
-        REQUIRE(!inMemoryCoutners.entryTypeCounts.empty());
-        REQUIRE(!inMemoryCoutners.entryTypeSizes.empty());
-        bool allZero = true;
-        for (auto const& [k, v] : inMemoryCoutners.entryTypeCounts)
-        {
-            allZero = allZero && (v == 0);
-            allZero = allZero && (inMemoryCoutners.entryTypeSizes.at(k) == 0);
-        }
-        REQUIRE(!allZero);
 
         // Check if on-disk index rewritten with correct config params
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);

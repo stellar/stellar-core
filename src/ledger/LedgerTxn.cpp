@@ -2950,7 +2950,7 @@ LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
         insertIfNotLoaded(keysToSearch, key);
     }
     auto blLoad = getSearchableLiveBucketListSnapshot().loadKeysWithLimits(
-        keysToSearch, lkMeter);
+        keysToSearch, "prefetch", lkMeter);
     cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
 
     return total;
