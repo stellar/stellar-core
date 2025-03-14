@@ -327,6 +327,12 @@ LiveBucket::getOfferRange() const
     return getIndex().getOfferRange();
 }
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+LiveBucket::getSorobanRange() const
+{
+    return getIndex().getSorobanRange();
+}
+
 std::vector<BucketEntry>
 LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerEntry> const& initEntries,
