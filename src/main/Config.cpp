@@ -69,8 +69,9 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
-    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING",
-    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING"};
+    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING",
+    "TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+    "SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -207,6 +208,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
+    TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+    SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+
     // Configure MAXIMUM_LEDGER_CLOSETIME_DRIFT based on MAX_SLOTS_TO_REMEMBER
     // (plus a small buffer) to make sure we don't reject SCP state sent to us
     // by default. Limit allowed drift to 90 seconds as to not overwhelm the
@@ -1071,6 +1075,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
                  }},
+#ifdef BUILD_TESTS
+                {"TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+                 [&]() {
+                     TRANSACTION_QUEUE_SIZE_MULTIPLIER =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+                 [&]() {
+                     SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER =
+                         readInt<uint32_t>(item, 1);
+                 }},
+#endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
                 {"HTTP_PORT",
@@ -1800,7 +1816,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "must be greater than PEER_FLOOD_READING_CAPACITY";
             throw std::runtime_error(msg);
         }
-        
+
 #ifdef BUILD_TESTS
         if (getSorobanByteAllowance() + getClassicByteAllowance() >
             MAX_TX_SET_ALLOWANCE)
