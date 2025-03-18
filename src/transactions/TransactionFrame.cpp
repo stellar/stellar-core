@@ -23,6 +23,7 @@
 #include "main/AppConnector.h"
 #include "main/Application.h"
 #include "transactions/EventManager.h"
+#include "transactions/LumenEventReconciler.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationMetaArray.h"
 #include "transactions/SignatureChecker.h"
@@ -1791,8 +1792,16 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // case
             if (success)
             {
-                app.checkOnOperationApply(op->getOperation(), opResult,
-                                          ltxOp.getDelta(),
+                auto delta = ltxOp.getDelta();
+
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_8))
+                {
+                    reconcileEvents(getSourceID(), op->getOperation(), delta,
+                                    opEventManager);
+                }
+
+                app.checkOnOperationApply(op->getOperation(), opResult, delta,
                                           opEventManager.getContractEvents());
 
                 LedgerEntryChanges changes;
