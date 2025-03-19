@@ -48,7 +48,7 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
     ZoneScoped;
     releaseAssert(!filename.empty());
 
-    auto pageSize = getPageSize(bm.getConfig(), fs::size(filename));
+    auto pageSize = getPageSize(bm.getConfig(), fs::size(filename.string()));
     if (pageSize == 0)
     {
 
