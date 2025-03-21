@@ -14,6 +14,7 @@
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
+#include <medida/counter.h>
 
 namespace stellar
 {
@@ -133,7 +134,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
         medida::Timer mMessageDelayInWriteQueueTimer;
         medida::Timer mMessageDelayInAsyncWriteTimer;
-        medida::Timer mAdvertQueueDelay;
+
+        // Tracks total time
+        medida::Counter mAdvertQueueDelayAccumulator;
+
+        // Tracks count
+        medida::Counter mAdvertQueueDelayCounter;
         medida::Timer mPullLatency;
 
         std::atomic<uint64_t> mDemandTimeouts;

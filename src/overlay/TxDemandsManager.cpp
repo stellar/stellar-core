@@ -175,9 +175,14 @@ TxDemandsManager::demand()
                 auto txHash = hashPair.first;
                 if (hashPair.second)
                 {
-                    auto delta = now - *(hashPair.second);
-                    om.mAdvertQueueDelay.Update(delta);
-                    peer->getPeerMetrics().mAdvertQueueDelay.Update(delta);
+                    auto delta =
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                            now - *(hashPair.second));
+                    om.mAdvertQueueDelayAccumulator.inc(delta.count());
+                    om.mAdvertQueueDelayCounter.inc();
+                    peer->getPeerMetrics().mAdvertQueueDelayAccumulator.inc(
+                        delta.count());
+                    peer->getPeerMetrics().mAdvertQueueDelayCounter.inc();
                 }
                 switch (demandStatus(txHash, peer))
                 {
