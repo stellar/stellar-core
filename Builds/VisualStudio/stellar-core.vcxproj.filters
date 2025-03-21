@@ -576,9 +576,6 @@
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -1318,7 +1315,6 @@
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp" />
-    <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp" />
     <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
     <ClCompile Include="..\..\src\main\AppConnector.cpp">
       <Filter>main</Filter>
@@ -1364,6 +1360,27 @@
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\LedgerApplyManagerImpl.cpp">
       <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketIndexUtils.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\DiskIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\HotArchiveBucketIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\InMemoryIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\LiveBucketIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryUtils.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp">
+      <Filter>simulation</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1779,9 +1796,6 @@
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketIndex.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h">
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h">
@@ -2363,7 +2377,6 @@
     <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\simulation\ApplyLoad.h" />
     <ClInclude Include="..\..\src\simulation\TxGenerator.h" />
     <ClInclude Include="..\..\src\main\AppConnector.h">
       <Filter>main</Filter>
@@ -2409,6 +2422,30 @@
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\LedgerApplyManagerImpl.h">
       <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketIndexUtils.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\DiskIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\HotArchiveBucketIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\InMemoryIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\LiveBucketIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryUtils.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\ApplyLoad.h">
+      <Filter>simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\BufferedAsioCerealOutputArchive.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

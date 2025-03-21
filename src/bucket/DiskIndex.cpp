@@ -133,7 +133,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
         mData.assetToPoolID = std::make_unique<AssetPoolIDMap>();
     }
 
-    auto fileSize = fs::size(filename);
+    auto fileSize = fs::size(filename.string());
     auto estimatedIndexEntries = fileSize / pageSize;
     mData.keysToOffset.reserve(estimatedIndexEntries);
 
