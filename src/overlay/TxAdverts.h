@@ -28,7 +28,7 @@ class TxAdverts
   private:
     Application& mApp;
 
-    std::deque<std::pair<Hash, VirtualClock::time_point>> mIncomingTxHashes;
+    std::deque<Hash> mIncomingTxHashes;
     std::list<Hash> mTxHashesToRetry;
 
     // Cache seen hashes for a bit to avoid re-broadcasting the same data
@@ -48,8 +48,7 @@ class TxAdverts
     // Total transaction hashes to process including demand retries.
     size_t size() const;
     // Pop the next advert hash to process, size() must be > 0
-    std::pair<Hash, std::optional<VirtualClock::time_point>>
-    popIncomingAdvert();
+    Hash popIncomingAdvert();
     // Queue up a transaction hash to advertise to neighbours
     void queueOutgoingAdvert(Hash const& txHash);
     // Queue up a transaction hash from a neighbour to try demanding

@@ -47,7 +47,8 @@ bucketlistDB-live.bulk.poolshareTrustlines  | timer     | time to load poolshare
 bucketlistDB-live.bulk.prefetch             | timer     | time to prefetch
 bucketlistDB-live.bulk.eviction           | timer     | time to load for eviction scan
 bucketlistDB-live.bulk.query              | timer     | time to load for query server
-bucketlistDB-<X>.point.<Y>                | timer     | time to load single entry of type <Y> on BucketList <X> (live/hotArchive)
+bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
+bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
 bucketlistDB-cache.hit                    | meter     | number of cache hits on Live BucketList Disk random eviction cache
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
 crypto.verify.hit                         | meter     | number of signature cache hits
@@ -58,8 +59,10 @@ herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending t
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
 herder.pending[-soroban]-txs.age3         | counter   | number of gen3 pending transactions
 herder.pending[-soroban]-txs.banned       | counter   | number of transactions that got banned
-herder.pending[-soroban]-txs.delay        | timer     | time for transactions to be included in a ledger
-herder.pending[-soroban]-txs.self-delay   | timer     | time for transactions submitted from this node to be included in a ledger
+herder.pending[-soroban]-txs.sum          | counter   | sum of time (milliseconds) for transactions to be included in a ledger
+herder.pending[-soroban]-txs.count        | counter   | number of transactions to be included in a ledger
+herder.pending[-soroban]-txs.self-sum     | counter   | sum of time (milliseconds) for transactions submitted from this node to be included in a ledger
+herder.pending[-soroban]-txs.self-count   | counter   | number of transactions submitted from this node to be included in a ledger
 history.check.failure                     | meter     | history archive status checks failed
 history.check.success                     | meter     | history archive status checks succeeded
 history.publish.failure                   | meter     | published failed
@@ -126,7 +129,6 @@ overlay.flood.peer-tx-pull-latency        | timer     | time to pull a transacti
 overlay.demand.timeout                    | meter     | pull mode timeouts
 overlay.flood.relevant-txs                | meter     | relevant transactions pulled from peers
 overlay.flood.irrelevant-txs              | meter     | irrelevant transactions pulled from peers
-overlay.flood.advert-delay                | timer     | time each advert sits in the inbound queue
 overlay.flood.abandoned-demands           | meter     | tx hash pull demands that no peers responded
 overlay.flood.broadcast                   | meter     | message sent as broadcast per peer
 overlay.flood.duplicate_recv              | meter     | number of bytes of flooded messages that have already been received
@@ -148,7 +150,9 @@ overlay.outbound.attempt                  | meter     | outbound connection atte
 overlay.outbound.cancel                   | meter     | outbound connection cancelled
 overlay.outbound.drop                     | meter     | outbound connection dropped
 overlay.outbound.establish                | meter     | outbound connection established (added to pending)
-overlay.recv.<X>                          | timer     | received message <X>
+overlay.recv.<X>                          | timer     | received message <X> (except transaction)
+overlay.recv-transaction.sum              | counter   | sum of time (microseconds) to receive transaction message
+overlay.recv-transaction.count            | counter   | number of transaction messages received
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout
