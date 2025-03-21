@@ -362,7 +362,8 @@ Peer::getJsonInfo(bool compact) const
     if (!compact)
     {
         res["pull_mode"]["advert_delay"] = static_cast<Json::UInt64>(
-            mPeerMetrics.mAdvertQueueDelay.GetSnapshot().get75thPercentile());
+            mPeerMetrics.mAdvertQueueDelayAccumulator.count() /
+            mPeerMetrics.mAdvertQueueDelayCounter.count());
         res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
             mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
         res["pull_mode"]["demand_timeouts"] =
@@ -1189,8 +1190,13 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     case TRANSACTION:
     {
-        auto t = mOverlayMetrics.mRecvTransactionTimer.TimeScope();
+        auto start = mAppConnector.now();
         recvTransaction(*msgTracker);
+        auto end = mAppConnector.now();
+        mOverlayMetrics.mRecvTransactionAccumulator.inc(
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+                .count());
+        mOverlayMetrics.mRecvTransactionCounter.inc();
     }
     break;
 
@@ -1925,9 +1931,8 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mMessageDelayInAsyncWriteTimer(medida::Timer(PEER_METRICS_DURATION_UNIT,
                                                    PEER_METRICS_RATE_UNIT,
                                                    PEER_METRICS_WINDOW_SIZE))
-    , mAdvertQueueDelay(medida::Timer(PEER_METRICS_DURATION_UNIT,
-                                      PEER_METRICS_RATE_UNIT,
-                                      PEER_METRICS_WINDOW_SIZE))
+    , mAdvertQueueDelayAccumulator()
+    , mAdvertQueueDelayCounter()
     , mPullLatency(medida::Timer(PEER_METRICS_DURATION_UNIT,
                                  PEER_METRICS_RATE_UNIT,
                                  PEER_METRICS_WINDOW_SIZE))
