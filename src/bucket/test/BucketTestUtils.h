@@ -66,6 +66,10 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     std::vector<LedgerEntry> mTestLiveEntries;
     std::vector<LedgerKey> mTestDeadEntries;
 
+    std::vector<LedgerEntry> mTestArchiveEntries;
+    std::vector<LedgerKey> mTestRestoredEntries;
+    std::vector<LedgerKey> mTestDeletedEntries;
+
   protected:
     void sealLedgerTxnAndTransferEntriesToBucketList(
         AbstractLedgerTxn& ltx,
@@ -83,6 +87,18 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         mTestInitEntries = initEntries;
         mTestLiveEntries = liveEntries;
         mTestDeadEntries = deadEntries;
+    }
+
+    void
+    setNextArchiveBatchForBucketTesting(
+        std::vector<LedgerEntry> const& archiveEntries,
+        std::vector<LedgerKey> const& restoredEntries,
+        std::vector<LedgerKey> const& deletedEntries)
+    {
+        mUseTestEntries = true;
+        mTestArchiveEntries = archiveEntries;
+        mTestRestoredEntries = restoredEntries;
+        mTestDeletedEntries = deletedEntries;
     }
 
     LedgerManagerForBucketTests(Application& app) : LedgerManagerImpl(app)

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "bucket/BucketUtils.h"
 #include "work/Work.h"
 #include "xdr/Stellar-types.h"
 
@@ -19,13 +20,15 @@ class LiveBucketIndex;
 
 class Bucket;
 
-class VerifyBucketWork : public BasicWork
+template <typename BucketT> class VerifyBucketWork : public BasicWork
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     std::string mBucketFile;
     uint256 mHash;
     bool mDone{false};
     std::error_code mEc;
-    std::unique_ptr<LiveBucketIndex const>& mIndex;
+    std::unique_ptr<typename BucketT::IndexT const>& mIndex;
     void spawnVerifier();
 
     OnFailureCallback mOnFailure;
@@ -33,7 +36,7 @@ class VerifyBucketWork : public BasicWork
   public:
     VerifyBucketWork(Application& app, std::string const& bucketFile,
                      uint256 const& hash,
-                     std::unique_ptr<LiveBucketIndex const>& index,
+                     std::unique_ptr<typename BucketT::IndexT const>& index,
                      OnFailureCallback failureCb);
     ~VerifyBucketWork() = default;
 

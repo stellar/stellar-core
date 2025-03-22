@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/VerifyLedgerChainWork.h"
@@ -47,7 +48,7 @@ enum class TestBucketState
 
 class HistoryConfigurator;
 class TestBucketGenerator;
-class BucketOutputIteratorForTesting;
+template <typename BucketT> class BucketOutputIteratorForTesting;
 struct CatchupPerformedWork;
 
 class HistoryConfigurator : NonCopyable
@@ -99,8 +100,11 @@ class RealGenesisTmpDirHistoryConfigurator : public TmpDirHistoryConfigurator
     Config& configure(Config& cfg, bool writable) const override;
 };
 
-class BucketOutputIteratorForTesting : public LiveBucketOutputIterator
+template <typename BucketT>
+class BucketOutputIteratorForTesting : public BucketOutputIterator<BucketT>
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     const size_t NUM_ITEMS_PER_BUCKET = 5;
 
   public:
@@ -121,6 +125,7 @@ class TestBucketGenerator
     TestBucketGenerator(Application& app,
                         std::shared_ptr<HistoryArchive> archive);
 
+    template <typename BucketT>
     std::string generateBucket(
         TestBucketState desiredState = TestBucketState::CONTENTS_AND_HASH_OK);
 };
