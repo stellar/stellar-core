@@ -60,6 +60,8 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     std::streamoff lastOffset = 0;
     std::optional<std::streamoff> firstOffer;
     std::optional<std::streamoff> lastOffer;
+    std::optional<std::streamoff> firstContractCode;
+    std::optional<std::streamoff> lastContractCode;
 
     while (in && in.readOne(be, hasher))
     {
@@ -111,6 +113,16 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
             lastOffer = lastOffset;
         }
 
+        // Populate contractCodeRange
+        if (!firstContractCode && lk.type() == CONTRACT_CODE)
+        {
+            firstContractCode = lastOffset;
+        }
+        if (!lastContractCode && lk.type() > CONTRACT_CODE)
+        {
+            lastContractCode = lastOffset;
+        }
+
         lastOffset = in.pos();
     }
 
@@ -131,6 +143,25 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     else
     {
         mOfferRange = std::nullopt;
+    }
+
+    if (firstContractCode)
+    {
+        if (lastContractCode)
+        {
+            mContractCodeRange = {*firstContractCode, *lastContractCode};
+        }
+        // If we didn't see any entries after contract code, then the upper
+        // bound is EOF
+        else
+        {
+            mContractCodeRange = {*firstContractCode,
+                                  std::numeric_limits<std::streamoff>::max()};
+        }
+    }
+    else
+    {
+        mContractCodeRange = std::nullopt;
     }
 }
 }

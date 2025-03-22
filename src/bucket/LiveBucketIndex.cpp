@@ -295,6 +295,27 @@ LiveBucketIndex::getOfferRange() const
     return mInMemoryIndex->getOfferRange();
 }
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+LiveBucketIndex::getContractCodeRange() const
+{
+    if (mDiskIndex)
+    {
+        // Get the smallest and largest possible contract code keys
+        LedgerKey lowerBound(CONTRACT_CODE);
+        lowerBound.contractCode().hash.fill(
+            std::numeric_limits<uint8_t>::min());
+
+        LedgerKey upperBound(CONTRACT_CODE);
+        upperBound.contractCode().hash.fill(
+            std::numeric_limits<uint8_t>::max());
+
+        return mDiskIndex->getOffsetBounds(lowerBound, upperBound);
+    }
+
+    releaseAssertOrThrow(mInMemoryIndex);
+    return mInMemoryIndex->getContractCodeRange();
+}
+
 uint32_t
 LiveBucketIndex::getPageSize() const
 {
