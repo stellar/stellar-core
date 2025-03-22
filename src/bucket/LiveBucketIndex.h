@@ -136,6 +136,9 @@ class LiveBucketIndex : public NonMovableOrCopyable
     std::optional<std::pair<std::streamoff, std::streamoff>>
     getOfferRange() const;
 
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getSorobanRange() const;
+
     void maybeAddToCache(std::shared_ptr<BucketEntry const> const& entry) const;
 
     BucketEntryCounters const& getBucketEntryCounters() const;

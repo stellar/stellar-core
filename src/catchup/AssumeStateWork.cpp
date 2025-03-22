@@ -9,6 +9,7 @@
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerManager.h"
 #include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
 
@@ -80,6 +81,9 @@ AssumeStateWork::doWork()
 
             // Check invariants after state has been assumed
             app.getInvariantManager().checkAfterAssumeState(has.currentLedger);
+
+            // Populate the ledger apply cache with assumed BucketList state
+            app.getLedgerManager().populateApplyStateCacheFromBucketList();
 
             return true;
         };

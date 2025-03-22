@@ -35,6 +35,11 @@ class SearchableLiveBucketListSnapshot
         std::shared_ptr<EvictionStatistics> stats,
         StateArchivalSettings const& sas, uint32_t ledgerVers) const;
 
+    // Calls callback on each CONTRACT_CODE and CONTRACT_DATA entry in
+    // BucketList
+    void scanForSorobanEntries(
+        std::function<Loop(BucketEntry const&)> callback) const;
+
     friend SearchableSnapshotConstPtr
     BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;
 };

@@ -64,6 +64,9 @@ class InMemoryIndex
     BucketEntryCounters mCounters{};
     std::optional<std::pair<std::streamoff, std::streamoff>> mOfferRange;
 
+    // Range of data/code entries in the Bucket
+    std::optional<std::pair<std::streamoff, std::streamoff>> mSorobanRange;
+
   public:
     using IterT = InMemoryBucketState::IterT;
 
@@ -103,6 +106,12 @@ class InMemoryIndex
     getOfferRange() const
     {
         return mOfferRange;
+    }
+
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getSorobanRange() const
+    {
+        return mSorobanRange;
     }
 
 #ifdef BUILD_TESTS

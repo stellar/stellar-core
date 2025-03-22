@@ -7,7 +7,9 @@
 #include "bucket/SearchableBucketList.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
+#include "ledger/LedgerStateCache.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
@@ -3454,6 +3456,21 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         return nullptr;
     }
     auto const& key = gkey.ledgerKey();
+    // TODO: Support reading TTL from cache
+    if (key.type() == CONTRACT_DATA)
+    {
+        auto entry =
+            mApp.getLedgerManager().getLedgerStateCache().getContractDataEntry(
+                key);
+        if (entry)
+        {
+            // TODO: Remove entry copy here
+            return std::make_shared<InternalLedgerEntry const>(
+                *entry->ledgerEntry);
+        }
+
+        return nullptr;
+    }
 
     if (mEntryCache.exists(key))
     {
@@ -3499,6 +3516,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     putInEntryCache(key, entry, LoadType::IMMEDIATE);
     if (entry)
     {
+        // TODO: Remove entry copy here
         return std::make_shared<InternalLedgerEntry const>(*entry);
     }
     else

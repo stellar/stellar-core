@@ -8,6 +8,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateCache.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/SorobanMetrics.h"
 #include "main/PersistentState.h"
@@ -48,7 +49,6 @@ class LedgerManagerImpl : public LedgerManager
     std::weak_ptr<BasicWork> mFlushAndRotateMetaDebugWork;
     std::filesystem::path mMetaDebugPath;
 
-  private:
     // Output of the apply process, also what gets held as "LCL".
     struct LedgerState
     {
@@ -68,6 +68,9 @@ class LedgerManagerImpl : public LedgerManager
         // this variable is not synchronized, since it should only be used by
         // one thread (main or ledger close).
         std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
+
+        // Cache of live Soroban state for the current ledger.
+        std::unique_ptr<LedgerStateCache> mLedgerStateCache;
     };
 
     struct LedgerApplyMetrics
@@ -160,7 +163,6 @@ class LedgerManagerImpl : public LedgerManager
     // Update cached last closed ledger state values managed by this class.
     void advanceLastClosedLedgerState(LedgerState const& output);
 
-  protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
     // values are the same except on the ledger in which a protocol upgrade from
@@ -217,7 +219,15 @@ class LedgerManagerImpl : public LedgerManager
     getLastClosedLedgerTxMeta() override;
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
+
+    void
+    clearLedgerStateCacheForTesting() override
+    {
+        mApplyState.mLedgerStateCache = nullptr;
+    }
 #endif
+
+    LedgerStateCache const& getLedgerStateCache() const override;
 
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;
@@ -243,6 +253,8 @@ class LedgerManagerImpl : public LedgerManager
                              LedgerCloseData const& ledgerData);
     void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
+
+    void populateApplyStateCacheFromBucketList() override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 

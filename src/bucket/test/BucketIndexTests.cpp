@@ -19,6 +19,7 @@
 #include "main/Config.h"
 #include "test/test.h"
 
+#include "util/GlobalChecks.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDRCereal.h"
@@ -39,6 +40,9 @@ class BucketIndexTest
     // Mapping of Key->value that BucketList should return
     UnorderedMap<LedgerKey, LedgerEntry> mTestEntries;
     UnorderedSet<LedgerKey> mGeneratedKeys;
+
+    UnorderedMap<LedgerKey, LedgerEntry> mContractCodeEntries;
+    UnorderedMap<LedgerKey, LedgerEntry> mContractDataEntries;
 
     // Set of keys to query BucketList for
     LedgerKeySet mKeysToSearch;
@@ -68,19 +72,57 @@ class BucketIndexTest
 
     void
     buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f,
-                    bool isCacheTest = false)
+                    bool isCacheTest = false, bool sorobanOnly = false)
     {
+        releaseAssertOrThrow(!(isCacheTest && sorobanOnly));
+
         uint32_t ledger = 0;
         do
         {
             ++ledger;
-            std::vector<LedgerEntry> entries =
-                isCacheTest
-                    ? LedgerTestUtils::
-                          generateValidUniqueLedgerEntriesWithTypes(
-                              {ACCOUNT}, 10, mGeneratedKeys)
-                    : LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                          {CONFIG_SETTING}, 10);
+            std::vector<LedgerEntry> entries;
+            if (!isCacheTest && !sorobanOnly)
+            {
+                entries =
+                    LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                        {CONFIG_SETTING}, 10);
+            }
+            else if (isCacheTest)
+            {
+                entries =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {ACCOUNT}, 10, mGeneratedKeys);
+            }
+            else if (sorobanOnly)
+            {
+
+                auto sorobanEntries =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_DATA, CONTRACT_CODE}, 10, mGeneratedKeys);
+
+                // Insert TTL for each entry
+                for (auto& e : sorobanEntries)
+                {
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
+                    // Make sure entries don't expire
+                    ttl.data.ttl().liveUntilLedgerSeq = ledger + 10'000;
+                    entries.emplace_back(ttl);
+
+                    if (e.data.type() == CONTRACT_CODE)
+                    {
+                        mContractCodeEntries.emplace(LedgerEntryKey(e), e);
+                    }
+                    else if (e.data.type() == CONTRACT_DATA)
+                    {
+                        mContractDataEntries.emplace(LedgerEntryKey(e), e);
+                    }
+                }
+                entries.insert(entries.end(), sorobanEntries.begin(),
+                               sorobanEntries.end());
+            }
+
             f(entries);
             closeLedger(*mApp);
         } while (!LiveBucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
@@ -98,6 +140,24 @@ class BucketIndexTest
     getBM() const
     {
         return mApp->getBucketManager();
+    }
+
+    Application&
+    getApp() const
+    {
+        return *mApp;
+    }
+
+    UnorderedMap<LedgerKey, LedgerEntry> const&
+    getContractCodeEntries() const
+    {
+        return mContractCodeEntries;
+    }
+
+    UnorderedMap<LedgerKey, LedgerEntry> const&
+    getContractDataEntries() const
+    {
+        return mContractDataEntries;
     }
 
     virtual void
@@ -176,7 +236,7 @@ class BucketIndexTest
     }
 
     virtual void
-    buildMultiVersionTest()
+    buildMultiVersionTest(bool sorobanOnly = false)
     {
         std::vector<LedgerKey> toDestroy;
         std::vector<LedgerEntry> toUpdate;
@@ -186,19 +246,53 @@ class BucketIndexTest
             {
                 for (auto& e : toUpdate)
                 {
-                    e.data.account().balance += 1;
+                    e.lastModifiedLedgerSeq++;
                     auto iter = mTestEntries.find(LedgerEntryKey(e));
                     iter->second = e;
+
+                    if (sorobanOnly)
+                    {
+                        if (e.data.type() == CONTRACT_CODE)
+                        {
+                            mContractCodeEntries.emplace(LedgerEntryKey(e), e);
+                        }
+                        else if (e.data.type() == CONTRACT_DATA)
+                        {
+                            mContractDataEntries.emplace(LedgerEntryKey(e), e);
+                        }
+                    }
                 }
 
                 for (auto const& k : toDestroy)
                 {
                     mTestEntries.erase(k);
+                    if (sorobanOnly)
+                    {
+                        if (k.type() == CONTRACT_CODE)
+                        {
+                            mContractCodeEntries.erase(k);
+                        }
+                        else if (k.type() == CONTRACT_DATA)
+                        {
+                            mContractDataEntries.erase(k);
+                        }
+                    }
                 }
 
-                mApp->getLedgerManager()
-                    .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
-                                                             toDestroy);
+                // Other test types don't guarantee unique key generation, so a
+                // key in entries may also be in toUpdate
+                if (sorobanOnly)
+                {
+                    mApp->getLedgerManager()
+                        .setNextLedgerEntryBatchForBucketTesting(
+                            entries, toUpdate, toDestroy);
+                }
+                else
+                {
+                    mApp->getLedgerManager()
+                        .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
+                                                                 toDestroy);
+                }
                 toDestroy.clear();
                 toUpdate.clear();
             }
@@ -211,11 +305,12 @@ class BucketIndexTest
                     {
                         mTestEntries.emplace(LedgerEntryKey(e), e);
                         mKeysToSearch.emplace(LedgerEntryKey(e));
-                        if (e.data.type() == ACCOUNT)
+                        if (rand_flip())
                         {
                             toUpdate.emplace_back(e);
                         }
-                        else
+                        // Never destroy TTL keys to preserve invariant
+                        else if (e.data.type() != TTL)
                         {
                             toDestroy.emplace_back(LedgerEntryKey(e));
                         }
@@ -227,7 +322,7 @@ class BucketIndexTest
             }
         };
 
-        buildBucketList(f);
+        buildBucketList(f, /*isCacheTest=*/false, sorobanOnly);
     }
 
     void
@@ -580,7 +675,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    buildMultiVersionTest() override
+    buildMultiVersionTest(bool sorobanOnly = false) override
     {
         buildTest(true);
     }
@@ -734,6 +829,84 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
             totalAccountCount * (expectedCachedRatio - 0.15));
     REQUIRE(cachedAccountEntries <
             totalAccountCount * (expectedCachedRatio + 0.15));
+}
+
+// Note: this test checks that the soroban cache is initialized correctly, but
+// does not check that the cache is maintained as ledger state changes.
+TEST_CASE("soroban cache", "[soroban]")
+{
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg);
+        test.buildMultiVersionTest(/*sorobanOnly=*/true);
+        test.run();
+
+        auto& lm = test.getApp().getLedgerManager();
+        auto& cache = lm.getLedgerStateCache();
+        auto codeEntries = test.getContractCodeEntries();
+        auto dataEntries = test.getContractDataEntries();
+
+        auto snapshot = test.getBM()
+                            .getBucketSnapshotManager()
+                            .copySearchableLiveBucketListSnapshot();
+
+        // First, test that the cache is maintained correctly via `addBatch`
+        REQUIRE(codeEntries.size() == cache.mContractCodeTTLs.size());
+        for (auto const& [k, v] : codeEntries)
+        {
+            auto ttl = cache.getContractCodeTTL(k);
+            REQUIRE(ttl);
+
+            // TODO: maintain TTL values correctly
+            REQUIRE(*ttl == 0);
+        }
+
+        REQUIRE(dataEntries.size() == cache.mEntries.size());
+        for (auto const& [k, v] : dataEntries)
+        {
+            auto cacheEntry = cache.getContractDataEntry(k);
+            REQUIRE(cacheEntry);
+
+            // TODO: maintain TTL values correctly
+            REQUIRE(cacheEntry->liveUntilLedgerSeq == 0);
+
+            auto liveEntry = snapshot->load(k);
+            REQUIRE(liveEntry);
+            REQUIRE(*liveEntry == *cacheEntry->ledgerEntry);
+        }
+
+        // Now wipe cache and repopulate from scratch to test initialization
+        lm.clearLedgerStateCacheForTesting();
+        lm.populateApplyStateCacheFromBucketList();
+
+        REQUIRE(codeEntries.size() == cache.mContractCodeTTLs.size());
+        for (auto const& [k, v] : codeEntries)
+        {
+            auto ttl = cache.getContractCodeTTL(k);
+            REQUIRE(ttl);
+
+            auto ttlEntry = snapshot->load(getTTLKey(k));
+            REQUIRE(ttlEntry);
+            REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq == ttl);
+        }
+
+        REQUIRE(dataEntries.size() == cache.mEntries.size());
+        for (auto const& [k, v] : dataEntries)
+        {
+            auto cacheEntry = cache.getContractDataEntry(k);
+            REQUIRE(cacheEntry);
+
+            auto ttlEntry = snapshot->load(getTTLKey(k));
+            REQUIRE(ttlEntry);
+            REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq ==
+                    cacheEntry->liveUntilLedgerSeq);
+
+            auto liveEntry = snapshot->load(k);
+            REQUIRE(liveEntry);
+            REQUIRE(*liveEntry == *cacheEntry->ledgerEntry);
+        }
+    };
+
+    testAllIndexTypes(f);
 }
 
 TEST_CASE("do not load outdated values", "[bucket][bucketindex]")
