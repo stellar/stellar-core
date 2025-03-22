@@ -1817,10 +1817,12 @@ TxSetPhaseFrame::txsAreValid(Application& app,
     LedgerSnapshot ls(app);
     ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    // TODO: I *think* forApply should be false here? Is that right?
+    AppValidationWrapper avw(app.getAppConnector(), false, std::nullopt);
     for (auto const& tx : *this)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(avw, ls, 0, lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {

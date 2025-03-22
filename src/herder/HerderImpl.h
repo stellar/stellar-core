@@ -198,6 +198,8 @@ class HerderImpl : public Herder
 
     virtual void beginApply() override;
 
+    TransactionQueuesPtr getTransactionQueues() const override;
+
     void startTxSetGCTimer();
 
 #ifdef BUILD_TESTS
@@ -248,8 +250,8 @@ class HerderImpl : public Herder
     void purgeOldPersistedTxSets();
     void writeDebugTxSet(LedgerCloseData const& lcd);
 
-    ClassicTransactionQueue mTransactionQueue;
-    std::unique_ptr<SorobanTransactionQueue> mSorobanTransactionQueue;
+    TransactionQueuesPtr const mTransactionQueues =
+        std::make_shared<TransactionQueues>();
 
     void updateTransactionQueue(TxSetXDRFrameConstPtr txSet);
     void maybeSetupSorobanQueue(uint32_t protocolVersion);
@@ -300,6 +302,9 @@ class HerderImpl : public Herder
 
     Application& mApp;
     LedgerManager& mLedgerManager;
+
+    // Bucket list snapshot to use for transaction queues
+    SearchableSnapshotConstPtr mTxQueueBucketSnapshot;
 
     struct SCPMetrics
     {

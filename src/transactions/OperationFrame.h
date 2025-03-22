@@ -73,8 +73,8 @@ class OperationFrame
 
     AccountID getSourceID() const;
 
-    bool checkValid(AppConnector& app, SignatureChecker& signatureChecker,
-                    std::optional<SorobanNetworkConfig> const& cfg,
+    bool checkValid(ValidationConnector const& vc,
+                    SignatureChecker& signatureChecker,
                     LedgerSnapshot const& ls, bool forApply,
                     OperationResult& res,
                     std::shared_ptr<SorobanTxData> sorobanData) const;

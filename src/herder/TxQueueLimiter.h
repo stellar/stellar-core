@@ -17,7 +17,6 @@ class TxQueueLimiter
 {
     // number of ledgers we can pool in memory
     uint32 const mPoolLedgerMultiplier;
-    LedgerManager& mLedgerManager;
 
     // all known transactions
     std::unique_ptr<SurgePricingPriorityQueue> mTxs;
@@ -33,11 +32,16 @@ class TxQueueLimiter
     // limits.
     std::shared_ptr<SurgePricingLaneConfig> mSurgePricingLaneConfig;
 
-    Application& mApp;
     bool const mIsSoroban;
 
+    // State snapshots used to compute limits
+    ImmutableValidationSnapshotPtr mValidationSnapshot;
+    SearchableSnapshotConstPtr mBucketSnapshot;
+
   public:
-    TxQueueLimiter(uint32 multiplier, Application& app, bool isSoroban);
+    TxQueueLimiter(uint32 multiplier, bool isSoroban,
+                   ImmutableValidationSnapshotPtr vs,
+                   SearchableSnapshotConstPtr bls);
     ~TxQueueLimiter();
 
     void addTransaction(TransactionFrameBasePtr const& tx);
@@ -80,5 +84,9 @@ class TxQueueLimiter
 
     // Resets the internal transaction container and the eviction state.
     void reset(uint32_t ledgerVersion);
+
+    // Update snapshots. Should be called after ledger close
+    void updateSnapshots(ImmutableValidationSnapshotPtr vs,
+                         SearchableSnapshotConstPtr bls);
 };
 }

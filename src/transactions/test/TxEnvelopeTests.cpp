@@ -2074,8 +2074,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                     VirtualClock::from_time_t(closeTime + 5));
                             }
 
-                            auto offset =
-                                getUpperBoundCloseTimeOffset(*app, closeTime);
+                            auto offset = getUpperBoundCloseTimeOffset(
+                                app->getAppConnector(), closeTime);
                             auto upperBoundCloseTime = closeTime + offset;
 
                             SECTION("success")
