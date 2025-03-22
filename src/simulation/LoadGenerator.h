@@ -312,8 +312,6 @@ class LoadGenerator
     // Mode used for last mixed transaction in MIX_CLASSIC_SOROBAN mode
     LoadGenMode mLastMixedMode;
 
-    void createRootAccount();
-
     void reset();
     void resetSorobanState();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,

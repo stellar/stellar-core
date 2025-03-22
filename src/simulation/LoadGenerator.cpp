@@ -96,6 +96,7 @@ LoadGenerator::LoadGenerator(Application& app)
           mApp.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mApplyOpTimer(
           mApp.getMetrics().NewTimer({"ledger", "operation", "apply"}))
+    , mRoot(app.getRoot())
     , mLoadgenComplete(
           mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
     , mLoadgenFail(
@@ -150,18 +151,6 @@ LoadGenerator::getMode(std::string const& mode)
     {
         throw std::runtime_error(
             fmt::format(FMT_STRING("Unknown loadgen mode: {}"), mode));
-    }
-}
-
-void
-LoadGenerator::createRootAccount()
-{
-    releaseAssert(!mRoot);
-    auto rootTestAccount = TestAccount::createRoot(mApp);
-    mRoot = make_shared<TestAccount>(rootTestAccount);
-    if (!mTxGenerator.loadAccount(mRoot))
-    {
-        CLOG_ERROR(LoadGen, "Could not retrieve root account!");
     }
 }
 
@@ -255,7 +244,6 @@ LoadGenerator::reset()
     mCreationSourceAccounts.clear();
     mContractInstances.clear();
     mLoadTimer.reset();
-    mRoot.reset();
     mStartTime.reset();
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
@@ -300,8 +288,6 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     {
         return;
     }
-
-    createRootAccount();
 
     if (cfg.txRate == 0)
     {
@@ -1529,6 +1515,8 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
 
     upgradeCfg.ledgerMaxInstructions = cfg.ledgerMaxInstructions();
     upgradeCfg.txMaxInstructions = cfg.txMaxInstructions();
+    upgradeCfg.feeRatePerInstructionsIncrement =
+        cfg.feeRatePerInstructionsIncrement();
     upgradeCfg.txMemoryLimit = cfg.txMemoryLimit();
 
     upgradeCfg.ledgerMaxReadLedgerEntries = cfg.ledgerMaxReadLedgerEntries();
@@ -1536,10 +1524,15 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
     upgradeCfg.ledgerMaxWriteLedgerEntries = cfg.ledgerMaxWriteLedgerEntries();
     upgradeCfg.ledgerMaxWriteBytes = cfg.ledgerMaxWriteBytes();
     upgradeCfg.ledgerMaxTxCount = cfg.ledgerMaxTxCount();
+    upgradeCfg.feeReadLedgerEntry = cfg.feeReadLedgerEntry();
+    upgradeCfg.feeWriteLedgerEntry = cfg.feeWriteLedgerEntry();
+    upgradeCfg.feeRead1KB = cfg.feeRead1KB();
     upgradeCfg.txMaxReadLedgerEntries = cfg.txMaxReadLedgerEntries();
     upgradeCfg.txMaxReadBytes = cfg.txMaxReadBytes();
     upgradeCfg.txMaxWriteLedgerEntries = cfg.txMaxWriteLedgerEntries();
     upgradeCfg.txMaxWriteBytes = cfg.txMaxWriteBytes();
+
+    upgradeCfg.feeHistorical1KB = cfg.feeHistorical1KB();
 
     upgradeCfg.txMaxContractEventsSizeBytes =
         cfg.txMaxContractEventsSizeBytes();
@@ -1547,6 +1540,7 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
     upgradeCfg.ledgerMaxTransactionsSizeBytes =
         cfg.ledgerMaxTransactionSizesBytes();
     upgradeCfg.txMaxSizeBytes = cfg.txMaxSizeBytes();
+    upgradeCfg.feeTransactionSize1KB = cfg.feeTransactionSize1KB();
 
     upgradeCfg.maxEntryTTL = cfg.stateArchivalSettings().maxEntryTTL;
     upgradeCfg.minTemporaryTTL = cfg.stateArchivalSettings().minTemporaryTTL;
@@ -1564,6 +1558,14 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
     upgradeCfg.evictionScanSize = cfg.stateArchivalSettings().evictionScanSize;
     upgradeCfg.startingEvictionScanLevel =
         cfg.stateArchivalSettings().startingEvictionScanLevel;
+
+    upgradeCfg.writeFee1KBBucketListLow = cfg.writeFee1KBBucketListLow();
+    upgradeCfg.writeFee1KBBucketListHigh = cfg.writeFee1KBBucketListHigh();
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    upgradeCfg.ledgerMaxDependentTxClusters =
+        cfg.ledgerMaxDependentTxClusters();
+#endif
 }
 
 GeneratedLoadConfig

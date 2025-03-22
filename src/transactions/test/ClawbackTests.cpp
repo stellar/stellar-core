@@ -22,11 +22,11 @@ TEST_CASE_VERSIONS("clawback", "[tx][clawback]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     auto const minBalance3 = app->getLedgerManager().getLastMinBalance(3);
-    auto a1 = root.create("A1", minBalance3);
-    auto gateway = root.create("gw", minBalance3);
+    auto a1 = root->create("A1", minBalance3);
+    auto gateway = root->create("gw", minBalance3);
     auto idr = makeAsset(gateway, "IDR");
     auto native = makeNativeAsset();
 
@@ -196,19 +196,19 @@ TEST_CASE_VERSIONS("clawback", "[tx][clawback]")
                 {
                     SECTION("no trust")
                     {
-                        REQUIRE_THROWS_AS(gateway.clawback(root, idr, 75),
+                        REQUIRE_THROWS_AS(gateway.clawback(*root, idr, 75),
                                           ex_CLAWBACK_NO_TRUST);
                     }
                     SECTION("not clawback enabled")
                     {
                         gateway.setOptions(
                             clearFlags(AUTH_CLAWBACK_ENABLED_FLAG));
-                        root.changeTrust(idr, 100);
-                        gateway.pay(root, idr, 100);
-                        REQUIRE_THROWS_AS(gateway.clawback(root, idr, 75),
+                        root->changeTrust(idr, 100);
+                        gateway.pay(*root, idr, 100);
+                        REQUIRE_THROWS_AS(gateway.clawback(*root, idr, 75),
                                           ex_CLAWBACK_NOT_CLAWBACK_ENABLED);
 
-                        REQUIRE(root.getTrustlineBalance(idr) == 100);
+                        REQUIRE(root->getTrustlineBalance(idr) == 100);
                     }
                     SECTION("underfunded")
                     {
