@@ -47,6 +47,7 @@
 #include "test/Fuzzer.h"
 #include "test/fuzz.h"
 #include "test/test.h"
+#include "test/TestUtils.h"
 #endif
 
 #include <fmt/format.h>
@@ -1870,6 +1871,53 @@ runApplyLoad(CommandLineArgs const& args)
         return 0;
     });
 }
+
+int
+runGenerateSyntheticLoad(CommandLineArgs const& args)
+{
+    std::string outputFile = "stellar-load-transactions.xdr";
+    uint32_t numTransactions = 1000;
+    uint32_t numAccounts = 100;
+    CommandLine::ConfigOption configOption;
+
+    uint32_t offset = 0;
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         outputFileParser(outputFile).required(),
+         clara::Opt{numTransactions, "NUM-TRANSACTIONS"}["--count"](
+             "number of transactions to generate"),
+         clara::Opt{numAccounts, "NUM-ACCOUNTS"}["--accounts"](
+             "number of test accounts to use"),
+         clara::Opt{offset,
+                    "OFFSET"}["--offset"]("offset for account selection")},
+        [&] {
+            try
+            {
+                // Get configuration from command line or default config file
+                auto cfg = configOption.getConfig();
+                cfg.setNoListen();
+                // Override necessary settings for transaction generation
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = numAccounts;
+                cfg.USE_CONFIG_FOR_GENESIS = true;
+
+                VirtualClock clock;
+                auto app = Application::create(clock, cfg, false);
+                app->start();
+
+                generateTransactions(*app, outputFile, numTransactions,
+                                     numAccounts, offset);
+
+                return 0;
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR(DEFAULT_LOG, "Error: {}", e.what());
+                return 1;
+            }
+        });
+}
 #endif
 
 int
@@ -1945,6 +1993,9 @@ handleCommandLine(int argc, char* const* argv)
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
          {"apply-load", "run apply time load test", runApplyLoad},
+         {"pregenerate-loadgen-txs",
+          "generate payment transaction XDR file for load testing",
+          runGenerateSyntheticLoad},
 #endif
          {"version", "print version information", runVersion}}};
 

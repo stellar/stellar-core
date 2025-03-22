@@ -691,6 +691,23 @@ TxGenerator::reset()
     mAccounts.clear();
 }
 
+TxGenerator::TestAccountPtr
+TxGenerator::getAccount(uint64_t accountId)
+{
+    auto res = mAccounts.find(accountId);
+    if (res == mAccounts.end())
+    {
+        return nullptr;
+    }
+    return res->second;
+}
+
+void
+TxGenerator::addAccount(uint64_t accountId, TxGenerator::TestAccountPtr account)
+{
+    mAccounts.emplace(accountId, account);
+}
+
 ConfigUpgradeSetKey
 TxGenerator::getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg,
                                     Hash const& contractId) const

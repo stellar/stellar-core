@@ -15,10 +15,12 @@
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
 #include "util/XDRCereal.h"
+#include "util/XDRStream.h"
 #include "util/numeric.h"
 #include "util/types.h"
 
@@ -146,6 +148,10 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::MIXED_CLASSIC_SOROBAN;
     }
+    else if (mode == "pay_pregenerated")
+    {
+        return LoadGenMode::PAY_PREGENERATED;
+    }
     else
     {
         throw std::runtime_error(
@@ -265,6 +271,7 @@ LoadGenerator::reset()
     mInitialAccountsCreated = false;
     mPreLoadgenApplySorobanSuccess = 0;
     mPreLoadgenApplySorobanFailure = 0;
+    mPreloadedTransactionsFile.close();
 }
 
 // Reset Soroban persistent state
@@ -354,7 +361,8 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         }
     }
 
-    if (cfg.mode != LoadGenMode::CREATE)
+    if (cfg.mode != LoadGenMode::CREATE &&
+        cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
         // Mark all accounts "available" as source accounts
         for (auto i = 0u; i < cfg.nAccounts; i++)
@@ -412,6 +420,29 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     mPreLoadgenApplySorobanFailure =
         mTxGenerator.getApplySorobanFailure().count();
 
+    if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
+    {
+        mPreloadedTransactionsFile.open(cfg.preloadedTransactionsFile);
+        if (!mPreloadedTransactionsFile)
+        {
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("Could not open preloaded transactions "
+                                       "file: {}"),
+                            cfg.preloadedTransactionsFile));
+        }
+
+        // Preload all accounts
+        for (auto i = 0u; i < cfg.nAccounts; i++)
+        {
+            auto actualId = i + cfg.offset;
+            mTxGenerator.addAccount(
+                actualId, std::make_shared<TestAccount>(
+                              mApp,
+                              txtest::getAccount("TestAccount-" +
+                                                 std::to_string(actualId)),
+                              0));
+        }
+    }
     mStarted = true;
 }
 
@@ -568,6 +599,9 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::MIXED_CLASSIC_SOROBAN:
         modeStr = "mixed_classic_soroban";
         break;
+    case LoadGenMode::PAY_PREGENERATED:
+        modeStr = "PAY_PREGENERATED";
+        break;
     }
 
     ret["mode"] = modeStr;
@@ -657,7 +691,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     uint64_t now = mApp.timeNow();
     // Cleaning up accounts every second, so we don't call potentially expensive
     // cleanup function too often
-    if (now != mLastSecond)
+    if (now != mLastSecond && cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
         cleanupAccounts();
     }
@@ -673,7 +707,8 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         }
         else
         {
-            if (mAccountsAvailable.empty())
+            if (mAccountsAvailable.empty() &&
+                cfg.mode != LoadGenMode::PAY_PREGENERATED)
             {
                 CLOG_WARNING(
                     LoadGen,
@@ -683,7 +718,11 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
+            uint64_t sourceAccountId = 0;
+            if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
+            {
+                sourceAccountId = getNextAvailableAccount(ledgerNum);
+            }
 
             std::function<std::pair<TxGenerator::TestAccountPtr,
                                     TransactionFrameBaseConstPtr>()>
@@ -791,6 +830,13 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         ledgerNum, sourceAccountId, cfg);
                 };
                 break;
+            case LoadGenMode::PAY_PREGENERATED:
+                generateTx = [&]() {
+                    // Each transaction is for a unique source account, so we
+                    // should not see BAD_SEQ error codes
+                    return readTransactionFromFile(cfg);
+                };
+                break;
             }
 
             if (submitTx(cfg, generateTx))
@@ -883,7 +929,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
            TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
 
-        if (cfg.skipLowFeeTxs &&
+        if (cfg.mode != LoadGenMode::PAY_PREGENERATED && cfg.skipLowFeeTxs &&
             (status ==
                  TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
              (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
@@ -896,8 +942,11 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
                       tx->getInclusionFee());
             return false;
         }
+
+        // No re-submission in PAY_PREGENERATED mode
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
+            status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR ||
+            cfg.mode == LoadGenMode::PAY_PREGENERATED)
         {
             mFailed = true;
             return false;
@@ -1432,6 +1481,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         txm.mAccountCreated.Mark(txf->getNumOperations());
         break;
     case LoadGenMode::PAY:
+    case LoadGenMode::PAY_PREGENERATED:
         txm.mNativePayment.Mark(txf->getNumOperations());
         break;
     case LoadGenMode::PRETEND:
@@ -1615,6 +1665,22 @@ GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
     return cfg;
 }
 
+GeneratedLoadConfig
+GeneratedLoadConfig::pregeneratedTxLoad(uint32_t nAccounts, uint32_t nTxs,
+                                        uint32_t txRate, uint32_t offset,
+                                        std::string const& file)
+{
+    GeneratedLoadConfig cfg;
+    cfg.mode = LoadGenMode::PAY_PREGENERATED;
+    cfg.nAccounts = nAccounts;
+    cfg.nTxs = nTxs;
+    cfg.txRate = txRate;
+    cfg.offset = offset;
+    cfg.preloadedTransactionsFile = file;
+    cfg.skipLowFeeTxs = false;
+    return cfg;
+}
+
 GeneratedLoadConfig::SorobanConfig&
 GeneratedLoadConfig::getMutSorobanConfig()
 {
@@ -1721,7 +1787,8 @@ GeneratedLoadConfig::isLoad() const
            mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
-           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
+           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
+           mode == LoadGenMode::PAY_PREGENERATED;
 }
 
 bool
@@ -1742,5 +1809,33 @@ GeneratedLoadConfig::modeUploads() const
 {
     return mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+LoadGenerator::readTransactionFromFile(GeneratedLoadConfig const& cfg)
+{
+    ZoneScoped;
+
+    // Read the next transaction from the file
+    TransactionEnvelope txEnv;
+    if (!mPreloadedTransactionsFile.readOne(txEnv))
+    {
+        // End of file reached, start again from the beginning
+        throw std::runtime_error("LoadGenerator: End of file reached");
+    }
+
+    // Create a TransactionFrame from the envelope
+    auto txFrame = TransactionFrameBase::makeTransactionFromWire(
+        mApp.getNetworkID(), txEnv);
+
+    // Increment the sequence number of the source account
+    auto idx = mCurrPreloadedTransaction % cfg.nAccounts;
+    auto acc = mTxGenerator.getAccount(idx + cfg.offset);
+    releaseAssert(acc);
+    acc->setSequenceNumber(txFrame->getSeqNum());
+    ++mCurrPreloadedTransaction;
+
+    // Do not provide an account
+    return std::make_pair(nullptr, txFrame);
 }
 }
