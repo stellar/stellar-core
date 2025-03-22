@@ -45,6 +45,9 @@
 
 #include <fmt/format.h>
 
+#ifdef BUILD_TESTS
+#include "test/TxTests.h"
+#endif
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
@@ -265,6 +268,42 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     rootAccount.accountID = skey.getPublicKey();
     rootAccount.thresholds[0] = 1;
     rootAccount.balance = genesisLedger.totalCoins;
+
+#ifdef BUILD_TESTS
+    // If test account creation is enabled, create additional accounts
+    if (cfg.GENESIS_TEST_ACCOUNT_COUNT > 0)
+    {
+        CLOG_INFO(Ledger, "Creating {} test accounts for genesis ledger",
+                  cfg.GENESIS_TEST_ACCOUNT_COUNT);
+
+        // Split totalCoins evenly among all accounts (root + test accounts)
+        uint32_t totalAccounts =
+            cfg.GENESIS_TEST_ACCOUNT_COUNT + 1; // +1 for root account
+        int64_t baseAccountBalance = genesisLedger.totalCoins / totalAccounts;
+        int64_t remainder = genesisLedger.totalCoins % totalAccounts;
+
+        // Set root account balance to equal share plus any remainder
+        // to ensure we don't lose any coins due to rounding
+        rootAccount.balance = baseAccountBalance + remainder;
+
+        // Create accounts using similar approach as TxGenerator::createAccounts
+        for (uint32_t i = 0; i < cfg.GENESIS_TEST_ACCOUNT_COUNT; i++)
+        {
+            auto name = "TestAccount-" + std::to_string(i);
+            auto account = txtest::getAccount(name.c_str());
+
+            LedgerEntry testEntry;
+            testEntry.lastModifiedLedgerSeq = 1;
+            testEntry.data.type(ACCOUNT);
+            auto& testAccount = testEntry.data.account();
+            testAccount.accountID = account.getPublicKey();
+            testAccount.thresholds[0] = 1;
+            testAccount.balance = baseAccountBalance;
+            ltx.create(testEntry);
+        }
+    }
+#endif
+
     ltx.create(rootEntry);
 
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
