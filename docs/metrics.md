@@ -27,6 +27,7 @@ Metric name                               | Type      | Description
 app.post-on-background-thread.delay       | timer     | time to start task posted to background thread
 app.post-on-main-thread.delay             | timer     | time to start task posted to current crank of main thread
 app.post-on-overlay-thread.delay          | timer     | time to start task posted to overlay thread
+app.post-on-ledger-close-thread.delay     | timer     | time to start task posted to ledger close thread
 bucket.batch.addtime                      | timer     | time to add a live batch
 bucket.batch.objectsadded                 | meter     | number of objects added per live batch
 bucket.batch-archive.addtime              | timer     | time to add a hot archive batch
@@ -87,6 +88,7 @@ loadgen.account.created                   | meter     | loadgenerator: account c
 loadgen.payment.native                    | meter     | loadgenerator: native payment submitted
 loadgen.pretend.submitted                 | meter     | loadgenerator: pretend ops submitted
 loadgen.run.complete                      | meter     | loadgenerator: run complete
+loadgen.run.start                         | meter     | loadgenerator: run started
 loadgen.soroban.create_upgrade            | meter     | loadgenerator: soroban create upgrade TXs submitted
 loadgen.soroban.invoke                    | meter     | loadgenerator: soroban invoke TXs submitted
 loadgen.soroban.setup_invoke              | meter     | loadgenerator: soroban setup invoke TXs submitted
@@ -112,6 +114,8 @@ overlay.error.read                        | meter     | error while receiving a 
 overlay.error.write                       | meter     | error while sending a message
 overlay.fetch.txset                       | timer     | time to complete fetching of a txset
 overlay.fetch.qset                        | timer     | time to complete fetching of a qset
+overlay.fetch.unique-recv                 | meter     | number of bytes of fetched messages that have not yet been received
+overlay.fetch.duplicate-recv              | meter     | number of bytes of fetched messages that have already been received
 overlay.flood.advertised                  | meter     | transactions advertised through pull mode
 overlay.flood.demanded                    | meter     | transactions demanded through pull mode
 overlay.flood.fulfilled                   | meter     | demanded transactions fulfilled through pull mode
@@ -131,6 +135,7 @@ overlay.inbound.attempt                   | meter     | inbound connection attem
 overlay.inbound.drop                      | meter     | inbound connection dropped
 overlay.inbound.establish                 | meter     | inbound connection established (added to pending)
 overlay.inbound.reject                    | meter     | inbound connection rejected
+overlay.inbound.live                      | counter   | number of live inbound connections
 overlay.outbound-queue.<X>                | timer     | time <X> traffic sits in flow-controlled queues
 overlay.outbound-queue.drop-<X>           | meter     | number of <X> messages dropped from flow-controlled queues
 overlay.item-fetcher.next-peer            | meter     | ask for item past the first one
@@ -146,6 +151,7 @@ overlay.outbound.establish                | meter     | outbound connection esta
 overlay.recv.<X>                          | timer     | received message <X>
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
+overlay.timeout.straggler                 | meter     | straggler peer timeout
 overlay.recv.start-survey-collecting      | timer     | time spent in processing request to start survey collecting phase
 overlay.recv.stop-survey-collecting       | timer     | time spent in processing request to stop survey collecting phase
 overlay.recv.survey-request               | timer     | time spent in processing survey request
@@ -204,6 +210,9 @@ soroban.host-fn-op.cpu-insn-excl-vm          | meter     | number of metered cpu
 soroban.host-fn-op.invoke-time-nsecs-excl-vm | timer     | time spent in soroban host invocation excluding VM instantiation
 soroban.host-fn-op.invoke-time-fsecs-cpu-insn-ratio         | histogram | ratio between soroban host invocation time (femto-seconds) and metered cpu instructions
 soroban.host-fn-op.invoke-time-fsecs-cpu-insn-ratio-excl-vm | histogram | ratio between soroban host invocation time (femto-seconds) and metered cpu instructions, excluding VM instantiation
+soroban.host-fn-op.ledger-cpu-insns-ratio    | histogram | ratio between ledger time (milliseconds) and metered CPU instructions
+soroban.host-fn-op.ledger-cpu-insns-ratio-excl-vm | histogram | ratio between ledger time (milliseconds) and metered CPU instructions, excluding VM instantiation
+soroban.host-fn-op.declared-cpu-insns-usage-ratio | histogram | ratio between declared CPU instructions and actual usage
 soroban.host-fn-op.max-rw-key-byte           | meter     | size of the largest `LedgerKey` (in bytes) among all entires accessed (read or modified) during the `InvokeHostFunctionOp`
 soroban.host-fn-op.max-rw-data-byte          | meter     | size of the largest `ContractDataEntry` (in bytes) among all entires accessed (read or modified) during the `InvokeHostFunctionOp`
 soroban.host-fn-op.max-rw-code-byte          | meter     | size of the largest `ContractCodeEntry` (in bytes) among all entires accessed (read or modified) during the `InvokeHostFunctionOp`
@@ -235,6 +244,7 @@ soroban.config.tx-max-read-ledger-byte       | counter   | soroban config settin
 soroban.config.tx-max-write-entry            | counter   | soroban config setting `tx_max_write_ledger_entries`
 soroban.config.tx-max-write-ledger-byte      | counter   | soroban config setting `tx_max_write_bytes`
 soroban.config.tx-max-emit-event-byte        | counter   | soroban config setting `tx_max_contract_events_size_bytes`
+soroban.config.fee-write-1kb                 | counter   | soroban config setting fee per 1KB of ledger data written
 soroban.config.ledger-max-tx-count           | counter   | soroban config setting `ledger_max_tx_count`
 soroban.config.ledger-max-cpu-insn           | counter   | soroban config setting `ledger_max_instructions`
 soroban.config.ledger-max-txs-size-byte      | counter   | soroban config setting `ledger_max_txs_size_bytes`
