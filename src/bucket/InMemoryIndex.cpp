@@ -4,49 +4,36 @@
 
 #include "bucket/InMemoryIndex.h"
 #include "bucket/BucketManager.h"
-#include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include <algorithm>
 
 namespace stellar
 {
 
 void
-InMemoryBucketState::pushBack(BucketEntry const& be)
+InMemoryBucketState::insert(BucketEntry const& be)
 {
-    if (!mEntries.empty())
-    {
-        if (!BucketEntryIdCmp<LiveBucket>{}(*mEntries.back(), be))
-        {
-            throw std::runtime_error(
-                "InMemoryBucketState::push_back: Inserted out of order entry!");
-        }
-    }
-
-    mEntries.push_back(std::make_shared<BucketEntry>(be));
+    auto [_, inserted] = mEntries.insert(
+        InternalInMemoryBucketEntry(std::make_shared<BucketEntry const>(be)));
+    releaseAssertOrThrow(inserted);
 }
 
 // Perform a binary search using start iter as lower bound for search key.
 std::pair<IndexReturnT, InMemoryBucketState::IterT>
 InMemoryBucketState::scan(IterT start, LedgerKey const& searchKey) const
 {
-    auto it =
-        std::lower_bound(start, mEntries.end(), searchKey,
-                         [](std::shared_ptr<BucketEntry const> const& element,
-                            LedgerKey const& key) {
-                             return getBucketLedgerKey(*element) < key;
-                         });
-
+    ZoneScoped;
+    auto it = mEntries.find(InternalInMemoryBucketEntry(searchKey));
     // If we found the key
-    if (it != mEntries.end() && getBucketLedgerKey(**it) == searchKey)
+    if (it != mEntries.end())
     {
-        return {IndexReturnT(*it), it};
+        return {IndexReturnT(it->get()), mEntries.begin()};
     }
 
-    return {IndexReturnT(), it};
+    return {IndexReturnT(), mEntries.begin()};
 }
 
 InMemoryIndex::InMemoryIndex(BucketManager const& bm,
@@ -99,7 +86,7 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
         }
 
         // Populate inMemoryState
-        mInMemoryState.pushBack(be);
+        mInMemoryState.insert(be);
 
         // Populate offerRange
         if (!firstOffer && lk.type() == OFFER)
