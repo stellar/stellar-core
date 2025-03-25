@@ -22,7 +22,8 @@ class LogSlowExecution
     LogSlowExecution(
         std::string eventName, Mode mode = Mode::AUTOMATIC_RAII,
         std::string message = "took",
-        std::chrono::milliseconds threshold = std::chrono::seconds(1));
+        std::chrono::milliseconds threshold = std::chrono::seconds(1),
+        bool warnOnThreshold = false, bool logEveryExecution = false);
     ~LogSlowExecution();
     std::chrono::milliseconds checkElapsedTime() const;
 
@@ -32,6 +33,8 @@ class LogSlowExecution
     Mode mMode;
     std::string mMessage;
     std::chrono::milliseconds mThreshold;
+    bool mWarnOnThreshold;
+    bool mLogEveryExecution;
 };
 
 // Helper class to emit rate-limited log messages without any threshold
