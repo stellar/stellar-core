@@ -1258,6 +1258,23 @@
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo="
 	],
+	"Stellar asset contract transfer with CAP-67 address types" : 
+	[
+		"bKDF6V5IzTo=",
+		"ZQUMTcxUmhw=",
+		"3T8UA455DHw=",
+		"fUSFx0mzuIA=",
+		"pgMpzyyFMhY=",
+		"zk0mGBRdzGw=",
+		"R0CFI+kdcKg=",
+		"bKDF6V5IzTo=",
+		"ZQUMTcxUmhw=",
+		"3T8UA455DHw=",
+		"fUSFx0mzuIA=",
+		"pgMpzyyFMhY=",
+		"zk0mGBRdzGw=",
+		"R0CFI+kdcKg="
+	],
 	"Trustline stellar asset contract" : 
 	[
 		"bKDF6V5IzTo=",
@@ -1268,7 +1285,7 @@
 		"be+J6mXOPQw=",
 		"UqRdKHoGq4M=",
 		"J9mPC+CjlBo=",
-		"PJak/4rpyEU=",
+		"0wS5yUPCTlw=",
 		"MDRXVxV3ZNo="
 	],
 	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],

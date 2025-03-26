@@ -8,6 +8,7 @@
 #include "history/test/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
 #include "util/XDRCereal.h"
+#include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
 namespace stellar
@@ -18,12 +19,12 @@ struct OfferState;
 namespace Catch
 {
 template <typename T>
-struct StringMaker<T, typename std::enable_if<xdr::xdr_traits<T>::valid>::type>
+struct StringMaker<T, std::enable_if_t<xdr::xdr_traits<T>::valid>>
 {
     static std::string
     convert(T const& val)
     {
-        return xdr_to_string(val, "value");
+        return xdr::xdr_to_string(val, "value");
     }
 };
 
