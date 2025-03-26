@@ -57,38 +57,54 @@ class Application;
  *   unbans any transactions that have been banned for more than banDepth
  *   ledgers.
  */
+
+// TODO:
+// * Dig into flow control, make sure it holds some kind of lock to prevent ASIO
+// overlay queue from growing too much
+//     * Might want to put bg tx queue on its own thread with intermediate
+//     priority (lower than SCP, higher than bucket maintenance). Otherwise,
+//     running this on the overlay thread might delay SCP message processing as
+//     incoming SCP messages need to wait for tx queue additions to occur, which
+//     is bad.
+//         * My note: Try both approaches and benchmark
+//         * Follow up note: The priority locking scheme also helps to address
+//           this.
+
+enum class TxQueueAddResultCode
+{
+    ADD_STATUS_PENDING = 0,
+    ADD_STATUS_DUPLICATE,
+    ADD_STATUS_ERROR,
+    ADD_STATUS_TRY_AGAIN_LATER,
+    ADD_STATUS_FILTERED,
+    ADD_STATUS_COUNT
+};
+
+struct TxQueueAddResult
+{
+    TxQueueAddResultCode code;
+    MutableTxResultPtr txResult;
+
+    // AddResult with no txResult
+    explicit TxQueueAddResult(TxQueueAddResultCode addCode);
+
+    // AddResult from existing transaction result
+    explicit TxQueueAddResult(TxQueueAddResultCode addCode,
+                              MutableTxResultPtr payload);
+
+    // AddResult with error txResult with the specified txErrorCode
+    explicit TxQueueAddResult(TxQueueAddResultCode addCode,
+                              TransactionFrameBasePtr tx,
+                              TransactionResultCode txErrorCode);
+};
+
 class TransactionQueue
 {
   public:
     static uint64_t const FEE_MULTIPLIER;
 
-    enum class AddResultCode
-    {
-        ADD_STATUS_PENDING = 0,
-        ADD_STATUS_DUPLICATE,
-        ADD_STATUS_ERROR,
-        ADD_STATUS_TRY_AGAIN_LATER,
-        ADD_STATUS_FILTERED,
-        ADD_STATUS_COUNT
-    };
-
-    struct AddResult
-    {
-        TransactionQueue::AddResultCode code;
-        MutableTxResultPtr txResult;
-
-        // AddResult with no txResult
-        explicit AddResult(TransactionQueue::AddResultCode addCode);
-
-        // AddResult from existing transaction result
-        explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           MutableTxResultPtr payload);
-
-        // AddResult with error txResult with the specified txErrorCode
-        explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           TransactionFrameBasePtr tx,
-                           TransactionResultCode txErrorCode);
-    };
+    using AddResultCode = TxQueueAddResultCode;
+    using AddResult = TxQueueAddResult;
 
     /**
      * AccountState stores the following information:
@@ -117,29 +133,30 @@ class TransactionQueue
         std::optional<TimestampedTx> mTransaction;
     };
 
-    explicit TransactionQueue(Application& app, uint32 pendingDepth,
-                              uint32 banDepth, uint32 poolLedgerMultiplier,
-                              bool isSoroban);
+    explicit TransactionQueue(Application& app,
+                              SearchableSnapshotConstPtr bucketSnapshot,
+                              uint32 pendingDepth, uint32 banDepth,
+                              uint32 poolLedgerMultiplier, bool isSoroban);
     virtual ~TransactionQueue();
 
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
-    void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
     // transaction per account limit applies here, so `txs` should have no
     // duplicate source accounts
     void ban(Transactions const& txs);
 
-    /**
-     * Increase age of each AccountState that has at least one transaction in
-     * mTransactions. Also increments the age for each banned transaction, and
-     * unbans transactions for which age equals banDepth.
-     */
-    void shift();
-    void rebroadcast();
     void shutdown();
+
+    // TODO: Better docs
+    // TODO: More descriptive name
+    // Update internal queue structures after a ledger closes
+    void update(
+        Transactions const& applied, LedgerHeader const& lcl,
+        SearchableSnapshotConstPtr newBucketSnapshot,
+        std::function<TxFrameList(TxFrameList const&)> const& filterInvalidTxs);
 
     bool isBanned(Hash const& hash) const;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
@@ -155,6 +172,30 @@ class TransactionQueue
 #endif
 
   protected:
+    // TODO: Docs?
+    // TODO: Move?
+    // TODO: It might be worth benchmarking this against the solution that does
+    // not use priority locking (just uses std::mutex). The added complexity of
+    // this may not be worth it.
+    class TxQueueLock : NonMovableOrCopyable
+    {
+      public:
+        TxQueueLock(std::unique_lock<std::mutex>&& lock,
+                    std::shared_ptr<std::condition_variable> cv)
+            : mLock(std::move(lock)), mCv(cv)
+        {
+        }
+        ~TxQueueLock()
+        {
+            // Wake threads on destruction
+            mCv->notify_all();
+        }
+
+      private:
+        std::unique_lock<std::mutex> mLock;
+        std::shared_ptr<std::condition_variable> mCv;
+    };
+
     /**
      * The AccountState for every account. As noted above, an AccountID is in
      * AccountStates iff at least one of the following is true for the
@@ -170,7 +211,6 @@ class TransactionQueue
      */
     using BannedTransactions = std::deque<UnorderedSet<Hash>>;
 
-    Application& mApp;
     uint32 const mPendingDepth;
 
     AccountStates mAccountStates;
@@ -201,15 +241,24 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
+    bool mPendingMainThreadBroadcast{false}; // TODO: I don't love this solution
+    // TODO: VirtualTimer is not thread-safe. Right now it's only used in
+    // functions that are called from the main thread. However, if I move
+    // broadcasting to the background I will need to be careful with this.
     VirtualTimer mBroadcastTimer;
 
     virtual std::pair<Resource, std::optional<Resource>>
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
-    virtual int getFloodPeriod() const = 0;
     virtual bool allowTxBroadcast(TimestampedTx const& tx) = 0;
 
+    // TODO: Explain that there's an overload that takes a guard because this
+    // function is called internally, and also scheduled on a timer. Any async
+    // call should call the first overload (which grabs a lock), and any
+    // internal call should call the second overload (which enforces that the
+    // lock is already held).
     void broadcast(bool fromCallback);
+    void broadcast(bool fromCallback, TxQueueLock const& guard);
     // broadcasts a single transaction
     enum class BroadcastStatus
     {
@@ -230,37 +279,86 @@ class TransactionQueue
 
     bool isFiltered(TransactionFrameBasePtr tx) const;
 
-    std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
+    // TODO: Docs
+    // Protected versions of public functions that contain the actual
+    // implementation so they can be called internally when the lock is already
+    // held.
+    void banInternal(Transactions const& banTxs);
+
+    TxQueueLock lock() const;
+
+    // Snapshots to use for transaction validation
+    ImmutableValidationSnapshotPtr mValidationSnapshot;
+    SearchableSnapshotConstPtr mBucketSnapshot;
+
+    TxQueueLimiter mTxQueueLimiter;
     UnorderedMap<AssetPair, uint32_t, AssetPairHash> mArbitrageFloodDamping;
 
     UnorderedMap<Hash, TransactionFrameBasePtr> mKnownTxHashes;
 
     size_t mBroadcastSeed;
 
+  private:
+    AppConnector& mAppConn;
+
+    mutable std::mutex mTxQueueMutex;
+    mutable std::shared_ptr<std::condition_variable> mTxQueueCv =
+        std::make_shared<std::condition_variable>();
+    mutable std::atomic<bool> mMainThreadWaiting{false};
+
+    void removeApplied(Transactions const& txs);
+
+    /**
+     * Increase age of each AccountState that has at least one transaction in
+     * mTransactions. Also increments the age for each banned transaction, and
+     * unbans transactions for which age equals banDepth.
+     */
+    void shift();
+
+    // TODO: Explain that this takes a lock guard due to the `broadcast` call
+    // that it makes.
+    void rebroadcast(TxQueueLock const& guard);
+
+    // TODO: Docs
+    // Private versions of public functions that contain the actual
+    // implementation so they can be called internally when the lock is already
+    // held.
+    bool isBannedInternal(Hash const& hash) const;
+    TxFrameList getTransactionsInternal(LedgerHeader const& lcl) const;
+
+    virtual int getFloodPeriod() const = 0;
+
 #ifdef BUILD_TESTS
   public:
+    // TODO: These tests invoke protected/private functions directly that assume
+    // things are properly locked. I need to make sure these tests operate in a
+    // thread-safe manner or change them to not require private member access.
+    friend class TransactionQueueTest;
+
+    // TODO: Docs
+    void updateSnapshots(SearchableSnapshotConstPtr const& newBucketSnapshot);
+
     size_t getQueueSizeOps() const;
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
     std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
+
 #endif
 };
 
 class SorobanTransactionQueue : public TransactionQueue
 {
   public:
-    SorobanTransactionQueue(Application& app, uint32 pendingDepth,
-                            uint32 banDepth, uint32 poolLedgerMultiplier);
-    int
-    getFloodPeriod() const override
-    {
-        return mApp.getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
-    }
+    SorobanTransactionQueue(Application& app,
+                            SearchableSnapshotConstPtr bucketSnapshot,
+                            uint32 pendingDepth, uint32 banDepth,
+                            uint32 poolLedgerMultiplier);
 
     size_t getMaxQueueSizeOps() const override;
 #ifdef BUILD_TESTS
     void
     clearBroadcastCarryover()
     {
+        TxQueueLock lock = TransactionQueue::lock();
         mBroadcastOpCarryover.clear();
         mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     }
@@ -277,19 +375,21 @@ class SorobanTransactionQueue : public TransactionQueue
     {
         return true;
     }
+
+    int
+    getFloodPeriod() const override
+    {
+        return mValidationSnapshot->getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
+    }
 };
 
 class ClassicTransactionQueue : public TransactionQueue
 {
   public:
-    ClassicTransactionQueue(Application& app, uint32 pendingDepth,
-                            uint32 banDepth, uint32 poolLedgerMultiplier);
-
-    int
-    getFloodPeriod() const override
-    {
-        return mApp.getConfig().FLOOD_TX_PERIOD_MS;
-    }
+    ClassicTransactionQueue(Application& app,
+                            SearchableSnapshotConstPtr bucketSnapshot,
+                            uint32 pendingDepth, uint32 banDepth,
+                            uint32 poolLedgerMultiplier);
 
     size_t getMaxQueueSizeOps() const override;
 
@@ -302,7 +402,46 @@ class ClassicTransactionQueue : public TransactionQueue
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
     virtual bool allowTxBroadcast(TimestampedTx const& tx) override;
+
+    int
+    getFloodPeriod() const override
+    {
+        return mValidationSnapshot->getConfig().FLOOD_TX_PERIOD_MS;
+    }
 };
+
+// TODO: Rename?
+// TODO: Docs. A thread-safe container for transaction queues that allows for
+// delayed-initialization of the queues.
+// TODO: Doc comments on methods.
+class TransactionQueues : public NonMovableOrCopyable
+{
+  public:
+    TransactionQueues() = default;
+
+    void setClassicTransactionQueue(
+        std::unique_ptr<ClassicTransactionQueue> classicTransactionQueue);
+    void setSorobanTransactionQueue(
+        std::unique_ptr<SorobanTransactionQueue> sorobanTransactionQueue);
+
+    bool hasClassicTransactionQueue() const;
+    bool hasSorobanTransactionQueue() const;
+
+    ClassicTransactionQueue& getClassicTransactionQueue() const;
+    SorobanTransactionQueue& getSorobanTransactionQueue() const;
+
+    // Convenience functions that operate on both queues (if they exist)
+    void shutdown();
+    bool sourceAccountPending(AccountID const& accountID) const;
+    bool isBanned(Hash const& hash) const;
+    TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
+
+  private:
+    mutable std::mutex mMutex;
+    std::unique_ptr<ClassicTransactionQueue> mClassicTransactionQueue = nullptr;
+    std::unique_ptr<SorobanTransactionQueue> mSorobanTransactionQueue = nullptr;
+};
+using TransactionQueuesPtr = std::shared_ptr<TransactionQueues>;
 
 extern std::array<const char*,
                   static_cast<int>(

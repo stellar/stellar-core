@@ -29,14 +29,15 @@ computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
 
 }
 
-TxQueueLimiter::TxQueueLimiter(uint32 multiplier, Application& app,
-                               bool isSoroban)
+TxQueueLimiter::TxQueueLimiter(uint32 multiplier, bool isSoroban,
+                               ImmutableValidationSnapshotPtr vs,
+                               SearchableSnapshotConstPtr bls)
     : mPoolLedgerMultiplier(multiplier)
-    , mLedgerManager(app.getLedgerManager())
-    , mApp(app)
     , mIsSoroban(isSoroban)
+    , mValidationSnapshot(vs)
+    , mBucketSnapshot(bls)
 {
-    auto maxDexOps = app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET;
+    auto maxDexOps = vs->getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET;
     if (maxDexOps && !mIsSoroban)
     {
         mMaxDexOperations =
@@ -60,8 +61,12 @@ TxQueueLimiter::size() const
 Resource
 TxQueueLimiter::maxScaledLedgerResources(bool isSoroban) const
 {
-    return multiplyByDouble(mLedgerManager.maxLedgerResources(isSoroban),
-                            mPoolLedgerMultiplier);
+    Resource const r = isSoroban
+                           ? LedgerManager::maxSorobanLedgerResources(
+                                 mValidationSnapshot->getSorobanNetworkConfig())
+                           : LedgerManager::maxClassicLedgerResources(
+                                 mBucketSnapshot->getLedgerHeader());
+    return multiplyByDouble(r, mPoolLedgerMultiplier);
 }
 
 void
@@ -84,9 +89,7 @@ TxQueueLimiter::canAddTx(
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
     return canAddTx(newTx, oldTx, txsToEvict,
-                    mApp.getLedgerManager()
-                        .getLastClosedLedgerHeader()
-                        .header.ledgerVersion);
+                    mBucketSnapshot->getLedgerHeader().ledgerVersion);
 }
 #endif
 
@@ -234,6 +237,14 @@ TxQueueLimiter::reset(uint32_t ledgerVersion)
     }
 
     resetEvictionState();
+}
+
+void
+TxQueueLimiter::updateSnapshots(ImmutableValidationSnapshotPtr vs,
+                                SearchableSnapshotConstPtr bls)
+{
+    mValidationSnapshot = vs;
+    mBucketSnapshot = bls;
 }
 
 void

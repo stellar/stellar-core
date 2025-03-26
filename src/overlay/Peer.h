@@ -39,6 +39,7 @@ struct OverlayMetrics;
 class FlowControl;
 class TxAdverts;
 class CapacityTrackedMessage;
+class TransactionQueues;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -262,6 +263,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     QueryInfo mQSetQueryInfo;
     QueryInfo mTxSetQueryInfo;
     bool mPeersReceived{false};
+
+    std::shared_ptr<TransactionQueues> const mTransactionQueues;
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();

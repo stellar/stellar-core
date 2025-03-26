@@ -179,9 +179,15 @@ class LedgerManager
 
     virtual void moveToSynced() = 0;
     virtual void beginApply() = 0;
+    // TODO: Mention this must be thread safe in implementation. Beware TOCTOU,
+    // but for non-critical uses (such as tx queue, which is "best effort"
+    // anyway), this is fine.
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
+    // TODO: Mention this is thread-safe because `getState` is thread-safe.
+    // Beware TOCTOU, but for non-critical uses (such as tx queue, which is
+    // "best effort" anyway), this is fine.
     bool
     isSynced() const
     {
@@ -200,6 +206,19 @@ class LedgerManager
 
     // Genesis ledger
     static LedgerHeader genesisLedger();
+
+    // TODO: Docs
+    static Resource maxClassicLedgerResources(LedgerHeader const& conf);
+
+    // TODO: Docs
+    static Resource maxSorobanLedgerResources(SorobanNetworkConfig const& conf);
+
+    // TODO: Docs
+    static Resource
+    maxSorobanTransactionResources(SorobanNetworkConfig const& conf);
+
+    // TODO: Docs
+    static uint32_t getMaxTxSetSizeOps(LedgerHeader const& header);
 
     // Called by Herder to inform LedgerManager that a SCP has agreed on a new
     // close event. This is the most common cause of LedgerManager advancing

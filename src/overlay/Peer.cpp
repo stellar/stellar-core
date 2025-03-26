@@ -71,8 +71,10 @@ Peer::Peer(Application& app, PeerRole role)
     , mRecurringTimer(app)
     , mDelayedExecutionTimer(app)
     , mTxAdverts(std::make_shared<TxAdverts>(app))
+    , mTransactionQueues(mAppConnector.getHerder().getTransactionQueues())
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mTransactionQueues); // TODO: Remove?
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
@@ -980,16 +982,41 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
                                                   envelope.statement));
     }
 
-    // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
-    // its destructor is invoked from main thread only. Note that we can't use
-    // unique_ptr here, because std::function requires its callable
-    // to be copyable (C++23 fixes this with std::move_only_function, but we're
-    // not there yet)
-    mAppConnector.postOnMainThread(
-        [self = shared_from_this(), t = std::move(msgTracker)]() {
-            self->recvMessage(t);
-        },
-        std::move(queueName), type);
+    // TODO: Special case for TRANSACTION here to add to tx queue in the
+    // background.
+    if (msgTracker->getMessage().type() == TRANSACTION &&
+        mAppConnector.getConfig().BACKGROUND_TX_QUEUE)
+    {
+        // TODO: This assert might not be relevant. It's theoretically possible
+        // to enable background tx queue without enabling background overlay
+        // (under this implementation). Whether or not that's a good idea is a
+        // separate question.
+        releaseAssert(!threadIsMain());
+        // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
+        // its destructor is invoked from main thread only. Note that we can't
+        // use unique_ptr here, because std::function requires its callable to
+        // be copyable (C++23 fixes this with std::move_only_function, but we're
+        // not there yet)
+        mAppConnector.postOnTxQueueThread(
+            [self = shared_from_this(), t = std::move(msgTracker)]() {
+                self->recvMessage(t);
+            },
+            "Peer::recvMessage"); // TODO: Change message to something better
+    }
+    else
+    {
+
+        // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
+        // its destructor is invoked from main thread only. Note that we can't
+        // use unique_ptr here, because std::function requires its callable to
+        // be copyable (C++23 fixes this with std::move_only_function, but we're
+        // not there yet)
+        mAppConnector.postOnMainThread(
+            [self = shared_from_this(), t = std::move(msgTracker)]() {
+                self->recvMessage(t);
+            },
+            std::move(queueName), type);
+    }
 
     // msgTracker should be null now
     releaseAssert(!msgTracker);
@@ -1000,7 +1027,7 @@ void
 Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
+    // TODO: Note in the docs that this function may be called in the background
 
     auto const& stellarMsg = msgTracker->getMessage();
 
@@ -1019,7 +1046,7 @@ Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     bool ignoreIfOutOfSync = msgType == TRANSACTION ||
                              msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND;
 
-    if (!mAppConnector.getLedgerManager().isSynced() && ignoreIfOutOfSync)
+    if (!mAppConnector.ledgerIsSynced() && ignoreIfOutOfSync)
     {
         // For transactions, exit early during the state rebuild, as we
         // can't properly verify them
@@ -1028,7 +1055,36 @@ Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     try
     {
-        recvRawMessage(msgTracker);
+        if (msgType == TRANSACTION &&
+            mAppConnector.getConfig().BACKGROUND_TX_QUEUE)
+        {
+            // TODO: Refactor this to more closely mirror recvTransaction flow?
+            // Also need to get all the metrics/etc from
+            // OverlayManagerImpl::recordAddTransactionStats in here.
+            releaseAssert(!threadIsMain());
+            releaseAssert(msgTracker->maybeGetHash().has_value());
+            Hash const index = msgTracker->maybeGetHash().value();
+            // TODO: If `getNetworkID` is truly not thread safe then we might
+            // need to keep a copy of it somewhere safe.
+            auto transaction = TransactionFrameBase::makeTransactionFromWire(
+                mAppConnector.getNetworkID(),
+                msgTracker->getMessage().transaction());
+            releaseAssert(transaction);
+            TransactionQueue::AddResult addResult =
+                Herder::recvTransaction(mTransactionQueues, transaction, false);
+            mAppConnector.postOnMainThread(
+                [self = shared_from_this(), index, addResult, transaction]() {
+                    self->mAppConnector.getOverlayManager()
+                        .recordAddTransactionStats(
+                            addResult, transaction->getFullHash(), self, index);
+                },
+                "Peer::recvMessage recordAddTransactionStats");
+        }
+        else
+        {
+            releaseAssert(threadIsMain());
+            recvRawMessage(msgTracker);
+        }
     }
     catch (CryptoError const& e)
     {
@@ -1070,6 +1126,9 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     // No need to hold the lock for the whole duration of the function, just
     // need to check state for a potential early exit. If the peer gets dropped
     // after, we'd still process the message, but that's harmless.
+    // TODO: I think it's OK that the flow I developed skips this? The message
+    // type is skips most of these checks, except for the authenticated check.
+    // Maybe I should add an isAuthenticated check? Or a shouldAbort check?
     {
         RECURSIVE_LOCK_GUARD(mStateMutex, guard);
         if (shouldAbort(guard))
@@ -1189,6 +1248,7 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     case TRANSACTION:
     {
+        // TODO: Losing this metric right now vv
         auto t = mOverlayMetrics.mRecvTransactionTimer.TimeScope();
         recvTransaction(*msgTracker);
     }
@@ -1487,7 +1547,7 @@ Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
     // add it to the floodmap so that this peer gets credit for it
     releaseAssert(msg.maybeGetHash());
     mAppConnector.getOverlayManager().recvFloodedMsgID(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        shared_from_this(), msg.maybeGetHash().value());
 
     auto res = mAppConnector.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)

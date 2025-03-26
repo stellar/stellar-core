@@ -14,33 +14,33 @@ namespace stellar
 {
 
 AppConnector::AppConnector(Application& app)
-    : mApp(app), mConfig(app.getConfig())
+    : mApp(app), mConfig(std::make_shared<const Config>(app.getConfig()))
 {
 }
 
 Herder&
-AppConnector::getHerder()
+AppConnector::getHerder() const
 {
     releaseAssert(threadIsMain());
     return mApp.getHerder();
 }
 
 LedgerManager&
-AppConnector::getLedgerManager()
+AppConnector::getLedgerManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getLedgerManager();
 }
 
 OverlayManager&
-AppConnector::getOverlayManager()
+AppConnector::getOverlayManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getOverlayManager();
 }
 
 BanManager&
-AppConnector::getBanManager()
+AppConnector::getBanManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getBanManager();
@@ -56,7 +56,20 @@ AppConnector::getLastClosedSorobanNetworkConfig() const
 SorobanNetworkConfig const&
 AppConnector::getSorobanNetworkConfigForApply() const
 {
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+}
+
+std::optional<SorobanNetworkConfig>
+AppConnector::maybeGetSorobanNetworkConfigReadOnly() const
+{
+    releaseAssert(threadIsMain());
+    if (mApp.getLedgerManager().hasLastClosedSorobanNetworkConfig())
+    {
+        return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
+    }
+    return std::nullopt;
 }
 
 medida::MetricsRegistry&
@@ -101,8 +114,21 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
     mApp.postOnOverlayThread(std::move(f), message);
 }
 
+void
+AppConnector::postOnTxQueueThread(std::function<void()>&& f,
+                                  std::string const& message)
+{
+    mApp.postOnTxQueueThread(std::move(f), message);
+}
+
 Config const&
 AppConnector::getConfig() const
+{
+    return *mConfig;
+}
+
+std::shared_ptr<Config const>
+AppConnector::getConfigPtr() const
 {
     return mConfig;
 }
@@ -119,6 +145,17 @@ AppConnector::now() const
     return mApp.getClock().now();
 }
 
+VirtualClock::system_time_point
+AppConnector::system_now() const
+{
+    // TODO: Is this thread safe? It looks like it is when in REAL_TIME mode,
+    // but I'm not so sure about VIRTUAL_TIME mode as that mode has a
+    // `mVirtualNow` that looks like it can change during access? The same is
+    // true for `AppConnector::now`, which is marked "thread safe" in the header
+    // file. Maybe both of these need some hardening though?
+    return mApp.getClock().system_now();
+}
+
 bool
 AppConnector::shouldYield() const
 {
@@ -131,6 +168,13 @@ AppConnector::getOverlayMetrics()
 {
     // OverlayMetrics class is thread-safe
     return mApp.getOverlayManager().getOverlayMetrics();
+}
+
+bool
+AppConnector::ledgerIsSynced() const
+{
+    // Ledger manager's state enum is atomic
+    return mApp.getLedgerManager().isSynced();
 }
 
 bool
