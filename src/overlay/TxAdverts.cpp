@@ -133,10 +133,9 @@ TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
         it += txHashes.size() - limit;
     }
 
-    auto now = mApp.getClock().now();
     while (it != txHashes.end())
     {
-        mIncomingTxHashes.emplace_back(*it, now);
+        mIncomingTxHashes.emplace_back(*it);
         it++;
     }
 
@@ -146,7 +145,7 @@ TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
     }
 }
 
-std::pair<Hash, std::optional<VirtualClock::time_point>>
+Hash
 TxAdverts::popIncomingAdvert()
 {
     if (size() <= 0)
@@ -158,14 +157,13 @@ TxAdverts::popIncomingAdvert()
     {
         auto const h = mTxHashesToRetry.front();
         mTxHashesToRetry.pop_front();
-        return std::make_pair(h, std::nullopt);
+        return h;
     }
     else
     {
         auto const h = mIncomingTxHashes.front();
         mIncomingTxHashes.pop_front();
-        return std::make_pair(
-            h.first, std::make_optional<VirtualClock::time_point>(h.second));
+        return h;
     }
 }
 

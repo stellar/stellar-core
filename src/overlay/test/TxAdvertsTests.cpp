@@ -49,7 +49,7 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
             // Since the advert queue is "FIFO",
             // the retry hashes gets popped first.
             // Therefore, we should only have the new hashes.
-            auto h = pullMode.popIncomingAdvert().first;
+            auto h = pullMode.popIncomingAdvert();
             REQUIRE(h == getHash(i));
         }
         REQUIRE(pullMode.size() == 0);
@@ -66,13 +66,13 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
         for (uint32_t i = 0; i < limit / 2; i++)
         {
             // We pop retry hashes first.
-            auto h = pullMode.popIncomingAdvert().first;
+            auto h = pullMode.popIncomingAdvert();
             REQUIRE(h == getHash(limit + i));
         }
         for (uint32_t i = 0; i < limit / 2; i++)
         {
             // We pop new hashes next.
-            auto h = pullMode.popIncomingAdvert().first;
+            auto h = pullMode.popIncomingAdvert();
             REQUIRE(h == getHash(i));
         }
         REQUIRE(pullMode.size() == 0);

@@ -371,8 +371,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             txtest::executeUpgrade(*app, txtest::makeConfigUpgrade(*res));
         };
 
-        auto& txsRecv =
-            app2->getMetrics().NewTimer({"overlay", "recv", "transaction"});
+        auto& txsRecv = app2->getMetrics().NewCounter(
+            {"overlay", "recv-transaction", "count"});
         auto start = txsRecv.count();
         conn.getInitiator()->sendMessage(std::make_shared<StellarMessage>(tx1));
 
@@ -2604,7 +2604,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                         .count() == 2);
             REQUIRE(apps[2]
                         ->getMetrics()
-                        .NewTimer({"overlay", "recv", "transaction"})
+                        .NewCounter({"overlay", "recv-transaction", "count"})
                         .count() == 1);
             REQUIRE(getAdvertisedHashCount(apps[2]) == 0);
         }

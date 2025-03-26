@@ -47,7 +47,19 @@ struct OverlayMetrics
     medida::Timer& mRecvPeersTimer;
     medida::Timer& mRecvGetTxSetTimer;
     medida::Timer& mRecvTxSetTimer;
-    medida::Timer& mRecvTransactionTimer;
+
+    // For frequently occurring events, using medida timers can be very
+    // expensive, as we are constantly compressing and copying data to maintain
+    // histograms. To avoid this, we use counters to sum the total time. This
+    // means we don't have histogram data, but the runtime cost of counters is
+    // negligible.
+    // Sum of total delay to process transaction message, in
+    // microseconds
+    medida::Counter& mRecvTransactionAccumulator;
+
+    // Count of transaction messages received
+    medida::Counter& mRecvTransactionCounter;
+
     medida::Timer& mRecvGetSCPQuorumSetTimer;
     medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
@@ -106,7 +118,6 @@ struct OverlayMetrics
     medida::Meter& mUnknownMessageUnfulfilledMeter;
     medida::Timer& mTxPullLatency;
     medida::Timer& mPeerTxPullLatency;
-    medida::Timer& mAdvertQueueDelay;
 
     medida::Meter& mDemandTimeouts;
     medida::Meter& mPulledRelevantTxs;
