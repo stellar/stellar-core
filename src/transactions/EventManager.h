@@ -16,6 +16,9 @@ using TxEventManagerPtr = std::shared_ptr<TxEventManager>;
 class TransactionFrameBase;
 class OperationFrame;
 
+std::optional<Asset> getAssetFromEvent(ContractEvent const& event,
+                                       Hash const& networkID);
+
 struct DiagnosticEventBuffer
 {
     xdr::xvector<DiagnosticEvent> mBuffer;
@@ -47,16 +50,51 @@ class OpEventManager
     xdr::xvector<ContractEvent> mContractEvents;
     TxEventManager& mParent;
     OperationFrame const& mOp;
+    Memo const mMemo;
 
   public:
     OpEventManager(TxEventManager& parentTxEventManager,
-                   OperationFrame const& op);
+                   OperationFrame const& op, Memo const& memo);
 
     DiagnosticEventBuffer& getDiagnosticEventsBuffer();
 
     void pushContractEvents(xdr::xvector<ContractEvent> const& evts);
 
     void flushContractEvents(xdr::xvector<ContractEvent>& buf);
+
+    void
+    eventsForClaimAtoms(MuxedAccount const& source,
+                        xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
+
+    // This will check if the issuer is involved, and emit a mint/burn instead
+    // of a transfer if so
+    void eventForTransferWithIssuerCheck(Asset const& asset,
+                                         SCAddress const& from,
+                                         SCAddress const& to, int64 amount);
+
+    // Adds a new "transfer" contractEvent in the form of:
+    // contract: asset, topics: ["transfer", from:Address, to:Address,
+    // sep0011_asset:String], data: { amount:i128 }
+    void newTransferEvent(Asset const& asset, SCAddress const& from,
+                          SCAddress const& to, int64 amount);
+
+    // contract: asset, topics: ["mint", to:Address, sep0011_asset:String],
+    // data: { amount:i128 }
+    void newMintEvent(Asset const& asset, SCAddress const& to, int64 amount);
+
+    // contract: asset, topics: ["burn", from:Address, sep0011_asset:String],
+    // data: { amount:i128 }
+    void newBurnEvent(Asset const& asset, SCAddress const& from, int64 amount);
+
+    // contract: asset, topics: ["clawback", from:Address,
+    // sep0011_asset:String], data: { amount:i128 }
+    void newClawbackEvent(Asset const& asset, SCAddress const& from,
+                          int64 amount);
+
+    // contract: asset, topics: ["set_authorized", id:Address,
+    // sep0011_asset:String], data: { authorize:bool }
+    void newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
+                               bool authorize);
 };
 
 class TxEventManager
@@ -73,11 +111,16 @@ class TxEventManager
     TxEventManager(uint32_t protocolVersion, Hash const& networkID,
                    Config const& config, TransactionFrameBase const& tx);
 
-    OpEventManager createNewOpEventManager(OperationFrame const& op);
+    OpEventManager createNewOpEventManager(OperationFrame const& op,
+                                           Memo const& memo);
 
     DiagnosticEventBuffer& getDiagnosticEventsBuffer();
 
     void flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf);
+
+    Hash const& getNetworkID() const;
+    uint32_t getProtocolVersion() const;
+    Config const& getConfig() const;
 
 #ifdef BUILD_TESTS
     xdr::xvector<DiagnosticEvent> const&

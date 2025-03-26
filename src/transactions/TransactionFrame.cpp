@@ -274,6 +274,18 @@ TransactionFrame::getSourceID() const
     return toAccountID(mEnvelope.v1().tx.sourceAccount);
 }
 
+MuxedAccount
+TransactionFrame::getSourceAccount() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        MuxedAccount acc(CryptoKeyType::KEY_TYPE_ED25519);
+        acc.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
+        return acc;
+    }
+    return mEnvelope.v1().tx.sourceAccount;
+}
+
 uint32_t
 TransactionFrame::getNumOperations() const
 {
@@ -624,6 +636,13 @@ TransactionFrame::extraSignersExist() const
     return mEnvelope.type() == ENVELOPE_TYPE_TX &&
            mEnvelope.v1().tx.cond.type() == PRECOND_V2 &&
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
+}
+
+Memo
+TransactionFrame::getMemo() const
+{
+    return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.memo
+                                                   : mEnvelope.v1().tx.memo;
 }
 
 bool
@@ -1744,7 +1763,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             auto const& op = mOperations[i];
             auto& opResult = txResult.getOpResultAt(i);
             OpEventManager opEventManager =
-                txEventManager.createNewOpEventManager(*op);
+                txEventManager.createNewOpEventManager(*op, getMemo());
 
             LedgerTxn ltxOp(ltxTx);
             Hash subSeed = sorobanBasePrngSeed;

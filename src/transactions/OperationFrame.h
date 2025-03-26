@@ -74,6 +74,7 @@ class OperationFrame
                         bool forApply) const;
 
     AccountID getSourceID() const;
+    MuxedAccount getSourceAccount() const;
 
     bool checkValid(AppConnector& app, SignatureChecker& signatureChecker,
                     std::optional<SorobanNetworkConfig> const& cfg,
