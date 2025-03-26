@@ -46,6 +46,9 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             : destID == getSourceID();
     if (instantSuccess)
     {
+        opEventManager.eventForTransferWithIssuerCheck(
+            mPayment.asset, accountToSCAddress(getSourceAccount()),
+            accountToSCAddress(mPayment.destination), mPayment.amount);
         innerResult(res).code(PAYMENT_SUCCESS);
         return true;
     }
@@ -117,6 +120,8 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                          PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 
     innerResult(res).code(PAYMENT_SUCCESS);
+
+    // Events will be handled by PathPaymentStrictReceiveOpFrame::doApply
 
     return true;
 }

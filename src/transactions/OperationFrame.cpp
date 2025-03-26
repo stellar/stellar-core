@@ -218,6 +218,13 @@ OperationFrame::getSourceID() const
                                     : mParentTx.getSourceID();
 }
 
+MuxedAccount
+OperationFrame::getSourceAccount() const
+{
+    return mOperation.sourceAccount ? *mOperation.sourceAccount
+                                    : mParentTx.getSourceAccount();
+}
+
 // called when determining if we should accept this operation.
 // called when determining if we should flood
 // make sure sig is correct

@@ -150,15 +150,27 @@ CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
+    bool success = false;
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_14))
     {
-        return doApplyBeforeV14(ltx, res);
+        success = doApplyBeforeV14(ltx, res);
     }
     else
     {
-        return doApplyFromV14(ltx, res);
+        success = doApplyFromV14(ltx, res);
     }
+
+    if (success)
+    {
+        Asset native(ASSET_TYPE_NATIVE);
+        opEventManager.newTransferEvent(
+            native, accountToSCAddress(getSourceAccount()),
+            accountToSCAddress(mCreateAccount.destination),
+            mCreateAccount.startingBalance);
+    }
+
+    return success;
 }
 
 bool

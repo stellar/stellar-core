@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/EventManager.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
@@ -132,6 +133,15 @@ PathPaymentStrictReceiveOpFrame::doApply(
     {
         return false;
     }
+
+    opEventManager.eventsForClaimAtoms(getSourceAccount(),
+                                       innerResult(res).success().offers);
+
+    // Emit the final event between the source and destination account wrt the
+    // dest asset.
+    opEventManager.eventForTransferWithIssuerCheck(
+        getDestAsset(), accountToSCAddress(getSourceAccount()),
+        accountToSCAddress(getDestMuxedAccount()), mPathPayment.destAmount);
 
     return true;
 }

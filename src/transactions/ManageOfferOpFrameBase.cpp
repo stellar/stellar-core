@@ -540,6 +540,10 @@ ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     }
 
     ltx.commit();
+
+    opEventManager.eventsForClaimAtoms(getSourceAccount(),
+                                       getSuccessResult(res).offersClaimed);
+
     return true;
 }
 
