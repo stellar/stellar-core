@@ -105,13 +105,15 @@ DownloadBucketsWork::yieldMoreWork()
             // To avoid dangling references, maintain a map of index pointers
             // and do a lookup inside the callback instead of capturing anything
             // by reference.
-            self->mIndexMapMutex.lock();
-            auto indexIter = self->mIndexMap.find(currId);
-            releaseAssertOrThrow(indexIter != self->mIndexMap.end());
-            releaseAssertOrThrow(indexIter->second);
-            auto index = std::move(indexIter->second);
-            self->mIndexMap.erase(indexIter);
-            self->mIndexMapMutex.unlock();
+            std::unique_ptr<LiveBucketIndex const> index{};
+            {
+                std::lock_guard<std::mutex> lock(self->mIndexMapMutex);
+                auto indexIter = self->mIndexMap.find(currId);
+                releaseAssertOrThrow(indexIter != self->mIndexMap.end());
+                releaseAssertOrThrow(indexIter->second);
+                index = std::move(indexIter->second);
+                self->mIndexMap.erase(indexIter);
+            }
 
             auto bucketPath = ft.localPath_nogz();
             auto b = app.getBucketManager().adoptFileAsBucket<LiveBucket>(
