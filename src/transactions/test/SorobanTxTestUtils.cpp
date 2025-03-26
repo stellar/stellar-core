@@ -62,6 +62,31 @@ makeAccountAddress(AccountID const& accountID)
     return addr;
 }
 
+SCAddress
+makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
+    addr.muxedAccount().ed25519 = accountID.ed25519();
+    addr.muxedAccount().id = id;
+    return addr;
+}
+
+SCAddress
+makeClaimableBalanceAddress(Hash const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
+    addr.claimableBalanceId().v0() = id;
+    return addr;
+}
+
+SCAddress
+makeLiqudityPoolAddress(PoolID const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
+    addr.liquidityPoolId() = id;
+    return addr;
+}
+
 SCVal
 makeI32(int32_t i32)
 {
@@ -249,6 +274,26 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
         resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 100);
     }
     return resources;
+}
+
+ContractEvent
+makeContractEvent(Hash const& contractId, std::vector<SCVal> const& topics,
+                  SCVal const& data)
+{
+    ContractEvent event;
+    event.type = ContractEventType::CONTRACT;
+    event.contractID.activate() = contractId;
+    event.body.v0().topics.assign(topics.begin(), topics.end());
+    event.body.v0().data = data;
+    return event;
+}
+
+ContractEvent
+makeTransferEvent(SCAddress const& from, SCAddress const& to, int64_t amount,
+                  std::optional<int64_t> fromMuxId,
+                  std::optional<int64_t> toMuxId)
+{
+    return ContractEvent();
 }
 
 SorobanResources
@@ -1253,6 +1298,20 @@ AssetContractTestClient::makeContractDataBalanceKey(SCAddress const& addr)
     return balanceKey;
 }
 
+void
+AssetContractTestClient::setLastEvent(
+    TestContract::Invocation const& invocation, bool success)
+{
+    if (!success)
+    {
+        mLastEvent = std::nullopt;
+        return;
+    }
+    auto const& sorobanMeta = invocation.getTxMeta().getXDR().v3().sorobanMeta;
+    REQUIRE(sorobanMeta->events.size() == 1);
+    mLastEvent = sorobanMeta->events[0];
+}
+
 LedgerKey
 AssetContractTestClient::makeBalanceKey(SCAddress const& addr)
 {
@@ -1300,15 +1359,94 @@ AssetContractTestClient::getContract() const
     return mContract;
 }
 
-bool
-AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
-                                  int64_t amount)
+std::optional<ContractEvent>
+AssetContractTestClient::lastEvent() const
 {
-    SCVal toVal(SCV_ADDRESS);
-    toVal.address() = toAddr;
+    return mLastEvent;
+}
 
+ContractEvent
+AssetContractTestClient::makeTransferEvent(SCAddress const& from,
+                                           SCAddress const& to, int64_t amount,
+                                           std::optional<uint64_t> fromMuxId,
+                                           std::optional<uint64_t> toMuxId)
+{
+    std::string name;
+    switch (mAsset.type())
+    {
+    case AssetType::ASSET_TYPE_NATIVE:
+        name = "native";
+        break;
+    case AssetType::ASSET_TYPE_CREDIT_ALPHANUM4:
+        name = std::string(mAsset.alphaNum4().assetCode.begin(),
+                           mAsset.alphaNum4().assetCode.end()) +
+               ":" + KeyUtils::toStrKey(mAsset.alphaNum4().issuer);
+        break;
+    case AssetType::ASSET_TYPE_CREDIT_ALPHANUM12:
+        name = std::string(mAsset.alphaNum12().assetCode.begin(),
+                           mAsset.alphaNum12().assetCode.end()) +
+               ":" + KeyUtils::toStrKey(mAsset.alphaNum12().issuer);
+        break;
+    }
+
+    std::vector<SCVal> topics = {makeSymbolSCVal("transfer"),
+                                 makeAddressSCVal(from), makeAddressSCVal(to),
+                                 makeStringSCVal(std::move(name))};
+    SCVal data;
+    if (fromMuxId || toMuxId)
+    {
+        data.type(SCValType::SCV_MAP);
+        data.map().activate().push_back(
+            SCMapEntry(makeSymbolSCVal("amount"), makeI128(amount)));
+        if (fromMuxId)
+        {
+            data.map().activate().push_back(SCMapEntry(
+                makeSymbolSCVal("from_muxed_id"), makeU64(*fromMuxId)));
+        }
+        if (toMuxId)
+        {
+            data.map().activate().push_back(
+                SCMapEntry(makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)));
+        }
+    }
+    else
+    {
+        data = makeI128(amount);
+    }
+    return makeContractEvent(mContract.getAddress().contractId(), topics, data);
+}
+
+bool
+AssetContractTestClient::transfer(TestAccount& fromAcc,
+                                  SCAddress const& maybeMuxedToAddr,
+                                  int64_t amount,
+                                  std::optional<uint64_t> fromMuxId)
+{
     SCVal fromVal(SCV_ADDRESS);
-    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
+    if (!fromMuxId)
+    {
+        fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
+    }
+    else
+    {
+        fromVal.address() =
+            makeMuxedAccountAddress(fromAcc.getPublicKey(), *fromMuxId);
+    }
+
+    SCVal toVal(SCV_ADDRESS);
+    SCAddress toAddr = maybeMuxedToAddr;
+    if (maybeMuxedToAddr.type() != SCAddressType::SC_ADDRESS_TYPE_MUXED_ACCOUNT)
+    {
+        toVal.address() = maybeMuxedToAddr;
+    }
+    else
+    {
+        PublicKey pk;
+        pk.ed25519() = maybeMuxedToAddr.muxedAccount().ed25519;
+        toVal.address() =
+            makeMuxedAccountAddress(pk, maybeMuxedToAddr.muxedAccount().id);
+        toAddr = makeAccountAddress(pk);
+    }
 
     LedgerKey fromBalanceKey = makeBalanceKey(fromAcc.getPublicKey());
     LedgerKey toBalanceKey = makeBalanceKey(toAddr);
@@ -1355,6 +1493,7 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
                                spec)
             .withAuthorizedTopCall();
     bool success = invocation.invoke(&fromAcc);
+    setLastEvent(invocation, success);
 
     auto postTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
                                        ? fromAcc.getBalance()
@@ -1403,7 +1542,6 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
                 invocation.getTxMeta().getXDR().v3().sorobanMeta;
             REQUIRE(sorobanMeta->events.size() == 0);
             REQUIRE(sorobanMeta->diagnosticEvents.size() > 1);
-
             auto const& contract_ev = sorobanMeta->diagnosticEvents.at(1);
             REQUIRE(!contract_ev.inSuccessfulContractCall);
             REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
@@ -1442,11 +1580,11 @@ AssetContractTestClient::mint(TestAccount& admin, SCAddress const& toAddr,
     }
 
     auto preMintBalance = getBalance(toAddr);
-
-    bool success =
+    auto invocation =
         mContract.prepareInvocation("mint", {toVal, makeI128(amount)}, spec)
-            .withAuthorizedTopCall()
-            .invoke(&admin);
+            .withAuthorizedTopCall();
+    bool success = invocation.invoke(&admin);
+    setLastEvent(invocation, success);
     auto postMintBalance = getBalance(toAddr);
     if (success)
     {
@@ -1489,11 +1627,11 @@ AssetContractTestClient::burn(TestAccount& from, int64_t amount)
     }
 
     auto preBurnBalance = getBalance(fromAddr);
-
-    bool success =
+    auto invocation =
         mContract.prepareInvocation("burn", {fromVal, makeI128(amount)}, spec)
-            .withAuthorizedTopCall()
-            .invoke(&from);
+            .withAuthorizedTopCall();
+    bool success = invocation.invoke(&from);
+    setLastEvent(invocation, success);
     auto postBurnBalance = getBalance(fromAddr);
     if (success)
     {
@@ -1522,12 +1660,12 @@ AssetContractTestClient::clawback(TestAccount& admin, SCAddress const& fromAddr,
     }
 
     auto preClawbackBalance = getBalance(fromAddr);
-
-    bool success =
+    auto invocation =
         mContract
             .prepareInvocation("clawback", {fromVal, makeI128(amount)}, spec)
-            .withAuthorizedTopCall()
-            .invoke(&admin);
+            .withAuthorizedTopCall();
+    bool success = invocation.invoke(&admin);
+    setLastEvent(invocation, success);
     auto postClawbackBalance = getBalance(fromAddr);
     if (success)
     {

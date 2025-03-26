@@ -453,9 +453,9 @@ generateTransactions(Application& app, std::filesystem::path const& outputFile,
     TxGenerator txgen(app);
 
     // Open the output file for writing
-    std::remove(outputFile.c_str());
+    std::remove(outputFile.string().c_str());
     XDROutputFileStream out(app.getClock().getIOContext(), true);
-    out.open(outputFile);
+    out.open(outputFile.string());
 
     if (accounts == 0)
     {

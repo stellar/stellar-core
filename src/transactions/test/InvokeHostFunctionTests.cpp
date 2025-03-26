@@ -24,6 +24,7 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "rust/RustBridge.h"
 #include "test/TestAccount.h"
+#include "test/TestPrinter.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
@@ -387,6 +388,118 @@ TEST_CASE("Native stellar asset contract",
         checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
+TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
+          "[tx][soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+
+    SorobanTest test(cfg);
+    auto& app = test.getApp();
+    auto& root = test.getRoot();
+
+    auto a1 = root.create("a1", 1'000'000'000);
+    auto a2 = root.create("a2", 1'000'000'000);
+    Asset asset = makeAsset(root.getSecretKey(), "USDC");
+    a1.changeTrust(asset, 2'000'000'000);
+    a2.changeTrust(asset, 2'000'000'000);
+    root.pay(a1.getPublicKey(), asset, 1'000'000'000);
+    root.pay(a2.getPublicKey(), asset, 1'000'000'000);
+
+    auto a1Address = makeAccountAddress(a1.getPublicKey());
+    auto a2Address = makeAccountAddress(a2.getPublicKey());
+    TestContract& transferContract =
+        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer());
+
+    auto runTest = [&](bool useNativeAsset) {
+        Asset tokenAsset = useNativeAsset ? txtest::makeNativeAsset() : asset;
+        AssetContractTestClient client(test, tokenAsset);
+        {
+            INFO("transfer from muxed account to muxed account");
+            REQUIRE(client.transfer(
+                a1, makeMuxedAccountAddress(a2.getPublicKey(), 123'456'789),
+                100'000'000, std::numeric_limits<uint64_t>::max()));
+            REQUIRE(*client.lastEvent() ==
+                    client.makeTransferEvent(
+                        a1Address, a2Address, 100'000'000,
+                        std::numeric_limits<uint64_t>::max(), 123'456'789));
+        }
+        {
+            INFO("transfer from muxed account to contract");
+            REQUIRE(client.transfer(a2, transferContract.getAddress(),
+                                    200'000'000, 0));
+            REQUIRE(*client.lastEvent() ==
+                    client.makeTransferEvent(a2Address,
+                                             transferContract.getAddress(),
+                                             200'000'000, 0));
+        }
+        {
+            INFO("transfer from contract not supporting muxed accounts")
+            auto contractToAccountSpec =
+                client.defaultSpec()
+                    .setReadOnlyFootprint(client.getContract().getKeys())
+                    .extendReadWriteFootprint(
+                        {client.makeBalanceKey(transferContract.getAddress()),
+                         client.makeBalanceKey(a2Address)});
+            // Muxed destination won't work.
+            REQUIRE(
+                !transferContract
+                     .prepareInvocation(
+                         "transfer_1",
+                         {makeAddressSCVal(client.getContract().getAddress()),
+                          makeAddressSCVal(
+                              makeMuxedAccountAddress(a2.getPublicKey(), 111))},
+                         contractToAccountSpec)
+                     .invoke());
+            // Non-muxed destination will work.
+            REQUIRE(
+                transferContract
+                    .prepareInvocation(
+                        "transfer_1",
+                        {makeAddressSCVal(client.getContract().getAddress()),
+                         makeAddressSCVal(a2Address)},
+                        contractToAccountSpec)
+                    .invoke());
+        }
+        {
+            INFO("transfer from account to muxed account");
+            REQUIRE(client.transfer(
+                a1,
+                makeMuxedAccountAddress(a2.getPublicKey(),
+                                        123'456'789'123'456'789ULL),
+                300'000'000));
+            REQUIRE(*client.lastEvent() ==
+                    client.makeTransferEvent(a1Address, a2Address, 300'000'000,
+                                             std::nullopt,
+                                             123'456'789'123'456'789ULL));
+        }
+        {
+            INFO("transfer to liquidity pool fails");
+            REQUIRE(!client.transfer(a1, makeLiqudityPoolAddress(PoolID()), 1));
+            REQUIRE(client.lastEvent() == std::nullopt);
+        }
+        {
+            INFO("transfer to claimable balance fails");
+            REQUIRE(
+                !client.transfer(a1, makeClaimableBalanceAddress(Hash()), 1));
+            REQUIRE(client.lastEvent() == std::nullopt);
+        }
+    };
+
+    SECTION("native asset")
+    {
+        runTest(true);
+    }
+    SECTION("custom asset")
+    {
+        runTest(false);
+    }
+}
+
+#endif
 
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
