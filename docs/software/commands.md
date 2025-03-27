@@ -219,6 +219,12 @@ apply.
 
 * **version**: Print version info and then exit.
 
+* **pregenerate-loadgen-txs**: Generate payment transactions XDR file for load testing. This command creates a file with pre-generated payment transactions that can be used with the `generateload` HTTP command (specifically the `pay_pregenerated` mode). This improves performance when running load tests with large numbers of transactions since signature verification and tx generation can be skipped.
+  * `--count NUM-TRANSACTIONS` - number of transactions to generate (default: 1000)
+  * `--accounts NUM-ACCOUNTS` - number of test accounts to use (default: 100)
+  * `--offset OFFSET` - offset for account selection (default: 0)
+  * `--output-file FILE-NAME` - file to write the generated transactions to (required)
+
 ## HTTP Commands
 Stellar-core maintains two HTTP servers, a command server and a query server.
 The command endpoint listens for operator commands listed below, while the query
@@ -443,13 +449,19 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R]`
+    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
   * `create` mode creates new accounts. Batches 100 creation operations per transaction.
   * `pay` mode generates `PaymentOp` transactions on accounts specified
     (where the number of accounts can be offset).
+  * `pay_pregenerated` mode submits pre-generated payment transactions from an XDR file.
+    This mode skips signature verification for better performance when testing with
+    large numbers of transactions. Use the `LOADGEN_PREGENERATED_TRANSACTIONS_FILE`
+    config to specify the path to the XDR file containing the pre-generated transactions.
+    To generate a file with pre-generated transactions, use the
+    `pregenerate-loadgen-txs` command.
   * `pretend` mode generates transactions on accounts specified(where the number
     of accounts can be offset). Operations in `pretend` mode are designed to
     have a realistic size to help users "pretend" that they have real traffic.
