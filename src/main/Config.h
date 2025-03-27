@@ -515,6 +515,10 @@ class Config : public std::enable_shared_from_this<Config>
     // not setable in config file - only tests are allowed to do this
     bool USE_CONFIG_FOR_GENESIS;
 
+    // Number of test accounts to create in genesis ledger. This is useful for
+    // load testing.
+    uint32_t GENESIS_TEST_ACCOUNT_COUNT;
+
     // This is the number of failures you want to be able to tolerate.
     // You will need at least 3f+1 nodes in your quorum set.
     // If you don't have enough in your quorum set to tolerate the level you

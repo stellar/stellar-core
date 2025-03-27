@@ -193,6 +193,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::milliseconds(0);
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
+    GENESIS_TEST_ACCOUNT_COUNT = 0;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
     DISABLE_BUCKET_GC = false;
@@ -1642,7 +1643,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_MAX_TX_COUNT",
                  [&]() { APPLY_LOAD_MAX_TX_COUNT = readInt<uint32_t>(item); }},
-
+                {"GENESIS_TEST_ACCOUNT_COUNT",
+                 [&]() {
+                     GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
+                 }},
                 {"CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
                  [&]() {
                      CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
