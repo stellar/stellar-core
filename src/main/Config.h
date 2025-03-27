@@ -219,6 +219,10 @@ class Config : public std::enable_shared_from_this<Config>
     // production networks.
     bool ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING;
 
+    // Path to pre-generated transaction file for LoadGenerator's
+    // PAY_PREGENERATED mode
+    std::string LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+
     // A temporary config paramter that when enabled causes the protocol
     // upgrades to also update the Soroban cost calibration. This will result
     // in loadgen reflecting more accurate costs and match the real network.

@@ -133,4 +133,9 @@ bool appProtocolVersionStartsFrom(Application& app,
 
 // Large enough fee to cover most of the Soroban transactions.
 constexpr uint32_t DEFAULT_TEST_RESOURCE_FEE = 1'000'000;
+
+void generateTransactions(Application& app,
+                          std::filesystem::path const& outputFile,
+                          uint32_t numTransactions, uint32_t accounts,
+                          uint32_t offset);
 }

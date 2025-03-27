@@ -14,6 +14,7 @@
 #include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
+#include "util/finally.h"
 #include <fmt/format.h>
 
 using namespace stellar;
@@ -53,12 +54,16 @@ TEST_CASE("generate load in protocol 1")
 TEST_CASE("generate load with unique accounts", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    uint32_t const nAccounts = 1000;
+    uint32_t const nTxs = 100000;
+
     Simulation::pointer simulation =
-        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
             cfg.LOADGEN_OP_COUNT_FOR_TESTING = {1, 2, 10};
             cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = nAccounts * 10;
             return cfg;
         });
 
@@ -70,6 +75,13 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
+    std::string fileName =
+        app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+    auto cleanup = gsl::finally([&]() { std::remove(fileName.c_str()); });
+
+    generateTransactions(app, fileName, nTxs, nAccounts,
+                         /* offset */ nAccounts);
+
     auto& loadGen = app.getLoadGenerator();
 
     auto getSuccessfulTxCount = [&]() {
@@ -79,23 +91,24 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             .count();
     };
 
-    SECTION("success")
+    SECTION("pregenerated transactions")
     {
-        uint32_t const nAccounts = 1000;
-        uint32_t const nAccountCreationTxs = nAccounts / 100;
-        uint32_t const nTxs = 10000;
-
-        loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-            /* nAccounts */ nAccounts,
-            /* txRate */ 1));
+        auto const& cfg = app.getConfig();
+        loadGen.generateLoad(GeneratedLoadConfig::pregeneratedTxLoad(
+            nAccounts, /* nTxs */ nTxs, /* txRate */ 50,
+            /* offset*/ nAccounts, cfg.LOADGEN_PREGENERATED_TRANSACTIONS_FILE));
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 1;
             },
-            100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-        REQUIRE(getSuccessfulTxCount() == nAccountCreationTxs);
+            500 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        REQUIRE(getSuccessfulTxCount() == nTxs);
+    }
+    SECTION("success")
+    {
+        uint32_t const nTxs = 10000;
 
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
                                                          nAccounts, nTxs,
@@ -104,26 +117,14 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             [&]() {
                 return app.getMetrics()
                            .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 2;
+                           .count() == 1;
             },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-        REQUIRE(getSuccessfulTxCount() == nAccountCreationTxs + nTxs);
+        REQUIRE(getSuccessfulTxCount() == nTxs);
     }
     SECTION("invalid loadgen parameters")
     {
-        // Succesfully create accounts
         uint32 numAccounts = 100;
-        loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-            /* nAccounts */ 100,
-            /* txRate */ 1));
-        simulation->crankUntil(
-            [&]() {
-                return app.getMetrics()
-                           .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 1;
-            },
-            100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
         loadGen.generateLoad(
             GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
                                         /* nAccounts */ numAccounts,
@@ -139,9 +140,10 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     }
     SECTION("stop loadgen")
     {
-        loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-            /* nAccounts */ 10000,
-            /* txRate */ 1));
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
+                                                         /* nAccounts */ 1000,
+                                                         /* nTxs */ 1000 * 2,
+                                                         /* txRate */ 1));
         simulation->crankForAtLeast(std::chrono::seconds(10), false);
         auto& acc = app.getMetrics().NewMeter({"loadgen", "account", "created"},
                                               "account");

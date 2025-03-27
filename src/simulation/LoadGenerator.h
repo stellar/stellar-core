@@ -46,7 +46,9 @@ enum class LoadGenMode
     // Create upgrade entry
     SOROBAN_CREATE_UPGRADE,
     // Blend classic and soroban transactions. Mix of pay, upload, and invoke.
-    MIXED_CLASSIC_SOROBAN
+    MIXED_CLASSIC_SOROBAN,
+    // Submit pre-generated payment transactions from an XDR file
+    PAY_PREGENERATED
 };
 
 struct GeneratedLoadConfig
@@ -86,6 +88,10 @@ struct GeneratedLoadConfig
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
+
+    static GeneratedLoadConfig
+    pregeneratedTxLoad(uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
+                       uint32_t offset, std::filesystem::path const& file);
 
     SorobanConfig& getMutSorobanConfig();
     SorobanConfig const& getSorobanConfig() const;
@@ -137,6 +143,8 @@ struct GeneratedLoadConfig
     // the load generation will fail after a couple of retries.
     // Does not affect account creation.
     bool skipLowFeeTxs = false;
+    // Path to the pre-generated transactions file for PAY_PREGENERATED mode
+    std::filesystem::path preloadedTransactionsFile;
 
   private:
     SorobanConfig sorobanConfig;
@@ -261,6 +269,9 @@ class LoadGenerator
     std::unordered_set<uint64_t> mAccountsInUse;
     std::unordered_set<uint64_t> mAccountsAvailable;
 
+    std::optional<XDRInputFileStream> mPreloadedTransactionsFile;
+    uint32_t mCurrPreloadedTransaction = 0;
+
     // Get an account ID not currently in use.
     uint64_t getNextAvailableAccount(uint32_t ledgerNum);
 
@@ -368,5 +379,10 @@ class LoadGenerator
     // Indicate load generation run failed. Set `resetSoroban` to `true` to
     // reset soroban state.
     void emitFailure(bool resetSoroban);
+
+    // Generate transaction by reading a pre-generated transaction from an XDR
+    // file
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    readTransactionFromFile(GeneratedLoadConfig const& cfg);
 };
 }

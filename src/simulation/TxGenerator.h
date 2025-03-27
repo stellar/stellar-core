@@ -157,6 +157,9 @@ class TxGenerator
 
     void reset();
 
+    TestAccountPtr getAccount(uint64_t accountId) const;
+    void addAccount(uint64_t accountId, TestAccountPtr account);
+
   private:
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
 

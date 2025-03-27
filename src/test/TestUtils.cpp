@@ -358,4 +358,46 @@ appProtocolVersionStartsFrom(Application& app, ProtocolVersion fromVersion)
 
     return protocolVersionStartsFrom(ledgerVersion, fromVersion);
 }
+
+void
+generateTransactions(Application& app, std::filesystem::path const& outputFile,
+                     uint32_t numTransactions, uint32_t accounts,
+                     uint32_t offset)
+{
+    // Create a TxGenerator for generating payment transactions
+    TxGenerator txgen(app);
+
+    // Open the output file for writing
+    std::remove(outputFile.c_str());
+    XDROutputFileStream out(app.getClock().getIOContext(), true);
+    out.open(outputFile);
+
+    if (accounts == 0)
+    {
+        throw std::runtime_error("Number of accounts must be greater than 0");
+    }
+
+    LOG_INFO(DEFAULT_LOG,
+             "Generating {} payment transactions using {} accounts with offset "
+             "{}...",
+             numTransactions, accounts, offset);
+
+    // Loop through accounts to create payment transactions
+    for (uint32_t i = 0; i < numTransactions; i++)
+    {
+        uint64_t sourceAccountId = (i % accounts) + offset;
+
+        // Create a payment transaction
+        auto [account, tx] = txgen.paymentTransaction(
+            accounts, offset, 0, sourceAccountId, 1, std::nullopt);
+
+        // Convert to TransactionEnvelope and write to output
+        TransactionEnvelope txEnv = tx->getEnvelope();
+        out.writeOne(txEnv);
+    }
+
+    out.close();
+    LOG_INFO(DEFAULT_LOG, "Generated {} transactions in {}", numTransactions,
+             outputFile);
+}
 }

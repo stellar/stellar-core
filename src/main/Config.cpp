@@ -43,6 +43,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "RUN_STANDALONE",
     "MANUAL_CLOSE",
     "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
+    "LOADGEN_PREGENERATED_TRANSACTIONS_FILE",
+    "GENESIS_TEST_ACCOUNT_COUNT",
     "UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING",
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
@@ -178,6 +180,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // automatic self-check happens once every 3 hours
     AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
+    LOADGEN_PREGENERATED_TRANSACTIONS_FILE = "stellar-load-transactions.xdr";
     UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
@@ -1169,6 +1172,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = readBool(item);
+                 }},
+                {"LOADGEN_PREGENERATED_TRANSACTIONS_FILE",
+                 [&]() {
+                     LOADGEN_PREGENERATED_TRANSACTIONS_FILE = readString(item);
                  }},
                 {"UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING",
                  [&]() {
