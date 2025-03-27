@@ -30,8 +30,6 @@ enum class TrustFlagOp
 class TestAccount
 {
   public:
-    static TestAccount createRoot(Application& app);
-
     explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0)
         : mApp(app), mSk{std::move(sk)}, mSn{sn}
     {

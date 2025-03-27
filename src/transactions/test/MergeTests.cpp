@@ -41,7 +41,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
     // set up world
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
@@ -51,9 +51,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
     const int64_t minBalance =
         app->getLedgerManager().getLastMinBalance(5) + 20 * txfee;
 
-    auto a1 = root.create("A", 2 * minBalance);
-    auto b1 = root.create("B", minBalance);
-    auto gateway = root.create("gate", minBalance);
+    auto a1 = root->create("A", 2 * minBalance);
+    auto b1 = root->create("B", minBalance);
+    auto gateway = root->create("gate", minBalance);
 
     SECTION("merge into self")
     {
@@ -498,7 +498,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         {
             for_all_versions(*app, [&] {
                 auto tx1 = a1.tx({accountMerge(b1)});
-                auto tx2 = a1.tx({payment(root, 100)});
+                auto tx2 = a1.tx({payment(*root, 100)});
                 auto a1Balance = a1.getBalance();
                 auto b1Balance = b1.getBalance();
                 auto r = closeLedgerOn(*app, 1, 1, 2017, {tx1, tx2},
@@ -521,73 +521,79 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
     SECTION("account has only base reserve")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from", app->getLedgerManager().getLastMinBalance(0));
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
+                              ex_txINSUFFICIENT_BALANCE);
         });
     }
 
     SECTION("account has only base reserve + one stroop")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from", app->getLedgerManager().getLastMinBalance(0) + 1);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
+                              ex_txINSUFFICIENT_BALANCE);
         });
     }
 
     SECTION("account has only base reserve + one operation fee - one stroop")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + txfee - 1);
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
+                              ex_txINSUFFICIENT_BALANCE);
         });
     }
 
     SECTION("account has only base reserve + one operation fee")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from", app->getLedgerManager().getLastMinBalance(0) + txfee);
         for_versions_to(8, *app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
+                              ex_txINSUFFICIENT_BALANCE);
         });
         for_versions_from(9, *app,
-                          [&] { REQUIRE_NOTHROW(mergeFrom.merge(root)); });
+                          [&] { REQUIRE_NOTHROW(mergeFrom.merge(*root)); });
     }
 
     SECTION("account has only base reserve + one operation fee + one stroop")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + txfee + 1);
         for_versions_to(8, *app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
+                              ex_txINSUFFICIENT_BALANCE);
         });
         for_versions_from(9, *app,
-                          [&] { REQUIRE_NOTHROW(mergeFrom.merge(root)); });
+                          [&] { REQUIRE_NOTHROW(mergeFrom.merge(*root)); });
     }
 
     SECTION("account has only base reserve + two operation fees - one stroop")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + 2 * txfee - 1);
         for_versions_to(8, *app, [&] {
-            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+            REQUIRE_THROWS_AS(mergeFrom.merge(*root),
+                              ex_txINSUFFICIENT_BALANCE);
         });
         for_versions_from(9, *app,
-                          [&] { REQUIRE_NOTHROW(mergeFrom.merge(root)); });
+                          [&] { REQUIRE_NOTHROW(mergeFrom.merge(*root)); });
     }
 
     SECTION("account has only base reserve + two operation fees")
     {
-        auto mergeFrom = root.create(
+        auto mergeFrom = root->create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + 2 * txfee);
-        for_all_versions(*app, [&] { mergeFrom.merge(root); });
+        for_all_versions(*app, [&] { mergeFrom.merge(*root); });
     }
 
     SECTION("merge too far")
@@ -604,7 +610,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             }
             auto maxSeqNum = curStartSeqNum - 1;
 
-            auto txFrame = root.tx({a1.op(accountMerge(b1))});
+            auto txFrame = root->tx({a1.op(accountMerge(b1))});
             txFrame->addSignature(a1.getSecretKey());
 
             SECTION("at max = success")
@@ -648,8 +654,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
             SECTION("merge using different account")
             {
-                auto tx1 = transactionFrameFromOps(
-                    app->getNetworkID(), root, {a1.op(accountMerge(b1))}, {a1});
+                auto tx1 =
+                    transactionFrameFromOps(app->getNetworkID(), *root,
+                                            {a1.op(accountMerge(b1))}, {a1});
 
                 auto r = closeLedger(*app, {tx1, txMinSeqNumSrc}, true);
 
@@ -679,7 +686,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             SECTION("merge without minSeqNum")
             {
                 auto tx1 = transactionFrameFromOps(
-                    app->getNetworkID(), root,
+                    app->getNetworkID(), *root,
                     {a1.op(bumpSequence(curStartSeqNum))}, {a1});
                 auto tx2 =
                     transactionFrameFromOps(app->getNetworkID(), gateway,
@@ -701,8 +708,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
     {
         auto& lm = app->getLedgerManager();
         auto minBal = lm.getLastMinBalance(1);
-        auto acc1 = root.create("acc1", minBal + txfee);
-        auto acc2 = root.create("acc2", minBal + txfee + 1);
+        auto acc1 = root->create("acc1", minBal + txfee);
+        auto acc2 = root->create("acc2", minBal + txfee + 1);
 
         auto const native = makeNativeAsset();
         auto cur1 = acc1.asset("CUR1");
@@ -724,7 +731,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             });
 
             REQUIRE_THROWS_AS(acc2.merge(acc1), ex_ACCOUNT_MERGE_DEST_FULL);
-            root.pay(acc2, txfee - 1);
+            root->pay(acc2, txfee - 1);
             acc2.merge(acc1);
 
             {
@@ -741,7 +748,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
     SECTION("sponsorships")
     {
-        auto sponsoringAcc = root.create("sponsoringAcc", minBalance);
+        auto sponsoringAcc = root->create("sponsoringAcc", minBalance);
         auto addSponsoredSigner =
             [&](TestAccount& dest, int leExt, AccountID const* sponsoringID,
                 uint32_t numSubEntries, int aeExt, uint32_t numSponsoring,
@@ -908,7 +915,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 SECTION("is sponsoring reserve")
                 {
-                    auto cur1 = makeAsset(root, "CUR1");
+                    auto cur1 = makeAsset(*root, "CUR1");
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), a1,
                         {sponsoringAcc.op(beginSponsoringFutureReserves(a1)),

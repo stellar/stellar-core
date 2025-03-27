@@ -50,6 +50,7 @@ class AppConnector;
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
+class TestAccount;
 #endif
 
 class Application;
@@ -293,6 +294,8 @@ class Application
     // the config flags that are used in dynamic fashion (i.e. not for the app
     // initialization), use with caution.
     virtual Config& getMutableConfig() = 0;
+
+    virtual std::shared_ptr<TestAccount> getRoot() = 0;
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS

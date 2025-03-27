@@ -268,12 +268,13 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
-    uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
-    LedgerKey const& contractCodeLedgerKey,
+    uint32_t ledgerNum, std::optional<uint64_t> accountId,
+    xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
     std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> uploadResources)
 {
-    auto account = findAccount(accountId, ledgerNum);
+    auto account =
+        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
 
     if (!uploadResources)
     {
@@ -305,11 +306,12 @@ TxGenerator::createUploadWasmTransaction(
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createContractTransaction(
-    uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
-    uint64_t contractOverheadBytes, uint256 const& salt,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+    uint32_t ledgerNum, std::optional<uint64_t> accountId,
+    LedgerKey const& codeKey, uint64_t contractOverheadBytes,
+    uint256 const& salt, std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    auto account = findAccount(accountId, ledgerNum);
+    auto account =
+        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
     SorobanResources createResources{};
     createResources.instructions = 1'000'000;
     createResources.readBytes = contractOverheadBytes;
@@ -729,194 +731,279 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     xdr::xvector<ConfigSettingEntry> updatedEntries;
 
     LedgerSnapshot lsg(mApp);
-    for (uint32_t i = 0;
-         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
+    for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
     {
-        auto entry = lsg.load(configSettingKey(static_cast<ConfigSettingID>(i)))
-                         .current();
+        auto type = static_cast<ConfigSettingID>(t);
+        if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(type))
+        {
+            continue;
+        }
+
+        auto entryPtr = lsg.load(configSettingKey(type));
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // This could happen if we have not yet upgraded
+        if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
+             t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0) &&
+            !entryPtr)
+        {
+            continue;
+        }
+#endif
+        auto entry = entryPtr.current();
+
         auto& setting = entry.data.configSetting();
-        switch (static_cast<ConfigSettingID>(i))
+        switch (type)
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
-            if (upgradeCfg.maxContractSizeBytes > 0)
+            if (upgradeCfg.maxContractSizeBytes.has_value())
             {
                 setting.contractMaxSizeBytes() =
-                    upgradeCfg.maxContractSizeBytes;
+                    *upgradeCfg.maxContractSizeBytes;
             }
             break;
         case CONFIG_SETTING_CONTRACT_COMPUTE_V0:
-            if (upgradeCfg.ledgerMaxInstructions > 0)
+            if (upgradeCfg.ledgerMaxInstructions.has_value())
             {
                 setting.contractCompute().ledgerMaxInstructions =
-                    upgradeCfg.ledgerMaxInstructions;
+                    *upgradeCfg.ledgerMaxInstructions;
             }
 
-            if (upgradeCfg.txMaxInstructions > 0)
+            if (upgradeCfg.txMaxInstructions.has_value())
             {
                 setting.contractCompute().txMaxInstructions =
-                    upgradeCfg.txMaxInstructions;
+                    *upgradeCfg.txMaxInstructions;
             }
 
-            if (upgradeCfg.txMemoryLimit > 0)
+            if (upgradeCfg.feeRatePerInstructionsIncrement.has_value())
+            {
+                setting.contractCompute().feeRatePerInstructionsIncrement =
+                    *upgradeCfg.feeRatePerInstructionsIncrement;
+            }
+
+            if (upgradeCfg.txMemoryLimit.has_value())
             {
                 setting.contractCompute().txMemoryLimit =
-                    upgradeCfg.txMemoryLimit;
+                    *upgradeCfg.txMemoryLimit;
             }
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-            if (upgradeCfg.ledgerMaxReadLedgerEntries > 0)
+            if (upgradeCfg.ledgerMaxReadLedgerEntries.has_value())
             {
                 setting.contractLedgerCost().ledgerMaxReadLedgerEntries =
-                    upgradeCfg.ledgerMaxReadLedgerEntries;
+                    *upgradeCfg.ledgerMaxReadLedgerEntries;
             }
 
-            if (upgradeCfg.ledgerMaxReadBytes > 0)
+            if (upgradeCfg.ledgerMaxReadBytes.has_value())
             {
                 setting.contractLedgerCost().ledgerMaxReadBytes =
-                    upgradeCfg.ledgerMaxReadBytes;
+                    *upgradeCfg.ledgerMaxReadBytes;
             }
 
-            if (upgradeCfg.ledgerMaxWriteLedgerEntries > 0)
+            if (upgradeCfg.ledgerMaxWriteLedgerEntries.has_value())
             {
                 setting.contractLedgerCost().ledgerMaxWriteLedgerEntries =
-                    upgradeCfg.ledgerMaxWriteLedgerEntries;
+                    *upgradeCfg.ledgerMaxWriteLedgerEntries;
             }
 
-            if (upgradeCfg.ledgerMaxWriteBytes > 0)
+            if (upgradeCfg.ledgerMaxWriteBytes.has_value())
             {
                 setting.contractLedgerCost().ledgerMaxWriteBytes =
-                    upgradeCfg.ledgerMaxWriteBytes;
+                    *upgradeCfg.ledgerMaxWriteBytes;
             }
 
-            if (upgradeCfg.txMaxReadLedgerEntries > 0)
+            if (upgradeCfg.txMaxReadLedgerEntries.has_value())
             {
                 setting.contractLedgerCost().txMaxReadLedgerEntries =
-                    upgradeCfg.txMaxReadLedgerEntries;
+                    *upgradeCfg.txMaxReadLedgerEntries;
             }
 
-            if (upgradeCfg.txMaxReadBytes > 0)
+            if (upgradeCfg.txMaxReadBytes.has_value())
             {
                 setting.contractLedgerCost().txMaxReadBytes =
-                    upgradeCfg.txMaxReadBytes;
+                    *upgradeCfg.txMaxReadBytes;
             }
 
-            if (upgradeCfg.txMaxWriteLedgerEntries > 0)
+            if (upgradeCfg.txMaxWriteLedgerEntries.has_value())
             {
                 setting.contractLedgerCost().txMaxWriteLedgerEntries =
-                    upgradeCfg.txMaxWriteLedgerEntries;
+                    *upgradeCfg.txMaxWriteLedgerEntries;
             }
 
-            if (upgradeCfg.txMaxWriteBytes > 0)
+            if (upgradeCfg.txMaxWriteBytes.has_value())
             {
                 setting.contractLedgerCost().txMaxWriteBytes =
-                    upgradeCfg.txMaxWriteBytes;
+                    *upgradeCfg.txMaxWriteBytes;
             }
+
+            if (upgradeCfg.feeReadLedgerEntry.has_value())
+            {
+                setting.contractLedgerCost().feeReadLedgerEntry =
+                    *upgradeCfg.feeReadLedgerEntry;
+            }
+
+            if (upgradeCfg.feeWriteLedgerEntry.has_value())
+            {
+                setting.contractLedgerCost().feeWriteLedgerEntry =
+                    *upgradeCfg.feeWriteLedgerEntry;
+            }
+
+            if (upgradeCfg.feeRead1KB.has_value())
+            {
+                setting.contractLedgerCost().feeRead1KB =
+                    *upgradeCfg.feeRead1KB;
+            }
+
+            if (upgradeCfg.writeFee1KBBucketListLow.has_value())
+            {
+                setting.contractLedgerCost().writeFee1KBBucketListLow =
+                    *upgradeCfg.writeFee1KBBucketListLow;
+            }
+
+            if (upgradeCfg.writeFee1KBBucketListHigh.has_value())
+            {
+                setting.contractLedgerCost().writeFee1KBBucketListHigh =
+                    *upgradeCfg.writeFee1KBBucketListHigh;
+            }
+
             break;
         case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+            if (upgradeCfg.feeHistorical1KB.has_value())
+            {
+                setting.contractHistoricalData().feeHistorical1KB =
+                    *upgradeCfg.feeHistorical1KB;
+            }
             break;
         case CONFIG_SETTING_CONTRACT_EVENTS_V0:
-            if (upgradeCfg.txMaxContractEventsSizeBytes > 0)
+            if (upgradeCfg.txMaxContractEventsSizeBytes.has_value())
             {
                 setting.contractEvents().txMaxContractEventsSizeBytes =
-                    upgradeCfg.txMaxContractEventsSizeBytes;
+                    *upgradeCfg.txMaxContractEventsSizeBytes;
             }
             break;
         case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
-            if (upgradeCfg.ledgerMaxTransactionsSizeBytes > 0)
+            if (upgradeCfg.ledgerMaxTransactionsSizeBytes.has_value())
             {
                 setting.contractBandwidth().ledgerMaxTxsSizeBytes =
-                    upgradeCfg.ledgerMaxTransactionsSizeBytes;
+                    *upgradeCfg.ledgerMaxTransactionsSizeBytes;
             }
 
-            if (upgradeCfg.txMaxSizeBytes > 0)
+            if (upgradeCfg.txMaxSizeBytes.has_value())
             {
                 setting.contractBandwidth().txMaxSizeBytes =
-                    upgradeCfg.txMaxSizeBytes;
+                    *upgradeCfg.txMaxSizeBytes;
+            }
+
+            if (upgradeCfg.feeTransactionSize1KB.has_value())
+            {
+                setting.contractBandwidth().feeTxSize1KB =
+                    *upgradeCfg.feeTransactionSize1KB;
             }
             break;
         case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
         case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
             break;
         case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
-            if (upgradeCfg.maxContractDataKeySizeBytes > 0)
+            if (upgradeCfg.maxContractDataKeySizeBytes.has_value())
             {
                 setting.contractDataKeySizeBytes() =
-                    upgradeCfg.maxContractDataKeySizeBytes;
+                    *upgradeCfg.maxContractDataKeySizeBytes;
             }
             break;
         case CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
-            if (upgradeCfg.maxContractDataEntrySizeBytes > 0)
+            if (upgradeCfg.maxContractDataEntrySizeBytes.has_value())
             {
                 setting.contractDataEntrySizeBytes() =
-                    upgradeCfg.maxContractDataEntrySizeBytes;
+                    *upgradeCfg.maxContractDataEntrySizeBytes;
             }
             break;
         case CONFIG_SETTING_STATE_ARCHIVAL:
         {
             auto& ses = setting.stateArchivalSettings();
-            if (upgradeCfg.maxEntryTTL > 0)
+            if (upgradeCfg.maxEntryTTL.has_value())
             {
-                ses.maxEntryTTL = upgradeCfg.maxEntryTTL;
+                ses.maxEntryTTL = *upgradeCfg.maxEntryTTL;
             }
 
-            if (upgradeCfg.minTemporaryTTL > 0)
+            if (upgradeCfg.minTemporaryTTL.has_value())
             {
-                ses.minTemporaryTTL = upgradeCfg.minTemporaryTTL;
+                ses.minTemporaryTTL = *upgradeCfg.minTemporaryTTL;
             }
 
-            if (upgradeCfg.minPersistentTTL > 0)
+            if (upgradeCfg.minPersistentTTL.has_value())
             {
-                ses.minPersistentTTL = upgradeCfg.minPersistentTTL;
+                ses.minPersistentTTL = *upgradeCfg.minPersistentTTL;
             }
 
-            if (upgradeCfg.persistentRentRateDenominator > 0)
+            if (upgradeCfg.persistentRentRateDenominator.has_value())
             {
                 ses.persistentRentRateDenominator =
-                    upgradeCfg.persistentRentRateDenominator;
+                    *upgradeCfg.persistentRentRateDenominator;
             }
 
-            if (upgradeCfg.tempRentRateDenominator > 0)
+            if (upgradeCfg.tempRentRateDenominator.has_value())
             {
                 ses.tempRentRateDenominator =
-                    upgradeCfg.tempRentRateDenominator;
+                    *upgradeCfg.tempRentRateDenominator;
             }
 
-            if (upgradeCfg.maxEntriesToArchive > 0)
+            if (upgradeCfg.maxEntriesToArchive.has_value())
             {
-                ses.maxEntriesToArchive = upgradeCfg.maxEntriesToArchive;
+                ses.maxEntriesToArchive = *upgradeCfg.maxEntriesToArchive;
             }
 
-            if (upgradeCfg.bucketListSizeWindowSampleSize > 0)
+            if (upgradeCfg.bucketListSizeWindowSampleSize.has_value())
             {
                 ses.bucketListSizeWindowSampleSize =
-                    upgradeCfg.bucketListSizeWindowSampleSize;
+                    *upgradeCfg.bucketListSizeWindowSampleSize;
             }
 
-            if (upgradeCfg.bucketListWindowSamplePeriod > 0)
+            if (upgradeCfg.bucketListWindowSamplePeriod.has_value())
             {
                 ses.bucketListWindowSamplePeriod =
-                    upgradeCfg.bucketListWindowSamplePeriod;
+                    *upgradeCfg.bucketListWindowSamplePeriod;
             }
 
-            if (upgradeCfg.evictionScanSize > 0)
+            if (upgradeCfg.evictionScanSize.has_value())
             {
-                ses.evictionScanSize = upgradeCfg.evictionScanSize;
+                ses.evictionScanSize = *upgradeCfg.evictionScanSize;
             }
 
-            if (upgradeCfg.startingEvictionScanLevel > 0)
+            if (upgradeCfg.startingEvictionScanLevel.has_value())
             {
                 ses.startingEvictionScanLevel =
-                    upgradeCfg.startingEvictionScanLevel;
+                    *upgradeCfg.startingEvictionScanLevel;
             }
         }
         break;
         case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
-            if (upgradeCfg.ledgerMaxTxCount > 0)
+            if (upgradeCfg.ledgerMaxTxCount.has_value())
             {
                 setting.contractExecutionLanes().ledgerMaxTxCount =
-                    upgradeCfg.ledgerMaxTxCount;
+                    *upgradeCfg.ledgerMaxTxCount;
             }
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
+            if (upgradeCfg.ledgerMaxDependentTxClusters.has_value())
+            {
+                setting.contractParallelCompute().ledgerMaxDependentTxClusters =
+                    *upgradeCfg.ledgerMaxDependentTxClusters;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
+            if (upgradeCfg.txMaxInMemoryReadEntries.has_value())
+            {
+                setting.contractLedgerCostExt().txMaxInMemoryReadEntries =
+                    *upgradeCfg.txMaxInMemoryReadEntries;
+            }
+
+            if (upgradeCfg.flatRateFeeWrite1KB.has_value())
+            {
+                setting.contractLedgerCostExt().feeWrite1KB =
+                    *upgradeCfg.flatRateFeeWrite1KB;
+            }
+            break;
+#endif
         default:
             releaseAssert(false);
             break;
@@ -941,12 +1028,13 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
-    uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
-    LedgerKey const& codeKey, LedgerKey const& instanceKey,
-    std::optional<uint32_t> maxGeneratedFeeRate,
+    uint32_t ledgerNum, std::optional<uint64_t> accountId,
+    SCBytes const& upgradeBytes, LedgerKey const& codeKey,
+    LedgerKey const& instanceKey, std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> resources)
 {
-    auto account = findAccount(accountId, ledgerNum);
+    auto account =
+        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
     auto const& contractID = instanceKey.contractData().contract;
 
     LedgerKey upgradeLK(CONTRACT_DATA);

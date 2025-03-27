@@ -42,7 +42,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
@@ -54,7 +54,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         app->getLedgerManager().getLastMinBalance(2) + 20 * txfee;
 
     // sets up issuer account
-    auto issuer = root.create("issuer", minBalance2 * 10);
+    auto issuer = root->create("issuer", minBalance2 * 10);
     auto xlm = makeNativeAsset();
     auto idr = issuer.asset("IDR");
     auto usd = issuer.asset("USD");
@@ -63,8 +63,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
     SECTION("passive offer")
     {
-        auto a1 = root.create("A", minBalance2 * 2);
-        auto b1 = root.create("B", minBalance2 * 2);
+        auto a1 = root->create("A", minBalance2 * 2);
+        auto b1 = root->create("B", minBalance2 * 2);
 
         a1.changeTrust(idr, trustLineLimit);
         a1.changeTrust(usd, trustLineLimit);
@@ -142,7 +142,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without trustline for selling")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
@@ -156,12 +156,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without issuer for selling")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
 
             // remove issuer
-            issuer.merge(root);
+            issuer.merge(*root);
             for_versions_to(12, *app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
@@ -181,7 +181,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without having any amount of asset")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
@@ -196,7 +196,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without trustline for buying")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
             for_all_versions(*app, [&] {
@@ -212,12 +212,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without issuer for buying")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             issuer.pay(a1, idr, 100);
 
             // remove issuer
-            issuer.merge(root);
+            issuer.merge(*root);
 
             for_versions_to(12, *app, [&] {
                 REQUIRE_THROWS_AS(
@@ -238,7 +238,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer without XLM to make for reserve")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             a1.changeTrust(usd, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
@@ -255,12 +255,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer with trustline filled up")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             a1.changeTrust(usd, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
             issuer.pay(a1, usd, trustLineLimit);
-            root.pay(a1, minBalance2);
+            root->pay(a1, minBalance2);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
@@ -274,12 +274,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer with trustline filled up to INT64_MAX")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             a1.changeTrust(usd, INT64_MAX);
             issuer.pay(a1, idr, trustLineLimit);
             issuer.pay(a1, usd, INT64_MAX);
-            root.pay(a1, minBalance2);
+            root->pay(a1, minBalance2);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
@@ -293,12 +293,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("create offer with amount 0")
         {
-            auto a1 = root.create("A", minBalance2);
+            auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             a1.changeTrust(usd, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
             issuer.pay(a1, usd, trustLineLimit);
-            root.pay(a1, minBalance2);
+            root->pay(a1, minBalance2);
             for_versions_to(2, *app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(a1, {idr, usd, oneone, 0},
@@ -331,7 +331,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 Price{-1, -1}, Price{-1, 1}, Price{0, -1}, Price{-1, 0},
                 Price{0, 0},   Price{0, 1},  Price{1, -1}, Price{1, 0}};
             for_all_versions(*app, [&] {
-                auto a = root.create("A", minBalance2 * 2);
+                auto a = root->create("A", minBalance2 * 2);
                 a.changeTrust(idr, trustLineLimit);
                 for (auto const& p : invalidPrices)
                 {
@@ -350,7 +350,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     SECTION("update offer")
     {
         auto const minBalanceA = app->getLedgerManager().getLastMinBalance(3);
-        auto a1 = root.create("A", minBalanceA + 10000);
+        auto a1 = root->create("A", minBalanceA + 10000);
         a1.changeTrust(usd, trustLineLimit);
         a1.changeTrust(idr, trustLineLimit);
         issuer.pay(a1, idr, trustLineBalance);
@@ -531,7 +531,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         auto const minBalanceA =
             app->getLedgerManager().getLastMinBalance(3 + nbOffers);
         auto const minBalance3 = app->getLedgerManager().getLastMinBalance(3);
-        auto a1 = root.create("A", minBalanceA + 10000);
+        auto a1 = root->create("A", minBalanceA + 10000);
         a1.changeTrust(usd, trustLineLimit);
         a1.changeTrust(idr, trustLineLimit);
         issuer.pay(a1, idr, trustLineBalance);
@@ -594,7 +594,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     bStartingBalance += txfee * 2;
                     bStartingBalance += offerAmount;
 
-                    auto b1 = root.create("B", bStartingBalance);
+                    auto b1 = root->create("B", bStartingBalance);
                     b1.changeTrust(idr, 1000000000000000000ll);
 
                     for_versions_to(8, *app, [&]() {
@@ -629,7 +629,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     bStartingBalance += txfee * 2;
                     bStartingBalance += a1IDrs - delta;
 
-                    auto b1 = root.create("B", bStartingBalance);
+                    auto b1 = root->create("B", bStartingBalance);
                     b1.changeTrust(idr, 1000000000000000000ll);
 
                     for_versions_to(8, *app, [&]() {
@@ -666,7 +666,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         REQUIRE_THROWS_AS(
                             checkCrossed(b1, actualPayment, actualPayment + 1),
                             ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                        root.pay(b1, txfee);
+                        root->pay(b1, txfee);
                         checkCrossed(b1, actualPayment, actualPayment);
                     });
                 }
@@ -674,7 +674,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         }
         SECTION("multiple offers")
         {
-            auto b1 = root.create("B", minBalance3 + 10000);
+            auto b1 = root->create("B", minBalance3 + 10000);
             b1.changeTrust(idr, trustLineLimit);
             b1.changeTrust(usd, trustLineLimit);
 
@@ -962,7 +962,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                             {{a1, {{usd, 0}, {idr, 100000}}},
                              {b1, {{usd, 20000}, {idr, 0}}}});
 
-                        auto c1 = root.create("C", minBalance3 + 10000);
+                        auto c1 = root->create("C", minBalance3 + 10000);
 
                         // inject also an offer that should get cleaned up
                         c1.changeTrust(idr, trustLineLimit);
@@ -1119,7 +1119,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         SECTION("offers with limits")
         {
             auto const price = Price{3, 2};
-            auto b1 = root.create("B", minBalance3 + 10000);
+            auto b1 = root->create("B", minBalance3 + 10000);
             b1.changeTrust(idr, trustLineLimit);
             b1.changeTrust(usd, trustLineLimit);
 
@@ -1135,7 +1135,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 return market.addOffer(b1, {idr, usd, Price{3, 2}, 100});
             });
 
-            auto c1 = root.create("C", minBalanceA + 10000);
+            auto c1 = root->create("C", minBalanceA + 10000);
             c1.changeTrust(usd, trustLineLimit);
             c1.changeTrust(idr, trustLineLimit);
             issuer.pay(c1, usd, trustLineBalance);
@@ -1198,7 +1198,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             {
                 for_versions_to(9, *app, [&] {
                     // sets up the secure issuer account for USD
-                    auto issuerAuth = root.create("issuerAuth", minBalance2);
+                    auto issuerAuth = root->create("issuerAuth", minBalance2);
 
                     auto usdAuth = issuerAuth.asset("USD");
                     auto idrAuth = issuerAuth.asset("IDR");
@@ -1207,7 +1207,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG}));
 
                     // setup d1
-                    auto d1 = root.create("D", minBalance3 + 10000);
+                    auto d1 = root->create("D", minBalance3 + 10000);
 
                     d1.changeTrust(idrAuth, trustLineLimit);
                     d1.changeTrust(usdAuth, trustLineLimit);
@@ -1234,7 +1234,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     }
 
                     // setup e1
-                    auto e1 = root.create("E", minBalance3 + 10000);
+                    auto e1 = root->create("E", minBalance3 + 10000);
 
                     e1.changeTrust(idrAuth, trustLineLimit);
                     e1.changeTrust(usdAuth, trustLineLimit);
@@ -1250,7 +1250,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     });
 
                     // setup f1
-                    auto f1 = root.create("F", minBalance3 + 10000);
+                    auto f1 = root->create("F", minBalance3 + 10000);
 
                     f1.changeTrust(idrAuth, trustLineLimit);
                     f1.changeTrust(usdAuth, trustLineLimit);
@@ -1362,7 +1362,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             const int64_t assetMultiplier = 1000000;
 
-            auto c1 = root.create("C", minBalance3 + 1000);
+            auto c1 = root->create("C", minBalance3 + 1000);
 
             c1.changeTrust(idr, 2000 * assetMultiplier);
             issuer.pay(c1, idr, 1000 * assetMultiplier);
@@ -1379,7 +1379,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             // sell 20000 USD for 200 IDR; buy IDR @ 0.01 = sell USD @ 100.0
             auto p = Price{1, 100};
 
-            auto b1 = root.create("B", minBalance3 + 1000);
+            auto b1 = root->create("B", minBalance3 + 1000);
             b1.changeTrust(idr, 101 * assetMultiplier);
             issuer.pay(b1, idr, 100 * assetMultiplier);
             b1.changeTrust(usd, INT64_MAX);
@@ -1515,8 +1515,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         auto askAmount = 2000000000;
         auto askPrice = Price{2551, 625}; // ask for 4.0816000
 
-        auto askingAccount = root.create("asking offer account", 10000000000);
-        auto biddingAccount = root.create("bidding offer account", 10000000000);
+        auto askingAccount = root->create("asking offer account", 10000000000);
+        auto biddingAccount =
+            root->create("bidding offer account", 10000000000);
         askingAccount.changeTrust(idr, 1000000000000);
         biddingAccount.changeTrust(idr, 1000000000000);
         issuer.pay(askingAccount, idr, 100000000000);
@@ -1606,8 +1607,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     {
         auto market = TestMarket{*app};
         auto a1 =
-            root.create("A", app->getLedgerManager().getLastMinBalance(2) +
-                                 3 * txfee + 110);
+            root->create("A", app->getLedgerManager().getLastMinBalance(2) +
+                                  3 * txfee + 110);
         a1.changeTrust(usd, trustLineLimit);
         for_versions_to(9, *app, [&] {
             auto offer = market.requireChangesWithOffer({}, [&] {
@@ -1632,8 +1633,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     SECTION("wheat stays or sheep stays")
     {
         auto const minBalance3 = app->getLedgerManager().getLastMinBalance(3);
-        auto wheatSeller = root.create("wheat", minBalance3 + 10000);
-        auto sheepSeller = root.create("sheep", minBalance3 + 10000);
+        auto wheatSeller = root->create("wheat", minBalance3 + 10000);
+        auto sheepSeller = root->create("sheep", minBalance3 + 10000);
 
         wheatSeller.changeTrust(idr, INT64_MAX);
         wheatSeller.changeTrust(usd, INT64_MAX);
@@ -1742,7 +1743,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         for_versions_from(10, *app, [&] {
             auto const minBalance3 =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto wheatSeller = root.create("wheat", minBalance3 + 10000);
+            auto wheatSeller = root->create("wheat", minBalance3 + 10000);
 
             wheatSeller.changeTrust(idr, INT64_MAX);
             wheatSeller.changeTrust(usd, INT64_MAX);
@@ -1763,8 +1764,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(2);
-                auto acc1 = root.create("acc1", minBalance + 10000);
-                auto acc2 = root.create("acc2", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
+                auto acc2 = root->create("acc2", minBalance + 10000);
 
                 acc1.changeTrust(usd, 1000);
                 acc2.changeTrust(usd, 1000);
@@ -1787,8 +1788,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(2);
-                auto acc1 = root.create("acc1", minBalance + 10000);
-                auto acc2 = root.create("acc2", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
+                auto acc2 = root->create("acc2", minBalance + 10000);
 
                 acc1.changeTrust(usd, 1000);
                 acc2.changeTrust(usd, 1000);
@@ -1815,28 +1816,28 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(2) + txfee;
-                auto acc1 = root.create("acc1", minBalance);
+                auto acc1 = root->create("acc1", minBalance);
                 auto market = TestMarket{*app};
 
                 acc1.changeTrust(usd, 2000);
 
                 // Test when no existing offers
-                root.pay(acc1, xlm, 500 + txfee);
+                root->pay(acc1, xlm, 500 + txfee);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {xlm, usd, Price{1, 1}, 501}),
                     ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 500});
                 });
 
                 // Test when existing offers
                 auto reserve = app->getLedgerManager().getLastReserve();
-                root.pay(acc1, xlm, 500 + txfee + reserve);
+                root->pay(acc1, xlm, 500 + txfee + reserve);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {xlm, usd, Price{1, 1}, 501}),
                     ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 500});
                 });
@@ -1848,19 +1849,19 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + txfee);
+                auto acc1 = root->create("acc1", minBalance + txfee);
                 auto market = TestMarket{*app};
 
                 acc1.changeTrust(usd, INT64_MAX);
                 issuer.pay(acc1, usd, INT64_MAX);
 
                 // Test when no existing offers
-                root.pay(acc1, xlm, 2 * txfee);
+                root->pay(acc1, xlm, 2 * txfee);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, xlm, Price{1, 1},
                                            INT64_MAX - minBalance - txfee + 1}),
                     ex_MANAGE_SELL_OFFER_LINE_FULL);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 auto o1 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1,
                                            {usd, xlm, Price{1, 1},
@@ -1875,11 +1876,11 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 });
 
                 // Test when existing offers
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, xlm, Price{1, 1}, 501}),
                     ex_MANAGE_SELL_OFFER_LINE_FULL);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 auto o2 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {usd, xlm, Price{1, 1}, 500});
                 });
@@ -1891,7 +1892,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
                 auto market = TestMarket{*app};
 
                 acc1.changeTrust(usd, 2000);
@@ -1921,7 +1922,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
                 auto market = TestMarket{*app};
 
                 // Test when no existing offers
@@ -1953,22 +1954,22 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(2);
-                auto acc1 = root.create("acc1", minBalance + txfee);
+                auto acc1 = root->create("acc1", minBalance + txfee);
                 auto market = TestMarket{*app};
 
                 acc1.changeTrust(usd, 2000);
 
                 // Test when no existing offers
-                root.pay(acc1, xlm, 500 + txfee);
+                root->pay(acc1, xlm, 500 + txfee);
                 auto o1 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 250});
                 });
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o1.key.offerID,
                                        {xlm, usd, Price{1, 1}, 501}),
                     ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o1.key.offerID,
                                               {xlm, usd, Price{1, 1}, 500});
@@ -1976,16 +1977,16 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
                 // Test when existing offers
                 auto reserve = app->getLedgerManager().getLastReserve();
-                root.pay(acc1, xlm, 500 + txfee + reserve);
+                root->pay(acc1, xlm, 500 + txfee + reserve);
                 auto o2 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 250});
                 });
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o2.key.offerID,
                                        {xlm, usd, Price{1, 1}, 501}),
                     ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o2.key.offerID,
                                               {xlm, usd, Price{1, 1}, 500});
@@ -1998,26 +1999,26 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + txfee);
+                auto acc1 = root->create("acc1", minBalance + txfee);
                 auto market = TestMarket{*app};
 
                 acc1.changeTrust(usd, INT64_MAX);
                 issuer.pay(acc1, usd, INT64_MAX);
 
                 // Test when no existing offers
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 auto o1 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1,
                                            {usd, xlm, Price{1, 1},
                                             INT64_MAX - minBalance - txfee});
                 });
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(
                         acc1, o1.key.offerID,
                         {usd, xlm, Price{1, 1}, INT64_MAX - minBalance + 1}),
                     ex_MANAGE_SELL_OFFER_LINE_FULL);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(
                         acc1, o1.key.offerID,
@@ -2032,16 +2033,16 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 });
 
                 // Test when existing offers
-                root.pay(acc1, xlm, 2 * txfee);
+                root->pay(acc1, xlm, 2 * txfee);
                 auto o2 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {usd, xlm, Price{1, 1}, 250});
                 });
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o2.key.offerID,
                                        {usd, xlm, Price{1, 1}, 501}),
                     ex_MANAGE_SELL_OFFER_LINE_FULL);
-                root.pay(acc1, xlm, txfee);
+                root->pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o2.key.offerID,
                                               {usd, xlm, Price{1, 1}, 500});
@@ -2054,7 +2055,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
                 auto market = TestMarket{*app};
 
                 acc1.changeTrust(usd, 2000);
@@ -2094,7 +2095,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
                 auto market = TestMarket{*app};
 
                 // Test when no existing offers
@@ -2134,7 +2135,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         auto unauthorizedOffer = [&](TrustFlagOp flagOp) {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(2);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
 
             auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
                          static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
@@ -2171,7 +2172,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
 
             acc1.changeTrust(usd, 1);
             acc1.changeTrust(idr, 1);
@@ -2189,7 +2190,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
 
             acc1.changeTrust(usd, 2);
             acc1.changeTrust(idr, 3);
@@ -2214,7 +2215,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(2);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
 
             acc1.changeTrust(usd, 500);
 
@@ -2251,7 +2252,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(4);
-            auto acc1 = root.create("acc1", minBalance + 4 * txfee);
+            auto acc1 = root->create("acc1", minBalance + 4 * txfee);
 
             acc1.changeTrust(idr, 500);
             acc1.changeTrust(usd, INT64_MAX);
@@ -2272,13 +2273,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                                                 INT64_MAX - minBalance - 999});
                     });
 
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, o1.key.offerID,
                                            {idr, xlm, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
 
-                    root.pay(acc1, 2 * txfee);
+                    root->pay(acc1, 2 * txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(
                             acc1, o2.key.offerID,
@@ -2298,7 +2299,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                             acc1, {usd, xlm, Price{1, 1},
                                    INT64_MAX - minBalance - 500 - txfee});
                     });
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, o1.key.offerID,
                                                   {idr, xlm, Price{1, 2}, 500});
@@ -2311,7 +2312,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
 
             acc1.changeTrust(idr, 500);
             acc1.changeTrust(usd, 500);
@@ -2387,7 +2388,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             auto reserve = app->getLedgerManager().getLastReserve();
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(0);
-            auto acc1 = root.create("acc1", minBalance);
+            auto acc1 = root->create("acc1", minBalance);
             TestMarket market(*app);
 
             REQUIRE(!(initialSelling == initialBuying));
@@ -2395,18 +2396,18 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
             if (initialSelling.type() == ASSET_TYPE_NATIVE)
             {
-                root.pay(acc1, 500);
+                root->pay(acc1, 500);
             }
             else
             {
-                root.pay(acc1, reserve + txfee);
+                root->pay(acc1, reserve + txfee);
                 acc1.changeTrust(initialSelling, 500);
                 issuer.pay(acc1, initialSelling, 500);
             }
 
             if (initialBuying.type() != ASSET_TYPE_NATIVE)
             {
-                root.pay(acc1, reserve + txfee);
+                root->pay(acc1, reserve + txfee);
                 acc1.changeTrust(initialBuying, 1000);
             }
 
@@ -2414,18 +2415,18 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             {
                 if (finalSelling.type() == ASSET_TYPE_NATIVE)
                 {
-                    root.pay(acc1, 499);
+                    root->pay(acc1, 499);
                 }
                 else
                 {
                     if (finalSelling == initialBuying)
                     {
-                        root.pay(acc1, txfee);
+                        root->pay(acc1, txfee);
                         acc1.changeTrust(finalSelling, 1500);
                     }
                     else
                     {
-                        root.pay(acc1, reserve + txfee);
+                        root->pay(acc1, reserve + txfee);
                         acc1.changeTrust(finalSelling, 500);
                     }
                     issuer.pay(acc1, finalSelling, 499);
@@ -2436,7 +2437,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             {
                 if (finalBuying.type() == ASSET_TYPE_NATIVE)
                 {
-                    root.pay(acc1, reserve + txfee);
+                    root->pay(acc1, reserve + txfee);
                     auto cur1 = acc1.asset("CUR1");
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(
@@ -2444,24 +2445,24 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                             {cur1, xlm, Price{1, 1},
                              INT64_MAX - acc1.getBalance() - reserve - 999});
                     });
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                 }
                 else
                 {
                     if (finalBuying == initialSelling)
                     {
-                        root.pay(acc1, txfee);
+                        root->pay(acc1, txfee);
                         acc1.changeTrust(finalBuying, 1499);
                     }
                     else
                     {
-                        root.pay(acc1, reserve + txfee);
+                        root->pay(acc1, reserve + txfee);
                         acc1.changeTrust(finalBuying, 999);
                     }
                 }
             }
 
-            root.pay(acc1, reserve + txfee);
+            root->pay(acc1, reserve + txfee);
             auto offer = market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(
                     acc1, {initialSelling, initialBuying, Price{2, 1}, 500});
@@ -2470,33 +2471,33 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
             if (!(finalBuying == initialBuying))
             {
-                root.pay(acc1, txfee);
+                root->pay(acc1, txfee);
                 REQUIRE_THROWS_AS(market.updateOffer(acc1, offerID,
                                                      {finalSelling, finalBuying,
                                                       Price{2, 1}, 500}),
                                   ex_MANAGE_SELL_OFFER_LINE_FULL);
                 if (finalBuying.type() == ASSET_TYPE_NATIVE)
                 {
-                    root.pay(acc1, txfee);
-                    acc1.pay(root, 1);
+                    root->pay(acc1, txfee);
+                    acc1.pay(*root, 1);
                 }
                 else
                 {
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     acc1.changeTrust(finalBuying, 1500);
                 }
             }
 
             if (!(finalSelling == initialSelling))
             {
-                root.pay(acc1, txfee);
+                root->pay(acc1, txfee);
                 REQUIRE_THROWS_AS(market.updateOffer(acc1, offerID,
                                                      {finalSelling, finalBuying,
                                                       Price{2, 1}, 500}),
                                   ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 if (finalSelling.type() == ASSET_TYPE_NATIVE)
                 {
-                    root.pay(acc1, 1);
+                    root->pay(acc1, 1);
                 }
                 else
                 {
@@ -2504,7 +2505,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 }
             }
 
-            root.pay(acc1, txfee);
+            root->pay(acc1, txfee);
             market.requireChangesWithOffer({}, [&] {
                 return market.updateOffer(
                     acc1, offerID,
@@ -2615,7 +2616,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 auto reserve = app->getLedgerManager().getLastReserve();
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(1);
-                auto acc1 = root.create("acc1", minBalance + 2 * txfee + 499);
+                auto acc1 = root->create("acc1", minBalance + 2 * txfee + 499);
 
                 acc1.changeTrust(idr, 1000);
 
@@ -2624,15 +2625,15 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {xlm, idr, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LOW_RESERVE);
-                    root.pay(acc1, reserve + txfee);
+                    root->pay(acc1, reserve + txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {xlm, idr, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {xlm, idr, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(acc1,
                                                {xlm, idr, Price{2, 1}, 499});
@@ -2645,7 +2646,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 auto reserve = app->getLedgerManager().getLastReserve();
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 4 * txfee);
+                auto acc1 = root->create("acc1", minBalance + 4 * txfee);
 
                 acc1.changeTrust(idr, 499);
                 acc1.changeTrust(usd, INT64_MAX);
@@ -2663,15 +2664,15 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {idr, xlm, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LOW_RESERVE);
-                    root.pay(acc1, reserve + txfee);
+                    root->pay(acc1, reserve + txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {idr, xlm, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {idr, xlm, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(acc1,
                                                {idr, xlm, Price{2, 1}, 499});
@@ -2684,7 +2685,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 auto reserve = app->getLedgerManager().getLastReserve();
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(2);
-                auto acc1 = root.create("acc1", minBalance + 3 * txfee);
+                auto acc1 = root->create("acc1", minBalance + 3 * txfee);
 
                 acc1.changeTrust(usd, 499);
                 acc1.changeTrust(idr, 1000);
@@ -2695,15 +2696,15 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {usd, idr, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LOW_RESERVE);
-                    root.pay(acc1, reserve + txfee);
+                    root->pay(acc1, reserve + txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {usd, idr, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {usd, idr, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(acc1,
                                                {usd, idr, Price{2, 1}, 499});
@@ -2718,7 +2719,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(2);
-                auto acc1 = root.create("acc1", minBalance + 3 * txfee + 499);
+                auto acc1 = root->create("acc1", minBalance + 3 * txfee + 499);
 
                 acc1.changeTrust(idr, 1000);
 
@@ -2734,12 +2735,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         market.updateOffer(acc1, offerID,
                                            {xlm, idr, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {xlm, idr, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, offerID,
                                                   {xlm, idr, Price{2, 1}, 499});
@@ -2751,7 +2752,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(4);
-                auto acc1 = root.create("acc1", minBalance + 5 * txfee);
+                auto acc1 = root->create("acc1", minBalance + 5 * txfee);
 
                 acc1.changeTrust(idr, 499);
                 acc1.changeTrust(usd, INT64_MAX);
@@ -2776,12 +2777,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         market.updateOffer(acc1, offerID,
                                            {idr, xlm, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {idr, xlm, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, offerID,
                                                   {idr, xlm, Price{2, 1}, 499});
@@ -2793,7 +2794,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 4 * txfee);
+                auto acc1 = root->create("acc1", minBalance + 4 * txfee);
 
                 acc1.changeTrust(usd, 499);
                 acc1.changeTrust(idr, 1000);
@@ -2811,12 +2812,12 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         market.updateOffer(acc1, offerID,
                                            {usd, idr, Price{2, 1}, 501}),
                         ex_MANAGE_SELL_OFFER_LINE_FULL);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {usd, idr, Price{2, 1}, 500}),
                         ex_MANAGE_SELL_OFFER_UNDERFUNDED);
-                    root.pay(acc1, txfee);
+                    root->pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, offerID,
                                                   {usd, idr, Price{2, 1}, 499});
@@ -2832,7 +2833,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
             auto cur1 = acc1.asset("CUR1");
 
             acc1.changeTrust(usd, INT64_MAX);
@@ -2854,7 +2855,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
             auto cur1 = acc1.asset("CUR1");
 
             acc1.changeTrust(usd, INT64_MAX);
@@ -2877,7 +2878,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
             auto cur1 = acc1.asset("CUR1");
 
             acc1.changeTrust(usd, INT64_MAX);
@@ -2898,7 +2899,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto const minBalance =
                 app->getLedgerManager().getLastMinBalance(3);
-            auto acc1 = root.create("acc1", minBalance + 10000);
+            auto acc1 = root->create("acc1", minBalance + 10000);
             auto cur1 = acc1.asset("CUR1");
 
             acc1.changeTrust(usd, INT64_MAX);
@@ -2924,7 +2925,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_all_versions(*app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
 
                 acc1.changeTrust(usd, INT64_MAX);
                 acc1.changeTrust(idr, INT64_MAX);
@@ -2944,7 +2945,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             for_all_versions(*app, [&] {
                 auto const minBalance =
                     app->getLedgerManager().getLastMinBalance(3);
-                auto acc1 = root.create("acc1", minBalance + 10000);
+                auto acc1 = root->create("acc1", minBalance + 10000);
 
                 acc1.changeTrust(usd, INT64_MAX);
                 acc1.changeTrust(idr, INT64_MAX);
@@ -2963,8 +2964,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     SECTION("sponsorship")
     {
         auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
-        auto acc1 = root.create("a1", minBalance1 - 1);
-        auto acc2 = root.create("a2", minBalance2 + 2 * txfee);
+        auto acc1 = root->create("a1", minBalance1 - 1);
+        auto acc2 = root->create("a2", minBalance2 + 2 * txfee);
         acc2.changeTrust(usd, INT64_MAX);
         acc2.changeTrust(idr, INT64_MAX);
         issuer.pay(acc2, usd, 10000);
@@ -2986,7 +2987,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     auto prepareAccount = [&](std::string const& seed) {
         auto const initBalance = app->getLedgerManager().getLastMinBalance(10);
 
-        auto acc = root.create(seed, initBalance);
+        auto acc = root->create(seed, initBalance);
         acc.changeTrust(usd, INT64_MAX);
         acc.changeTrust(idr, INT64_MAX);
         issuer.pay(acc, usd, 1000);
@@ -3736,8 +3737,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             market.requireChangesWithOffer(
                 {{o1, {usd, idr, Price{1, 1}, 50}}}, [&] {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
-                        {root.op(beginSponsoringFutureReserves(a1)),
+                        app->getNetworkID(), *root,
+                        {root->op(beginSponsoringFutureReserves(a1)),
                          a2.op(manageOffer(0, idr, usd, Price{1, 1}, 50)),
                          a1.op(endSponsoringFutureReserves())},
                         {a1, a2});
@@ -3782,8 +3783,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                           .key;
             {
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), root,
-                    {root.op(beginSponsoringFutureReserves(a1)),
+                    app->getNetworkID(), *root,
+                    {root->op(beginSponsoringFutureReserves(a1)),
                      a1.op(manageOffer(0, usd, idr, Price{1, 1}, 50)),
                      a1.op(endSponsoringFutureReserves())},
                     {a1});
@@ -3807,7 +3808,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     SECTION("too many sponsoring")
     {
         auto acc1 =
-            root.create("a1", app->getLedgerManager().getLastMinBalance(5));
+            root->create("a1", app->getLedgerManager().getLastMinBalance(5));
         acc1.changeTrust(usd, INT64_MAX);
         issuer.pay(acc1, usd, 10000);
         auto native = makeNativeAsset();
@@ -3821,7 +3822,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     {
         auto pullSponsoredOffers = [&](TrustFlagOp flagOp,
                                        TestAccount& sponsor) {
-            auto acc1 = root.create("a2", minBalance2);
+            auto acc1 = root->create("a2", minBalance2);
 
             auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
                          static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
@@ -3902,7 +3903,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("sponsor is not issuer")
         {
-            auto sponsor = root.create(
+            auto sponsor = root->create(
                 "sponsor", app->getLedgerManager().getLastMinBalance(3));
             SECTION("allow trust")
             {
@@ -3942,8 +3943,9 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
 
     int64_t txfee = lm.getLastTxFee();
 
-    auto root = TestAccount::createRoot(*app);
-    auto issuer = root.create("issuer", lm.getLastMinBalance(0) + 1000 * txfee);
+    auto root = app->getRoot();
+    auto issuer =
+        root->create("issuer", lm.getLastMinBalance(0) + 1000 * txfee);
     auto cur1 = issuer.asset("CUR1");
     auto cur2 = issuer.asset("CUR2");
 
@@ -3951,7 +3953,7 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
 
     auto checkLiabilities = [&](int64_t sellingBalance, int64_t buyingLimit,
                                 int64_t amount, Price price) {
-        auto a1 = root.create("a1", lm.getLastMinBalance(3) + 1000 * txfee);
+        auto a1 = root->create("a1", lm.getLastMinBalance(3) + 1000 * txfee);
         a1.changeTrust(cur1, INT64_MAX);
         a1.changeTrust(cur2, buyingLimit);
         issuer.pay(a1, cur1, sellingBalance);
@@ -3977,7 +3979,7 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
             REQUIRE(liabilities.selling == offerAmount);
         }
 
-        auto a2 = root.create("a2", lm.getLastMinBalance(3) + 1000 * txfee);
+        auto a2 = root->create("a2", lm.getLastMinBalance(3) + 1000 * txfee);
         a2.changeTrust(cur1, INT64_MAX);
         a2.changeTrust(cur2, INT64_MAX);
         issuer.pay(a2, cur2, INT64_MAX);
@@ -4028,7 +4030,7 @@ TEST_CASE_VERSIONS("liabilities match created offer", "[tx][offers]")
             }
             acc.changeTrust(cur1, 0);
             acc.changeTrust(cur2, 0);
-            acc.merge(root);
+            acc.merge(*root);
         };
 
         if (crossRemainAmount > 0)

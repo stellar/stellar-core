@@ -142,6 +142,11 @@ struct InitialSorobanNetworkConfig
 
     // Parallel execution settings
     static constexpr uint32_t LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
+
+    // Ledger cost extension settings
+    // TODO: These are placeholder values and need to be tested and set.
+    static constexpr uint32_t TX_MAX_IN_MEMORY_READ_ENTRIES = 100;
+    static constexpr int64_t FEE_WRITE_1KB = 1'000;
 };
 
 // Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for
@@ -342,6 +347,10 @@ class SorobanNetworkConfig
     // Parallel execution settings
     uint32_t ledgerMaxDependentTxClusters() const;
 
+    // Ledger cost extension settings
+    uint32_t txMaxInMemoryReadEntries() const;
+    int64_t flatRateFeeWrite1KB() const;
+
     Resource maxLedgerResources() const;
 
 #ifdef BUILD_TESTS
@@ -375,6 +384,7 @@ class SorobanNetworkConfig
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
+    void loadLedgerCostExtConfig(AbstractLedgerTxn& ltx);
     void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
@@ -451,6 +461,12 @@ class SorobanNetworkConfig
 
     // Parallel execution settings
     uint32_t mLedgerMaxDependentTxClusters{};
+
+    // Ledger cost extension settings
+    uint32_t mTxMaxInMemoryReadEntries{};
+
+    // Flat rate fee for writing 1KB applies only post protocol 23
+    int64_t mFlatRateFeeWrite1KB{};
 
 #ifdef BUILD_TESTS
     void writeAllSettings(AbstractLedgerTxn& ltx, Application& app) const;

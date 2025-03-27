@@ -160,6 +160,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     auto setupApp = [txSize, tx1](Application& app) {
         app.getHerder().setMaxClassicTxSize(txSize);
 
+        app.start();
         if (appProtocolVersionStartsFrom(app, SOROBAN_PROTOCOL_VERSION))
         {
             overrideSorobanNetworkConfigForTest(app);
@@ -168,8 +169,6 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     static_cast<uint32_t>(xdr::xdr_size(tx1.transaction()));
             });
         }
-
-        app.start();
     };
 
     auto test = [&](bool shouldRequestMore) {
@@ -629,6 +628,9 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     {
         modifySorobanNetworkConfig(*app1, [txSize](SorobanNetworkConfig& cfg) {
             cfg.mTxMaxSizeBytes = txSize;
+            // Set the ledger max transactions size to the tx max size
+            // to have a valid upgrade.
+            cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes;
         });
     }
 
@@ -2570,8 +2572,8 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 
     SECTION("do not advertise to peers that know about tx")
     {
-        auto root = TestAccount::createRoot(*apps[0]);
-        auto tx = root.tx({txtest::createAccount(
+        auto root = apps[0]->getRoot();
+        auto tx = root->tx({txtest::createAccount(
             txtest::getAccount("acc").getPublicKey(), 100)});
         auto adv =
             createAdvert(std::vector<std::shared_ptr<StellarMessage const>>{

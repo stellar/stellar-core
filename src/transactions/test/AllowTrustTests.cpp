@@ -93,10 +93,10 @@ template <int V> struct TestStub
         auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 
         // set up world
-        auto root = TestAccount::createRoot(*app);
-        auto gateway = root.create("gw", minBalance4);
-        auto a1 = root.create("A1", minBalance4 + 10000);
-        auto a2 = root.create("A2", minBalance4);
+        auto root = app->getRoot();
+        auto gateway = root->create("gw", minBalance4);
+        auto a1 = root->create("A1", minBalance4 + 10000);
+        auto a2 = root->create("A2", minBalance4);
 
         auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
                      static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
@@ -344,13 +344,13 @@ template <int V> struct TestStub
 
             SECTION("auth transition tests")
             {
-                auto issuer = root.create("issuer", minBalance4);
+                auto issuer = root->create("issuer", minBalance4);
                 issuer.setOptions(
                     setFlags(static_cast<uint32_t>(AUTH_REQUIRED_FLAG)));
 
                 auto iss = makeAsset(issuer, "iss");
 
-                auto a3 = root.create("A3", minBalance4);
+                auto a3 = root->create("A3", minBalance4);
                 a3.changeTrust(iss, trustLineLimit);
 
                 SECTION("authorized -> authorized to maintain liabilities")
@@ -388,10 +388,10 @@ template <int V> struct TestStub
         auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 
         // set up world
-        auto root = TestAccount::createRoot(*app);
-        auto gateway = root.create("gw", minBalance4);
-        auto a1 = root.create("A1", minBalance4 + 10000);
-        auto a2 = root.create("A2", minBalance4);
+        auto root = app->getRoot();
+        auto gateway = root->create("gw", minBalance4);
+        auto a1 = root->create("A1", minBalance4 + 10000);
+        auto a2 = root->create("A2", minBalance4);
 
         auto idr = makeAsset(gateway, "IDR");
 

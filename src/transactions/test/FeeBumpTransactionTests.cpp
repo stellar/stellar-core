@@ -72,14 +72,14 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
     auto fee = lm.getLastClosedLedgerHeader().header.baseFee;
     auto reserve = lm.getLastClosedLedgerHeader().header.baseReserve;
 
-    auto root = TestAccount::createRoot(*app);
+    auto root = app->getRoot();
 
     SECTION("validity")
     {
         SECTION("not supported")
         {
             for_versions({12}, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), root, root, root,
+                auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee, fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValidForTesting(app->getAppConnector(), ltx,
@@ -91,7 +91,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
         SECTION("insufficient fee, less than min")
         {
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), root, root, root,
+                auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee - 1, 1, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValidForTesting(app->getAppConnector(), ltx,
@@ -104,7 +104,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
         SECTION("insufficient fee, rate less than inner")
         {
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), root, root, root,
+                auto fb = feeBump(app->getNetworkID(), *root, *root, *root,
                                   2 * fee + 1, 101, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValidForTesting(app->getAppConnector(), ltx,
@@ -118,8 +118,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
         {
             auto acc = TestAccount(*app, getAccount("A"));
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, 1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValidForTesting(app->getAppConnector(), ltx,
                                                   0, 0, 0));
@@ -129,10 +129,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("bad signatures, signature missing")
         {
-            auto acc = root.create("A", 2 * reserve);
+            auto acc = root->create("A", 2 * reserve);
             for_versions_from(13, *app, [&] {
-                auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
-                sign(app->getNetworkID(), root,
+                auto fbXDR =
+                    feeBumpUnsigned(acc, *root, *root, 2 * fee, fee, 1);
+                sign(app->getNetworkID(), *root,
                      fbXDR.feeBump().tx.innerTx.v1());
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
@@ -146,13 +147,14 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("bad signatures, signature invalid")
         {
-            auto acc = root.create("A", 2 * reserve);
+            auto acc = root->create("A", 2 * reserve);
             for_versions_from(13, *app, [&] {
-                auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
+                auto fbXDR =
+                    feeBumpUnsigned(acc, *root, *root, 2 * fee, fee, 1);
                 // These signatures are applied in the wrong order, so the outer
                 // signature is invalid
                 sign(app->getNetworkID(), acc, fbXDR.feeBump());
-                sign(app->getNetworkID(), root,
+                sign(app->getNetworkID(), *root,
                      fbXDR.feeBump().tx.innerTx.v1());
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
@@ -166,10 +168,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("insufficient balance")
         {
-            auto acc = root.create("A", 2 * reserve);
+            auto acc = root->create("A", 2 * reserve);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, 1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValidForTesting(app->getAppConnector(), ltx,
                                                   0, 0, 0));
@@ -179,13 +181,14 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("extra signatures")
         {
-            auto acc = root.create("A", 2 * reserve + 2 * fee);
+            auto acc = root->create("A", 2 * reserve + 2 * fee);
             for_versions_from(13, *app, [&] {
-                auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
-                sign(app->getNetworkID(), root,
+                auto fbXDR =
+                    feeBumpUnsigned(acc, *root, *root, 2 * fee, fee, 1);
+                sign(app->getNetworkID(), *root,
                      fbXDR.feeBump().tx.innerTx.v1());
                 sign(app->getNetworkID(), acc, fbXDR.feeBump());
-                sign(app->getNetworkID(), root, fbXDR.feeBump());
+                sign(app->getNetworkID(), *root, fbXDR.feeBump());
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
                         app->getNetworkID(), fbXDR));
@@ -198,9 +201,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("inner transaction invalid, transaction level")
         {
-            auto acc = root.create("A", 2 * reserve + 2 * fee);
+            auto acc = root->create("A", 2 * reserve + 2 * fee);
             for_versions_from(13, *app, [&] {
-                auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
+                auto fbXDR =
+                    feeBumpUnsigned(acc, *root, *root, 2 * fee, fee, 1);
                 sign(app->getNetworkID(), acc, fbXDR.feeBump());
                 auto fb = TransactionTestFrame::fromTxFrame(
                     TransactionFrameBase::makeTransactionFromWire(
@@ -219,10 +223,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("inner transaction invalid, operation level")
         {
-            auto acc = root.create("A", 2 * reserve + 2 * fee);
+            auto acc = root->create("A", 2 * reserve + 2 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, -1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, -1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValidForTesting(app->getAppConnector(), ltx,
                                                   0, 0, 0));
@@ -240,10 +244,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("valid")
         {
-            auto acc = root.create("A", 2 * reserve + 2 * fee);
+            auto acc = root->create("A", 2 * reserve + 2 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, 1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(fb->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
@@ -262,10 +266,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
     SECTION("fee processing")
     {
-        auto acc = root.create("A", 2 * reserve + 2 * fee);
+        auto acc = root->create("A", 2 * reserve + 2 * fee);
         for_versions_from(13, *app, [&] {
-            auto fb =
-                feeBump(app->getNetworkID(), acc, root, root, 2 * fee, fee, 1);
+            auto fb = feeBump(app->getNetworkID(), acc, *root, *root, 2 * fee,
+                              fee, 1);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             fb->processFeeSeqNum(ltx, fee);
             auto delta = ltx.getDelta();
@@ -284,16 +288,16 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
     {
         SECTION("fee source does not exist")
         {
-            auto acc = root.create("A", 2 * reserve + 3 * fee);
+            auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, 1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, 1);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     REQUIRE(fb->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                 }
-                acc.merge(root);
+                acc.merge(*root);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
@@ -306,10 +310,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("bad signatures")
         {
-            auto acc = root.create("A", 2 * reserve + 3 * fee);
+            auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, 1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, 1);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     REQUIRE(fb->checkValidForTesting(app->getAppConnector(),
@@ -328,16 +332,16 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("insufficient balance")
         {
-            auto acc = root.create("A", 2 * reserve + 3 * fee);
+            auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
-                                  fee, 1);
+                auto fb = feeBump(app->getNetworkID(), acc, *root, *root,
+                                  2 * fee, fee, 1);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     REQUIRE(fb->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                 }
-                acc.pay(root, 2 * fee);
+                acc.pay(*root, 2 * fee);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
@@ -350,14 +354,16 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("extra signatures")
         {
-            auto acc = root.create("A", 3 * reserve + 4 * fee);
-            acc.setOptions(setSigner(makeSigner(root, 1)) | setLowThreshold(2));
+            auto acc = root->create("A", 3 * reserve + 4 * fee);
+            acc.setOptions(setSigner(makeSigner(*root, 1)) |
+                           setLowThreshold(2));
             for_versions_from(13, *app, [&] {
-                auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
-                sign(app->getNetworkID(), root,
+                auto fbXDR =
+                    feeBumpUnsigned(acc, *root, *root, 2 * fee, fee, 1);
+                sign(app->getNetworkID(), *root,
                      fbXDR.feeBump().tx.innerTx.v1());
                 sign(app->getNetworkID(), acc, fbXDR.feeBump());
-                sign(app->getNetworkID(), root, fbXDR.feeBump());
+                sign(app->getNetworkID(), *root, fbXDR.feeBump());
                 auto rawTx = TransactionFrameBase::makeTransactionFromWire(
                     app->getNetworkID(), fbXDR);
                 auto fb = TransactionTestFrame::fromTxFrame(rawTx);
@@ -368,7 +374,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 }
 
                 auto setOptionsTx = acc.tx({setOptions(setLowThreshold(1))});
-                setOptionsTx->addSignature(root);
+                setOptionsTx->addSignature(*root);
                 applyCheck(setOptionsTx, *app);
 
                 {
@@ -383,9 +389,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("inner transaction fails, transaction level")
         {
-            auto acc = root.create("A", 2 * reserve + 3 * fee);
+            auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, acc, 2 * fee,
+                auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, 1);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -394,9 +400,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 }
 
                 auto setOptionsOp = setOptions(setMasterWeight(0));
-                setOptionsOp.sourceAccount.activate() = toMuxedAccount(root);
+                setOptionsOp.sourceAccount.activate() = toMuxedAccount(*root);
                 auto setOptionsTx = acc.tx({setOptionsOp});
-                setOptionsTx->addSignature(root);
+                setOptionsTx->addSignature(*root);
                 applyCheck(setOptionsTx, *app);
 
                 {
@@ -415,9 +421,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("inner transaction fails, operation level")
         {
-            auto acc = root.create("A", 2 * reserve + 3 * fee);
+            auto acc = root->create("A", 2 * reserve + 3 * fee);
             for_versions_from(13, *app, [&] {
-                auto fb = feeBump(app->getNetworkID(), acc, root, acc, 2 * fee,
+                auto fb = feeBump(app->getNetworkID(), acc, *root, acc, 2 * fee,
                                   fee, INT64_MAX);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -444,11 +450,12 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
         SECTION("one-time signer removal")
         {
-            auto acc = root.create("A", 3 * reserve + 3 * fee);
-            auto sponsoring = root.create("sponsoring", 3 * reserve);
+            auto acc = root->create("A", 3 * reserve + 3 * fee);
+            auto sponsoring = root->create("sponsoring", 3 * reserve);
 
             auto signerTest = [&](bool isFbSignerSponsored) {
-                auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
+                auto fbXDR =
+                    feeBumpUnsigned(acc, *root, *root, 2 * fee, fee, 1);
                 ++fbXDR.feeBump().tx.innerTx.v1().tx.seqNum;
 
                 auto rawTx = TransactionFrameBase::makeTransactionFromWire(
@@ -459,8 +466,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 txSigner.preAuthTx() = sha256(
                     xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                        fbXDR.feeBump().tx.innerTx.v1().tx));
-                root.loadSequenceNumber();
-                root.setOptions(setSigner(Signer{txSigner, 1}));
+                root->loadSequenceNumber();
+                root->setOptions(setSigner(Signer{txSigner, 1}));
 
                 SignerKey fbSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);
                 fbSigner.preAuthTx() = sha256(xdr::xdr_to_opaque(
@@ -528,7 +535,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     ltx.commit();
                 }
 
-                REQUIRE(getAccountSigners(root, *app).size() == 0);
+                REQUIRE(getAccountSigners(*root, *app).size() == 0);
                 REQUIRE(getAccountSigners(acc, *app).size() == 0);
 
                 if (isFbSignerSponsored)

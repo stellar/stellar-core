@@ -399,7 +399,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 createResources, 1000);
 
             closeLedger(test.getApp(), {tx1, tx2, tx3, tx4, tx5});
-            targetSeq = 28;
+            targetSeq = 31;
         }
         else
         {
@@ -421,18 +421,18 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                             .bucketListWindowSamplePeriod = 1;
                     });
 
-                // Modify Soroban network config closes a ledger
-                ++targetSeq;
+                // Modify Soroban network config closes 4 ledgers
+                targetSeq += 4;
             }
 
-            auto root = TestAccount::createRoot(*app);
+            auto root = app->getRoot();
 
             // Ledgers #2, #3 and #4 create accounts, which happen directly
             // and don't emit meta.
-            auto acc1 = root.create("acc1", bal);
-            auto acc2 = root.create("acc2", bal);
+            auto acc1 = root->create("acc1", bal);
+            auto acc2 = root->create("acc2", bal);
             auto issuer =
-                root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
+                root->create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
             auto cur1 = issuer.asset("CUR1");
 
             // Ledger #5 sets up a trustline which has to happen before we
@@ -442,7 +442,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             // Ledger #6 uses closeLedger so emits interesting meta.
             std::vector<TransactionFrameBasePtr> txs = {
                 // First tx pays 1000 XLM from root to acc1
-                root.tx({payment(acc1.getPublicKey(), 1000)}),
+                root->tx({payment(acc1.getPublicKey(), 1000)}),
                 // Second tx pays acc1 50 cur1 units twice from issuer.
                 issuer.tx({payment(acc1, cur1, 50), payment(acc1, cur1, 50)})};
             if (protocolVersionStartsFrom(
