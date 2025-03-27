@@ -1267,6 +1267,13 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
         }
 
+        if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
+        {
+            // Always use the configuration file path
+            cfg.preloadedTransactionsFile =
+                mApp.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+        }
+
         if (cfg.maxGeneratedFeeRate)
         {
             auto baseFee = mApp.getLedgerManager().getLastTxFee();

@@ -219,6 +219,10 @@ class Config : public std::enable_shared_from_this<Config>
     // production networks.
     bool ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING;
 
+    // Path to pre-generated transaction file for LoadGenerator's
+    // PAY_PREGENERATED mode
+    std::string LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+
     // A temporary config paramter that when enabled causes the protocol
     // upgrades to also update the Soroban cost calibration. This will result
     // in loadgen reflecting more accurate costs and match the real network.
@@ -510,6 +514,10 @@ class Config : public std::enable_shared_from_this<Config>
     // Set to use config file values for genesis ledger
     // not setable in config file - only tests are allowed to do this
     bool USE_CONFIG_FOR_GENESIS;
+
+    // Number of test accounts to create in genesis ledger. This is useful for
+    // load testing.
+    uint32_t GENESIS_TEST_ACCOUNT_COUNT;
 
     // This is the number of failures you want to be able to tolerate.
     // You will need at least 3f+1 nodes in your quorum set.

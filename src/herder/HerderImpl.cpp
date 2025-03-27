@@ -590,7 +590,12 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
+#ifdef BUILD_TESTS
+                            ,
+                            bool isLoadgenTx
+#endif
+)
 {
     ZoneScoped;
     TransactionQueue::AddResult result(
@@ -617,11 +622,21 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
     }
     else if (!tx->isSoroban())
     {
-        result = mTransactionQueue.tryAdd(tx, submittedFromSelf);
+        result = mTransactionQueue.tryAdd(tx, submittedFromSelf
+#ifdef BUILD_TESTS
+                                          ,
+                                          isLoadgenTx
+#endif
+        );
     }
     else if (mSorobanTransactionQueue)
     {
-        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf);
+        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf
+#ifdef BUILD_TESTS
+                                                  ,
+                                                  isLoadgenTx
+#endif
+        );
     }
     else
     {
