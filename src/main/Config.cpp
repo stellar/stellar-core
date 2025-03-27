@@ -314,6 +314,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FORCE_OLD_STYLE_LEADER_ELECTION = false;
 
+    EMIT_CLASSIC_EVENTS = false;
+    BACKFILL_STELLAR_ASSET_EVENTS = false;
+
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
@@ -1779,7 +1782,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = readBool(item);
                  }},
                 {"EMIT_LEDGER_CLOSE_META_EXT_V1",
-                 [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }}};
+                 [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }},
+                {"EMIT_CLASSIC_EVENTS",
+                 [&]() { EMIT_CLASSIC_EVENTS = readBool(item); }},
+                {"BACKFILL_STELLAR_ASSET_EVENTS",
+                 [&]() { BACKFILL_STELLAR_ASSET_EVENTS = readBool(item); }}};
 
             auto it = confProcessor.find(item.first);
             if (it != confProcessor.end())
@@ -1838,6 +1845,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "does not support SQLite. Either switch to Postgres or set "
                 "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
             throw std::runtime_error(msg);
+        }
+
+        if (BACKFILL_STELLAR_ASSET_EVENTS && !EMIT_CLASSIC_EVENTS)
+        {
+            throw std::invalid_argument(
+                "Invalid configuration: BACKFILL_STELLAR_ASSET_EVENTS requires "
+                "EMIT_CLASSIC_EVENTS "
+                "to be enabled");
         }
 
         // Check all loadgen distributions

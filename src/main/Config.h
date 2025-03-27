@@ -776,6 +776,23 @@ class Config : public std::enable_shared_from_this<Config>
     bool EMIT_SOROBAN_TRANSACTION_META_EXT_V1;
     bool EMIT_LEDGER_CLOSE_META_EXT_V1;
 
+    // Controls the emission of events for classic operations. If enabled,
+    // classic events will be enabled for protocol >= 23. Note this does not
+    // affect events in protocols 22 and earlier.
+    // `BACKFILL_STELLAR_ASSET_EVENTS` flag controls backfilling of those
+    // events.
+    bool EMIT_CLASSIC_EVENTS;
+
+    // Controls events emission in protocols <= 22. When turned on, transactions
+    // will emit V4 meta (`TransactionMetaV4`) and
+    // 1. Classic operations will emit events where applicable.
+    // 2. Stellar Asset Contract (SAC) events will be retroactively emitted in
+    //    V23 specification.
+    //
+    // Note: `BACKFILL_STELLAR_ASSET_EVENTS` requires `EMIT_CLASSIC_EVENTS` to
+    // be enabled
+    bool BACKFILL_STELLAR_ASSET_EVENTS;
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of

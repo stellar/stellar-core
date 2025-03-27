@@ -1682,8 +1682,8 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         MutableTxResultPtr txResult,
                         Hash const& sorobanBasePrngSeed) const
 {
-    TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
-    return apply(app, ltx, tm, txResult, sorobanBasePrngSeed);
+    TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion,
+                            app.getConfig().EMIT_CLASSIC_EVENTS);
 }
 
 bool
