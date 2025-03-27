@@ -7,6 +7,9 @@
 namespace stellar
 {
 struct TransactionMeta;
+// This is used in two places 1. printing 2. checking meta sameness. i.e.
+// sorting before hashing and comparison. We should only sort the fields that
+// are order agonostic i.e. LedgerEntryChanges, not the events.
 void normalizeMeta(TransactionMeta& m);
 
 struct LedgerCloseMeta;

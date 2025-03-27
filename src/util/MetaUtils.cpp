@@ -84,6 +84,15 @@ normalizeOps(xdr::xvector<OperationMeta>& oms)
         sortChanges(om.changes);
     }
 }
+
+void
+normalizeOps(xdr::xvector<OperationMetaV2>& oms)
+{
+    for (auto& om : oms)
+    {
+        sortChanges(om.changes);
+    }
+}
 }
 
 namespace stellar
@@ -110,6 +119,11 @@ normalizeMeta(TransactionMeta& m)
         sortChanges(m.v3().txChangesBefore);
         sortChanges(m.v3().txChangesAfter);
         normalizeOps(m.v3().operations);
+        break;
+    case 4:
+        sortChanges(m.v4().txChangesBefore);
+        sortChanges(m.v4().txChangesAfter);
+        normalizeOps(m.v4().operations);
         break;
     default:
         releaseAssert(false);
