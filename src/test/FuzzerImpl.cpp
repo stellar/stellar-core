@@ -170,6 +170,14 @@ getShortKey(LedgerKey const& key)
             return getShortKey(key.contractData().contract.accountId());
         case SC_ADDRESS_TYPE_CONTRACT:
             return key.contractData().contract.contractId().at(0);
+        case SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+            return getShortKey(
+                key.contractData().contract.claimableBalanceId());
+        case SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+            return getShortKey(key.contractData().contract.liquidityPoolId());
+        case SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+            return getShortKey(
+                key.contractData().contract.muxedAccount().ed25519);
         }
     case CONTRACT_CODE:
         return key.contractCode().hash.at(0);
