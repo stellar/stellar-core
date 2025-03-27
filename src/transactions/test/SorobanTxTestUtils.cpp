@@ -737,7 +737,7 @@ SCVal
 TestContract::Invocation::getReturnValue() const
 {
     REQUIRE(mTxMeta);
-    return mTxMeta->getXDR().v3().sorobanMeta->returnValue;
+    return mTxMeta->getReturnValue();
 }
 
 TransactionMetaFrame const&
@@ -1399,12 +1399,14 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
         {
             // Check for a contract error in the second event (the first should
             // be an `fn_call` event)
-            auto const& sorobanMeta =
-                invocation.getTxMeta().getXDR().v3().sorobanMeta;
-            REQUIRE(sorobanMeta->events.size() == 0);
-            REQUIRE(sorobanMeta->diagnosticEvents.size() > 1);
+            auto const& contractEvents =
+                invocation.getTxMeta().getSorobanContractEvents();
+            auto const& diagnosticEvents =
+                invocation.getTxMeta().getDiagnosticEvents();
+            REQUIRE(contractEvents.size() == 0);
+            REQUIRE(diagnosticEvents.size() > 1);
 
-            auto const& contract_ev = sorobanMeta->diagnosticEvents.at(1);
+            auto const& contract_ev = diagnosticEvents.at(1);
             REQUIRE(!contract_ev.inSuccessfulContractCall);
             REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
             auto const& topics = contract_ev.event.body.v0().topics.at(1);
