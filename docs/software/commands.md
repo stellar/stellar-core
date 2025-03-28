@@ -506,7 +506,7 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
     `create_upgrade`. This mode must be run before `create_upgrade`.
   * `create_upgrade` mode write a soroban upgrade set and returns the
     ConfigUpgradeSetKey. Most network config settings are supported. If a given
-    setting is omitted or set to 0, it is not upgraded and maintains the current
+    setting is omitted, it is not upgraded and maintains the current
     value. To not exceed HTTP string limits, the names are very short. See
     `CommandHandler::generateLoad` for available options.
   * `mixed_classic_soroban` mode creates a mix of `pay`, `soroban_upload`,
