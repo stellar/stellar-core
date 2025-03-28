@@ -275,7 +275,8 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
 
 TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 {
-    auto test = [&](Config cfg, bool isSoroban) {
+    auto test = [&](Config cfg, bool isSoroban,
+                    bool enableClassicEvents = false) {
         using namespace stellar::txtest;
 
         // We need to fix a deterministic NODE_SEED for this test to be stable.
@@ -288,6 +289,16 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
         cfg.USE_CONFIG_FOR_GENESIS = true;
+        if (enableClassicEvents)
+        {
+            cfg.EMIT_CLASSIC_EVENTS = true;
+            // in real scenario BACKFILL_STELLAR_ASSET_EVENTS can be
+            // individually disabled, but for this test we enable it
+            cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+        }
+
+        // TODO: (if enableClassicEvents) consider generating more interesting
+        // event-emitting opeartions for classic
 
         // LedgerNum that we will examine the meta at
         uint32_t targetSeq;
@@ -491,21 +502,12 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             if (ledgerSeq == targetSeq)
             {
                 std::string refJsonPath;
-                if (isSoroban)
-                {
-                    refJsonPath = fmt::format(
-                        FMT_STRING("testdata/"
-                                   "ledger-close-meta-v{}-protocol-{}-"
-                                   "soroban.json"),
-                        lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-                }
-                else
-                {
-                    refJsonPath = fmt::format(
-                        FMT_STRING("testdata/"
-                                   "ledger-close-meta-v{}-protocol-{}.json"),
-                        lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-                }
+                refJsonPath = fmt::format(
+                    FMT_STRING(
+                        "testdata/ledger-close-meta{}-v{}-protocol-{}{}.json"),
+                    enableClassicEvents ? "-enable-classic-events" : "",
+                    lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    isSoroban ? "-soroban" : "");
                 normalizeMeta(lcm);
                 std::string have = xdrToCerealString(lcm, "LedgerCloseMeta");
                 if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
@@ -544,6 +546,22 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 SOROBAN_PROTOCOL_VERSION))
         {
             test(cfg, true);
+        }
+    }
+
+    SECTION("stellar classic enabling classic events")
+    {
+        test(getTestConfig(), false, true);
+    }
+
+    SECTION("soroban enabling classic events")
+    {
+        Config cfg = getTestConfig();
+        if (protocolVersionStartsFrom(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                SOROBAN_PROTOCOL_VERSION))
+        {
+            test(cfg, true, true);
         }
     }
 }
