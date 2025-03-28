@@ -13,6 +13,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/AppConnector.h"
 #include "main/Application.h"
+#include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
@@ -77,6 +78,7 @@ bool
 FeeBumpTransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                                TransactionMetaFrame& meta,
                                MutableTxResultPtr txResult,
+                               TxEventManager& txEventManager,
                                Hash const& sorobanBasePrngSeed) const
 {
     try
@@ -105,8 +107,8 @@ FeeBumpTransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         // Note that even after updateResult is called here, feeCharged will not
         // be accurate for Soroban transactions until
         // FeeBumpTransactionFrame::processPostApply is called.
-        bool res = mInnerTx->apply(app, ltx, meta, txResult, false,
-                                   sorobanBasePrngSeed);
+        bool res = mInnerTx->apply(app, ltx, meta, txResult, txEventManager,
+                                   false, sorobanBasePrngSeed);
         FeeBumpMutableTransactionResult::updateResult(mInnerTx, *txResult);
         return res;
     }
@@ -154,10 +156,10 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 }
 
 MutableTxResultPtr
-FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                                    SequenceNumber current,
-                                    uint64_t lowerBoundCloseTimeOffset,
-                                    uint64_t upperBoundCloseTimeOffset) const
+FeeBumpTransactionFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventBufferPtr diagnosticEvents) const
 {
     if (!isTransactionXDRValidForProtocol(
             ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
@@ -190,7 +192,7 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
 
     auto innerTxResult = mInnerTx->checkValidWithOptionallyChargedFee(
         app, ls, current, false, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset);
+        upperBoundCloseTimeOffset, diagnosticEvents);
     auto finalTxResult = createSuccessResultWithNewInnerTx(
         std::move(txResult), std::move(innerTxResult), mInnerTx);
 
@@ -200,10 +202,11 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
 bool
 FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
     AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+    MutableTxResultPtr txResult,
+    DiagnosticEventBufferPtr& diagnosticEvents) const
 {
-    return mInnerTx->checkSorobanResourceAndSetError(app, cfg, ledgerVersion,
-                                                     txResult);
+    return mInnerTx->checkSorobanResourceAndSetError(
+        app, cfg, ledgerVersion, txResult, diagnosticEvents);
 }
 
 bool

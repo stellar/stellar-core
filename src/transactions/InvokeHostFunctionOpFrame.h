@@ -28,7 +28,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     void maybePopulateDiagnosticEvents(Config const& cfg,
                                        InvokeHostFunctionOutput const& output,
                                        HostFunctionMetrics const& metrics,
-                                       SorobanTxData& sorobanData) const;
+                                       DiagnosticEventBuffer& buffer) const;
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
 
@@ -40,12 +40,13 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+                 std::shared_ptr<SorobanTxData> sorobanData,
+                 OpEventManager& opEventManager) const override;
 
-    bool doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
-                                Config const& appConfig, uint32_t ledgerVersion,
-                                OperationResult& res,
-                                SorobanTxData& sorobanData) const override;
+    bool doCheckValidForSoroban(
+        SorobanNetworkConfig const& networkConfig, Config const& appConfig,
+        uint32_t ledgerVersion, OperationResult& res,
+        DiagnosticEventBufferPtr& diagnosticEvents) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 

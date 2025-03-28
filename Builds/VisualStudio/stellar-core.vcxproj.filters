@@ -1152,6 +1152,9 @@
     <ClCompile Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\EventManager.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\FeeBumpTransactionFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -1186,6 +1189,9 @@
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\OperationMetaArray.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp">
@@ -2218,6 +2224,9 @@
     <ClInclude Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\transactions\EventManager.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\transactions\FeeBumpTransactionFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -2252,6 +2261,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\OperationFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\OperationMetaArray.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h">
