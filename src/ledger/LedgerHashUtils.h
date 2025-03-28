@@ -154,6 +154,22 @@ template <> class hash<stellar::LedgerKey>
                                  std::hash<stellar::uint256>()(
                                      lk.contractData().contract.contractId()));
                 break;
+            case stellar::SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+                stellar::hashMix(
+                    res, stellar::shortHash::xdrComputeHash(
+                             lk.contractData().contract.muxedAccount()));
+                break;
+            case stellar::SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+                stellar::hashMix(
+                    res,
+                    std::hash<stellar::uint256>()(
+                        lk.contractData().contract.claimableBalanceId().v0()));
+                break;
+            case stellar::SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+                stellar::hashMix(
+                    res, std::hash<stellar::uint256>()(
+                             lk.contractData().contract.liquidityPoolId()));
+                break;
             }
             stellar::hashMix(
                 res, stellar::shortHash::xdrComputeHash(lk.contractData().key));

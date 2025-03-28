@@ -17,6 +17,14 @@ then
     exit 1
 fi
 
+# Define tests to skip
+# `test_expected_size` tests the actual memory sizes of types used in memory metering.
+# This test is skipped because memory sizes vary based on Rust compiler version and 
+# system architecture. This test is primarily used during development to calibrate 
+# our declared sizes, which are what's actually used in production for deterministic 
+# memory metering.
+SKIP_TESTS="host::declared_size::test::test_expected_size"
+
 set -e
 set -x
 
@@ -28,6 +36,7 @@ for i in p??; do
         --locked \
         --package soroban-env-host \
         --features testutils \
-        --profile test-opt
+        --profile test-opt \
+        -- --skip "${SKIP_TESTS}"
     cd ..
 done

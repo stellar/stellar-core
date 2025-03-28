@@ -382,9 +382,11 @@ RevokeSponsorshipOpFrame::updateSignerSponsorship(AbstractLedgerTxn& ltx,
 }
 
 bool
-RevokeSponsorshipOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
+RevokeSponsorshipOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                  Hash const& sorobanBasePrngSeed,
+                                  OperationResult& res,
+                                  std::shared_ptr<SorobanTxData> sorobanData,
+                                  OpEventManager& opEventManager) const
 {
     ZoneNamedN(applyZone, "RevokeSponsorshipOpFrame apply", true);
 

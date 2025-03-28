@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/test/TransactionTestFrame.h"
+#include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
@@ -46,8 +47,11 @@ TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                             TransactionMetaFrame& meta,
                             Hash const& sorobanBasePrngSeed)
 {
+    TxEventManager txEventManager(ltx.loadHeader().current().ledgerVersion,
+                                  app.getNetworkID(), app.getConfig(),
+                                  *mTransactionFrame);
     return mTransactionFrame->apply(app, ltx, meta, mTransactionTxResult,
-                                    sorobanBasePrngSeed);
+                                    txEventManager, sorobanBasePrngSeed);
 }
 
 void
@@ -80,10 +84,11 @@ bool
 TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                             TransactionMetaFrame& meta,
                             MutableTxResultPtr txResult,
+                            TxEventManager& txEventManager,
                             Hash const& sorobanBasePrngSeed) const
 {
-    auto ret =
-        mTransactionFrame->apply(app, ltx, meta, txResult, sorobanBasePrngSeed);
+    auto ret = mTransactionFrame->apply(app, ltx, meta, txResult,
+                                        txEventManager, sorobanBasePrngSeed);
     mTransactionTxResult = txResult;
     return ret;
 }
@@ -102,13 +107,14 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                                 SequenceNumber current,
-                                 uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset) const
+TransactionTestFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventBufferPtr diagnosticEvents) const
 {
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        diagnosticEvents);
     return mTransactionTxResult;
 }
 
@@ -143,10 +149,11 @@ TransactionTestFrame::checkValidForTesting(AppConnector& app,
 bool
 TransactionTestFrame::checkSorobanResourceAndSetError(
     AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+    MutableTxResultPtr txResult,
+    DiagnosticEventBufferPtr& diagnosticEvents) const
 {
     auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
-        app, cfg, ledgerVersion, txResult);
+        app, cfg, ledgerVersion, txResult, diagnosticEvents);
     mTransactionTxResult = txResult;
     return ret;
 }
@@ -330,12 +337,6 @@ SorobanResources const&
 TransactionTestFrame::sorobanResources() const
 {
     return mTransactionFrame->sorobanResources();
-}
-
-xdr::xvector<DiagnosticEvent> const&
-TransactionTestFrame::getDiagnosticEvents() const
-{
-    return mTransactionTxResult->getDiagnosticEvents();
 }
 
 int64
