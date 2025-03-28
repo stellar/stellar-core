@@ -6,27 +6,27 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "7192d5e089fc6a021e22880358737cb8af7b3a40efbfe62f1831d37ed1e17612",
+                "hash": "690082308eaddf888193fa3cf6d31bee206403eb42ed978a8baf8427488f91d7",
                 "header": {
-                    "ledgerVersion": 23,
-                    "previousLedgerHash": "04557df4dda107c7324ca64be8df8d7ffaa0fb15336563da786b7d45c323497e",
+                    "ledgerVersion": 22,
+                    "previousLedgerHash": "6d9f246d5ff78148967371e7d8d935ce359dae0332a9a19ddfdd5324c1b40c4d",
                     "scpValue": {
-                        "txSetHash": "75f223424a07316c4a3b6ad5ec78dac8c25c6dbb529538e9e8faa183e78106b4",
+                        "txSetHash": "1120193bd88977d4e6769d9a9da8a88613530c2d76834b49b239412240288bef",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "3a533a79d86995b38d1c6945e882d0e358d7a9e2367c7b8eb5b9148478a4f11ce695c4af2dfd20444d3e1be52cdff0841176704151a6f5965ea267b815cbd705"
+                                "signature": "f1806a2920d7ebca5d1ab8834d4be7ff49964c1c6f965135081b805fd4f078bd73f3bcb171dff9a0e2974b6906f2792d6d49d5311455a2805e636c15f0bf640d"
                             }
                         }
                     },
                     "txSetResultHash": "2faeae31b9d73430feb6398a535833e52b512c0822da128266d3327e43928625",
-                    "bucketListHash": "80cbee174fe132ada3c01da9453b09ba67ab027d03e3c5e34916522f62fb255d",
+                    "bucketListHash": "49b4946eaabb52a9dbe1ecd402fe28211d616a6fecaa709e09b87400f52e51f6",
                     "ledgerSeq": 10,
                     "totalCoins": 1000000000000000000,
-                    "feePool": 267011,
+                    "feePool": 266953,
                     "inflationSeq": 0,
                     "idPool": 0,
                     "baseFee": 100,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "04557df4dda107c7324ca64be8df8d7ffaa0fb15336563da786b7d45c323497e",
+                    "previousLedgerHash": "6d9f246d5ff78148967371e7d8d935ce359dae0332a9a19ddfdd5324c1b40c4d",
                     "phases": [
                         {
                             "v": 0,
@@ -176,11 +176,8 @@
                             ]
                         },
                         {
-                            "v": 1,
-                            "parallelTxsComponent": {
-                                "baseFee": null,
-                                "executionStages": []
-                            }
+                            "v": 0,
+                            "v0Components": []
                         }
                     ]
                 }
@@ -579,7 +576,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                        "balance": 999999998999723489,
+                                        "balance": 999999998999723547,
                                         "seqNum": 6,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
@@ -629,7 +626,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                        "balance": 999999998999723389,
+                                        "balance": 999999998999723447,
                                         "seqNum": 6,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
@@ -687,7 +684,7 @@
                                             "type": "ACCOUNT",
                                             "account": {
                                                 "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                "balance": 999999998999723389,
+                                                "balance": 999999998999723447,
                                                 "seqNum": 6,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
@@ -737,7 +734,7 @@
                                             "type": "ACCOUNT",
                                             "account": {
                                                 "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                "balance": 999999998999723389,
+                                                "balance": 999999998999723447,
                                                 "seqNum": 7,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
@@ -894,7 +891,7 @@
                                                     "type": "ACCOUNT",
                                                     "account": {
                                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                        "balance": 999999998999723389,
+                                                        "balance": 999999998999723447,
                                                         "seqNum": 7,
                                                         "numSubEntries": 0,
                                                         "inflationDest": null,
@@ -944,7 +941,7 @@
                                                     "type": "ACCOUNT",
                                                     "account": {
                                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                        "balance": 999999998999722389,
+                                                        "balance": 999999998999722447,
                                                         "seqNum": 7,
                                                         "numSubEntries": 0,
                                                         "inflationDest": null,
@@ -1000,7 +997,7 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfBucketList": 1359,
+            "totalByteSizeOfBucketList": 1328,
             "evictedTemporaryLedgerKeys": [],
             "evictedPersistentLedgerEntries": []
         }
