@@ -27,7 +27,8 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op,
 bool
 PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                         Hash const& sorobanBasePrngSeed, OperationResult& res,
-                        std::shared_ptr<SorobanTxData> sorobanData) const
+                        std::shared_ptr<SorobanTxData> sorobanData,
+                        OpEventManager& opEventManager) const
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -68,7 +69,8 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     PathPaymentStrictReceiveOpFrame ppayment(op, mParentTx);
 
     if (!ppayment.doCheckValid(ledgerVersion, ppRes) ||
-        !ppayment.doApply(app, ltx, sorobanBasePrngSeed, ppRes, sorobanData))
+        !ppayment.doApply(app, ltx, sorobanBasePrngSeed, ppRes, sorobanData,
+                          opEventManager))
     {
         if (ppRes.code() != opINNER)
         {

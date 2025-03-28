@@ -45,7 +45,8 @@ class ManageOfferOpFrameBase : public OperationFrame
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                  Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+                 std::shared_ptr<SorobanTxData> sorobanData,
+                 OpEventManager& opEventManager) const override;
 
     bool isDexOperation() const override;
 
