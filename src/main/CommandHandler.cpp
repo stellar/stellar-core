@@ -1207,47 +1207,47 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         {
             auto& upgradeCfg = cfg.getMutSorobanUpgradeConfig();
             upgradeCfg.maxContractSizeBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctsz", 0);
+                parseOptionalParam<uint32_t>(map, "mxcntrctsz");
             upgradeCfg.maxContractDataKeySizeBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctkeysz", 0);
+                parseOptionalParam<uint32_t>(map, "mxcntrctkeysz");
             upgradeCfg.maxContractDataEntrySizeBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctdatasz", 0);
+                parseOptionalParam<uint32_t>(map, "mxcntrctdatasz");
             upgradeCfg.ledgerMaxInstructions =
-                parseOptionalParamOrDefault<uint64_t>(map, "ldgrmxinstrc", 0);
+                parseOptionalParam<uint64_t>(map, "ldgrmxinstrc");
             upgradeCfg.txMaxInstructions =
-                parseOptionalParamOrDefault<uint64_t>(map, "txmxinstrc", 0);
+                parseOptionalParam<uint64_t>(map, "txmxinstrc");
             upgradeCfg.txMemoryLimit =
-                parseOptionalParamOrDefault<uint64_t>(map, "txmemlim", 0);
+                parseOptionalParam<uint64_t>(map, "txmemlim");
             upgradeCfg.ledgerMaxReadLedgerEntries =
-                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdntry", 0);
+                parseOptionalParam<uint32_t>(map, "ldgrmxrdntry");
             upgradeCfg.ledgerMaxReadBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdbyt", 0);
+                parseOptionalParam<uint32_t>(map, "ldgrmxrdbyt");
             upgradeCfg.ledgerMaxWriteLedgerEntries =
-                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrntry", 0);
+                parseOptionalParam<uint32_t>(map, "ldgrmxwrntry");
             upgradeCfg.ledgerMaxWriteBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrbyt", 0);
+                parseOptionalParam<uint32_t>(map, "ldgrmxwrbyt");
             upgradeCfg.ledgerMaxTxCount =
-                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxcnt", 0);
+                parseOptionalParam<uint32_t>(map, "ldgrmxtxcnt");
             upgradeCfg.txMaxReadLedgerEntries =
-                parseOptionalParamOrDefault<uint32_t>(map, "txmxrdntry", 0);
+                parseOptionalParam<uint32_t>(map, "txmxrdntry");
             upgradeCfg.txMaxReadBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "txmxrdbyt", 0);
+                parseOptionalParam<uint32_t>(map, "txmxrdbyt");
             upgradeCfg.txMaxWriteLedgerEntries =
-                parseOptionalParamOrDefault<uint32_t>(map, "txmxwrntry", 0);
+                parseOptionalParam<uint32_t>(map, "txmxwrntry");
             upgradeCfg.txMaxWriteBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "txmxwrbyt", 0);
+                parseOptionalParam<uint32_t>(map, "txmxwrbyt");
             upgradeCfg.txMaxContractEventsSizeBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "txmxevntsz", 0);
+                parseOptionalParam<uint32_t>(map, "txmxevntsz");
             upgradeCfg.ledgerMaxTransactionsSizeBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxsz", 0);
+                parseOptionalParam<uint32_t>(map, "ldgrmxtxsz");
             upgradeCfg.txMaxSizeBytes =
-                parseOptionalParamOrDefault<uint32_t>(map, "txmxsz", 0);
+                parseOptionalParam<uint32_t>(map, "txmxsz");
             upgradeCfg.bucketListSizeWindowSampleSize =
-                parseOptionalParamOrDefault<uint32_t>(map, "wndowsz", 0);
+                parseOptionalParam<uint32_t>(map, "wndowsz");
             upgradeCfg.evictionScanSize =
-                parseOptionalParamOrDefault<uint64_t>(map, "evctsz", 0);
+                parseOptionalParam<uint64_t>(map, "evctsz");
             upgradeCfg.startingEvictionScanLevel =
-                parseOptionalParamOrDefault<uint32_t>(map, "evctlvl", 0);
+                parseOptionalParam<uint32_t>(map, "evctlvl");
         }
 
         if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)
