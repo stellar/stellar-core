@@ -76,6 +76,7 @@ class TransactionQueue
     {
         TransactionQueue::AddResultCode code;
         MutableTxResultPtr txResult;
+        xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
 
         // AddResult with no txResult
         explicit AddResult(TransactionQueue::AddResultCode addCode);
@@ -84,10 +85,21 @@ class TransactionQueue
         explicit AddResult(TransactionQueue::AddResultCode addCode,
                            MutableTxResultPtr payload);
 
+        // Same as above, also populating diagnostics
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           MutableTxResultPtr payload,
+                           xdr::xvector<DiagnosticEvent>&& diagnostics);
+
         // AddResult with error txResult with the specified txErrorCode
         explicit AddResult(TransactionQueue::AddResultCode addCode,
                            TransactionFrameBasePtr tx,
                            TransactionResultCode txErrorCode);
+
+        // Same as above, also populating diagnostics
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           TransactionFrameBasePtr tx,
+                           TransactionResultCode txErrorCode,
+                           xdr::xvector<DiagnosticEvent>&& diagnostics);
     };
 
     /**
