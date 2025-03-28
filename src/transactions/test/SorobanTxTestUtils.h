@@ -19,6 +19,9 @@ namespace txtest
 
 SCAddress makeContractAddress(Hash const& hash);
 SCAddress makeAccountAddress(AccountID const& accountID);
+SCAddress makeMuxedAccountAddress(AccountID const& accountID, uint64_t id);
+SCAddress makeClaimableBalanceAddress(Hash const& id);
+SCAddress makeLiqudityPoolAddress(PoolID const& id);
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);
@@ -41,6 +44,10 @@ ContractExecutable makeAssetExecutable(Asset const& asset);
 SorobanResources
 defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
                                            uint32_t ledgerVersion);
+
+ContractEvent makeContractEvent(Hash const& contractId,
+                                std::vector<SCVal> const& topics,
+                                SCVal const& data);
 
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`
@@ -327,9 +334,11 @@ class AssetContractTestClient
     TestContract& mContract;
     Asset mAsset;
     Application& mApp;
+    std::optional<ContractEvent> mLastEvent;
 
     LedgerKey makeIssuerKey(Asset const& mAsset);
     LedgerKey makeContractDataBalanceKey(SCAddress const& addr);
+    void setLastEvent(TestContract::Invocation const& invocation, bool success);
 
   public:
     AssetContractTestClient(SorobanTest& test, Asset const& asset);
@@ -339,12 +348,20 @@ class AssetContractTestClient
     int64_t getBalance(SCAddress const& addr);
     SorobanInvocationSpec defaultSpec() const;
 
-    bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount);
+    bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount,
+                  std::optional<uint64_t> fromMuxId = std::nullopt);
     bool mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount);
     bool burn(TestAccount& from, int64_t amount);
     bool clawback(TestAccount& admin, SCAddress const& fromAddr,
                   int64_t amount);
     TestContract const& getContract() const;
+    std::optional<ContractEvent> lastEvent() const;
+
+    ContractEvent
+    makeTransferEvent(SCAddress const& from, SCAddress const& to,
+                      int64_t amount,
+                      std::optional<uint64_t> fromMuxId = std::nullopt,
+                      std::optional<uint64_t> toMuxId = std::nullopt);
 };
 
 class ContractStorageTestClient
