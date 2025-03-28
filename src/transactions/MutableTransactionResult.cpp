@@ -43,95 +43,6 @@ SorobanTxData::setSorobanFeeRefund(int64_t fee)
     mFeeRefund = fee;
 }
 
-xdr::xvector<DiagnosticEvent> const&
-SorobanTxData::getDiagnosticEvents() const
-{
-    return mDiagnosticEvents;
-}
-
-void
-SorobanTxData::pushContractEvents(xdr::xvector<ContractEvent> const& evts)
-{
-    mEvents = evts;
-}
-
-void
-SorobanTxData::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts)
-{
-    auto& des = mDiagnosticEvents;
-    des.insert(des.end(), evts.begin(), evts.end());
-}
-
-void
-SorobanTxData::pushDiagnosticEvent(DiagnosticEvent const& evt)
-{
-    mDiagnosticEvents.emplace_back(evt);
-}
-
-void
-SorobanTxData::pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
-                                         SCErrorCode code,
-                                         std::string&& message,
-                                         xdr::xvector<SCVal>&& args)
-{
-    ContractEvent ce;
-    ce.type = DIAGNOSTIC;
-    ce.body.v(0);
-
-    SCVal sym = makeSymbolSCVal("error"), err;
-    err.type(SCV_ERROR);
-    err.error().type(ty);
-    err.error().code() = code;
-    ce.body.v0().topics.assign({std::move(sym), std::move(err)});
-
-    if (args.empty())
-    {
-        ce.body.v0().data.type(SCV_STRING);
-        ce.body.v0().data.str().assign(std::move(message));
-    }
-    else
-    {
-        ce.body.v0().data.type(SCV_VEC);
-        ce.body.v0().data.vec().activate();
-        ce.body.v0().data.vec()->reserve(args.size() + 1);
-        ce.body.v0().data.vec()->emplace_back(
-            makeStringSCVal(std::move(message)));
-        std::move(std::begin(args), std::end(args),
-                  std::back_inserter(*ce.body.v0().data.vec()));
-    }
-    DiagnosticEvent evt(false, std::move(ce));
-    pushDiagnosticEvent(evt);
-}
-
-void
-SorobanTxData::pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                            SCErrorCode code,
-                                            std::string&& message,
-                                            xdr::xvector<SCVal>&& args)
-{
-    if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        return;
-    }
-    pushSimpleDiagnosticError(cfg, ty, code, std::move(message),
-                              std::move(args));
-}
-
-void
-SorobanTxData::pushValidationTimeDiagnosticError(Config const& cfg,
-                                                 SCErrorType ty,
-                                                 SCErrorCode code,
-                                                 std::string&& message,
-                                                 xdr::xvector<SCVal>&& args)
-{
-    if (!cfg.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION)
-    {
-        return;
-    }
-    pushSimpleDiagnosticError(cfg, ty, code, std::move(message),
-                              std::move(args));
-}
-
 void
 SorobanTxData::setReturnValue(SCVal const& returnValue)
 {
@@ -139,11 +50,8 @@ SorobanTxData::setReturnValue(SCVal const& returnValue)
 }
 
 void
-SorobanTxData::publishSuccessDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                               Config const& cfg)
+SorobanTxData::publishSuccessMeta(TransactionMetaFrame& meta, Config const& cfg)
 {
-    meta.pushContractEvents(std::move(mEvents));
-    meta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
     meta.setReturnValue(std::move(mReturnValue));
     if (cfg.EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
     {
@@ -153,10 +61,8 @@ SorobanTxData::publishSuccessDiagnosticsToMeta(TransactionMetaFrame& meta,
 }
 
 void
-SorobanTxData::publishFailureDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                               Config const& cfg)
+SorobanTxData::publishFailureMeta(TransactionMetaFrame& meta, Config const& cfg)
 {
-    meta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
     if (cfg.EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
     {
         meta.setSorobanFeeInfo(mConsumedNonRefundableFee,
@@ -169,7 +75,7 @@ bool
 SorobanTxData::consumeRefundableSorobanResources(
     uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
-    TransactionFrame const& tx)
+    TransactionFrame const& tx, DiagnosticEventBuffer& diagnosticEvents)
 {
     ZoneScoped;
     releaseAssertOrThrow(tx.isSoroban());
@@ -181,8 +87,8 @@ SorobanTxData::consumeRefundableSorobanResources(
     // mFeeRefund was set in apply
     if (mFeeRefund < mConsumedRentFee)
     {
-        pushApplyTimeDiagnosticError(
-            cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+        diagnosticEvents.pushApplyTimeDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "refundable resource fee was not sufficient to cover the ledger "
             "storage rent: {} > {}",
             {makeU64SCVal(mConsumedRentFee), makeU64SCVal(mFeeRefund)});
@@ -198,8 +104,8 @@ SorobanTxData::consumeRefundableSorobanResources(
     mConsumedRefundableFee += consumedFee.refundable_fee;
     if (mFeeRefund < consumedFee.refundable_fee)
     {
-        pushApplyTimeDiagnosticError(
-            cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+        diagnosticEvents.pushApplyTimeDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "refundable resource fee was not sufficient to cover the events "
             "fee after paying for ledger storage rent: {} > {}",
             {makeU64SCVal(consumedFee.refundable_fee),
@@ -284,20 +190,6 @@ OperationResult&
 MutableTransactionResult::getOpResultAt(size_t index)
 {
     return mTxResult->result.results().at(index);
-}
-
-xdr::xvector<DiagnosticEvent> const&
-MutableTransactionResult::getDiagnosticEvents() const
-{
-    static xdr::xvector<DiagnosticEvent> const empty;
-    if (mSorobanExtension)
-    {
-        return mSorobanExtension->getDiagnosticEvents();
-    }
-    else
-    {
-        return empty;
-    }
 }
 
 void
@@ -427,12 +319,6 @@ std::shared_ptr<SorobanTxData>
 FeeBumpMutableTransactionResult::getSorobanData()
 {
     return mInnerTxResult->getSorobanData();
-}
-
-xdr::xvector<DiagnosticEvent> const&
-FeeBumpMutableTransactionResult::getDiagnosticEvents() const
-{
-    return mInnerTxResult->getDiagnosticEvents();
 }
 
 void

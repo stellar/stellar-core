@@ -9,6 +9,7 @@
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "util/types.h"
 #include <memory>
@@ -41,12 +42,13 @@ class OperationFrame
     doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
                            Config const& appConfig, uint32_t ledgerVersion,
                            OperationResult& res,
-                           SorobanTxData& sorobanData) const;
+                           DiagnosticEventBufferPtr& diagnosticEvents) const;
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
     virtual bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                          Hash const& sorobanBasePrngSeed, OperationResult& res,
-                         std::shared_ptr<SorobanTxData> sorobanData) const = 0;
+                         std::shared_ptr<SorobanTxData> sorobanData,
+                         OpEventManager& opEventManager) const = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -77,12 +79,12 @@ class OperationFrame
                     std::optional<SorobanNetworkConfig> const& cfg,
                     LedgerSnapshot const& ls, bool forApply,
                     OperationResult& res,
-                    std::shared_ptr<SorobanTxData> sorobanData) const;
+                    DiagnosticEventBufferPtr diagnosticEvents) const;
 
     bool apply(AppConnector& app, SignatureChecker& signatureChecker,
                AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-               OperationResult& res,
-               std::shared_ptr<SorobanTxData> sorobanData) const;
+               OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData,
+               OpEventManager& opEventManager) const;
 
     Operation const&
     getOperation() const

@@ -1655,8 +1655,11 @@ LedgerManagerImpl::applyTransactions(
             TransactionResultPair results;
             results.transactionHash = tx->getContentsHash();
 
+            TxEventManager txEventManager(
+                ltx.loadHeader().current().ledgerVersion, mApp.getNetworkID(),
+                mApp.getConfig(), *tx);
             tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult,
-                      subSeed);
+                      txEventManager, subSeed);
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,
                                  mutableTxResult);
 
