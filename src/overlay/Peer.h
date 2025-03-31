@@ -464,13 +464,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // Public thread-safe methods that access Peer's state
     void
-    assertAuthenticated() const
-    {
-        RecursiveLockGuard guard(mStateMutex);
-        releaseAssert(isAuthenticated(guard));
-    }
-
-    void
     assertShuttingDown() const
     {
         RecursiveLockGuard guard(mStateMutex);
