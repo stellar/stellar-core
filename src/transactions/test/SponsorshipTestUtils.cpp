@@ -150,7 +150,8 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
                 {sponsoringAcc.getSecretKey(), sponsoredAcc.getSecretKey()});
 
             LedgerTxn ltx(app.getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
+                                     app.getConfig());
             REQUIRE(
                 tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(!tx->apply(app.getAppConnector(), ltx, txm));
@@ -256,7 +257,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             {
                 LedgerTxn ltx(app.getLedgerTxnRoot());
                 TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion);
+                    ltx.loadHeader().current().ledgerVersion, app.getConfig());
                 REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
@@ -272,7 +273,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             {
                 LedgerTxn ltx2(app.getLedgerTxnRoot());
                 TransactionMetaFrame txm2(
-                    ltx2.loadHeader().current().ledgerVersion);
+                    ltx2.loadHeader().current().ledgerVersion, app.getConfig());
                 REQUIRE(tx2->checkValidForTesting(app.getAppConnector(), ltx2,
                                                   0, 0, 0));
                 REQUIRE(tx2->apply(app.getAppConnector(), ltx2, txm2));
@@ -287,7 +288,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             // Modify sponsored entry while sponsored
             {
                 LedgerTxn ltx3(app.getLedgerTxnRoot());
-                TransactionMetaFrame txm3(2);
+                TransactionMetaFrame txm3(2, app.getConfig());
                 REQUIRE(tx3->checkValidForTesting(app.getAppConnector(), ltx3,
                                                   0, 0, 0));
                 REQUIRE(tx3->apply(app.getAppConnector(), ltx3, txm3));
@@ -303,7 +304,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             // Remove sponsored entry
             {
                 LedgerTxn ltx4(app.getLedgerTxnRoot());
-                TransactionMetaFrame txm4(2);
+                TransactionMetaFrame txm4(2, app.getConfig());
                 REQUIRE(tx4->checkValidForTesting(app.getAppConnector(), ltx4,
                                                   0, 0, 0));
                 REQUIRE(tx4->apply(app.getAppConnector(), ltx4, txm4));
@@ -402,7 +403,8 @@ submitTooManySponsoringTxs(Application& app, TestAccount& successfulOpAcc,
             {successfulOpAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaFrame txm1(ltx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame txm1(ltx.loadHeader().current().ledgerVersion,
+                                  app.getConfig());
         REQUIRE(tx1->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx1->apply(app.getAppConnector(), ltx, txm1));
         ltx.commit();
@@ -416,7 +418,8 @@ submitTooManySponsoringTxs(Application& app, TestAccount& successfulOpAcc,
             {failOpAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion,
+                                  app.getConfig());
         REQUIRE(tx2->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(!tx2->apply(app.getAppConnector(), ltx, txm2));
         REQUIRE(tx2->getResult().result.results()[1].code() ==
@@ -545,7 +548,8 @@ submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
                                            {successfulOp}, {});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaFrame txm1(ltx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame txm1(ltx.loadHeader().current().ledgerVersion,
+                                  app.getConfig());
         REQUIRE(tx1->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx1->apply(app.getAppConnector(), ltx, txm1));
         ltx.commit();
@@ -556,7 +560,8 @@ submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
             transactionFrameFromOps(app.getNetworkID(), testAcc, {failOp}, {});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion,
+                                  app.getConfig());
         REQUIRE(tx2->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(!tx2->apply(app.getAppConnector(), ltx, txm2));
         REQUIRE(tx2->getResult().result.results()[0].code() ==

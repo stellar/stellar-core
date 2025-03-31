@@ -560,7 +560,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         REQUIRE(initBalance - balanceAfterFeeCharged ==
                 tx->declaredSorobanResourceFee() + surgePricedFee);
 
-        TransactionMetaFrame txm(test.getLedgerVersion());
+        TransactionMetaFrame txm(test.getLedgerVersion(),
+                                 test.getApp().getConfig());
         auto timerBefore = hostFnExecTimer.count();
         auto txEventManager = TxEventManager(test.getLedgerVersion(),
                                              test.getApp().getNetworkID(),
@@ -820,7 +821,8 @@ TEST_CASE("version test", "[tx][soroban]")
 
         REQUIRE(test.isTxValid(tx));
 
-        TransactionMetaFrame txm(test.getLedgerVersion());
+        TransactionMetaFrame txm(test.getLedgerVersion(),
+                                 test.getApp().getConfig());
         REQUIRE(isSuccessResult(test.invokeTx(tx, &txm)));
 
         return txm;
@@ -3609,7 +3611,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             app->getNetworkID(), txEnv);
         auto tx = TransactionTestFrame::fromTxFrame(rawTx);
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
+                                 app->getConfig());
         REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
         ltx.commit();
@@ -3682,7 +3685,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             app->getNetworkID(), invokeRes2.first);
         auto txRevertSettings = TransactionTestFrame::fromTxFrame(txRaw);
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
+                                 app->getConfig());
         REQUIRE(txRevertSettings->checkValidForTesting(app->getAppConnector(),
                                                        ltx, 0, 0, 0));
         REQUIRE(txRevertSettings->apply(app->getAppConnector(), ltx, txm));

@@ -763,7 +763,7 @@ TestContract::Invocation::invoke(TestAccount* source)
 {
     auto tx = createTx(source);
     CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
-    mTxMeta.emplace(mTest.getLedgerVersion());
+    mTxMeta.emplace(mTest.getLedgerVersion(), mTest.getApp().getConfig());
     auto result = mTest.invokeTx(tx, &mTxMeta.value());
     mFeeCharged = result.feeCharged;
     if (result.result.code() == txFAILED || result.result.code() == txSUCCESS)
@@ -865,7 +865,7 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
         (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
     REQUIRE(result->getResult().feeCharged == chargedBeforeRefund);
 
-    TransactionMetaFrame txm(getLedgerVersion());
+    TransactionMetaFrame txm(getLedgerVersion(), mApp->getConfig());
     REQUIRE(isSuccessResult(invokeTx(tx, &txm)));
 
     int64_t balanceAfterFeeCharged = getRoot().getBalance();

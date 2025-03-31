@@ -9,14 +9,14 @@
 
 namespace stellar
 {
+class Config;
 
 // Wrapper around TransactionMeta XDR that provides mutable access to fields
 // in the proper version of meta.
 class TransactionMetaFrame
 {
   public:
-    TransactionMetaFrame(uint32_t protocolVersion,
-                         bool backfillStellarAssetEvents = false);
+    TransactionMetaFrame(uint32_t protocolVersion, Config const& config);
 
     void pushTxChangesBefore(LedgerEntryChanges&& changes);
     size_t getNumChangesBefore() const;

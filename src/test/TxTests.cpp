@@ -166,7 +166,8 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
             try
             {
                 TransactionMetaFrame cleanTm(
-                    ltxCleanTx.loadHeader().current().ledgerVersion);
+                    ltxCleanTx.loadHeader().current().ledgerVersion,
+                    app.getConfig());
                 checkedTxApplyRes = checkedTx->apply(app.getAppConnector(),
                                                      ltxCleanTx, cleanTm);
             }
@@ -232,7 +233,8 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
-        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion);
+        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion,
+                                app.getConfig());
         try
         {
             res = tx->apply(app.getAppConnector(), ltxTx, tm);

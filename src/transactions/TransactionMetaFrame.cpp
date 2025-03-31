@@ -37,14 +37,14 @@ namespace stellar
 {
 
 TransactionMetaFrame::TransactionMetaFrame(uint32_t protocolVersion,
-                                           bool backfillStellarAssetEvents)
+                                           Config const& config)
 {
     // The TransactionMeta v() switch can be in 5 positions 0, 1, 2, 3, 4. We do
     // not support 0 or 1 at all -- core does not produce it anymore and we have
     // no obligation to consume it under any circumstance -- so this class just
     // switches between cases 2, 3 and 4.
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23) ||
-        backfillStellarAssetEvents)
+        config.BACKFILL_STELLAR_ASSET_EVENTS)
     {
         mVersion = 4;
     }
@@ -252,7 +252,7 @@ TransactionMetaFrame::pushTxContractEvents(xdr::xvector<ContractEvent>&& events)
         // `maybePushSorobanContractEvents`.
         break;
     case 4:
-        vecAppend(mTransactionMeta.v4().events, std::move(events));
+        mTransactionMeta.v4().events = std::move(events);
         break;
     default:
         releaseAssert(false);
@@ -277,7 +277,10 @@ TransactionMetaFrame::maybePushDiagnosticEvents(
         }
         break;
     case 4:
-        vecAppend(mTransactionMeta.v4().diagnosticEvents, std::move(events));
+        if (isSoroban)
+        {
+            mTransactionMeta.v4().diagnosticEvents = std::move(events);
+        }
         break;
     default:
         releaseAssert(false);
