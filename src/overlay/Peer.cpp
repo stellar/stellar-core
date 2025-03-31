@@ -613,8 +613,6 @@ Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 std::string
 Peer::msgSummary(StellarMessage const& msg)
 {
-    releaseAssert(threadIsMain());
-
     switch (msg.type())
     {
     case ERROR_MSG:
