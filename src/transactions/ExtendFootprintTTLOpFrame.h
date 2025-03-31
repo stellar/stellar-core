@@ -35,7 +35,7 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
     bool doCheckValidForSoroban(
         SorobanNetworkConfig const& networkConfig, Config const& appConfig,
         uint32_t ledgerVersion, OperationResult& res,
-        DiagnosticEventBufferPtr& diagnosticEvents) const override;
+        DiagnosticEventBuffer* diagnosticEvents) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 

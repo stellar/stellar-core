@@ -74,7 +74,7 @@ DiagnosticEventBuffer::flush(xdr::xvector<DiagnosticEvent>& buf)
 };
 
 void
-pushDiagnosticError(DiagnosticEventBufferPtr const& ptr, SCErrorType ty,
+pushDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
                     SCErrorCode code, std::string&& message,
                     xdr::xvector<SCVal>&& args)
 {
@@ -86,9 +86,8 @@ pushDiagnosticError(DiagnosticEventBufferPtr const& ptr, SCErrorType ty,
 }
 
 void
-pushValidationTimeDiagnosticError(DiagnosticEventBufferPtr const& ptr,
-                                  SCErrorType ty, SCErrorCode code,
-                                  std::string&& message,
+pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
+                                  SCErrorCode code, std::string&& message,
                                   xdr::xvector<SCVal>&& args)
 {
     if (ptr && ptr->mConfig.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION)

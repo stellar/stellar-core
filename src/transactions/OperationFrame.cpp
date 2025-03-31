@@ -150,8 +150,7 @@ OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
         isSoroban() ? std::make_optional(app.getSorobanNetworkConfigForApply())
                     : std::nullopt;
     bool applyRes = checkValid(app, signatureChecker, cfg, ltxState, true, res,
-                               std::make_shared<DiagnosticEventBuffer>(
-                                   opEventManager.getDiagnosticEventsBuffer()));
+                               &opEventManager.getDiagnosticEventsBuffer());
     if (applyRes)
     {
         applyRes = doApply(app, ltx, sorobanBasePrngSeed, res, sorobanData,
@@ -229,7 +228,7 @@ OperationFrame::checkValid(AppConnector& app,
                            std::optional<SorobanNetworkConfig> const& cfg,
                            LedgerSnapshot const& ls, bool forApply,
                            OperationResult& res,
-                           DiagnosticEventBufferPtr diagnosticEvents) const
+                           DiagnosticEventBuffer* diagnosticEvents) const
 {
     ZoneScoped;
     bool validationResult = false;
@@ -308,7 +307,7 @@ bool
 OperationFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& config, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    DiagnosticEventBuffer* diagnosticEvents) const
 {
     return doCheckValid(ledgerVersion, res);
 }

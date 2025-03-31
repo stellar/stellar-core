@@ -936,10 +936,12 @@ class FuzzTransactionFrame : public TransactionFrame
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
+            auto diagnostics =
+                DiagnosticEventManager::createForValidation(app.getConfig());
             return !op->checkValid(
                 app.getAppConnector(), signatureChecker,
                 app.getAppConnector().getLastClosedSorobanNetworkConfig(),
-                ltxStmt, false, opResult, mTxResult->getSorobanData());
+                ltxStmt, false, opResult, diagnostics);
         };
 
         auto const& ops = getOperations();

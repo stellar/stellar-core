@@ -159,7 +159,7 @@ MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventBufferPtr diagnosticEvents) const
+    DiagnosticEventBuffer* diagnosticEvents) const
 {
     if (!isTransactionXDRValidForProtocol(
             ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
@@ -202,8 +202,7 @@ FeeBumpTransactionFrame::checkValid(
 bool
 FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
     AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    MutableTxResultPtr txResult, DiagnosticEventBuffer* diagnosticEvents) const
 {
     return mInnerTx->checkSorobanResourceAndSetError(
         app, cfg, ledgerVersion, txResult, diagnosticEvents);

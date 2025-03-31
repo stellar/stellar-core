@@ -107,10 +107,11 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventBufferPtr diagnosticEvents) const
+TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                                 SequenceNumber current,
+                                 uint64_t lowerBoundCloseTimeOffset,
+                                 uint64_t upperBoundCloseTimeOffset,
+                                 DiagnosticEventBuffer* diagnosticEvents) const
 {
     mTransactionTxResult = mTransactionFrame->checkValid(
         app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
@@ -149,8 +150,7 @@ TransactionTestFrame::checkValidForTesting(AppConnector& app,
 bool
 TransactionTestFrame::checkSorobanResourceAndSetError(
     AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    MutableTxResultPtr txResult, DiagnosticEventBuffer* diagnosticEvents) const
 {
     auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
         app, cfg, ledgerVersion, txResult, diagnosticEvents);

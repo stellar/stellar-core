@@ -163,7 +163,7 @@ bool
 ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    DiagnosticEventBuffer* diagnosticEvents) const
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())

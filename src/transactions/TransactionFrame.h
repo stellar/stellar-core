@@ -102,7 +102,7 @@ class TransactionFrame : public TransactionFrameBase
                               uint64_t upperBoundCloseTimeOffset,
                               std::optional<FeePair> sorobanResourceFee,
                               MutableTxResultPtr txResult,
-                              DiagnosticEventBufferPtr& diagnosticEvents) const;
+                              DiagnosticEventBuffer* diagnosticEvents) const;
 
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
@@ -113,7 +113,7 @@ class TransactionFrame : public TransactionFrameBase
         SequenceNumber current, bool applying, bool chargeFee,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
         std::optional<FeePair> sorobanResourceFee, MutableTxResultPtr txResult,
-        DiagnosticEventBufferPtr diagnosticEvents) const;
+        DiagnosticEventBuffer* diagnosticEvents) const;
 
     void removeOneTimeSignerFromAllSourceAccounts(AbstractLedgerTxn& ltx) const;
 
@@ -142,7 +142,7 @@ class TransactionFrame : public TransactionFrameBase
     bool
     validateSorobanResources(SorobanNetworkConfig const& config,
                              Config const& appConfig, uint32_t protocolVersion,
-                             DiagnosticEventBufferPtr& diagnosticEvents) const;
+                             DiagnosticEventBuffer* diagnosticEvents) const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
     void updateSorobanMetrics(AppConnector& app) const;
@@ -214,15 +214,15 @@ class TransactionFrame : public TransactionFrameBase
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventBufferPtr& diagnosticEvents) const;
+        DiagnosticEventBuffer* diagnosticEvents) const;
     MutableTxResultPtr checkValid(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventBufferPtr diagnosticEvents = nullptr) const override;
+        DiagnosticEventBuffer* diagnosticEvents = nullptr) const override;
     bool checkSorobanResourceAndSetError(
         AppConnector& app, SorobanNetworkConfig const& cfg,
         uint32_t ledgerVersion, MutableTxResultPtr txResult,
-        DiagnosticEventBufferPtr& diagnosticEvents) const override;
+        DiagnosticEventBuffer* diagnosticEvents) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
 
