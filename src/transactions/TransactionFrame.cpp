@@ -1687,7 +1687,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         Hash const& sorobanBasePrngSeed) const
 {
     TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion,
-                            app.getConfig().EMIT_CLASSIC_EVENTS);
+                            app.getConfig());
     return apply(app, ltx, tm, txResult, txEventManager, sorobanBasePrngSeed);
 }
 
@@ -1790,9 +1790,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 {
                     changes = ltxOp.getChanges();
                 }
-                xdr::xvector<ContractEvent> ces;
-                opEventManager.flushContractEvents(ces);
-                opMetas.push(std::move(changes), std::move(ces));
+                xdr::xvector<ContractEvent> xdrContractEvents;
+                opEventManager.flushContractEvents(xdrContractEvents);
+                opMetas.push(std::move(changes), std::move(xdrContractEvents));
             }
 
             if (txRes ||

@@ -301,7 +301,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 }
@@ -323,7 +324,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 }
@@ -345,7 +347,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 }
@@ -380,7 +383,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                 }
@@ -408,7 +412,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(!fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_FAILED);
                     auto const& innerRes =
@@ -433,7 +438,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(!fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_FAILED);
                     auto const& innerRes =
@@ -485,7 +491,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -509,7 +516,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame meta(
-                        ltx.loadHeader().current().ledgerVersion);
+                        ltx.loadHeader().current().ledgerVersion,
+                        app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
                     REQUIRE(meta.getNumChangesBefore() ==

@@ -1632,9 +1632,8 @@ LedgerManagerImpl::applyTransactions(
             auto mutableTxResult = mutableTxResults.at(resultIndex++);
 
             auto txTime = mLedgerApplyMetrics.mTransactionApply.TimeScope();
-            TransactionMetaFrame tm(
-                ltx.loadHeader().current().ledgerVersion,
-                mApp.getConfig().BACKFILL_STELLAR_ASSET_EVENTS);
+            TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion,
+                                    mApp.getConfig());
 
             CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
                        hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),

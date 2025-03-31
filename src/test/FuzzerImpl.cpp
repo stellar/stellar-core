@@ -962,7 +962,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
-        TransactionMetaFrame tm(2);
+        TransactionMetaFrame tm(2, app.getConfig());
         applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
                         *mTxResult, txEventManager, Hash{});
         if (mTxResult->getResultCode() == txINTERNAL_ERROR)
