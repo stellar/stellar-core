@@ -32,7 +32,6 @@ using MutableTxResultPtr = std::shared_ptr<MutableTransactionResultBase>;
 
 class TxEventManager;
 struct DiagnosticEventBuffer;
-using DiagnosticEventBufferPtr = std::shared_ptr<DiagnosticEventBuffer>;
 
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
@@ -54,11 +53,11 @@ class TransactionFrameBase
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventBufferPtr diagnosticEvents = nullptr) const = 0;
+               DiagnosticEventBuffer* diagnosticEvents = nullptr) const = 0;
     virtual bool checkSorobanResourceAndSetError(
         AppConnector& app, SorobanNetworkConfig const& cfg,
         uint32_t ledgerVersion, MutableTxResultPtr txResult,
-        DiagnosticEventBufferPtr& diagnosticEvents) const = 0;
+        DiagnosticEventBuffer* diagnosticEvents) const = 0;
 
     virtual MutableTxResultPtr createSuccessResult() const = 0;
 

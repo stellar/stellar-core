@@ -70,11 +70,11 @@ class TransactionTestFrame : public TransactionFrameBase
     MutableTxResultPtr checkValid(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventBufferPtr diagnosticEvents = nullptr) const override;
+        DiagnosticEventBuffer* diagnosticEvents = nullptr) const override;
     bool checkSorobanResourceAndSetError(
         AppConnector& app, SorobanNetworkConfig const& cfg,
         uint32_t ledgerVersion, MutableTxResultPtr txResult,
-        DiagnosticEventBufferPtr& diagnosticEvents) const override;
+        DiagnosticEventBuffer* diagnosticEvents) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
 

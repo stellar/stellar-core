@@ -1572,15 +1572,15 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
                                invocationSpec.setInstructions(2'000'000'000))
             .createTx();
 
-    auto diagnosticEvents = std::make_shared<DiagnosticEventBuffer>(cfg);
+    auto diagnosticEvents = DiagnosticEventBuffer(cfg);
     {
         LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
         auto result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                     0, diagnosticEvents);
+                                     0, &diagnosticEvents);
     }
     REQUIRE(!test.isTxValid(tx));
 
-    auto const& diagEvents = diagnosticEvents->mBuffer;
+    auto const& diagEvents = diagnosticEvents.mBuffer;
     REQUIRE(diagEvents.size() == 1);
 
     DiagnosticEvent const& diag_ev = diagEvents.at(0);

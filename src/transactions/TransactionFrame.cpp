@@ -650,7 +650,7 @@ TransactionFrame::validateSorobanOpsConsistency() const
 bool
 TransactionFrame::validateSorobanResources(
     SorobanNetworkConfig const& config, Config const& appConfig,
-    uint32_t protocolVersion, DiagnosticEventBufferPtr& diagnosticEvents) const
+    uint32_t protocolVersion, DiagnosticEventBuffer* diagnosticEvents) const
 {
     auto const& resources = sorobanResources();
     auto const& readEntries = resources.footprint.readOnly;
@@ -993,7 +993,7 @@ TransactionFrame::commonValidPreSeqNum(
     LedgerSnapshot const& ls, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<FeePair> sorobanResourceFee, MutableTxResultPtr txResult,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    DiagnosticEventBuffer* diagnosticEvents) const
 {
     ZoneScoped;
     releaseAssertOrThrow(txResult);
@@ -1302,7 +1302,7 @@ TransactionFrame::commonValid(
     SequenceNumber current, bool applying, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<FeePair> sorobanResourceFee, MutableTxResultPtr txResult,
-    DiagnosticEventBufferPtr diagnosticEvents) const
+    DiagnosticEventBuffer* diagnosticEvents) const
 {
     ZoneScoped;
     releaseAssertOrThrow(txResult);
@@ -1530,7 +1530,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    DiagnosticEventBuffer* diagnosticEvents) const
 {
     ZoneScoped;
     mCachedAccountPreProtocol8.reset();
@@ -1604,7 +1604,7 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset,
-                             DiagnosticEventBufferPtr diagnosticEvents) const
+                             DiagnosticEventBuffer* diagnosticEvents) const
 {
     // Subtle: this check has to happen in `checkValid` and not
     // `checkValidWithOptionallyChargedFee` in order to not validate the
@@ -1626,8 +1626,7 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
 bool
 TransactionFrame::checkSorobanResourceAndSetError(
     AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult,
-    DiagnosticEventBufferPtr& diagnosticEvents) const
+    MutableTxResultPtr txResult, DiagnosticEventBuffer* diagnosticEvents) const
 {
     if (!validateSorobanResources(cfg, app.getConfig(), ledgerVersion,
                                   diagnosticEvents))
@@ -1995,8 +1994,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         auto cv =
             commonValid(app, sorobanConfig, *signatureChecker, ltxStmt, 0, true,
                         chargeFee, 0, 0, sorobanResourceFee, txResult,
-                        std::make_shared<DiagnosticEventBuffer>(
-                            txEventManager.getDiagnosticEventsBuffer()));
+                        &txEventManager.getDiagnosticEventsBuffer());
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);

@@ -32,12 +32,11 @@ struct DiagnosticEventBuffer
     void flush(xdr::xvector<DiagnosticEvent>& buf);
 };
 
-using DiagnosticEventBufferPtr = std::shared_ptr<DiagnosticEventBuffer>;
 // helper functions for emitting diagnostic events in the validation workflows
-void pushDiagnosticError(DiagnosticEventBufferPtr const& ptr, SCErrorType ty,
+void pushDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
                          SCErrorCode code, std::string&& message,
                          xdr::xvector<SCVal>&& args);
-void pushValidationTimeDiagnosticError(DiagnosticEventBufferPtr const& ptr,
+void pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr,
                                        SCErrorType ty, SCErrorCode code,
                                        std::string&& message,
                                        xdr::xvector<SCVal>&& args = {});

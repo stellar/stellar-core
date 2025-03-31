@@ -941,8 +941,7 @@ class FuzzTransactionFrame : public TransactionFrame
                 app.getAppConnector(), signatureChecker,
                 app.getAppConnector().getLastClosedSorobanNetworkConfig(),
                 ltxStmt, false, opResult,
-                std::make_shared<DiagnosticEventBuffer>(
-                    txEventManager.getDiagnosticEventsBuffer()));
+                &txEventManager.getDiagnosticEventsBuffer());
         };
 
         auto const& ops = getOperations();
