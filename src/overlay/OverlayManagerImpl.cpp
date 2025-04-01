@@ -1329,6 +1329,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
                                         Peer::pointer peer)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto logMessage = [&](bool unique, std::string const& msgType) {
         CLOG_TRACE(Overlay, "recv: {} {} ({}) of size: {} from: {}",
                    (unique ? "unique" : "duplicate"),
