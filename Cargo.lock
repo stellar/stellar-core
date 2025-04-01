@@ -311,6 +311,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "quantiles"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c10fa813fb26fb6c321a6f3085b5ade4cb4730d08d0b9e70a3759136940957f2"
+
+[[package]]
 name = "quote"
 version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -529,6 +535,7 @@ dependencies = [
  "cxx",
  "itertools",
  "log",
+ "quantiles",
  "rand",
  "rustc-simple-version",
  "soroban-synth-wasm",

@@ -949,3 +949,65 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     CLOG_INFO(Perf, "Write entry utilization {}%",
               al.getWriteEntryUtilization().mean() / 1000.0);
 }
+
+
+TEST_CASE("loadgen stress", "[loadgen]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10'000;
+            cfg.LOADGEN_OP_COUNT_FOR_TESTING = {1, 2, 10};
+            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    auto& loadGen = app.getLoadGenerator();
+
+    auto getSuccessfulTxCount = [&]() {
+        return nodes[0]
+            ->getMetrics()
+            .NewCounter({"ledger", "apply", "success"})
+            .count();
+    };
+
+    uint32_t const nAccounts = 10'000;
+    uint32_t const nAccountCreationTxs = nAccounts / 100;
+    uint32_t const nTxs = 100'000;
+    uint32_t const txRate = 500;
+
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ nAccounts,
+        /* txRate */ txRate));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 1;
+        },
+        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    REQUIRE(getSuccessfulTxCount() == nAccountCreationTxs);
+
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
+                                                     nAccounts, nTxs,
+                                                     /* txRate */ txRate));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 2;
+        },
+        1000 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    REQUIRE(getSuccessfulTxCount() == nAccountCreationTxs + nTxs);
+}

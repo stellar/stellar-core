@@ -10,6 +10,7 @@
 #include "main/Config.h"
 #include "main/StellarCoreVersion.h"
 #include "rust/RustBridge.h"
+#include "rust/RustCKMS.h"
 #include "util/Backtrace.h"
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
@@ -346,6 +347,8 @@ main(int argc, char* const* argv)
     }
     initializeAllGlobalState();
     xdr::marshaling_stack_limit = 1000;
+
+    register_rust_ckms();
 
     checkStellarCoreMajorVersionProtocolIdentity();
     rust_bridge::check_sensible_soroban_config_for_protocol(

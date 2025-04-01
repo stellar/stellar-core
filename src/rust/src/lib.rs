@@ -263,6 +263,15 @@ mod rust_bridge {
             xdr: &CxxBuf,
             depth_limit: u32,
         ) -> Result<bool>;
+
+        // Opaque wrapper around quantiles::ckms::CKMS
+        type CkmsState;
+        fn ckms_new() -> Box<CkmsState>;
+        fn ckms_insert(self: &mut CkmsState, value: f64);
+        fn ckms_get(self: &CkmsState, q: f64) -> f64;
+        fn ckms_reset(self: &mut CkmsState);
+        fn ckms_count(self: &CkmsState) -> usize;
+        fn ckms_max(self: &CkmsState) -> f64;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -1024,4 +1033,33 @@ pub(crate) fn compute_write_fee_per_1kb(
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
+}
+
+// Wrapper type implementation
+pub struct CkmsState(quantiles::ckms::CKMS<f64>);
+
+pub fn ckms_new() -> Box<CkmsState> {
+    Box::new(CkmsState(quantiles::ckms::CKMS::new(0.001)))
+}
+
+impl CkmsState {
+    pub fn ckms_insert(&mut self, value: f64) {
+        self.0.insert(value);
+    }
+
+    pub fn ckms_get(&self, q: f64) -> f64 {
+        self.0.query(q).map(|(_, v)| v).unwrap_or(0.0)
+    }
+
+    pub fn ckms_reset(&mut self) {
+        self.0 = quantiles::ckms::CKMS::new(0.001);
+    }
+
+    pub fn ckms_count(&self) -> usize {
+        self.0.count()
+    }
+
+    pub fn ckms_max(&self) -> f64 {
+        self.0.query(1.0).map(|(_, v)| v).unwrap_or(0.0)
+    }
 }
