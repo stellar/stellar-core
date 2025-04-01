@@ -763,7 +763,7 @@ TestContract::Invocation::invoke(TestAccount* source)
 {
     auto tx = createTx(source);
     CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
-    mTxMeta.emplace(mTest.getLedgerVersion());
+    mTxMeta.emplace(mTest.getLedgerVersion(), mTest.getApp().getConfig());
     auto result = mTest.invokeTx(tx, &mTxMeta.value());
     mFeeCharged = result.feeCharged;
     if (result.result.code() == txFAILED || result.result.code() == txSUCCESS)
@@ -782,7 +782,7 @@ SCVal
 TestContract::Invocation::getReturnValue() const
 {
     REQUIRE(mTxMeta);
-    return mTxMeta->getXDR().v3().sorobanMeta->returnValue;
+    return mTxMeta->getReturnValue();
 }
 
 TransactionMetaFrame const&
@@ -865,7 +865,7 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
         (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
     REQUIRE(result->getResult().feeCharged == chargedBeforeRefund);
 
-    TransactionMetaFrame txm(getLedgerVersion());
+    TransactionMetaFrame txm(getLedgerVersion(), mApp->getConfig());
     REQUIRE(isSuccessResult(invokeTx(tx, &txm)));
 
     int64_t balanceAfterFeeCharged = getRoot().getBalance();
@@ -1307,9 +1307,10 @@ AssetContractTestClient::setLastEvent(
         mLastEvent = std::nullopt;
         return;
     }
-    auto const& sorobanMeta = invocation.getTxMeta().getXDR().v3().sorobanMeta;
-    REQUIRE(sorobanMeta->events.size() == 1);
-    mLastEvent = sorobanMeta->events[0];
+    auto const& sorobanEvents =
+        invocation.getTxMeta().getSorobanContractEvents();
+    REQUIRE(sorobanEvents.size() == 1);
+    mLastEvent = sorobanEvents[0];
 }
 
 LedgerKey
@@ -1538,11 +1539,14 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
         {
             // Check for a contract error in the second event (the first should
             // be an `fn_call` event)
-            auto const& sorobanMeta =
-                invocation.getTxMeta().getXDR().v3().sorobanMeta;
-            REQUIRE(sorobanMeta->events.size() == 0);
-            REQUIRE(sorobanMeta->diagnosticEvents.size() > 1);
-            auto const& contract_ev = sorobanMeta->diagnosticEvents.at(1);
+            auto const& contractEvents =
+                invocation.getTxMeta().getSorobanContractEvents();
+            auto const& diagnosticEvents =
+                invocation.getTxMeta().getDiagnosticEvents();
+            REQUIRE(contractEvents.size() == 0);
+            REQUIRE(diagnosticEvents.size() > 1);
+
+            auto const& contract_ev = diagnosticEvents.at(1);
             REQUIRE(!contract_ev.inSuccessfulContractCall);
             REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
             auto const& topics = contract_ev.event.body.v0().topics.at(1);

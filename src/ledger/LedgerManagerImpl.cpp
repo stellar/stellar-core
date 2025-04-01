@@ -1632,7 +1632,9 @@ LedgerManagerImpl::applyTransactions(
             auto mutableTxResult = mutableTxResults.at(resultIndex++);
 
             auto txTime = mLedgerApplyMetrics.mTransactionApply.TimeScope();
-            TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion,
+                                    mApp.getConfig());
+
             CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
                        hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
                        tx->getSeqNum(),
@@ -1652,8 +1654,11 @@ LedgerManagerImpl::applyTransactions(
             TransactionResultPair results;
             results.transactionHash = tx->getContentsHash();
 
+            TxEventManager txEventManager(
+                ltx.loadHeader().current().ledgerVersion, mApp.getNetworkID(),
+                mApp.getConfig(), *tx);
             tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult,
-                      subSeed);
+                      txEventManager, subSeed);
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,
                                  mutableTxResult);
 
