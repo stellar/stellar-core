@@ -1795,7 +1795,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 auto delta = ltxOp.getDelta();
 
                 if (protocolVersionIsBefore(ledgerVersion,
-                                            ProtocolVersion::V_8))
+                                            ProtocolVersion::V_8) &&
+                    txEventManager.shouldEmitClassicEvents() &&
+                    opResult.tr().type() != INFLATION)
                 {
                     reconcileEvents(getSourceID(), op->getOperation(), delta,
                                     opEventManager);
