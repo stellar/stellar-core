@@ -191,6 +191,11 @@ OpEventManager::eventsForClaimAtoms(
     MuxedAccount const& source,
     xdr::xvector<stellar::ClaimAtom> const& claimAtoms)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     auto sourceSCAddress = accountToSCAddress(source);
 
     for (auto const& atom : claimAtoms)
@@ -257,6 +262,11 @@ OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
                                                 SCAddress const& to,
                                                 int64 amount)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     auto fromIsIssuer = isIssuer(from, asset);
     auto toIsIssuer = isIssuer(to, asset);
 
@@ -282,6 +292,11 @@ void
 OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
                                  SCAddress const& to, int64 amount)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
     ev.contractID.activate() =
@@ -352,6 +367,11 @@ void
 OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
                              int64 amount)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
     ev.contractID.activate() =
@@ -371,6 +391,11 @@ void
 OpEventManager::newBurnEvent(Asset const& asset, SCAddress const& from,
                              int64 amount)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
     ev.contractID.activate() =
@@ -390,6 +415,11 @@ void
 OpEventManager::newClawbackEvent(Asset const& asset, SCAddress const& from,
                                  int64 amount)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
     ev.contractID.activate() =
@@ -409,6 +439,11 @@ void
 OpEventManager::newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
                                       bool authorize)
 {
+    if (!mParent.shouldEmitClassicEvents())
+    {
+        return;
+    }
+
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
     ev.contractID.activate() =

@@ -124,6 +124,8 @@ class TxEventManager
     uint32_t getProtocolVersion() const;
     Config const& getConfig() const;
 
+    bool shouldEmitClassicEvents() const;
+
 #ifdef BUILD_TESTS
     xdr::xvector<DiagnosticEvent> const&
     getDiagnosticEvents() const
