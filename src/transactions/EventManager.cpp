@@ -365,7 +365,7 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
 
 void
 OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
-                             int64 amount)
+                             int64 amount, bool insertAtBeginning)
 {
     if (!mParent.shouldEmitClassicEvents())
     {
@@ -384,7 +384,17 @@ OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
 
     ev.body.v0().data = makeI128SCVal(amount);
 
-    mContractEvents.emplace_back(std::move(ev));
+    if (insertAtBeginning)
+    {
+        // This will only be called pre protocol 8 in rare scenarios where XLM
+        // was minted, so the performance hit isn't an issue. We could also use
+        // a std::deque instead.
+        mContractEvents.emplace(mContractEvents.begin(), std::move(ev));
+    }
+    else
+    {
+        mContractEvents.emplace_back(std::move(ev));
+    }
 }
 
 void

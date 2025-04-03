@@ -82,7 +82,8 @@ class OpEventManager
 
     // contract: asset, topics: ["mint", to:Address, sep0011_asset:String],
     // data: { amount:i128 }
-    void newMintEvent(Asset const& asset, SCAddress const& to, int64 amount);
+    void newMintEvent(Asset const& asset, SCAddress const& to, int64 amount,
+                      bool insertAtBeginning = false);
 
     // contract: asset, topics: ["burn", from:Address, sep0011_asset:String],
     // data: { amount:i128 }
