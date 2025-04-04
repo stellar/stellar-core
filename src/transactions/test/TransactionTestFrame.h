@@ -43,9 +43,6 @@ class TransactionTestFrame : public TransactionFrameBase
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
                           std::optional<int64_t> baseFee);
 
-    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta);
-
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
@@ -127,7 +124,8 @@ class TransactionTestFrame : public TransactionFrameBase
 
     void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta,
-                          MutableTxResultPtr txResult) const override;
+                          MutableTxResultPtr txResult,
+                          TxEventManager& txEventManager) const override;
 
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 

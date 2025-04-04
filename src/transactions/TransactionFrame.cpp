@@ -2093,19 +2093,21 @@ void
 TransactionFrame::processPostApply(AppConnector& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta,
-                                   MutableTxResultPtr txResult) const
+                                   MutableTxResultPtr txResult,
+                                   TxEventManager& txEventManager) const
 {
     releaseAssertOrThrow(txResult);
-    processRefund(app, ltxOuter, meta, getSourceID(), *txResult);
+    processRefundAndEmitFeeEvent(app, ltxOuter, meta, getSourceID(), *txResult,
+                                 txEventManager);
 }
 
 // This is a TransactionFrame specific function that should only be used by
 // FeeBumpTransactionFrame to forward a different account for the refund.
 int64_t
-TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                                TransactionMetaFrame& meta,
-                                AccountID const& feeSource,
-                                MutableTransactionResultBase& txResult) const
+TransactionFrame::processRefundAndEmitFeeEvent(
+    AppConnector& app, AbstractLedgerTxn& ltxOuter, TransactionMetaFrame& meta,
+    AccountID const& feeSource, MutableTransactionResultBase& txResult,
+    TxEventManager& txEventManager) const
 {
     ZoneScoped;
 
@@ -2118,10 +2120,15 @@ TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     LedgerTxn ltx(ltxOuter);
     int64_t refund = refundSorobanFee(ltx, feeSource, txResult);
 
-    // TODO: handle fee event logic here
-
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
+
+    // Emit fee event. The feeCharged has already been updated with refund in
+    // `refundSorobanFee`
+    txEventManager.newFeeEvent(feeSource, txResult.getResult().feeCharged);
+    xdr::xvector<ContractEvent> feeEvents;
+    txEventManager.flushTxEvents(feeEvents);
+    meta.pushTxContractEvents(std::move(feeEvents));
 
     return refund;
 }

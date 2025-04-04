@@ -408,7 +408,6 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
 
     SorobanTest test(cfg);
-    auto& app = test.getApp();
     auto& root = test.getRoot();
 
     auto a1 = root.create("a1", 1'000'000'000);
@@ -583,7 +582,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         {
             LedgerTxn ltx(rootLtx);
             tx->processPostApply(test.getApp().getAppConnector(), ltx, txm,
-                                 result);
+                                 result, txEventManager);
             ltx.commit();
         }
 
@@ -1344,6 +1343,9 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
 TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
 {
     Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -1376,6 +1378,21 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         // resource fee, so the total cost would be greater than
         // DEFAULT_TEST_RESOURCE_FEE without the refund.
         REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+
+        auto feeEvent = app->getLedgerManager()
+                            .getLastClosedLedgerTxMeta()[0]
+                            .getTxEvents()[0];
+        LOG_INFO(DEFAULT_LOG, "fee event: {}", xdr::xdr_to_string(feeEvent));
+
+        auto a1AccID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
+        auto feeEventTopics = feeEvent.body.v0().topics;
+        auto feeEventData = feeEvent.body.v0().data;
+        feeEvent.body.v0().topics = {makeSymbolSCVal("fee"),
+                                     makeAccountIDSCVal(a1AccID)};
+
+        REQUIRE(feeEventTopics.at(0).sym() == "fee");
+        REQUIRE(feeEventTopics.at(1).address().accountId() == a1AccID);
+        REQUIRE(feeEventData.i128().lo == txFeeWithRefund);
     });
 }
 
@@ -1383,6 +1400,9 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
                    "[tx][soroban][feebump]")
 {
     Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -1442,6 +1462,23 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
 
         // There should be no change to a1's balance
         REQUIRE(a1.getBalance() == a1StartingBalance);
+
+        auto feeEvent = app->getLedgerManager()
+                            .getLastClosedLedgerTxMeta()[0]
+                            .getTxEvents()[0];
+        LOG_INFO(DEFAULT_LOG, "fee event: {}", xdr::xdr_to_string(feeEvent));
+
+        auto feeBumperID =
+            KeyUtils::fromStrKey<PublicKey>(feeBumper.getAccountId());
+        auto feeEventTopics = feeEvent.body.v0().topics;
+        auto feeEventData = feeEvent.body.v0().data;
+
+        feeEvent.body.v0().topics = {makeSymbolSCVal("fee"),
+                                     makeAccountIDSCVal(feeBumperID)};
+
+        REQUIRE(feeEventTopics.at(0).sym() == "fee");
+        REQUIRE(feeEventTopics.at(1).address().accountId() == feeBumperID);
+        REQUIRE(feeEventData.i128().lo == feeCharged);
     });
 }
 

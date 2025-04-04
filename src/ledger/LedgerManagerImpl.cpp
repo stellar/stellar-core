@@ -1660,7 +1660,7 @@ LedgerManagerImpl::applyTransactions(
             tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult,
                       txEventManager, subSeed);
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,
-                                 mutableTxResult);
+                                 mutableTxResult, txEventManager);
 
             results.result = mutableTxResult->getResult();
             if (results.result.result.code() ==

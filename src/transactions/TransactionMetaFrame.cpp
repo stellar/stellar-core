@@ -346,6 +346,22 @@ TransactionMetaFrame::getDiagnosticEvents() const
     }
 }
 
+xdr::xvector<stellar::ContractEvent> const&
+TransactionMetaFrame::getTxEvents() const
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+    case 3:
+        throw std::runtime_error(
+            "Transaction-level contract events not available for v2/v3 meta");
+    case 4:
+        return mTransactionMeta.v4().events;
+    default:
+        releaseAssert(false);
+    }
+}
+
 xdr::xvector<stellar::ContractEvent>
 TransactionMetaFrame::getSorobanContractEvents() const
 {

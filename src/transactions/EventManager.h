@@ -117,11 +117,15 @@ class TxEventManager
 
     void flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf);
 
+    void flushTxEvents(xdr::xvector<ContractEvent>& buf);
+
     Hash const& getNetworkID() const;
     uint32_t getProtocolVersion() const;
     Config const& getConfig() const;
 
     bool shouldEmitClassicEvents() const;
+
+    void newFeeEvent(AccountID const& feeSource, int64 amount);
 
 #ifdef BUILD_TESTS
     xdr::xvector<DiagnosticEvent> const&
