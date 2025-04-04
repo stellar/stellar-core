@@ -181,8 +181,8 @@ pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
 }
 
 OpEventManager::OpEventManager(TxEventManager& parentTxEventManager,
-                               OperationFrame const& op, Memo const& memo)
-    : mParent(parentTxEventManager), mOp(op), mMemo(memo)
+                               Memo const& memo)
+    : mParent(parentTxEventManager), mMemo(memo)
 {
 }
 
@@ -579,10 +579,9 @@ TxEventManager::TxEventManager(uint32_t protocolVersion, Hash const& networkID,
 }
 
 OpEventManager
-TxEventManager::createNewOpEventManager(OperationFrame const& op,
-                                        Memo const& memo)
+TxEventManager::createNewOpEventManager(Memo const& memo)
 {
-    return OpEventManager(*this, op, memo);
+    return OpEventManager(*this, memo);
 }
 
 DiagnosticEventBuffer&

@@ -1768,7 +1768,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             auto const& op = mOperations[i];
             auto& opResult = txResult.getOpResultAt(i);
             OpEventManager opEventManager =
-                txEventManager.createNewOpEventManager(*op, getMemo());
+                txEventManager.createNewOpEventManager(getMemo());
 
             LedgerTxn ltxOp(ltxTx);
             Hash subSeed = sorobanBasePrngSeed;
