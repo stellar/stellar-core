@@ -167,6 +167,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         void recordWriteTiming(OverlayMetrics& metrics,
                                PeerMetrics& peerMetrics);
         xdr::msg_ptr mMessage;
+        std::shared_ptr<StellarMessage const> mMsgPtr;
     };
 
     // NB: all Peer's protected state should have some synchronization
@@ -187,6 +188,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerRole const mRole;
     OverlayMetrics& mOverlayMetrics;
     PeerMetrics mPeerMetrics;
+    std::string mDropReason;
 
     // Mutex to protect PeerState, which can be accessed and modified from
     // multiple threads
@@ -317,7 +319,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // put in a reused/non-owned buffer without having to buffer/queue
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
-    virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
+    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+                             std::shared_ptr<StellarMessage const> msg) = 0;
     virtual void scheduleRead() = 0;
     virtual void
     connected()
@@ -459,11 +462,18 @@ class Peer : public std::enable_shared_from_this<Peer>,
         sendAuthenticatedMessage(std::move(msg));
     }
     void
-    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes)
+    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
+                             std::shared_ptr<StellarMessage const> msg)
     {
-        sendMessage(std::move(xdrBytes));
+        sendMessage(std::move(xdrBytes), msg);
     }
-    std::string mDropReason;
+
+    std::string
+    getDropReason() const
+    {
+        RecursiveLockGuard guard(mStateMutex);
+        return mDropReason;
+    }
 #endif
 
     // Public thread-safe methods that access Peer's state

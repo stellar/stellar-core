@@ -47,7 +47,7 @@ class PeerStub : public Peer
     {
     }
     virtual void
-    sendMessage(xdr::msg_ptr&& xdrBytes) override
+    sendMessage(xdr::msg_ptr&& xdrBytes, ConstStellarMessagePtr msgPtr) override
     {
     }
     virtual void

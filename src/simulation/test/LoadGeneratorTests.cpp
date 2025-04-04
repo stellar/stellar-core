@@ -288,387 +288,398 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             "Before running MODE::SOROBAN_INVOKE, please run "
             "MODE::SOROBAN_INVOKE_SETUP to set up your contract first.");
     }
-    int64_t numTxsBefore = getSuccessfulTxCount();
-
-    // Make sure config upgrade works with initial network config settings
-    loadGen.generateLoad(GeneratedLoadConfig::createSorobanUpgradeSetupLoad());
-    completeCount = complete.count();
-    simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Check that Soroban TXs were successfully applied
-    for (auto node : nodes)
+    SECTION("Soroban invoke")
     {
-        auto& txsSucceeded = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "success"});
-        auto& txsFailed = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "failure"});
+        int64_t numTxsBefore = getSuccessfulTxCount();
 
-        // Should be 1 upload wasm TX followed by one instance deploy TX
-        REQUIRE(txsSucceeded.count() == numTxsBefore + 2);
-        REQUIRE(txsFailed.count() == 0);
-    }
+        // Make sure config upgrade works with initial network config settings
+        loadGen.generateLoad(
+            GeneratedLoadConfig::createSorobanUpgradeSetupLoad());
+        completeCount = complete.count();
+        simulation->crankUntil(
+            [&]() { return complete.count() == completeCount + 1; },
+            100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
-        LoadGenMode::SOROBAN_CREATE_UPGRADE, nAccounts, 10,
-        /* txRate */ 1);
-    auto& upgradeCfg = createUpgradeLoadGenConfig.getMutSorobanUpgradeConfig();
-
-    upgradeCfg.maxContractSizeBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.maxContractDataKeySizeBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.maxContractDataEntrySizeBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxInstructions =
-        rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    upgradeCfg.txMaxInstructions =
-        rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    upgradeCfg.txMemoryLimit =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxReadLedgerEntries =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxReadBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxWriteLedgerEntries =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxWriteBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxTxCount =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxReadLedgerEntries =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxReadBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxWriteLedgerEntries =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxWriteBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxContractEventsSizeBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxTransactionsSizeBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxSizeBytes =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.bucketListSizeWindowSampleSize =
-        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.evictionScanSize =
-        rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    upgradeCfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                  ProtocolVersion::V_23))
-    {
-        upgradeCfg.ledgerMaxDependentTxClusters = rand_uniform<uint32_t>(2, 10);
-        upgradeCfg.txMaxInMemoryReadEntries =
-            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-        upgradeCfg.flatRateFeeWrite1KB =
-            rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    }
-#endif
-
-    auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(
-        createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
-
-    numTxsBefore = getSuccessfulTxCount();
-    loadGen.generateLoad(createUpgradeLoadGenConfig);
-    completeCount = complete.count();
-    simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
-        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    for (auto node : nodes)
-    {
-        auto& txsSucceeded = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "success"});
-        auto& txsFailed = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "failure"});
-
-        // Should be a single contract invocation
-        REQUIRE(txsSucceeded.count() == numTxsBefore + 1);
-        REQUIRE(txsFailed.count() == 0);
-    }
-
-    // Check that the upgrade entry was properly written
-    SCVal upgradeHashBytes(SCV_BYTES);
-    upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeSetKey.contentHash);
-
-    SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
-    addr.contractId() = upgradeSetKey.contractID;
-
-    LedgerKey upgradeLK(CONTRACT_DATA);
-    upgradeLK.contractData().durability = TEMPORARY;
-    upgradeLK.contractData().contract = addr;
-    upgradeLK.contractData().key = upgradeHashBytes;
-
-    ConfigUpgradeSet upgrades;
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto entry = ltx.load(upgradeLK);
-        REQUIRE(entry);
-        xdr::xdr_from_opaque(entry.current().data.contractData().val.bytes(),
-                             upgrades);
-    }
-
-    for (auto const& setting : upgrades.updatedEntry)
-    {
-        // Loadgen doesn't update the cost types and non-upgradeable settings
-        REQUIRE(!SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
-            setting.configSettingID()));
-        REQUIRE(setting.configSettingID() !=
-                CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
-        REQUIRE(setting.configSettingID() !=
-                CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
-
-        switch (setting.configSettingID())
+        // Check that Soroban TXs were successfully applied
+        for (auto node : nodes)
         {
-        case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
-            REQUIRE(setting.contractMaxSizeBytes() ==
-                    upgradeCfg.maxContractSizeBytes);
-            break;
-        case CONFIG_SETTING_CONTRACT_COMPUTE_V0:
-            REQUIRE(setting.contractCompute().ledgerMaxInstructions ==
-                    upgradeCfg.ledgerMaxInstructions);
-            REQUIRE(setting.contractCompute().txMaxInstructions ==
-                    upgradeCfg.txMaxInstructions);
-            REQUIRE(setting.contractCompute().txMemoryLimit ==
-                    upgradeCfg.txMemoryLimit);
-            break;
-        case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-            REQUIRE(setting.contractLedgerCost().ledgerMaxReadLedgerEntries ==
-                    upgradeCfg.ledgerMaxReadLedgerEntries);
-            REQUIRE(setting.contractLedgerCost().ledgerMaxReadBytes ==
-                    upgradeCfg.ledgerMaxReadBytes);
-            REQUIRE(setting.contractLedgerCost().ledgerMaxWriteLedgerEntries ==
-                    upgradeCfg.ledgerMaxWriteLedgerEntries);
-            REQUIRE(setting.contractLedgerCost().ledgerMaxWriteBytes ==
-                    upgradeCfg.ledgerMaxWriteBytes);
-            REQUIRE(setting.contractLedgerCost().txMaxReadLedgerEntries ==
-                    upgradeCfg.txMaxReadLedgerEntries);
-            REQUIRE(setting.contractLedgerCost().txMaxReadBytes ==
-                    upgradeCfg.txMaxReadBytes);
-            REQUIRE(setting.contractLedgerCost().txMaxWriteLedgerEntries ==
-                    upgradeCfg.txMaxWriteLedgerEntries);
-            REQUIRE(setting.contractLedgerCost().txMaxWriteBytes ==
-                    upgradeCfg.txMaxWriteBytes);
-            break;
-        case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
-            break;
-        case CONFIG_SETTING_CONTRACT_EVENTS_V0:
-            REQUIRE(setting.contractEvents().txMaxContractEventsSizeBytes ==
-                    upgradeCfg.txMaxContractEventsSizeBytes);
-            break;
-        case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
-            REQUIRE(setting.contractBandwidth().ledgerMaxTxsSizeBytes ==
-                    upgradeCfg.ledgerMaxTransactionsSizeBytes);
-            REQUIRE(setting.contractBandwidth().txMaxSizeBytes ==
-                    upgradeCfg.txMaxSizeBytes);
-            break;
-        case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
-        case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
-            break;
-        case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
-            REQUIRE(setting.contractDataKeySizeBytes() ==
-                    upgradeCfg.maxContractDataKeySizeBytes);
-            break;
-        case CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
-            REQUIRE(setting.contractDataEntrySizeBytes() ==
-                    upgradeCfg.maxContractDataEntrySizeBytes);
-            break;
-        case CONFIG_SETTING_STATE_ARCHIVAL:
-        {
-            auto& ses = setting.stateArchivalSettings();
-            REQUIRE(ses.bucketListSizeWindowSampleSize ==
-                    upgradeCfg.bucketListSizeWindowSampleSize);
-            REQUIRE(ses.evictionScanSize == upgradeCfg.evictionScanSize);
-            REQUIRE(ses.startingEvictionScanLevel ==
-                    upgradeCfg.startingEvictionScanLevel);
+            auto& txsSucceeded = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "success"});
+            auto& txsFailed = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "failure"});
+
+            // Should be 1 upload wasm TX followed by one instance deploy TX
+            REQUIRE(txsSucceeded.count() == numTxsBefore + 2);
+            REQUIRE(txsFailed.count() == 0);
         }
-        break;
-        case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
-            REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
-                    upgradeCfg.ledgerMaxTxCount);
-            break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
-            REQUIRE(setting.contractParallelCompute()
-                        .ledgerMaxDependentTxClusters ==
-                    upgradeCfg.ledgerMaxDependentTxClusters);
-            break;
-        case CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
-            REQUIRE(setting.contractLedgerCostExt().txMaxInMemoryReadEntries ==
-                    upgradeCfg.txMaxInMemoryReadEntries);
-            REQUIRE(setting.contractLedgerCostExt().feeWrite1KB ==
-                    upgradeCfg.flatRateFeeWrite1KB);
-            break;
-#endif
-        default:
-            REQUIRE(false);
-            break;
-        }
-    }
 
-    upgradeSorobanNetworkConfig(
-        [&](SorobanNetworkConfig& cfg) {
-            setSorobanNetworkConfigForTest(cfg);
-
-            // Entries should never expire
-            cfg.mStateArchivalSettings.maxEntryTTL = 2'000'000;
-            cfg.mStateArchivalSettings.minPersistentTTL = 1'000'000;
-
-            // Set write limits so that we can write all keys in a single TX
-            // during setup
-            cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxReadLedgerEntries;
-            cfg.mTxMaxWriteBytes = cfg.mTxMaxReadBytes;
-
-            // Allow every TX to have the maximum TX resources
-            cfg.mLedgerMaxInstructions =
-                cfg.mTxMaxInstructions * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxReadLedgerEntries =
-                cfg.mTxMaxReadLedgerEntries * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxReadBytes =
-                cfg.mTxMaxReadBytes * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxWriteLedgerEntries =
-                cfg.mTxMaxWriteLedgerEntries * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxWriteBytes =
-                cfg.mTxMaxWriteBytes * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxTransactionsSizeBytes =
-                cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
-        },
-        simulation);
-    auto const numInstances = nAccounts;
-    auto const numSorobanTxs = 150;
-
-    numTxsBefore = getSuccessfulTxCount();
-
-    loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
-        /* nAccounts */ nAccounts, numInstances,
-        /* txRate */ 1));
-    completeCount = complete.count();
-    simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Check that Soroban TXs were successfully applied
-    for (auto node : nodes)
-    {
-        auto& txsSucceeded = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "success"});
-        auto& txsFailed = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "failure"});
-
-        // Should be 1 upload wasm TX followed by one instance deploy TX per
-        // account
-        REQUIRE(txsSucceeded.count() == numTxsBefore + numInstances + 1);
-        REQUIRE(txsFailed.count() == 0);
-    }
-
-    numTxsBefore = getSuccessfulTxCount();
-
-    auto invokeLoadCfg = GeneratedLoadConfig::txLoad(
-        LoadGenMode::SOROBAN_INVOKE, nAccounts, numSorobanTxs,
-        /* txRate */ 1);
-
-    invokeLoadCfg.getMutSorobanConfig().nInstances = numInstances;
-    invokeLoadCfg.setMinSorobanPercentSuccess(100);
-
-    loadGen.generateLoad(invokeLoadCfg);
-    completeCount = complete.count();
-    simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
-        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Check that Soroban TXs were successfully applied
-    for (auto node : nodes)
-    {
-        auto& txsSucceeded = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "success"});
-        auto& txsFailed = node->getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "failure"});
-        REQUIRE(txsSucceeded.count() == numTxsBefore + numSorobanTxs);
-        REQUIRE(txsFailed.count() == 0);
-    }
-
-    auto instanceKeys = loadGen.getContractInstanceKeysForTesting();
-    auto codeKeyOp = loadGen.getCodeKeyForTesting();
-    REQUIRE(codeKeyOp);
-    REQUIRE(codeKeyOp->type() == CONTRACT_CODE);
-    REQUIRE(instanceKeys.size() == static_cast<size_t>(numInstances));
-
-    // Check that each key is unique and exists in the DB
-    // This ugly math mimics what we do in loadgen, where we calculate the total
-    // number of bytes we can write, then divide the bytes between the number of
-    // data entries we want to write and convert this value back to
-    // kilobytes for the contract invocation. Thus we need to redundantly divide
-    // then multiply by 1024 to mimic rounding behavior.
-    auto expectedDataEntrySize =
-        ((ioKiloBytes * 1024 - loadGen.getContactOverheadBytesForTesting()) /
-         numDataEntries / 1024) *
-        1024;
-
-    UnorderedSet<LedgerKey> keys;
-    for (auto const& instanceKey : instanceKeys)
-    {
-        REQUIRE(instanceKey.type() == CONTRACT_DATA);
-        REQUIRE(instanceKey.contractData().key.type() ==
-                SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-        REQUIRE(keys.find(instanceKey) == keys.end());
-        keys.insert(instanceKey);
-
-        auto const& contractID = instanceKey.contractData().contract;
-        for (auto i = 0; i < numDataEntries; ++i)
-        {
-            auto lk = contractDataKey(contractID, txtest::makeU32(i),
-                                      ContractDataDurability::PERSISTENT);
-
-            LedgerTxn ltx(app.getLedgerTxnRoot());
-            auto entry = ltx.load(lk);
-            REQUIRE(entry);
-            uint32_t sizeBytes =
-                static_cast<uint32_t>(xdr::xdr_size(entry.current()));
-            REQUIRE((sizeBytes > expectedDataEntrySize &&
-                     sizeBytes < 100 + expectedDataEntrySize));
-
-            REQUIRE(keys.find(lk) == keys.end());
-            keys.insert(lk);
-        }
-    }
-
-    // Test MIXED_CLASSIC_SOROBAN mode
-    SECTION("Mix with classic")
-    {
-        constexpr uint32_t numMixedTxs = 200;
-        auto mixLoadCfg = GeneratedLoadConfig::txLoad(
-            LoadGenMode::MIXED_CLASSIC_SOROBAN, nAccounts, numMixedTxs,
+        auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
+            LoadGenMode::SOROBAN_CREATE_UPGRADE, nAccounts, 10,
             /* txRate */ 1);
+        auto& upgradeCfg =
+            createUpgradeLoadGenConfig.getMutSorobanUpgradeConfig();
 
-        auto& mixCfg = mixLoadCfg.getMutMixClassicSorobanConfig();
-        mixCfg.payWeight = 50;
-        mixCfg.sorobanInvokeWeight = 45;
-        constexpr uint32_t uploadWeight = 5;
-        mixCfg.sorobanUploadWeight = uploadWeight;
+        upgradeCfg.maxContractSizeBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.maxContractDataKeySizeBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.maxContractDataEntrySizeBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxInstructions =
+            rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
+        upgradeCfg.txMaxInstructions =
+            rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
+        upgradeCfg.txMemoryLimit =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxReadLedgerEntries =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxReadBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxWriteLedgerEntries =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxWriteBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxTxCount =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.txMaxReadLedgerEntries =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.txMaxReadBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.txMaxWriteLedgerEntries =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.txMaxWriteBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.txMaxContractEventsSizeBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.ledgerMaxTransactionsSizeBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.txMaxSizeBytes =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.bucketListSizeWindowSampleSize =
+            rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+        upgradeCfg.evictionScanSize =
+            rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
+        upgradeCfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
 
-        mixLoadCfg.setMinSorobanPercentSuccess(100);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                      ProtocolVersion::V_23))
+        {
+            upgradeCfg.ledgerMaxDependentTxClusters =
+                rand_uniform<uint32_t>(2, 10);
+            upgradeCfg.txMaxInMemoryReadEntries =
+                rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+            upgradeCfg.flatRateFeeWrite1KB =
+                rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
+        }
+#endif
 
-        loadGen.generateLoad(mixLoadCfg);
-        auto numSuccessBefore = getSuccessfulTxCount();
-        auto numFailedBefore =
-            app.getMetrics()
-                .NewCounter({"ledger", "apply-soroban", "failure"})
-                .count();
+        auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(
+            createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
+
+        numTxsBefore = getSuccessfulTxCount();
+        loadGen.generateLoad(createUpgradeLoadGenConfig);
         completeCount = complete.count();
         simulation->crankUntil(
             [&]() { return complete.count() == completeCount + 1; },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        // Check results
         for (auto node : nodes)
         {
-            auto& totalFailed =
-                node->getMetrics().NewCounter({"ledger", "apply", "failure"});
-            REQUIRE(totalFailed.count() == 0);
+            auto& txsSucceeded = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "success"});
+            auto& txsFailed = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "failure"});
+
+            // Should be a single contract invocation
+            REQUIRE(txsSucceeded.count() == numTxsBefore + 1);
+            REQUIRE(txsFailed.count() == 0);
+        }
+
+        // Check that the upgrade entry was properly written
+        SCVal upgradeHashBytes(SCV_BYTES);
+        upgradeHashBytes.bytes() =
+            xdr::xdr_to_opaque(upgradeSetKey.contentHash);
+
+        SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
+        addr.contractId() = upgradeSetKey.contractID;
+
+        LedgerKey upgradeLK(CONTRACT_DATA);
+        upgradeLK.contractData().durability = TEMPORARY;
+        upgradeLK.contractData().contract = addr;
+        upgradeLK.contractData().key = upgradeHashBytes;
+
+        ConfigUpgradeSet upgrades;
+        {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto entry = ltx.load(upgradeLK);
+            REQUIRE(entry);
+            xdr::xdr_from_opaque(
+                entry.current().data.contractData().val.bytes(), upgrades);
+        }
+
+        for (auto const& setting : upgrades.updatedEntry)
+        {
+            // Loadgen doesn't update the cost types and non-upgradeable
+            // settings
+            REQUIRE(!SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+                setting.configSettingID()));
+            REQUIRE(setting.configSettingID() !=
+                    CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
+            REQUIRE(setting.configSettingID() !=
+                    CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
+
+            switch (setting.configSettingID())
+            {
+            case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
+                REQUIRE(setting.contractMaxSizeBytes() ==
+                        upgradeCfg.maxContractSizeBytes);
+                break;
+            case CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+                REQUIRE(setting.contractCompute().ledgerMaxInstructions ==
+                        upgradeCfg.ledgerMaxInstructions);
+                REQUIRE(setting.contractCompute().txMaxInstructions ==
+                        upgradeCfg.txMaxInstructions);
+                REQUIRE(setting.contractCompute().txMemoryLimit ==
+                        upgradeCfg.txMemoryLimit);
+                break;
+            case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
+                REQUIRE(
+                    setting.contractLedgerCost().ledgerMaxReadLedgerEntries ==
+                    upgradeCfg.ledgerMaxReadLedgerEntries);
+                REQUIRE(setting.contractLedgerCost().ledgerMaxReadBytes ==
+                        upgradeCfg.ledgerMaxReadBytes);
+                REQUIRE(
+                    setting.contractLedgerCost().ledgerMaxWriteLedgerEntries ==
+                    upgradeCfg.ledgerMaxWriteLedgerEntries);
+                REQUIRE(setting.contractLedgerCost().ledgerMaxWriteBytes ==
+                        upgradeCfg.ledgerMaxWriteBytes);
+                REQUIRE(setting.contractLedgerCost().txMaxReadLedgerEntries ==
+                        upgradeCfg.txMaxReadLedgerEntries);
+                REQUIRE(setting.contractLedgerCost().txMaxReadBytes ==
+                        upgradeCfg.txMaxReadBytes);
+                REQUIRE(setting.contractLedgerCost().txMaxWriteLedgerEntries ==
+                        upgradeCfg.txMaxWriteLedgerEntries);
+                REQUIRE(setting.contractLedgerCost().txMaxWriteBytes ==
+                        upgradeCfg.txMaxWriteBytes);
+                break;
+            case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+                break;
+            case CONFIG_SETTING_CONTRACT_EVENTS_V0:
+                REQUIRE(setting.contractEvents().txMaxContractEventsSizeBytes ==
+                        upgradeCfg.txMaxContractEventsSizeBytes);
+                break;
+            case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+                REQUIRE(setting.contractBandwidth().ledgerMaxTxsSizeBytes ==
+                        upgradeCfg.ledgerMaxTransactionsSizeBytes);
+                REQUIRE(setting.contractBandwidth().txMaxSizeBytes ==
+                        upgradeCfg.txMaxSizeBytes);
+                break;
+            case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
+            case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
+                break;
+            case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
+                REQUIRE(setting.contractDataKeySizeBytes() ==
+                        upgradeCfg.maxContractDataKeySizeBytes);
+                break;
+            case CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
+                REQUIRE(setting.contractDataEntrySizeBytes() ==
+                        upgradeCfg.maxContractDataEntrySizeBytes);
+                break;
+            case CONFIG_SETTING_STATE_ARCHIVAL:
+            {
+                auto& ses = setting.stateArchivalSettings();
+                REQUIRE(ses.bucketListSizeWindowSampleSize ==
+                        upgradeCfg.bucketListSizeWindowSampleSize);
+                REQUIRE(ses.evictionScanSize == upgradeCfg.evictionScanSize);
+                REQUIRE(ses.startingEvictionScanLevel ==
+                        upgradeCfg.startingEvictionScanLevel);
+            }
+            break;
+            case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
+                REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
+                        upgradeCfg.ledgerMaxTxCount);
+                break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
+                REQUIRE(setting.contractParallelCompute()
+                            .ledgerMaxDependentTxClusters ==
+                        upgradeCfg.ledgerMaxDependentTxClusters);
+                break;
+            case CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
+                REQUIRE(
+                    setting.contractLedgerCostExt().txMaxInMemoryReadEntries ==
+                    upgradeCfg.txMaxInMemoryReadEntries);
+                REQUIRE(setting.contractLedgerCostExt().feeWrite1KB ==
+                        upgradeCfg.flatRateFeeWrite1KB);
+                break;
+#endif
+            default:
+                REQUIRE(false);
+                break;
+            }
+        }
+
+        upgradeSorobanNetworkConfig(
+            [&](SorobanNetworkConfig& cfg) {
+                setSorobanNetworkConfigForTest(cfg);
+
+                // Entries should never expire
+                cfg.mStateArchivalSettings.maxEntryTTL = 2'000'000;
+                cfg.mStateArchivalSettings.minPersistentTTL = 1'000'000;
+
+                // Set write limits so that we can write all keys in a single TX
+                // during setup
+                cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxReadLedgerEntries;
+                cfg.mTxMaxWriteBytes = cfg.mTxMaxReadBytes;
+
+                // Allow every TX to have the maximum TX resources
+                cfg.mLedgerMaxInstructions =
+                    cfg.mTxMaxInstructions * cfg.mLedgerMaxTxCount;
+                cfg.mLedgerMaxReadLedgerEntries =
+                    cfg.mTxMaxReadLedgerEntries * cfg.mLedgerMaxTxCount;
+                cfg.mLedgerMaxReadBytes =
+                    cfg.mTxMaxReadBytes * cfg.mLedgerMaxTxCount;
+                cfg.mLedgerMaxWriteLedgerEntries =
+                    cfg.mTxMaxWriteLedgerEntries * cfg.mLedgerMaxTxCount;
+                cfg.mLedgerMaxWriteBytes =
+                    cfg.mTxMaxWriteBytes * cfg.mLedgerMaxTxCount;
+                cfg.mLedgerMaxTransactionsSizeBytes =
+                    cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
+            },
+            simulation);
+        auto const numInstances = nAccounts;
+        auto const numSorobanTxs = 150;
+
+        numTxsBefore = getSuccessfulTxCount();
+
+        loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
+            /* nAccounts */ nAccounts, numInstances,
+            /* txRate */ 1));
+        completeCount = complete.count();
+        simulation->crankUntil(
+            [&]() { return complete.count() == completeCount + 1; },
+            100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        // Check that Soroban TXs were successfully applied
+        for (auto node : nodes)
+        {
+            auto& txsSucceeded = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "success"});
+            auto& txsFailed = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "failure"});
+
+            // Should be 1 upload wasm TX followed by one instance deploy TX per
+            // account
+            REQUIRE(txsSucceeded.count() == numTxsBefore + numInstances + 1);
+            REQUIRE(txsFailed.count() == 0);
+        }
+
+        numTxsBefore = getSuccessfulTxCount();
+
+        auto invokeLoadCfg = GeneratedLoadConfig::txLoad(
+            LoadGenMode::SOROBAN_INVOKE, nAccounts, numSorobanTxs,
+            /* txRate */ 1);
+
+        invokeLoadCfg.getMutSorobanConfig().nInstances = numInstances;
+        invokeLoadCfg.setMinSorobanPercentSuccess(100);
+
+        loadGen.generateLoad(invokeLoadCfg);
+        completeCount = complete.count();
+        simulation->crankUntil(
+            [&]() { return complete.count() == completeCount + 1; },
+            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        // Check that Soroban TXs were successfully applied
+        for (auto node : nodes)
+        {
+            auto& txsSucceeded = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "success"});
+            auto& txsFailed = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "failure"});
+            REQUIRE(txsSucceeded.count() == numTxsBefore + numSorobanTxs);
+            REQUIRE(txsFailed.count() == 0);
+        }
+
+        auto instanceKeys = loadGen.getContractInstanceKeysForTesting();
+        auto codeKeyOp = loadGen.getCodeKeyForTesting();
+        REQUIRE(codeKeyOp);
+        REQUIRE(codeKeyOp->type() == CONTRACT_CODE);
+        REQUIRE(instanceKeys.size() == static_cast<size_t>(numInstances));
+
+        // Check that each key is unique and exists in the DB
+        // This ugly math mimics what we do in loadgen, where we calculate the
+        // total number of bytes we can write, then divide the bytes between the
+        // number of data entries we want to write and convert this value back
+        // to kilobytes for the contract invocation. Thus we need to redundantly
+        // divide then multiply by 1024 to mimic rounding behavior.
+        auto expectedDataEntrySize =
+            ((ioKiloBytes * 1024 -
+              loadGen.getContactOverheadBytesForTesting()) /
+             numDataEntries / 1024) *
+            1024;
+
+        UnorderedSet<LedgerKey> keys;
+        for (auto const& instanceKey : instanceKeys)
+        {
+            REQUIRE(instanceKey.type() == CONTRACT_DATA);
+            REQUIRE(instanceKey.contractData().key.type() ==
+                    SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+            REQUIRE(keys.find(instanceKey) == keys.end());
+            keys.insert(instanceKey);
+
+            auto const& contractID = instanceKey.contractData().contract;
+            for (auto i = 0; i < numDataEntries; ++i)
+            {
+                auto lk = contractDataKey(contractID, txtest::makeU32(i),
+                                          ContractDataDurability::PERSISTENT);
+
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                auto entry = ltx.load(lk);
+                REQUIRE(entry);
+                uint32_t sizeBytes =
+                    static_cast<uint32_t>(xdr::xdr_size(entry.current()));
+                REQUIRE((sizeBytes > expectedDataEntrySize &&
+                         sizeBytes < 100 + expectedDataEntrySize));
+
+                REQUIRE(keys.find(lk) == keys.end());
+                keys.insert(lk);
+            }
+        }
+        // Test MIXED_CLASSIC_SOROBAN mode
+        SECTION("Mix with classic")
+        {
+            constexpr uint32_t numMixedTxs = 200;
+            auto mixLoadCfg = GeneratedLoadConfig::txLoad(
+                LoadGenMode::MIXED_CLASSIC_SOROBAN, nAccounts, numMixedTxs,
+                /* txRate */ 1);
+
+            auto& mixCfg = mixLoadCfg.getMutMixClassicSorobanConfig();
+            mixCfg.payWeight = 50;
+            mixCfg.sorobanInvokeWeight = 45;
+            constexpr uint32_t uploadWeight = 5;
+            mixCfg.sorobanUploadWeight = uploadWeight;
+
+            mixLoadCfg.setMinSorobanPercentSuccess(100);
+
+            loadGen.generateLoad(mixLoadCfg);
+            auto numSuccessBefore = getSuccessfulTxCount();
+            auto numFailedBefore =
+                app.getMetrics()
+                    .NewCounter({"ledger", "apply-soroban", "failure"})
+                    .count();
+            completeCount = complete.count();
+            simulation->crankUntil(
+                [&]() { return complete.count() == completeCount + 1; },
+                300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+            // Check results
+            for (auto node : nodes)
+            {
+                auto& totalFailed = node->getMetrics().NewCounter(
+                    {"ledger", "apply", "failure"});
+                REQUIRE(totalFailed.count() == 0);
+            }
         }
     }
 }

@@ -225,7 +225,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
         s->crankForAtLeast(std::chrono::seconds(10), false);
         REQUIRE(!p0->isConnectedForTesting());
         REQUIRE(!p1->isConnectedForTesting());
-        REQUIRE(p1->mDropReason == dropReason);
+        REQUIRE(p1->getDropReason() == dropReason);
 
         if (shouldSendError)
         {
@@ -253,7 +253,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
                 // Send message without auth sequence
                 AuthenticatedMessage amsg;
                 amsg.v0().message = *msg;
-                p0->sendXdrMessageForTesting(xdr::xdr_to_msg(amsg));
+                p0->sendXdrMessageForTesting(xdr::xdr_to_msg(amsg), msg);
                 // Follow by a regular message so there's something in the
                 // socket
                 p0->sendAuthenticatedMessageForTesting(msg);
@@ -267,13 +267,135 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
         n0->postOnOverlayThread(
             [p0, msg]() {
                 xdr::msg_ptr corruptMsg = xdr::message_t::alloc(0xff);
-                p0->sendXdrMessageForTesting(std::move(corruptMsg));
+                p0->sendXdrMessageForTesting(std::move(corruptMsg), msg);
                 // Send a normal message to make sure there's something to read
                 // in the socket
                 p0->sendAuthenticatedMessageForTesting(msg);
             },
             "send");
         crankAndValidateDrop("received corrupt XDR", true);
+    }
+}
+
+TEST_CASE("Queue purging after asio writes completion",
+          "[overlay][flowcontrol]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID, [](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
+            if (i == 2)
+            {
+                cfg.PEER_FLOOD_READING_CAPACITY = 1'000'000;
+            }
+            else if (i == 1)
+            {
+                cfg.PEER_STRAGGLER_TIMEOUT = 5;
+                cfg.OUTBOUND_TX_QUEUE_BYTE_LIMIT = 2000;
+            }
+            return cfg;
+        });
+
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet n0_qset;
+    n0_qset.threshold = 1;
+    n0_qset.validators.push_back(v10SecretKey.getPublicKey());
+    auto n0 = s->addNode(v10SecretKey, n0_qset);
+
+    SCPQuorumSet n1_qset;
+    n1_qset.threshold = 1;
+    n1_qset.validators.push_back(v11SecretKey.getPublicKey());
+    auto n1 = s->addNode(v11SecretKey, n1_qset);
+
+    s->addPendingConnection(v10SecretKey.getPublicKey(),
+                            v11SecretKey.getPublicKey());
+    s->startAllNodes();
+    s->stopOverlayTick();
+    s->crankForAtLeast(std::chrono::seconds(1), false);
+
+    auto p0 = n0->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+
+    auto p1 = n1->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+
+    REQUIRE(p0);
+    REQUIRE(p1);
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+
+    auto tcpPeer = std::static_pointer_cast<TCPPeer>(p1);
+    tcpPeer->mStopReadingForTesting = true;
+
+    auto initialQueueSize =
+        p0->getFlowControl()->getQueuesForTesting()[1].size();
+    auto initialQueueDrops =
+        n0->getMetrics()
+            .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+            .count();
+
+    int const NUM_MESSAGES = 1000;
+    for (int i = 0; i < NUM_MESSAGES; i++)
+    {
+        p0->sendMessage(makeStellarMessage(1));
+    }
+    s->crankForAtLeast(std::chrono::seconds(1), false);
+    auto finalQueueSize = p0->getFlowControl()->getQueuesForTesting()[1].size();
+    auto finalQueueDrops =
+        n0->getMetrics()
+            .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+            .count();
+    auto initialMsgCount =
+        n1->getMetrics()
+            .NewCounter({"overlay", "recv-transaction", "count"})
+            .count();
+
+    REQUIRE(finalQueueDrops > initialQueueDrops);
+    REQUIRE(finalQueueSize < NUM_MESSAGES);
+
+    bool shouldDrop = false;
+    SECTION("p1 never reads")
+    {
+        shouldDrop = true;
+    }
+    SECTION("p1 eventually reads")
+    {
+        tcpPeer->mStopReadingForTesting = false;
+        tcpPeer->scheduleReadForTesting();
+    }
+
+    s->crankForAtLeast(std::chrono::seconds(30), false);
+
+    if (shouldDrop)
+    {
+        REQUIRE(!p0->isConnectedForTesting());
+        REQUIRE(p0->getDropReason() == "straggling (cannot keep up)");
+    }
+    else
+    {
+        REQUIRE(p0->isConnectedForTesting());
+        REQUIRE(p1->isConnectedForTesting());
+        REQUIRE(n1->getMetrics()
+                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .count() > 0);
+        for (int i = 0; i < NUM_MESSAGES; i++)
+        {
+            p1->sendMessage(makeStellarMessage(1));
+        }
+
+        s->crankUntil(
+            [&]() {
+                return p1->getFlowControl()->getQueuesForTesting()[1].size() ==
+                       0;
+            },
+            std::chrono::seconds(10), false);
+        REQUIRE(
+            n1->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count() == 0);
     }
 }
 }
