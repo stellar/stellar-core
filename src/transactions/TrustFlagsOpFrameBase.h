@@ -32,7 +32,8 @@ class TrustFlagsOpFrameBase : public OperationFrame
     virtual void setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
                               uint32_t flagVal) const = 0;
 
-    bool removeOffers(AbstractLedgerTxn& ltx, OperationResult& res) const;
+    bool removeOffers(AbstractLedgerTxn& ltx, OperationResult& res,
+                      OpEventManager& opEventManager) const;
     ThresholdLevel getThresholdLevel() const override;
 
   public:

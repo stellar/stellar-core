@@ -35,9 +35,9 @@ validateConstantProduct(uint64_t currentReserveA, uint64_t currentReserveB,
 }
 
 std::string
-ConstantProductInvariant::checkOnOperationApply(Operation const& operation,
-                                                OperationResult const& result,
-                                                LedgerTxnDelta const& ltxDelta)
+ConstantProductInvariant::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
     if (operation.body.type() == LIQUIDITY_POOL_WITHDRAW ||
         operation.body.type() == SET_TRUST_LINE_FLAGS ||

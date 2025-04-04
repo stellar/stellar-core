@@ -230,7 +230,11 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.INVARIANT_CHECKS = {".*"};
+        // EventsAreConsistentWithEntryDiffs require both EMIT_CLASSIC_EVENTS
+        // and BACKFILL_STELLAR_ASSET_EVENTS to be enabled, so omit it and test
+        // it separately.
+        thisConfig.INVARIANT_CHECKS = {
+            "(?!EventsAreConsistentWithEntryDiffs).*"};
 
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 

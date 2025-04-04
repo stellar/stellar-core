@@ -37,9 +37,11 @@ class AppConnector
     BanManager& getBanManager();
     bool shouldYield() const;
     SorobanMetrics& getSorobanMetrics() const;
-    void checkOnOperationApply(Operation const& operation,
-                               OperationResult const& opres,
-                               LedgerTxnDelta const& ltxDelta);
+    void checkOnOperationApply(
+        Operation const& operation, OperationResult const& opres,
+        LedgerTxnDelta const& ltxDelta,
+        std::vector<ContractEvent> const&
+            events /*TODO: This is a placeholder for the final format*/);
     Hash const& getNetworkID() const;
 
     // Thread-safe methods

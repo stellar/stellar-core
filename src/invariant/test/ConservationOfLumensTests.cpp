@@ -127,7 +127,7 @@ TEST_CASE("Total coins change without inflation",
     ltx.loadHeader().current().totalCoins = dist(gRandomEngine);
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                          {}, res, ltx.getDelta()),
+                          {}, res, ltx.getDelta(), {}),
                       InvariantDoesNotHold);
 }
 
@@ -146,7 +146,7 @@ TEST_CASE("Fee pool change without inflation",
     ltx.loadHeader().current().feePool = dist(gRandomEngine);
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                          {}, res, ltx.getDelta()),
+                          {}, res, ltx.getDelta(), {}),
                       InvariantDoesNotHold);
 }
 
@@ -269,7 +269,7 @@ TEST_CASE("Inflation changes are consistent",
             LedgerTxn ltx(app->getLedgerTxnRoot());
             ltx.loadHeader().current().feePool += deltaFeePool;
             REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                                  {}, opRes, ltx.getDelta()),
+                                  {}, opRes, ltx.getDelta(), {}),
                               InvariantDoesNotHold);
         }
 
@@ -279,7 +279,7 @@ TEST_CASE("Inflation changes are consistent",
             ltx.loadHeader().current().totalCoins +=
                 deltaFeePool + inflationAmount;
             REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                                  {}, opRes, ltx.getDelta()),
+                                  {}, opRes, ltx.getDelta(), {}),
                               InvariantDoesNotHold);
         }
 

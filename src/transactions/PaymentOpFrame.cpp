@@ -118,6 +118,8 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
     innerResult(res).code(PAYMENT_SUCCESS);
 
+    // Events will be handled by PathPaymentStrictReceiveOpFrame::doApply
+
     return true;
 }
 

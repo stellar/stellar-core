@@ -131,7 +131,8 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         LedgerTxn ltx{ltxOuter};
         ltx.create(offer);
 
-        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
+                                         {});
         auto const& orders = invariant->getOrderBook().at({cur1, cur2});
 
         REQUIRE(orders.size() == 1);
@@ -154,7 +155,8 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         auto entry = ltx.load(LedgerEntryKey(offer));
         entry.current() = offer;
 
-        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
+                                         {});
         auto const& orders = invariant->getOrderBook().at({cur1, cur2});
 
         REQUIRE(orders.size() == 1);
@@ -174,7 +176,8 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         auto entry = ltx.load(LedgerEntryKey(offer));
         entry.erase();
 
-        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
+                                         {});
 
         REQUIRE(invariant->getOrderBook().at({cur1, cur2}).size() == 0);
     }

@@ -26,6 +26,7 @@ class ConstantProductInvariant : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta) override;
+                          LedgerTxnDelta const& ltxDelta,
+                          std::vector<ContractEvent> const& events) override;
 };
 }

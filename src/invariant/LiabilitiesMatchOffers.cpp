@@ -324,9 +324,9 @@ LiabilitiesMatchOffers::getName() const
 }
 
 std::string
-LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
-                                              OperationResult const& result,
-                                              LedgerTxnDelta const& ltxDelta)
+LiabilitiesMatchOffers::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))

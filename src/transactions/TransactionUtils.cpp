@@ -1490,7 +1490,8 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
                                    AccountID const& accountID,
                                    Asset const& asset,
                                    AccountID const& txSourceID,
-                                   SequenceNumber txSeqNum, uint32_t opIndex)
+                                   SequenceNumber txSeqNum, uint32_t opIndex,
+                                   OpEventManager& opEventManager)
 {
     removeOffersByAccountAndAsset(ltx, accountID, asset);
 
@@ -1539,12 +1540,21 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
 
         auto redeemIntoClaimableBalance =
             [&ltxInner, &txSourceID, txSeqNum, opIndex, &poolID, &accountID,
-             &cbSponsoringAccID](Asset const& assetInPool,
-                                 int64_t amount) -> RemoveResult {
+             &cbSponsoringAccID, &opEventManager](
+                Asset const& assetInPool, int64_t amount) -> RemoveResult {
             // if the amount is 0 or the claimant is the issuer, then we don't
             // create the claimable balance
-            if (isIssuer(accountID, assetInPool) || amount == 0)
+            if (amount == 0)
             {
+                return RemoveResult::SUCCESS;
+            }
+
+            if (isIssuer(accountID, assetInPool))
+            {
+
+                opEventManager.newBurnEvent(
+                    assetInPool, liquidityPoolIDToSCAddress(poolID), amount);
+
                 return RemoveResult::SUCCESS;
             }
 
@@ -1561,6 +1571,11 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
             claimableBalanceEntry.asset = assetInPool;
             claimableBalanceEntry.claimants = {
                 makeUnconditionalClaimant(accountID)};
+
+            opEventManager.newTransferEvent(
+                assetInPool, liquidityPoolIDToSCAddress(poolID),
+                claimableBalanceIDToSCAddress(claimableBalanceEntry.balanceID),
+                amount);
 
             // if this asset isn't native
             // 1. set clawback if it's set on the trustline
@@ -1870,18 +1885,10 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
 LumenContractInfo
 getLumenContractInfo(Hash const& networkID)
 {
-    // Calculate contractID
-    HashIDPreimage preImage;
-    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-    preImage.contractID().networkID = networkID;
-
     Asset native;
-    native.type(ASSET_TYPE_NATIVE);
-    preImage.contractID().contractIDPreimage.type(
-        CONTRACT_ID_PREIMAGE_FROM_ASSET);
-    preImage.contractID().contractIDPreimage.fromAsset() = native;
 
-    auto lumenContractID = xdrSha256(preImage);
+    native.type(ASSET_TYPE_NATIVE);
+    auto lumenContractID = getAssetContractID(networkID, native);
 
     // Calculate SCVal for balance key
     SCVal balanceSymbol(SCV_SYMBOL);
@@ -1892,6 +1899,18 @@ getLumenContractInfo(Hash const& networkID)
     amountSymbol.sym() = "amount";
 
     return {lumenContractID, balanceSymbol, amountSymbol};
+}
+
+Hash
+getAssetContractID(Hash const& networkID, Asset const& asset)
+{
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().networkID = networkID;
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = asset;
+    return xdrSha256(preImage);
 }
 
 SCVal
@@ -1919,6 +1938,14 @@ makeStringSCVal(std::string&& str)
 }
 
 SCVal
+makeStringSCVal(std::string const& str)
+{
+    SCVal val(SCV_STRING);
+    val.str().assign(str);
+    return val;
+}
+
+SCVal
 makeU64SCVal(uint64_t u)
 {
     SCVal val(SCV_U64);
@@ -1932,6 +1959,175 @@ makeAddressSCVal(SCAddress const& address)
     SCVal val(SCV_ADDRESS);
     val.address() = address;
     return val;
+}
+
+SCVal
+makeI128SCVal(int64_t v)
+{
+    SCVal val(SCV_I128);
+    // Sign extend: if v is negative, hi = 0xFFFFFFFFFFFFFFFF, if positive, hi =
+    // 0x0000000000000000
+    val.i128().hi = v < 0 ? 0xFFFFFFFFFFFFFFFF : 0x0000000000000000;
+    val.i128().lo = static_cast<uint64_t>(v);
+    return val;
+}
+
+SCVal
+makeAccountIDSCVal(AccountID const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+    addr.accountId() = id;
+    return makeAddressSCVal(addr);
+}
+
+SCAddress
+accountToSCAddress(MuxedAccount const& account)
+{
+    switch (account.type())
+    {
+    case KEY_TYPE_ED25519:
+    {
+        SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+        addr.accountId().ed25519() = account.ed25519();
+        return addr;
+    }
+    case KEY_TYPE_MUXED_ED25519:
+    {
+        SCAddress addr(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
+        addr.muxedAccount().id = account.med25519().id;
+        addr.muxedAccount().ed25519 = account.med25519().ed25519;
+        return addr;
+    }
+    default:
+        // this would be a bug
+        abort();
+    }
+}
+
+SCAddress
+accountToSCAddress(AccountID const& account)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+    addr.accountId() = account;
+    return addr;
+}
+
+SCAddress
+claimableBalanceIDToSCAddress(ClaimableBalanceID const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
+    addr.claimableBalanceId() = id;
+    return addr;
+}
+
+SCAddress
+liquidityPoolIDToSCAddress(PoolID const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
+    addr.liquidityPoolId() = id;
+    return addr;
+}
+
+SCAddress
+getAddressWithDroppedMuxedInfo(SCAddress const& addr)
+{
+    if (addr.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT)
+    {
+        SCAddress accountAddr(SC_ADDRESS_TYPE_ACCOUNT);
+        accountAddr.accountId().ed25519() = addr.muxedAccount().ed25519;
+        return accountAddr;
+    }
+    return addr;
+}
+
+bool
+isIssuer(SCAddress const& addr, Asset const& asset)
+{
+    switch (addr.type())
+    {
+    case SC_ADDRESS_TYPE_ACCOUNT:
+        return isIssuer(addr.accountId(), asset);
+
+    case SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+    {
+        AccountID id(PUBLIC_KEY_TYPE_ED25519);
+        id.ed25519() = addr.muxedAccount().ed25519;
+        return isIssuer(id, asset);
+    }
+
+    default:
+        return false;
+    }
+}
+
+SCVal
+makeSep0011AssetStringSCVal(Asset const& asset)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return makeStringSCVal("native");
+    }
+    return makeStringSCVal(assetToString(asset) + ":" +
+                           KeyUtils::toStrKey(getIssuer(asset)));
+}
+
+SCVal
+makeClassicMemoSCVal(Memo const& memo)
+{
+    switch (memo.type())
+    {
+    case MEMO_NONE:
+        throw std::runtime_error("Memo type cannot be `None`");
+    case MEMO_TEXT:
+        return makeStringSCVal(memo.text());
+    case MEMO_ID:
+        return makeU64SCVal(memo.id());
+    case MEMO_HASH:
+        return makeBytesSCVal(memo.hash());
+    case MEMO_RETURN:
+        return makeBytesSCVal(memo.retHash());
+    default:
+        throw std::runtime_error("Unknown memo type");
+    }
+}
+
+SCVal
+makeMuxIDSCVal(MuxedEd25519Account const& acc)
+{
+    return makeU64SCVal(acc.id);
+}
+
+LedgerKey
+addressToLedgerKey(SCAddress const& address)
+{
+    LedgerKey lk;
+    switch (address.type())
+    {
+    case SC_ADDRESS_TYPE_ACCOUNT:
+        lk.type(ACCOUNT);
+        lk.account().accountID = address.accountId();
+        break;
+    case SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+        lk.type(ACCOUNT);
+        lk.account().accountID.ed25519() = address.muxedAccount().ed25519;
+        break;
+    case SC_ADDRESS_TYPE_CONTRACT:
+        lk.type(CONTRACT_CODE);
+        lk.contractCode().hash = address.contractId();
+        break;
+    case SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+        lk.type(CLAIMABLE_BALANCE);
+        lk.claimableBalance().balanceID = address.claimableBalanceId();
+        break;
+    case SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+        lk.type(LIQUIDITY_POOL);
+        lk.liquidityPool().liquidityPoolID = address.liquidityPoolId();
+        break;
+    default:
+        break;
+    }
+
+    return lk;
 }
 
 namespace detail
@@ -2019,4 +2215,88 @@ makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
     }
     return atom;
 }
+
+// If the event was emitted by an SAC, return the asset. Otherwise, return
+// nullopt
+std::optional<Asset>
+isFromSAC(ContractEvent const& event, Hash const& networkID)
+{
+    if (!event.contractID)
+    {
+        return std::nullopt;
+    }
+    auto const& topics = event.body.v0().topics;
+    if (topics.empty())
+    {
+        return std::nullopt;
+    }
+
+    // The last topic will be the SEP-0011 asset string for the SAC
+    auto assetVal = topics.at(topics.size() - 1);
+    if (assetVal.type() != SCV_STRING)
+    {
+        return std::nullopt;
+    }
+
+    Asset asset;
+    auto const& assetStr = assetVal.str();
+    if (assetStr == "native")
+    {
+        asset.type(ASSET_TYPE_NATIVE);
+    }
+    else
+    {
+        auto delimPos = assetStr.find(':');
+        if (delimPos == std::string::npos || delimPos == assetStr.size() - 1)
+        {
+            return std::nullopt;
+        }
+        auto issuerStr = assetStr.substr(delimPos + 1, assetStr.size());
+
+        PublicKey issuer;
+
+        try
+        {
+            issuer = KeyUtils::fromStrKey<PublicKey>(issuerStr);
+        }
+        catch (std::invalid_argument)
+        {
+            return std::nullopt;
+        }
+
+        auto assetName = assetStr.substr(0, delimPos);
+        if (assetName.size() <= 4)
+        {
+            asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+            strToAssetCode(asset.alphaNum4().assetCode, assetName);
+            asset.alphaNum4().issuer = issuer;
+        }
+        else if (assetName.size() <= 12)
+        {
+            asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+            strToAssetCode(asset.alphaNum12().assetCode, assetName);
+            asset.alphaNum12().issuer = issuer;
+        }
+        else
+        {
+            return std::nullopt;
+        }
+
+        // The protocol version check is only used for pooShareAssets,
+        // and we aren't passing one in here, so the value does not
+        // matter
+        if (!isAssetValid<Asset>(asset, 0))
+        {
+            return std::nullopt;
+        }
+    }
+    auto hash = getAssetContractID(networkID, asset);
+    if (hash != *event.contractID)
+    {
+        return std::nullopt;
+    }
+
+    return asset;
+}
+
 } // namespace stellar
