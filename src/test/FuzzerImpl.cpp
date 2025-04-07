@@ -19,7 +19,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -911,7 +911,7 @@ class FuzzTransactionFrame : public TransactionFrame
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
         : TransactionFrame(networkID, envelope)
-        , mTxResult(createSuccessResult()){};
+        , mTxResult(MutableTransactionResult::createSuccess(*this, 0)){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
@@ -920,13 +920,12 @@ class FuzzTransactionFrame : public TransactionFrame
         if (std::any_of(getOperations().begin(), getOperations().end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
-            mTxResult->setResultCode(txFAILED);
+            mTxResult->setError(txFAILED);
             return;
         }
 
         // reset results of operations
-        mTxResult = createSuccessResultWithFeeCharged(
-            ltx.loadHeader().current(), 0, true);
+        mTxResult = MutableTransactionResult::createSuccess(*this, 0);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
@@ -951,7 +950,7 @@ class FuzzTransactionFrame : public TransactionFrame
             auto& opResult = mTxResult->getOpResultAt(i);
             if (isInvalidOperation(op, opResult))
             {
-                mTxResult->setResultCode(txFAILED);
+                mTxResult->setError(txFAILED);
                 return;
             }
         }
@@ -961,7 +960,9 @@ class FuzzTransactionFrame : public TransactionFrame
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
-        TransactionMetaFrame tm(2, app.getConfig());
+        TransactionMetaBuilder tm(true, *this,
+                                  ltx.loadHeader().current().ledgerVersion,
+                                  app.getAppConnector());
         applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
                         *mTxResult, Hash{});
         if (mTxResult->getResultCode() == txINTERNAL_ERROR)
@@ -970,10 +971,10 @@ class FuzzTransactionFrame : public TransactionFrame
         }
     }
 
-    TransactionResult&
-    getResult()
+    TransactionResult const&
+    getResult() const
     {
-        return mTxResult->getResult();
+        return mTxResult->getXDR();
     }
 
     TransactionResultCode

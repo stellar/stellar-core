@@ -29,11 +29,11 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op,
 }
 
 bool
-ManageDataOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                           Hash const& sorobanBasePrngSeed,
-                           OperationResult& res,
-                           std::shared_ptr<SorobanTxData> sorobanData,
-                           OpEventManager& opEventManager) const
+ManageDataOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();

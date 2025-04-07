@@ -800,7 +800,7 @@ TEST_CASE("TransactionQueue hitting the rate limit",
         auto addResult = testQueue.add(
             tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
         REQUIRE(addResult.txResult->getResultCode() == txINSUFFICIENT_FEE);
-        REQUIRE(addResult.txResult->getResult().feeCharged == 300 * 3 + 1);
+        REQUIRE(addResult.txResult->getXDR().feeCharged == 300 * 3 + 1);
     }
     SECTION("cannot add - tx outside of limits")
     {
@@ -824,7 +824,7 @@ TEST_CASE("TransactionQueue hitting the rate limit",
             auto addResult = testQueue.add(
                 nextTx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
             REQUIRE(addResult.txResult->getResultCode() == txINSUFFICIENT_FEE);
-            REQUIRE(addResult.txResult->getResult().feeCharged == 301);
+            REQUIRE(addResult.txResult->getXDR().feeCharged == 301);
         }
         SECTION("then add tx with higher fee than evicted")
         {
@@ -1453,7 +1453,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(addResult.txResult);
                 REQUIRE(addResult.txResult->getResultCode() ==
                         TransactionResultCode::txINSUFFICIENT_FEE);
-                REQUIRE(addResult.txResult->getResult().feeCharged ==
+                REQUIRE(addResult.txResult->getXDR().feeCharged ==
                         expectedFeeCharged);
             }
             SECTION("insufficient account balance")
@@ -2594,7 +2594,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                     fb, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 auto& txResult = addResult.txResult;
                 REQUIRE(txResult->getResultCode() == txINSUFFICIENT_FEE);
-                REQUIRE(txResult->getResult().feeCharged ==
+                REQUIRE(txResult->getXDR().feeCharged ==
                         4000 + (tx->getFullFee() - tx->getInclusionFee()));
                 test.check({{{account1, 0, txs}, {account2}}, {}});
             }
@@ -2611,7 +2611,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                     fb, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 auto& txResult = addResult.txResult;
                 REQUIRE(txResult->getResultCode() == txINSUFFICIENT_FEE);
-                REQUIRE(txResult->getResult().feeCharged ==
+                REQUIRE(txResult->getXDR().feeCharged ==
                         4000 + (tx->getFullFee() - tx->getInclusionFee()));
                 test.check({{{account1, 0, txs}, {account2}}, {}});
             }

@@ -26,8 +26,9 @@ PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
 bool
 PathPaymentStrictReceiveOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData,
-    OpEventManager& opEventManager) const
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictReceiveOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -134,12 +135,12 @@ PathPaymentStrictReceiveOpFrame::doApply(
         return false;
     }
 
-    opEventManager.eventsForClaimAtoms(getSourceAccount(),
-                                       innerResult(res).success().offers);
+    opMeta.getEventManager().eventsForClaimAtoms(
+        getSourceAccount(), innerResult(res).success().offers);
 
     // Emit the final event between the source and destination account wrt the
     // dest asset.
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         getDestAsset(), makeMuxedAccountAddress(getSourceAccount()),
         makeMuxedAccountAddress(getDestMuxedAccount()), mPathPayment.destAmount,
         true);

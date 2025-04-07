@@ -53,13 +53,14 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                 Hash const& sorobanBasePrngSeed,
-                                 OperationResult& res,
-                                 std::shared_ptr<SorobanTxData> sorobanData,
-                                 OpEventManager& opEventManager) const
+RestoreFootprintOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
+    releaseAssertOrThrow(refundableFeeTracker);
 
     RestoreFootprintMetrics metrics(app.getSorobanMetrics());
     auto timeScope = metrics.getExecTimer();
@@ -79,7 +80,7 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         ledgerSeq + archivalSettings.minPersistentTTL - 1;
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     rustEntryRentChanges.reserve(footprint.readWrite.size());
-    auto& diagnosticEvents = opEventManager.getDiagnosticEventsBuffer();
+    auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
     for (auto const& lk : footprint.readWrite)
     {
         std::shared_ptr<HotArchiveBucketEntry const> hotArchiveEntry{nullptr};
@@ -137,7 +138,7 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         metrics.mLedgerReadByte += entrySize;
         if (resources.diskReadBytes < metrics.mLedgerReadByte)
         {
-            diagnosticEvents.pushApplyTimeDiagnosticError(
+            diagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -159,7 +160,7 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
-            diagnosticEvents.pushApplyTimeDiagnosticError(
+            diagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-write resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -208,7 +209,7 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
         rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    if (!sorobanData->consumeRefundableSorobanResources(
+    if (!refundableFeeTracker->consumeRefundableSorobanResources(
             0, rentFee, ltx.loadHeader().current().ledgerVersion, sorobanConfig,
             app.getConfig(), mParentTx, diagnosticEvents))
     {
@@ -223,14 +224,14 @@ bool
 RestoreFootprintOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    DiagnosticEventBuffer* diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents) const
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readOnly.empty())
     {
         innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
-        pushValidationTimeDiagnosticError(
-            diagnosticEvents, SCE_STORAGE, SCEC_INVALID_INPUT,
+        diagnosticEvents.pushError(
+            SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-only footprint must be empty for RestoreFootprint operation",
             {});
         return false;
@@ -241,8 +242,8 @@ RestoreFootprintOpFrame::doCheckValidForSoroban(
         if (!isPersistentEntry(lk))
         {
             innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
-            pushValidationTimeDiagnosticError(
-                diagnosticEvents, SCE_STORAGE, SCEC_INVALID_INPUT,
+            diagnosticEvents.pushError(
+                SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only persistent Soroban entries can be restored", {});
             return false;
         }

@@ -175,12 +175,12 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     TxFrameList invalidTxs;
-
+    auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {
         auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
                                        lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset);
+                                       upperBoundCloseTimeOffset, diagnostics);
         if (!txResult->isSuccess())
         {
             invalidTxs.emplace_back(tx);

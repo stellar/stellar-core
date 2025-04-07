@@ -538,9 +538,10 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         auto invocation = contract.prepareInvocation(functionName, args, spec,
                                                      addContractKeys);
         auto tx = invocation.createTx(&rootAccount);
-
-        auto result =
-            tx->checkValid(test.getApp().getAppConnector(), rootLtx, 0, 0, 0);
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto result = tx->checkValid(test.getApp().getAppConnector(), rootLtx,
+                                     0, 0, 0, diagnostics);
+        REQUIRE(result->isSuccess());
 
         REQUIRE(tx->getFullFee() ==
                 spec.getInclusionFee() + spec.getResourceFee());
@@ -553,10 +554,10 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         // Imitate surge pricing by charging at a higher rate than
         // base fee.
         uint32_t const surgePricedFee = 300;
-        REQUIRE(result->getResult().feeCharged == baseCharged);
+        REQUIRE(result->getFeeCharged() == baseCharged);
         {
             LedgerTxn ltx(rootLtx);
-            tx->processFeeSeqNum(ltx, surgePricedFee);
+            result = tx->processFeeSeqNum(ltx, surgePricedFee);
             ltx.commit();
         }
         // The resource and the base fee are charged, with additional
@@ -565,23 +566,21 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         REQUIRE(initBalance - balanceAfterFeeCharged ==
                 tx->declaredSorobanResourceFee() + surgePricedFee);
 
-        TransactionMetaFrame txm(test.getLedgerVersion(),
-                                 test.getApp().getConfig());
+        TransactionMetaBuilder txmBuilder(true, *tx, test.getLedgerVersion(),
+                                          test.getApp().getAppConnector());
         auto timerBefore = hostFnExecTimer.count();
-        auto txEventManager = TxEventManager(test.getLedgerVersion(),
-                                             test.getApp().getNetworkID(),
-                                             test.getApp().getConfig());
-        bool success = tx->apply(test.getApp().getAppConnector(), rootLtx, txm,
-                                 result, txEventManager);
+        bool success = tx->apply(test.getApp().getAppConnector(), rootLtx,
+                                 txmBuilder, *result);
         REQUIRE(hostFnExecTimer.count() - timerBefore > 0);
 
         {
             LedgerTxn ltx(rootLtx);
-            tx->processPostApply(test.getApp().getAppConnector(), ltx, txm,
-                                 result, txEventManager);
+            tx->processPostApply(test.getApp().getAppConnector(), ltx,
+                                 txmBuilder, *result);
             ltx.commit();
         }
 
+        TransactionMetaFrame txm(txmBuilder.finalize(success));
         auto changesAfter = txm.getChangesAfter();
 
         // In case of failure we simply refund the whole refundable fee portion.
@@ -605,7 +604,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         // Make sure account receives expected refund
         REQUIRE(getRootBalance() - balanceAfterFeeCharged == *expectedRefund);
 
-        return std::make_tuple(tx, txm, result);
+        return std::make_tuple(tx, txm, std::move(result));
     };
 
     auto failedInvoke =
@@ -618,8 +617,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                                             std::nullopt, addContractKeys);
             REQUIRE(hostFnSuccessMeter.count() - successesBefore == 0);
             REQUIRE(hostFnFailureMeter.count() - failuresBefore == 1);
-            REQUIRE(result->getResult().result.code() == txFAILED);
-            return result->getResult()
+            REQUIRE(result->getResultCode() == txFAILED);
+            return result->getXDR()
                 .result.results()[0]
                 .tr()
                 .invokeHostFunctionResult()
@@ -655,9 +654,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
         REQUIRE(hostFnSuccessMeter.count() - successesBefore == 1);
         REQUIRE(hostFnFailureMeter.count() - failuresBefore == 0);
-        REQUIRE(isSuccessResult(result->getResult()));
+        REQUIRE(result->isSuccess());
 
-        auto const& ores = result->getResult().result.results().at(0);
+        auto const& ores = result->getXDR().result.results().at(0);
         REQUIRE(ores.tr().type() == INVOKE_HOST_FUNCTION);
         REQUIRE(ores.tr().invokeHostFunctionResult().code() ==
                 INVOKE_HOST_FUNCTION_SUCCESS);
@@ -826,10 +825,8 @@ TEST_CASE("version test", "[tx][soroban]")
 
         REQUIRE(test.isTxValid(tx));
 
-        TransactionMetaFrame txm(test.getLedgerVersion(),
-                                 test.getApp().getConfig());
+        TransactionMetaFrame txm;
         REQUIRE(isSuccessResult(test.invokeTx(tx, &txm)));
-
         return txm;
     };
 
@@ -882,15 +879,16 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
                       .createTx();
         MutableTxResultPtr result;
         {
+            auto diagnostics = DiagnosticEventManager::createDisabled();
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result =
-                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
+                                    0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
 
         if (!shouldBeValid)
         {
-            REQUIRE(result->getResult().result.code() == txSOROBAN_INVALID);
+            REQUIRE(result->getResultCode() == txSOROBAN_INVALID);
         }
     };
 
@@ -899,17 +897,18 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
                                         DEFAULT_TEST_RESOURCE_FEE);
         MutableTxResultPtr result;
         {
+            auto diagnostics = DiagnosticEventManager::createDisabled();
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result =
-                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
+                                    0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
         {
-            auto const& txCode = result->getResult().result.code();
+            auto txCode = result->getResultCode();
             if (txCode == txFAILED)
             {
-                REQUIRE(result->getResult()
+                REQUIRE(result->getXDR()
                             .result.results()[0]
                             .tr()
                             .extendFootprintTTLResult()
@@ -928,17 +927,18 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 
         MutableTxResultPtr result;
         {
+            auto diagnostics = DiagnosticEventManager::createDisabled();
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result =
-                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
+                                    0, diagnostics);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
         {
-            auto const& txCode = result->getResult().result.code();
+            auto txCode = result->getResultCode();
             if (txCode == txFAILED)
             {
-                REQUIRE(result->getResult()
+                REQUIRE(result->getXDR()
                             .result.results()[0]
                             .tr()
                             .restoreFootprintResult()
@@ -1762,15 +1762,15 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
                                invocationSpec.setInstructions(2'000'000'000))
             .createTx();
 
-    auto diagnosticEvents = DiagnosticEventBuffer(cfg);
+    auto diagnosticEvents = DiagnosticEventManager::createForValidation(cfg);
     {
         LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
         auto result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                     0, &diagnosticEvents);
+                                     0, diagnosticEvents);
     }
     REQUIRE(!test.isTxValid(tx));
 
-    auto const& diagEvents = diagnosticEvents.mBuffer;
+    auto const diagEvents = diagnosticEvents.finalize();
     REQUIRE(diagEvents.size() == 1);
 
     DiagnosticEvent const& diag_ev = diagEvents.at(0);
@@ -3853,8 +3853,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             app->getNetworkID(), txEnv);
         auto tx = TransactionTestFrame::fromTxFrame(rawTx);
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
-                                 app->getConfig());
+        TransactionMetaBuilder txm(true, *tx,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
         REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
         ltx.commit();
@@ -3927,8 +3928,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             app->getNetworkID(), invokeRes2.first);
         auto txRevertSettings = TransactionTestFrame::fromTxFrame(txRaw);
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
-                                 app->getConfig());
+        TransactionMetaBuilder txm(true, *txRevertSettings,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
         REQUIRE(txRevertSettings->checkValidForTesting(app->getAppConnector(),
                                                        ltx, 0, 0, 0));
         REQUIRE(txRevertSettings->apply(app->getAppConnector(), ltx, txm));

@@ -11,7 +11,6 @@
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
-#include "transactions/TransactionMetaFrame.h"
 #include "util/TxResource.h"
 #include "util/UnorderedSet.h"
 #include "util/types.h"
@@ -29,10 +28,10 @@ class AppConnector;
 class SignatureChecker;
 
 class MutableTransactionResultBase;
-using MutableTxResultPtr = std::shared_ptr<MutableTransactionResultBase>;
+using MutableTxResultPtr = std::unique_ptr<MutableTransactionResultBase>;
 
-class TxEventManager;
-struct DiagnosticEventBuffer;
+class TransactionMetaBuilder;
+class DiagnosticEventManager;
 
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
@@ -47,25 +46,23 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                       TransactionMetaFrame& meta, MutableTxResultPtr txResult,
-                       TxEventManager& txEventManager,
+                       TransactionMetaBuilder& meta,
+                       MutableTransactionResultBase& txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
     virtual MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventBuffer* diagnosticEvents = nullptr) const = 0;
-    virtual bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult,
-        DiagnosticEventBuffer* diagnosticEvents) const = 0;
-
-    virtual MutableTxResultPtr createSuccessResult() const = 0;
+               DiagnosticEventManager& diagnosticEvents) const = 0;
+    virtual bool
+    checkSorobanResources(SorobanNetworkConfig const& cfg,
+                          uint32_t ledgerVersion,
+                          DiagnosticEventManager& diagnosticEvents) const = 0;
 
     virtual MutableTxResultPtr
-    createSuccessResultWithFeeCharged(LedgerHeader const& header,
-                                      std::optional<int64_t> baseFee,
-                                      bool applying) const = 0;
+    createTxErrorResult(TransactionResultCode txErrorCode) const = 0;
+
+    virtual MutableTxResultPtr createValidationSuccessResult() const = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 
@@ -93,6 +90,8 @@ class TransactionFrameBase
     virtual Hash const& getFullHash() const = 0;
 
     virtual uint32_t getNumOperations() const = 0;
+    virtual std::vector<std::shared_ptr<OperationFrame const>> const&
+    getOperationFrames() const = 0;
     virtual Resource getResources(bool useByteLimitInClassic) const = 0;
 
     virtual std::vector<Operation> const& getRawOperations() const = 0;
@@ -113,10 +112,10 @@ class TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const = 0;
 
-    virtual void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                  TransactionMetaFrame& meta,
-                                  MutableTxResultPtr txResult,
-                                  TxEventManager& txEventManager) const = 0;
+    virtual void
+    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult) const = 0;
 
     virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 

@@ -36,11 +36,11 @@ BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                             Hash const& sorobanBasePrngSeed,
-                             OperationResult& res,
-                             std::shared_ptr<SorobanTxData> sorobanData,
-                             OpEventManager& opEventManager) const
+BumpSequenceOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "BumpSequenceOp apply", true);
     LedgerTxn ltxInner(ltx);
