@@ -12,7 +12,6 @@
 namespace stellar
 {
 class TxEventManager;
-using TxEventManagerPtr = std::shared_ptr<TxEventManager>;
 class TransactionFrameBase;
 
 std::optional<Asset> getAssetFromEvent(ContractEvent const& event,

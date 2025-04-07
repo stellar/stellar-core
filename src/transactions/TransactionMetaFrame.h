@@ -46,6 +46,7 @@ class TransactionMetaFrame
     xdr::xvector<stellar::ContractEvent> getSorobanContractEvents() const;
     stellar::LedgerEntryChanges const&
     getLedgerEntryChangesAtOp(size_t opIdx) const;
+    xdr::xvector<ContractEvent> const& getOpEventsAtOp(size_t opIdx) const;
 #endif
 
   private:

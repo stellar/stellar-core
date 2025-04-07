@@ -314,13 +314,12 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
 
     bool is_from_mux = from.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
     bool is_to_mux = to.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
-    bool has_memo = mMemo.type() != MemoType::MEMO_NONE;
 
     SCVal amountVal = makeI128SCVal(amount);
 
-    bool is_to_muxed_with_memo =
-        has_memo && to.type() == SC_ADDRESS_TYPE_ACCOUNT;
-    if (!is_from_mux && !is_to_mux && !is_to_muxed_with_memo)
+    bool is_to_account_with_memo = to.type() == SC_ADDRESS_TYPE_ACCOUNT &&
+                                   mMemo.type() != MemoType::MEMO_NONE;
+    if (!is_from_mux && !is_to_mux && !is_to_account_with_memo)
     {
         ev.body.v0().data = amountVal;
     }
@@ -350,7 +349,7 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
             toEntry.val = makeMuxIDSCVal(to.muxedAccount());
             dataMap.push_back(toEntry);
         }
-        else if (is_to_muxed_with_memo)
+        else if (is_to_account_with_memo)
         {
             SCMapEntry toEntry;
             toEntry.key = makeSymbolSCVal("to_muxed_id");

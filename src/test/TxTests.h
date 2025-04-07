@@ -133,7 +133,9 @@ TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             std::vector<Operation> const& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond = std::nullopt);
+                            std::optional<PreconditionsV2> cond = std::nullopt,
+                            std::optional<uint64_t> memoID = std::nullopt,
+                            std::optional<Memo> memo = std::nullopt);
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, std::vector<Operation> const& ops,

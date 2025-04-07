@@ -1472,10 +1472,6 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
             KeyUtils::fromStrKey<PublicKey>(feeBumper.getAccountId());
         auto feeEventTopics = feeEvent.body.v0().topics;
         auto feeEventData = feeEvent.body.v0().data;
-
-        feeEvent.body.v0().topics = {makeSymbolSCVal("fee"),
-                                     makeAccountIDSCVal(feeBumperID)};
-
         REQUIRE(feeEventTopics.at(0).sym() == "fee");
         REQUIRE(feeEventTopics.at(1).address().accountId() == feeBumperID);
         REQUIRE(feeEventData.i128().lo == feeCharged);

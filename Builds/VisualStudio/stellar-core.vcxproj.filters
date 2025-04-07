@@ -1059,6 +1059,9 @@
     <ClCompile Include="..\..\src\transactions\test\ExchangeTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\EventTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>

@@ -678,10 +678,12 @@ TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             const std::vector<Operation>& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond)
+                            std::optional<PreconditionsV2> cond,
+                            std::optional<uint64_t> fromMemoID,
+                            std::optional<Memo> memo)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
-    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey());
+    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), fromMemoID);
     e.v1().tx.fee =
         fee != 0 ? fee
                  : static_cast<uint32_t>(
@@ -695,6 +697,11 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     {
         e.v1().tx.cond.type(PRECOND_V2);
         e.v1().tx.cond.v2() = *cond;
+    }
+
+    if (memo)
+    {
+        e.v1().tx.memo = *memo;
     }
 
     auto res = TransactionTestFrame::fromTxFrame(
