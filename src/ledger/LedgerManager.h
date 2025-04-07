@@ -8,6 +8,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/NetworkConfig.h"
 #include "rust/RustBridge.h"
+#include "transactions/TransactionMeta.h"
 #include <memory>
 
 namespace stellar

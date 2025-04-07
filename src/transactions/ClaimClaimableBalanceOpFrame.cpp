@@ -72,8 +72,9 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 bool
 ClaimClaimableBalanceOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData,
-    OpEventManager& opEventManager) const
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClaimClaimableBalanceOpFrame apply", true);
 
@@ -139,7 +140,7 @@ ClaimClaimableBalanceOpFrame::doApply(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 
     // Emit event before we erase the claimable balance
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         asset, makeClaimableBalanceAddress(mClaimClaimableBalance.balanceID),
         makeMuxedAccountAddress(getSourceAccount()), amount, true);
 

@@ -9,8 +9,6 @@
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
 #include "overlay/StellarXDR.h"
-#include "transactions/EventManager.h"
-#include "transactions/MutableTransactionResult.h"
 #include "util/types.h"
 #include <memory>
 
@@ -24,6 +22,9 @@ class LedgerTxnHeader;
 class SignatureChecker;
 class TransactionFrame;
 class MutableTransactionResultBase;
+class DiagnosticEventManager;
+class RefundableFeeTracker;
+class OperationMetaBuilder;
 
 enum class ThresholdLevel
 {
@@ -42,13 +43,14 @@ class OperationFrame
     doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
                            Config const& appConfig, uint32_t ledgerVersion,
                            OperationResult& res,
-                           DiagnosticEventBuffer* diagnosticEvents) const;
+                           DiagnosticEventManager& diagnosticEvents) const;
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
-    virtual bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                         Hash const& sorobanBasePrngSeed, OperationResult& res,
-                         std::shared_ptr<SorobanTxData> sorobanData,
-                         OpEventManager& opEventManager) const = 0;
+    virtual bool
+    doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+            Hash const& sorobanBasePrngSeed, OperationResult& res,
+            std::optional<RefundableFeeTracker>& refundableFeeTracker,
+            OperationMetaBuilder& opMeta) const = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -80,12 +82,13 @@ class OperationFrame
                     std::optional<SorobanNetworkConfig> const& cfg,
                     LedgerSnapshot const& ls, bool forApply,
                     OperationResult& res,
-                    DiagnosticEventBuffer* diagnosticEvents) const;
+                    DiagnosticEventManager& diagnosticEvents) const;
 
     bool apply(AppConnector& app, SignatureChecker& signatureChecker,
                AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-               OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData,
-               OpEventManager& opEventManager) const;
+               OperationResult& res,
+               std::optional<RefundableFeeTracker>& refundableFeeTracker,
+               OperationMetaBuilder& opMeta) const;
 
     Operation const&
     getOperation() const
@@ -101,5 +104,7 @@ class OperationFrame
     virtual bool isSoroban() const;
 
     SorobanResources const& getSorobanResources() const;
+
+    Memo const& getTxMemo() const;
 };
 }

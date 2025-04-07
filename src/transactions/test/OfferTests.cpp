@@ -3007,8 +3007,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 {sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
-                                     app->getConfig());
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3036,8 +3037,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto expOfferID = ltx.loadHeader().current().idPool + 1;
 
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
-                                     app->getConfig());
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3748,9 +3750,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     auto expOfferID = ltx.loadHeader().current().idPool + 1;
 
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3793,8 +3795,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion, app->getConfig());
+                TransactionMetaBuilder txm(
+                    true, *tx, ltx.loadHeader().current().ledgerVersion,
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3856,8 +3859,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 offerIdXlmUsd = ltx.loadHeader().current().idPool + 2;
                 offerIdIdrXlm = ltx.loadHeader().current().idPool + 3;
 
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion, app->getConfig());
+                TransactionMetaBuilder txm(
+                    true, *tx, ltx.loadHeader().current().ledgerVersion,
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));

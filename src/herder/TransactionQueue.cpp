@@ -61,7 +61,7 @@ TransactionQueue::AddResult::AddResult(
     AddResultCode addCode, MutableTxResultPtr payload,
     xdr::xvector<DiagnosticEvent>&& diagnostics)
     : code(addCode)
-    , txResult(payload)
+    , txResult(std::move(payload))
     , mDiagnosticEvents(std::move(diagnostics))
 {
     releaseAssert(txResult);
@@ -69,30 +69,26 @@ TransactionQueue::AddResult::AddResult(
 
 TransactionQueue::AddResult::AddResult(AddResultCode addCode,
                                        MutableTxResultPtr payload)
-    : code(addCode), txResult(payload)
+    : code(addCode), txResult(std::move(payload))
 {
     releaseAssert(txResult);
 }
 
 TransactionQueue::AddResult::AddResult(AddResultCode addCode,
-                                       TransactionFrameBasePtr tx,
+                                       TransactionFrameBase const& tx,
                                        TransactionResultCode txErrorCode)
-    : code(addCode), txResult(tx->createSuccessResult())
+    : code(addCode), txResult(tx.createTxErrorResult(txErrorCode))
 {
-    releaseAssert(txErrorCode != txSUCCESS);
-    txResult->setResultCode(txErrorCode);
 }
 
 TransactionQueue::AddResult::AddResult(
-    AddResultCode addCode, TransactionFrameBasePtr tx,
+    AddResultCode addCode, TransactionFrameBase const& tx,
     TransactionResultCode txErrorCode,
     xdr::xvector<DiagnosticEvent>&& diagnostics)
     : code(addCode)
-    , txResult(tx->createSuccessResult())
+    , txResult(tx.createTxErrorResult(txErrorCode))
     , mDiagnosticEvents(std::move(diagnostics))
 {
-    releaseAssert(txErrorCode != txSUCCESS);
-    txResult->setResultCode(txErrorCode);
 }
 
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
@@ -371,7 +367,7 @@ TransactionQueue::canAdd(
     int64_t newFullFee = tx->getFullFee();
     if (newFullFee < 0 || tx->getInclusionFee() < 0)
     {
-        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
                          txMALFORMED);
     }
 
@@ -380,7 +376,8 @@ TransactionQueue::canAdd(
     auto ledgerVersion = mApp.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.ledgerVersion;
-    auto diagnosticEvents = DiagnosticEventBuffer(mApp.getConfig());
+    auto diagnosticEvents =
+        DiagnosticEventManager::createForValidation(mApp.getConfig());
 
     if (stateIter != mAccountStates.end())
     {
@@ -403,7 +400,7 @@ TransactionQueue::canAdd(
                 // If the transaction is older than the one in the queue, we
                 // reject it
                 return AddResult(
-                    TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+                    TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
                     txBAD_SEQ);
             }
 
@@ -412,14 +409,14 @@ TransactionQueue::canAdd(
             // appropriate error message
             if (tx->isSoroban())
             {
-                auto txResult = tx->createSuccessResult();
-                if (!tx->checkSorobanResourceAndSetError(
-                        mApp.getAppConnector(),
+                if (!tx->checkSorobanResources(
                         mApp.getLedgerManager()
                             .getLastClosedSorobanNetworkConfig(),
-                        ledgerVersion, txResult, &diagnosticEvents))
+                        ledgerVersion, diagnosticEvents))
                 {
-                    return AddResult(AddResultCode::ADD_STATUS_ERROR, txResult);
+                    return AddResult(AddResultCode::ADD_STATUS_ERROR, *tx,
+                                     txSOROBAN_INVALID,
+                                     diagnosticEvents.finalize());
                 }
             }
 
@@ -442,11 +439,11 @@ TransactionQueue::canAdd(
                 int64_t minFee;
                 if (!canReplaceByFee(tx, currentTx, minFee))
                 {
-                    AddResult result(
-                        TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
-                        txINSUFFICIENT_FEE);
-                    result.txResult->getResult().feeCharged = minFee;
-                    return result;
+                    auto txResult = tx->createTxErrorResult(txINSUFFICIENT_FEE);
+                    txResult->setInsufficientFeeErrorWithFeeCharged(minFee);
+                    return AddResult(
+                        TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                        std::move(txResult));
                 }
 
                 if (currentTx->getFeeSourceID() == tx->getFeeSourceID())
@@ -469,10 +466,10 @@ TransactionQueue::canAdd(
         ban({tx});
         if (canAddRes.second != 0)
         {
-            AddResult result(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
-                             tx, txINSUFFICIENT_FEE);
-            result.txResult->getResult().feeCharged = canAddRes.second;
-            return result;
+            auto txResult = tx->createValidationSuccessResult();
+            txResult->setInsufficientFeeErrorWithFeeCharged(canAddRes.second);
+            return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                             std::move(txResult));
         }
         return AddResult(
             TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
@@ -491,19 +488,19 @@ TransactionQueue::canAdd(
 
     // Loadgen txs were generated by this local node, and therefore can skip
     // validation, and be added directly to the queue.
-    auto txResult = tx->createSuccessResult();
 #ifdef BUILD_TESTS
     if (!isLoadgenTx)
 #endif
     {
-        txResult = tx->checkValid(mApp.getAppConnector(), ls, 0, 0,
-                                  getUpperBoundCloseTimeOffset(mApp, closeTime),
-                                  &diagnosticEvents);
-    }
-    if (!txResult->isSuccess())
-    {
-        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
-                         txResult);
+        auto validationResult = tx->checkValid(
+            mApp.getAppConnector(), ls, 0, 0,
+            getUpperBoundCloseTimeOffset(mApp, closeTime), diagnosticEvents);
+        if (!validationResult->isSuccess())
+        {
+            return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                             std::move(validationResult),
+                             diagnosticEvents.finalize());
+        }
     }
 
     // Note: stateIter corresponds to getSourceID() which is not necessarily
@@ -524,28 +521,23 @@ TransactionQueue::canAdd(
                 newFullFee <
             totalFees)
         {
-            txResult->setResultCode(txINSUFFICIENT_BALANCE);
             return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
-                             txResult);
+                             *tx, txINSUFFICIENT_BALANCE);
         }
     }
 
     if (!validateSorobanMemo(tx))
     {
-        txResult->setInnermostResultCode(txSOROBAN_INVALID);
-
-        pushValidationTimeDiagnosticError(
-            &diagnosticEvents, SCE_CONTEXT, SCEC_INVALID_INPUT,
+        diagnosticEvents.pushError(
+            SCE_CONTEXT, SCEC_INVALID_INPUT,
             "non-source auth Soroban tx uses memo or muxed source account");
 
-        xdr::xvector<DiagnosticEvent> xdrDiagnosticEvents;
-        diagnosticEvents.flush(xdrDiagnosticEvents);
-        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
-                         txResult, std::move(xdrDiagnosticEvents));
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
+                         txSOROBAN_INVALID, diagnosticEvents.finalize());
     }
 
     return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_PENDING,
-                     txResult);
+                     tx->createValidationSuccessResult());
 }
 
 void
@@ -704,17 +696,17 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     // fast fail when Soroban tx is malformed
     if ((tx->isSoroban() != (c1 || c2)) || !tx->XDRProvidesValidFee())
     {
-        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
                          txMALFORMED);
     }
 
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
-    auto const res = canAdd(tx, stateIter, txsToEvict
+    auto res = canAdd(tx, stateIter, txsToEvict
 #ifdef BUILD_TESTS
-                            ,
-                            isLoadgenTx
+                      ,
+                      isLoadgenTx
 #endif
     );
     if (res.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)

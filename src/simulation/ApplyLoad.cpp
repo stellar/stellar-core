@@ -405,8 +405,9 @@ ApplyLoad::benchmark()
 
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto diagnostics = DiagnosticEventManager::createDisabled();
             auto res = tx.second->checkValid(mApp.getAppConnector(), ltx, 0, 0,
-                                             UINT64_MAX);
+                                             UINT64_MAX, diagnostics);
             releaseAssert((res && res->isSuccess()));
         }
 

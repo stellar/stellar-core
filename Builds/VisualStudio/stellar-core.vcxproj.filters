@@ -1194,9 +1194,6 @@
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\OperationMetaArray.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -1236,7 +1233,7 @@
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TransactionMetaFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\TransactionMeta.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp">
@@ -2278,9 +2275,6 @@
     <ClInclude Include="..\..\src\transactions\OperationFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\OperationMetaArray.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -2320,7 +2314,7 @@
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionMetaFrame.h">
+    <ClInclude Include="..\..\src\transactions\TransactionMeta.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h">
