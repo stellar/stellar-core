@@ -7,6 +7,7 @@
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/NetworkConfig.h"
+#include "transactions/TransactionMetaFrame.h"
 #include <memory>
 
 namespace stellar

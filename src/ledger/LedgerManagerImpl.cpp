@@ -1477,12 +1477,11 @@ LedgerManagerImpl::processFeesSeqNums(
                     }
                 }
 
-                LedgerEntryChanges changes = ltxTx.getChanges();
                 if (ledgerCloseMeta)
                 {
                     ledgerCloseMeta->pushTxProcessingEntry();
                     ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
-                        changes);
+                        ltxTx.getChanges());
                 }
                 ++index;
                 ltxTx.commit();
@@ -1624,16 +1623,29 @@ LedgerManagerImpl::applyTransactions(
     uint64_t sorobanTxSucceeded{0};
     uint64_t sorobanTxFailed{0};
     size_t resultIndex = 0;
+
+    // There is no need to populate the transaction meta if we are not going
+    // to output it. This flag will make most of the meta operations to be
+    // no-op (this is a bit more readable alternative to handling the
+    // optional value across all the codebase).
+    bool enableTxMeta = ledgerCloseMeta != nullptr;
+#ifdef BUILD_TESTS
+    // In tests we want to always enable tx meta because we store it in
+    // mLastLedgerTxMeta.
+    enableTxMeta = true;
+#endif
+
     for (auto const& phase : phases)
     {
         for (auto const& tx : phase)
         {
             ZoneNamedN(txZone, "applyTransaction", true);
-            auto mutableTxResult = mutableTxResults.at(resultIndex++);
+            auto& mutableTxResult = *mutableTxResults.at(resultIndex++);
 
             auto txTime = mLedgerApplyMetrics.mTransactionApply.TimeScope();
-            TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion,
-                                    mApp.getConfig());
+            TransactionMetaBuilder tm(enableTxMeta, *tx,
+                                      ltx.loadHeader().current().ledgerVersion,
+                                      mApp.getConfig());
 
             CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
                        hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
@@ -1651,20 +1663,16 @@ LedgerManagerImpl::applyTransactions(
             }
             ++txNum;
 
-            TransactionResultPair results;
-            results.transactionHash = tx->getContentsHash();
+            TransactionResultPair resultPair;
+            resultPair.transactionHash = tx->getContentsHash();
 
-            TxEventManager txEventManager(
-                ltx.loadHeader().current().ledgerVersion, mApp.getNetworkID(),
-                mApp.getConfig(), *tx);
             tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult,
-                      txEventManager, subSeed);
+                      subSeed);
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,
                                  mutableTxResult);
 
-            results.result = mutableTxResult->getResult();
-            if (results.result.result.code() ==
-                TransactionResultCode::txSUCCESS)
+            resultPair.result = mutableTxResult.getXDR();
+            if (mutableTxResult.isSuccess())
             {
                 if (tx->isSoroban())
                 {
@@ -1683,18 +1691,27 @@ LedgerManagerImpl::applyTransactions(
 
             // First gather the TransactionResultPair into the TxResultSet for
             // hashing into the ledger header.
-            txResultSet.results.emplace_back(results);
-#ifdef BUILD_TESTS
-            mLastLedgerTxMeta.push_back(tm);
-#endif
+            txResultSet.results.emplace_back(resultPair);
 
             // Then potentially add that TRP and its associated
             // TransactionMeta into the associated slot of any
             // LedgerCloseMeta we're collecting.
             if (ledgerCloseMeta)
             {
+                auto metaXDR = tm.finalize(mutableTxResult.isSuccess());
+#ifdef BUILD_TESTS
+                mLastLedgerTxMeta.emplace_back(metaXDR);
+#endif
+
                 ledgerCloseMeta->setTxProcessingMetaAndResultPair(
-                    tm.getXDR(), std::move(results), index);
+                    std::move(metaXDR), std::move(resultPair), index);
+            }
+            else
+            {
+#ifdef BUILD_TESTS
+                mLastLedgerTxMeta.emplace_back(
+                    tm.finalize(mutableTxResult.isSuccess()));
+#endif
             }
 
             ++index;

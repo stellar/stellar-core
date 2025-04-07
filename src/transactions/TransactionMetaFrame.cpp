@@ -2,27 +2,27 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/TransactionMetaFrame.h"
+#include <iterator>
+#include <type_traits>
+#include <variant>
+#include <xdrpp/xdrpp/marshal.h>
+
 #include "crypto/SHA.h"
+#include "ledger/LedgerTypeUtils.h"
+#include "transactions/MutableTransactionResult.h"
+#include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
-#include <iterator>
-#include <xdrpp/xdrpp/marshal.h>
+#include "xdr/Stellar-ledger.h"
+
+namespace stellar
+{
 
 namespace
 {
-void
-setSorobanMetaFeeInfo(stellar::SorobanTransactionMetaExt& sorobanMetaExt,
-                      int64_t nonRefundableFeeSpent,
-                      int64_t totalRefundableFeeSpent, int64_t rentFeeCharged)
-{
-    auto& ext = sorobanMetaExt.v1();
-    ext.totalNonRefundableResourceFeeCharged = nonRefundableFeeSpent;
-    ext.totalRefundableResourceFeeCharged = totalRefundableFeeSpent;
-    ext.rentFeeCharged = rentFeeCharged;
-}
 
 template <typename T>
 void
@@ -31,14 +31,206 @@ vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
     std::move(b.begin(), b.end(), std::back_inserter(a));
 }
 
+// Starting in protocol 23, some operation meta needs to be modified
+// to be consumed by downstream systems. In particular, restoration is
+// (mostly) logically a new entry creation from the perspective of ltx and
+// stellar-core as a whole, but this change type is reclassified to
+// LEDGER_ENTRY_RESTORED for easier consumption downstream.
+LedgerEntryChanges
+processOpLedgerEntryChanges(OperationFrame const& op, AbstractLedgerTxn& ltx,
+                            uint32_t protocolVersion)
+{
+#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    return ltx.getChanges();
+#else
+    auto changes = ltx.getChanges();
+    bool needToProcess =
+        op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT &&
+        protocolVersionStartsFrom(
+            protocolVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+    if (!needToProcess)
+    {
+        return changes;
+    }
+
+    auto const& hotArchiveRestores = ltx.getRestoredHotArchiveKeys();
+    auto const& liveRestores = ltx.getRestoredLiveBucketListKeys();
+
+    // Depending on whether the restored entry is still in the live
+    // BucketList (has not yet been evicted), or has been evicted and is in
+    // the hot archive, meta will be handled differently as follows:
+    //
+    // Entry restore from Hot Archive:
+    // Meta before changes:
+    //     Data/Code: LEDGER_ENTRY_CREATED
+    //     TTL: LEDGER_ENTRY_CREATED
+    // Meta after changes:
+    //     Data/Code: LEDGER_ENTRY_RESTORED
+    //     TTL: LEDGER_ENTRY_RESTORED
+    //
+    // Entry restore from Live BucketList:
+    // Meta before changes:
+    //     Data/Code: no meta
+    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(newValue)
+    // Meta after changes:
+    //     Data/Code: LEDGER_ENTRY_RESTORED
+    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_RESTORED(newValue)
+    //
+    // First, iterate through existing meta and change everything we need to
+    // update.
+    for (auto& change : changes)
+    {
+        // For entry creation meta, we only need to check for Hot Archive
+        // restores
+        if (change.type() == LEDGER_ENTRY_CREATED)
+        {
+            auto le = change.created();
+            if (hotArchiveRestores.find(LedgerEntryKey(le)) !=
+                hotArchiveRestores.end())
+            {
+                releaseAssertOrThrow(isPersistentEntry(le.data) ||
+                                     le.data.type() == TTL);
+                change.type(LEDGER_ENTRY_RESTORED);
+                change.restored() = le;
+            }
+        }
+        // Update meta only applies to TTL meta
+        else if (change.type() == LEDGER_ENTRY_UPDATED)
+        {
+            if (change.updated().data.type() == TTL)
+            {
+                auto ttlLe = change.updated();
+                if (liveRestores.find(LedgerEntryKey(ttlLe)) !=
+                    liveRestores.end())
+                {
+                    // Update the TTL change from LEDGER_ENTRY_UPDATED to
+                    // LEDGER_ENTRY_RESTORED.
+                    change.type(LEDGER_ENTRY_RESTORED);
+                    change.restored() = ttlLe;
+                }
+            }
+        }
+    }
+
+    // Now we need to insert all the LEDGER_ENTRY_RESTORED changes for the
+    // data entries that were not created but already existed on the live
+    // BucketList. These data/code entries have not been modified (only the TTL
+    // is updated), so ltx doesn't have any meta. However this is still useful
+    // for downstream so we manually insert restore meta here.
+    for (auto const& key : liveRestores)
+    {
+        if (key.type() == TTL)
+        {
+            continue;
+        }
+        releaseAssertOrThrow(isPersistentEntry(key));
+
+        // Note: this is already in the cache since the RestoreOp loaded
+        // all data keys for size calculation during apply already
+        auto entry = ltx.getNewestVersion(key);
+
+        // If TTL already exists and is just being updated, the
+        // data entry must also already exist
+        releaseAssertOrThrow(entry);
+
+        LedgerEntryChange change;
+        change.type(LEDGER_ENTRY_RESTORED);
+        change.restored() = entry->ledgerEntry();
+        changes.push_back(change);
+    }
+
+    return changes;
+#endif
 }
 
-namespace stellar
-{
+} // namespace
 
-TransactionMetaFrame::TransactionMetaFrame(uint32_t protocolVersion,
-                                           Config const& config)
+void
+OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx)
 {
+    if (!mEnabled)
+    {
+        return;
+    }
+    std::visit(
+        [&opLtx, this](auto&& meta) {
+            meta.get().changes =
+                processOpLedgerEntryChanges(mOp, opLtx, mProtocolVersion);
+        },
+        mMeta);
+}
+
+void
+OperationMetaBuilder::setSorobanReturnValue(SCVal const& val)
+{
+    if (!mEnabled)
+    {
+        return;
+    }
+    releaseAssertOrThrow(!mSorobanReturnValue);
+    mSorobanReturnValue.emplace(val);
+}
+
+OpEventManager&
+OperationMetaBuilder::getEventManager()
+{
+    return mEventManager;
+}
+
+DiagnosticEventBuffer&
+OperationMetaBuilder::getDiagnosticEventBuffer()
+{
+    return mDiagnosticEventBuffer;
+}
+
+OperationMetaBuilder::OperationMetaBuilder(
+    bool metaEnabled, OperationMeta& meta, OperationFrame const& op,
+    uint32_t protocolVersion, Config const& config,
+    DiagnosticEventBuffer& diagnosticEventBuffer)
+    : mEnabled(metaEnabled)
+    , mProtocolVersion(protocolVersion)
+    , mOp(op)
+    , mMeta(meta)
+    , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, config)
+    , mDiagnosticEventBuffer(diagnosticEventBuffer)
+{
+}
+
+OperationMetaBuilder::OperationMetaBuilder(
+    bool metaEnabled, OperationMetaV2& meta, OperationFrame const& op,
+    uint32_t protocolVersion, Config const& config,
+    DiagnosticEventBuffer& diagnosticEventBuffer)
+    : mEnabled(metaEnabled)
+    , mProtocolVersion(protocolVersion)
+    , mOp(op)
+    , mMeta(meta)
+    , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, config)
+    , mDiagnosticEventBuffer(diagnosticEventBuffer)
+{
+}
+
+bool
+OperationMetaBuilder::maybeFinalizeOpEvents()
+{
+    return std::visit(
+        [this](auto&& meta) {
+            using T = std::decay_t<decltype(meta)>;
+            if constexpr (std::is_same_v<
+                              T, std::reference_wrapper<OperationMetaV2>>)
+            {
+                meta.get().events = mEventManager.finalize();
+                return true;
+            }
+            return false;
+        },
+        mMeta);
+}
+
+TransactionMetaBuilder::TransactionMetaWrapper::TransactionMetaWrapper(
+    uint32_t protocolVersion, Config const& config)
+{
+    int version = 0;
     // The TransactionMeta v() switch can be in 5 positions 0, 1, 2, 3, 4. We do
     // not support 0 or 1 at all -- core does not produce it anymore and we have
     // no obligation to consume it under any circumstance -- so this class just
@@ -46,18 +238,204 @@ TransactionMetaFrame::TransactionMetaFrame(uint32_t protocolVersion,
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23) ||
         config.BACKFILL_STELLAR_ASSET_EVENTS)
     {
-        mVersion = 4;
+        version = 4;
     }
     else if (protocolVersionStartsFrom(protocolVersion,
                                        SOROBAN_PROTOCOL_VERSION))
     {
-        mVersion = 3;
+        version = 3;
     }
     else
     {
-        mVersion = 2;
+        version = 2;
     }
-    mTransactionMeta.v(mVersion);
+    mTransactionMeta.v(version);
+}
+
+LedgerEntryChanges&
+TransactionMetaBuilder::TransactionMetaWrapper::getChangesBefore()
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        return mTransactionMeta.v2().txChangesBefore;
+    case 3:
+        return mTransactionMeta.v3().txChangesBefore;
+    case 4:
+        return mTransactionMeta.v4().txChangesBefore;
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
+    xdr::xvector<OperationMeta>&& opMetas)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        mTransactionMeta.v2().operations = std::move(opMetas);
+        break;
+    case 3:
+        mTransactionMeta.v3().operations = std::move(opMetas);
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
+    xdr::xvector<OperationMetaV2>&& opMetas)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 4:
+        mTransactionMeta.v4().operations = std::move(opMetas);
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
+LedgerEntryChanges&
+TransactionMetaBuilder::TransactionMetaWrapper::getCangesAfter()
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        return mTransactionMeta.v2().txChangesAfter;
+    case 3:
+        return mTransactionMeta.v3().txChangesAfter;
+    case 4:
+        return mTransactionMeta.v4().txChangesAfter;
+    default:
+        releaseAssert(false);
+    }
+}
+
+SorobanTransactionMetaExt&
+TransactionMetaBuilder::TransactionMetaWrapper::getSorobanMetaExt()
+{
+    switch (mTransactionMeta.v())
+    {
+    case 3:
+        return mTransactionMeta.v3().sorobanMeta.activate().ext;
+    case 4:
+        return mTransactionMeta.v4().sorobanMeta.activate().ext;
+    // Calling this before Soroban meta ext is available is a bug.
+    case 2:
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+TransactionMetaBuilder::TransactionMetaWrapper::setDiagnosticEvents(
+    xdr::xvector<DiagnosticEvent>&& events)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 3:
+        mTransactionMeta.v3().sorobanMeta.activate().diagnosticEvents =
+            std::move(events);
+        break;
+    case 4:
+        mTransactionMeta.v4().diagnosticEvents = std::move(events);
+        break;
+    // It's a bug to call this when diagnostic events are not supported.
+    case 2:
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+TransactionMetaBuilder::TransactionMetaWrapper::maybeSetContractEventsAtTxLevel(
+    xdr::xvector<ContractEvent>&& events)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        // Do nothing, until v3 we don't create events.
+        break;
+    case 3:
+        mTransactionMeta.v3().sorobanMeta.activate().events = std::move(events);
+        break;
+    case 4:
+        // Do nothing, v4 soroban contract events live in the operation meta
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+TransactionMetaBuilder::TransactionMetaWrapper::maybeActivateSorobanMeta(
+    bool success)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 3:
+        // In v3 meta we used to always have Soroban meta activated,
+        // even in case of failure.
+        mTransactionMeta.v3().sorobanMeta.activate();
+        break;
+    case 4:
+        // From v4 we omit the meta for failed txs (it only contains
+        // info related to success).
+        if (success)
+        {
+            mTransactionMeta.v4().sorobanMeta.activate();
+        }
+        break;
+    // It's a bug to call this when Soroban meta is not supported.
+    case 2:
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+TransactionMetaBuilder::TransactionMetaWrapper::setReturnValue(
+    SCVal const& returnValue)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 3:
+        mTransactionMeta.v3().sorobanMeta.activate().returnValue = returnValue;
+        break;
+    case 4:
+        mTransactionMeta.v4().sorobanMeta.activate().returnValue = returnValue;
+        break;
+    // Setting Soroban return value prior to meta v3 is a bug.
+    case 2:
+    default:
+        releaseAssert(false);
+    }
+}
+
+#ifdef BUILD_TESTS
+TransactionMetaFrame::TransactionMetaFrame(TransactionMeta const& meta)
+    : mTransactionMeta(meta)
+{
+}
+size_t
+TransactionMetaFrame::getNumOperations() const
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        return mTransactionMeta.v2().operations.size();
+    case 3:
+        return mTransactionMeta.v3().operations.size();
+    case 4:
+        return mTransactionMeta.v4().operations.size();
+    default:
+        releaseAssert(false);
+    }
 }
 
 size_t
@@ -106,212 +484,6 @@ TransactionMetaFrame::getChangesAfter() const
     default:
         releaseAssert(false);
     }
-}
-
-void
-TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges&& changes)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        vecAppend(mTransactionMeta.v2().txChangesBefore, std::move(changes));
-        break;
-    case 3:
-        vecAppend(mTransactionMeta.v3().txChangesBefore, std::move(changes));
-        break;
-    case 4:
-        vecAppend(mTransactionMeta.v4().txChangesBefore, std::move(changes));
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::clearOperationMetas()
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        mTransactionMeta.v2().operations.clear();
-        break;
-    case 3:
-        mTransactionMeta.v3().operations.clear();
-        break;
-    case 4:
-        mTransactionMeta.v4().operations.clear();
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::pushOperationMetas(OperationMetaArray&& opMetas)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        vecAppend(mTransactionMeta.v2().operations, opMetas.convertToXDR());
-        break;
-    case 3:
-        vecAppend(mTransactionMeta.v3().operations, opMetas.convertToXDR());
-        break;
-    case 4:
-        vecAppend(mTransactionMeta.v4().operations, opMetas.convertToXDRV2());
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-size_t
-TransactionMetaFrame::getNumOperations() const
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        return mTransactionMeta.v2().operations.size();
-    case 3:
-        return mTransactionMeta.v3().operations.size();
-    case 4:
-        return mTransactionMeta.v4().operations.size();
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::pushTxChangesAfter(LedgerEntryChanges&& changes)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        vecAppend(mTransactionMeta.v2().txChangesAfter, std::move(changes));
-        break;
-    case 3:
-        vecAppend(mTransactionMeta.v3().txChangesAfter, std::move(changes));
-        break;
-    case 4:
-        vecAppend(mTransactionMeta.v4().txChangesAfter, std::move(changes));
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::clearTxChangesAfter()
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        mTransactionMeta.v2().txChangesAfter.clear();
-        break;
-    case 3:
-        mTransactionMeta.v3().txChangesAfter.clear();
-        break;
-    case 4:
-        mTransactionMeta.v4().txChangesAfter.clear();
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::maybePushSorobanContractEvents(
-    OperationMetaArray& opMetas)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        // Do nothing, until v3 we don't create events.
-        break;
-    case 3:
-        mTransactionMeta.v3().sorobanMeta.activate().events =
-            opMetas.flushContractEvents();
-        break;
-    case 4:
-        // Do nothing, v4 soroban contract events live in the operation meta
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::pushTxContractEvents(xdr::xvector<ContractEvent>&& events)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-    case 3:
-        // Do nothing, until v4 we don't have Tx-level contract events.
-        // v3 soroban contract events should be populated via
-        // `maybePushSorobanContractEvents`.
-        break;
-    case 4:
-        mTransactionMeta.v4().events = std::move(events);
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::maybePushDiagnosticEvents(
-    xdr::xvector<DiagnosticEvent>&& events, bool isSoroban)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        // Do nothing, until v3 we don't create events.
-        break;
-    case 3:
-        // In V3 only activate sorobanMeta if it's a Soroban transaction
-        if (isSoroban)
-        {
-            mTransactionMeta.v3().sorobanMeta.activate().diagnosticEvents =
-                std::move(events);
-        }
-        break;
-    case 4:
-        if (isSoroban)
-        {
-            mTransactionMeta.v4().diagnosticEvents = std::move(events);
-        }
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
-TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        // Do nothing, until v3 we don't call into contracts.
-        break;
-    case 3:
-        mTransactionMeta.v3().sorobanMeta.activate().returnValue =
-            std::move(returnValue);
-        break;
-    case 4:
-        mTransactionMeta.v4().sorobanMeta.activate().returnValue =
-            std::move(returnValue);
-        break;
-    default:
-        releaseAssert(false);
-    }
-}
-
-#ifdef BUILD_TESTS
-TransactionMetaFrame::TransactionMetaFrame(TransactionMeta meta)
-    : mTransactionMeta(meta), mVersion(meta.v())
-{
 }
 
 SCVal const&
@@ -390,36 +562,178 @@ TransactionMetaFrame::getLedgerEntryChangesAtOp(size_t opIdx) const
     }
 }
 
+TransactionMeta const&
+TransactionMetaFrame::getXDR() const
+{
+    return mTransactionMeta;
+}
+
 #endif
 
-void
-TransactionMetaFrame::setSorobanFeeInfo(int64_t nonRefundableFeeSpent,
-                                        int64_t totalRefundableFeeSpent,
-                                        int64_t rentFeeCharged)
+TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
+                                               TransactionFrameBase const& tx,
+                                               uint32_t protocolVersion,
+                                               Config const& config)
+    : mTransactionMeta(protocolVersion, config)
+    , mDiagnosticEventBuffer(
+          DiagnosticEventBuffer::createForApply(metaEnabled, tx, config))
+    , mIsSoroban(tx.isSoroban())
+    , mEnabled(metaEnabled)
+    , mSorobanMetaExtEnabled(config.EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
 {
-    switch (mTransactionMeta.v())
+    auto const& operationFrames = tx.getOperationFrames();
+    size_t numOperations = operationFrames.size();
+    mOperationMetaBuilders.reserve(numOperations);
+
+    switch (mTransactionMeta.mTransactionMeta.v())
     {
     case 2:
-        // Do nothing, until v3 we don't call into contracts.
-        break;
     case 3:
-        setSorobanMetaFeeInfo(mTransactionMeta.v3().sorobanMeta.activate().ext,
-                              nonRefundableFeeSpent, totalRefundableFeeSpent,
-                              rentFeeCharged);
+    {
+        auto& opMeta =
+            mOperationMetas.emplace<0>(xdr::xvector<OperationMeta>());
+        opMeta.resize(numOperations);
+        for (size_t i = 0; i < numOperations; ++i)
+        {
+            mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
+                metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
+                config, mDiagnosticEventBuffer));
+        }
         break;
+    }
     case 4:
-        setSorobanMetaFeeInfo(mTransactionMeta.v4().sorobanMeta.activate().ext,
-                              nonRefundableFeeSpent, totalRefundableFeeSpent,
-                              rentFeeCharged);
+    {
+        auto& opMeta =
+            mOperationMetas.emplace<1>(xdr::xvector<OperationMetaV2>());
+        opMeta.resize(numOperations);
+        for (size_t i = 0; i < numOperations; ++i)
+        {
+            mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
+                metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
+                config, mDiagnosticEventBuffer));
+        }
         break;
+    }
     default:
         releaseAssert(false);
     }
 }
 
-TransactionMeta const&
-TransactionMetaFrame::getXDR() const
+OperationMetaBuilder&
+TransactionMetaBuilder::getOperationMetaBuilderAt(size_t i)
 {
-    return mTransactionMeta;
+    return mOperationMetaBuilders.at(i);
+}
+
+void
+TransactionMetaBuilder::pushTxChangesBefore(AbstractLedgerTxn& changesBeforeLtx)
+{
+    maybePushChanges(changesBeforeLtx, mTransactionMeta.getChangesBefore());
+}
+
+void
+TransactionMetaBuilder::pushTxChangesAfter(AbstractLedgerTxn& changesAfterLtx)
+{
+    maybePushChanges(changesAfterLtx, mTransactionMeta.getCangesAfter());
+}
+
+void
+TransactionMetaBuilder::setNonRefundableResourceFee(int64_t fee)
+{
+    if (mEnabled && mSorobanMetaExtEnabled)
+    {
+        auto& metaExt = mTransactionMeta.getSorobanMetaExt();
+        metaExt.v(1);
+        auto& sorobanMeta = metaExt.v1();
+        sorobanMeta.totalNonRefundableResourceFeeCharged = fee;
+    }
+}
+
+void
+TransactionMetaBuilder::maybeSetRefundableFeeMeta(
+    std::optional<RefundableFeeTracker> const& refundableFeeTracker)
+{
+    if (mEnabled && refundableFeeTracker && mSorobanMetaExtEnabled)
+    {
+        auto& metaExt = mTransactionMeta.getSorobanMetaExt();
+        metaExt.v(1);
+        auto& sorobanMeta = metaExt.v1();
+        sorobanMeta.rentFeeCharged = refundableFeeTracker->getConsumedRentFee();
+        sorobanMeta.totalRefundableResourceFeeCharged =
+            refundableFeeTracker->getConsumedRefundableFee();
+    }
+}
+
+DiagnosticEventBuffer&
+TransactionMetaBuilder::getDiagnosticEventBuffer()
+{
+    return mDiagnosticEventBuffer;
+}
+
+TransactionMeta
+TransactionMetaBuilder::finalize(bool success)
+{
+    // Finalizing the meta only makes sense when it's enabled in the first
+    // place.
+    releaseAssert(mEnabled);
+
+    if (mIsSoroban)
+    {
+        // Maybe activate Soroban meta, depending on the meta version
+        // and transaction success.
+        mTransactionMeta.maybeActivateSorobanMeta(success);
+    }
+
+    // Operation meta is only populated when transaction succeeds.
+    if (success)
+    {
+        // Some of the Soroban meta is sometimes set at the transaction level,
+        // even though semantically it belongs to the operation. Here we
+        // reconcile this information back into transaction meta.
+        if (mIsSoroban)
+        {
+            // Currently there can only be 1 operation per Soroban transaction.
+            releaseAssert(mOperationMetaBuilders.size() == 1);
+            auto& opMetaBuilder = mOperationMetaBuilders[0];
+
+            if (opMetaBuilder.mSorobanReturnValue)
+            {
+                mTransactionMeta.setReturnValue(
+                    *opMetaBuilder.mSorobanReturnValue);
+            }
+            // Events have to be finalized either at operation level (to put
+            // them into the op meta), or at transaction level for v1
+            // OperationMeta.
+            if (!opMetaBuilder.maybeFinalizeOpEvents())
+            {
+                mTransactionMeta.maybeSetContractEventsAtTxLevel(
+                    opMetaBuilder.getEventManager().finalize());
+            }
+        }
+
+        std::visit(
+            [this](auto&& metas) {
+                mTransactionMeta.setOperationMetas(std::move(metas));
+            },
+            mOperationMetas);
+    }
+    // Write diagnostic events if they're enabled. Note, that this doesn't
+    // depend on the success of the transaction, as diagnostic events should
+    // also be populated for the failed transactions.
+    if (mDiagnosticEventBuffer.isEnabled())
+    {
+        mTransactionMeta.setDiagnosticEvents(mDiagnosticEventBuffer.finalize());
+    }
+    return std::move(mTransactionMeta.mTransactionMeta);
+}
+
+void
+TransactionMetaBuilder::maybePushChanges(AbstractLedgerTxn& changesLtx,
+                                         LedgerEntryChanges& destChanges)
+{
+    if (mEnabled)
+    {
+        vecAppend(destChanges, changesLtx.getChanges());
+    }
 }
 }

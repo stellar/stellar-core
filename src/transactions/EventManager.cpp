@@ -6,8 +6,20 @@
 
 namespace stellar
 {
+namespace
+{
+bool
+classicEventsEnabled(uint32_t protocolVersion, Config const& config)
+{
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
+    {
+        return config.EMIT_CLASSIC_EVENTS;
+    }
+    return config.BACKFILL_STELLAR_ASSET_EVENTS;
+}
+} // namespace
 
-// If the event was emitted by an SAC, return the asset. Otherwise, return
+/ If the event was emitted by an SAC, return the asset. Otherwise, return
 // nullopt
 std::optional<Asset>
 getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
@@ -90,24 +102,51 @@ getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
     return asset;
 }
 
-DiagnosticEventBuffer::DiagnosticEventBuffer(Config const& config)
-    : mConfig(config)
+DiagnosticEventBuffer
+DiagnosticEventBuffer::createForApply(bool metaEnabled,
+                                      TransactionFrameBase const& tx,
+                                      Config const& config)
+{
+    bool enabled = metaEnabled && tx.isSoroban() &&
+                   config.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS;
+    return DiagnosticEventBuffer(enabled);
+}
+
+DiagnosticEventBuffer
+DiagnosticEventBuffer::createForValidation(Config const& config)
+{
+    return DiagnosticEventBuffer(config.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION);
+}
+
+DiagnosticEventBuffer
+DiagnosticEventBuffer::createDisabled()
+{
+    return DiagnosticEventBuffer(false);
+}
+
+void
+DiagnosticEventBuffer::pushEvent(DiagnosticEvent&& event)
+{
+    if (mEnabled)
+    {
+        mBuffer.emplace_back(std::move(event));
+    }
+}
+
+DiagnosticEventBuffer::DiagnosticEventBuffer(bool enabled) : mEnabled(enabled)
 {
 }
 
 void
-DiagnosticEventBuffer::pushDiagnosticEvents(
-    xdr::xvector<DiagnosticEvent> const& evts)
+DiagnosticEventBuffer::pushError(SCErrorType ty, SCErrorCode code,
+                                 std::string&& message,
+                                 xdr::xvector<SCVal>&& args)
 {
-    mBuffer.insert(mBuffer.end(), evts.begin(), evts.end());
-}
+    if (!mEnabled)
+    {
+        return;
+    }
 
-void
-DiagnosticEventBuffer::pushSimpleDiagnosticError(SCErrorType ty,
-                                                 SCErrorCode code,
-                                                 std::string&& message,
-                                                 xdr::xvector<SCVal>&& args)
-{
     ContractEvent ce;
     ce.type = DIAGNOSTIC;
     ce.body.v(0);
@@ -136,54 +175,33 @@ DiagnosticEventBuffer::pushSimpleDiagnosticError(SCErrorType ty,
     mBuffer.emplace_back(false, std::move(ce));
 }
 
-void
-DiagnosticEventBuffer::pushApplyTimeDiagnosticError(SCErrorType ty,
-                                                    SCErrorCode code,
-                                                    std::string&& message,
-                                                    xdr::xvector<SCVal>&& args)
+bool
+DiagnosticEventBuffer::isEnabled() const
 {
-    if (mConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        pushSimpleDiagnosticError(ty, code, std::move(message),
-                                  std::move(args));
-    }
+    return mEnabled;
+}
+
+xdr::xvector<DiagnosticEvent>
+DiagnosticEventBuffer::finalize()
+{
+    return std::move(mBuffer);
+}
+
+OpEventManager::OpEventManager(bool metaEnabled, bool isSoroban,
+                               uint32_t protocolVersion, Config const& config)
+{
+    mEnabled = metaEnabled &&
+               (isSoroban || classicEventsEnabled(protocolVersion, config));
 }
 
 void
-DiagnosticEventBuffer::flush(xdr::xvector<DiagnosticEvent>& buf)
+OpEventManager::setEvents(xdr::xvector<ContractEvent>&& events)
 {
-    std::move(mBuffer.begin(), mBuffer.end(), std::back_inserter(buf));
-    mBuffer.clear();
-};
-
-void
-pushDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
-                    SCErrorCode code, std::string&& message,
-                    xdr::xvector<SCVal>&& args)
-{
-    if (ptr)
+    if (!mEnabled)
     {
-        ptr->pushSimpleDiagnosticError(ty, code, std::move(message),
-                                       std::move(args));
+        return;
     }
-}
-
-void
-pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
-                                  SCErrorCode code, std::string&& message,
-                                  xdr::xvector<SCVal>&& args)
-{
-    if (ptr && ptr->mConfig.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION)
-    {
-        ptr->pushSimpleDiagnosticError(ty, code, std::move(message),
-                                       std::move(args));
-    }
-}
-
-OpEventManager::OpEventManager(TxEventManager& parentTxEventManager,
-                               Memo const& memo)
-    : mParent(parentTxEventManager), mMemo(memo)
-{
+    mContractEvents = std::move(events);
 }
 
 void
@@ -553,77 +571,20 @@ OpEventManager::pushContractEvents(xdr::xvector<ContractEvent> const& evts)
     }
 }
 
-xdr::xvector<ContractEvent> const&
-OpEventManager::getContractEvents()
+xdr::xvector<ContractEvent>
+OpEventManager::finalize()
 {
-    return mContractEvents;
+    return std::move(mContractEvents);
 }
 
-void
-OpEventManager::flushContractEvents(xdr::xvector<ContractEvent>& buf)
-{
-    std::move(mContractEvents.begin(), mContractEvents.end(),
-              std::back_inserter(buf));
-    mContractEvents.clear();
-};
-
-TxEventManager::TxEventManager(uint32_t protocolVersion, Hash const& networkID,
+TxEventManager::TxEventManager(bool metaEnabled,
+                               xdr::xvector<ContractEvent>& txEvents,
+                               uint32_t protocolVersion, Hash const& networkID,
                                Config const& config,
                                TransactionFrameBase const& tx)
-    : mProtocolVersion(protocolVersion)
-    , mNetworkID(networkID)
-    , mConfig(config)
-    , mTx(tx)
-    , mDiagnosticEvents(DiagnosticEventBuffer(config))
+    : mNetworkID(networkID), mTxEvents(txEvents)
 {
-}
-
-OpEventManager
-TxEventManager::createNewOpEventManager(Memo const& memo)
-{
-    return OpEventManager(*this, memo);
-}
-
-DiagnosticEventBuffer&
-TxEventManager::getDiagnosticEventsBuffer()
-{
-    return mDiagnosticEvents;
-}
-
-void
-TxEventManager::flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf)
-{
-    mDiagnosticEvents.flush(buf);
-};
-
-Hash const&
-TxEventManager::getNetworkID() const
-{
-    return mNetworkID;
-}
-
-uint32_t
-TxEventManager::getProtocolVersion() const
-{
-    return mProtocolVersion;
-}
-
-Config const&
-TxEventManager::getConfig() const
-{
-    return mConfig;
-}
-
-bool
-TxEventManager::shouldEmitClassicEvents() const
-{
-    if (!mConfig.EMIT_CLASSIC_EVENTS)
-    {
-        return false;
-    }
-
-    return protocolVersionStartsFrom(mProtocolVersion, ProtocolVersion::V_23) ||
-           mConfig.BACKFILL_STELLAR_ASSET_EVENTS;
+    mEnabled = metaEnabled && classicEventsEnabled(protocolVersion, config);
 }
 
 } // namespace stellar

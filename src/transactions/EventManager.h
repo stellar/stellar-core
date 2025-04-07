@@ -5,63 +5,45 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
-#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
-#include "xdr/Stellar-transaction.h"
 
 namespace stellar
 {
-class TxEventManager;
-using TxEventManagerPtr = std::shared_ptr<TxEventManager>;
 class TransactionFrameBase;
 
 std::optional<Asset> getAssetFromEvent(ContractEvent const& event,
                                        Hash const& networkID);
 
-struct DiagnosticEventBuffer
+class DiagnosticEventBuffer
 {
+  public:
+    static DiagnosticEventBuffer createForApply(bool metaEnabled,
+                                                TransactionFrameBase const& tx,
+                                                Config const& config);
+    static DiagnosticEventBuffer createForValidation(Config const& config);
+    static DiagnosticEventBuffer createDisabled();
+
+    void pushEvent(DiagnosticEvent&& event);
+    void pushError(SCErrorType ty, SCErrorCode code, std::string&& message,
+                   xdr::xvector<SCVal>&& args = {});
+
+    bool isEnabled() const;
+
+    xdr::xvector<DiagnosticEvent> finalize();
+
+  private:
+    DiagnosticEventBuffer(bool enabled);
+
     xdr::xvector<DiagnosticEvent> mBuffer;
-    Config const& mConfig;
-
-    DiagnosticEventBuffer(Config const& config);
-    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts);
-    void pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
-                                   std::string&& message,
-                                   xdr::xvector<SCVal>&& args);
-    void pushApplyTimeDiagnosticError(SCErrorType ty, SCErrorCode code,
-                                      std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {});
-    void flush(xdr::xvector<DiagnosticEvent>& buf);
+    bool mEnabled = false;
 };
-
-// helper functions for emitting diagnostic events in the validation workflows
-void pushDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
-                         SCErrorCode code, std::string&& message,
-                         xdr::xvector<SCVal>&& args);
-void pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr,
-                                       SCErrorType ty, SCErrorCode code,
-                                       std::string&& message,
-                                       xdr::xvector<SCVal>&& args = {});
 
 class OpEventManager
 {
-  private:
-    xdr::xvector<ContractEvent> mContractEvents;
-    TxEventManager& mParent;
-    Memo const mMemo;
-
   public:
-    OpEventManager(TxEventManager& parentTxEventManager, Memo const& memo);
+    void setEvents(xdr::xvector<ContractEvent>&& events);
 
-    DiagnosticEventBuffer& getDiagnosticEventsBuffer();
-
-    void pushContractEvents(xdr::xvector<ContractEvent> const& evts);
-
-    xdr::xvector<ContractEvent> const& getContractEvents();
-
-    void flushContractEvents(xdr::xvector<ContractEvent>& buf);
-
-    void
+ void
     eventsForClaimAtoms(MuxedAccount const& source,
                         xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
 
@@ -95,41 +77,32 @@ class OpEventManager
     // sep0011_asset:String], data: { authorize:bool }
     void newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
                                bool authorize);
+
+    xdr::xvector<ContractEvent> finalize();
+
+  private:
+    friend class OperationMetaBuilder;
+
+    OpEventManager(bool metaEnabled, bool isSoroban, uint32_t protocolVersion,
+                   Config const& config);
+
+    bool mEnabled = false;
+    xdr::xvector<ContractEvent> mContractEvents;
 };
 
 class TxEventManager
 {
-  private:
-    uint32_t mProtocolVersion;
-    Hash const& mNetworkID;
-    Config const& mConfig;
-    TransactionFrameBase const& mTx;
-    xdr::xvector<ContractEvent> mTxEvents;
-    DiagnosticEventBuffer mDiagnosticEvents;
-
   public:
-    TxEventManager(uint32_t protocolVersion, Hash const& networkID,
+  private:
+    friend class TransactionMetaBuilder;
+
+    TxEventManager(bool metaEnabled, xdr::xvector<ContractEvent>& txEvents,
+                   uint32_t protocolVersion, Hash const& networkID,
                    Config const& config, TransactionFrameBase const& tx);
 
-    OpEventManager createNewOpEventManager(Memo const& memo);
-
-    DiagnosticEventBuffer& getDiagnosticEventsBuffer();
-
-    void flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf);
-
-    Hash const& getNetworkID() const;
-    uint32_t getProtocolVersion() const;
-    Config const& getConfig() const;
-
-    bool shouldEmitClassicEvents() const;
-
-#ifdef BUILD_TESTS
-    xdr::xvector<DiagnosticEvent> const&
-    getDiagnosticEvents() const
-    {
-        return mDiagnosticEvents.mBuffer;
-    }
-#endif
+    Hash const& mNetworkID;
+    xdr::xvector<ContractEvent>& mTxEvents;
+    bool mEnabled = false;
 };
 
 }

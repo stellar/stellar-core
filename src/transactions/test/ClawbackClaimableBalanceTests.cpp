@@ -111,8 +111,8 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
                 ClaimableBalanceID balanceID;
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion,
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
                         app->getConfig());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
