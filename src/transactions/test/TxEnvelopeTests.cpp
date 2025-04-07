@@ -1429,9 +1429,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMetaFrame txm(
+                                TransactionMetaBuilder txm(
+                                    true, *insideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
-                                    app->getConfig());
+                                    app->getAppConnector());
                                 REQUIRE(insideSignerTx->checkValidForTesting(
                                     app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(
@@ -1450,9 +1451,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMetaFrame txm(
+                                TransactionMetaBuilder txm(
+                                    true, *outsideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
-                                    app->getConfig());
+                                    app->getAppConnector());
                                 REQUIRE(outsideSignerTx->checkValidForTesting(
                                     app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(
@@ -2518,7 +2520,7 @@ TEST_CASE("XDR protocol 22 compatibility validation", "[tx][envelope]")
     SECTION("not valid in protocol 21")
     {
         auto res = validateTx(ProtocolVersion::V_21);
-        REQUIRE(res->getResult().result.code() == txMALFORMED);
+        REQUIRE(res->getResultCode() == txMALFORMED);
     }
     SECTION("valid in protocol 22")
     {
@@ -2558,7 +2560,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
-                REQUIRE(res->getResult().result.code() == txMALFORMED);
+                REQUIRE(res->getResultCode() == txMALFORMED);
             }
         }
         SECTION("claimable balance ScAddress in auth")
@@ -2578,7 +2580,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
-                REQUIRE(res->getResult().result.code() == txMALFORMED);
+                REQUIRE(res->getResultCode() == txMALFORMED);
             }
         }
         SECTION("liquidity pool ScAddress in footprint")
@@ -2600,7 +2602,7 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
             REQUIRE(res->isSuccess() == expectSuccess);
             if (!expectSuccess)
             {
-                REQUIRE(res->getResult().result.code() == txMALFORMED);
+                REQUIRE(res->getResultCode() == txMALFORMED);
             }
         }
     };

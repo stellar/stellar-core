@@ -25,10 +25,11 @@ ClawbackOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-ClawbackOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                         Hash const& sorobanBasePrngSeed, OperationResult& res,
-                         std::shared_ptr<SorobanTxData> sorobanData,
-                         OpEventManager& opEventManager) const
+ClawbackOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClawbackOp apply", true);
 
@@ -53,9 +54,9 @@ ClawbackOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-    opEventManager.newClawbackEvent(mClawback.asset,
-                                    makeMuxedAccountAddress(mClawback.from),
-                                    mClawback.amount);
+    opMeta.getEventManager().newClawbackEvent(
+        mClawback.asset, makeMuxedAccountAddress(mClawback.from),
+        mClawback.amount);
 
     innerResult(res).code(CLAWBACK_SUCCESS);
     return true;

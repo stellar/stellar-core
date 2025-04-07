@@ -1893,11 +1893,12 @@ TxSetPhaseFrame::txsAreValid(Application& app,
     LedgerSnapshot ls(app);
     ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : *this)
     {
         auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
                                        lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset);
+                                       upperBoundCloseTimeOffset, diagnostics);
         if (!txResult->isSuccess())
         {
 
