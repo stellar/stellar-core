@@ -168,6 +168,12 @@ mod rust_bridge {
         bucket_list_write_fee_growth_factor: u32,
     }
 
+    #[derive(Debug, PartialEq, Eq)]
+    struct CxxI128 {
+        hi: i64,
+        lo: u64,
+    }
+
     struct FeePair {
         non_refundable_fee: i64,
         refundable_fee: i64,
@@ -263,6 +269,16 @@ mod rust_bridge {
             xdr: &CxxBuf,
             depth_limit: u32,
         ) -> Result<bool>;
+
+        fn i128_add(lhs: &CxxI128, rhs: &CxxI128) -> Result<CxxI128>;
+
+        fn i128_sub(lhs: &CxxI128, rhs: &CxxI128) -> Result<CxxI128>;
+
+        fn i128_add_will_overflow(lhs: &CxxI128, rhs: &CxxI128) -> Result<bool>;
+
+        fn i128_sub_will_underflow(lhs: &CxxI128, rhs: &CxxI128) -> Result<bool>;
+
+        fn i128_from_i64(val: i64) -> Result<CxxI128>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -496,6 +512,7 @@ use rust_bridge::CxxLedgerEntryRentChange;
 use rust_bridge::CxxLedgerInfo;
 use rust_bridge::CxxRentFeeConfiguration;
 
+use rust_bridge::CxxI128;
 use rust_bridge::CxxTransactionResources;
 use rust_bridge::CxxWriteFeeConfiguration;
 use rust_bridge::FeePair;
@@ -1024,4 +1041,63 @@ pub(crate) fn compute_write_fee_per_1kb(
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
+}
+
+pub(crate) fn i128_add(
+    lhs: &CxxI128,
+    rhs: &CxxI128,
+) -> Result<CxxI128, Box<dyn std::error::Error>> {
+    use soroban_curr::soroban_env_host::xdr::int128_helpers::{i128_from_pieces, i128_hi, i128_lo};
+    let lhs: i128 = i128_from_pieces(lhs.hi, lhs.lo);
+    let rhs: i128 = i128_from_pieces(rhs.hi, rhs.lo);
+    let res = lhs + rhs;
+    Ok(CxxI128 {
+        hi: i128_hi(res),
+        lo: i128_lo(res),
+    })
+}
+
+pub(crate) fn i128_sub(
+    lhs: &CxxI128,
+    rhs: &CxxI128,
+) -> Result<CxxI128, Box<dyn std::error::Error>> {
+    use soroban_curr::soroban_env_host::xdr::int128_helpers::{i128_from_pieces, i128_hi, i128_lo};
+    let lhs: i128 = i128_from_pieces(lhs.hi, lhs.lo);
+    let rhs: i128 = i128_from_pieces(rhs.hi, rhs.lo);
+    let res = lhs - rhs;
+    Ok(CxxI128 {
+        hi: i128_hi(res),
+        lo: i128_lo(res),
+    })
+}
+
+fn i128_add_will_overflow(
+    lhs: &CxxI128,
+    rhs: &CxxI128,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    use soroban_curr::soroban_env_host::xdr::int128_helpers::i128_from_pieces;
+    let lhs: i128 = i128_from_pieces(lhs.hi, lhs.lo);
+    let rhs: i128 = i128_from_pieces(rhs.hi, rhs.lo);
+
+    Ok(lhs.checked_add(rhs).is_none())
+}
+
+fn i128_sub_will_underflow(
+    lhs: &CxxI128,
+    rhs: &CxxI128,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    use soroban_curr::soroban_env_host::xdr::int128_helpers::i128_from_pieces;
+    let lhs: i128 = i128_from_pieces(lhs.hi, lhs.lo);
+    let rhs: i128 = i128_from_pieces(rhs.hi, rhs.lo);
+
+    Ok(lhs.checked_sub(rhs).is_none())
+}
+
+pub(crate) fn i128_from_i64(val: i64) -> Result<CxxI128, Box<dyn std::error::Error>> {
+    use soroban_curr::soroban_env_host::xdr::int128_helpers::{i128_hi, i128_lo};
+    let res = i128::from(val);
+    Ok(CxxI128 {
+        hi: i128_hi(res),
+        lo: i128_lo(res),
+    })
 }

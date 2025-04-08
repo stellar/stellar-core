@@ -70,7 +70,8 @@ class TestInvariant : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta) override
+                          LedgerTxnDelta const& ltxDelta,
+                          std::vector<ContractEvent> const& events) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -207,7 +208,7 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                              {}, res, ltx.getDelta()),
+                              {}, res, ltx.getDelta(), {}),
                           InvariantDoesNotHold);
     }
     SECTION("Succeed")
@@ -218,6 +219,6 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE_NOTHROW(app->getInvariantManager().checkOnOperationApply(
-            {}, res, ltx.getDelta()));
+            {}, res, ltx.getDelta(), {}));
     }
 }

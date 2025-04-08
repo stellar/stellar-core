@@ -151,8 +151,8 @@ overrideNetworkSettingsToMin(Application& app)
 }
 } // namespace
 
-TEST_CASE("Trustline stellar asset contract",
-          "[tx][soroban][invariant][conservationoflumens]")
+TEST_CASE_VERSIONS("Trustline stellar asset contract",
+                   "[tx][soroban][invariant][conservationoflumens]")
 {
     auto issuerKey = getAccount("issuer");
     Asset idr = makeAsset(issuerKey, "IDR");
@@ -160,134 +160,144 @@ TEST_CASE("Trustline stellar asset contract",
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
 
-    SorobanTest test(cfg);
-    auto& app = test.getApp();
-    auto const minBalance = app.getLedgerManager().getLastMinBalance(2);
-    auto& root = test.getRoot();
-    auto issuer = root.create(issuerKey, minBalance);
-    // Enable clawback
-    issuer.setOptions(
-        setFlags(AUTH_CLAWBACK_ENABLED_FLAG | AUTH_REVOCABLE_FLAG));
+    // Enable all invariants (including EventsAreConsistentWithEntryDiffs)
+    cfg.INVARIANT_CHECKS = {".*"};
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
 
-    auto acc = root.create("acc", minBalance);
-    auto acc2 = root.create("acc2", minBalance);
-    auto sponsor = root.create("sponsor", minBalance * 2);
-    root.changeTrust(idr, 100);
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
 
-    {
-        auto tx = transactionFrameFromOps(
-            app.getNetworkID(), sponsor,
-            {sponsor.op(beginSponsoringFutureReserves(acc)),
-             acc.op(changeTrust(idr, 100)),
-             acc.op(endSponsoringFutureReserves())},
-            {acc});
-        REQUIRE(isSuccessResult(test.invokeTx(tx)));
-    }
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        auto& app = test.getApp();
+        auto const minBalance = app.getLedgerManager().getLastMinBalance(2);
+        auto& root = test.getRoot();
+        auto issuer = root.create(issuerKey, minBalance);
+        // Enable clawback
+        issuer.setOptions(
+            setFlags(AUTH_CLAWBACK_ENABLED_FLAG | AUTH_REVOCABLE_FLAG));
 
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto tlAsset = assetToTrustLineAsset(idr);
-        checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
-                         &sponsor.getPublicKey());
-        checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
-        checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
-    }
+        auto acc = root.create("acc", minBalance);
+        auto acc2 = root.create("acc2", minBalance);
+        auto sponsor = root.create("sponsor", minBalance * 2);
+        root.changeTrust(idr, 100);
 
-    issuer.pay(root, idr, 100);
+        {
+            auto tx = transactionFrameFromOps(
+                app.getNetworkID(), sponsor,
+                {sponsor.op(beginSponsoringFutureReserves(acc)),
+                 acc.op(changeTrust(idr, 100)),
+                 acc.op(endSponsoringFutureReserves())},
+                {acc});
+            REQUIRE(isSuccessResult(test.invokeTx(tx)));
+        }
 
-    auto accAddr = makeAccountAddress(acc.getPublicKey());
+        {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto tlAsset = assetToTrustLineAsset(idr);
+            checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
+                             &sponsor.getPublicKey());
+            checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
+            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+        }
 
-    AssetContractTestClient client(test, idr);
-    // Transfer and mint to account
-    REQUIRE(client.transfer(root, accAddr, 10));
-    REQUIRE(client.mint(issuer, accAddr, 10));
+        issuer.pay(root, idr, 100);
 
-    // Now mint by transfering from issuer
-    REQUIRE(client.transfer(issuer, accAddr, 10));
+        auto accAddr = makeAccountAddress(acc.getPublicKey());
 
-    // Now burn by transfering to the issuer and by using burn function
-    REQUIRE(
-        client.transfer(acc, makeAccountAddress(issuer.getPublicKey()), 10));
-    REQUIRE(client.burn(acc, 10));
+        AssetContractTestClient client(test, idr);
+        // Transfer and mint to account
+        REQUIRE(client.transfer(root, accAddr, 10));
+        REQUIRE(client.mint(issuer, accAddr, 10));
 
-    // Can't burn an issuers balance because it doesn't exist
-    REQUIRE(!client.burn(issuer, 10));
+        // Now mint by transfering from issuer
+        REQUIRE(client.transfer(issuer, accAddr, 10));
 
-    // Now transfer and mint to contractAddress
-    auto contractAddr = makeContractAddress(sha256("contract"));
-    REQUIRE(client.transfer(root, contractAddr, 10));
-    REQUIRE(client.mint(issuer, contractAddr, 10));
+        // Now burn by transfering to the issuer and by using burn function
+        REQUIRE(client.transfer(acc, makeAccountAddress(issuer.getPublicKey()),
+                                10));
+        REQUIRE(client.burn(acc, 10));
 
-    // Now mint by transfering from issuer
-    REQUIRE(client.transfer(issuer, contractAddr, 10));
+        // Can't burn an issuers balance because it doesn't exist
+        REQUIRE(!client.burn(issuer, 10));
 
-    // Now clawback
-    REQUIRE(client.clawback(issuer, accAddr, 2));
-    REQUIRE(client.clawback(issuer, contractAddr, 2));
+        // Now transfer and mint to contractAddress
+        auto contractAddr = makeContractAddress(sha256("contract"));
+        REQUIRE(client.transfer(root, contractAddr, 10));
+        REQUIRE(client.mint(issuer, contractAddr, 10));
 
-    // Try to clawback more than available
-    REQUIRE(!client.clawback(issuer, accAddr, 100));
-    REQUIRE(!client.clawback(issuer, contractAddr, 100));
+        // Now mint by transfering from issuer
+        REQUIRE(client.transfer(issuer, contractAddr, 10));
 
-    // Clear clawback, create new balances, and try to clawback
-    issuer.setOptions(clearFlags(AUTH_CLAWBACK_ENABLED_FLAG));
+        // Now clawback
+        REQUIRE(client.clawback(issuer, accAddr, 2));
+        REQUIRE(client.clawback(issuer, contractAddr, 2));
 
-    acc2.changeTrust(idr, 100);
+        // Try to clawback more than available
+        REQUIRE(!client.clawback(issuer, accAddr, 100));
+        REQUIRE(!client.clawback(issuer, contractAddr, 100));
 
-    auto acc2Addr = makeAccountAddress(acc2.getPublicKey());
-    auto contract2Addr = makeContractAddress(sha256("contract2"));
-    REQUIRE(client.mint(issuer, acc2Addr, 10));
-    REQUIRE(client.mint(issuer, contract2Addr, 10));
+        // Clear clawback, create new balances, and try to clawback
+        issuer.setOptions(clearFlags(AUTH_CLAWBACK_ENABLED_FLAG));
 
-    // Clawback not allowed because trustline and client balance
-    // was created when issuer did not have AUTH_CLAWBACK_ENABLED_FLAG set.
-    REQUIRE(!client.clawback(issuer, acc2Addr, 1));
-    REQUIRE(!client.clawback(issuer, contract2Addr, 1));
+        acc2.changeTrust(idr, 100);
 
-    // Now transfer more than balance
-    REQUIRE(!client.transfer(acc, acc2Addr, 10));
+        auto acc2Addr = makeAccountAddress(acc2.getPublicKey());
+        auto contract2Addr = makeContractAddress(sha256("contract2"));
+        REQUIRE(client.mint(issuer, acc2Addr, 10));
+        REQUIRE(client.mint(issuer, contract2Addr, 10));
 
-    // Now transfer from a contract
-    TestContract& transferContract =
-        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer());
+        // Clawback not allowed because trustline and client balance
+        // was created when issuer did not have AUTH_CLAWBACK_ENABLED_FLAG set.
+        REQUIRE(!client.clawback(issuer, acc2Addr, 1));
+        REQUIRE(!client.clawback(issuer, contract2Addr, 1));
 
-    REQUIRE(client.mint(issuer, transferContract.getAddress(), 10));
+        // Now transfer more than balance
+        REQUIRE(!client.transfer(acc, acc2Addr, 10));
 
-    auto invocationSpec = client.defaultSpec();
+        // Now transfer from a contract
+        TestContract& transferContract = test.deployWasmContract(
+            rust_bridge::get_test_contract_sac_transfer());
 
-    invocationSpec =
-        invocationSpec.setReadOnlyFootprint(client.getContract().getKeys());
+        REQUIRE(client.mint(issuer, transferContract.getAddress(), 10));
 
-    LedgerKey issuerLedgerKey(ACCOUNT);
-    issuerLedgerKey.account().accountID = getIssuer(idr);
+        auto invocationSpec = client.defaultSpec();
 
-    LedgerKey fromBalanceKey =
-        client.makeBalanceKey(transferContract.getAddress());
-    LedgerKey toBalanceKey = client.makeBalanceKey(acc2Addr);
+        invocationSpec =
+            invocationSpec.setReadOnlyFootprint(client.getContract().getKeys());
 
-    invocationSpec =
-        invocationSpec.extendReadOnlyFootprint({issuerLedgerKey})
-            .extendReadWriteFootprint({fromBalanceKey, toBalanceKey});
+        LedgerKey issuerLedgerKey(ACCOUNT);
+        issuerLedgerKey.account().accountID = getIssuer(idr);
 
-    auto invocation = transferContract.prepareInvocation(
-        "transfer_1",
-        {makeAddressSCVal(client.getContract().getAddress()),
-         makeAddressSCVal(acc2Addr)},
-        invocationSpec);
-    REQUIRE(invocation.invoke());
+        LedgerKey fromBalanceKey =
+            client.makeBalanceKey(transferContract.getAddress());
+        LedgerKey toBalanceKey = client.makeBalanceKey(acc2Addr);
 
-    REQUIRE(client.getBalance(transferContract.getAddress()) == 9);
-    REQUIRE(client.getBalance(acc2Addr) == 11);
+        invocationSpec =
+            invocationSpec.extendReadOnlyFootprint({issuerLedgerKey})
+                .extendReadWriteFootprint({fromBalanceKey, toBalanceKey});
 
-    // Make sure sponsorship info hasn't changed
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto tlAsset = assetToTrustLineAsset(idr);
-        checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
-                         &sponsor.getPublicKey());
-        checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
-        checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
-    }
+        auto invocation = transferContract.prepareInvocation(
+            "transfer_1",
+            {makeAddressSCVal(client.getContract().getAddress()),
+             makeAddressSCVal(acc2Addr)},
+            invocationSpec);
+        REQUIRE(invocation.invoke());
+
+        REQUIRE(client.getBalance(transferContract.getAddress()) == 9);
+        REQUIRE(client.getBalance(acc2Addr) == 11);
+
+        // Make sure sponsorship info hasn't changed
+        {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto tlAsset = assetToTrustLineAsset(idr);
+            checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
+                             &sponsor.getPublicKey());
+            checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
+            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+        }
+    });
 }
 
 TEST_CASE("Native stellar asset contract",

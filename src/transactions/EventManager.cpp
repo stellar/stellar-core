@@ -439,6 +439,12 @@ OpEventManager::pushContractEvents(xdr::xvector<ContractEvent> const& evts)
     ces.insert(ces.end(), evts.begin(), evts.end());
 }
 
+xdr::xvector<ContractEvent> const&
+OpEventManager::getContractEvents()
+{
+    return mContractEvents;
+}
+
 void
 OpEventManager::flushContractEvents(xdr::xvector<ContractEvent>& buf)
 {
