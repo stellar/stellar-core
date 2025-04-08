@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "rust/RustBridge.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
@@ -1965,10 +1966,9 @@ SCVal
 makeI128SCVal(int64_t v)
 {
     SCVal val(SCV_I128);
-    // Sign extend: if v is negative, hi = 0xFFFFFFFFFFFFFFFF, if positive, hi =
-    // 0x0000000000000000
-    val.i128().hi = v < 0 ? 0xFFFFFFFFFFFFFFFF : 0x0000000000000000;
-    val.i128().lo = static_cast<uint64_t>(v);
+    auto cxxI128 = rust_bridge::i128_from_i64(v);
+    val.i128().hi = cxxI128.hi;
+    val.i128().lo = cxxI128.lo;
     return val;
 }
 

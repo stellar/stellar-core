@@ -1792,7 +1792,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             if (success)
             {
                 app.checkOnOperationApply(op->getOperation(), opResult,
-                                          ltxOp.getDelta());
+                                          ltxOp.getDelta(),
+                                          opEventManager.getContractEvents());
 
                 LedgerEntryChanges changes;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

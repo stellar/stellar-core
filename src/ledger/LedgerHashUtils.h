@@ -99,6 +99,40 @@ template <> class hash<stellar::TrustLineAsset>
     }
 };
 
+template <> class hash<stellar::SCAddress>
+{
+  public:
+    size_t
+    operator()(stellar::SCAddress const& addr) const
+    {
+        size_t res = addr.type();
+        switch (addr.type())
+        {
+        case stellar::SC_ADDRESS_TYPE_ACCOUNT:
+            stellar::hashMix(
+                res, std::hash<stellar::uint256>()(addr.accountId().ed25519()));
+            break;
+        case stellar::SC_ADDRESS_TYPE_CONTRACT:
+            stellar::hashMix(res,
+                             std::hash<stellar::uint256>()(addr.contractId()));
+            break;
+        case stellar::SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+            stellar::hashMix(
+                res, stellar::shortHash::xdrComputeHash(addr.muxedAccount()));
+            break;
+        case stellar::SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+            stellar::hashMix(res, std::hash<stellar::uint256>()(
+                                      addr.claimableBalanceId().v0()));
+            break;
+        case stellar::SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+            stellar::hashMix(
+                res, std::hash<stellar::uint256>()(addr.liquidityPoolId()));
+            break;
+        }
+        return res;
+    }
+};
+
 template <> class hash<stellar::LedgerKey>
 {
   public:
@@ -142,35 +176,8 @@ template <> class hash<stellar::LedgerKey>
                                       lk.liquidityPool().liquidityPoolID));
             break;
         case stellar::CONTRACT_DATA:
-            switch (lk.contractData().contract.type())
-            {
-            case stellar::SC_ADDRESS_TYPE_ACCOUNT:
-                stellar::hashMix(
-                    res, std::hash<stellar::uint256>()(
-                             lk.contractData().contract.accountId().ed25519()));
-                break;
-            case stellar::SC_ADDRESS_TYPE_CONTRACT:
-                stellar::hashMix(res,
-                                 std::hash<stellar::uint256>()(
-                                     lk.contractData().contract.contractId()));
-                break;
-            case stellar::SC_ADDRESS_TYPE_MUXED_ACCOUNT:
-                stellar::hashMix(
-                    res, stellar::shortHash::xdrComputeHash(
-                             lk.contractData().contract.muxedAccount()));
-                break;
-            case stellar::SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
-                stellar::hashMix(
-                    res,
-                    std::hash<stellar::uint256>()(
-                        lk.contractData().contract.claimableBalanceId().v0()));
-                break;
-            case stellar::SC_ADDRESS_TYPE_LIQUIDITY_POOL:
-                stellar::hashMix(
-                    res, std::hash<stellar::uint256>()(
-                             lk.contractData().contract.liquidityPoolId()));
-                break;
-            }
+            stellar::hashMix(res, std::hash<stellar::SCAddress>()(
+                                      lk.contractData().contract));
             stellar::hashMix(
                 res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
             stellar::hashMix(
@@ -204,4 +211,5 @@ template <> class hash<stellar::InternalLedgerKey>
         return glk.hash();
     }
 };
+
 }

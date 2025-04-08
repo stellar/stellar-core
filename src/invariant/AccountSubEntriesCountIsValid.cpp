@@ -145,7 +145,7 @@ AccountSubEntriesCountIsValid::getName() const
 std::string
 AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerTxnDelta const& ltxDelta)
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
     UnorderedMap<AccountID, SubEntriesChange> subEntriesChange;
     for (auto const& entryDelta : ltxDelta.entry)

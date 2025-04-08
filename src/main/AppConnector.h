@@ -39,7 +39,8 @@ class AppConnector
     SorobanMetrics& getSorobanMetrics() const;
     void checkOnOperationApply(Operation const& operation,
                                OperationResult const& opres,
-                               LedgerTxnDelta const& ltxDelta);
+                               LedgerTxnDelta const& ltxDelta,
+                               std::vector<ContractEvent> const& events);
     Hash const& getNetworkID() const;
 
     // Thread-safe methods

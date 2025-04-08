@@ -43,9 +43,9 @@ LedgerEntryIsValid::getName() const
 }
 
 std::string
-LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
-                                          OperationResult const& result,
-                                          LedgerTxnDelta const& ltxDelta)
+LedgerEntryIsValid::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
     uint32_t currLedgerSeq = ltxDelta.header.current.ledgerSeq;
     if (currLedgerSeq > INT32_MAX)

@@ -177,9 +177,9 @@ ConservationOfLumens::getName() const
 }
 
 std::string
-ConservationOfLumens::checkOnOperationApply(Operation const& operation,
-                                            OperationResult const& result,
-                                            LedgerTxnDelta const& ltxDelta)
+ConservationOfLumens::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
     auto const& lhCurr = ltxDelta.header.current;
     auto const& lhPrev = ltxDelta.header.previous;

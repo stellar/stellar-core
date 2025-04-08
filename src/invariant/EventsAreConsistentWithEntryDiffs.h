@@ -1,27 +1,26 @@
 #pragma once
 
-// Copyright 2020 Stellar Development Foundation and contributors. Licensed
+// Copyright 2025 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
+#include "main/Config.h"
+#include "transactions/TransactionUtils.h"
 #include <memory>
 
 namespace stellar
 {
 
 class Application;
-class Database;
 struct LedgerTxnDelta;
 
-// This Invariant checks that the sponsorship state of each account is correct,
-// and that the global sponsorship invariant
-//      totalNumSponsoring = totalNumSponsored + totalClaimableBalanceReserve
-// is respected.
-class SponsorshipCountIsValid : public Invariant
+class EventsAreConsistentWithEntryDiffs : public Invariant
 {
+    Hash const& mNetworkID;
+
   public:
-    SponsorshipCountIsValid();
+    EventsAreConsistentWithEntryDiffs(Hash const& networkID);
 
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 

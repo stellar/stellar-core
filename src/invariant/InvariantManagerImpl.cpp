@@ -127,9 +127,9 @@ InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
 }
 
 void
-InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
-                                            OperationResult const& opres,
-                                            LedgerTxnDelta const& ltxDelta)
+InvariantManagerImpl::checkOnOperationApply(
+    Operation const& operation, OperationResult const& opres,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
     if (protocolVersionIsBefore(ltxDelta.header.current.ledgerVersion,
                                 ProtocolVersion::V_8))
@@ -139,8 +139,8 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
 
     for (auto invariant : mEnabled)
     {
-        auto result =
-            invariant->checkOnOperationApply(operation, opres, ltxDelta);
+        auto result = invariant->checkOnOperationApply(operation, opres,
+                                                       ltxDelta, events);
         if (result.empty())
         {
             continue;
