@@ -172,7 +172,8 @@ class Application
         WORKER,
         EVICTION,
         OVERLAY,
-        APPLY
+        APPLY,
+        TX_VALIDATION
     };
 
     virtual ~Application(){};
@@ -189,7 +190,7 @@ class Application
 
     // Return a reference to the Application-local copy of the Config object
     // that the Application was constructed with.
-    virtual Config const& getConfig() = 0;
+    virtual Config const& getConfig() const = 0;
 
     // Gets the current execution-state of the Application
     // (derived from the state of other modules
@@ -216,8 +217,8 @@ class Application
 
     // Get references to each of the "subsystem" objects.
     virtual TmpDirManager& getTmpDirManager() = 0;
-    virtual LedgerManager& getLedgerManager() = 0;
-    virtual BucketManager& getBucketManager() = 0;
+    virtual LedgerManager& getLedgerManager() const = 0;
+    virtual BucketManager& getBucketManager() const = 0;
     virtual LedgerApplyManager& getLedgerApplyManager() = 0;
     virtual HistoryArchiveManager& getHistoryArchiveManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
@@ -254,6 +255,8 @@ class Application
                                                 std::string jobName) = 0;
     virtual void postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName) = 0;
+    virtual void postOnTxValidationThread(std::function<void()>&& f,
+                                          std::string jobName) = 0;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) = 0;
 
@@ -322,7 +325,7 @@ class Application
     // instances
     virtual Hash const& getNetworkID() const = 0;
 
-    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() = 0;
+    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() const = 0;
 
     virtual void validateAndLogConfig() = 0;
 
@@ -346,7 +349,7 @@ class Application
     // Returns true iff the calling thread has the same type as `type`
     virtual bool threadIsType(ThreadType type) const = 0;
 
-    virtual AppConnector& getAppConnector() = 0;
+    virtual AppConnector& getAppConnector() const = 0;
 
   protected:
     Application()

@@ -46,12 +46,12 @@ class TransactionFrameBase
                        TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
     virtual MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    checkValid(ExtendedLedgerSnapshot const& ls, SequenceNumber current,
+               uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const = 0;
-    virtual bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult) const = 0;
+    virtual bool
+    checkSorobanResourceAndSetError(ExtendedLedgerSnapshot const& ls,
+                                    MutableTxResultPtr txResult) const = 0;
 
     virtual MutableTxResultPtr createSuccessResult() const = 0;
 

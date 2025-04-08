@@ -14,33 +14,33 @@ namespace stellar
 {
 
 AppConnector::AppConnector(Application& app)
-    : mApp(app), mConfig(app.getConfig())
+    : mApp(app), mConfig(std::make_shared<const Config>(app.getConfig()))
 {
 }
 
 Herder&
-AppConnector::getHerder()
+AppConnector::getHerder() const
 {
     releaseAssert(threadIsMain());
     return mApp.getHerder();
 }
 
 LedgerManager&
-AppConnector::getLedgerManager()
+AppConnector::getLedgerManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getLedgerManager();
 }
 
 OverlayManager&
-AppConnector::getOverlayManager()
+AppConnector::getOverlayManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getOverlayManager();
 }
 
 BanManager&
-AppConnector::getBanManager()
+AppConnector::getBanManager() const
 {
     releaseAssert(threadIsMain());
     return mApp.getBanManager();
@@ -56,7 +56,32 @@ AppConnector::getLastClosedSorobanNetworkConfig() const
 SorobanNetworkConfig const&
 AppConnector::getSorobanNetworkConfigForApply() const
 {
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+}
+
+std::optional<SorobanNetworkConfig>
+AppConnector::maybeGetLastClosedSorobanNetworkConfig() const
+{
+    releaseAssert(threadIsMain());
+    if (mApp.getLedgerManager().hasLastClosedSorobanNetworkConfig())
+    {
+        return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
+    }
+    return std::nullopt;
+}
+
+std::optional<SorobanNetworkConfig>
+AppConnector::maybeGetSorobanNetworkConfigForApply() const
+{
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
+    if (mApp.getLedgerManager().hasSorobanNetworkConfigForApply())
+    {
+        return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+    }
+    return std::nullopt;
 }
 
 medida::MetricsRegistry&
@@ -101,8 +126,22 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
     mApp.postOnOverlayThread(std::move(f), message);
 }
 
+void
+AppConnector::postOnTxValidationThread(std::function<void()>&& f,
+                                       std::string const& message)
+{
+    mApp.postOnTxValidationThread(std::move(f), message);
+}
+
 Config const&
 AppConnector::getConfig() const
+{
+    releaseAssert(mConfig);
+    return *mConfig;
+}
+
+std::shared_ptr<Config const>
+AppConnector::getConfigPtr() const
 {
     return mConfig;
 }
@@ -117,6 +156,12 @@ VirtualClock::time_point
 AppConnector::now() const
 {
     return mApp.getClock().now();
+}
+
+VirtualClock::system_time_point
+AppConnector::system_now() const
+{
+    return mApp.getClock().system_now();
 }
 
 bool

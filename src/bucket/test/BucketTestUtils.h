@@ -98,7 +98,7 @@ class BucketTestApplication : public TestApplication
     {
     }
 
-    virtual LedgerManagerForBucketTests& getLedgerManager() override;
+    virtual LedgerManagerForBucketTests& getLedgerManager() const override;
 
   private:
     virtual std::unique_ptr<LedgerManager>

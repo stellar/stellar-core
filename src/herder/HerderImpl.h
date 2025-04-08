@@ -100,11 +100,11 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                    bool isLoadgenTx = false) override;
+                    bool isPreValidated, bool isLoadgenTx = false) override;
 #else
-    TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx,
-                    bool submittedFromSelf) override;
+    TransactionQueue::AddResult recvTransaction(TransactionFrameBasePtr tx,
+                                                bool submittedFromSelf,
+                                                bool isPreValidated) override;
 #endif
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;

@@ -168,7 +168,7 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    LedgerSnapshot ls(app);
+    ExtendedLedgerSnapshot ls(app);
     // This is done so minSeqLedgerGap is validated against the next
     // ledgerSeq, which is what will be used at apply time
     ls.getLedgerHeader().currentToModify().ledgerSeq =
@@ -178,8 +178,7 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
 
     for (auto const& tx : txs)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(ls, 0, lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {

@@ -17,6 +17,7 @@ namespace stellar
 {
 
 class Application;
+class AppConnector;
 class Config;
 class ConstLedgerTxnEntry;
 class ConstTrustLineWrapper;
@@ -29,6 +30,7 @@ class SorobanNetworkConfig;
 class TransactionFrame;
 class TransactionFrameBase;
 class SorobanTxData;
+class ExtendedLedgerSnapshot;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -260,10 +262,12 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
-bool isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                      TransactionEnvelope const& envelope);
+bool
+isTransactionXDRValidForCurrentProtocol(ExtendedLedgerSnapshot const& ls,
+                                        TransactionEnvelope const& envelope);
 
-uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
+uint64_t getUpperBoundCloseTimeOffset(AppConnector const& app,
+                                      uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
 bool hasAccountEntryExtV3(AccountEntry const& ae);

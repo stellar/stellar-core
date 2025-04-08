@@ -92,8 +92,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 
             auto feedTx = [&](TransactionTestFramePtr tx,
                               TransactionQueue::AddResultCode expectedRes) {
-                REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
-                        expectedRes);
+                REQUIRE(
+                    app->getHerder().recvTransaction(tx, false, false).code ==
+                    expectedRes);
             };
 
             auto waitForExternalize = [&]() {
@@ -2934,11 +2935,11 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
     auto [root, a1, b1, tx1, tx2] = makeTxs(app);
 
     // Submit txs for the same account, should be good
-    REQUIRE(app->getHerder().recvTransaction(tx1, true).code ==
+    REQUIRE(app->getHerder().recvTransaction(tx1, true, false).code ==
             TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
     // Second tx is rejected due to limit
-    REQUIRE(app->getHerder().recvTransaction(tx2, true).code ==
+    REQUIRE(app->getHerder().recvTransaction(tx2, true, false).code ==
             TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
 
     uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
@@ -2965,7 +2966,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
 
     // Now submit the second tx (which was rejected earlier) and make sure
     // it ends up in the ledger
-    REQUIRE(app->getHerder().recvTransaction(tx2, true).code ==
+    REQUIRE(app->getHerder().recvTransaction(tx2, true, false).code ==
             TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
     lcl = app->getLedgerManager().getLastClosedLedgerNum();
@@ -3230,6 +3231,18 @@ TEST_CASE("overlay parallel processing")
                 auto cfg = getTestConfig(i);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
                 cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+                return cfg;
+            });
+    }
+
+    SECTION("background transaction validation")
+    {
+        // Set threshold to 1 so all have to vote
+        simulation =
+            Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+                auto cfg = getTestConfig(i);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                cfg.BACKGROUND_TX_VALIDATION = true;
                 return cfg;
             });
     }
@@ -3645,7 +3658,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
                     auto sorobanTx = createUploadWasmTx(
                         *A, *root, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
                     REQUIRE(
-                        herderA.recvTransaction(sorobanTx, true).code ==
+                        herderA.recvTransaction(sorobanTx, true, false).code ==
                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                     submitted = true;
                 }
@@ -4332,9 +4345,9 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     // this will be invalid after tx1r gets applied
     auto tx2r = root->tx({payment(*root, 1)});
 
-    herder.recvTransaction(tx1a, false);
-    herder.recvTransaction(tx1r, false);
-    herder.recvTransaction(tx2r, false);
+    herder.recvTransaction(tx1a, false, false);
+    herder.recvTransaction(tx1r, false, false);
+    herder.recvTransaction(tx2r, false, false);
 
     size_t numBroadcast = 0;
     tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) { ++numBroadcast; };
@@ -4447,7 +4460,7 @@ TEST_CASE("do not flood too many soroban transactions",
 
         auto tx = createUploadWasmTx(*app, source, inclusionFee, 10'000'000,
                                      resources);
-        REQUIRE(herder.recvTransaction(tx, false).code ==
+        REQUIRE(herder.recvTransaction(tx, false, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
         return tx;
     };
@@ -4622,7 +4635,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx, false).code ==
+            REQUIRE(herder.recvTransaction(tx, false, false).code ==
                     TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             return tx;
         };
@@ -4832,7 +4845,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx, false).code ==
+            REQUIRE(herder.recvTransaction(tx, false, false).code ==
                     TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             return tx;
         };
@@ -5260,7 +5273,7 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+        REQUIRE(app->getHerder().recvTransaction(tx, false, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 
@@ -5275,7 +5288,7 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+        REQUIRE(app->getHerder().recvTransaction(tx, false, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
@@ -5291,7 +5304,7 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+        REQUIRE(app->getHerder().recvTransaction(tx, false, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 }

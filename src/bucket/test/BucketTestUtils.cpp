@@ -299,7 +299,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
 }
 
 LedgerManagerForBucketTests&
-BucketTestApplication::getLedgerManager()
+BucketTestApplication::getLedgerManager() const
 {
     auto& lm = ApplicationImpl::getLedgerManager();
     return static_cast<LedgerManagerForBucketTests&>(lm);

@@ -478,11 +478,14 @@ class Config : public std::enable_shared_from_this<Config>
     // index.
     size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
-    // Enable parallel processing of overlay operations (experimental)
+    // Enable parallel processing of overlay operations
     bool BACKGROUND_OVERLAY_PROCESSING;
 
     // Enable parallel block application (experimental)
     bool EXPERIMENTAL_PARALLEL_LEDGER_APPLY;
+
+    // Enable parallel transaction validation (experimental)
+    bool BACKGROUND_TX_VALIDATION;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.

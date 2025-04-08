@@ -93,6 +93,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
+    , mTxValidationIOContext(mConfig.BACKGROUND_TX_VALIDATION
+                                 ? std::make_unique<asio::io_context>(1)
+                                 : nullptr)
+    , mTxValidationWork(mTxValidationIOContext
+                            ? std::make_unique<asio::io_context::work>(
+                                  *mTxValidationIOContext)
+                            : nullptr)
     , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
                                 ? std::make_unique<asio::io_context>(1)
                                 : nullptr)
@@ -115,6 +122,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mPostOnOverlayThreadDelay(
           mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
+    , mPostOnTxValidationThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-tx-validation-thread", "delay"}))
     , mPostOnLedgerCloseThreadDelay(
           mMetrics->NewTimer({"app", "post-on-ledger-close-thread", "delay"}))
     , mStartedOn(clock.system_now())
@@ -187,6 +196,14 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         // Keep priority unchanged as overlay processes time-sensitive tasks
         mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
+    }
+
+    if (mConfig.BACKGROUND_TX_VALIDATION)
+    {
+        // Keep priority unchanged as transaction validation is time-sensitive
+        mTxValidationThread =
+            std::thread{[this]() { mTxValidationIOContext->run(); }};
+        mThreadTypes[mTxValidationThread->get_id()] = ThreadType::TX_VALIDATION;
     }
 
     if (mConfig.parallelLedgerClose())
@@ -879,6 +896,10 @@ ApplicationImpl::joinAllThreads()
     {
         mOverlayWork.reset();
     }
+    if (mTxValidationWork)
+    {
+        mTxValidationWork.reset();
+    }
     if (mEvictionWork)
     {
         mEvictionWork.reset();
@@ -894,6 +915,12 @@ ApplicationImpl::joinAllThreads()
     {
         LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
         mOverlayThread->join();
+    }
+
+    if (mTxValidationThread)
+    {
+        LOG_INFO(DEFAULT_LOG, "Joining the tx validation thread");
+        mTxValidationThread->join();
     }
 
     if (mEvictionThread)
@@ -1148,7 +1175,7 @@ ApplicationImpl::applyCfgCommands()
 }
 
 Config const&
-ApplicationImpl::getConfig()
+ApplicationImpl::getConfig() const
 {
     return mConfig;
 }
@@ -1289,13 +1316,13 @@ ApplicationImpl::getTmpDirManager()
 }
 
 LedgerManager&
-ApplicationImpl::getLedgerManager()
+ApplicationImpl::getLedgerManager() const
 {
     return *mLedgerManager;
 }
 
 BucketManager&
-ApplicationImpl::getBucketManager()
+ApplicationImpl::getBucketManager() const
 {
     return *mBucketManager;
 }
@@ -1475,6 +1502,19 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
 }
 
 void
+ApplicationImpl::postOnTxValidationThread(std::function<void()>&& f,
+                                          std::string jobName)
+{
+    releaseAssert(mTxValidationIOContext);
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(*mTxValidationIOContext, [this, f = std::move(f), isSlow]() {
+        mPostOnTxValidationThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
 ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName)
 {
@@ -1527,7 +1567,7 @@ ApplicationImpl::createDatabase()
 }
 
 AbstractLedgerTxnParent&
-ApplicationImpl::getLedgerTxnRoot()
+ApplicationImpl::getLedgerTxnRoot() const
 {
 #ifdef BUILD_TESTS
     if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
@@ -1540,7 +1580,7 @@ ApplicationImpl::getLedgerTxnRoot()
 }
 
 AppConnector&
-ApplicationImpl::getAppConnector()
+ApplicationImpl::getAppConnector() const
 {
     return *mAppConnector;
 }

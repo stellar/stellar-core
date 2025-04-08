@@ -7,6 +7,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/NetworkConfig.h"
 #include "util/NonCopyable.h"
 #include <variant>
 
@@ -77,7 +78,8 @@ class AbstractLedgerStateSnapshot
     // to support the replay of old buggy protocols (<8), see
     // `TransactionFrame::loadSourceAccount`
     virtual void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const = 0;
+        std::function<void(ExtendedLedgerSnapshot const&)> f,
+        ExtendedLedgerSnapshot const& outer) const = 0;
 };
 
 // A concrete implementation of read-only SQL snapshot wrapper
@@ -100,7 +102,8 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
+        std::function<void(ExtendedLedgerSnapshot const&)> f,
+        ExtendedLedgerSnapshot const& outer) const override;
 };
 
 // A concrete implementation of read-only BucketList snapshot wrapper
@@ -125,7 +128,8 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
+        std::function<void(ExtendedLedgerSnapshot const&)> f,
+        ExtendedLedgerSnapshot const& outer) const override;
 };
 
 // A helper class to create and query read-only snapshots
@@ -137,12 +141,15 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
 // ledger state.
 class LedgerSnapshot : public NonMovableOrCopyable
 {
-    std::unique_ptr<AbstractLedgerStateSnapshot const> mGetter;
     std::unique_ptr<LedgerTxn> mLegacyLedgerTxn;
+
+  protected:
+    std::unique_ptr<AbstractLedgerStateSnapshot const> mGetter;
 
   public:
     LedgerSnapshot(AbstractLedgerTxn& ltx);
-    LedgerSnapshot(Application& app);
+    LedgerSnapshot(Application const& app);
+    virtual ~LedgerSnapshot() = default;
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
@@ -158,12 +165,43 @@ class LedgerSnapshot : public NonMovableOrCopyable
         return mGetter->getAccount(header, tx, AccountID);
     }
     LedgerEntryWrapper load(LedgerKey const& key) const;
+};
+
+// A subclass of LedgerSnapshot that contains additional snapshots necessary for
+// transaction validation.
+class ExtendedLedgerSnapshot : public LedgerSnapshot
+{
+  public:
+    // Generate a snapshot from the most recently closed ledger. The resulting
+    // `ExtendedLedgerSnapshot` cannot be used for transaction application.
+    explicit ExtendedLedgerSnapshot(Application const& app);
+
+    // Generate a snapshot from a specific AbstractLedgerTxn. Set `forApply` to
+    // `true` to use this snapshot in transaction application.
+    ExtendedLedgerSnapshot(AbstractLedgerTxn& ltx, AppConnector const& app,
+                           bool forApply);
+
+    // Generate a snapshot from a specific `AbstractLedgerTxn`, copying
+    // additional snapshot data from `outer`. This is intended only for use with
+    // `executeWithMaybeInnerSnapshot`.
+    ExtendedLedgerSnapshot(AbstractLedgerTxn& ltx,
+                           ExtendedLedgerSnapshot const& outer);
+    virtual ~ExtendedLedgerSnapshot() = default;
 
     // Execute a function with a nested snapshot, if supported. This is needed
     // to support the replay of old buggy protocols (<8), see
     // `TransactionFrame::loadSourceAccount`
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const;
-};
+        std::function<void(ExtendedLedgerSnapshot const&)> f) const;
 
+    // Getters for the additional snapshots
+    Config const& getConfig() const;
+    SorobanNetworkConfig const& getSorobanNetworkConfig() const;
+    uint32_t getCurrentProtocolVersion() const;
+
+  private:
+    std::shared_ptr<const Config> const mConfig;
+    std::optional<const SorobanNetworkConfig> const mSorobanNetworkConfig;
+    uint32_t const mCurrentProtocolVersion;
+};
 }

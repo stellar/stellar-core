@@ -555,7 +555,7 @@ LedgerManagerImpl::getLastClosedSorobanNetworkConfig()
 SorobanNetworkConfig const&
 LedgerManagerImpl::getSorobanNetworkConfigForApply()
 {
-    releaseAssert(mApplyState.mSorobanNetworkConfig);
+    releaseAssert(hasSorobanNetworkConfigForApply());
     return *mApplyState.mSorobanNetworkConfig;
 }
 
@@ -564,6 +564,12 @@ LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
 {
     releaseAssert(threadIsMain());
     return static_cast<bool>(getLCLState().sorobanConfig);
+}
+
+bool
+LedgerManagerImpl::hasSorobanNetworkConfigForApply() const
+{
+    return static_cast<bool>(mApplyState.mSorobanNetworkConfig);
 }
 
 #ifdef BUILD_TESTS

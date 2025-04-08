@@ -590,7 +590,8 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                            bool isPreValidated
 #ifdef BUILD_TESTS
                             ,
                             bool isLoadgenTx
@@ -622,7 +623,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     }
     else if (!tx->isSoroban())
     {
-        result = mTransactionQueue.tryAdd(tx, submittedFromSelf
+        result = mTransactionQueue.tryAdd(tx, submittedFromSelf, isPreValidated
 #ifdef BUILD_TESTS
                                           ,
                                           isLoadgenTx
@@ -631,7 +632,8 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     }
     else if (mSorobanTransactionQueue)
     {
-        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf
+        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf,
+                                                  isPreValidated
 #ifdef BUILD_TESTS
                                                   ,
                                                   isLoadgenTx
@@ -1173,6 +1175,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
     // In order to update the transaction queue we need to get the
     // applied transactions.
     updateTransactionQueue(txSet);
+
+    // Update snapshots used for transaction validation
+    mApp.getOverlayManager().updateSnapshots();
 
     // If we're in sync and there are no buffered ledgers to apply, trigger next
     // ledger
@@ -2356,7 +2361,8 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
 
         auto invalidTxs = TxSetUtils::getInvalidTxList(
             txs, mApp, 0,
-            getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
+            getUpperBoundCloseTimeOffset(mApp.getAppConnector(),
+                                         lhhe.header.scpValue.closeTime));
         queue.ban(invalidTxs);
 
         queue.rebroadcast();

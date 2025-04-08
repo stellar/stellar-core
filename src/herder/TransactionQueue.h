@@ -125,11 +125,19 @@ class TransactionQueue
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
+    /**
+     * Try to add `tx` to the queue. If the transaction is submitted from self
+     * (not over the network), then set `submittedFromSelf` to true. If the
+     * transaction has already been validated (via background transaction
+     * validation, or loadgen), then set `isPreValidated` to true. If the
+     * transaction is a loadgen transaction, set `isLoadgenTx` to true.
+     */
 #ifdef BUILD_TESTS
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                     bool isLoadgenTx = false);
+                     bool isPreValidated, bool isLoadgenTx);
 #else
-    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
+    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                     bool isPreValidated);
 #endif
     void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
@@ -239,11 +247,12 @@ class TransactionQueue
     TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
            std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
-           bool isLoadgenTx = false);
+           bool isPreValidated, bool isLoadgenTx = false);
 #else
     TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
+           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+           bool isPreValidated);
 #endif
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
