@@ -3234,6 +3234,19 @@ TEST_CASE("overlay parallel processing")
             });
     }
 
+    SECTION("background signature validation")
+    {
+        // Set threshold to 1 so all have to vote
+        simulation =
+            Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+                auto cfg = getTestConfig(i);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+                cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                return cfg;
+            });
+    }
+
 // Background ledger close requires postgres
 #ifdef USE_POSTGRES
     SECTION("background ledger close")

@@ -492,6 +492,11 @@ class Config : public std::enable_shared_from_this<Config>
     // Has no effect on non-test builds.
     size_t EXPERIMENTAL_TX_BATCH_MAX_SIZE;
 
+    // Check signatures in the background for transactions received
+    // over the network. Does nothing if `BACKGROUND_OVERLAY_PROCESSING` is not
+    // also enabled. (experimental)
+    bool EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes

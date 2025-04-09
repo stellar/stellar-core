@@ -1429,4 +1429,18 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
+SearchableSnapshotConstPtr&
+OverlayManagerImpl::getOverlayThreadSnapshot()
+{
+    releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
+    if (!mOverlayThreadSnapshot)
+    {
+        // Create a new snapshot
+        mOverlayThreadSnapshot = mApp.getBucketManager()
+                                     .getBucketSnapshotManager()
+                                     .copySearchableLiveBucketListSnapshot();
+    }
+    return mOverlayThreadSnapshot;
+}
+
 }

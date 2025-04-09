@@ -96,6 +96,10 @@ class TransactionTestFrame : public TransactionFrameBase
     int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,
                    bool applying) const override;
 
+    bool checkSignature(SignatureChecker& signatureChecker,
+                        LedgerEntryWrapper const& account,
+                        int32_t neededWeight) const override;
+
     Hash const& getContentsHash() const override;
     Hash const& getFullHash() const override;
 

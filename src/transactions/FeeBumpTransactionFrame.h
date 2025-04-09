@@ -29,7 +29,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerEntryWrapper const& account,
-                        int32_t neededWeight) const;
+                        int32_t neededWeight) const override;
 
     bool commonValidPreSeqNum(LedgerSnapshot const& ls,
                               MutableTransactionResultBase& txResult) const;

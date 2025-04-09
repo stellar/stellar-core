@@ -25,6 +25,8 @@
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxAdverts.h"
+#include "transactions/SignatureChecker.h"
+#include "transactions/TransactionBridge.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -48,6 +50,51 @@ namespace stellar
 static std::string const AUTH_ACTION_QUEUE = "AUTH";
 using namespace std;
 using namespace soci;
+
+namespace
+{
+// Check the signature(s) in `tx`, adding the result to the signature cache in
+// the process. This function requires that background signature verification
+// is enabled and the current thread is the overlay thread.
+void
+populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
+{
+    ZoneScoped;
+    releaseAssert(app.getConfig().EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
+                  app.threadIsType(Application::ThreadType::OVERLAY));
+
+    auto const& hash = tx->getContentsHash();
+    auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
+    auto& snapshot = app.getOverlayThreadSnapshot();
+    app.maybeCopySearchableBucketListSnapshot(snapshot);
+    LedgerSnapshot ledgerSnapshot(snapshot);
+
+    SignatureChecker signatureChecker(
+        ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
+        signatures);
+
+    // NOTE: Use getFeeSourceID so that this works for both TransactionFrame and
+    // FeeBumpTransactionFrame
+    auto const sourceAccount = ledgerSnapshot.getAccount(tx->getFeeSourceID());
+
+    // Check signature, which will add the result to the signature cache. This
+    // is safe to do here (pre-validation) because:
+    // 1. The signatures themselves are fixed and cannot change, and
+    // 2. In the unlikely case that the account's signers or thresholds have
+    //    changed (and we haven't heard of it yet), the validation and apply
+    //    functions still contain `checkSignature` calls, which will cause a
+    //    cache miss in that case and force a recheck of the signatures with
+    //    up-to-date signers/thresholds.
+    //
+    // Note that we always use a threshold of HIGH for the signatures to ensure
+    // we check all signatures for any possible operation that may be in the
+    // transaction. Performance analysis has shown that the overlay thread
+    // contains significant extra capacity and can handle this extra load.
+    tx->checkSignature(
+        signatureChecker, sourceAccount,
+        sourceAccount.current().data.account().thresholds[THRESHOLD_HIGH]);
+}
+} // namespace
 
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
@@ -101,11 +148,22 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
         transaction->getFullHash();
         transaction->getContentsHash();
         mTxsMap[*mMaybeHash] = transaction;
+        return transaction;
     };
+
+    // Whether to check transaction signatures in the background, adding them to
+    // the signature cache in the process.
+    bool const checkTxSig = self->mAppConnector.getConfig()
+                                .EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
+                            self->useBackgroundThread();
 
     if (mMsg.type() == TRANSACTION)
     {
-        populateTxMap(mMsg);
+        auto const txn = populateTxMap(mMsg);
+        if (checkTxSig)
+        {
+            populateSignatureCache(self->mAppConnector, txn);
+        }
     }
 #ifdef BUILD_TESTS
     else if (mMsg.type() == TX_SET && OverlayManager::isFloodMessage(mMsg))
@@ -115,7 +173,11 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
             StellarMessage txMsg;
             txMsg.type(TRANSACTION);
             txMsg.transaction() = tx;
-            populateTxMap(txMsg);
+            auto const txn = populateTxMap(txMsg);
+            if (checkTxSig)
+            {
+                populateSignatureCache(self->mAppConnector, txn);
+            }
         }
     }
 #endif

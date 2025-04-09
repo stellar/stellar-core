@@ -143,6 +143,7 @@ class LedgerSnapshot : public NonMovableOrCopyable
   public:
     LedgerSnapshot(AbstractLedgerTxn& ltx);
     LedgerSnapshot(Application& app);
+    explicit LedgerSnapshot(SearchableSnapshotConstPtr snapshot);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper

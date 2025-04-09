@@ -198,6 +198,15 @@ TransactionTestFrame::getFee(LedgerHeader const& header,
     return mTransactionFrame->getFee(header, baseFee, applying);
 }
 
+bool
+TransactionTestFrame::checkSignature(SignatureChecker& signatureChecker,
+                                     LedgerEntryWrapper const& account,
+                                     int32_t neededWeight) const
+{
+    return mTransactionFrame->checkSignature(signatureChecker, account,
+                                             neededWeight);
+}
+
 Hash const&
 TransactionTestFrame::getContentsHash() const
 {

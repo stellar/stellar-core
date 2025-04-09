@@ -168,6 +168,8 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
+    SearchableSnapshotConstPtr& getOverlayThreadSnapshot() override;
+
   private:
     struct ResolvedPeers
     {
@@ -182,6 +184,9 @@ class OverlayManagerImpl : public OverlayManager
     int mResolvingPeersRetryCount;
     RandomEvictionCache<Hash, std::weak_ptr<CapacityTrackedMessage>>
         mScheduledMessages;
+
+    // Snapshot of ledger state for use ONLY by the overlay thread
+    SearchableSnapshotConstPtr mOverlayThreadSnapshot;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

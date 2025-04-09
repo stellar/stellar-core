@@ -211,5 +211,9 @@ class OverlayManager
     // synchorization is needed
     virtual bool
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> tracker) = 0;
+
+    // Get a snapshot of ledger state for use by the overlay thread only. Caller
+    // is responsible for updating the snapshot as needed.
+    virtual SearchableSnapshotConstPtr& getOverlayThreadSnapshot() = 0;
 };
 }
