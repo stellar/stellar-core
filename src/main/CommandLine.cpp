@@ -363,6 +363,13 @@ ledgerHashParser(std::string& ledgerHash)
 }
 
 clara::Opt
+wasmHashParser(std::string& wasmHash)
+{
+    return clara::Opt{wasmHash, "HASH"}["--wasm-hash"](
+        "Hash of the a specific Wasm blob to dump, or 'ALL' to dump all");
+}
+
+clara::Opt
 forceUntrustedCatchup(bool& force)
 {
     return clara::Opt{force}["--force-untrusted-catchup"](
@@ -1024,6 +1031,22 @@ runDumpXDR(CommandLineArgs const& args)
     return runWithHelp(args, {compactParser(compact), fileNameParser(xdr)},
                        [&] {
                            dumpXdrStream(xdr, compact);
+                           return 0;
+                       });
+}
+
+int
+runDumpWasm(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string hash;
+    std::string dir;
+
+    return runWithHelp(args,
+                       {configurationParser(configOption), wasmHashParser(hash),
+                        outputDirParser(dir)},
+                       [&] {
+                           dumpWasmBlob(configOption.getConfig(), hash, dir);
                            return 0;
                        });
 }
@@ -1942,6 +1965,8 @@ handleCommandLine(int argc, char* const* argv)
          {"dump-ledger", "dumps the current ledger state as JSON for debugging",
           runDumpLedger},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
+         {"dump-wasm", "dump WASM blobs from ledger, for debugging",
+          runDumpWasm},
          {"encode-asset", "Print an encoded asset in base 64 for debugging",
           runEncodeAsset},
          {"force-scp", "deprecated, use --wait-for-consensus option instead",
