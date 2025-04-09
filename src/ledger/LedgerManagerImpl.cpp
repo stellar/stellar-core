@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerManagerImpl.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
@@ -20,12 +21,15 @@
 #include "history/HistoryManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
+#include "rust/RustBridge.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
@@ -41,8 +45,10 @@
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
 #include "work/WorkScheduler.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 
+#include <cstdint>
 #include <fmt/format.h>
 
 #ifdef BUILD_TESTS
@@ -61,6 +67,8 @@
 #include <Tracy.hpp>
 
 #include <chrono>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <regex>
 #include <sstream>
@@ -130,7 +138,8 @@ LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
 
 LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
     medida::MetricsRegistry& registry)
-    : mTransactionApply(registry.NewTimer({"ledger", "transaction", "apply"}))
+    : mSorobanMetrics(registry)
+    , mTransactionApply(registry.NewTimer({"ledger", "transaction", "apply"}))
     , mTransactionCount(
           registry.NewHistogram({"ledger", "transaction", "count"}))
     , mOperationCount(registry.NewHistogram({"ledger", "operation", "count"}))
@@ -154,10 +163,38 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
 {
 }
 
+static std::vector<uint32_t>
+getModuleCacheProtocols()
+{
+    std::vector<uint32_t> ledgerVersions;
+    for (uint32_t i = (uint32_t)REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION;
+         i <= Config::CURRENT_LEDGER_PROTOCOL_VERSION; i++)
+    {
+        ledgerVersions.push_back(i);
+    }
+    auto extra = getenv("SOROBAN_TEST_EXTRA_PROTOCOL");
+    if (extra)
+    {
+        uint32_t proto = static_cast<uint32_t>(atoi(extra));
+        if (proto > 0)
+        {
+            ledgerVersions.push_back(proto);
+        }
+    }
+    return ledgerVersions;
+}
+
+LedgerManagerImpl::ApplyState::ApplyState(Application& app)
+    : mMetrics(app.getMetrics())
+    , mModuleCache(::rust_bridge::new_module_cache())
+    , mModuleCacheProtocols(getModuleCacheProtocols())
+    , mNumCompilationThreads(app.getConfig().COMPILATION_THREADS)
+{
+}
+
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
-    , mLedgerApplyMetrics(app.getMetrics())
-    , mSorobanMetrics(app.getMetrics())
+    , mApplyState(app)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
@@ -248,7 +285,7 @@ LedgerManager::genesisLedger()
 void
 LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 {
-    auto ledgerTime = mLedgerApplyMetrics.mLedgerClose.TimeScope();
+    auto ledgerTime = mApplyState.mMetrics.mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
@@ -437,6 +474,12 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         updateSorobanNetworkConfigForApply(ltx);
         getLCLState().sorobanConfig = mApplyState.mSorobanNetworkConfig;
     }
+
+    // Prime module cache with LCL state, not apply-state. This is acceptable
+    // here because we just started and there is no apply-state yet and no apply
+    // thread to hold such state.
+    mApplyState.compileAllContractsInLedger(getLCLState().snapshot,
+                                            latestLedgerHeader->ledgerVersion);
 }
 
 Database&
@@ -590,50 +633,157 @@ LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 SorobanMetrics&
 LedgerManagerImpl::getSorobanMetrics()
 {
-    return mSorobanMetrics;
+    return mApplyState.mMetrics.mSorobanMetrics;
+}
+
+::rust::Box<rust_bridge::SorobanModuleCache>
+LedgerManagerImpl::getModuleCache()
+{
+    // There should not be any compilation running when
+    // anyone calls this function. It is accessed from
+    // transactions during apply only.
+    releaseAssert(!mApplyState.mCompiler);
+    return mApplyState.mModuleCache->shallow_clone();
+}
+
+void
+LedgerManagerImpl::ApplyState::finishPendingCompilation()
+{
+    releaseAssert(mCompiler);
+    auto newCache = mCompiler->wait();
+    mMetrics.mSorobanMetrics.mModuleCacheRebuildBytes.set_count(
+        (int64)mCompiler->getBytesCompiled());
+    mMetrics.mSorobanMetrics.mModuleCacheNumEntries.set_count(
+        (int64)mCompiler->getContractsCompiled());
+    mMetrics.mSorobanMetrics.mModuleCacheRebuildTime.Update(
+        mCompiler->getCompileTime());
+    mModuleCache.swap(newCache);
+    mCompiler.reset();
+}
+
+void
+LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
+    SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
+{
+    startCompilingAllContracts(snap, minLedgerVersion);
+    finishPendingCompilation();
+}
+
+void
+LedgerManagerImpl::ApplyState::startCompilingAllContracts(
+    SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
+{
+    // Always stop a previous compilation before starting a new one. Can only
+    // have one running at any time.
+    releaseAssert(!mCompiler);
+    std::vector<uint32_t> versions;
+    for (auto const& v : mModuleCacheProtocols)
+    {
+        if (v >= minLedgerVersion)
+        {
+            versions.push_back(v);
+        }
+    }
+    mCompiler = std::make_unique<SharedModuleCacheCompiler>(
+        snap, mNumCompilationThreads, versions);
+    mCompiler->start();
+}
+
+void
+LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
+    SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
+{
+    // There is (currently) a grow-only arena underlying the module cache, so as
+    // entries are uploaded and evicted that arena will still grow. To cap this
+    // growth, we periodically rebuild the module cache from scratch.
+    //
+    // We could pick various size caps, but we want to avoid rebuilding
+    // spuriously when there just happens to be "a fairly large" cache due to
+    // having a fairly large live BL. I.e. we want to allow it to get as big as
+    // we can -- or as big as the "natural" BL-limits-dictated size -- while
+    // still rebuilding fairly often in DoS-attempt scenarios or just generally
+    // if there's regular upload/expiry churn that would otherwise cause
+    // unbounded growth.
+    //
+    // Unfortunately we do not know exactly how much memory is used by each byte
+    // of contract we compile, and the size estimates from the cost model have
+    // to assume a worst case which is almost a factor of _40_ larger than the
+    // byte-size of the contracts. So for example if we assume 100MB of
+    // contracts, the cost model says we ought to budget for 4GB of memory, just
+    // in case _all 100MB of contracts_ are "the worst case contract" that's
+    // just a continuous stream of function definitions.
+    //
+    // So: we take this multiplier, times the size of the contracts we _last_
+    // drew from the BL when doing a full recompile, times two, as a cap on the
+    // _current_ (post-rebuild, currently-growing) cache's budget-tracked
+    // memory. This should avoid rebuilding spuriously, while still treating
+    // events that double the size of the contract-set in the live BL as an
+    // event that warrants a rebuild.
+
+    // We try to fish the current cost multiplier out of the soroban network
+    // config's memory cost model, but fall back to a conservative default in
+    // case there is no mem cost param for VmInstantiation (This should never
+    // happen but just in case).
+    uint64_t linearTerm = 5000;
+
+    // linearTerm is in 1/128ths in the cost model, to reduce rounding error.
+    uint64_t scale = 128;
+
+    auto const& memParams = mSorobanNetworkConfig->memCostParams();
+    if (memParams.size() > (size_t)stellar::VmInstantiation)
+    {
+        auto const& param = memParams[(size_t)stellar::VmInstantiation];
+        linearTerm = param.linearTerm;
+    }
+    auto lastBytesCompiled =
+        mMetrics.mSorobanMetrics.mModuleCacheRebuildBytes.count();
+    uint64_t limit = 2 * lastBytesCompiled * linearTerm / scale;
+    if (mModuleCache->get_mem_bytes_consumed() > limit)
+    {
+        CLOG_DEBUG(Ledger,
+                   "Rebuilding module cache: worst-case estimate {} "
+                   "model-bytes consumed of {} limit",
+                   mModuleCache->get_mem_bytes_consumed(), limit);
+        startCompilingAllContracts(snap, minLedgerVersion);
+    }
 }
 
 void
 LedgerManagerImpl::publishSorobanMetrics()
 {
     auto const& conf = getSorobanNetworkConfigForApply();
+    auto& m = getSorobanMetrics();
     // first publish the network config limits
-    mSorobanMetrics.mConfigContractDataKeySizeBytes.set_count(
+    m.mConfigContractDataKeySizeBytes.set_count(
         conf.maxContractDataKeySizeBytes());
-    mSorobanMetrics.mConfigMaxContractDataEntrySizeBytes.set_count(
+    m.mConfigMaxContractDataEntrySizeBytes.set_count(
         conf.maxContractDataEntrySizeBytes());
-    mSorobanMetrics.mConfigMaxContractSizeBytes.set_count(
-        conf.maxContractSizeBytes());
-    mSorobanMetrics.mConfigTxMaxSizeByte.set_count(conf.txMaxSizeBytes());
-    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(conf.txMaxInstructions());
-    mSorobanMetrics.mConfigTxMemoryLimitBytes.set_count(conf.txMemoryLimit());
-    mSorobanMetrics.mConfigTxMaxReadLedgerEntries.set_count(
-        conf.txMaxReadLedgerEntries());
-    mSorobanMetrics.mConfigTxMaxReadBytes.set_count(conf.txMaxReadBytes());
-    mSorobanMetrics.mConfigTxMaxWriteLedgerEntries.set_count(
-        conf.txMaxWriteLedgerEntries());
-    mSorobanMetrics.mConfigTxMaxWriteBytes.set_count(conf.txMaxWriteBytes());
-    mSorobanMetrics.mConfigMaxContractEventsSizeBytes.set_count(
+    m.mConfigMaxContractSizeBytes.set_count(conf.maxContractSizeBytes());
+    m.mConfigTxMaxSizeByte.set_count(conf.txMaxSizeBytes());
+    m.mConfigTxMaxCpuInsn.set_count(conf.txMaxInstructions());
+    m.mConfigTxMemoryLimitBytes.set_count(conf.txMemoryLimit());
+    m.mConfigTxMaxReadLedgerEntries.set_count(conf.txMaxReadLedgerEntries());
+    m.mConfigTxMaxReadBytes.set_count(conf.txMaxReadBytes());
+    m.mConfigTxMaxWriteLedgerEntries.set_count(conf.txMaxWriteLedgerEntries());
+    m.mConfigTxMaxWriteBytes.set_count(conf.txMaxWriteBytes());
+    m.mConfigMaxContractEventsSizeBytes.set_count(
         conf.txMaxContractEventsSizeBytes());
-    mSorobanMetrics.mConfigLedgerMaxTxCount.set_count(conf.ledgerMaxTxCount());
-    mSorobanMetrics.mConfigLedgerMaxInstructions.set_count(
-        conf.ledgerMaxInstructions());
-    mSorobanMetrics.mConfigLedgerMaxTxsSizeByte.set_count(
+    m.mConfigLedgerMaxTxCount.set_count(conf.ledgerMaxTxCount());
+    m.mConfigLedgerMaxInstructions.set_count(conf.ledgerMaxInstructions());
+    m.mConfigLedgerMaxTxsSizeByte.set_count(
         conf.ledgerMaxTransactionSizesBytes());
-    mSorobanMetrics.mConfigLedgerMaxReadLedgerEntries.set_count(
+    m.mConfigLedgerMaxReadLedgerEntries.set_count(
         conf.ledgerMaxReadLedgerEntries());
-    mSorobanMetrics.mConfigLedgerMaxReadBytes.set_count(
-        conf.ledgerMaxReadBytes());
-    mSorobanMetrics.mConfigLedgerMaxWriteEntries.set_count(
+    m.mConfigLedgerMaxReadBytes.set_count(conf.ledgerMaxReadBytes());
+    m.mConfigLedgerMaxWriteEntries.set_count(
         conf.ledgerMaxWriteLedgerEntries());
-    mSorobanMetrics.mConfigLedgerMaxWriteBytes.set_count(
-        conf.ledgerMaxWriteBytes());
-    mSorobanMetrics.mConfigBucketListTargetSizeByte.set_count(
+    m.mConfigLedgerMaxWriteBytes.set_count(conf.ledgerMaxWriteBytes());
+    m.mConfigBucketListTargetSizeByte.set_count(
         conf.bucketListTargetSizeBytes());
-    mSorobanMetrics.mConfigFeeWrite1KB.set_count(conf.feeWrite1KB());
+    m.mConfigFeeWrite1KB.set_count(conf.feeWrite1KB());
 
     // then publish the actual ledger usage
-    mSorobanMetrics.publishAndResetLedgerWideMetrics();
+    m.publishAndResetLedgerWideMetrics();
 }
 
 // called by txherder
@@ -706,7 +856,7 @@ LedgerManagerImpl::secondsSinceLastLedgerClose() const
 void
 LedgerManagerImpl::syncMetrics()
 {
-    mLedgerApplyMetrics.mLedgerAge.set_count(secondsSinceLastLedgerClose());
+    mApplyState.mMetrics.mLedgerAge.set_count(secondsSinceLastLedgerClose());
     mApp.syncOwnMetrics();
 }
 
@@ -720,13 +870,13 @@ LedgerManagerImpl::emitNextMeta()
     auto timer = LogSlowExecution("MetaStream write",
                                   LogSlowExecution::Mode::AUTOMATIC_RAII,
                                   "took", std::chrono::milliseconds(100));
-    auto streamWrite = mLedgerApplyMetrics.mMetaStreamWriteTime.TimeScope();
+    auto streamWrite = mApplyState.mMetrics.mMetaStreamWriteTime.TimeScope();
     if (mMetaStream)
     {
         size_t written = 0;
         mMetaStream->writeOne(mNextMetaToEmit->getXDR(), nullptr, &written);
         mMetaStream->flush();
-        mLedgerApplyMetrics.mMetaStreamBytes.Mark(written);
+        mApplyState.mMetrics.mMetaStreamBytes.Mark(written);
     }
     if (mMetaDebugStream)
     {
@@ -834,11 +984,19 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         return;
     }
 
+    // Complete any pending wasm-module-compilation before closing the ledger.
+    // This might or might-not exist, depending on whether we triggered a
+    // compilation in the previous ledger-apply.
+    if (mApplyState.mCompiler)
+    {
+        mApplyState.finishPendingCompilation();
+    }
+
 #ifdef BUILD_TESTS
     mLastLedgerTxMeta.clear();
 #endif
     ZoneScoped;
-    auto ledgerTime = mLedgerApplyMetrics.mLedgerClose.TimeScope();
+    auto ledgerTime = mApplyState.mMetrics.mLedgerClose.TimeScope();
     LogSlowExecution applyLedgerTime{"applyLedger",
                                      LogSlowExecution::Mode::MANUAL, "",
                                      std::chrono::milliseconds::max()};
@@ -867,11 +1025,11 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     ZoneValue(static_cast<int64_t>(header.current().ledgerSeq));
 
     auto now = mApp.getClock().now();
-    mLedgerApplyMetrics.mLedgerAgeClosed.Update(now - mLastClose);
+    mApplyState.mMetrics.mLedgerAgeClosed.Update(now - mLastClose);
     // mLastClose is only accessed by a single thread, so no synchronization
     // needed
     mLastClose = now;
-    mLedgerApplyMetrics.mLedgerAge.set_count(0);
+    mApplyState.mMetrics.mLedgerAge.set_count(0);
 
     TxSetXDRFrameConstPtr txSet = ledgerData.getTxSet();
 
@@ -1152,6 +1310,10 @@ void
 LedgerManagerImpl::setLastClosedLedger(
     LedgerHeaderHistoryEntry const& lastClosed)
 {
+    // NB: this method is a sort of half-apply that runs on main thread and
+    // updates LCL without apply having happened any txs. It's only relevant
+    // when finishing the _bucket-apply_ phase of catchup (which is not
+    // transaction-apply, it's like "load any bucket state into the DB").
     ZoneScoped;
     releaseAssert(threadIsMain());
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -1165,11 +1327,19 @@ LedgerManagerImpl::setLastClosedLedger(
         advanceBucketListSnapshotAndMakeLedgerState(lastClosed.header, has));
 
     LedgerTxn ltx2(mApp.getLedgerTxnRoot());
-    if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    auto lv = ltx2.loadHeader().current().ledgerVersion;
+    if (protocolVersionStartsFrom(lv, SOROBAN_PROTOCOL_VERSION))
     {
         mApp.getLedgerManager().updateSorobanNetworkConfigForApply(ltx2);
     }
+    // This should not be additionally conditionalized on lv >= anything,
+    // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
+    //
+    // Again, since we are only called during catchup and just got a full
+    // bucket state, there's no tx-apply state to snapshot, in this one
+    // case we will prime the tx-apply-state's soroban module cache using
+    // a snapshot _from_ the LCL state.
+    mApplyState.compileAllContractsInLedger(getLCLState().snapshot, lv);
 }
 
 void
@@ -1601,11 +1771,11 @@ LedgerManagerImpl::applyTransactions(
     // Record counts
     if (numTxs > 0)
     {
-        mLedgerApplyMetrics.mTransactionCount.Update(
+        mApplyState.mMetrics.mTransactionCount.Update(
             static_cast<int64_t>(numTxs));
         TracyPlot("ledger.transaction.count", static_cast<int64_t>(numTxs));
 
-        mLedgerApplyMetrics.mOperationCount.Update(
+        mApplyState.mMetrics.mOperationCount.Update(
             static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
         CLOG_INFO(Tx, "applying ledger {} ({})",
@@ -1631,7 +1801,7 @@ LedgerManagerImpl::applyTransactions(
             ZoneNamedN(txZone, "applyTransaction", true);
             auto mutableTxResult = mutableTxResults.at(resultIndex++);
 
-            auto txTime = mLedgerApplyMetrics.mTransactionApply.TimeScope();
+            auto txTime = mApplyState.mMetrics.mTransactionApply.TimeScope();
             TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion,
                                     mApp.getConfig());
 
@@ -1701,11 +1871,11 @@ LedgerManagerImpl::applyTransactions(
         }
     }
 
-    mLedgerApplyMetrics.mTransactionApplySucceeded.inc(txSucceeded);
-    mLedgerApplyMetrics.mTransactionApplyFailed.inc(txFailed);
-    mLedgerApplyMetrics.mSorobanTransactionApplySucceeded.inc(
+    mApplyState.mMetrics.mTransactionApplySucceeded.inc(txSucceeded);
+    mApplyState.mMetrics.mTransactionApplyFailed.inc(txFailed);
+    mApplyState.mMetrics.mSorobanTransactionApplySucceeded.inc(
         sorobanTxSucceeded);
-    mLedgerApplyMetrics.mSorobanTransactionApplyFailed.inc(sorobanTxFailed);
+    mApplyState.mMetrics.mSorobanTransactionApplyFailed.inc(sorobanTxFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
     return txResultSet;
 }
@@ -1721,7 +1891,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                ledgerSeq, numTxs, numOps, hitRate);
 
     // We lose a bit of precision here, as medida only accepts int64_t
-    mLedgerApplyMetrics.mPrefetchHitRate.Update(std::llround(hitRate));
+    mApplyState.mMetrics.mPrefetchHitRate.Update(std::llround(hitRate));
     TracyPlot("ledger.prefetch.hit-rate", hitRate);
 }
 
@@ -1820,6 +1990,8 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                 ledgerCloseMeta->populateEvictedEntries(evictedState);
             }
 
+            mApplyState.evictFromModuleCache(lh.ledgerVersion, evictedState);
+
             ltxEvictions.commit();
         }
 
@@ -1831,6 +2003,8 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
         mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                              deadEntries);
     }
@@ -1889,6 +2063,77 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
         res = advanceBucketListSnapshotAndMakeLedgerState(lh, has);
     });
 
+    if (protocolVersionStartsFrom(
+            initialLedgerVers, REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION))
+    {
+        mApplyState.maybeRebuildModuleCache(res.snapshot, initialLedgerVers);
+    }
+
     return res;
 }
+
+void
+LedgerManagerImpl::ApplyState::evictFromModuleCache(
+    uint32_t ledgerVersion, EvictedStateVectors const& evictedState)
+{
+    ZoneScoped;
+    std::vector<Hash> keys;
+    for (auto const& key : evictedState.deletedKeys)
+    {
+        if (key.type() == CONTRACT_CODE)
+        {
+            keys.emplace_back(key.contractCode().hash);
+        }
+    }
+    for (auto const& entry : evictedState.archivedEntries)
+    {
+        if (entry.data.type() == CONTRACT_CODE)
+        {
+            Hash const& hash = entry.data.contractCode().hash;
+            keys.emplace_back(hash);
+        }
+    }
+    if (keys.size() > 0)
+    {
+        CLOG_DEBUG(Ledger, "evicting {} modules from module cache",
+                   keys.size());
+        for (auto const& hash : keys)
+        {
+            CLOG_DEBUG(Ledger, "evicting {} from module cache", binToHex(hash));
+            ::rust::Slice<uint8_t const> slice{hash.data(), hash.size()};
+            mModuleCache->evict_contract_code(slice);
+            mMetrics.mSorobanMetrics.mModuleCacheNumEntries.dec();
+        }
+    }
+}
+
+void
+LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
+    uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
+{
+    ZoneScoped;
+    for (auto const& e : le)
+    {
+        if (e.data.type() == CONTRACT_CODE)
+        {
+            for (auto const& v : mModuleCacheProtocols)
+            {
+                if (v >= ledgerVersion)
+                {
+                    auto const& wasm = e.data.contractCode().code;
+                    CLOG_DEBUG(Ledger,
+                               "compiling wasm {} for protocol {} module cache",
+                               binToHex(sha256(wasm)), v);
+                    auto slice =
+                        rust::Slice<const uint8_t>(wasm.data(), wasm.size());
+                    mMetrics.mSorobanMetrics.mModuleCacheNumEntries.inc();
+                    auto timer = mMetrics.mSorobanMetrics.mModuleCompilationTime
+                                     .TimeScope();
+                    mModuleCache->compile(v, slice);
+                }
+            }
+        }
+    }
+}
+
 }

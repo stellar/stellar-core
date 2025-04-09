@@ -9,12 +9,16 @@
 #include "overlay/OverlayMetrics.h"
 #include "overlay/Peer.h"
 #include "util/Timer.h"
+#include <mutex>
+#include <shared_mutex>
 
 namespace stellar
 {
 
 AppConnector::AppConnector(Application& app)
-    : mApp(app), mConfig(app.getConfig())
+    : mApp(app)
+    , mConfig(app.getConfig())
+    , mModuleCache(rust_bridge::new_module_cache())
 {
 }
 
@@ -105,6 +109,12 @@ Config const&
 AppConnector::getConfig() const
 {
     return mConfig;
+}
+
+rust::Box<rust_bridge::SorobanModuleCache>
+AppConnector::getModuleCache()
+{
+    return mApp.getLedgerManager().getModuleCache();
 }
 
 bool
