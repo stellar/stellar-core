@@ -687,8 +687,14 @@ impl ErrorHandler for CoreCompilationContext {
 
 #[allow(dead_code)]
 pub(crate) struct ProtocolSpecificModuleCache {
-    compilation_context: CoreCompilationContext,
+    // `ModuleCache` itself is threadsafe -- does its own internal locking -- so
+    // it's ok to directly access it from multiple threads.
     pub(crate) module_cache: ModuleCache,
+    // `CompilationContext` is _not_  threadsafe (specifically its `Budget` is
+    // not) and so rather than reuse a single `CompilationContext` across
+    // threads, we make a throwaway `CompilationContext` on each `compile` call,
+    // and _copy out_ the memory usage (which we want to publish back to core).
+    pub(crate) mem_bytes_consumed: std::sync::atomic::AtomicU64,
 }
 
 #[allow(dead_code)]
@@ -697,17 +703,25 @@ impl ProtocolSpecificModuleCache {
         let compilation_context = CoreCompilationContext::new()?;
         let module_cache = ModuleCache::new(&compilation_context)?;
         Ok(ProtocolSpecificModuleCache {
-            compilation_context,
             module_cache,
+            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
         })
     }
 
     pub(crate) fn compile(&mut self, wasm: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self.module_cache.parse_and_cache_module_simple(
-            &self.compilation_context,
+        let compilation_context = CoreCompilationContext::new()?;
+        let res = self.module_cache.parse_and_cache_module_simple(
+            &compilation_context,
             get_max_proto(),
             wasm,
-        )?)
+        );
+        self.mem_bytes_consumed.fetch_add(
+            compilation_context
+                .unlimited_budget
+                .get_mem_bytes_consumed()?,
+            std::sync::atomic::Ordering::SeqCst,
+        );
+        Ok(res?)
     }
 
     pub(crate) fn evict(&mut self, key: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
@@ -728,9 +742,8 @@ impl ProtocolSpecificModuleCache {
 
     pub(crate) fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
         Ok(self
-            .compilation_context
-            .unlimited_budget
-            .get_mem_bytes_consumed()?)
+            .mem_bytes_consumed
+            .load(std::sync::atomic::Ordering::SeqCst))
     }
 
     // This produces a new `SorobanModuleCache` with a separate
