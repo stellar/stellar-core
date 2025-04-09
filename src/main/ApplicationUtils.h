@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
 #include "main/Application.h"
@@ -33,6 +34,7 @@ int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<uint64_t> limit,
                std::optional<std::string> groupBy,
                std::optional<std::string> aggregate, bool includeAllStates);
+void dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir);
 void showOfflineInfo(Config cfg, bool verbose);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
 
