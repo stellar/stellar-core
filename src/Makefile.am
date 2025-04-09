@@ -188,6 +188,11 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLC
 	done
 	touch $@
 
+# Of course, RUST_PROFILE can't be used as an argument directly because cargo
+# doesn't let you pass --debug, that's the default! you can only pass --release.
+# So we have to derive a new variable here.
+RUST_PROFILE_ARG := $(if $(findstring release,$(RUST_PROFILE)),--release,)
+
 # This next build command looks a little weird but it's necessary. We have to
 # provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
 # essentially manually marking-as-different the separate dependency trees
@@ -252,7 +257,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
 			--package soroban-env-host \
-			--$(RUST_PROFILE) \
+			$(RUST_PROFILE_ARG) \
 			--locked \
 			$$FEATURE_FLAGS \
 		|| exit 1; \
@@ -279,7 +284,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SORO
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \
-		--$(RUST_PROFILE) \
+		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
