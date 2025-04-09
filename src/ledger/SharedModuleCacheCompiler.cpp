@@ -95,24 +95,28 @@ SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
 
     auto start = std::chrono::steady_clock::now();
     auto slice = rust::Slice<const uint8_t>(wasm.data(), wasm.size());
-    try
+    auto hash = binToHex(sha256(wasm));
+    for (auto ledgerVersion : mLedgerVersions)
     {
-        for (auto ledgerVersion : mLedgerVersions)
+        try
         {
             mModuleCache->compile(ledgerVersion, slice);
         }
-    }
-    catch (std::exception const& e)
-    {
-        LOG_ERROR(DEFAULT_LOG, "Thread {} failed to compile wasm code: {}",
-                  thread, e.what());
+        catch (std::exception const& e)
+        {
+            LOG_FATAL(DEFAULT_LOG,
+                      "Thread {} failed to compile {} byte wasm {} for "
+                      "protocol {}: {}",
+                      thread, wasm.size(), hash, ledgerVersion, e.what());
+            throw;
+        }
     }
     auto end = std::chrono::steady_clock::now();
     auto dur_us =
         std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     LOG_DEBUG(DEFAULT_LOG,
               "Thread {} compiled {} byte wasm contract {} in {}us", thread,
-              wasm.size(), binToHex(sha256(wasm)), dur_us.count());
+              wasm.size(), hash, dur_us.count());
     lock.lock();
     mTotalCompileTime += dur_us;
     mBytesCompiled += wasm.size();
