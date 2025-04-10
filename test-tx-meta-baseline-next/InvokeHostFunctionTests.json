@@ -1275,18 +1275,57 @@
 		"MtyHt86Cl3c=",
 		"ekW8QvOGBsA="
 	],
-	"Trustline stellar asset contract" : 
+	"Trustline stellar asset contract|protocol version 20" : 
 	[
-		"+cR3oq2qY0I=",
-		"UUO+3NzWdGY=",
-		"9YBzLf7Gn70=",
-		"j/i30QTza6g=",
-		"oOd4UFJwaNI=",
-		"rfEisfZZUr0=",
-		"4vQqzZz/TCw=",
-		"FFaCWDXFbgE=",
-		"b8F3y/dEebI=",
-		"9+ueY3Y+96w="
+		"4nqxObZBYsM=",
+		"ncziGM/mb4c=",
+		"x7T+u/+Llm4=",
+		"tR1jnSCKmGM=",
+		"qg4g0X8TKfE=",
+		"w8gN/5b5bF4=",
+		"g8+0zOCHFeE=",
+		"s6bgLIKFqqE=",
+		"oWQ5/ujS+f8=",
+		"P2GJBBebJVQ="
+	],
+	"Trustline stellar asset contract|protocol version 21" : 
+	[
+		"4nqxObZBYsM=",
+		"ncziGM/mb4c=",
+		"x7T+u/+Llm4=",
+		"tR1jnSCKmGM=",
+		"qg4g0X8TKfE=",
+		"w8gN/5b5bF4=",
+		"g8+0zOCHFeE=",
+		"s6bgLIKFqqE=",
+		"oWQ5/ujS+f8=",
+		"P2GJBBebJVQ="
+	],
+	"Trustline stellar asset contract|protocol version 22" : 
+	[
+		"4nqxObZBYsM=",
+		"woP5frk/+9A=",
+		"x7T+u/+Llm4=",
+		"1/tmd2rqzrQ=",
+		"SNUv8kkAO/0=",
+		"31y0+AwXPko=",
+		"y96HP+I/ZWY=",
+		"s6bgLIKFqqE=",
+		"oWQ5/ujS+f8=",
+		"P2GJBBebJVQ="
+	],
+	"Trustline stellar asset contract|protocol version 23" : 
+	[
+		"4nqxObZBYsM=",
+		"gP+N1+Dj0B8=",
+		"x7T+u/+Llm4=",
+		"l3dXrmMrmh4=",
+		"gonEIIm6OYY=",
+		"tJT2t0x2pLM=",
+		"hsMbUaJ6k+A=",
+		"s6bgLIKFqqE=",
+		"hdZpkD7Ci5A=",
+		"P2GJBBebJVQ="
 	],
 	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],
 	"basic contract invocation" : 

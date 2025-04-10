@@ -970,7 +970,6 @@ TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
     auto app = createTestApplication(clock, cfg);
 
     // set up world
-    // set up world
     auto root = app->getRoot();
 
     int64_t trustLineBalance = 100000;

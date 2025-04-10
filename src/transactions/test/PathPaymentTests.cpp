@@ -70,7 +70,10 @@ assetPathToString(const std::deque<Asset>& assets)
 
 TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 {
-    auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    cfg.INVARIANT_CHECKS = {".*"};
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
