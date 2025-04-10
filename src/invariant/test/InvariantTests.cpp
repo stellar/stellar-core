@@ -13,6 +13,7 @@
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
@@ -221,4 +222,47 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
         REQUIRE_NOTHROW(app->getInvariantManager().checkOnOperationApply(
             {}, res, ltx.getDelta(), {}));
     }
+}
+
+TEST_CASE_VERSIONS("EventsAreConsistentWithEntryDiffs invariant", "[invariant]")
+{
+    auto invariantTest = [](bool enableInvariant) {
+        VirtualClock clock;
+        auto cfg = getTestConfig(0);
+        if (enableInvariant)
+        {
+            cfg.INVARIANT_CHECKS = {"EventsAreConsistentWithEntryDiffs"};
+            cfg.EMIT_CLASSIC_EVENTS = true;
+            cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+        }
+        else
+        {
+            cfg.INVARIANT_CHECKS = {};
+        }
+
+        auto app = createTestApplication(clock, cfg);
+
+        // set up world
+        auto root = app->getRoot();
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadAccount(ltx, root->getPublicKey());
+        REQUIRE(ltxe.current().data.type() == ACCOUNT);
+        ltxe.current().data.account().balance -= 1;
+
+        OperationResult res;
+        if (enableInvariant)
+        {
+            REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
+                                  {}, res, ltx.getDelta(), {}),
+                              InvariantDoesNotHold);
+        }
+        else
+        {
+            REQUIRE_NOTHROW(app->getInvariantManager().checkOnOperationApply(
+                {}, res, ltx.getDelta(), {}));
+        }
+    };
+
+    invariantTest(true);
+    invariantTest(false);
 }

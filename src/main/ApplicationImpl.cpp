@@ -1497,6 +1497,19 @@ ApplicationImpl::enableInvariantsFromConfig()
     {
         mInvariantManager->enableInvariant(name);
     }
+    auto const& invariants = mInvariantManager->getEnabledInvariants();
+    auto eventsInvariantEnabled =
+        std::find(invariants.begin(), invariants.end(),
+                  "EventsAreConsistentWithEntryDiffs") != invariants.end();
+
+    if (eventsInvariantEnabled && (!mConfig.EMIT_CLASSIC_EVENTS ||
+                                   !mConfig.BACKFILL_STELLAR_ASSET_EVENTS))
+    {
+        throw std::invalid_argument(
+            "Invalid configuration: EventsAreConsistentWithEntryDiffs "
+            "invariant requires both EMIT_CLASSIC_EVENTS and "
+            "BACKFILL_STELLAR_ASSET_EVENTS config options to be enabled");
+    }
 }
 
 std::unique_ptr<Herder>
