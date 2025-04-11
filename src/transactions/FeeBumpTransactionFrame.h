@@ -5,7 +5,7 @@
 #pragma once
 
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 
 namespace stellar
 {

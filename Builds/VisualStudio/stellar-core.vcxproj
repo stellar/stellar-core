@@ -736,7 +736,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionBridge.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp" />
-    <ClCompile Include="..\..\src\transactions\TransactionMetaFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\TransactionMeta.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
@@ -1143,7 +1143,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionBridge.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h" />
-    <ClInclude Include="..\..\src\transactions\TransactionMetaFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionMeta.h" />
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />

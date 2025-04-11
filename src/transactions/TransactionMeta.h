@@ -13,12 +13,21 @@
 namespace stellar
 {
 
+// The builder class for OperationMeta. This can only be instantiated by
+// TransactionMetaBuilder and accessed via `getOperationMetaBuilderAt`.
 class OperationMetaBuilder
 {
   public:
+    // Sets all the ledger changes caused by this operation from the provided
+    // ledger transaction used for this operation.
     void setLedgerChanges(AbstractLedgerTxn& opLtx);
+    // Sets the return value for a Soroban operation.
     void setSorobanReturnValue(SCVal const& val);
+    // Returns the event manager for this operation.
     OpEventManager& getEventManager();
+    // Returns the diagnostic event buffer for the transaction.
+    // There is only one diagnstic event buffer for the transaction, so this
+    // is just provided for convenience.
     DiagnosticEventBuffer& getDiagnosticEventBuffer();
 
   private:
@@ -47,6 +56,8 @@ class OperationMetaBuilder
 };
 
 #ifdef BUILD_TESTS
+// Test-only view container of TransactionMeta XDR. Outside of tests
+// TransactionMeta is write-only and thus doesn't need a view.
 class TransactionMetaFrame
 {
   public:
@@ -69,25 +80,47 @@ class TransactionMetaFrame
 };
 #endif
 
+// Builder class for transaction's meta (TransactionMeta XDR).
+// This encapsulates all the logic for routing the meta information into proper
+// XDR fields, as well as control over which parts of meta should be enabled.
 class TransactionMetaBuilder
 {
   public:
+    // Creates a meta builder for a provided transaction.
+    // The builder can can be disabled by setting `metaEnabled` to false,
+    // which will disable all the logic both in this builder, as well as in
+    // the dependent data structures, thus making them very cheap.
     TransactionMetaBuilder(bool metaEnabled, TransactionFrameBase const& tx,
                            uint32_t protocolVersion, AppConnector const& app);
+    // Returns an operation builder for the i-th operation in the corresponding
+    // transaction.
     OperationMetaBuilder& getOperationMetaBuilderAt(size_t i);
 
+    // Adds changes from the provided ledger transaction to `changesBefore`
+    // vector.
     void pushTxChangesBefore(AbstractLedgerTxn& changesBeforeLtx);
+    // Adds changes from the provided ledger transaction to `changesAfter`
+    // vector.
     void pushTxChangesAfter(AbstractLedgerTxn& changesAfterLtx);
-
+    // Sets fee for non-refundable resources. Currently this is only meaningful
+    // for Soroban transactions.
     void setNonRefundableResourceFee(int64_t fee);
+    // Sets the metadata for the refundable Soroban fee if
+    // `refundableFeeTracker` is provided (non-nullopt).
     void maybeSetRefundableFeeMeta(
         std::optional<RefundableFeeTracker> const& refundableFeeTracker);
 
+    // Returns the diagnostic event buffer for the transaction.
     DiagnosticEventBuffer& getDiagnosticEventBuffer();
 
+    // Moves the finalized transaction meta XDR out of the builder thus
+    // invalidating it.
+    // `success` indicates whether the transaction was successful, which
+    // impacts the fields populated in the XDR.
     TransactionMeta finalize(bool success);
 
   private:
+    // Helper for accessing and updating the transaction meta XDR.
     class TransactionMetaWrapper
     {
       public:

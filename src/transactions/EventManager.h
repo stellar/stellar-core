@@ -11,24 +11,43 @@ namespace stellar
 {
 class TransactionFrameBase;
 
+// If the event was emitted by an SAC, return the asset. Otherwise, return
+// nullopt.
 std::optional<Asset> getAssetFromEvent(ContractEvent const& event,
                                        Hash const& networkID);
 
+// Buffer of diagnostic events corresponding to a transaction.
+// This stores the events, so it can be used in the contexts where the events
+// are stored in different data structures (or not stored at all).
+// The buffer may be disabled, thus making all the calls that add events
+// no-ops. Whether it is enabled or not is determined by the context and the
+// configuration flags.
 class DiagnosticEventBuffer
 {
   public:
+    // Create the diagnostic event buffer for applying the transaction.
+    // Since the diagnostic events are stored in the meta, this depends on
+    // whether the meta is enabled.
     static DiagnosticEventBuffer createForApply(bool metaEnabled,
                                                 TransactionFrameBase const& tx,
                                                 Config const& config);
+    // Create the diagnostic event buffer for validating the transaction.
     static DiagnosticEventBuffer createForValidation(Config const& config);
+    // Create a disabled diagnostic event buffer.
+    // Useful for validating  transactions without propagating the diagnostic
+    // errors and for tests.
     static DiagnosticEventBuffer createDisabled();
 
+    // Adds an event to the buffer.
     void pushEvent(DiagnosticEvent&& event);
+    // Adds a simple error diagnostic event to the buffer.
     void pushError(SCErrorType ty, SCErrorCode code, std::string&& message,
                    xdr::xvector<SCVal>&& args = {});
 
+    // Returns whether the buffer is enabled.
     bool isEnabled() const;
 
+    // Moves the buffered events out from the buffer.
     xdr::xvector<DiagnosticEvent> finalize();
 
   private:
@@ -38,15 +57,27 @@ class DiagnosticEventBuffer
     bool mEnabled = false;
 };
 
+// Event manager for operation events.
+// This stores a contract event buffer corresponding to a single operation and
+// provides functions that build and add the events to the buffer.
+// This can't be instantiated directly and is only accessible from the
+// `OperationMetaBuilder` corresponding to the operation.
+// This can be disabled, thus making all the calls that add events no-ops.
 class OpEventManager
 {
   public:
+    // Returns the events collected so far.
     xdr::xvector<ContractEvent> const& getEvents();
 
+    // Returns whether the event manager is enabled.
     bool isEnabled() const;
 
+    // Sets all the events corresponding to the operation.
+    // Note, that this can be called just once per operation and is not
+    // compatible with the event generators.
     void setEvents(xdr::xvector<ContractEvent>&& events);
 
+    // Creates transfer events corresponding to provided claim atoms.
     void
     eventsForClaimAtoms(MuxedAccount const& source,
                         xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
@@ -82,6 +113,7 @@ class OpEventManager
     void newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
                                bool authorize);
 
+    // Moves the buffered events out from the event manager.
     xdr::xvector<ContractEvent> finalize();
 
   private:

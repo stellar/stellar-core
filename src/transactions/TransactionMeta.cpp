@@ -12,7 +12,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 #include "util/GlobalChecks.h"
 #include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"

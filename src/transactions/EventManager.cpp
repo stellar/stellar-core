@@ -19,8 +19,6 @@ classicEventsEnabled(uint32_t protocolVersion, Config const& config)
 }
 } // namespace
 
-// If the event was emitted by an SAC, return the asset. Otherwise, return
-// nullopt
 std::optional<Asset>
 getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
 {
@@ -486,6 +484,7 @@ OpEventManager::setEvents(xdr::xvector<ContractEvent>&& events)
     {
         return;
     }
+    releaseAssert(mContractEvents.empty());
     mContractEvents = std::move(events);
 
     if (!mUpdateSACEventsToProtocol23Format)
