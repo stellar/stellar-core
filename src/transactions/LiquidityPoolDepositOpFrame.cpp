@@ -189,11 +189,11 @@ updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
 }
 
 bool
-LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                     Hash const& sorobanBasePrngSeed,
-                                     OperationResult& res,
-                                     std::shared_ptr<SorobanTxData> sorobanData,
-                                     OpEventManager& opEventManager) const
+LiquidityPoolDepositOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolDepositOpFrame apply", true);
 
@@ -315,12 +315,12 @@ LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         throw std::runtime_error("insufficient liquidity pool limit");
     }
 
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         cpp().assetA, accountToSCAddress(getSourceAccount()),
         liquidityPoolIDToSCAddress(mLiquidityPoolDeposit.liquidityPoolID),
         amountA);
 
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         cpp().assetB, accountToSCAddress(getSourceAccount()),
         liquidityPoolIDToSCAddress(mLiquidityPoolDeposit.liquidityPoolID),
         amountB);

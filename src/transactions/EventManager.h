@@ -5,62 +5,79 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
-#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
-#include "xdr/Stellar-transaction.h"
 
 namespace stellar
 {
-class TxEventManager;
-using TxEventManagerPtr = std::shared_ptr<TxEventManager>;
 class TransactionFrameBase;
 
+// If the event was emitted by an SAC, return the asset. Otherwise, return
+// nullopt.
 std::optional<Asset> getAssetFromEvent(ContractEvent const& event,
                                        Hash const& networkID);
 
-struct DiagnosticEventBuffer
+// Buffer of diagnostic events corresponding to a transaction.
+// This stores the events, so it can be used in the contexts where the events
+// are stored in different data structures (or not stored at all).
+// The buffer may be disabled, thus making all the calls that add events
+// no-ops. Whether it is enabled or not is determined by the context and the
+// configuration flags.
+class DiagnosticEventBuffer
 {
-    xdr::xvector<DiagnosticEvent> mBuffer;
-    Config const& mConfig;
+  public:
+    // Create the diagnostic event buffer for applying the transaction.
+    // Since the diagnostic events are stored in the meta, this depends on
+    // whether the meta is enabled.
+    static DiagnosticEventBuffer createForApply(bool metaEnabled,
+                                                TransactionFrameBase const& tx,
+                                                Config const& config);
+    // Create the diagnostic event buffer for validating the transaction.
+    static DiagnosticEventBuffer createForValidation(Config const& config);
+    // Create a disabled diagnostic event buffer.
+    // Useful for validating  transactions without propagating the diagnostic
+    // errors and for tests.
+    static DiagnosticEventBuffer createDisabled();
 
-    DiagnosticEventBuffer(Config const& config);
-    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts);
-    void pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
-                                   std::string&& message,
-                                   xdr::xvector<SCVal>&& args);
-    void pushApplyTimeDiagnosticError(SCErrorType ty, SCErrorCode code,
-                                      std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {});
-    void flush(xdr::xvector<DiagnosticEvent>& buf);
+    // Adds an event to the buffer.
+    void pushEvent(DiagnosticEvent&& event);
+    // Adds a simple error diagnostic event to the buffer.
+    void pushError(SCErrorType ty, SCErrorCode code, std::string&& message,
+                   xdr::xvector<SCVal>&& args = {});
+
+    // Returns whether the buffer is enabled.
+    bool isEnabled() const;
+
+    // Moves the buffered events out from the buffer.
+    xdr::xvector<DiagnosticEvent> finalize();
+
+  private:
+    DiagnosticEventBuffer(bool enabled);
+
+    xdr::xvector<DiagnosticEvent> mBuffer;
+    bool mEnabled = false;
 };
 
-// helper functions for emitting diagnostic events in the validation workflows
-void pushDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
-                         SCErrorCode code, std::string&& message,
-                         xdr::xvector<SCVal>&& args);
-void pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr,
-                                       SCErrorType ty, SCErrorCode code,
-                                       std::string&& message,
-                                       xdr::xvector<SCVal>&& args = {});
-
+// Event manager for operation events.
+// This stores a contract event buffer corresponding to a single operation and
+// provides functions that build and add the events to the buffer.
+// This can't be instantiated directly and is only accessible from the
+// `OperationMetaBuilder` corresponding to the operation.
+// This can be disabled, thus making all the calls that add events no-ops.
 class OpEventManager
 {
-  private:
-    xdr::xvector<ContractEvent> mContractEvents;
-    TxEventManager& mParent;
-    Memo const mMemo;
-
   public:
-    OpEventManager(TxEventManager& parentTxEventManager, Memo const& memo);
+    // Returns the events collected so far.
+    xdr::xvector<ContractEvent> const& getEvents();
 
-    DiagnosticEventBuffer& getDiagnosticEventsBuffer();
+    // Returns whether the event manager is enabled.
+    bool isEnabled() const;
 
-    void pushContractEvents(xdr::xvector<ContractEvent> const& evts);
+    // Sets all the events corresponding to the operation.
+    // Note, that this can be called just once per operation and is not
+    // compatible with the event generators.
+    void setEvents(xdr::xvector<ContractEvent>&& events);
 
-    xdr::xvector<ContractEvent> const& getContractEvents();
-
-    void flushContractEvents(xdr::xvector<ContractEvent>& buf);
-
+    // Creates transfer events corresponding to provided claim atoms.
     void
     eventsForClaimAtoms(MuxedAccount const& source,
                         xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
@@ -95,41 +112,37 @@ class OpEventManager
     // sep0011_asset:String], data: { authorize:bool }
     void newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
                                bool authorize);
+
+    // Moves the buffered events out from the event manager.
+    xdr::xvector<ContractEvent> finalize();
+
+  private:
+    friend class OperationMetaBuilder;
+
+    OpEventManager(bool metaEnabled, bool isSoroban, uint32_t protocolVersion,
+                   Hash const& networkID, Memo const& mMemo,
+                   Config const& config);
+
+    Hash const& mNetworkID;
+    Memo const& mMemo;
+    bool mEnabled = false;
+    bool mUpdateSACEventsToProtocol23Format = false;
+    xdr::xvector<ContractEvent> mContractEvents;
 };
 
 class TxEventManager
 {
-  private:
-    uint32_t mProtocolVersion;
-    Hash const& mNetworkID;
-    Config const& mConfig;
-    TransactionFrameBase const& mTx;
-    xdr::xvector<ContractEvent> mTxEvents;
-    DiagnosticEventBuffer mDiagnosticEvents;
-
   public:
-    TxEventManager(uint32_t protocolVersion, Hash const& networkID,
+  private:
+    friend class TransactionMetaBuilder;
+
+    TxEventManager(bool metaEnabled, xdr::xvector<ContractEvent>& txEvents,
+                   uint32_t protocolVersion, Hash const& networkID,
                    Config const& config, TransactionFrameBase const& tx);
 
-    OpEventManager createNewOpEventManager(Memo const& memo);
-
-    DiagnosticEventBuffer& getDiagnosticEventsBuffer();
-
-    void flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf);
-
-    Hash const& getNetworkID() const;
-    uint32_t getProtocolVersion() const;
-    Config const& getConfig() const;
-
-    bool shouldEmitClassicEvents() const;
-
-#ifdef BUILD_TESTS
-    xdr::xvector<DiagnosticEvent> const&
-    getDiagnosticEvents() const
-    {
-        return mDiagnosticEvents.mBuffer;
-    }
-#endif
+    Hash const& mNetworkID;
+    xdr::xvector<ContractEvent>& mTxEvents;
+    bool mEnabled = false;
 };
 
 }

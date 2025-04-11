@@ -6,9 +6,19 @@
 
 namespace stellar
 {
+namespace
+{
+bool
+classicEventsEnabled(uint32_t protocolVersion, Config const& config)
+{
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
+    {
+        return config.EMIT_CLASSIC_EVENTS;
+    }
+    return config.BACKFILL_STELLAR_ASSET_EVENTS;
+}
+} // namespace
 
-// If the event was emitted by an SAC, return the asset. Otherwise, return
-// nullopt
 std::optional<Asset>
 getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
 {
@@ -90,24 +100,51 @@ getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
     return asset;
 }
 
-DiagnosticEventBuffer::DiagnosticEventBuffer(Config const& config)
-    : mConfig(config)
+DiagnosticEventBuffer
+DiagnosticEventBuffer::createForApply(bool metaEnabled,
+                                      TransactionFrameBase const& tx,
+                                      Config const& config)
+{
+    bool enabled = metaEnabled && tx.isSoroban() &&
+                   config.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS;
+    return DiagnosticEventBuffer(enabled);
+}
+
+DiagnosticEventBuffer
+DiagnosticEventBuffer::createForValidation(Config const& config)
+{
+    return DiagnosticEventBuffer(config.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION);
+}
+
+DiagnosticEventBuffer
+DiagnosticEventBuffer::createDisabled()
+{
+    return DiagnosticEventBuffer(false);
+}
+
+void
+DiagnosticEventBuffer::pushEvent(DiagnosticEvent&& event)
+{
+    if (mEnabled)
+    {
+        mBuffer.emplace_back(std::move(event));
+    }
+}
+
+DiagnosticEventBuffer::DiagnosticEventBuffer(bool enabled) : mEnabled(enabled)
 {
 }
 
 void
-DiagnosticEventBuffer::pushDiagnosticEvents(
-    xdr::xvector<DiagnosticEvent> const& evts)
+DiagnosticEventBuffer::pushError(SCErrorType ty, SCErrorCode code,
+                                 std::string&& message,
+                                 xdr::xvector<SCVal>&& args)
 {
-    mBuffer.insert(mBuffer.end(), evts.begin(), evts.end());
-}
+    if (!mEnabled)
+    {
+        return;
+    }
 
-void
-DiagnosticEventBuffer::pushSimpleDiagnosticError(SCErrorType ty,
-                                                 SCErrorCode code,
-                                                 std::string&& message,
-                                                 xdr::xvector<SCVal>&& args)
-{
     ContractEvent ce;
     ce.type = DIAGNOSTIC;
     ce.body.v(0);
@@ -136,54 +173,28 @@ DiagnosticEventBuffer::pushSimpleDiagnosticError(SCErrorType ty,
     mBuffer.emplace_back(false, std::move(ce));
 }
 
-void
-DiagnosticEventBuffer::pushApplyTimeDiagnosticError(SCErrorType ty,
-                                                    SCErrorCode code,
-                                                    std::string&& message,
-                                                    xdr::xvector<SCVal>&& args)
+bool
+DiagnosticEventBuffer::isEnabled() const
 {
-    if (mConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        pushSimpleDiagnosticError(ty, code, std::move(message),
-                                  std::move(args));
-    }
+    return mEnabled;
 }
 
-void
-DiagnosticEventBuffer::flush(xdr::xvector<DiagnosticEvent>& buf)
+xdr::xvector<DiagnosticEvent>
+DiagnosticEventBuffer::finalize()
 {
-    std::move(mBuffer.begin(), mBuffer.end(), std::back_inserter(buf));
-    mBuffer.clear();
-};
-
-void
-pushDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
-                    SCErrorCode code, std::string&& message,
-                    xdr::xvector<SCVal>&& args)
-{
-    if (ptr)
-    {
-        ptr->pushSimpleDiagnosticError(ty, code, std::move(message),
-                                       std::move(args));
-    }
+    return std::move(mBuffer);
 }
 
-void
-pushValidationTimeDiagnosticError(DiagnosticEventBuffer* ptr, SCErrorType ty,
-                                  SCErrorCode code, std::string&& message,
-                                  xdr::xvector<SCVal>&& args)
+OpEventManager::OpEventManager(bool metaEnabled, bool isSoroban,
+                               uint32_t protocolVersion, Hash const& networkID,
+                               Memo const& memo, Config const& config)
+    : mNetworkID(networkID), mMemo(memo)
 {
-    if (ptr && ptr->mConfig.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION)
-    {
-        ptr->pushSimpleDiagnosticError(ty, code, std::move(message),
-                                       std::move(args));
-    }
-}
-
-OpEventManager::OpEventManager(TxEventManager& parentTxEventManager,
-                               Memo const& memo)
-    : mParent(parentTxEventManager), mMemo(memo)
-{
+    mEnabled = metaEnabled &&
+               (isSoroban || classicEventsEnabled(protocolVersion, config));
+    mUpdateSACEventsToProtocol23Format =
+        config.BACKFILL_STELLAR_ASSET_EVENTS &&
+        protocolVersionIsBefore(protocolVersion, ProtocolVersion::V_23);
 }
 
 void
@@ -191,7 +202,7 @@ OpEventManager::eventsForClaimAtoms(
     MuxedAccount const& source,
     xdr::xvector<stellar::ClaimAtom> const& claimAtoms)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
@@ -262,7 +273,7 @@ OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
                                                 SCAddress const& to,
                                                 int64 amount)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
@@ -292,15 +303,14 @@ void
 OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
                                  SCAddress const& to, int64 amount)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
 
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
-    ev.contractID.activate() =
-        getAssetContractID(mParent.getNetworkID(), asset);
+    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
 
     SCVec topics = {makeSymbolSCVal("transfer"),
                     makeAddressSCVal(getAddressWithDroppedMuxedInfo(from)),
@@ -367,15 +377,14 @@ void
 OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
                              int64 amount, bool insertAtBeginning)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
 
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
-    ev.contractID.activate() =
-        getAssetContractID(mParent.getNetworkID(), asset);
+    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
 
     SCVec topics = {makeSymbolSCVal("mint"),
                     makeAddressSCVal(getAddressWithDroppedMuxedInfo(to)),
@@ -401,15 +410,14 @@ void
 OpEventManager::newBurnEvent(Asset const& asset, SCAddress const& from,
                              int64 amount)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
 
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
-    ev.contractID.activate() =
-        getAssetContractID(mParent.getNetworkID(), asset);
+    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
 
     SCVec topics = {makeSymbolSCVal("burn"),
                     makeAddressSCVal(getAddressWithDroppedMuxedInfo(from)),
@@ -425,15 +433,14 @@ void
 OpEventManager::newClawbackEvent(Asset const& asset, SCAddress const& from,
                                  int64 amount)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
 
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
-    ev.contractID.activate() =
-        getAssetContractID(mParent.getNetworkID(), asset);
+    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
 
     SCVec topics = {makeSymbolSCVal("clawback"),
                     makeAddressSCVal(getAddressWithDroppedMuxedInfo(from)),
@@ -449,15 +456,14 @@ void
 OpEventManager::newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
                                       bool authorize)
 {
-    if (!mParent.shouldEmitClassicEvents())
+    if (!mEnabled)
     {
         return;
     }
 
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
-    ev.contractID.activate() =
-        getAssetContractID(mParent.getNetworkID(), asset);
+    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
 
     SCVec topics = {makeSymbolSCVal("set_authorized"), makeAccountIDSCVal(id),
                     makeSep0011AssetStringSCVal(asset)};
@@ -471,35 +477,25 @@ OpEventManager::newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
     mContractEvents.emplace_back(std::move(ev));
 }
 
-DiagnosticEventBuffer&
-OpEventManager::getDiagnosticEventsBuffer()
-{
-    return mParent.getDiagnosticEventsBuffer();
-}
-
 void
-OpEventManager::pushContractEvents(xdr::xvector<ContractEvent> const& evts)
+OpEventManager::setEvents(xdr::xvector<ContractEvent>&& events)
 {
-    auto& ces = mContractEvents;
-    ces.insert(ces.end(), evts.begin(), evts.end());
+    if (!mEnabled)
+    {
+        return;
+    }
+    releaseAssert(mContractEvents.empty());
+    mContractEvents = std::move(events);
 
-    if (!mParent.getConfig().BACKFILL_STELLAR_ASSET_EVENTS)
+    if (!mUpdateSACEventsToProtocol23Format)
     {
         return;
     }
 
-    if ((protocolVersionIsBefore(mParent.getProtocolVersion(),
-                                 ProtocolVersion::V_20) ||
-         protocolVersionStartsFrom(mParent.getProtocolVersion(),
-                                   ProtocolVersion::V_23)))
-    {
-        return;
-    }
-
-    // We need to modify backfilled SAC events to match V23 format
+    // Modify backfilled SAC events to match V23 format
     for (auto& event : mContractEvents)
     {
-        auto res = getAssetFromEvent(event, mParent.getNetworkID());
+        auto res = getAssetFromEvent(event, mNetworkID);
         if (!res)
         {
             continue;
@@ -554,76 +550,31 @@ OpEventManager::pushContractEvents(xdr::xvector<ContractEvent> const& evts)
 }
 
 xdr::xvector<ContractEvent> const&
-OpEventManager::getContractEvents()
+OpEventManager::getEvents()
 {
     return mContractEvents;
 }
 
-void
-OpEventManager::flushContractEvents(xdr::xvector<ContractEvent>& buf)
+bool
+OpEventManager::isEnabled() const
 {
-    std::move(mContractEvents.begin(), mContractEvents.end(),
-              std::back_inserter(buf));
-    mContractEvents.clear();
-};
+    return mEnabled;
+}
 
-TxEventManager::TxEventManager(uint32_t protocolVersion, Hash const& networkID,
+xdr::xvector<ContractEvent>
+OpEventManager::finalize()
+{
+    return std::move(mContractEvents);
+}
+
+TxEventManager::TxEventManager(bool metaEnabled,
+                               xdr::xvector<ContractEvent>& txEvents,
+                               uint32_t protocolVersion, Hash const& networkID,
                                Config const& config,
                                TransactionFrameBase const& tx)
-    : mProtocolVersion(protocolVersion)
-    , mNetworkID(networkID)
-    , mConfig(config)
-    , mTx(tx)
-    , mDiagnosticEvents(DiagnosticEventBuffer(config))
+    : mNetworkID(networkID), mTxEvents(txEvents)
 {
-}
-
-OpEventManager
-TxEventManager::createNewOpEventManager(Memo const& memo)
-{
-    return OpEventManager(*this, memo);
-}
-
-DiagnosticEventBuffer&
-TxEventManager::getDiagnosticEventsBuffer()
-{
-    return mDiagnosticEvents;
-}
-
-void
-TxEventManager::flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf)
-{
-    mDiagnosticEvents.flush(buf);
-};
-
-Hash const&
-TxEventManager::getNetworkID() const
-{
-    return mNetworkID;
-}
-
-uint32_t
-TxEventManager::getProtocolVersion() const
-{
-    return mProtocolVersion;
-}
-
-Config const&
-TxEventManager::getConfig() const
-{
-    return mConfig;
-}
-
-bool
-TxEventManager::shouldEmitClassicEvents() const
-{
-    if (!mConfig.EMIT_CLASSIC_EVENTS)
-    {
-        return false;
-    }
-
-    return protocolVersionStartsFrom(mProtocolVersion, ProtocolVersion::V_23) ||
-           mConfig.BACKFILL_STELLAR_ASSET_EVENTS;
+    mEnabled = metaEnabled && classicEventsEnabled(protocolVersion, config);
 }
 
 } // namespace stellar

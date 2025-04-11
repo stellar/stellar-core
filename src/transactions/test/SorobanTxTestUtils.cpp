@@ -763,7 +763,7 @@ TestContract::Invocation::invoke(TestAccount* source)
 {
     auto tx = createTx(source);
     CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
-    mTxMeta.emplace(mTest.getLedgerVersion(), mTest.getApp().getConfig());
+    mTxMeta.emplace();
     auto result = mTest.invokeTx(tx, &mTxMeta.value());
     mFeeCharged = result.feeCharged;
     if (result.result.code() == txFAILED || result.result.code() == txSUCCESS)
@@ -854,8 +854,10 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
 {
     MutableTxResultPtr result;
     {
+        auto diagnostics = DiagnosticEventBuffer::createDisabled();
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        result = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0);
+        result = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0,
+                                diagnostics);
     }
     REQUIRE(result->isSuccess());
     int64_t initBalance = getRoot().getBalance();
@@ -863,9 +865,9 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
     int64_t baseFee = 100;
     int64_t chargedBeforeRefund =
         (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
-    REQUIRE(result->getResult().feeCharged == chargedBeforeRefund);
+    REQUIRE(result->getFeeCharged() == chargedBeforeRefund);
 
-    TransactionMetaFrame txm(getLedgerVersion(), mApp->getConfig());
+    TransactionMetaFrame txm;
     REQUIRE(isSuccessResult(invokeTx(tx, &txm)));
 
     int64_t balanceAfterFeeCharged = getRoot().getBalance();
@@ -1134,8 +1136,10 @@ SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
 bool
 SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
-    LedgerTxn ltx(getApp().getLedgerTxnRoot());
-    auto ret = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0);
+    LedgerSnapshot ls(getApp());
+    auto diagnostics = DiagnosticEventBuffer::createDisabled();
+    auto ret =
+        tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
     return ret->isSuccess();
 }
 
@@ -1144,9 +1148,11 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx,
                       TransactionMetaFrame* txMeta)
 {
     {
-        LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0)
-                    ->isSuccess());
+        auto diagnostics = DiagnosticEventBuffer::createDisabled();
+        LedgerSnapshot ls(getApp());
+        REQUIRE(
+            tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics)
+                ->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});

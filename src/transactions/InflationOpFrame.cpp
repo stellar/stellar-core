@@ -29,10 +29,11 @@ InflationOpFrame::InflationOpFrame(Operation const& op,
 }
 
 bool
-InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          Hash const& sorobanBasePrngSeed, OperationResult& res,
-                          std::shared_ptr<SorobanTxData> sorobanData,
-                          OpEventManager& opEventManager) const
+InflationOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();
@@ -120,7 +121,7 @@ InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     for (auto const& payout : payouts)
     {
         Asset native(ASSET_TYPE_NATIVE);
-        opEventManager.newMintEvent(
+        opMeta.getEventManager().newMintEvent(
             native, accountToSCAddress(payout.destination), payout.amount);
     }
 

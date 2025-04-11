@@ -19,7 +19,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -911,7 +911,7 @@ class FuzzTransactionFrame : public TransactionFrame
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
         : TransactionFrame(networkID, envelope)
-        , mTxResult(createSuccessResult()){};
+        , mTxResult(MutableTransactionResult::createSuccess(*this, 0)){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
@@ -925,9 +925,7 @@ class FuzzTransactionFrame : public TransactionFrame
         }
 
         // reset results of operations
-        mTxResult = createSuccessResultWithFeeCharged(ltx.getHeader(), 0, true);
-        TxEventManager txEventManager(ltx.loadHeader().current().ledgerVersion,
-                                      mNetworkID, app.getConfig(), *this);
+        mTxResult = MutableTransactionResult::createSuccess(*this, 0);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
@@ -937,11 +935,12 @@ class FuzzTransactionFrame : public TransactionFrame
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
+            auto diagnostics =
+                DiagnosticEventBuffer::createForValidation(app.getConfig());
             return !op->checkValid(
                 app.getAppConnector(), signatureChecker,
                 app.getAppConnector().getLastClosedSorobanNetworkConfig(),
-                ltxStmt, false, opResult,
-                &txEventManager.getDiagnosticEventsBuffer());
+                ltxStmt, false, opResult, diagnostics);
         };
 
         auto const& ops = getOperations();
@@ -961,19 +960,21 @@ class FuzzTransactionFrame : public TransactionFrame
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
-        TransactionMetaFrame tm(2, app.getConfig());
+        TransactionMetaBuilder tm(true, *this,
+                                  ltx.loadHeader().current().ledgerVersion,
+                                  app.getAppConnector());
         applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
-                        *mTxResult, txEventManager, Hash{});
+                        *mTxResult, Hash{});
         if (mTxResult->getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");
         }
     }
 
-    TransactionResult&
-    getResult()
+    TransactionResult const&
+    getResult() const
     {
-        return mTxResult->getResult();
+        return mTxResult->getXDR();
     }
 
     TransactionResultCode
