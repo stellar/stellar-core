@@ -345,4 +345,10 @@ OperationFrame::getSorobanResources() const
     releaseAssertOrThrow(isSoroban());
     return mParentTx.sorobanResources();
 }
+
+Memo const&
+OperationFrame::getTxMemo() const
+{
+    return mParentTx.getMemo();
+}
 }

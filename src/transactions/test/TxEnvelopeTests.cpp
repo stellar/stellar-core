@@ -1439,7 +1439,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 TransactionMetaBuilder txm(
                                     true, *insideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
-                                    app->getConfig());
+                                    app->getAppConnector());
                                 REQUIRE(insideSignerTx->checkValidForTesting(
                                     app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(
@@ -1461,7 +1461,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 TransactionMetaBuilder txm(
                                     true, *outsideSignerTx,
                                     ltx.loadHeader().current().ledgerVersion,
-                                    app->getConfig());
+                                    app->getAppConnector());
                                 REQUIRE(outsideSignerTx->checkValidForTesting(
                                     app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(

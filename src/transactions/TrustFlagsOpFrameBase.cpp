@@ -122,6 +122,7 @@ TrustFlagsOpFrameBase::doApply(
             !isAuthorizedToMaintainLiabilitiesUnsafe(expectedFlagValue);
     }
 
+    auto& opEventManager = opMeta.getEventManager();
     // Remove offers, the ledgerVersion check is only relevant for AllowTrust
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10) &&
         shouldRemoveOffers)

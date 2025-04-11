@@ -178,7 +178,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
-                                   app.getConfig());
+                                   app.getAppConnector());
         REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -239,7 +239,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
-                                   app.getConfig());
+                                   app.getAppConnector());
         REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
         ltx.commit();
@@ -262,7 +262,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
-                                   app.getConfig());
+                                   app.getAppConnector());
         REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
         ltx.commit();
@@ -1171,7 +1171,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaBuilder txm(true, *tx,
                                        ltx.loadHeader().current().ledgerVersion,
-                                       app->getConfig());
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -1187,7 +1187,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
             TransactionMetaBuilder txm2(
                 true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                app->getConfig());
+                app->getAppConnector());
             REQUIRE(tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
             REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -1254,7 +1254,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -1286,7 +1286,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));

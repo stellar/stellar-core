@@ -121,7 +121,7 @@ InflationOpFrame::doApply(
     for (auto const& payout : payouts)
     {
         Asset native(ASSET_TYPE_NATIVE);
-        opEventManager.newMintEvent(
+        opMeta.getEventManager().newMintEvent(
             native, accountToSCAddress(payout.destination), payout.amount);
     }
 

@@ -3009,7 +3009,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaBuilder txm(true, *tx,
                                        ltx.loadHeader().current().ledgerVersion,
-                                       app->getConfig());
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3039,7 +3039,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
             TransactionMetaBuilder txm(true, *tx,
                                        ltx.loadHeader().current().ledgerVersion,
-                                       app->getConfig());
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3752,7 +3752,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3797,7 +3797,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaBuilder txm(
                     true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getConfig());
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3861,7 +3861,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
                 TransactionMetaBuilder txm(
                     true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getConfig());
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));

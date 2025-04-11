@@ -71,11 +71,11 @@ MergeOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_16))
     {
-        return doApplyBeforeV16(ltx, res, opEventManager);
+        return doApplyBeforeV16(ltx, res, opMeta.getEventManager());
     }
     else
     {
-        return doApplyFromV16(ltx, res, opEventManager);
+        return doApplyFromV16(ltx, res, opMeta.getEventManager());
     }
 }
 

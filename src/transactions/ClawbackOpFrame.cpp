@@ -54,7 +54,7 @@ ClawbackOpFrame::doApply(
         return false;
     }
 
-    opEventManager.newClawbackEvent(
+    opMeta.getEventManager().newClawbackEvent(
         mClawback.asset, accountToSCAddress(mClawback.from), mClawback.amount);
 
     innerResult(res).code(CLAWBACK_SUCCESS);

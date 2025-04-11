@@ -541,8 +541,8 @@ ManageOfferOpFrameBase::doApply(
 
     ltx.commit();
 
-    opEventManager.eventsForClaimAtoms(getSourceAccount(),
-                                       getSuccessResult(res).offersClaimed);
+    opMeta.getEventManager().eventsForClaimAtoms(
+        getSourceAccount(), getSuccessResult(res).offersClaimed);
 
     return true;
 }

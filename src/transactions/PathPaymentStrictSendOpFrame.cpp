@@ -129,11 +129,12 @@ PathPaymentStrictSendOpFrame::doApply(
 
     auto const& success = innerResult(res).success();
 
-    opEventManager.eventsForClaimAtoms(getSourceAccount(), success.offers);
+    opMeta.getEventManager().eventsForClaimAtoms(getSourceAccount(),
+                                                 success.offers);
 
     // Emit the final event between the source and destination account wrt the
     // dest asset.
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         getDestAsset(), accountToSCAddress(getSourceAccount()),
         accountToSCAddress(getDestMuxedAccount()), maxAmountSend);
 

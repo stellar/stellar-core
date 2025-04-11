@@ -572,7 +572,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 tx->declaredSorobanResourceFee() + surgePricedFee);
 
         TransactionMetaBuilder txmBuilder(true, *tx, test.getLedgerVersion(),
-                                          test.getApp().getConfig());
+                                          test.getApp().getAppConnector());
         auto timerBefore = hostFnExecTimer.count();
         bool success = tx->apply(test.getApp().getAppConnector(), rootLtx,
                                  txmBuilder, *result);
@@ -3624,7 +3624,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *tx,
                                    ltx.loadHeader().current().ledgerVersion,
-                                   app->getConfig());
+                                   app->getAppConnector());
         REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
         ltx.commit();
@@ -3699,7 +3699,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaBuilder txm(true, *txRevertSettings,
                                    ltx.loadHeader().current().ledgerVersion,
-                                   app->getConfig());
+                                   app->getAppConnector());
         REQUIRE(txRevertSettings->checkValidForTesting(app->getAppConnector(),
                                                        ltx, 0, 0, 0));
         REQUIRE(txRevertSettings->apply(app->getAppConnector(), ltx, txm));

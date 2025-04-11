@@ -135,12 +135,12 @@ PathPaymentStrictReceiveOpFrame::doApply(
         return false;
     }
 
-    opEventManager.eventsForClaimAtoms(getSourceAccount(),
-                                       innerResult(res).success().offers);
+    opMeta.getEventManager().eventsForClaimAtoms(
+        getSourceAccount(), innerResult(res).success().offers);
 
     // Emit the final event between the source and destination account wrt the
     // dest asset.
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         getDestAsset(), accountToSCAddress(getSourceAccount()),
         accountToSCAddress(getDestMuxedAccount()), mPathPayment.destAmount);
 

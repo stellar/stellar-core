@@ -26,11 +26,11 @@ class OperationMetaBuilder
 
     OperationMetaBuilder(bool metaEnabled, OperationMeta& meta,
                          OperationFrame const& op, uint32_t protocolVersion,
-                         Config const& config,
+                         Hash const& networkID, Config const& config,
                          DiagnosticEventBuffer& diagnosticEventBuffer);
     OperationMetaBuilder(bool metaEnabled, OperationMetaV2& meta,
                          OperationFrame const& op, uint32_t protocolVersion,
-                         Config const& config,
+                         Hash const& networkID, Config const& config,
                          DiagnosticEventBuffer& diagnosticEventBuffer);
     bool maybeFinalizeOpEvents();
 
@@ -73,7 +73,7 @@ class TransactionMetaBuilder
 {
   public:
     TransactionMetaBuilder(bool metaEnabled, TransactionFrameBase const& tx,
-                           uint32_t protocolVersion, Config const& config);
+                           uint32_t protocolVersion, AppConnector const& app);
     OperationMetaBuilder& getOperationMetaBuilderAt(size_t i);
 
     void pushTxChangesBefore(AbstractLedgerTxn& changesBeforeLtx);

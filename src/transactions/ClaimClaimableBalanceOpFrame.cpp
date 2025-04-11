@@ -140,7 +140,7 @@ ClaimClaimableBalanceOpFrame::doApply(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 
     // Emit event before we erase the claimable balance
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         asset, claimableBalanceIDToSCAddress(mClaimClaimableBalance.balanceID),
         accountToSCAddress(getSourceAccount()), amount);
 

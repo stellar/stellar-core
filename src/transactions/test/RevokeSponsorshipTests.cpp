@@ -66,7 +66,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -88,7 +88,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -111,7 +111,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -137,7 +137,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -169,7 +169,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -195,7 +195,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -230,7 +230,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             TransactionMetaBuilder txm(
                                 true, *tx,
                                 ltx.loadHeader().current().ledgerVersion,
-                                app->getConfig());
+                                app->getAppConnector());
                             REQUIRE(tx->checkValidForTesting(
                                 app->getAppConnector(), ltx, 0, 0, 0));
                             REQUIRE(
@@ -248,7 +248,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                          ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -298,7 +298,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -330,7 +330,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -343,7 +343,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -370,7 +370,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -382,7 +382,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -408,7 +408,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -419,7 +419,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -445,7 +445,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -464,7 +464,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -498,7 +498,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -513,7 +513,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -540,7 +540,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -554,7 +554,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -583,7 +583,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -596,7 +596,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -625,7 +625,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -646,7 +646,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -675,7 +675,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -689,7 +689,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -720,7 +720,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -735,7 +735,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -765,7 +765,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -780,7 +780,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -807,7 +807,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -821,7 +821,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -847,7 +847,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -861,7 +861,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -888,7 +888,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -902,7 +902,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -930,7 +930,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -945,7 +945,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -974,7 +974,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -1004,7 +1004,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -1032,7 +1032,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -1047,7 +1047,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     TransactionMetaBuilder txm2(
                         true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
                                                       ltx, 0, 0, 0));
                     REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -1084,7 +1084,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm1(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                          ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm1));
@@ -1115,7 +1115,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm1(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm1));
@@ -1140,7 +1140,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         TransactionMetaBuilder txm2(
                             true, *tx2,
                             ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx2->checkValidForTesting(
                             app->getAppConnector(), ltx, 0, 0, 0));
                         REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -1152,7 +1152,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         TransactionMetaBuilder txm3(
                             true, *tx3,
                             ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx3->checkValidForTesting(
                             app->getAppConnector(), ltx, 0, 0, 0));
                         REQUIRE(!tx3->apply(app->getAppConnector(), ltx, txm3));
@@ -1208,7 +1208,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         TransactionMetaBuilder txm1(
                             true, *tx1,
                             ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx1->checkValidForTesting(
                             app->getAppConnector(), ltx, 0, 0, 0));
                         REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -1229,7 +1229,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         TransactionMetaBuilder txm2(
                             true, *tx2,
                             ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx2->checkValidForTesting(
                             app->getAppConnector(), ltx, 0, 0, 0));
                         REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -1256,7 +1256,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         TransactionMetaBuilder txm1(
                             true, *tx1,
                             ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx1->checkValidForTesting(
                             app->getAppConnector(), ltx, 0, 0, 0));
                         REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -1273,7 +1273,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         TransactionMetaBuilder txm2(
                             true, *tx2,
                             ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx2->checkValidForTesting(
                             app->getAppConnector(), ltx, 0, 0, 0));
                         REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
@@ -1311,7 +1311,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                          ltx, 0, 0, 0));
                         REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -1425,7 +1425,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaBuilder txm(true, *tx,
                                        ltx.loadHeader().current().ledgerVersion,
-                                       app->getConfig());
+                                       app->getAppConnector());
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -1443,7 +1443,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaBuilder txm(true, *tx,
                                        ltx.loadHeader().current().ledgerVersion,
-                                       app->getConfig());
+                                       app->getAppConnector());
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==

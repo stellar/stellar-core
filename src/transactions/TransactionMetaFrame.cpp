@@ -186,26 +186,28 @@ OperationMetaBuilder::getDiagnosticEventBuffer()
 
 OperationMetaBuilder::OperationMetaBuilder(
     bool metaEnabled, OperationMeta& meta, OperationFrame const& op,
-    uint32_t protocolVersion, Config const& config,
+    uint32_t protocolVersion, Hash const& networkID, Config const& config,
     DiagnosticEventBuffer& diagnosticEventBuffer)
     : mEnabled(metaEnabled)
     , mProtocolVersion(protocolVersion)
     , mOp(op)
     , mMeta(meta)
-    , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, config)
+    , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, networkID,
+                    op.getTxMemo(), config)
     , mDiagnosticEventBuffer(diagnosticEventBuffer)
 {
 }
 
 OperationMetaBuilder::OperationMetaBuilder(
     bool metaEnabled, OperationMetaV2& meta, OperationFrame const& op,
-    uint32_t protocolVersion, Config const& config,
+    uint32_t protocolVersion, Hash const& networkID, Config const& config,
     DiagnosticEventBuffer& diagnosticEventBuffer)
     : mEnabled(metaEnabled)
     , mProtocolVersion(protocolVersion)
     , mOp(op)
     , mMeta(meta)
-    , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, config)
+    , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, networkID,
+                    op.getTxMemo(), config)
     , mDiagnosticEventBuffer(diagnosticEventBuffer)
 {
 }
@@ -573,13 +575,14 @@ TransactionMetaFrame::getXDR() const
 TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
                                                TransactionFrameBase const& tx,
                                                uint32_t protocolVersion,
-                                               Config const& config)
-    : mTransactionMeta(protocolVersion, config)
-    , mDiagnosticEventBuffer(
-          DiagnosticEventBuffer::createForApply(metaEnabled, tx, config))
+                                               AppConnector const& app)
+    : mTransactionMeta(protocolVersion, app.getConfig())
+    , mDiagnosticEventBuffer(DiagnosticEventBuffer::createForApply(
+          metaEnabled, tx, app.getConfig()))
     , mIsSoroban(tx.isSoroban())
     , mEnabled(metaEnabled)
-    , mSorobanMetaExtEnabled(config.EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
+    , mSorobanMetaExtEnabled(
+          app.getConfig().EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
 {
     auto const& operationFrames = tx.getOperationFrames();
     size_t numOperations = operationFrames.size();
@@ -597,7 +600,7 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         {
             mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
                 metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
-                config, mDiagnosticEventBuffer));
+                app.getNetworkID(), app.getConfig(), mDiagnosticEventBuffer));
         }
         break;
     }
@@ -610,7 +613,7 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         {
             mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
                 metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
-                config, mDiagnosticEventBuffer));
+                app.getNetworkID(), app.getConfig(), mDiagnosticEventBuffer));
         }
         break;
     }

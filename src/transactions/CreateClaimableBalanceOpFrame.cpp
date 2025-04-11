@@ -250,7 +250,7 @@ CreateClaimableBalanceOpFrame::doApply(
 
     ltx.create(newClaimableBalance);
 
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         asset, accountToSCAddress(getSourceAccount()),
         claimableBalanceIDToSCAddress(claimableBalanceEntry.balanceID), amount);
 

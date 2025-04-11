@@ -771,7 +771,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -836,7 +836,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -910,7 +910,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaBuilder txm(
                         true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getConfig());
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -935,7 +935,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaBuilder txm(
                             true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getConfig());
+                            app->getAppConnector());
                         REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                          ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -987,8 +987,9 @@ TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
         auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion,
-                                 app->getConfig());
+        TransactionMetaBuilder txm(true, *txFrame,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
         REQUIRE(txFrame->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
         REQUIRE(txFrame->apply(app->getAppConnector(), ltx, txm));

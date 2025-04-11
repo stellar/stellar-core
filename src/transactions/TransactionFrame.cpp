@@ -532,7 +532,7 @@ TransactionFrame::extraSignersExist() const
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
 }
 
-Memo
+Memo const&
 TransactionFrame::getMemo() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.memo
@@ -1577,9 +1577,8 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         MutableTransactionResultBase& txResult,
                         Hash const& sorobanBasePrngSeed) const
 {
-    TransactionMetaBuilder tm(false, *this,
-                              ltx.loadHeader().current().ledgerVersion,
-                              app.getConfig());
+    TransactionMetaBuilder tm(true, *this,
+                              ltx.loadHeader().current().ledgerVersion, app);
     return apply(app, ltx, tm, txResult, sorobanBasePrngSeed);
 }
 
@@ -1655,18 +1654,18 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             if (success)
             {
                 auto delta = ltxOp.getDelta();
-
+                auto& opEventManager = opMeta.getEventManager();
                 if (protocolVersionIsBefore(ledgerVersion,
                                             ProtocolVersion::V_8) &&
-                    txEventManager.shouldEmitClassicEvents() &&
+                    opEventManager.isEnabled() &&
                     opResult.tr().type() != INFLATION)
                 {
                     reconcileEvents(getSourceID(), op->getOperation(), delta,
-                                    opEventManager);
+                                    opMeta.getEventManager());
                 }
 
                 app.checkOnOperationApply(op->getOperation(), opResult, delta,
-                                          opEventManager.getContractEvents());
+                                          opEventManager.getEvents());
                 opMeta.setLedgerChanges(ltxOp);
             }
 

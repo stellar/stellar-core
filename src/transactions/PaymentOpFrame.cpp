@@ -47,7 +47,7 @@ PaymentOpFrame::doApply(
             : destID == getSourceID();
     if (instantSuccess)
     {
-        opEventManager.eventForTransferWithIssuerCheck(
+        opMeta.getEventManager().eventForTransferWithIssuerCheck(
             mPayment.asset, accountToSCAddress(getSourceAccount()),
             accountToSCAddress(mPayment.destination), mPayment.amount);
         innerResult(res).code(PAYMENT_SUCCESS);

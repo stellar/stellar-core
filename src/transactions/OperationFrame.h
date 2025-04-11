@@ -104,5 +104,7 @@ class OperationFrame
     virtual bool isSoroban() const;
 
     SorobanResources const& getSorobanResources() const;
+
+    Memo const& getTxMemo() const;
 };
 }

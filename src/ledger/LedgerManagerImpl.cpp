@@ -1645,7 +1645,7 @@ LedgerManagerImpl::applyTransactions(
             auto txTime = mLedgerApplyMetrics.mTransactionApply.TimeScope();
             TransactionMetaBuilder tm(enableTxMeta, *tx,
                                       ltx.loadHeader().current().ledgerVersion,
-                                      mApp.getConfig());
+                                      mApp.getAppConnector());
 
             CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
                        hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),

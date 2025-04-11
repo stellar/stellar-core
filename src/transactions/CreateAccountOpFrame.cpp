@@ -164,7 +164,7 @@ CreateAccountOpFrame::doApply(
     if (success)
     {
         Asset native(ASSET_TYPE_NATIVE);
-        opEventManager.newTransferEvent(
+        opMeta.getEventManager().newTransferEvent(
             native, accountToSCAddress(getSourceAccount()),
             accountToSCAddress(mCreateAccount.destination),
             mCreateAccount.startingBalance);

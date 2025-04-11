@@ -294,7 +294,7 @@ class TransactionFrame : public TransactionFrameBase
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
 
-    Memo getMemo() const;
+    Memo const& getMemo() const;
 
 #ifdef BUILD_TESTS
     friend class TransactionTestFrame;

@@ -41,9 +41,13 @@ class DiagnosticEventBuffer
 class OpEventManager
 {
   public:
+    xdr::xvector<ContractEvent> const& getEvents();
+
+    bool isEnabled() const;
+
     void setEvents(xdr::xvector<ContractEvent>&& events);
 
- void
+    void
     eventsForClaimAtoms(MuxedAccount const& source,
                         xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
 
@@ -84,9 +88,13 @@ class OpEventManager
     friend class OperationMetaBuilder;
 
     OpEventManager(bool metaEnabled, bool isSoroban, uint32_t protocolVersion,
+                   Hash const& networkID, Memo const& mMemo,
                    Config const& config);
 
+    Hash const& mNetworkID;
+    Memo const& mMemo;
     bool mEnabled = false;
+    bool mUpdateSACEventsToProtocol23Format = false;
     xdr::xvector<ContractEvent> mContractEvents;
 };
 

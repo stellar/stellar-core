@@ -73,7 +73,7 @@ ClawbackClaimableBalanceOpFrame::doApply(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 
     // Emit event before we erase the claimable balance
-    opEventManager.newClawbackEvent(
+    opMeta.getEventManager().newClawbackEvent(
         asset(),
         claimableBalanceIDToSCAddress(mClawbackClaimableBalance.balanceID),
         claimableBalanceLtxEntry.current().data.claimableBalance().amount);
