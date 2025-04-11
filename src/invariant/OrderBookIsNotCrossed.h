@@ -53,7 +53,8 @@ class OrderBookIsNotCrossed : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta) override;
+                          LedgerTxnDelta const& ltxDelta,
+                          std::vector<ContractEvent> const& events) override;
 
     OrderBook const&
     getOrderBook() const

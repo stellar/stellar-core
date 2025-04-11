@@ -23,6 +23,7 @@
 #include "main/AppConnector.h"
 #include "main/Application.h"
 #include "transactions/EventManager.h"
+#include "transactions/LumenEventReconciler.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationMetaArray.h"
 #include "transactions/SignatureChecker.h"
@@ -272,6 +273,18 @@ TransactionFrame::getSourceID() const
         return res;
     }
     return toAccountID(mEnvelope.v1().tx.sourceAccount);
+}
+
+MuxedAccount
+TransactionFrame::getSourceAccount() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        MuxedAccount acc(CryptoKeyType::KEY_TYPE_ED25519);
+        acc.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
+        return acc;
+    }
+    return mEnvelope.v1().tx.sourceAccount;
 }
 
 uint32_t
@@ -624,6 +637,13 @@ TransactionFrame::extraSignersExist() const
     return mEnvelope.type() == ENVELOPE_TYPE_TX &&
            mEnvelope.v1().tx.cond.type() == PRECOND_V2 &&
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
+}
+
+Memo
+TransactionFrame::getMemo() const
+{
+    return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.memo
+                                                   : mEnvelope.v1().tx.memo;
 }
 
 bool
@@ -1744,7 +1764,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             auto const& op = mOperations[i];
             auto& opResult = txResult.getOpResultAt(i);
             OpEventManager opEventManager =
-                txEventManager.createNewOpEventManager(*op);
+                txEventManager.createNewOpEventManager(getMemo());
 
             LedgerTxn ltxOp(ltxTx);
             Hash subSeed = sorobanBasePrngSeed;
@@ -1772,8 +1792,19 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // case
             if (success)
             {
-                app.checkOnOperationApply(op->getOperation(), opResult,
-                                          ltxOp.getDelta());
+                auto delta = ltxOp.getDelta();
+
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_8) &&
+                    txEventManager.shouldEmitClassicEvents() &&
+                    opResult.tr().type() != INFLATION)
+                {
+                    reconcileEvents(getSourceID(), op->getOperation(), delta,
+                                    opEventManager);
+                }
+
+                app.checkOnOperationApply(op->getOperation(), opResult, delta,
+                                          opEventManager.getContractEvents());
 
                 LedgerEntryChanges changes;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

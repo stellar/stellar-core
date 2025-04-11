@@ -138,6 +138,11 @@ ClaimClaimableBalanceOpFrame::doApply(
     removeEntryWithPossibleSponsorship(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 
+    // Emit event before we erase the claimable balance
+    opEventManager.eventForTransferWithIssuerCheck(
+        asset, claimableBalanceIDToSCAddress(mClaimClaimableBalance.balanceID),
+        accountToSCAddress(getSourceAccount()), amount);
+
     claimableBalanceLtxEntry.erase();
 
     innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_SUCCESS);

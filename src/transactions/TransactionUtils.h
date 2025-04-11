@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "transactions/EventManager.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -283,7 +284,8 @@ enum class RemoveResult
 
 RemoveResult removeOffersAndPoolShareTrustLines(
     AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset,
-    AccountID const& txSourceID, SequenceNumber txSeqNum, uint32_t opIndex);
+    AccountID const& txSourceID, SequenceNumber txSeqNum, uint32_t opIndex,
+    OpEventManager& opEventManager);
 
 // this can delete the pool
 void decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool);
@@ -324,10 +326,12 @@ struct LumenContractInfo
     SCVal mAmountSymbol;
 };
 LumenContractInfo getLumenContractInfo(Hash const& networkID);
+Hash getAssetContractID(Hash const& networkID, Asset const& asset);
 
 SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
+SCVal makeStringSCVal(std::string const& str);
 SCVal makeU64SCVal(uint64_t u);
 template <typename T>
 SCVal
@@ -338,4 +342,16 @@ makeBytesSCVal(T const& bytes)
     return val;
 }
 SCVal makeAddressSCVal(SCAddress const& address);
+SCVal makeI128SCVal(int64_t v);
+SCVal makeAccountIDSCVal(AccountID const& id);
+SCVal makeSep0011AssetStringSCVal(Asset const& asset);
+SCVal makeClassicMemoSCVal(Memo const& memo);
+SCVal makeMuxIDSCVal(MuxedEd25519Account const& acc);
+
+SCAddress accountToSCAddress(MuxedAccount const& account);
+SCAddress accountToSCAddress(AccountID const& account);
+SCAddress claimableBalanceIDToSCAddress(ClaimableBalanceID const& id);
+SCAddress liquidityPoolIDToSCAddress(PoolID const& id);
+SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr);
+bool isIssuer(SCAddress const& addr, Asset const& asset);
 }

@@ -25,14 +25,15 @@ TrustFlagsOpFrameBase::getThresholdLevel() const
 
 bool
 TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
-                                    OperationResult& res) const
+                                    OperationResult& res,
+                                    OpEventManager& opEventManager) const
 {
     // Delete all offers owned by the trustor that are either buying or
     // selling the asset which had authorization revoked. Also redeem pool
     // share trustlines owned by the trustor that use this asset
     auto removeResult = removeOffersAndPoolShareTrustLines(
         ltx, getOpTrustor(), getOpAsset(), mParentTx.getSourceID(),
-        mParentTx.getSeqNum(), getOpIndex());
+        mParentTx.getSeqNum(), getOpIndex(), opEventManager);
 
     switch (removeResult)
     {
@@ -125,11 +126,15 @@ TrustFlagsOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10) &&
         shouldRemoveOffers)
     {
-        if (!removeOffers(ltx, res))
+        if (!removeOffers(ltx, res, opEventManager))
         {
             return false;
         }
     }
+
+    bool authorize = (expectedFlagValue & AUTHORIZED_FLAG) != 0;
+    opEventManager.newSetAuthorizedEvent(getOpAsset(), getOpTrustor(),
+                                         authorize);
 
     // Set value
     setFlagValue(ltx, key, expectedFlagValue);

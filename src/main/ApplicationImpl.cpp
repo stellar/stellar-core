@@ -28,6 +28,7 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/ConstantProductInvariant.h"
+#include "invariant/EventsAreConsistentWithEntryDiffs.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
@@ -289,6 +290,8 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     LiabilitiesMatchOffers::registerInvariant(*this);
     SponsorshipCountIsValid::registerInvariant(*this);
     ConstantProductInvariant::registerInvariant(*this);
+    EventsAreConsistentWithEntryDiffs::registerInvariant(*this);
+
     enableInvariantsFromConfig();
 
     if (initNewDB)
@@ -1493,6 +1496,19 @@ ApplicationImpl::enableInvariantsFromConfig()
     for (auto name : mConfig.INVARIANT_CHECKS)
     {
         mInvariantManager->enableInvariant(name);
+    }
+    auto const& invariants = mInvariantManager->getEnabledInvariants();
+    auto eventsInvariantEnabled =
+        std::find(invariants.begin(), invariants.end(),
+                  "EventsAreConsistentWithEntryDiffs") != invariants.end();
+
+    if (eventsInvariantEnabled && (!mConfig.EMIT_CLASSIC_EVENTS ||
+                                   !mConfig.BACKFILL_STELLAR_ASSET_EVENTS))
+    {
+        throw std::invalid_argument(
+            "Invalid configuration: EventsAreConsistentWithEntryDiffs "
+            "invariant requires both EMIT_CLASSIC_EVENTS and "
+            "BACKFILL_STELLAR_ASSET_EVENTS config options to be enabled");
     }
 }
 
