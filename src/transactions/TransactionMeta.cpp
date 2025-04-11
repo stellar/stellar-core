@@ -367,7 +367,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::maybeSetContractEventsAtTxLevel(
         mTransactionMeta.v3().sorobanMeta.activate().events = std::move(events);
         break;
     case 4:
-        // Do nothing, v4 soroban contract events live in the operation meta
+        // Do nothing, v4 contract events live in the operation meta
         break;
     default:
         releaseAssert(false);
@@ -711,6 +711,15 @@ TransactionMetaBuilder::finalize(bool success)
             {
                 mTransactionMeta.maybeSetContractEventsAtTxLevel(
                     opMetaBuilder.getEventManager().finalize());
+            }
+        }
+        else
+        {
+            // For classic transactions we only need to finalize the events
+            // at operation level (if events are enabled at all).
+            for (auto& opMetaBuilder : mOperationMetaBuilders)
+            {
+                opMetaBuilder.maybeFinalizeOpEvents();
             }
         }
 
