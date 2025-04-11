@@ -482,6 +482,75 @@ OpEventManager::pushContractEvents(xdr::xvector<ContractEvent> const& evts)
 {
     auto& ces = mContractEvents;
     ces.insert(ces.end(), evts.begin(), evts.end());
+
+    if (!mParent.getConfig().BACKFILL_STELLAR_ASSET_EVENTS)
+    {
+        return;
+    }
+
+    if ((protocolVersionIsBefore(mParent.getProtocolVersion(),
+                                 ProtocolVersion::V_20) ||
+         protocolVersionStartsFrom(mParent.getProtocolVersion(),
+                                   ProtocolVersion::V_23)))
+    {
+        return;
+    }
+
+    // We need to modify backfilled SAC events to match V23 format
+    for (auto& event : mContractEvents)
+    {
+        auto res = getAssetFromEvent(event, mParent.getNetworkID());
+        if (!res)
+        {
+            continue;
+        }
+        auto const& asset = *res;
+
+        auto& topics = event.body.v0().topics;
+
+        auto eventNameVal = topics.at(0);
+        releaseAssertOrThrow(eventNameVal.type() == SCV_SYMBOL);
+
+        if (eventNameVal.sym() == "transfer")
+        {
+            releaseAssertOrThrow(topics.size() == 4);
+
+            auto const& fromVal = topics.at(1);
+            auto const& toVal = topics.at(2);
+            bool fromIsIssuer = isIssuer(fromVal.address(), asset);
+            bool toIsIssuer = isIssuer(toVal.address(), asset);
+
+            if ((fromIsIssuer && toIsIssuer) || (!fromIsIssuer && !toIsIssuer))
+            {
+                continue;
+            }
+
+            // Exactly one of from or two is the issuer
+
+            // Make sure to check data!
+            // 1. Change the event name topic to mint or burn
+            // 2. Remove the issuer topic
+            if (fromIsIssuer)
+            {
+                topics.at(0).sym() = "mint";
+                topics.erase(topics.begin() + 1);
+            }
+            else
+            {
+                topics.at(0).sym() = "burn";
+                topics.erase(topics.begin() + 2);
+            }
+        }
+        else if (eventNameVal.sym() == "mint" ||
+                 eventNameVal.sym() == "clawback" ||
+                 eventNameVal.sym() == "set_authorized")
+        {
+            releaseAssertOrThrow(topics.size() == 4);
+
+            // The admin should be the second topic
+            topics.erase(topics.begin() + 1);
+        }
+    }
 }
 
 xdr::xvector<ContractEvent> const&
