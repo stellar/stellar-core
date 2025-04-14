@@ -25,7 +25,6 @@ struct AggregatedEvents
     UnorderedMap<SCAddress, UnorderedMap<Asset, CxxI128>> mEventAmounts;
     UnorderedMap<SCAddress, UnorderedMap<Asset, std::optional<bool>>>
         mIsAuthorized;
-    UnorderedMap<Hash, Asset> mStellarAssetContractIDs;
 
     bool addAssetBalance(SCAddress const& addr, Asset const& asset,
                          CxxI128 const& amount);
@@ -187,8 +186,9 @@ checkAuthorization(AggregatedEvents& agg, SCAddress const& trustlineOwner,
 }
 
 std::string
-calculateDeltaBalance(AggregatedEvents& agg, LedgerEntry const* current,
-                      LedgerEntry const* previous)
+calculateDeltaBalance(AggregatedEvents& agg,
+                      UnorderedMap<Hash, Asset> const& stellarAssetContractIDs,
+                      LedgerEntry const* current, LedgerEntry const* previous)
 {
     releaseAssert(current || previous);
     auto lk = current ? LedgerEntryKey(*current) : LedgerEntryKey(*previous);
@@ -312,9 +312,9 @@ calculateDeltaBalance(AggregatedEvents& agg, LedgerEntry const* current,
             return "";
         }
 
-        auto assetIt = agg.mStellarAssetContractIDs.find(
-            contractData.contract.contractId());
-        if (assetIt == agg.mStellarAssetContractIDs.end())
+        auto assetIt =
+            stellarAssetContractIDs.find(contractData.contract.contractId());
+        if (assetIt == stellarAssetContractIDs.end())
         {
             return "";
         }
@@ -373,6 +373,7 @@ calculateDeltaBalance(AggregatedEvents& agg, LedgerEntry const* current,
 
 std::string
 verifyEventsDelta(AggregatedEvents& agg,
+                  UnorderedMap<Hash, Asset> const& stellarAssetContractIDs,
                   std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
                   std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
@@ -383,13 +384,15 @@ verifyEventsDelta(AggregatedEvents& agg,
         auto const* previous =
             genPrevious ? &genPrevious->ledgerEntry() : nullptr;
 
-        return calculateDeltaBalance(agg, current, previous);
+        return calculateDeltaBalance(agg, stellarAssetContractIDs, current,
+                                     previous);
     }
     return "";
 }
 
 std::optional<AggregatedEvents>
 aggregateEventDiffs(Hash const& networkID,
+                    UnorderedMap<Hash, Asset>& stellarAssetContractIDs,
                     std::vector<ContractEvent> const& events)
 {
     AggregatedEvents res;
@@ -401,8 +404,8 @@ aggregateEventDiffs(Hash const& networkID,
         }
         auto const& topics = event.body.v0().topics;
         Asset asset;
-        auto assetIt = res.mStellarAssetContractIDs.find(*event.contractID);
-        if (assetIt != res.mStellarAssetContractIDs.end())
+        auto assetIt = stellarAssetContractIDs.find(*event.contractID);
+        if (assetIt != stellarAssetContractIDs.end())
         {
             asset = assetIt->second;
         }
@@ -412,7 +415,7 @@ aggregateEventDiffs(Hash const& networkID,
             if (maybeAsset)
             {
                 asset = *maybeAsset;
-                res.mStellarAssetContractIDs.emplace(*event.contractID, asset);
+                stellarAssetContractIDs.emplace(*event.contractID, asset);
             }
             else
             {
@@ -529,7 +532,9 @@ EventsAreConsistentWithEntryDiffs::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
 {
-    auto maybeAggregatedEventAmounts = aggregateEventDiffs(mNetworkID, events);
+    UnorderedMap<Hash, Asset> stellarAssetContractIDs;
+    auto maybeAggregatedEventAmounts =
+        aggregateEventDiffs(mNetworkID, stellarAssetContractIDs, events);
     if (!maybeAggregatedEventAmounts)
     {
         return "received invalid events";
@@ -537,9 +542,9 @@ EventsAreConsistentWithEntryDiffs::checkOnOperationApply(
 
     for (auto const& delta : ltxDelta.entry)
     {
-        auto res =
-            verifyEventsDelta(*maybeAggregatedEventAmounts,
-                              delta.second.current, delta.second.previous);
+        auto res = verifyEventsDelta(
+            *maybeAggregatedEventAmounts, stellarAssetContractIDs,
+            delta.second.current, delta.second.previous);
         if (!res.empty())
         {
             return res;
