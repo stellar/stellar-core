@@ -23,6 +23,8 @@ static const CxxI128 I128ZERO{0, 0};
 struct AggregatedEvents
 {
     mutable UnorderedMap<SCAddress, UnorderedMap<Asset, CxxI128>> mEventAmounts;
+    UnorderedMap<SCAddress, UnorderedMap<Asset, std::optional<bool>>>
+        mIsAuthorized;
     UnorderedMap<Hash, Asset> mStellarAssetContractIDs;
 
     bool addAssetBalance(SCAddress const& addr, Asset const& asset,
@@ -140,6 +142,50 @@ getAddressFromBalanceKey(LedgerKey const& lk)
     return addr.address();
 }
 
+// Should only be called with trustlines as input
+bool
+checkAuthorization(AggregatedEvents const& agg, SCAddress const& trustlineOwner,
+                   Asset const& asset, LedgerEntry const* current,
+                   LedgerEntry const* previous)
+{
+    if (!current || !previous)
+    {
+        // If a trustline was created or deleted auth could not have changed.
+        return true;
+    }
+
+    bool currAuth = isAuthorized(*current);
+    bool prevAuth = isAuthorized(*previous);
+
+    std::optional<bool> eventAuth;
+
+    auto assetMapIt = agg.mIsAuthorized.find(trustlineOwner);
+    if (assetMapIt != agg.mIsAuthorized.end())
+    {
+        auto authIt = assetMapIt->second.find(asset);
+        if (authIt != assetMapIt->second.end())
+        {
+            eventAuth = authIt->second;
+        }
+    }
+
+    auto res = true;
+
+    // if event was seen, make sure it matches current state
+    if (eventAuth)
+    {
+        res = (*eventAuth == currAuth);
+    }
+
+    // if auth on trustline changed, make sure an event was emitted
+    if (res && currAuth != prevAuth)
+    {
+        res = (eventAuth && (*eventAuth == currAuth));
+    }
+
+    return res;
+}
+
 std::string
 calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
                       LedgerEntry const* previous)
@@ -192,8 +238,14 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
                                          ? current->data.trustLine().accountID
                                          : previous->data.trustLine().accountID;
 
-        auto eventDiff = consumeAmount(makeAccountAddress(trustlineOwner),
-                                       asset, agg.mEventAmounts);
+        auto tlOwnerAddress = makeAccountAddress(trustlineOwner);
+        if (!checkAuthorization(agg, tlOwnerAddress, asset, current, previous))
+        {
+            return "trustline authorization and events do not match";
+        }
+
+        auto eventDiff =
+            consumeAmount(tlOwnerAddress, asset, agg.mEventAmounts);
 
         auto entryDiff = (current ? current->data.trustLine().balance : 0) -
                          (previous ? previous->data.trustLine().balance : 0);
@@ -430,6 +482,23 @@ aggregateEventDiffs(Hash const& networkID,
             {
                 return std::nullopt;
             }
+        }
+        else if (eventNameVal.sym() == "set_authorized")
+        {
+            if (topics.size() != 3)
+            {
+                return std::nullopt;
+            }
+
+            auto idVal = topics.at(1);
+
+            if (event.body.v0().data.type() != SCV_BOOL)
+            {
+                return std::nullopt;
+            }
+
+            res.mIsAuthorized[idVal.address()][asset] =
+                event.body.v0().data.b();
         }
     }
     return res;
