@@ -22,7 +22,7 @@ static const CxxI128 I128ZERO{0, 0};
 
 struct AggregatedEvents
 {
-    mutable UnorderedMap<SCAddress, UnorderedMap<Asset, CxxI128>> mEventAmounts;
+    UnorderedMap<SCAddress, UnorderedMap<Asset, CxxI128>> mEventAmounts;
     UnorderedMap<SCAddress, UnorderedMap<Asset, std::optional<bool>>>
         mIsAuthorized;
     UnorderedMap<Hash, Asset> mStellarAssetContractIDs;
@@ -32,6 +32,8 @@ struct AggregatedEvents
 
     bool subtractAssetBalance(SCAddress const& addr, Asset const& asset,
                               CxxI128 const& amount);
+
+    CxxI128 consumeAmount(SCAddress const& addr, Asset const& asset);
 };
 
 bool
@@ -66,6 +68,33 @@ AggregatedEvents::subtractAssetBalance(SCAddress const& addr,
 }
 
 CxxI128
+AggregatedEvents::consumeAmount(SCAddress const& addr, Asset const& asset)
+{
+    auto lkAssetMapIt = mEventAmounts.find(addr);
+    if (lkAssetMapIt == mEventAmounts.end())
+    {
+        return I128ZERO;
+    }
+
+    auto& lkAssetMap = lkAssetMapIt->second;
+    auto assetAmountIt = lkAssetMap.find(asset);
+    if (assetAmountIt == lkAssetMap.end())
+    {
+        return I128ZERO;
+    }
+
+    auto res = assetAmountIt->second;
+
+    // Now remove this value from the map
+    lkAssetMap.erase(assetAmountIt);
+    if (lkAssetMap.empty())
+    {
+        mEventAmounts.erase(lkAssetMapIt);
+    }
+    return res;
+}
+
+CxxI128
 getAmountFromData(SCVal const& data)
 {
     if (data.type() == SCV_I128)
@@ -87,35 +116,6 @@ getAmountFromData(SCVal const& data)
         }
     }
     return I128ZERO;
-}
-
-CxxI128
-consumeAmount(
-    SCAddress const& addr, Asset const& asset,
-    UnorderedMap<SCAddress, UnorderedMap<Asset, CxxI128>>& eventAmounts)
-{
-    auto lkAssetMapIt = eventAmounts.find(addr);
-    if (lkAssetMapIt == eventAmounts.end())
-    {
-        return I128ZERO;
-    }
-
-    auto& lkAssetMap = lkAssetMapIt->second;
-    auto assetAmountIt = lkAssetMap.find(asset);
-    if (assetAmountIt == lkAssetMap.end())
-    {
-        return I128ZERO;
-    }
-
-    auto res = assetAmountIt->second;
-
-    // Now remove this value from the map
-    lkAssetMap.erase(assetAmountIt);
-    if (lkAssetMap.empty())
-    {
-        eventAmounts.erase(lkAssetMapIt);
-    }
-    return res;
 }
 
 std::optional<SCAddress>
@@ -144,7 +144,7 @@ getAddressFromBalanceKey(LedgerKey const& lk)
 
 // Should only be called with trustlines as input
 bool
-checkAuthorization(AggregatedEvents const& agg, SCAddress const& trustlineOwner,
+checkAuthorization(AggregatedEvents& agg, SCAddress const& trustlineOwner,
                    Asset const& asset, LedgerEntry const* current,
                    LedgerEntry const* previous)
 {
@@ -187,7 +187,7 @@ checkAuthorization(AggregatedEvents const& agg, SCAddress const& trustlineOwner,
 }
 
 std::string
-calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
+calculateDeltaBalance(AggregatedEvents& agg, LedgerEntry const* current,
                       LedgerEntry const* previous)
 {
     releaseAssert(current || previous);
@@ -200,9 +200,8 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
     {
         Asset native(ASSET_TYPE_NATIVE);
 
-        auto eventDiff =
-            consumeAmount(makeAccountAddress(lk.account().accountID), native,
-                          agg.mEventAmounts);
+        auto eventDiff = agg.consumeAmount(
+            makeAccountAddress(lk.account().accountID), native);
 
         auto entryDiff = (current ? current->data.account().balance : 0) -
                          (previous ? previous->data.account().balance : 0);
@@ -244,8 +243,7 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
             return "trustline authorization and events do not match";
         }
 
-        auto eventDiff =
-            consumeAmount(tlOwnerAddress, asset, agg.mEventAmounts);
+        auto eventDiff = agg.consumeAmount(tlOwnerAddress, asset);
 
         auto entryDiff = (current ? current->data.trustLine().balance : 0) -
                          (previous ? previous->data.trustLine().balance : 0);
@@ -263,9 +261,9 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
         auto const& asset = current ? current->data.claimableBalance().asset
                                     : previous->data.claimableBalance().asset;
 
-        auto eventDiff = consumeAmount(
-            makeClaimableBalanceAddress(lk.claimableBalance().balanceID), asset,
-            agg.mEventAmounts);
+        auto eventDiff = agg.consumeAmount(
+            makeClaimableBalanceAddress(lk.claimableBalance().balanceID),
+            asset);
         auto entryDiff =
             (current ? current->data.claimableBalance().amount : 0) -
             (previous ? previous->data.claimableBalance().amount : 0);
@@ -296,8 +294,8 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
 
         auto poolAddress =
             makeLiquidityPoolAddress(lk.liquidityPool().liquidityPoolID);
-        auto eventADiff = consumeAmount(poolAddress, assetA, agg.mEventAmounts);
-        auto eventBDiff = consumeAmount(poolAddress, assetB, agg.mEventAmounts);
+        auto eventADiff = agg.consumeAmount(poolAddress, assetA);
+        auto eventBDiff = agg.consumeAmount(poolAddress, assetB);
 
         return rust_bridge::i128_from_i64(entryADiff) == eventADiff &&
                        rust_bridge::i128_from_i64(entryBDiff) == eventBDiff
@@ -326,9 +324,8 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
         // If the key is ContractData, then it is a balance entry. We need to
         // convert it to the address that the balance belongs to.
         auto maybeAddress = getAddressFromBalanceKey(lk);
-        auto eventDiff = maybeAddress ? consumeAmount(*maybeAddress, asset,
-                                                      agg.mEventAmounts)
-                                      : I128ZERO;
+        auto eventDiff =
+            maybeAddress ? agg.consumeAmount(*maybeAddress, asset) : I128ZERO;
 
         auto getAmount = [](LedgerEntry const* entry) -> CxxI128 {
             if (!entry)
@@ -375,7 +372,7 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
 }
 
 std::string
-verifyEventsDelta(AggregatedEvents const& agg,
+verifyEventsDelta(AggregatedEvents& agg,
                   std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
                   std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
