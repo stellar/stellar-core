@@ -1661,6 +1661,10 @@ LedgerManagerImpl::applyTransactions(
                       txEventManager, subSeed);
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,
                                  mutableTxResult, txEventManager);
+            // Push the fee event meta
+            xdr::xvector<ContractEvent> feeEvents;
+            txEventManager.flushTxEvents(feeEvents);
+            tm.pushTxContractEvents(std::move(feeEvents));
 
             results.result = mutableTxResult->getResult();
             if (results.result.result.code() ==

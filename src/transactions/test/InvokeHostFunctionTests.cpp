@@ -1379,20 +1379,24 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         // DEFAULT_TEST_RESOURCE_FEE without the refund.
         REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
 
+        auto a1AccID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
+        REQUIRE(app->getLedgerManager()
+                    .getLastClosedLedgerTxMeta()[0]
+                    .getTxEvents()
+                    .size() == 2);
         auto feeEvent = app->getLedgerManager()
                             .getLastClosedLedgerTxMeta()[0]
                             .getTxEvents()[0];
         LOG_INFO(DEFAULT_LOG, "fee event: {}", xdr::xdr_to_string(feeEvent));
+        validateFeeEvent(feeEvent, a1AccID, 1064280);
 
-        auto a1AccID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
-        auto feeEventTopics = feeEvent.body.v0().topics;
-        auto feeEventData = feeEvent.body.v0().data;
-        feeEvent.body.v0().topics = {makeSymbolSCVal("fee"),
-                                     makeAccountIDSCVal(a1AccID)};
-
-        REQUIRE(feeEventTopics.at(0).sym() == "fee");
-        REQUIRE(feeEventTopics.at(1).address().accountId() == a1AccID);
-        REQUIRE(feeEventData.i128().lo == txFeeWithRefund);
+        auto refundEvent = app->getLedgerManager()
+                               .getLastClosedLedgerTxMeta()[0]
+                               .getTxEvents()[1];
+        auto refundAmt = txFeeWithRefund - 1064280;
+        LOG_INFO(DEFAULT_LOG, "refund event: {}",
+                 xdr::xdr_to_string(refundEvent));
+        validateFeeEvent(refundEvent, a1AccID, refundAmt);
     });
 }
 
@@ -1463,18 +1467,25 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         // There should be no change to a1's balance
         REQUIRE(a1.getBalance() == a1StartingBalance);
 
+        auto feeBumperID =
+            KeyUtils::fromStrKey<PublicKey>(feeBumper.getAccountId());
+        REQUIRE(app->getLedgerManager()
+                    .getLastClosedLedgerTxMeta()[0]
+                    .getTxEvents()
+                    .size() == 2);
         auto feeEvent = app->getLedgerManager()
                             .getLastClosedLedgerTxMeta()[0]
                             .getTxEvents()[0];
         LOG_INFO(DEFAULT_LOG, "fee event: {}", xdr::xdr_to_string(feeEvent));
+        validateFeeEvent(feeEvent, feeBumperID, 1064380);
 
-        auto feeBumperID =
-            KeyUtils::fromStrKey<PublicKey>(feeBumper.getAccountId());
-        auto feeEventTopics = feeEvent.body.v0().topics;
-        auto feeEventData = feeEvent.body.v0().data;
-        REQUIRE(feeEventTopics.at(0).sym() == "fee");
-        REQUIRE(feeEventTopics.at(1).address().accountId() == feeBumperID);
-        REQUIRE(feeEventData.i128().lo == feeCharged);
+        auto refundEvent = app->getLedgerManager()
+                               .getLastClosedLedgerTxMeta()[0]
+                               .getTxEvents()[1];
+        auto refundAmt = txFeeWithRefund - 1064380;
+        LOG_INFO(DEFAULT_LOG, "refund event: {}",
+                 xdr::xdr_to_string(refundEvent));
+        validateFeeEvent(refundEvent, feeBumperID, refundAmt);
     });
 }
 

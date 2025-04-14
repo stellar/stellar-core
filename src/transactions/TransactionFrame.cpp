@@ -2110,6 +2110,8 @@ TransactionFrame::processRefundAndEmitFeeEvent(
     TxEventManager& txEventManager) const
 {
     ZoneScoped;
+    // emit a fee event before any refund
+    txEventManager.newFeeEvent(feeSource, txResult.getResult().feeCharged);
 
     if (!isSoroban())
     {
@@ -2119,17 +2121,12 @@ TransactionFrame::processRefundAndEmitFeeEvent(
     // transaction success).
     LedgerTxn ltx(ltxOuter);
     int64_t refund = refundSorobanFee(ltx, feeSource, txResult);
-
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
 
-    // Emit fee event. The feeCharged has already been updated with refund in
-    // `refundSorobanFee`
-    txEventManager.newFeeEvent(feeSource, txResult.getResult().feeCharged);
-    xdr::xvector<ContractEvent> feeEvents;
-    txEventManager.flushTxEvents(feeEvents);
-    meta.pushTxContractEvents(std::move(feeEvents));
-
+    // Emit fee refund event. A refund counts as a negative amount of fee
+    // charged.
+    txEventManager.newFeeEvent(feeSource, -refund);
     return refund;
 }
 

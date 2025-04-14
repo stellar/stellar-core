@@ -370,6 +370,17 @@ makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
     return ev;
 }
 
+bool
+validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
+                 int feeCharged)
+{
+    auto feeEventTopics = feeEvent.body.v0().topics;
+    auto feeEventData = feeEvent.body.v0().data;
+    REQUIRE(feeEventTopics.at(0).sym() == "fee");
+    REQUIRE(feeEventTopics.at(1).address().accountId() == feeSource);
+    REQUIRE(feeEventData.i128().lo == feeCharged);
+}
+
 SorobanResources
 defaultCreateWasmContractResources(RustBuf const& wasm)
 {

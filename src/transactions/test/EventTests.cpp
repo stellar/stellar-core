@@ -290,3 +290,44 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
 // {
 
 // }
+
+TEST_CASE_VERSIONS("classic fee event", "[tx][event]")
+{
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    // set up world
+    auto root = app->getRoot();
+    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+
+    SECTION("a pays b")
+    {
+        auto a1 = root->create("A", paymentAmount);
+        auto amount = app->getLedgerManager().getLastMinBalance(0) + 1000000;
+        auto b1 = root->create("B", amount);
+        auto a1ID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
+        auto b1ID = KeyUtils::fromStrKey<PublicKey>(b1.getAccountId());
+
+        for_versions_from(13, *app, [&] {
+            // uint32_t feeAmt = 200;
+            // auto txFrame = transactionFromOperationsV1(
+            //     *app, a1, a1.nextSequenceNumber(), {payment(b1, 200)}, feeAmt
+            //     /*fee*/, std::nullopt, std::nullopt);
+            auto txFrame = a1.tx({payment(b1, 200)});
+            auto resultSet = closeLedger(*app, {txFrame});
+            REQUIRE(txFrame->getResultCode() == txSUCCESS);
+
+            auto lastMeta =
+                app->getLedgerManager().getLastClosedLedgerTxMeta()[0];
+            auto feeEvent = app->getLedgerManager()
+                                .getLastClosedLedgerTxMeta()[0]
+                                .getTxEvents()[0];
+            LOG_INFO(DEFAULT_LOG, "events: {}", xdr::xdr_to_string(feeEvent));
+            validateFeeEvent(feeEvent, a1ID, 100);
+        });
+    }
+}

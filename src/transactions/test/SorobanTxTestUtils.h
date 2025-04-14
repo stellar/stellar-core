@@ -59,6 +59,9 @@ ContractEvent makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
                                   Asset const& asset, SCAddress const& addr,
                                   int64 amount);
 
+bool validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
+                      int feeCharged);
+
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`
 // doesn't contain it.
