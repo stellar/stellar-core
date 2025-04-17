@@ -290,7 +290,6 @@ makeContractEvent(Hash const& contractId, std::vector<SCVal> const& topics,
 
 ContractEvent
 makeTransferEvent(SCAddress const& from, SCAddress const& to, int64_t amount,
-                  std::optional<int64_t> fromMuxId,
                   std::optional<int64_t> toMuxId)
 {
     return ContractEvent();
@@ -1369,7 +1368,6 @@ AssetContractTestClient::lastEvent() const
 ContractEvent
 AssetContractTestClient::makeTransferEvent(SCAddress const& from,
                                            SCAddress const& to, int64_t amount,
-                                           std::optional<uint64_t> fromMuxId,
                                            std::optional<uint64_t> toMuxId)
 {
     std::string name;
@@ -1394,21 +1392,13 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
                                  makeAddressSCVal(from), makeAddressSCVal(to),
                                  makeStringSCVal(std::move(name))};
     SCVal data;
-    if (fromMuxId || toMuxId)
+    if (toMuxId)
     {
         data.type(SCValType::SCV_MAP);
         data.map().activate().push_back(
             SCMapEntry(makeSymbolSCVal("amount"), makeI128(amount)));
-        if (fromMuxId)
-        {
-            data.map().activate().push_back(SCMapEntry(
-                makeSymbolSCVal("from_muxed_id"), makeU64(*fromMuxId)));
-        }
-        if (toMuxId)
-        {
-            data.map().activate().push_back(
-                SCMapEntry(makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)));
-        }
+        data.map().activate().push_back(
+            SCMapEntry(makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)));
     }
     else
     {
@@ -1420,19 +1410,10 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
 bool
 AssetContractTestClient::transfer(TestAccount& fromAcc,
                                   SCAddress const& maybeMuxedToAddr,
-                                  int64_t amount,
-                                  std::optional<uint64_t> fromMuxId)
+                                  int64_t amount)
 {
     SCVal fromVal(SCV_ADDRESS);
-    if (!fromMuxId)
-    {
-        fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
-    }
-    else
-    {
-        fromVal.address() =
-            makeMuxedAccountAddress(fromAcc.getPublicKey(), *fromMuxId);
-    }
+    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
 
     SCVal toVal(SCV_ADDRESS);
     SCAddress toAddr = maybeMuxedToAddr;
