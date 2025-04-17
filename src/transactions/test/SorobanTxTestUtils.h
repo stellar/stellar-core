@@ -348,8 +348,7 @@ class AssetContractTestClient
     int64_t getBalance(SCAddress const& addr);
     SorobanInvocationSpec defaultSpec() const;
 
-    bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount,
-                  std::optional<uint64_t> fromMuxId = std::nullopt);
+    bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount);
     bool mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount);
     bool burn(TestAccount& from, int64_t amount);
     bool clawback(TestAccount& admin, SCAddress const& fromAddr,
@@ -360,7 +359,6 @@ class AssetContractTestClient
     ContractEvent
     makeTransferEvent(SCAddress const& from, SCAddress const& to,
                       int64_t amount,
-                      std::optional<uint64_t> fromMuxId = std::nullopt,
                       std::optional<uint64_t> toMuxId = std::nullopt);
 };
 
