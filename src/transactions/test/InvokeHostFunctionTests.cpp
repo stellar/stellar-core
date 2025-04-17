@@ -485,13 +485,14 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
         }
         {
             INFO("transfer to liquidity pool fails");
-            REQUIRE(!client.transfer(a1, makeLiqudityPoolAddress(PoolID()), 1));
+            REQUIRE(
+                !client.transfer(a1, makeLiquidityPoolAddress(PoolID()), 1));
             REQUIRE(client.lastEvent() == std::nullopt);
         }
         {
             INFO("transfer to claimable balance fails");
-            REQUIRE(
-                !client.transfer(a1, makeClaimableBalanceAddress(Hash()), 1));
+            REQUIRE(!client.transfer(
+                a1, makeClaimableBalanceAddress(ClaimableBalanceID()), 1));
             REQUIRE(client.lastEvent() == std::nullopt);
         }
     };

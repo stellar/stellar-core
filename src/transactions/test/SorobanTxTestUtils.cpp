@@ -55,35 +55,11 @@ makeContractAddress(Hash const& hash)
 }
 
 SCAddress
-makeAccountAddress(AccountID const& accountID)
-{
-    SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
-    addr.accountId() = accountID;
-    return addr;
-}
-
-SCAddress
 makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
     addr.muxedAccount().ed25519 = accountID.ed25519();
     addr.muxedAccount().id = id;
-    return addr;
-}
-
-SCAddress
-makeClaimableBalanceAddress(Hash const& id)
-{
-    SCAddress addr(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
-    addr.claimableBalanceId().v0() = id;
-    return addr;
-}
-
-SCAddress
-makeLiqudityPoolAddress(PoolID const& id)
-{
-    SCAddress addr(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
-    addr.liquidityPoolId() = id;
     return addr;
 }
 

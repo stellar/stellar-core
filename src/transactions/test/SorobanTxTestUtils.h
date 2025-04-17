@@ -18,10 +18,7 @@ namespace txtest
 {
 
 SCAddress makeContractAddress(Hash const& hash);
-SCAddress makeAccountAddress(AccountID const& accountID);
 SCAddress makeMuxedAccountAddress(AccountID const& accountID, uint64_t id);
-SCAddress makeClaimableBalanceAddress(Hash const& id);
-SCAddress makeLiqudityPoolAddress(PoolID const& id);
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);
