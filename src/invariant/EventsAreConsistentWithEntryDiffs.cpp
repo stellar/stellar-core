@@ -155,7 +155,7 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
         Asset native(ASSET_TYPE_NATIVE);
 
         auto eventDiff =
-            consumeAmount(accountToSCAddress(lk.account().accountID), native,
+            consumeAmount(makeAccountAddress(lk.account().accountID), native,
                           agg.mEventAmounts);
 
         auto entryDiff = (current ? current->data.account().balance : 0) -
@@ -192,7 +192,7 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
                                          ? current->data.trustLine().accountID
                                          : previous->data.trustLine().accountID;
 
-        auto eventDiff = consumeAmount(accountToSCAddress(trustlineOwner),
+        auto eventDiff = consumeAmount(makeAccountAddress(trustlineOwner),
                                        asset, agg.mEventAmounts);
 
         auto entryDiff = (current ? current->data.trustLine().balance : 0) -
@@ -212,8 +212,8 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
                                     : previous->data.claimableBalance().asset;
 
         auto eventDiff = consumeAmount(
-            claimableBalanceIDToSCAddress(lk.claimableBalance().balanceID),
-            asset, agg.mEventAmounts);
+            makeClaimableBalanceAddress(lk.claimableBalance().balanceID), asset,
+            agg.mEventAmounts);
         auto entryDiff =
             (current ? current->data.claimableBalance().amount : 0) -
             (previous ? previous->data.claimableBalance().amount : 0);
@@ -243,7 +243,7 @@ calculateDeltaBalance(AggregatedEvents const& agg, LedgerEntry const* current,
                              (previousBody ? previousBody->reserveB : 0);
 
         auto poolAddress =
-            liquidityPoolIDToSCAddress(lk.liquidityPool().liquidityPoolID);
+            makeLiquidityPoolAddress(lk.liquidityPool().liquidityPoolID);
         auto eventADiff = consumeAmount(poolAddress, assetA, agg.mEventAmounts);
         auto eventBDiff = consumeAmount(poolAddress, assetB, agg.mEventAmounts);
 

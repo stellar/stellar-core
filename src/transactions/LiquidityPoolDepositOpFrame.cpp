@@ -316,13 +316,13 @@ LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     }
 
     opEventManager.eventForTransferWithIssuerCheck(
-        cpp().assetA, accountToSCAddress(getSourceAccount()),
-        liquidityPoolIDToSCAddress(mLiquidityPoolDeposit.liquidityPoolID),
+        cpp().assetA, makeMuxedAccountAddress(getSourceAccount()),
+        makeLiquidityPoolAddress(mLiquidityPoolDeposit.liquidityPoolID),
         amountA);
 
     opEventManager.eventForTransferWithIssuerCheck(
-        cpp().assetB, accountToSCAddress(getSourceAccount()),
-        liquidityPoolIDToSCAddress(mLiquidityPoolDeposit.liquidityPoolID),
+        cpp().assetB, makeMuxedAccountAddress(getSourceAccount()),
+        makeLiquidityPoolAddress(mLiquidityPoolDeposit.liquidityPoolID),
         amountB);
 
     innerResult(res).code(LIQUIDITY_POOL_DEPOSIT_SUCCESS);

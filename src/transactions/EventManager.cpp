@@ -235,7 +235,7 @@ OpEventManager::eventsForClaimAtoms(
         return;
     }
 
-    auto sourceSCAddress = accountToSCAddress(source);
+    auto sourceSCAddress = makeMuxedAccountAddress(source);
 
     for (auto const& atom : claimAtoms)
     {
@@ -260,7 +260,7 @@ OpEventManager::eventsForClaimAtoms(
         }
         case CLAIM_ATOM_TYPE_ORDER_BOOK:
         {
-            auto seller = accountToSCAddress(atom.orderBook().sellerID);
+            auto seller = makeAccountAddress(atom.orderBook().sellerID);
 
             auto amountToSeller = atom.orderBook().amountBought;
             auto assetToSeller = atom.orderBook().assetBought;
@@ -276,8 +276,8 @@ OpEventManager::eventsForClaimAtoms(
         }
         case CLAIM_ATOM_TYPE_LIQUIDITY_POOL:
         {
-            auto poolID = liquidityPoolIDToSCAddress(
-                atom.liquidityPool().liquidityPoolID);
+            auto poolID =
+                makeLiquidityPoolAddress(atom.liquidityPool().liquidityPoolID);
 
             auto amountToPool = atom.liquidityPool().amountBought;
             auto assetToPool = atom.liquidityPool().assetBought;
