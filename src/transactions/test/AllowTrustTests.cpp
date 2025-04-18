@@ -377,7 +377,12 @@ template <int V> struct TestStub
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;
 
-        auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+
+        // Enable all invariants (including EventsAreConsistentWithEntryDiffs)
+        cfg.INVARIANT_CHECKS = {".*"};
+        cfg.EMIT_CLASSIC_EVENTS = true;
+        cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
