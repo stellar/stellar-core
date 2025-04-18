@@ -90,6 +90,45 @@ getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
     return asset;
 }
 
+SCVal
+getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo)
+{
+    // mux follows order of precedence
+    // no mux no memo -- data is just i128
+    // else data is an scmap
+
+    bool is_to_mux = to.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
+    bool has_memo = memo.type() != MemoType::MEMO_NONE;
+
+    SCVal amountVal = makeI128SCVal(amount);
+
+    bool is_to_muxed_with_memo =
+        has_memo && to.type() == SC_ADDRESS_TYPE_ACCOUNT;
+    if (!is_to_mux && !is_to_muxed_with_memo)
+    {
+        return amountVal;
+    }
+    else
+    {
+        // data is ScMap
+        SCVal data(SCV_MAP);
+        SCMap& dataMap = data.map().activate();
+
+        SCMapEntry amountEntry;
+        amountEntry.key = makeSymbolSCVal("amount");
+        amountEntry.val = amountVal;
+        dataMap.push_back(amountEntry);
+
+        SCMapEntry toEntry;
+        toEntry.key = makeSymbolSCVal("to_muxed_id");
+        toEntry.val = is_to_mux ? makeMuxIDSCVal(to.muxedAccount())
+                                : makeClassicMemoSCVal(memo);
+        dataMap.push_back(toEntry);
+
+        return data;
+    }
+}
+
 DiagnosticEventBuffer::DiagnosticEventBuffer(Config const& config)
     : mConfig(config)
 {
@@ -196,7 +235,7 @@ OpEventManager::eventsForClaimAtoms(
         return;
     }
 
-    auto sourceSCAddress = accountToSCAddress(source);
+    auto sourceSCAddress = makeMuxedAccountAddress(source);
 
     for (auto const& atom : claimAtoms)
     {
@@ -221,7 +260,7 @@ OpEventManager::eventsForClaimAtoms(
         }
         case CLAIM_ATOM_TYPE_ORDER_BOOK:
         {
-            auto seller = accountToSCAddress(atom.orderBook().sellerID);
+            auto seller = makeAccountAddress(atom.orderBook().sellerID);
 
             auto amountToSeller = atom.orderBook().amountBought;
             auto assetToSeller = atom.orderBook().assetBought;
@@ -237,8 +276,8 @@ OpEventManager::eventsForClaimAtoms(
         }
         case CLAIM_ATOM_TYPE_LIQUIDITY_POOL:
         {
-            auto poolID = liquidityPoolIDToSCAddress(
-                atom.liquidityPool().liquidityPoolID);
+            auto poolID =
+                makeLiquidityPoolAddress(atom.liquidityPool().liquidityPoolID);
 
             auto amountToPool = atom.liquidityPool().amountBought;
             auto assetToPool = atom.liquidityPool().assetBought;
@@ -308,58 +347,7 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
                     makeSep0011AssetStringSCVal(asset)};
     ev.body.v0().topics = topics;
 
-    // mux follows order of precedence
-    // no mux no memo -- data is just i128
-    // else data is an scmap
-
-    bool is_from_mux = from.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
-    bool is_to_mux = to.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
-    bool has_memo = mMemo.type() != MemoType::MEMO_NONE;
-
-    SCVal amountVal = makeI128SCVal(amount);
-
-    bool is_to_muxed_with_memo =
-        has_memo && to.type() == SC_ADDRESS_TYPE_ACCOUNT;
-    if (!is_from_mux && !is_to_mux && !is_to_muxed_with_memo)
-    {
-        ev.body.v0().data = amountVal;
-    }
-    else
-    {
-        // data is ScMap
-        SCVal data(SCV_MAP);
-        SCMap& dataMap = data.map().activate();
-
-        SCMapEntry amountEntry;
-        amountEntry.key = makeSymbolSCVal("amount");
-        amountEntry.val = amountVal;
-        dataMap.push_back(amountEntry);
-
-        if (is_from_mux)
-        {
-            SCMapEntry fromEntry;
-            fromEntry.key = makeSymbolSCVal("from_muxed_id");
-            fromEntry.val = makeMuxIDSCVal(from.muxedAccount());
-            dataMap.push_back(fromEntry);
-        }
-
-        if (is_to_mux)
-        {
-            SCMapEntry toEntry;
-            toEntry.key = makeSymbolSCVal("to_muxed_id");
-            toEntry.val = makeMuxIDSCVal(to.muxedAccount());
-            dataMap.push_back(toEntry);
-        }
-        else if (is_to_muxed_with_memo)
-        {
-            SCMapEntry toEntry;
-            toEntry.key = makeSymbolSCVal("to_muxed_id");
-            toEntry.val = makeClassicMemoSCVal(mMemo);
-            dataMap.push_back(toEntry);
-        }
-
-        ev.body.v0().data = data;
-    }
+    ev.body.v0().data = getPossibleMuxedData(to, amount, mMemo);
     mContractEvents.emplace_back(std::move(ev));
 }
 
@@ -382,7 +370,7 @@ OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
                     makeSep0011AssetStringSCVal(asset)};
     ev.body.v0().topics = topics;
 
-    ev.body.v0().data = makeI128SCVal(amount);
+    ev.body.v0().data = getPossibleMuxedData(to, amount, mMemo);
 
     if (insertAtBeginning)
     {

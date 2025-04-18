@@ -348,10 +348,10 @@ SCVal makeSep0011AssetStringSCVal(Asset const& asset);
 SCVal makeClassicMemoSCVal(Memo const& memo);
 SCVal makeMuxIDSCVal(MuxedEd25519Account const& acc);
 
-SCAddress accountToSCAddress(MuxedAccount const& account);
-SCAddress accountToSCAddress(AccountID const& account);
-SCAddress claimableBalanceIDToSCAddress(ClaimableBalanceID const& id);
-SCAddress liquidityPoolIDToSCAddress(PoolID const& id);
+SCAddress makeMuxedAccountAddress(MuxedAccount const& account);
+SCAddress makeAccountAddress(AccountID const& account);
+SCAddress makeClaimableBalanceAddress(ClaimableBalanceID const& id);
+SCAddress makeLiquidityPoolAddress(PoolID const& id);
 SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr);
 bool isIssuer(SCAddress const& addr, Asset const& asset);
 }

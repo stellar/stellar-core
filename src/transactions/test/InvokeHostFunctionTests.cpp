@@ -428,23 +428,21 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
         Asset tokenAsset = useNativeAsset ? txtest::makeNativeAsset() : asset;
         AssetContractTestClient client(test, tokenAsset);
         {
-            INFO("transfer from muxed account to muxed account");
+            INFO("transfer to muxed account");
             REQUIRE(client.transfer(
                 a1, makeMuxedAccountAddress(a2.getPublicKey(), 123'456'789),
-                100'000'000, std::numeric_limits<uint64_t>::max()));
+                100'000'000));
             REQUIRE(*client.lastEvent() ==
-                    client.makeTransferEvent(
-                        a1Address, a2Address, 100'000'000,
-                        std::numeric_limits<uint64_t>::max(), 123'456'789));
+                    client.makeTransferEvent(a1Address, a2Address, 100'000'000,
+                                             123'456'789));
         }
         {
-            INFO("transfer from muxed account to contract");
+            INFO("transfer from account to contract");
             REQUIRE(client.transfer(a2, transferContract.getAddress(),
-                                    200'000'000, 0));
+                                    200'000'000));
             REQUIRE(*client.lastEvent() ==
-                    client.makeTransferEvent(a2Address,
-                                             transferContract.getAddress(),
-                                             200'000'000, 0));
+                    client.makeTransferEvent(
+                        a2Address, transferContract.getAddress(), 200'000'000));
         }
         {
             INFO("transfer from contract not supporting muxed accounts")
@@ -483,18 +481,18 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
                 300'000'000));
             REQUIRE(*client.lastEvent() ==
                     client.makeTransferEvent(a1Address, a2Address, 300'000'000,
-                                             std::nullopt,
                                              123'456'789'123'456'789ULL));
         }
         {
             INFO("transfer to liquidity pool fails");
-            REQUIRE(!client.transfer(a1, makeLiqudityPoolAddress(PoolID()), 1));
+            REQUIRE(
+                !client.transfer(a1, makeLiquidityPoolAddress(PoolID()), 1));
             REQUIRE(client.lastEvent() == std::nullopt);
         }
         {
             INFO("transfer to claimable balance fails");
-            REQUIRE(
-                !client.transfer(a1, makeClaimableBalanceAddress(Hash()), 1));
+            REQUIRE(!client.transfer(
+                a1, makeClaimableBalanceAddress(ClaimableBalanceID()), 1));
             REQUIRE(client.lastEvent() == std::nullopt);
         }
     };

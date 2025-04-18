@@ -140,8 +140,9 @@ PathPaymentStrictReceiveOpFrame::doApply(
     // Emit the final event between the source and destination account wrt the
     // dest asset.
     opEventManager.eventForTransferWithIssuerCheck(
-        getDestAsset(), accountToSCAddress(getSourceAccount()),
-        accountToSCAddress(getDestMuxedAccount()), mPathPayment.destAmount);
+        getDestAsset(), makeMuxedAccountAddress(getSourceAccount()),
+        makeMuxedAccountAddress(getDestMuxedAccount()),
+        mPathPayment.destAmount);
 
     return true;
 }
