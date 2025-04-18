@@ -36,7 +36,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
         getLumenContractInfo(app->getNetworkID()).mLumenContractID;
     auto idrContractID = getAssetContractID(app->getNetworkID(), idr);
 
-    SECTION("a pays b")
+    SECTION("a pays b. Also validate fee event")
     {
         auto a1 = root->create("A", paymentAmount);
         auto amount = app->getLedgerManager().getLastMinBalance(0) + 1000000;
@@ -45,6 +45,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
         auto b1ID = KeyUtils::fromStrKey<PublicKey>(b1.getAccountId());
 
         for_all_versions(*app, [&] {
+            auto prePaymentA1Balance = a1.getBalance();
             int64_t amt = 200;
             auto txFrame = a1.tx({payment(b1, amt)});
             auto resultSet = closeLedger(*app, {txFrame});
@@ -62,6 +63,13 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
                 makeAccountAddress(a1ID), makeAccountAddress(b1ID), amt,
                 std::nullopt, std::nullopt);
             REQUIRE(paymentEvent == expectedEvent);
+
+            auto const& txEvents = app->getLedgerManager()
+                                       .getLastClosedLedgerTxMeta()[0]
+                                       .getTxEvents();
+            REQUIRE(txEvents.size() == 1);
+            validateFeeEvent(txEvents[0], a1,
+                             prePaymentA1Balance - amt - a1.getBalance());
         });
     }
 
@@ -155,9 +163,9 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
             auto amt = 200;
             memo.text() = "test memo";
 
-            auto txFrame = transactionFromOperationsV1(
-                *app, a, a.nextSequenceNumber(), {payment(b, amt)}, 0 /*fee*/,
-                std::nullopt, std::nullopt, memo);
+            auto txFrame =
+                transactionFromOperations(*app, a, a.nextSequenceNumber(),
+                                          {payment(b, amt)}, 0 /*fee*/, memo);
             auto resultSet = closeLedger(*app, {txFrame});
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
@@ -191,7 +199,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
         auto a1ID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
 
         for_all_versions(*app, [&] {
-            auto txFrame = transactionFromOperationsV1(
+            auto txFrame = transactionFromOperations(
                 *app, gateway, gateway.nextSequenceNumber(),
                 {payment(a1, idr, amt)}, 0 /*fee*/);
             auto resultSet = closeLedger(*app, {txFrame});
@@ -219,7 +227,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
         auto a1ID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
 
         for_all_versions(*app, [&] {
-            auto txFrame = transactionFromOperationsV1(
+            auto txFrame = transactionFromOperations(
                 *app, a1, a1.nextSequenceNumber(), {payment(gateway, idr, amt)},
                 0 /*fee*/);
             auto resultSet = closeLedger(*app, {txFrame});
@@ -290,44 +298,3 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
 // {
 
 // }
-
-TEST_CASE_VERSIONS("classic fee event", "[tx][event]")
-{
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
-    cfg.EMIT_CLASSIC_EVENTS = true;
-    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
-
-    VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
-
-    // set up world
-    auto root = app->getRoot();
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
-
-    SECTION("a pays b")
-    {
-        auto a1 = root->create("A", paymentAmount);
-        auto amount = app->getLedgerManager().getLastMinBalance(0) + 1000000;
-        auto b1 = root->create("B", amount);
-        auto a1ID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
-        auto b1ID = KeyUtils::fromStrKey<PublicKey>(b1.getAccountId());
-
-        for_versions_from(13, *app, [&] {
-            // uint32_t feeAmt = 200;
-            // auto txFrame = transactionFromOperationsV1(
-            //     *app, a1, a1.nextSequenceNumber(), {payment(b1, 200)}, feeAmt
-            //     /*fee*/, std::nullopt, std::nullopt);
-            auto txFrame = a1.tx({payment(b1, 200)});
-            auto resultSet = closeLedger(*app, {txFrame});
-            REQUIRE(txFrame->getResultCode() == txSUCCESS);
-
-            auto lastMeta =
-                app->getLedgerManager().getLastClosedLedgerTxMeta()[0];
-            auto feeEvent = app->getLedgerManager()
-                                .getLastClosedLedgerTxMeta()[0]
-                                .getTxEvents()[0];
-            LOG_INFO(DEFAULT_LOG, "events: {}", xdr::xdr_to_string(feeEvent));
-            validateFeeEvent(feeEvent, a1ID, 100);
-        });
-    }
-}
