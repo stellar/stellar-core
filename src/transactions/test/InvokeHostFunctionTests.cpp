@@ -1266,37 +1266,63 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
     }
 }
 
-TEST_CASE("refund account merged", "[tx][soroban][merge]")
+TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
 {
-    SorobanTest test;
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
 
-    const int64_t startingBalance =
-        test.getApp().getLedgerManager().getLastMinBalance(50);
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
 
-    auto a1 = test.getRoot().create("A", startingBalance);
-    auto b1 = test.getRoot().create("B", startingBalance);
-    auto c1 = test.getRoot().create("C", startingBalance);
-    auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(
-        wasm, getLclProtocolVersion(test.getApp()));
-    auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 1000);
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
 
-    auto mergeOp = accountMerge(b1);
-    mergeOp.sourceAccount.activate() = toMuxedAccount(a1);
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
 
-    auto classicMergeTx = c1.tx({mergeOp});
-    classicMergeTx->addSignature(a1.getSecretKey());
-    std::vector<TransactionFrameBasePtr> txs = {classicMergeTx, tx};
-    auto r = closeLedger(test.getApp(), txs);
-    checkTx(0, r, txSUCCESS);
+        auto a1 = test.getRoot().create("A", startingBalance);
+        auto b1 = test.getRoot().create("B", startingBalance);
+        auto c1 = test.getRoot().create("C", startingBalance);
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(test.getApp()));
+        auto tx =
+            makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 1000);
 
-    // The source account of the soroban tx was merged during the classic phase
-    checkTx(1, r, txNO_ACCOUNT);
+        auto mergeOp = accountMerge(b1);
+        mergeOp.sourceAccount.activate() = toMuxedAccount(a1);
+
+        auto classicMergeTx = c1.tx({mergeOp});
+        classicMergeTx->addSignature(a1.getSecretKey());
+        std::vector<TransactionFrameBasePtr> txs = {classicMergeTx, tx};
+        auto r = closeLedger(test.getApp(), txs);
+        checkTx(0, r, txSUCCESS);
+
+        // The source account of the soroban tx was merged during the classic
+        // phase
+        checkTx(1, r, txNO_ACCOUNT);
+
+        // The inclusion fee is 1000, but the tx is not surge priced, so remove
+        // everything above the min baseFee (100)
+        int64_t initialFee = tx->getEnvelope().v1().tx.fee - 900;
+
+        auto const& txEvents = app->getLedgerManager()
+                                   .getLastClosedLedgerTxMeta()[1]
+                                   .getTxEvents();
+
+        // The refund event was not emitted because the account was merged.
+        REQUIRE(txEvents.size() == 1);
+        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee);
+    });
 }
 
 TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
 {
     Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -1328,15 +1354,19 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
 
         auto a1PostTxBalance = a1.getBalance();
 
-        bool afterV20 = protocolVersionStartsFrom(
-            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
+        int64_t expectedRefund = 1'001'583;
+        int64_t initialFee = tx->getEnvelope().v1().tx.fee;
 
-        auto fee = afterV20 ? 62697 : 39288;
+        REQUIRE(a1PostTxBalance ==
+                a1PreTxBalance - initialFee + expectedRefund);
 
-        // The initial fee charge is based on DEFAULT_TEST_RESOURCE_FEE, which
-        // is 1'000'000, so the difference would be much higher if the refund
-        // did not happen.
-        REQUIRE(a1PreTxBalance - a1PostTxBalance == fee);
+        auto const& txEvents = app->getLedgerManager()
+                                   .getLastClosedLedgerTxMeta()[1]
+                                   .getTxEvents();
+
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee);
+        validateFeeEvent(txEvents[1], a1.getPublicKey(), -expectedRefund);
     });
 }
 
@@ -1368,35 +1398,23 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         auto r = closeLedger(test.getApp(), {tx});
         checkTx(0, r, txSUCCESS);
 
-        bool afterV20 = protocolVersionStartsFrom(
-            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
-
-        auto txFeeWithRefund = afterV20 ? 82'753 : 59'344;
-        REQUIRE(a1.getBalance() == a1StartingBalance - txFeeWithRefund);
+        int64_t expectedRefund = 981'527;
+        int64_t initialFee = tx->getEnvelope().v1().tx.fee;
+        REQUIRE(a1.getBalance() ==
+                a1StartingBalance - initialFee + expectedRefund);
 
         // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban
         // resource fee, so the total cost would be greater than
         // DEFAULT_TEST_RESOURCE_FEE without the refund.
-        REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+        REQUIRE(initialFee - expectedRefund < DEFAULT_TEST_RESOURCE_FEE);
 
-        auto a1AccID = KeyUtils::fromStrKey<PublicKey>(a1.getAccountId());
-        REQUIRE(app->getLedgerManager()
-                    .getLastClosedLedgerTxMeta()[0]
-                    .getTxEvents()
-                    .size() == 2);
-        auto feeEvent = app->getLedgerManager()
-                            .getLastClosedLedgerTxMeta()[0]
-                            .getTxEvents()[0];
-        LOG_INFO(DEFAULT_LOG, "fee event: {}", xdr::xdr_to_string(feeEvent));
-        validateFeeEvent(feeEvent, a1AccID, 1064280);
+        auto const& txEvents = app->getLedgerManager()
+                                   .getLastClosedLedgerTxMeta()[0]
+                                   .getTxEvents();
 
-        auto refundEvent = app->getLedgerManager()
-                               .getLastClosedLedgerTxMeta()[0]
-                               .getTxEvents()[1];
-        auto refundAmt = txFeeWithRefund - 1064280;
-        LOG_INFO(DEFAULT_LOG, "refund event: {}",
-                 xdr::xdr_to_string(refundEvent));
-        validateFeeEvent(refundEvent, a1AccID, refundAmt);
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee);
+        validateFeeEvent(txEvents[1], a1.getPublicKey(), -expectedRefund);
     });
 }
 
@@ -1448,8 +1466,16 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         bool afterV20 = protocolVersionStartsFrom(
             getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
-        auto const txFeeWithRefund = afterV20 ? 82'853 : 59'444;
-        auto const feeCharged = afterV20 ? txFeeWithRefund : 1'040'971;
+        int64_t expectedRefund = 981'527;
+
+        // Use the inner transactions fee, which already includes the minimum
+        // inclusion fee of 100 stroops, and add the additional 100 because of
+        // the fee-bump. This is what the feeBump will be charged.
+        int64_t initialFee = tx->getEnvelope().v1().tx.fee + 100;
+
+        // feeCharged did not account for the refund in V20
+        auto const feeCharged =
+            afterV20 ? initialFee - expectedRefund : initialFee;
 
         REQUIRE(
             r.results.at(0).result.result.innerResultPair().result.feeCharged ==
@@ -1457,35 +1483,24 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         REQUIRE(r.results.at(0).result.feeCharged == feeCharged);
 
         REQUIRE(feeBumper.getBalance() ==
-                feeBumperStartingBalance - txFeeWithRefund);
+                feeBumperStartingBalance - initialFee + expectedRefund);
 
         // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban
         // resource fee, so the total cost would be greater than
         // DEFAULT_TEST_RESOURCE_FEE without the refund.
-        REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+        REQUIRE(initialFee - expectedRefund < DEFAULT_TEST_RESOURCE_FEE);
 
         // There should be no change to a1's balance
         REQUIRE(a1.getBalance() == a1StartingBalance);
 
-        auto feeBumperID =
-            KeyUtils::fromStrKey<PublicKey>(feeBumper.getAccountId());
-        REQUIRE(app->getLedgerManager()
-                    .getLastClosedLedgerTxMeta()[0]
-                    .getTxEvents()
-                    .size() == 2);
-        auto feeEvent = app->getLedgerManager()
-                            .getLastClosedLedgerTxMeta()[0]
-                            .getTxEvents()[0];
-        LOG_INFO(DEFAULT_LOG, "fee event: {}", xdr::xdr_to_string(feeEvent));
-        validateFeeEvent(feeEvent, feeBumperID, 1064380);
+        auto const& txEvents = app->getLedgerManager()
+                                   .getLastClosedLedgerTxMeta()[0]
+                                   .getTxEvents();
 
-        auto refundEvent = app->getLedgerManager()
-                               .getLastClosedLedgerTxMeta()[0]
-                               .getTxEvents()[1];
-        auto refundAmt = txFeeWithRefund - 1064380;
-        LOG_INFO(DEFAULT_LOG, "refund event: {}",
-                 xdr::xdr_to_string(refundEvent));
-        validateFeeEvent(refundEvent, feeBumperID, refundAmt);
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee);
+        validateFeeEvent(txEvents[1], feeBumper.getPublicKey(),
+                         -expectedRefund);
     });
 }
 

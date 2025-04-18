@@ -372,13 +372,16 @@ makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
 
 bool
 validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
-                 int feeCharged)
+                 int64_t feeCharged)
 {
     auto feeEventTopics = feeEvent.body.v0().topics;
     auto feeEventData = feeEvent.body.v0().data;
     REQUIRE(feeEventTopics.at(0).sym() == "fee");
     REQUIRE(feeEventTopics.at(1).address().accountId() == feeSource);
-    REQUIRE(feeEventData.i128().lo == feeCharged);
+
+    auto feei128 = rust_bridge::i128_from_i64(feeCharged);
+    REQUIRE(feeEventData.i128().hi == feei128.hi);
+    REQUIRE(feeEventData.i128().lo == feei128.lo);
 }
 
 SorobanResources
