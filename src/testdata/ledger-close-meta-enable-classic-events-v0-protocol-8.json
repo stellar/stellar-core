@@ -420,7 +420,37 @@
                             ],
                             "txChangesAfter": [],
                             "sorobanMeta": null,
-                            "events": [],
+                            "events": [
+                                {
+                                    "ext": {
+                                        "v": 0
+                                    },
+                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                    "type": "CONTRACT",
+                                    "body": {
+                                        "v": 0,
+                                        "v0": {
+                                            "topics": [
+                                                {
+                                                    "type": "SCV_SYMBOL",
+                                                    "sym": "fee"
+                                                },
+                                                {
+                                                    "type": "SCV_ADDRESS",
+                                                    "address": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
+                                                }
+                                            ],
+                                            "data": {
+                                                "type": "SCV_I128",
+                                                "i128": {
+                                                    "hi": 0,
+                                                    "lo": 200
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ],
                             "diagnosticEvents": []
                         }
                     }
@@ -664,7 +694,37 @@
                             ],
                             "txChangesAfter": [],
                             "sorobanMeta": null,
-                            "events": [],
+                            "events": [
+                                {
+                                    "ext": {
+                                        "v": 0
+                                    },
+                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                    "type": "CONTRACT",
+                                    "body": {
+                                        "v": 0,
+                                        "v0": {
+                                            "topics": [
+                                                {
+                                                    "type": "SCV_SYMBOL",
+                                                    "sym": "fee"
+                                                },
+                                                {
+                                                    "type": "SCV_ADDRESS",
+                                                    "address": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X"
+                                                }
+                                            ],
+                                            "data": {
+                                                "type": "SCV_I128",
+                                                "i128": {
+                                                    "hi": 0,
+                                                    "lo": 100
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ],
                             "diagnosticEvents": []
                         }
                     }

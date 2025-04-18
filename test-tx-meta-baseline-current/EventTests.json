@@ -1,0 +1,377 @@
+
+{
+	"!cfg protocol version" : 22,
+	"!rng seed" : 12345,
+	"!test all versions" : true,
+	"!versions to test" : 
+	[
+		0,
+		1,
+		2,
+		3,
+		4,
+		5,
+		6,
+		7,
+		8,
+		9,
+		10,
+		11,
+		12,
+		13,
+		14,
+		15,
+		16,
+		17,
+		18,
+		19,
+		20,
+		21,
+		22
+	],
+	"payment events|protocol version 0" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 0|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 0|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 0|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 0|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 0|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 0|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 1" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 10" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 10|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 10|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 10|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 10|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 10|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 10|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 11" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 11|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 11|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 11|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 11|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 11|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 11|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 12" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 12|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 12|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 12|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 12|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 12|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 12|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 13" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 13|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 13|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 13|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 13|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 13|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 13|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 14" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 14|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 14|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 14|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 14|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 14|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 14|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 15" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 15|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 15|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 15|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 15|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 15|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 15|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 16" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 16|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 16|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 16|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 16|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 16|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 16|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 17" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 17|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 17|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 17|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 17|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 17|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 17|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 18" : 
+	[
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM=",
+		"Pl2W3DQr7TM="
+	],
+	"payment events|protocol version 18|a pays b, a is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 18|a pays b, b is mux" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 18|a pays b. Also validate fee event" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 18|payee is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=", "DM1NlBTnSFc=" ],
+	"payment events|protocol version 18|payer is issuer" : [ "coO//ZOlCWQ=", "pCmyFMDDwLs=" ],
+	"payment events|protocol version 18|with tx memo" : [ "coO//ZOlCWQ=", "po/cxNIPip4=" ],
+	"payment events|protocol version 19" : 
+	[
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s="
+	],
+	"payment events|protocol version 19|a pays b, a is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 19|a pays b, b is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 19|a pays b. Also validate fee event" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 19|payee is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=", "urzqLiB3Ryo=" ],
+	"payment events|protocol version 19|payer is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
+	"payment events|protocol version 19|with tx memo" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 1|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 1|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 1|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 1|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 1|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 1|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 2" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 20" : 
+	[
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s="
+	],
+	"payment events|protocol version 20|a pays b, a is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 20|a pays b, b is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 20|a pays b. Also validate fee event" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 20|payee is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=", "urzqLiB3Ryo=" ],
+	"payment events|protocol version 20|payer is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
+	"payment events|protocol version 20|with tx memo" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 21" : 
+	[
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s="
+	],
+	"payment events|protocol version 21|a pays b, a is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 21|a pays b, b is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 21|a pays b. Also validate fee event" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 21|payee is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=", "urzqLiB3Ryo=" ],
+	"payment events|protocol version 21|payer is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
+	"payment events|protocol version 21|with tx memo" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 22" : 
+	[
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s=",
+		"PM6oEIMJJ0s="
+	],
+	"payment events|protocol version 22|a pays b, a is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 22|a pays b, b is mux" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 22|a pays b. Also validate fee event" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 22|payee is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=", "urzqLiB3Ryo=" ],
+	"payment events|protocol version 22|payer is issuer" : [ "/sivEP6YNuk=", "ieAQ0aL6H5A=" ],
+	"payment events|protocol version 22|with tx memo" : [ "/sivEP6YNuk=", "GOHogd0W7oA=" ],
+	"payment events|protocol version 2|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 2|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 2|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 2|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 2|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 2|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 3" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 3|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 3|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 3|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 3|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 3|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 3|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 4" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 4|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 4|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 4|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 4|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 4|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 4|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 5" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 5|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 5|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 5|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 5|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 5|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 5|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 6" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 6|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 6|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 6|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 6|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 6|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 6|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 7" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 7|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 7|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 7|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 7|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 7|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 7|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 8" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 8|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 8|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 8|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 8|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 8|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 8|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 9" : 
+	[
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g=",
+		"vo5hAuizn9g="
+	],
+	"payment events|protocol version 9|a pays b, a is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 9|a pays b, b is mux" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 9|a pays b. Also validate fee event" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ],
+	"payment events|protocol version 9|payee is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=", "2RJytbFfDFg=" ],
+	"payment events|protocol version 9|payer is issuer" : [ "4PeZDD6OQd8=", "BnCHKXxZxKI=" ],
+	"payment events|protocol version 9|with tx memo" : [ "4PeZDD6OQd8=", "gYxnOGKrh9E=" ]
+}
