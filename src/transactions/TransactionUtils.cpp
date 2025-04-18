@@ -1563,7 +1563,7 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
             {
 
                 opEventManager.newBurnEvent(
-                    assetInPool, liquidityPoolIDToSCAddress(poolID), amount);
+                    assetInPool, makeLiquidityPoolAddress(poolID), amount);
 
                 return RemoveResult::SUCCESS;
             }
@@ -1583,8 +1583,8 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
                 makeUnconditionalClaimant(accountID)};
 
             opEventManager.newTransferEvent(
-                assetInPool, liquidityPoolIDToSCAddress(poolID),
-                claimableBalanceIDToSCAddress(claimableBalanceEntry.balanceID),
+                assetInPool, makeLiquidityPoolAddress(poolID),
+                makeClaimableBalanceAddress(claimableBalanceEntry.balanceID),
                 amount);
 
             // if this asset isn't native
@@ -1990,7 +1990,7 @@ makeAccountIDSCVal(AccountID const& id)
 }
 
 SCAddress
-accountToSCAddress(MuxedAccount const& account)
+makeMuxedAccountAddress(MuxedAccount const& account)
 {
     switch (account.type())
     {
@@ -2014,7 +2014,7 @@ accountToSCAddress(MuxedAccount const& account)
 }
 
 SCAddress
-accountToSCAddress(AccountID const& account)
+makeAccountAddress(AccountID const& account)
 {
     SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
     addr.accountId() = account;
@@ -2022,7 +2022,7 @@ accountToSCAddress(AccountID const& account)
 }
 
 SCAddress
-claimableBalanceIDToSCAddress(ClaimableBalanceID const& id)
+makeClaimableBalanceAddress(ClaimableBalanceID const& id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
     addr.claimableBalanceId() = id;
@@ -2030,7 +2030,7 @@ claimableBalanceIDToSCAddress(ClaimableBalanceID const& id)
 }
 
 SCAddress
-liquidityPoolIDToSCAddress(PoolID const& id)
+makeLiquidityPoolAddress(PoolID const& id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
     addr.liquidityPoolId() = id;

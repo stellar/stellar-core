@@ -61,7 +61,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
             auto expectedEvent = makeTransferEvent(
                 lumenContractID, Asset(AssetType::ASSET_TYPE_NATIVE),
                 makeAccountAddress(a1ID), makeAccountAddress(b1ID), amt,
-                std::nullopt, std::nullopt);
+                std::nullopt);
             REQUIRE(paymentEvent == expectedEvent);
 
             auto const& txEvents = app->getLedgerManager()
@@ -99,7 +99,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
                      xdr::xdr_to_string(paymentEvent));
             auto expectedEvent = makeTransferEvent(
                 lumenContractID, Asset(AssetType::ASSET_TYPE_NATIVE),
-                makeAccountAddress(aID), makeAccountAddress(bID), amt, aMemoID,
+                makeAccountAddress(aID), makeAccountAddress(bID), amt,
                 std::nullopt);
             REQUIRE(paymentEvent == expectedEvent);
         });
@@ -143,8 +143,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
 
             auto expectedEvent = makeTransferEvent(
                 lumenContractID, Asset(AssetType::ASSET_TYPE_NATIVE),
-                makeAccountAddress(aID), makeAccountAddress(bID), amt,
-                std::nullopt, bMemoID);
+                makeAccountAddress(aID), makeAccountAddress(bID), amt, bMemoID);
             REQUIRE(paymentEvent == expectedEvent);
         });
     }
@@ -180,7 +179,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
             auto expectedEvent = makeTransferEvent(
                 lumenContractID, Asset(AssetType::ASSET_TYPE_NATIVE),
                 makeAccountAddress(a1ID), makeAccountAddress(b1ID), amt,
-                std::nullopt, std::nullopt, memo);
+                std::nullopt, memo);
             REQUIRE(paymentEvent == expectedEvent);
         });
     }

@@ -68,13 +68,13 @@ reconcileEvents(AccountID const& txSourceAccount, Operation const& operation,
         operation.body.type() == PAYMENT)
     {
 
-        opEventManager.newMintEvent(native, accountToSCAddress(opSource),
+        opEventManager.newMintEvent(native, makeAccountAddress(opSource),
                                     deltaBalances,
                                     true /*Insert mint at the beginning*/);
     }
     else if (operation.body.type() == PATH_PAYMENT_STRICT_RECEIVE)
     {
-        opEventManager.newBurnEvent(native, accountToSCAddress(opSource),
+        opEventManager.newBurnEvent(native, makeAccountAddress(opSource),
                                     std::abs(deltaBalances));
     }
     else

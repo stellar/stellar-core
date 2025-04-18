@@ -74,7 +74,7 @@ ClawbackClaimableBalanceOpFrame::doApply(
     // Emit event before we erase the claimable balance
     opEventManager.newClawbackEvent(
         asset(),
-        claimableBalanceIDToSCAddress(mClawbackClaimableBalance.balanceID),
+        makeClaimableBalanceAddress(mClawbackClaimableBalance.balanceID),
         claimableBalanceLtxEntry.current().data.claimableBalance().amount);
 
     claimableBalanceLtxEntry.erase();

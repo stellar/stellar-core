@@ -42,29 +42,31 @@ soroban-env-host v23.0.0 (src/rust/soroban/p23/soroban-env-host)
 │   │   │   │   │       │       └── getrandom v0.2.11
 │   │   │   │   │       │           ├── cfg-if v1.0.0
 │   │   │   │   │       │           ├── js-sys v0.3.64
-│   │   │   │   │       │           │   └── wasm-bindgen v0.2.87
+│   │   │   │   │       │           │   └── wasm-bindgen v0.2.100
 │   │   │   │   │       │           │       ├── cfg-if v1.0.0
-│   │   │   │   │       │           │       └── wasm-bindgen-macro v0.2.87 (proc-macro)
+│   │   │   │   │       │           │       ├── once_cell v1.19.0
+│   │   │   │   │       │           │       ├── rustversion v1.0.14 (proc-macro)
+│   │   │   │   │       │           │       └── wasm-bindgen-macro v0.2.100 (proc-macro)
 │   │   │   │   │       │           │           ├── quote v1.0.33 (*)
-│   │   │   │   │       │           │           └── wasm-bindgen-macro-support v0.2.87
+│   │   │   │   │       │           │           └── wasm-bindgen-macro-support v0.2.100
 │   │   │   │   │       │           │               ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   │       │           │               ├── quote v1.0.33 (*)
 │   │   │   │   │       │           │               ├── syn v2.0.39
 │   │   │   │   │       │           │               │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   │       │           │               │   ├── quote v1.0.33 (*)
 │   │   │   │   │       │           │               │   └── unicode-ident v1.0.9
-│   │   │   │   │       │           │               ├── wasm-bindgen-backend v0.2.87
+│   │   │   │   │       │           │               ├── wasm-bindgen-backend v0.2.100
 │   │   │   │   │       │           │               │   ├── bumpalo v3.13.0
 │   │   │   │   │       │           │               │   ├── log v0.4.19
-│   │   │   │   │       │           │               │   ├── once_cell v1.19.0
 │   │   │   │   │       │           │               │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   │       │           │               │   ├── quote v1.0.33 (*)
 │   │   │   │   │       │           │               │   ├── syn v2.0.39 (*)
-│   │   │   │   │       │           │               │   └── wasm-bindgen-shared v0.2.87
-│   │   │   │   │       │           │               └── wasm-bindgen-shared v0.2.87
+│   │   │   │   │       │           │               │   └── wasm-bindgen-shared v0.2.100
+│   │   │   │   │       │           │               │       └── unicode-ident v1.0.9
+│   │   │   │   │       │           │               └── wasm-bindgen-shared v0.2.100 (*)
 │   │   │   │   │       │           ├── libc v0.2.150
 │   │   │   │   │       │           ├── wasi v0.11.0+wasi-snapshot-preview1
-│   │   │   │   │       │           └── wasm-bindgen v0.2.87 (*)
+│   │   │   │   │       │           └── wasm-bindgen v0.2.100 (*)
 │   │   │   │   │       └── rand_core v0.6.4 (*)
 │   │   │   │   ├── digest v0.10.7
 │   │   │   │   │   ├── block-buffer v0.10.4
@@ -245,7 +247,7 @@ soroban-env-host v23.0.0 (src/rust/soroban/p23/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=4413ebb265fedd4e194487846289c804bae4c574#4413ebb2)
+│   │   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=fdd0c4f467ea654c3aaf139e8e914e1c416a39b8#fdd0c4f4)
 │   │   │   ├── escape-bytes v0.1.1
 │   │   │   ├── hex v0.4.3
 │   │   │   └── stellar-strkey v0.0.13
@@ -270,7 +272,7 @@ soroban-env-host v23.0.0 (src/rust/soroban/p23/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=4413ebb265fedd4e194487846289c804bae4c574#4413ebb2)
+│   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=fdd0c4f467ea654c3aaf139e8e914e1c416a39b8#fdd0c4f4)
 │   │   ├── base64 v0.13.1
 │   │   ├── escape-bytes v0.1.1
 │   │   ├── hex v0.4.3

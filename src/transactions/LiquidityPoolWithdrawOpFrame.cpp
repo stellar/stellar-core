@@ -103,13 +103,13 @@ LiquidityPoolWithdrawOpFrame::doApply(
 
     opEventManager.eventForTransferWithIssuerCheck(
         constantProduct().params.assetA,
-        liquidityPoolIDToSCAddress(mLiquidityPoolWithdraw.liquidityPoolID),
-        accountToSCAddress(getSourceAccount()), amountA);
+        makeLiquidityPoolAddress(mLiquidityPoolWithdraw.liquidityPoolID),
+        makeMuxedAccountAddress(getSourceAccount()), amountA);
 
     opEventManager.eventForTransferWithIssuerCheck(
         constantProduct().params.assetB,
-        liquidityPoolIDToSCAddress(mLiquidityPoolWithdraw.liquidityPoolID),
-        accountToSCAddress(getSourceAccount()), amountB);
+        makeLiquidityPoolAddress(mLiquidityPoolWithdraw.liquidityPoolID),
+        makeMuxedAccountAddress(getSourceAccount()), amountB);
 
     innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_SUCCESS);
     return true;

@@ -185,8 +185,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res,
 
     Asset native(ASSET_TYPE_NATIVE);
     opEventManager.newTransferEvent(
-        native, accountToSCAddress(getSourceAccount()),
-        accountToSCAddress(mOperation.body.destination()), sourceBalance);
+        native, makeMuxedAccountAddress(getSourceAccount()),
+        makeMuxedAccountAddress(mOperation.body.destination()), sourceBalance);
 
     innerResult(res).code(ACCOUNT_MERGE_SUCCESS);
     innerResult(res).sourceAccountBalance() = sourceBalance;
@@ -266,8 +266,8 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res,
 
     Asset native(ASSET_TYPE_NATIVE);
     opEventManager.newTransferEvent(
-        native, accountToSCAddress(getSourceAccount()),
-        accountToSCAddress(mOperation.body.destination()), sourceBalance);
+        native, makeMuxedAccountAddress(getSourceAccount()),
+        makeMuxedAccountAddress(mOperation.body.destination()), sourceBalance);
 
     innerResult(res).code(ACCOUNT_MERGE_SUCCESS);
     innerResult(res).sourceAccountBalance() = sourceBalance;

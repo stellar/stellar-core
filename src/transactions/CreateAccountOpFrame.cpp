@@ -165,8 +165,8 @@ CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     {
         Asset native(ASSET_TYPE_NATIVE);
         opEventManager.newTransferEvent(
-            native, accountToSCAddress(getSourceAccount()),
-            accountToSCAddress(mCreateAccount.destination),
+            native, makeMuxedAccountAddress(getSourceAccount()),
+            makeAccountAddress(mCreateAccount.destination),
             mCreateAccount.startingBalance);
     }
 
