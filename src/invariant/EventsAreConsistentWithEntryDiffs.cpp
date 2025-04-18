@@ -497,6 +497,9 @@ aggregateEventDiffs(Hash const& networkID,
                 return std::nullopt;
             }
 
+            // We only need the value from the last set_authorized event to
+            // compare ledger state against, so it is fine to overwrite
+            // previously saved values.
             res.mIsAuthorized[idVal.address()][asset] =
                 event.body.v0().data.b();
         }
