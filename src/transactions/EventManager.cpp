@@ -635,7 +635,9 @@ TxEventManager::shouldEmitClassicEvents() const
 void
 TxEventManager::newFeeEvent(AccountID const& feeSource, int64 amount)
 {
-    if (!shouldEmitClassicEvents())
+    // We don't emit 0 fee events. This is relevant for Soroban transactions
+    // that end up with no refunds.
+    if (!shouldEmitClassicEvents() || amount == 0)
     {
         return;
     }
