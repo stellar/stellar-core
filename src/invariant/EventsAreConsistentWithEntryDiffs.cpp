@@ -179,9 +179,8 @@ checkAuthorization(AggregatedEvents& agg, SCAddress const& trustlineOwner,
     // if auth on trustline changed, make sure an event was emitted
     if (res && currAuth != prevAuth)
     {
-        res = (eventAuth && (*eventAuth == currAuth));
+        res = eventAuth.has_value();
     }
-
     return res;
 }
 
