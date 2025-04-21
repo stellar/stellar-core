@@ -134,7 +134,7 @@ PathPaymentStrictSendOpFrame::doApply(
     // dest asset.
     opEventManager.eventForTransferWithIssuerCheck(
         getDestAsset(), makeMuxedAccountAddress(getSourceAccount()),
-        makeMuxedAccountAddress(getDestMuxedAccount()), maxAmountSend);
+        makeMuxedAccountAddress(getDestMuxedAccount()), maxAmountSend, true);
 
     return true;
 }
