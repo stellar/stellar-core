@@ -56,8 +56,7 @@ class Floodgate
     void clearBelow(uint32_t maxLedger);
     // returns true if this is a new record
     // fills msgID with msg's hash
-    bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer,
-                   Hash const& msgID);
+    bool addRecord(Peer::pointer fromPeer, Hash const& msgID);
 
     // returns true if msg was sent to at least one peer
     // The hash required for transactions

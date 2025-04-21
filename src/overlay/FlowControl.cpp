@@ -139,8 +139,12 @@ FlowControl::getNextBatchToSend()
 
             switch (front.mMessage->type())
             {
+#ifdef BUILD_TESTS
+            case TX_SET:
+#endif
             case TRANSACTION:
             {
+                releaseAssert(OverlayManager::isFloodMessage(msg));
                 size_t s = mFlowControlBytesCapacity.getMsgResourceCount(msg);
                 releaseAssert(mTxQueueByteCount >= s);
                 mTxQueueByteCount -= s;
@@ -194,6 +198,10 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
     switch (msg->type())
     {
     case TRANSACTION:
+#ifdef BUILD_TESTS
+    case TX_SET:
+#endif
+        releaseAssert(OverlayManager::isFloodMessage(*msg));
         updateQueueDelay(om.mOutboundQueueDelayTxs,
                          mMetrics.mOutboundQueueDelayTxs);
         break;
@@ -368,7 +376,11 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     break;
     case TRANSACTION:
+#ifdef BUILD_TESTS
+    case TX_SET:
+#endif
     {
+        releaseAssert(OverlayManager::isFloodMessage(*msg));
         msgQInd = 1;
         auto bytes = mFlowControlBytesCapacity.getMsgResourceCount(*msg);
         // Don't accept transactions that are over allowed byte limit: those
