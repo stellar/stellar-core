@@ -69,18 +69,20 @@ class OpEventManager
     // of a transfer if so
     void eventForTransferWithIssuerCheck(Asset const& asset,
                                          SCAddress const& from,
-                                         SCAddress const& to, int64 amount);
+                                         SCAddress const& to, int64 amount,
+                                         bool allowMuxedIdOrMemo);
 
     // Adds a new "transfer" contractEvent in the form of:
     // contract: asset, topics: ["transfer", from:Address, to:Address,
     // sep0011_asset:String], data: { amount:i128 }
     void newTransferEvent(Asset const& asset, SCAddress const& from,
-                          SCAddress const& to, int64 amount);
+                          SCAddress const& to, int64 amount,
+                          bool allowMuxedIdOrMemo);
 
     // contract: asset, topics: ["mint", to:Address, sep0011_asset:String],
     // data: { amount:i128 }
     void newMintEvent(Asset const& asset, SCAddress const& to, int64 amount,
-                      bool insertAtBeginning = false);
+                      bool allowMuxedIdOrMemo, bool insertAtBeginning = false);
 
     // contract: asset, topics: ["burn", from:Address, sep0011_asset:String],
     // data: { amount:i128 }

@@ -251,7 +251,8 @@ CreateClaimableBalanceOpFrame::doApply(
 
     opEventManager.eventForTransferWithIssuerCheck(
         asset, makeMuxedAccountAddress(getSourceAccount()),
-        makeClaimableBalanceAddress(claimableBalanceEntry.balanceID), amount);
+        makeClaimableBalanceAddress(claimableBalanceEntry.balanceID), amount,
+        true);
 
     innerResult(res).code(CREATE_CLAIMABLE_BALANCE_SUCCESS);
     innerResult(res).balanceID() = claimableBalanceEntry.balanceID;
