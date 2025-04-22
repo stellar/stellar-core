@@ -4,6 +4,8 @@
 
 #include "transactions/OperationMetaArray.h"
 
+#include <iterator>
+
 namespace stellar
 {
 
