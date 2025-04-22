@@ -146,6 +146,49 @@ BucketBase<BucketT, IndexT>::randomBucketIndexName(std::string const& tmpDir)
     return randomFileName(tmpDir, ".index");
 }
 
+template <class BucketT, class IndexT>
+bool
+BucketBase<BucketT, IndexT>::updateMergeCountersForProtocolVersion(
+    MergeCounters& mc, uint32_t protocolVersion,
+    std::vector<BucketInputIterator<BucketT>> const& shadowIterators)
+{
+    // Don't count shadow metrics for Hot Archive BucketList
+    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
+    {
+        return true;
+    }
+
+    bool keepShadowedLifecycleEntries = true;
+
+    if (protocolVersionIsBefore(
+            protocolVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+    {
+        ++mc.mPreInitEntryProtocolMerges;
+        keepShadowedLifecycleEntries = false;
+    }
+    else
+    {
+        ++mc.mPostInitEntryProtocolMerges;
+    }
+
+    if (protocolVersionIsBefore(protocolVersion,
+                                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+    {
+        ++mc.mPreShadowRemovalProtocolMerges;
+    }
+    else
+    {
+        if (!shadowIterators.empty())
+        {
+            throw std::runtime_error("Shadows are not supported");
+        }
+        ++mc.mPostShadowRemovalProtocolMerges;
+    }
+
+    return keepShadowedLifecycleEntries;
+}
+
 // The protocol used in a merge is the maximum of any of the protocols used in
 // its input buckets, _including_ any of its shadows. We need to be strict about
 // this for the same reason we change shadow algorithms along with merge
@@ -221,39 +264,9 @@ calculateMergeProtocolVersion(
     // we switch shadowing-behaviour to a more conservative mode, in order to
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
-    keepShadowedLifecycleEntries = true;
-
-    // Don't count shadow metrics for Hot Archive BucketList
-    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
-    {
-        return;
-    }
-
-    if (protocolVersionIsBefore(
-            protocolVersion,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
-    {
-        ++mc.mPreInitEntryProtocolMerges;
-        keepShadowedLifecycleEntries = false;
-    }
-    else
-    {
-        ++mc.mPostInitEntryProtocolMerges;
-    }
-
-    if (protocolVersionIsBefore(protocolVersion,
-                                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
-    {
-        ++mc.mPreShadowRemovalProtocolMerges;
-    }
-    else
-    {
-        if (!shadowIterators.empty())
-        {
-            throw std::runtime_error("Shadows are not supported");
-        }
-        ++mc.mPostShadowRemovalProtocolMerges;
-    }
+    keepShadowedLifecycleEntries =
+        BucketBase<BucketT, IndexT>::updateMergeCountersForProtocolVersion(
+            mc, protocolVersion, shadowIterators);
 }
 
 // There are 4 "easy" cases for merging: exhausted iterators on either

@@ -32,6 +32,12 @@ typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
 class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                    public std::enable_shared_from_this<LiveBucket>
 {
+    // Stores all BucketEntries (except METAENTRY) in the same order that they
+    // appear in the bucket file for level 0 entries. Because level 0 merges
+    // block the main thread when we write to the BucketList, we use the
+    // in-memory entries to produce the new bucket instead of file IO.
+    std::optional<std::vector<BucketEntry>> mEntries{};
+
   public:
     // Entry type that this bucket stores
     using EntryT = BucketEntry;
@@ -99,12 +105,14 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
     // be sorted, hashed, and adopted in the provided BucketManager.
+    // If storeInMemory is true, populates mEntries.
     static std::shared_ptr<LiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
           std::vector<LedgerEntry> const& initEntries,
           std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
-          asio::io_context& ctx, bool doFsync);
+          asio::io_context& ctx, bool doFsync, bool storeInMemory = false,
+          bool shouldIndex = true);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
     // level bucket (i.e. DEADENTRY)
@@ -121,10 +129,38 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                          std::vector<LiveBucketInputIterator>& shadowIterators,
                          bool keepShadowedLifecycleEntries, MergeCounters& mc);
 
+    // Merge two buckets in memory without using FutureBucket.
+    // This is used only for level 0 merges. Note that the resulting Bucket is
+    // still written to disk.
+    static std::shared_ptr<LiveBucket>
+    mergeInMemory(BucketManager& bucketManager, uint32_t maxProtocolVersion,
+                  std::shared_ptr<LiveBucket> const& oldBucket,
+                  std::shared_ptr<LiveBucket> const& newBucket,
+                  bool countMergeEvents, asio::io_context& ctx, bool doFsync);
+
     static void countOldEntryType(MergeCounters& mc, BucketEntry const& e);
     static void countNewEntryType(MergeCounters& mc, BucketEntry const& e);
 
     uint32_t getBucketVersion() const;
+
+    bool
+    hasInMemoryEntries() const
+    {
+        return mEntries.has_value();
+    }
+
+    void
+    setInMemoryEntries(std::vector<BucketEntry>&& entries)
+    {
+        mEntries = std::move(entries);
+    }
+
+    std::vector<BucketEntry> const&
+    getInMemoryEntries() const
+    {
+        releaseAssertOrThrow(mEntries.has_value());
+        return *mEntries;
+    }
 
     // Initializes the random eviction cache if it has not already been
     // initialized. totalBucketListAccountsSizeBytes is the total size, in
