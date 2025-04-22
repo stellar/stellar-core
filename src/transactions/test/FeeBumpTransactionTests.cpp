@@ -8,6 +8,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
@@ -268,10 +269,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
     {
         auto acc = root->create("A", 2 * reserve + 2 * fee);
         for_versions_from(13, *app, [&] {
-            auto fb = feeBump(app->getNetworkID(), acc, *root, *root, 2 * fee,
-                              fee, 1);
+            auto fb = static_cast<TransactionFrameBaseConstPtr>(feeBump(
+                app->getNetworkID(), acc, *root, *root, 2 * fee, fee, 1));
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            fb->processFeeSeqNum(ltx, fee);
+            auto result = fb->processFeeSeqNum(ltx, fee);
             auto delta = ltx.getDelta();
             REQUIRE(delta.entry.size() == 1);
             auto gkey = delta.entry.begin()->first;
@@ -281,6 +282,11 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             auto prev = entryDelta.previous->ledgerEntry().data.account();
             auto curr = entryDelta.current->ledgerEntry().data.account();
             REQUIRE(prev.balance == curr.balance + 2 * fee);
+            REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+            REQUIRE(result->getResult().feeCharged == 2 * fee);
+            REQUIRE(result->getResult()
+                        .result.innerResultPair()
+                        .result.feeCharged == 0);
         });
     }
 
@@ -305,6 +311,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
+                    REQUIRE(fb->getResult()
+                                .result.innerResultPair()
+                                .result.feeCharged == 0);
                 }
             });
         }
@@ -328,6 +338,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
+                    REQUIRE(fb->getResult()
+                                .result.innerResultPair()
+                                .result.feeCharged == 0);
                 }
             });
         }
@@ -351,6 +365,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
+                    REQUIRE(fb->getResult()
+                                .result.innerResultPair()
+                                .result.feeCharged == 0);
                 }
             });
         }
@@ -387,6 +405,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
+                    REQUIRE(fb->getResult()
+                                .result.innerResultPair()
+                                .result.feeCharged == 0);
                 }
             });
         }
@@ -416,6 +438,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(!fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_FAILED);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
                     auto const& innerRes =
                         fb->getResult().result.innerResultPair().result;
                     REQUIRE(innerRes.feeCharged == 0);
@@ -442,6 +465,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(!fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_FAILED);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
                     auto const& innerRes =
                         fb->getResult().result.innerResultPair().result;
                     REQUIRE(innerRes.feeCharged == 0);
@@ -520,6 +544,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                         app->getConfig());
                     REQUIRE(fb->apply(app->getAppConnector(), ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+                    REQUIRE(fb->getResult().feeCharged == 2 * fee);
+                    REQUIRE(fb->getResult()
+                                .result.innerResultPair()
+                                .result.feeCharged == 0);
                     REQUIRE(meta.getNumChangesBefore() ==
                             (isFbSignerSponsored ? 6 : 4));
                     for (auto const& change : meta.getChangesBefore())
