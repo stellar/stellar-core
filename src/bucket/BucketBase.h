@@ -4,12 +4,12 @@
 // under the apache license, version 2.0. see the copying file at the root
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
 #include <filesystem>
-#include <optional>
 #include <string>
 
 namespace asio
@@ -129,6 +129,11 @@ class BucketBase : public NonMovableOrCopyable
           std::vector<std::shared_ptr<BucketT>> const& shadows,
           bool keepTombstoneEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+
+    // Returns whether shadowed lifecycle entries should be kept
+    static bool updateMergeCountersForProtocolVersion(
+        MergeCounters& mc, uint32_t protocolVersion,
+        std::vector<BucketInputIterator<BucketT>> const& shadowIterators);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
