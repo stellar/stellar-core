@@ -8,7 +8,6 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
-#include "ledger/LedgerTypeUtils.h"
 #include <medida/counter.h>
 
 namespace stellar
@@ -377,7 +376,8 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries,
-                  bool countMergeEvents, asio::io_context& ctx, bool doFsync)
+                  bool countMergeEvents, asio::io_context& ctx, bool doFsync,
+                  bool storeInMemory, bool shouldIndex)
 {
     ZoneScoped;
     // When building fresh buckets after protocol version 10 (i.e. version
@@ -413,6 +413,12 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
+    if (storeInMemory)
+    {
+        return out.getBucket(bucketManager, nullptr, std::move(entries),
+                             shouldIndex);
+    }
+
     return out.getBucket(bucketManager);
 }
 
@@ -439,6 +445,8 @@ LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
 
 LiveBucket::LiveBucket() : BucketBase()
 {
+    // Empty bucket is trivially stored in memory
+    mEntries = std::vector<BucketEntry>();
 }
 
 uint32_t
@@ -454,6 +462,158 @@ LiveBucket::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
 {
     releaseAssert(mIndex);
     mIndex->maybeInitializeCache(totalBucketListAccountsSizeBytes, cfg);
+}
+
+std::shared_ptr<LiveBucket>
+LiveBucket::mergeInMemory(BucketManager& bucketManager,
+                          uint32_t maxProtocolVersion,
+                          std::shared_ptr<LiveBucket> const& oldBucket,
+                          std::shared_ptr<LiveBucket> const& newBucket,
+                          bool countMergeEvents, asio::io_context& ctx,
+                          bool doFsync)
+{
+    // TODO: Refactor
+    ZoneScoped;
+    releaseAssertOrThrow(oldBucket->hasInMemoryEntries());
+    releaseAssertOrThrow(newBucket->hasInMemoryEntries());
+
+    auto const& oldEntries = oldBucket->getInMemoryEntries();
+    auto const& newEntries = newBucket->getInMemoryEntries();
+
+    std::vector<BucketEntry> mergedEntries;
+    mergedEntries.reserve(oldEntries.size() + newEntries.size());
+
+    // Prepare metadata for the merged bucket
+    BucketMetadata meta;
+    meta.ledgerVersion = maxProtocolVersion;
+    if (protocolVersionStartsFrom(
+            maxProtocolVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        meta.ext.v(1);
+        meta.ext.bucketListType() = BucketListType::LIVE;
+    }
+
+    MergeCounters mc;
+    // First level never has shadows
+    updateMergeCountersForProtocolVersion(mc, maxProtocolVersion, {});
+
+    BucketEntryIdCmp<LiveBucket> cmp;
+    size_t oldIdx = 0;
+    size_t newIdx = 0;
+
+    // Perform the merge operation similar to the BucketBase::merge but in
+    // memory
+    while (oldIdx < oldEntries.size() || newIdx < newEntries.size())
+    {
+        // 1. We reached the end of the new entries or
+        // 2. We haven't reached the end of the old entries and the current
+        //    old entry is less than the current new entry
+        if (newIdx >= newEntries.size() ||
+            (oldIdx < oldEntries.size() &&
+             cmp(oldEntries[oldIdx], newEntries[newIdx])))
+        {
+            // Take old entry
+            ++mc.mOldEntriesDefaultAccepted;
+            LiveBucket::checkProtocolLegality(oldEntries[oldIdx],
+                                              maxProtocolVersion);
+            LiveBucket::countOldEntryType(mc, oldEntries[oldIdx]);
+            mergedEntries.emplace_back(oldEntries[oldIdx]);
+            ++oldIdx;
+        }
+        // 1. We reached the end of the old entries or
+        // 2. We haven't reached the end of the new entries and the current
+        //    new entry is less than the current old entry
+        else if (oldIdx >= oldEntries.size() ||
+                 (newIdx < newEntries.size() &&
+                  cmp(newEntries[newIdx], oldEntries[oldIdx])))
+        {
+            // Take new entry
+            ++mc.mNewEntriesDefaultAccepted;
+            LiveBucket::checkProtocolLegality(newEntries[newIdx],
+                                              maxProtocolVersion);
+            LiveBucket::countNewEntryType(mc, newEntries[newIdx]);
+            mergedEntries.push_back(newEntries[newIdx]);
+            ++newIdx;
+        }
+        else
+        {
+            releaseAssert(oldIdx < oldEntries.size() &&
+                          newIdx < newEntries.size());
+
+            // Entries have equal keys, handle the special merge cases
+            auto const& oldEntry = oldEntries[oldIdx];
+            auto const& newEntry = newEntries[newIdx];
+            LiveBucket::checkProtocolLegality(oldEntry, maxProtocolVersion);
+            LiveBucket::checkProtocolLegality(newEntry, maxProtocolVersion);
+            LiveBucket::countOldEntryType(mc, oldEntry);
+            LiveBucket::countNewEntryType(mc, newEntry);
+
+            if (newEntry.type() == INITENTRY)
+            {
+                // The only legal new-is-INIT case is merging a delete+create to
+                // an update.
+                if (oldEntry.type() != DEADENTRY)
+                {
+                    throw std::runtime_error(
+                        "Malformed bucket: old non-DEAD + new INIT.");
+                }
+
+                BucketEntry newLive;
+                newLive.type(LIVEENTRY);
+                newLive.liveEntry() = newEntry.liveEntry();
+                ++mc.mNewInitEntriesMergedWithOldDead;
+                mergedEntries.push_back(newLive);
+            }
+            else if (oldEntry.type() == INITENTRY)
+            {
+                // If we get here, new is not INIT; may be LIVE or DEAD.
+                if (newEntry.type() == LIVEENTRY)
+                {
+                    // Merge a create+update to a fresher create.
+                    BucketEntry newInit;
+                    newInit.type(INITENTRY);
+                    newInit.liveEntry() = newEntry.liveEntry();
+                    ++mc.mOldInitEntriesMergedWithNewLive;
+                    mergedEntries.push_back(newInit);
+                }
+                else
+                {
+                    // Merge a create+delete to nothingness.
+                    ++mc.mOldInitEntriesMergedWithNewDead;
+                }
+            }
+            else
+            {
+                // Neither is in INIT state, take the newer one.
+                ++mc.mNewEntriesMergedWithOldNeitherInit;
+                mergedEntries.push_back(newEntry);
+            }
+
+            ++oldIdx;
+            ++newIdx;
+        }
+    }
+
+    if (countMergeEvents)
+    {
+        bucketManager.incrMergeCounters(mc);
+    }
+
+    // Write merge output to a bucket and save to disk
+    LiveBucketOutputIterator out(bucketManager.getTmpDir(),
+                                 /*keepTombstoneEntries=*/true, meta, mc, ctx,
+                                 doFsync);
+
+    for (auto const& e : mergedEntries)
+    {
+        out.put(e);
+    }
+
+    // Store the merged entries in memory in the new bucket in case this is
+    // still a level 0 bucket. If the Bucket is level 1, this won't be used but
+    // will be GC'd quickly anyway
+    return out.getBucket(bucketManager, nullptr, std::move(mergedEntries));
 }
 
 BucketEntryCounters const&
