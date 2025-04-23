@@ -9,6 +9,7 @@
 #include "bucket/BucketBase.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketMergeAdapter.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
@@ -273,50 +274,90 @@ calculateMergeProtocolVersion(
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
-template <class BucketT, class IndexT>
+template <class BucketT, class IndexT, typename InputSource>
 static bool
 mergeCasesWithDefaultAcceptance(
     BucketEntryIdCmp<BucketT> const& cmp, MergeCounters& mc,
-    BucketInputIterator<BucketT>& oi, BucketInputIterator<BucketT>& ni,
-    BucketOutputIterator<BucketT>& out,
+    InputSource& inputSource,
+    std::function<void(typename BucketT::EntryT const&)> putFunc,
     std::vector<BucketInputIterator<BucketT>>& shadowIterators,
     uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
-    if (!ni || (oi && ni && cmp(*oi, *ni)))
+    // Either of:
+    //
+    //   - Out of new entries.
+    //   - Old entry has smaller key.
+    //
+    // In both cases: take old entry.
+    if (inputSource.oldFirst())
     {
-        // Either of:
-        //
-        //   - Out of new entries.
-        //   - Old entry has smaller key.
-        //
-        // In both cases: take old entry.
+        // Take old entry
+        auto entry = inputSource.getOldEntry();
         ++mc.mOldEntriesDefaultAccepted;
-        BucketT::checkProtocolLegality(*oi, protocolVersion);
-        BucketT::countOldEntryType(mc, *oi);
-        BucketT::maybePut(out, *oi, shadowIterators,
+        BucketT::checkProtocolLegality(entry, protocolVersion);
+        BucketT::countOldEntryType(mc, entry);
+        BucketT::maybePut(putFunc, entry, shadowIterators,
                           keepShadowedLifecycleEntries, mc);
-        ++oi;
+        inputSource.advanceOld();
         return true;
     }
-    else if (!oi || (oi && ni && cmp(*ni, *oi)))
+    // Either of:
+    //
+    //   - Out of old entries.
+    //   - New entry has smaller key.
+    //
+    // In both cases: take new entry.
+    else if (inputSource.newFirst())
     {
-        // Either of:
-        //
-        //   - Out of old entries.
-        //   - New entry has smaller key.
-        //
-        // In both cases: take new entry.
+        auto entry = inputSource.getNewEntry();
         ++mc.mNewEntriesDefaultAccepted;
-        BucketT::checkProtocolLegality(*ni, protocolVersion);
-        BucketT::countNewEntryType(mc, *ni);
-        BucketT::maybePut(out, *ni, shadowIterators,
+        BucketT::checkProtocolLegality(entry, protocolVersion);
+        BucketT::countNewEntryType(mc, entry);
+        BucketT::maybePut(putFunc, entry, shadowIterators,
                           keepShadowedLifecycleEntries, mc);
-        ++ni;
+        inputSource.advanceNew();
         return true;
     }
     return false;
+}
+
+template <class BucketT, class IndexT>
+template <typename InputSource, typename PutFuncT>
+void
+BucketBase<BucketT, IndexT>::mergeInternal(
+    BucketManager& bucketManager, InputSource& inputSource, PutFuncT putFunc,
+    uint32_t protocolVersion,
+    std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+    bool keepShadowedLifecycleEntries, MergeCounters& mc)
+{
+    BucketEntryIdCmp<BucketT> cmp;
+    size_t iter = 0;
+
+    while (!inputSource.isDone())
+    {
+        // Check if the merge should be stopped every few entries
+        if (++iter >= 1000)
+        {
+            iter = 0;
+            if (bucketManager.isShutdown())
+            {
+                // Stop merging, as BucketManager is now shutdown
+                throw std::runtime_error(
+                    "Incomplete bucket merge due to BucketManager shutdown");
+            }
+        }
+
+        if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT, InputSource>(
+                cmp, mc, inputSource, putFunc, shadowIterators, protocolVersion,
+                keepShadowedLifecycleEntries))
+        {
+            BucketT::template mergeCasesWithEqualKeys<InputSource>(
+                mc, inputSource, putFunc, shadowIterators, protocolVersion,
+                keepShadowedLifecycleEntries);
+        }
+    }
 }
 
 template <class BucketT, class IndexT>
@@ -376,34 +417,15 @@ BucketBase<BucketT, IndexT>::merge(
                                       keepTombstoneEntries, meta, mc, ctx,
                                       doFsync);
 
-    BucketEntryIdCmp<BucketT> cmp;
-    size_t iter = 0;
+    FileMergeInput<BucketT> inputSource(oi, ni);
+    auto putFunc = [&out](typename BucketT::EntryT const& entry) {
+        out.put(entry);
+    };
 
-    while (oi || ni)
-    {
-        // Check if the merge should be stopped every few entries
-        if (++iter >= 1000)
-        {
-            iter = 0;
-            if (bucketManager.isShutdown())
-            {
-                // Stop merging, as BucketManager is now shutdown
-                // This is safe as temp file has not been adopted yet,
-                // so it will be removed with the tmp dir
-                throw std::runtime_error(
-                    "Incomplete bucket merge due to BucketManager shutdown");
-            }
-        }
+    // Perform the merge
+    mergeInternal(bucketManager, inputSource, putFunc, protocolVersion,
+                  shadowIterators, keepShadowedLifecycleEntries, mc);
 
-        if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT>(
-                cmp, mc, oi, ni, out, shadowIterators, protocolVersion,
-                keepShadowedLifecycleEntries))
-        {
-            BucketT::mergeCasesWithEqualKeys(mc, oi, ni, out, shadowIterators,
-                                             protocolVersion,
-                                             keepShadowedLifecycleEntries);
-        }
-    }
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters<BucketT>(mc);
@@ -420,6 +442,20 @@ BucketBase<BucketT, IndexT>::merge(
                 newBucket->getHash(), shadowHashes};
     return out.getBucket(bucketManager, &mk);
 }
+
+template void BucketBase<LiveBucket, LiveBucket::IndexT>::mergeInternal<
+    MemoryMergeInput<LiveBucket>, std::function<void(BucketEntry const&)>>(
+    BucketManager&, MemoryMergeInput<LiveBucket>&,
+    std::function<void(BucketEntry const&)>, uint32_t,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool, MergeCounters&);
+
+template void
+BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>::mergeInternal<
+    MemoryMergeInput<HotArchiveBucket>,
+    std::function<void(HotArchiveBucketEntry const&)>>(
+    BucketManager&, MemoryMergeInput<HotArchiveBucket>&,
+    std::function<void(HotArchiveBucketEntry const&)>, uint32_t,
+    std::vector<BucketInputIterator<HotArchiveBucket>>&, bool, MergeCounters&);
 
 template class BucketBase<LiveBucket, LiveBucket::IndexT>;
 template class BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>;

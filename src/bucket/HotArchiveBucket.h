@@ -59,9 +59,9 @@ class HotArchiveBucket
 
     // Note: this functions is called maybePut for interoperability with
     // LiveBucket. This function always writes te given entry to the output
-    // iterator.
+    // iterator using putFunc.
     static void
-    maybePut(HotArchiveBucketOutputIterator& out,
+    maybePut(std::function<void(HotArchiveBucketEntry const&)> putFunc,
              HotArchiveBucketEntry const& entry,
              std::vector<HotArchiveBucketInputIterator>& shadowIterators,
              bool keepShadowedLifecycleEntries, MergeCounters& mc);
@@ -83,9 +83,10 @@ class HotArchiveBucket
     {
     }
 
+    template <typename InputSource>
     static void mergeCasesWithEqualKeys(
-        MergeCounters& mc, HotArchiveBucketInputIterator& oi,
-        HotArchiveBucketInputIterator& ni, HotArchiveBucketOutputIterator& out,
+        MergeCounters& mc, InputSource& inputSource,
+        std::function<void(HotArchiveBucketEntry const&)> putFunc,
         std::vector<HotArchiveBucketInputIterator>& shadowIterators,
         uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
 
