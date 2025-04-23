@@ -634,7 +634,6 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
     auto app = createTestApplication(clock, getTestConfig());
 
     auto& root = app->getLedgerTxnRoot();
-    auto lh = root.getHeader();
 
     LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
         {CONFIG_SETTING});

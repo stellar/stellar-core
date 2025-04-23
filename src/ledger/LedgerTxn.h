@@ -707,6 +707,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
 class LedgerTxn : public AbstractLedgerTxn
 {
     class Impl;
+    friend class Impl;
     std::unique_ptr<Impl> mImpl;
 
     void deactivate(InternalLedgerKey const& key) override;
@@ -714,6 +715,9 @@ class LedgerTxn : public AbstractLedgerTxn
     void deactivateHeader() override;
 
     std::unique_ptr<Impl> const& getImpl() const;
+
+  protected:
+    LedgerHeader const& getHeader() const override;
 
   public:
     // WARNING: use useTransaction flag with caution. It does not start a SQL
@@ -764,8 +768,6 @@ class LedgerTxn : public AbstractLedgerTxn
     UnorderedMap<LedgerKey, LedgerEntry>
     getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                             Asset const& asset) override;
-
-    LedgerHeader const& getHeader() const override;
 
     std::vector<InflationWinner>
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
@@ -851,7 +853,11 @@ class LedgerTxn : public AbstractLedgerTxn
 class LedgerTxnRoot : public AbstractLedgerTxnParent
 {
     class Impl;
+    friend class Impl;
     std::unique_ptr<Impl> const mImpl;
+
+  protected:
+    LedgerHeader const& getHeader() const override;
 
   public:
     explicit LedgerTxnRoot(Application& app, size_t entryCacheSize,
@@ -894,8 +900,6 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     UnorderedMap<LedgerKey, LedgerEntry>
     getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                             Asset const& asset) override;
-
-    LedgerHeader const& getHeader() const override;
 
     std::vector<InflationWinner>
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;

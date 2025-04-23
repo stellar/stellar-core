@@ -367,7 +367,8 @@ InvokeHostFunctionOpFrame::doApply(
                 auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
                 if (ttlLtxe)
                 {
-                    if (!isLive(ttlLtxe.current(), ltx.getHeader().ledgerSeq))
+                    if (!isLive(ttlLtxe.current(),
+                                ltx.loadHeader().current().ledgerSeq))
                     {
                         // For temporary entries, treat the expired entry as
                         // if the key did not exist
@@ -410,7 +411,7 @@ InvokeHostFunctionOpFrame::doApply(
                 // new keys. If a new key is actually archived, fail the op.
                 else if (isPersistentEntry(lk) &&
                          protocolVersionStartsFrom(
-                             ltx.getHeader().ledgerVersion,
+                             ltx.loadHeader().current().ledgerVersion,
                              HotArchiveBucket::
                                  FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {

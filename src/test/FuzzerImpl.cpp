@@ -917,7 +917,8 @@ class FuzzTransactionFrame : public TransactionFrame
         }
 
         // reset results of operations
-        mTxResult = createSuccessResultWithFeeCharged(ltx.getHeader(), 0, true);
+        mTxResult = createSuccessResultWithFeeCharged(
+            ltx.loadHeader().current(), 0, true);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
