@@ -841,12 +841,12 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     releaseAssertOrThrow(isSoroban());
     SorobanMetrics& metrics = app.getSorobanMetrics();
     auto txSize = static_cast<int64_t>(this->getSize());
-    auto r = sorobanResources();
+    auto const& r = sorobanResources();
     // update the tx metrics
     metrics.mTxSizeByte.Update(txSize);
     // accumulate the ledger-wide metrics, which will get emitted at the ledger
     // close
-    metrics.accumulateLedgerTxCount(1);
+    metrics.accumulateLedgerTxCount(getNumOperations());
     metrics.accumulateLedgerCpuInsn(r.instructions);
     metrics.accumulateLedgerTxsSizeByte(txSize);
     metrics.accumulateLedgerReadEntry(static_cast<int64_t>(

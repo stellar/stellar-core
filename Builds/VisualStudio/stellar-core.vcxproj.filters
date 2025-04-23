@@ -1388,6 +1388,12 @@
     <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\invariant\EventsAreConsistentWithEntryDiffs.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\LumenEventReconciler.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2458,6 +2464,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\BufferedAsioCerealOutputArchive.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\EventsAreConsistentWithEntryDiffs.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\LumenEventReconciler.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
