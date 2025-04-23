@@ -135,6 +135,18 @@ class BucketBase : public NonMovableOrCopyable
         MergeCounters& mc, uint32_t protocolVersion,
         std::vector<BucketInputIterator<BucketT>> const& shadowIterators);
 
+    // Helper function that implements the core merge algorithm logic for both
+    // iterator based and in-memory merges.
+    // PutFunc will be called to write entries that are the result of the merge.
+    // We have to use a template here to break a dependency on the BucketT type,
+    // but PutFuncT == std::function<void(typename BucketT::EntryT const&)>
+    template <typename InputSource, typename PutFuncT>
+    static void
+    mergeInternal(BucketManager& bucketManager, InputSource& inputSource,
+                  PutFuncT putFunc, uint32_t protocolVersion,
+                  std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+                  bool keepShadowedLifecycleEntries, MergeCounters& mc);
+
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
 

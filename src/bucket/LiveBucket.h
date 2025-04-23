@@ -77,9 +77,10 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
+    template <typename InputSource>
     static void mergeCasesWithEqualKeys(
-        MergeCounters& mc, LiveBucketInputIterator& oi,
-        LiveBucketInputIterator& ni, LiveBucketOutputIterator& out,
+        MergeCounters& mc, InputSource& inputSource,
+        std::function<void(BucketEntry const&)> putFunc,
         std::vector<LiveBucketInputIterator>& shadowIterators,
         uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
 
@@ -124,7 +125,8 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // Whenever a given BucketEntry is "eligible" to be written as the merge
     // result in the output bucket, this function writes the entry to the output
     // iterator if the entry is not shadowed.
-    static void maybePut(LiveBucketOutputIterator& out,
+    // putFunc will be called to actually write the result of maybePut.
+    static void maybePut(std::function<void(BucketEntry const&)> putFunc,
                          BucketEntry const& entry,
                          std::vector<LiveBucketInputIterator>& shadowIterators,
                          bool keepShadowedLifecycleEntries, MergeCounters& mc);
