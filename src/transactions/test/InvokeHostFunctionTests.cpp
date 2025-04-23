@@ -4934,7 +4934,7 @@ makeAddTx(TestContract const& contract, int64_t instructions,
 }
 
 static bool
-wasms_are_cached(Application& app, std::vector<Hash> const& wasms)
+wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
 {
     auto moduleCache = app.getLedgerManager().getModuleCache();
     for (auto const& wasm : wasms)
@@ -4988,13 +4988,13 @@ TEST_CASE("reusable module cache", "[soroban][modulecache]")
             contractHashes.push_back(sha256(wasm));
         }
         // Check the module cache got populated by the uploads.
-        REQUIRE(wasms_are_cached(stest.getApp(), contractHashes));
+        REQUIRE(wasmsAreCached(stest.getApp(), contractHashes));
     }
 
     // Restart the application and check module cache gets populated in the new
     // app.
     auto app = createTestApplication(clock, cfg, false, true);
-    REQUIRE(wasms_are_cached(*app, contractHashes));
+    REQUIRE(wasmsAreCached(*app, contractHashes));
 
     // Crank the app forward a while until the wasms are evicted.
     CLOG_INFO(Ledger, "advancing for {} ledgers to evict wasms", ttl);
@@ -5003,7 +5003,7 @@ TEST_CASE("reusable module cache", "[soroban][modulecache]")
         txtest::closeLedger(*app);
     }
     // Check the modules got evicted.
-    REQUIRE(!wasms_are_cached(*app, contractHashes));
+    REQUIRE(!wasmsAreCached(*app, contractHashes));
 }
 
 TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")

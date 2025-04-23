@@ -11,6 +11,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <chrono>
 #include <cstddef>
+#include <unordered_set>
 
 namespace stellar
 {
@@ -121,6 +122,12 @@ SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
     mTotalCompileTime += dur_us;
     mBytesCompiled += wasm.size();
     wasm.clear();
+    // Commonly we'd unlock the mutex here before notifying, but we need the
+    // `isFinishedCompiling` predicate in the wait calls (and the loop control
+    // calling this function) to hold the lock, so to simplify atomicity of the
+    // check we both enter _and leave_ this function with the lock held.
+    // Possibly there's a better way to organize this but I tried several and
+    // kept causing lost wakeups or deadlocks.
     mHaveSpace.notify_all();
     mHaveContracts.notify_all();
     return true;
@@ -137,7 +144,7 @@ SharedModuleCacheCompiler::start()
 
     mThreads.emplace_back(std::thread([this]() {
         ZoneScopedN("load wasm contracts");
-        std::set<Hash> seenContracts;
+        std::unordered_set<Hash> seenContracts;
         this->mSnap->scanForContractCode([&](BucketEntry const& entry) {
             Hash h;
             switch (entry.type())
