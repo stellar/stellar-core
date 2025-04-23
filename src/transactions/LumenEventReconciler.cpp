@@ -69,7 +69,7 @@ reconcileEvents(AccountID const& txSourceAccount, Operation const& operation,
     {
 
         opEventManager.newMintEvent(native, makeAccountAddress(opSource),
-                                    deltaBalances,
+                                    deltaBalances, false,
                                     true /*Insert mint at the beginning*/);
     }
     else if (operation.body.type() == PATH_PAYMENT_STRICT_RECEIVE)

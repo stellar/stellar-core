@@ -48,7 +48,8 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     {
         opEventManager.eventForTransferWithIssuerCheck(
             mPayment.asset, makeMuxedAccountAddress(getSourceAccount()),
-            makeMuxedAccountAddress(mPayment.destination), mPayment.amount);
+            makeMuxedAccountAddress(mPayment.destination), mPayment.amount,
+            true);
         innerResult(res).code(PAYMENT_SUCCESS);
         return true;
     }
