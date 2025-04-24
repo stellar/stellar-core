@@ -271,6 +271,28 @@ makeTransferEvent(SCAddress const& from, SCAddress const& to, int64_t amount,
     return ContractEvent();
 }
 
+void
+validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
+                 int64_t feeCharged)
+{
+    auto const& feeEventTopics = feeEvent.body.v0().topics;
+
+    REQUIRE(feeEventTopics.size() == 2);
+
+    auto const& firstTopic = feeEventTopics.at(0);
+    REQUIRE((firstTopic.type() == SCV_SYMBOL && firstTopic.sym() == "fee"));
+
+    auto const& secondTopic = feeEventTopics.at(1);
+    REQUIRE((secondTopic.type() == SCV_ADDRESS &&
+             secondTopic.address().accountId() == feeSource));
+
+    auto const& feeEventData = feeEvent.body.v0().data;
+
+    auto feei128 = rust_bridge::i128_from_i64(feeCharged);
+    REQUIRE(feeEventData.i128().hi == feei128.hi);
+    REQUIRE(feeEventData.i128().lo == feei128.lo);
+}
+
 SorobanResources
 defaultCreateWasmContractResources(RustBuf const& wasm)
 {

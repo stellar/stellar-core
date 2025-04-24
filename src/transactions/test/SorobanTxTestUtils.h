@@ -45,6 +45,8 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
 ContractEvent makeContractEvent(Hash const& contractId,
                                 std::vector<SCVal> const& topics,
                                 SCVal const& data);
+void validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
+                      int64_t feeCharged);
 
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`
