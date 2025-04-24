@@ -141,8 +141,8 @@ PathPaymentStrictReceiveOpFrame::doApply(
     // dest asset.
     opEventManager.eventForTransferWithIssuerCheck(
         getDestAsset(), makeMuxedAccountAddress(getSourceAccount()),
-        makeMuxedAccountAddress(getDestMuxedAccount()),
-        mPathPayment.destAmount);
+        makeMuxedAccountAddress(getDestMuxedAccount()), mPathPayment.destAmount,
+        true);
 
     return true;
 }

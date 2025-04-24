@@ -423,7 +423,7 @@ aggregateEventDiffs(Hash const& networkID,
         }
         // at this point, we have verified that this is an SAC event
 
-        auto eventNameVal = topics.at(0);
+        auto const& eventNameVal = topics.at(0);
         if (eventNameVal.type() != SCV_SYMBOL)
         {
             return std::nullopt;
@@ -458,7 +458,7 @@ aggregateEventDiffs(Hash const& networkID,
                 return std::nullopt;
             }
 
-            auto toVal = topics.at(1);
+            auto const& toVal = topics.at(1);
 
             auto amount = getAmountFromData(event.body.v0().data);
             if (!res.addAssetBalance(toVal.address(), asset, amount))
@@ -474,7 +474,7 @@ aggregateEventDiffs(Hash const& networkID,
                 return std::nullopt;
             }
 
-            auto fromVal = topics.at(1);
+            auto const& fromVal = topics.at(1);
 
             auto amount = getAmountFromData(event.body.v0().data);
             if (!res.subtractAssetBalance(fromVal.address(), asset, amount))
@@ -489,7 +489,7 @@ aggregateEventDiffs(Hash const& networkID,
                 return std::nullopt;
             }
 
-            auto idVal = topics.at(1);
+            auto const& idVal = topics.at(1);
 
             if (event.body.v0().data.type() != SCV_BOOL)
             {

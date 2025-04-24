@@ -167,7 +167,7 @@ CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         opEventManager.newTransferEvent(
             native, makeMuxedAccountAddress(getSourceAccount()),
             makeAccountAddress(mCreateAccount.destination),
-            mCreateAccount.startingBalance);
+            mCreateAccount.startingBalance, true);
     }
 
     return success;

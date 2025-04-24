@@ -91,7 +91,8 @@ getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
 }
 
 SCVal
-getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo)
+getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo,
+                     bool allowMuxedIdOrMemo)
 {
     // mux follows order of precedence
     // no mux no memo -- data is just i128
@@ -104,7 +105,7 @@ getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo)
 
     bool is_to_muxed_with_memo =
         has_memo && to.type() == SC_ADDRESS_TYPE_ACCOUNT;
-    if (!is_to_mux && !is_to_muxed_with_memo)
+    if (!allowMuxedIdOrMemo || (!is_to_mux && !is_to_muxed_with_memo))
     {
         return amountVal;
     }
@@ -253,9 +254,9 @@ OpEventManager::eventsForClaimAtoms(
             auto assetToSource = atom.v0().assetSold;
 
             eventForTransferWithIssuerCheck(assetToSeller, sourceSCAddress,
-                                            seller, amountToSeller);
-            eventForTransferWithIssuerCheck(assetToSource, seller,
-                                            sourceSCAddress, amountToSource);
+                                            seller, amountToSeller, false);
+            eventForTransferWithIssuerCheck(
+                assetToSource, seller, sourceSCAddress, amountToSource, false);
             break;
         }
         case CLAIM_ATOM_TYPE_ORDER_BOOK:
@@ -269,9 +270,9 @@ OpEventManager::eventsForClaimAtoms(
             auto assetToSource = atom.orderBook().assetSold;
 
             eventForTransferWithIssuerCheck(assetToSeller, sourceSCAddress,
-                                            seller, amountToSeller);
-            eventForTransferWithIssuerCheck(assetToSource, seller,
-                                            sourceSCAddress, amountToSource);
+                                            seller, amountToSeller, false);
+            eventForTransferWithIssuerCheck(
+                assetToSource, seller, sourceSCAddress, amountToSource, false);
             break;
         }
         case CLAIM_ATOM_TYPE_LIQUIDITY_POOL:
@@ -286,9 +287,9 @@ OpEventManager::eventsForClaimAtoms(
             auto assetFromPool = atom.liquidityPool().assetSold;
 
             eventForTransferWithIssuerCheck(assetToPool, sourceSCAddress,
-                                            poolID, amountToPool);
-            eventForTransferWithIssuerCheck(assetFromPool, poolID,
-                                            sourceSCAddress, amountFromPool);
+                                            poolID, amountToPool, false);
+            eventForTransferWithIssuerCheck(
+                assetFromPool, poolID, sourceSCAddress, amountFromPool, false);
             break;
         }
         }
@@ -299,7 +300,8 @@ void
 OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
                                                 SCAddress const& from,
                                                 SCAddress const& to,
-                                                int64 amount)
+                                                int64 amount,
+                                                bool allowMuxedIdOrMemo)
 {
     if (!mParent.shouldEmitClassicEvents())
     {
@@ -311,11 +313,11 @@ OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
 
     if (fromIsIssuer && toIsIssuer)
     {
-        newTransferEvent(asset, from, to, amount);
+        newTransferEvent(asset, from, to, amount, allowMuxedIdOrMemo);
     }
     else if (fromIsIssuer)
     {
-        newMintEvent(asset, to, amount);
+        newMintEvent(asset, to, amount, allowMuxedIdOrMemo);
     }
     else if (toIsIssuer)
     {
@@ -323,13 +325,14 @@ OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
     }
     else
     {
-        newTransferEvent(asset, from, to, amount);
+        newTransferEvent(asset, from, to, amount, allowMuxedIdOrMemo);
     }
 }
 
 void
 OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
-                                 SCAddress const& to, int64 amount)
+                                 SCAddress const& to, int64 amount,
+                                 bool allowMuxedIdOrMemo)
 {
     if (!mParent.shouldEmitClassicEvents())
     {
@@ -347,13 +350,15 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
                     makeSep0011AssetStringSCVal(asset)};
     ev.body.v0().topics = topics;
 
-    ev.body.v0().data = getPossibleMuxedData(to, amount, mMemo);
+    ev.body.v0().data =
+        getPossibleMuxedData(to, amount, mMemo, allowMuxedIdOrMemo);
     mContractEvents.emplace_back(std::move(ev));
 }
 
 void
 OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
-                             int64 amount, bool insertAtBeginning)
+                             int64 amount, bool allowMuxedIdOrMemo,
+                             bool insertAtBeginning)
 {
     if (!mParent.shouldEmitClassicEvents())
     {
@@ -370,7 +375,8 @@ OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
                     makeSep0011AssetStringSCVal(asset)};
     ev.body.v0().topics = topics;
 
-    ev.body.v0().data = getPossibleMuxedData(to, amount, mMemo);
+    ev.body.v0().data =
+        getPossibleMuxedData(to, amount, mMemo, allowMuxedIdOrMemo);
 
     if (insertAtBeginning)
     {

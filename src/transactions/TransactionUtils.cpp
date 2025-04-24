@@ -1576,7 +1576,7 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
             opEventManager.newTransferEvent(
                 assetInPool, makeLiquidityPoolAddress(poolID),
                 makeClaimableBalanceAddress(claimableBalanceEntry.balanceID),
-                amount);
+                amount, false);
 
             // if this asset isn't native
             // 1. set clawback if it's set on the trustline
