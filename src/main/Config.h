@@ -101,12 +101,16 @@ class Config : public std::enable_shared_from_this<Config>
     UnorderedMap<std::string, ValidatorQuality>
     parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality);
 
-    static SCPQuorumSet
+    // Returns `true` if checks specific to HIGH and CRITICAL validators should
+    // be skipped. Always returns `false` on builds without BUILD_TESTS enabled.
+    bool skipHighCriticalValidatorChecks() const;
+
+    SCPQuorumSet
     generateQuorumSetHelper(std::vector<ValidatorEntry>::const_iterator begin,
                             std::vector<ValidatorEntry>::const_iterator end,
                             ValidatorQuality curQuality);
 
-    static SCPQuorumSet
+    SCPQuorumSet
     generateQuorumSet(std::vector<ValidatorEntry> const& validators);
 
     void addSelfToValidators(
@@ -796,6 +800,10 @@ class Config : public std::enable_shared_from_this<Config>
     // offers are still commited to the SQL DB even when this mode is enabled.
     // Should only be used for testing.
     bool MODE_USES_IN_MEMORY_LEDGER;
+
+    // If set to true, skips certain checks on HIGH and CRITICAL validator
+    // specifications.
+    bool SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING;
 
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
