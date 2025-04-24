@@ -4,6 +4,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/metrics_registry.h"
+#include "rust/RustBridge.h"
 
 namespace stellar
 {
@@ -51,6 +52,7 @@ class AppConnector
                              std::string const& message);
     VirtualClock::time_point now() const;
     Config const& getConfig() const;
+    rust::Box<rust_bridge::SorobanModuleCache> getModuleCache();
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
     // This method is always exclusively called from one thread

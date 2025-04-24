@@ -64,6 +64,18 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     return result;
 }
 
+void
+SearchableLiveBucketListSnapshot::scanForContractCode(
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+    ZoneScoped;
+    releaseAssert(mSnapshot);
+    auto f = [&callback](auto const& b) {
+        return b.scanForContractCode(callback);
+    };
+    loopAllBuckets(f, *mSnapshot);
+}
+
 // This query has two steps:
 //  1. For each bucket, determine what PoolIDs contain the target asset via the
 //     assetToPoolID index

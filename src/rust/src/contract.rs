@@ -10,7 +10,7 @@ use crate::{
         InvokeHostFunctionOutput, RustBuf, SorobanVersionInfo, XDRFileHash,
     },
 };
-use log::{debug, trace, warn};
+use log::{debug, error, trace, warn};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -18,8 +18,8 @@ use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 // hi) version-specific definition of stellar_env_host. We therefore
 // import it from our _parent_ module rather than from the crate root.
 pub(crate) use super::soroban_env_host::{
-    budget::Budget,
-    e2e_invoke::{self, extract_rent_changes, LedgerEntryChange},
+    budget::{AsBudget, Budget},
+    e2e_invoke::{extract_rent_changes, LedgerEntryChange},
     fees::{
         compute_rent_fee as host_compute_rent_fee,
         compute_transaction_resource_fee as host_compute_transaction_resource_fee,
@@ -32,8 +32,9 @@ pub(crate) use super::soroban_env_host::{
         LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal,
         TransactionEnvelope, TtlEntry, WriteXdr, XDR_FILES_SHA256,
     },
-    HostError, LedgerInfo, VERSION,
+    HostError, LedgerInfo, Val, VERSION,
 };
+use super::{ErrorHandler, ModuleCache};
 use std::error::Error;
 
 impl TryFrom<&CxxLedgerInfo> for LedgerInfo {
@@ -336,6 +337,7 @@ pub(crate) fn invoke_host_function(
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: &CxxRentFeeConfiguration,
+    module_cache: &crate::SorobanModuleCache,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
@@ -350,6 +352,7 @@ pub(crate) fn invoke_host_function(
             ttl_entries,
             base_prng_seed,
             rent_fee_configuration,
+            module_cache,
         )
     }));
     match res {
@@ -405,6 +408,7 @@ fn invoke_host_function_or_maybe_panic(
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: &CxxRentFeeConfiguration,
+    module_cache: &crate::SorobanModuleCache,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     #[cfg(feature = "tracy")]
     let client = tracy_client::Client::start();
@@ -432,7 +436,8 @@ fn invoke_host_function_or_maybe_panic(
     let (res, time_nsecs) = {
         let _span1 = tracy_span!("e2e_invoke::invoke_function");
         let start_time = Instant::now();
-        let res = e2e_invoke::invoke_host_function_with_trace_hook(
+
+        let res = super::invoke_host_function_with_trace_hook_and_module_cache(
             &budget,
             enable_diagnostics,
             hf_buf,
@@ -445,6 +450,7 @@ fn invoke_host_function_or_maybe_panic(
             base_prng_seed,
             &mut diagnostic_events,
             trace_hook,
+            module_cache,
         );
         let stop_time = Instant::now();
         let time_nsecs = stop_time.duration_since(start_time).as_nanos() as u64;
@@ -629,4 +635,129 @@ pub(crate) fn can_parse_transaction(xdr: &CxxBuf, depth_limit: u32) -> bool {
         },
     ));
     res.is_ok()
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+struct CoreCompilationContext {
+    unlimited_budget: Budget,
+}
+
+impl super::CompilationContext for CoreCompilationContext {}
+
+#[allow(dead_code)]
+impl CoreCompilationContext {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let unlimited_budget = Budget::try_from_configs(
+            u64::MAX,
+            u64::MAX,
+            ContractCostParams(vec![].try_into().unwrap()),
+            ContractCostParams(vec![].try_into().unwrap()),
+        )?;
+        Ok(CoreCompilationContext { unlimited_budget })
+    }
+}
+
+impl AsBudget for CoreCompilationContext {
+    fn as_budget(&self) -> &Budget {
+        &self.unlimited_budget
+    }
+}
+
+impl ErrorHandler for CoreCompilationContext {
+    fn map_err<T, E>(&self, res: Result<T, E>) -> Result<T, HostError>
+    where
+        super::soroban_env_host::Error: From<E>,
+        E: core::fmt::Debug,
+    {
+        match res {
+            Ok(t) => Ok(t),
+            Err(e) => {
+                error!("compiling module: {:?}", e);
+                Err(HostError::from(e))
+            }
+        }
+    }
+
+    fn error(&self, error: super::soroban_env_host::Error, msg: &str, _args: &[Val]) -> HostError {
+        error!("compiling module: {:?}: {}", error, msg);
+        HostError::from(error)
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) struct ProtocolSpecificModuleCache {
+    // `ModuleCache` itself is threadsafe -- does its own internal locking -- so
+    // it's ok to directly access it from multiple threads.
+    pub(crate) module_cache: ModuleCache,
+    // `CompilationContext` is _not_  threadsafe (specifically its `Budget` is
+    // not) and so rather than reuse a single `CompilationContext` across
+    // threads, we make a throwaway `CompilationContext` on each `compile` call,
+    // and _copy out_ the memory usage (which we want to publish back to core).
+    pub(crate) mem_bytes_consumed: std::sync::atomic::AtomicU64,
+}
+
+#[allow(dead_code)]
+impl ProtocolSpecificModuleCache {
+    pub(crate) fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let compilation_context = CoreCompilationContext::new()?;
+        let module_cache = ModuleCache::new(&compilation_context)?;
+        Ok(ProtocolSpecificModuleCache {
+            module_cache,
+            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
+        })
+    }
+
+    pub(crate) fn compile(&mut self, wasm: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        let compilation_context = CoreCompilationContext::new()?;
+        let res = self.module_cache.parse_and_cache_module_simple(
+            &compilation_context,
+            get_max_proto(),
+            wasm,
+        );
+        self.mem_bytes_consumed.fetch_add(
+            compilation_context
+                .unlimited_budget
+                .get_mem_bytes_consumed()?,
+            std::sync::atomic::Ordering::SeqCst,
+        );
+        Ok(res?)
+    }
+
+    pub(crate) fn evict(&mut self, key: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = self.module_cache.remove_module(&key.clone().into())?;
+        Ok(())
+    }
+
+    pub(crate) fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(self.module_cache.clear()?)
+    }
+
+    pub(crate) fn contains_module(
+        &self,
+        key: &[u8; 32],
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        Ok(self.module_cache.contains_module(&key.clone().into())?)
+    }
+
+    pub(crate) fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        Ok(self
+            .mem_bytes_consumed
+            .load(std::sync::atomic::Ordering::SeqCst))
+    }
+
+    // This produces a new `SorobanModuleCache` with a separate
+    // `CoreCompilationContext` but a clone of the underlying `ModuleCache`, which
+    // will (since the module cache is the reusable flavor) actually point to
+    // the _same_ underlying threadsafe map of `Module`s and the same associated
+    // `Engine` as those that `self` currently points to.
+    //
+    // This mainly exists to allow cloning a shared-ownership handle to a
+    // (threadsafe) ModuleCache to pass to separate C++-launched threads, to
+    // allow multithreaded compilation.
+    pub(crate) fn shallow_clone(&self) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut new = Self::new()?;
+        new.module_cache = self.module_cache.clone();
+        Ok(new)
+    }
 }

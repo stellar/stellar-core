@@ -279,6 +279,13 @@ Config::Config() : NODE_SEED(SecretKey::random())
     //
     // Worst case = 10 concurrent merges + 1 quorum intersection calculation.
     WORKER_THREADS = 11;
+
+    // Compilation is a short process that runs at startup and is CPU limited.
+    // Empirically it tends to peak and start getting slower around 6 threads
+    // due to coordination overhead between the producer and consumer threads.
+    // This could probably be improved with some work but it's ok for now.
+    COMPILATION_THREADS = 6;
+
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
     QUORUM_INTERSECTION_CHECKER = true;
@@ -1361,6 +1368,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      QUERY_THREAD_POOL_SIZE = readInt<int>(item, 1, 1000);
                  }},
+                {"COMPILATION_THREADS",
+                 [&]() { COMPILATION_THREADS = readInt<int>(item, 2, 1000); }},
                 {"QUERY_SNAPSHOT_LEDGERS",
                  [&]() {
                      QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);

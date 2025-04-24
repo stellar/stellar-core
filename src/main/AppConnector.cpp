@@ -108,6 +108,12 @@ AppConnector::getConfig() const
     return mConfig;
 }
 
+rust::Box<rust_bridge::SorobanModuleCache>
+AppConnector::getModuleCache()
+{
+    return mApp.getLedgerManager().getModuleCache();
+}
+
 bool
 AppConnector::overlayShuttingDown() const
 {

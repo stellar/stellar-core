@@ -30,6 +30,7 @@
 #include "util/XDRCereal.h"
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
@@ -675,6 +676,63 @@ dumpLedger(Config cfg, std::string const& outputFile,
     LOG_INFO(DEFAULT_LOG, "Finished running query, processed {} entries.",
              entryCount);
     return 0;
+}
+
+void
+dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    auto& lm = app->getLedgerManager();
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    auto writeBlob = [&](ContractCodeEntry const& entry) {
+        std::string filename;
+        if (dir.empty())
+        {
+            filename = fmt::format("{}.wasm", binToHex(entry.hash));
+        }
+        else
+        {
+            filename = fmt::format("{}/{}.wasm", dir, binToHex(entry.hash));
+        }
+        std::ofstream ofs(filename, std::ios::binary);
+        ofs.write(reinterpret_cast<const char*>(entry.code.data()),
+                  entry.code.size());
+        LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
+                 filename);
+    };
+    auto snap = app->getBucketManager()
+                    .getBucketSnapshotManager()
+                    .copySearchableLiveBucketListSnapshot();
+    if (hash == "ALL")
+    {
+        snap->scanForContractCode([&](const BucketEntry& entry) {
+            if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
+            {
+                auto const& codeEntry = entry.liveEntry().data.contractCode();
+                writeBlob(codeEntry);
+            }
+            return Loop::INCOMPLETE;
+        });
+    }
+    else
+    {
+        LedgerKey key;
+        key.type(LedgerEntryType::CONTRACT_CODE);
+        key.contractCode().hash = hexToBin256(hash);
+        auto entry = snap->load(key);
+        if (entry && entry->data.type() == LedgerEntryType::CONTRACT_CODE)
+        {
+            auto const& codeEntry = entry->data.contractCode();
+            writeBlob(codeEntry);
+        }
+        else
+        {
+            LOG_ERROR(DEFAULT_LOG, "No CONTRACT_CODE entry found with hash {}",
+                      hash);
+        }
+    }
 }
 
 void

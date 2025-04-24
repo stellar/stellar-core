@@ -293,11 +293,11 @@ class LoadGenerator
 
     // Internal loadgen state gets reset after each run, but it is impossible to
     // regenerate contract instance keys for DB lookup. Due to this we maintain
-    // a static list of instances and the wasm entry which we use to rebuild
+    // a list of instances and the wasm entry which we use to rebuild
     // mContractInstances at the start of each SOROBAN_INVOKE run
-    inline static UnorderedSet<LedgerKey> mContractInstanceKeys = {};
-    inline static std::optional<LedgerKey> mCodeKey = std::nullopt;
-    inline static uint64_t mContactOverheadBytes = 0;
+    UnorderedSet<LedgerKey> mContractInstanceKeys = {};
+    std::optional<LedgerKey> mCodeKey = std::nullopt;
+    uint64_t mContactOverheadBytes = 0;
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
