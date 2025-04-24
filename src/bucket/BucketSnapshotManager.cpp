@@ -18,6 +18,24 @@
 namespace stellar
 {
 
+namespace
+{
+template <class BucketT>
+std::map<uint32_t, SnapshotPtrT<BucketT>>
+copyHistoricalSnapshots(
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const& snapshots)
+{
+    std::map<uint32_t, SnapshotPtrT<BucketT>> copiedSnapshots;
+    for (auto const& [ledgerSeq, snap] : snapshots)
+    {
+        copiedSnapshots.emplace(
+            ledgerSeq,
+            std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
+    }
+    return copiedSnapshots;
+}
+}
+
 BucketSnapshotManager::BucketSnapshotManager(
     Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
     SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
@@ -34,24 +52,10 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(mCurrHotArchiveSnapshot);
 }
 
-template <class BucketT>
-std::map<uint32_t, SnapshotPtrT<BucketT>>
-copyHistoricalSnapshots(
-    std::map<uint32_t, SnapshotPtrT<BucketT>> const& snapshots)
-{
-    std::map<uint32_t, SnapshotPtrT<BucketT>> copiedSnapshots;
-    for (auto const& [ledgerSeq, snap] : snapshots)
-    {
-        copiedSnapshots.emplace(
-            ledgerSeq,
-            std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
-    }
-    return copiedSnapshots;
-}
-
 SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
+    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
@@ -64,6 +68,7 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
 {
+    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
     releaseAssert(mCurrHotArchiveSnapshot);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
