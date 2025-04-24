@@ -590,6 +590,13 @@ TxEventManager::flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf)
     mDiagnosticEvents.flush(buf);
 };
 
+void
+TxEventManager::flushTxEvents(xdr::xvector<ContractEvent>& buf)
+{
+    std::move(mTxEvents.begin(), mTxEvents.end(), std::back_inserter(buf));
+    mTxEvents.clear();
+}
+
 Hash const&
 TxEventManager::getNetworkID() const
 {
@@ -618,6 +625,27 @@ TxEventManager::shouldEmitClassicEvents() const
 
     return protocolVersionStartsFrom(mProtocolVersion, ProtocolVersion::V_23) ||
            mConfig.BACKFILL_STELLAR_ASSET_EVENTS;
+}
+
+void
+TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount)
+{
+    // We don't emit 0 fee events. This is relevant for Soroban transactions
+    // that end up with no refunds.
+    if (!shouldEmitClassicEvents() || amount == 0)
+    {
+        return;
+    }
+    ContractEvent ev;
+    ev.type = ContractEventType::CONTRACT;
+    ev.contractID.activate() =
+        getLumenContractInfo(mNetworkID).mLumenContractID;
+
+    SCVec topics = {makeSymbolSCVal("fee"), makeAccountIDSCVal(feeSource)};
+    ev.body.v0().topics = topics;
+    ev.body.v0().data = makeI128SCVal(amount);
+
+    mTxEvents.emplace_back(std::move(ev));
 }
 
 } // namespace stellar

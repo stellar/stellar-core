@@ -259,15 +259,18 @@ class TransactionFrame : public TransactionFrameBase
     // Currently this only takes care of Soroban fee refunds.
     void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta,
-                          MutableTxResultPtr txResult) const override;
+                          MutableTxResultPtr txResult,
+                          TxEventManager& txEventManager) const override;
 
     // TransactionFrame specific function that allows fee bumps to forward a
     // different account for the refund. It also returns the refund so
     // FeeBumpTransactionFrame can adjust feeCharged.
-    int64_t processRefund(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta,
-                          AccountID const& feeSource,
-                          MutableTransactionResultBase& txResult) const;
+    int64_t processRefundAndEmitFeeEvent(AppConnector& app,
+                                         AbstractLedgerTxn& ltx,
+                                         TransactionMetaFrame& meta,
+                                         AccountID const& feeSource,
+                                         MutableTransactionResultBase& txResult,
+                                         TxEventManager& txEventManager) const;
 
     // version without meta
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,

@@ -128,14 +128,16 @@ void
 FeeBumpTransactionFrame::processPostApply(AppConnector& app,
                                           AbstractLedgerTxn& ltx,
                                           TransactionMetaFrame& meta,
-                                          MutableTxResultPtr txResult) const
+                                          MutableTxResultPtr txResult,
+                                          TxEventManager& txEventManager) const
 {
     // We must forward the Fee-bump source so the refund is applied to the
     // correct account
     // Note that we are not calling TransactionFrame::processPostApply, so if
     // any logic is added there, we would have to reason through if that logic
     // should also be reflected here.
-    mInnerTx->processRefund(app, ltx, meta, getFeeSourceID(), *txResult);
+    mInnerTx->processRefundAndEmitFeeEvent(app, ltx, meta, getFeeSourceID(),
+                                           *txResult, txEventManager);
 }
 
 bool

@@ -126,14 +126,6 @@ TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     mTransactionTxResult = mTransactionFrame->processFeeSeqNum(ltx, baseFee);
 }
 
-void
-TransactionTestFrame::processPostApply(AppConnector& app,
-                                       AbstractLedgerTxn& ltx,
-                                       TransactionMetaFrame& meta)
-{
-    mTransactionFrame->processPostApply(app, ltx, meta, mTransactionTxResult);
-}
-
 bool
 TransactionTestFrame::checkValidForTesting(AppConnector& app,
                                            AbstractLedgerTxn& ltxOuter,
@@ -318,9 +310,11 @@ void
 TransactionTestFrame::processPostApply(AppConnector& app,
                                        AbstractLedgerTxn& ltx,
                                        TransactionMetaFrame& meta,
-                                       MutableTxResultPtr txResult) const
+                                       MutableTxResultPtr txResult,
+                                       TxEventManager& txEventManager) const
 {
-    mTransactionFrame->processPostApply(app, ltx, meta, txResult);
+    mTransactionFrame->processPostApply(app, ltx, meta, txResult,
+                                        txEventManager);
     mTransactionTxResult = txResult;
 }
 

@@ -115,7 +115,8 @@ class TransactionFrameBase
 
     virtual void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                   TransactionMetaFrame& meta,
-                                  MutableTxResultPtr txResult) const = 0;
+                                  MutableTxResultPtr txResult,
+                                  TxEventManager& txEventManager) const = 0;
 
     virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 
