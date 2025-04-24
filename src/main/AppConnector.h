@@ -5,7 +5,6 @@
 #include "main/Config.h"
 #include "medida/metrics_registry.h"
 #include "rust/RustBridge.h"
-#include <shared_mutex>
 
 namespace stellar
 {
