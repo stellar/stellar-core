@@ -36,6 +36,7 @@ compile_commands.json
 **/.vscode/*
 .idea
 .clangd
+**/.DS_Store
 
 .libs
 .deps

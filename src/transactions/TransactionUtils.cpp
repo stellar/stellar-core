@@ -1236,19 +1236,28 @@ toAccountID(MuxedAccount const& m)
 }
 
 MuxedAccount
-toMuxedAccount(AccountID const& a)
+toMuxedAccount(AccountID const& a, std::optional<uint64> id)
 {
-    MuxedAccount ret(static_cast<CryptoKeyType>(a.type()));
     switch (a.type())
     {
     case PUBLIC_KEY_TYPE_ED25519:
-        ret.ed25519() = a.ed25519();
-        break;
+        if (id)
+        {
+            MuxedAccount ret(CryptoKeyType::KEY_TYPE_MUXED_ED25519);
+            ret.med25519().ed25519 = a.ed25519();
+            ret.med25519().id = *id;
+            return ret;
+        }
+        else
+        {
+            MuxedAccount ret(CryptoKeyType::KEY_TYPE_ED25519);
+            ret.ed25519() = a.ed25519();
+            return ret;
+        }
     default:
         // this would be a bug
         abort();
     }
-    return ret;
 }
 
 bool

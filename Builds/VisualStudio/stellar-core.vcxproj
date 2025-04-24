@@ -711,6 +711,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\ClawbackTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\CreateAccountTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\EndSponsoringFutureReservesTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\EventTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\ExchangeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\InflationTests.cpp" />
