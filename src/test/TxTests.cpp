@@ -655,7 +655,8 @@ getAccountSigners(PublicKey const& k, Application& app)
 TransactionTestFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, uint32_t fee)
+                            const std::vector<Operation>& ops, uint32_t fee,
+                            std::optional<Memo> memo)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
     e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
@@ -668,6 +669,11 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v0().tx.operations));
 
+    if (memo)
+    {
+        e.v0().tx.memo = *memo;
+    }
+
     auto res = TransactionTestFrame::fromTxFrame(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
@@ -677,11 +683,13 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond)
+                            std::vector<Operation> const& ops, uint32_t fee,
+                            std::optional<PreconditionsV2> cond,
+                            std::optional<uint64_t> sourceMux,
+                            std::optional<Memo> memo)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
-    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey());
+    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), sourceMux);
     e.v1().tx.fee =
         fee != 0 ? fee
                  : static_cast<uint32_t>(
@@ -697,6 +705,11 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
         e.v1().tx.cond.v2() = *cond;
     }
 
+    if (memo)
+    {
+        e.v1().tx.memo = *memo;
+    }
+
     auto res = TransactionTestFrame::fromTxFrame(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
@@ -706,15 +719,16 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops,
-                          uint32_t fee)
+                          uint32_t fee, std::optional<Memo> memo)
 {
     auto ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
     {
-        return transactionFromOperationsV0(app, from, seq, ops, fee);
+        return transactionFromOperationsV0(app, from, seq, ops, fee, memo);
     }
-    return transactionFromOperationsV1(app, from, seq, ops, fee);
+    return transactionFromOperationsV1(app, from, seq, ops, fee, std::nullopt,
+                                       std::nullopt, memo);
 }
 
 TransactionTestFramePtr

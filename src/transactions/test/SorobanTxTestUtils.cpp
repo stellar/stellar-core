@@ -271,6 +271,80 @@ makeTransferEvent(SCAddress const& from, SCAddress const& to, int64_t amount,
     return ContractEvent();
 }
 
+ContractEvent
+makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
+                  SCAddress const& from, SCAddress const& to, int64_t amount,
+                  std::optional<SCMapEntry> toMemoEntry)
+{
+    std::string name;
+    switch (asset.type())
+    {
+    case AssetType::ASSET_TYPE_NATIVE:
+        name = "native";
+        break;
+    case AssetType::ASSET_TYPE_CREDIT_ALPHANUM4:
+        name = std::string(asset.alphaNum4().assetCode.begin(),
+                           asset.alphaNum4().assetCode.end()) +
+               ":" + KeyUtils::toStrKey(asset.alphaNum4().issuer);
+        break;
+    case AssetType::ASSET_TYPE_CREDIT_ALPHANUM12:
+        name = std::string(asset.alphaNum12().assetCode.begin(),
+                           asset.alphaNum12().assetCode.end()) +
+               ":" + KeyUtils::toStrKey(asset.alphaNum12().issuer);
+        break;
+    }
+
+    std::vector<SCVal> topics = {makeSymbolSCVal("transfer"),
+                                 makeAddressSCVal(from), makeAddressSCVal(to),
+                                 makeStringSCVal(std::move(name))};
+    SCVal data;
+    if (toMemoEntry)
+    {
+        data.type(SCValType::SCV_MAP);
+        data.map().activate().push_back(
+            SCMapEntry(makeSymbolSCVal("amount"), makeI128(amount)));
+        data.map().activate().push_back(*toMemoEntry);
+    }
+    else
+    {
+        data = makeI128(amount);
+    }
+    return makeContractEvent(contractId, topics, data);
+}
+
+ContractEvent
+makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
+                    Asset const& asset, SCAddress const& addr, int64 amount,
+                    std::optional<SCMapEntry> memoEntry)
+{
+    ContractEvent ev;
+    ev.type = ContractEventType::CONTRACT;
+    ev.contractID.activate() = contractId;
+
+    SCVec topics = {isMint ? makeSymbolSCVal("mint") : makeSymbolSCVal("burn"),
+                    makeAddressSCVal(getAddressWithDroppedMuxedInfo(addr)),
+                    makeSep0011AssetStringSCVal(asset)};
+    ev.body.v0().topics = topics;
+
+    if (isMint && memoEntry)
+    {
+        SCVal data;
+        data.type(SCValType::SCV_MAP);
+        data.map().activate().push_back(
+            SCMapEntry(makeSymbolSCVal("amount"), makeI128(amount)));
+        data.map().activate().push_back(*memoEntry);
+        ev.body.v0().data = data;
+    }
+    else
+    {
+        // a memo entry should not be passed in for the burn event
+        releaseAssert(!memoEntry);
+        ev.body.v0().data = makeI128SCVal(amount);
+    }
+
+    return ev;
+}
+
 void
 validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
                  int64_t feeCharged)
@@ -1368,41 +1442,11 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
                                            SCAddress const& to, int64_t amount,
                                            std::optional<uint64_t> toMuxId)
 {
-    std::string name;
-    switch (mAsset.type())
-    {
-    case AssetType::ASSET_TYPE_NATIVE:
-        name = "native";
-        break;
-    case AssetType::ASSET_TYPE_CREDIT_ALPHANUM4:
-        name = std::string(mAsset.alphaNum4().assetCode.begin(),
-                           mAsset.alphaNum4().assetCode.end()) +
-               ":" + KeyUtils::toStrKey(mAsset.alphaNum4().issuer);
-        break;
-    case AssetType::ASSET_TYPE_CREDIT_ALPHANUM12:
-        name = std::string(mAsset.alphaNum12().assetCode.begin(),
-                           mAsset.alphaNum12().assetCode.end()) +
-               ":" + KeyUtils::toStrKey(mAsset.alphaNum12().issuer);
-        break;
-    }
-
-    std::vector<SCVal> topics = {makeSymbolSCVal("transfer"),
-                                 makeAddressSCVal(from), makeAddressSCVal(to),
-                                 makeStringSCVal(std::move(name))};
-    SCVal data;
-    if (toMuxId)
-    {
-        data.type(SCValType::SCV_MAP);
-        data.map().activate().push_back(
-            SCMapEntry(makeSymbolSCVal("amount"), makeI128(amount)));
-        data.map().activate().push_back(
-            SCMapEntry(makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)));
-    }
-    else
-    {
-        data = makeI128(amount);
-    }
-    return makeContractEvent(mContract.getAddress().contractId(), topics, data);
+    return txtest::makeTransferEvent(
+        mContract.getAddress().contractId(), mAsset, from, to, amount,
+        toMuxId ? std::optional<SCMapEntry>(SCMapEntry(
+                      makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)))
+                : std::nullopt);
 }
 
 bool
