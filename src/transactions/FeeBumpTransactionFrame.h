@@ -31,8 +31,11 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                         LedgerEntryWrapper const& account,
                         int32_t neededWeight) const;
 
-    bool commonValidPreSeqNum(LedgerSnapshot const& ls,
-                              MutableTransactionResultBase& txResult) const;
+    // If check passes, returns the fee source account. Otherwise returns
+    // nullopt.
+    std::optional<LedgerEntryWrapper>
+    commonValidPreSeqNum(LedgerSnapshot const& ls,
+                         MutableTransactionResultBase& txResult) const;
 
     enum ValidationType
     {
