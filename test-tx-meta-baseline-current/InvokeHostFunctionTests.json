@@ -1259,42 +1259,42 @@
 	],
 	"Trustline stellar asset contract|protocol version 20" : 
 	[
-		"4nqxObZBYsM=",
-		"ncziGM/mb4c=",
-		"x7T+u/+Llm4=",
-		"tR1jnSCKmGM=",
-		"qg4g0X8TKfE=",
-		"w8gN/5b5bF4=",
-		"g8+0zOCHFeE=",
-		"s6bgLIKFqqE=",
-		"oWQ5/ujS+f8=",
-		"P2GJBBebJVQ="
+		"krqalR4VBqg=",
+		"6wClQVlDg7c=",
+		"tUhzhpIfjHE=",
+		"Bs+2Nbked7Q=",
+		"aga0ru1aiwU=",
+		"yzoitIZ6YRA=",
+		"UOqSf2FNQ4w=",
+		"/nB1IiVPT40=",
+		"bEh4CqXsPr4=",
+		"ggnpCOwYXac="
 	],
 	"Trustline stellar asset contract|protocol version 21" : 
 	[
-		"4nqxObZBYsM=",
-		"ncziGM/mb4c=",
-		"x7T+u/+Llm4=",
-		"tR1jnSCKmGM=",
-		"qg4g0X8TKfE=",
-		"w8gN/5b5bF4=",
-		"g8+0zOCHFeE=",
-		"s6bgLIKFqqE=",
-		"oWQ5/ujS+f8=",
-		"P2GJBBebJVQ="
+		"krqalR4VBqg=",
+		"6wClQVlDg7c=",
+		"tUhzhpIfjHE=",
+		"Bs+2Nbked7Q=",
+		"aga0ru1aiwU=",
+		"yzoitIZ6YRA=",
+		"UOqSf2FNQ4w=",
+		"/nB1IiVPT40=",
+		"bEh4CqXsPr4=",
+		"ggnpCOwYXac="
 	],
 	"Trustline stellar asset contract|protocol version 22" : 
 	[
-		"4nqxObZBYsM=",
-		"woP5frk/+9A=",
-		"x7T+u/+Llm4=",
-		"1/tmd2rqzrQ=",
-		"SNUv8kkAO/0=",
-		"31y0+AwXPko=",
-		"y96HP+I/ZWY=",
-		"s6bgLIKFqqE=",
-		"oWQ5/ujS+f8=",
-		"P2GJBBebJVQ="
+		"krqalR4VBqg=",
+		"a41dWjufGeE=",
+		"tUhzhpIfjHE=",
+		"XYO3zQJ37Bg=",
+		"T28NtGyYnKo=",
+		"w7cRql1mKDE=",
+		"eB7c7U5ezig=",
+		"/nB1IiVPT40=",
+		"bEh4CqXsPr4=",
+		"ggnpCOwYXac="
 	],
 	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],
 	"basic contract invocation" : 
@@ -1354,6 +1354,30 @@
 	"entry eviction|protocol version 21" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"entry eviction|protocol version 22" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"failure diagnostics" : [ "bKDF6V5IzTo=" ],
+	"fee bump refund account merged|protocol version 20" : 
+	[
+		"krqalR4VBqg=",
+		"ibmBre1y48o=",
+		"pbEBZ3W1weM=",
+		"HKURUDFC4f8=",
+		"jv78wOKBO3Y="
+	],
+	"fee bump refund account merged|protocol version 21" : 
+	[
+		"krqalR4VBqg=",
+		"ibmBre1y48o=",
+		"pbEBZ3W1weM=",
+		"HKURUDFC4f8=",
+		"jv78wOKBO3Y="
+	],
+	"fee bump refund account merged|protocol version 22" : 
+	[
+		"krqalR4VBqg=",
+		"Yn/dIXLvAQU=",
+		"sTchUemldDs=",
+		"Be3X15PT6Gc=",
+		"vXUgBatr3RI="
+	],
 	"ledger entry size limit enforced" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"loadgen Wasm executes properly" : [ "bKDF6V5IzTo=" ],
 	"overly large soroban values are handled gracefully" : 
@@ -1368,16 +1392,18 @@
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo="
 	],
-	"refund account merged" : [ "bKDF6V5IzTo=", "KpjWL4AsExM=", "Ht1bKf5f8rY=", "8RAzwl/4uqg=" ],
-	"refund is sent to fee-bump source|protocol version 20" : [ "bKDF6V5IzTo=", "KgoVqNee/Lc=", "jTaYi7EHD48=" ],
-	"refund is sent to fee-bump source|protocol version 21" : [ "bKDF6V5IzTo=", "KgoVqNee/Lc=", "jTaYi7EHD48=" ],
-	"refund is sent to fee-bump source|protocol version 22" : [ "bKDF6V5IzTo=", "/Zi/tObl5Sg=", "FzDs+w41tNE=" ],
-	"refund still happens on bad auth|protocol version 20" : [ "bKDF6V5IzTo=", "KgoVqNee/Lc=", "jTaYi7EHD48=" ],
-	"refund still happens on bad auth|protocol version 21" : [ "bKDF6V5IzTo=", "KgoVqNee/Lc=", "jTaYi7EHD48=" ],
-	"refund still happens on bad auth|protocol version 22" : [ "bKDF6V5IzTo=", "/Zi/tObl5Sg=", "FzDs+w41tNE=" ],
-	"refund test with closeLedger|protocol version 20" : [ "bKDF6V5IzTo=", "KgoVqNee/Lc=" ],
-	"refund test with closeLedger|protocol version 21" : [ "bKDF6V5IzTo=", "KgoVqNee/Lc=" ],
-	"refund test with closeLedger|protocol version 22" : [ "bKDF6V5IzTo=", "/Zi/tObl5Sg=" ],
+	"refund account merged|protocol version 20" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=", "HKURUDFC4f8=" ],
+	"refund account merged|protocol version 21" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=", "HKURUDFC4f8=" ],
+	"refund account merged|protocol version 22" : [ "krqalR4VBqg=", "Yn/dIXLvAQU=", "sTchUemldDs=", "Be3X15PT6Gc=" ],
+	"refund is sent to fee-bump source|protocol version 20" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=" ],
+	"refund is sent to fee-bump source|protocol version 21" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=" ],
+	"refund is sent to fee-bump source|protocol version 22" : [ "krqalR4VBqg=", "Yn/dIXLvAQU=", "sTchUemldDs=" ],
+	"refund still happens on bad auth|protocol version 20" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=" ],
+	"refund still happens on bad auth|protocol version 21" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=" ],
+	"refund still happens on bad auth|protocol version 22" : [ "krqalR4VBqg=", "Yn/dIXLvAQU=", "sTchUemldDs=" ],
+	"refund test with closeLedger|protocol version 20" : [ "krqalR4VBqg=", "ibmBre1y48o=" ],
+	"refund test with closeLedger|protocol version 21" : [ "krqalR4VBqg=", "ibmBre1y48o=" ],
+	"refund test with closeLedger|protocol version 22" : [ "krqalR4VBqg=", "Yn/dIXLvAQU=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"settings upgrade command line utils" : 
 	[

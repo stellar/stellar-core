@@ -126,18 +126,23 @@ bool doesAccountExist(Application& app, PublicKey const& k);
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionTestFramePtr transactionFromOperationsV0(
-    Application& app, SecretKey const& from, SequenceNumber seq,
-    std::vector<Operation> const& ops, uint32_t fee = 0);
+TransactionTestFramePtr
+transactionFromOperationsV0(Application& app, SecretKey const& from,
+                            SequenceNumber seq,
+                            std::vector<Operation> const& ops, uint32_t fee = 0,
+                            std::optional<Memo> memo = std::nullopt);
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             std::vector<Operation> const& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond = std::nullopt);
+                            std::optional<PreconditionsV2> cond = std::nullopt,
+                            std::optional<uint64_t> sourceMux = std::nullopt,
+                            std::optional<Memo> memo = std::nullopt);
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, std::vector<Operation> const& ops,
-                          uint32_t fee = 0);
+                          uint32_t fee = 0,
+                          std::optional<Memo> memo = std::nullopt);
 TransactionTestFramePtr
 transactionWithV2Precondition(Application& app, TestAccount& account,
                               int64_t sequenceDelta, uint32_t fee,

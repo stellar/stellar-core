@@ -42,9 +42,11 @@ class TransactionMetaFrame
     TransactionMetaFrame(TransactionMeta meta);
     SCVal const& getReturnValue() const;
     xdr::xvector<stellar::DiagnosticEvent> const& getDiagnosticEvents() const;
+    xdr::xvector<stellar::ContractEvent> const& getTxEvents() const;
     xdr::xvector<stellar::ContractEvent> getSorobanContractEvents() const;
     stellar::LedgerEntryChanges const&
     getLedgerEntryChangesAtOp(size_t opIdx) const;
+    xdr::xvector<ContractEvent> const& getOpEventsAtOp(size_t opIdx) const;
 #endif
 
   private:

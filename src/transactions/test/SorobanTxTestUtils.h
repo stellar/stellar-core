@@ -45,6 +45,18 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
 ContractEvent makeContractEvent(Hash const& contractId,
                                 std::vector<SCVal> const& topics,
                                 SCVal const& data);
+ContractEvent
+makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
+                  SCAddress const& from, SCAddress const& to, int64_t amount,
+                  std::optional<SCMapEntry> toMemoEntry = std::nullopt);
+
+ContractEvent
+makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
+                    Asset const& asset, SCAddress const& addr, int64 amount,
+                    std::optional<SCMapEntry> memoEntry = std::nullopt);
+
+void validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
+                      int64_t feeCharged);
 
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`

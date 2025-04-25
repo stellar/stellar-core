@@ -94,24 +94,18 @@ SCVal
 getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo,
                      bool allowMuxedIdOrMemo)
 {
-    // mux follows order of precedence
-    // no mux no memo -- data is just i128
-    // else data is an scmap
-
     bool is_to_mux = to.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
-    bool has_memo = memo.type() != MemoType::MEMO_NONE;
 
     SCVal amountVal = makeI128SCVal(amount);
 
-    bool is_to_muxed_with_memo =
-        has_memo && to.type() == SC_ADDRESS_TYPE_ACCOUNT;
-    if (!allowMuxedIdOrMemo || (!is_to_mux && !is_to_muxed_with_memo))
+    bool is_to_account_with_memo = to.type() == SC_ADDRESS_TYPE_ACCOUNT &&
+                                   memo.type() != MemoType::MEMO_NONE;
+    if (!allowMuxedIdOrMemo || (!is_to_mux && !is_to_account_with_memo))
     {
         return amountVal;
     }
     else
     {
-        // data is ScMap
         SCVal data(SCV_MAP);
         SCMap& dataMap = data.map().activate();
 
@@ -590,6 +584,13 @@ TxEventManager::flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf)
     mDiagnosticEvents.flush(buf);
 };
 
+void
+TxEventManager::flushTxEvents(xdr::xvector<ContractEvent>& buf)
+{
+    std::move(mTxEvents.begin(), mTxEvents.end(), std::back_inserter(buf));
+    mTxEvents.clear();
+}
+
 Hash const&
 TxEventManager::getNetworkID() const
 {
@@ -618,6 +619,27 @@ TxEventManager::shouldEmitClassicEvents() const
 
     return protocolVersionStartsFrom(mProtocolVersion, ProtocolVersion::V_23) ||
            mConfig.BACKFILL_STELLAR_ASSET_EVENTS;
+}
+
+void
+TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount)
+{
+    // We don't emit 0 fee events. This is relevant for Soroban transactions
+    // that end up with no refunds.
+    if (!shouldEmitClassicEvents() || amount == 0)
+    {
+        return;
+    }
+    ContractEvent ev;
+    ev.type = ContractEventType::CONTRACT;
+    ev.contractID.activate() =
+        getLumenContractInfo(mNetworkID).mLumenContractID;
+
+    SCVec topics = {makeSymbolSCVal("fee"), makeAccountIDSCVal(feeSource)};
+    ev.body.v0().topics = topics;
+    ev.body.v0().data = makeI128SCVal(amount);
+
+    mTxEvents.emplace_back(std::move(ev));
 }
 
 } // namespace stellar

@@ -249,7 +249,8 @@ void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
 AccountID toAccountID(MuxedAccount const& m);
-MuxedAccount toMuxedAccount(AccountID const& a);
+MuxedAccount toMuxedAccount(AccountID const& a,
+                            std::optional<uint64> id = std::nullopt);
 
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
