@@ -133,6 +133,7 @@ overlay.flood.abandoned-demands           | meter     | tx hash pull demands tha
 overlay.flood.broadcast                   | meter     | message sent as broadcast per peer
 overlay.flood.duplicate_recv              | meter     | number of bytes of flooded messages that have already been received
 overlay.flood.unique_recv                 | meter     | number of bytes of flooded messages that have not yet been received
+overlay.flood.tx-batch-size               | histogram | number of transactions in a batch
 overlay.inbound.attempt                   | meter     | inbound connection attempted (accepted on socket)
 overlay.inbound.drop                      | meter     | inbound connection dropped
 overlay.inbound.establish                 | meter     | inbound connection established (added to pending)
@@ -156,14 +157,6 @@ overlay.recv-transaction.count            | counter   | number of transaction me
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout
-overlay.recv.start-survey-collecting      | timer     | time spent in processing request to start survey collecting phase
-overlay.recv.stop-survey-collecting       | timer     | time spent in processing request to stop survey collecting phase
-overlay.recv.survey-request               | timer     | time spent in processing survey request
-overlay.recv.survey-response              | timer     | time spent in processing survey response
-overlay.send.start-survey-collecting      | timer     | sent request to start survey collecting phase
-overlay.send.stop-survey-collecting       | timer     | sent request to stop survey collecting phase
-overlay.send.survey-request               | meter     | sent survey request
-overlay.send.survey-response              | meter     | sent survey response
 process.action.queue                      | counter   | number of items waiting in internal action-queue
 process.action.overloaded                 | counter   | 0-or-1 value indicating action-queue overloading
 process.file.handles                      | counter   | number of open file handles
