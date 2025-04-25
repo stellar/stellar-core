@@ -792,7 +792,12 @@ class Config : public std::enable_shared_from_this<Config>
     // RESTORE type for protocol versions prior to 23.
     bool BACKFILL_RESTORE_META;
 
-    uint32_t SOROBAN_PHASE_STAGE_COUNT;
+    // Defines the minimum and maximum number of sequential stages to consider
+    // when nominating the Soroban phase of transaction set.
+    // These are currently intentionally not configurable via the config file,
+    // as there isn't much room for configuration.
+    uint32_t SOROBAN_PHASE_MIN_STAGE_COUNT;
+    uint32_t SOROBAN_PHASE_MAX_STAGE_COUNT;
 
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test

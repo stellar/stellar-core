@@ -17,10 +17,9 @@ namespace
 // Configuration for parallel partitioning of transactions.
 struct ParallelPartitionConfig
 {
-    ParallelPartitionConfig(Config const& cfg,
+    ParallelPartitionConfig(uint32_t stageCount,
                             SorobanNetworkConfig const& sorobanCfg)
-        : mStageCount(
-              std::max(cfg.SOROBAN_PHASE_STAGE_COUNT, static_cast<uint32_t>(1)))
+        : mStageCount(stageCount)
         , mClustersPerStage(sorobanCfg.ledgerMaxDependentTxClusters())
         , mInstructionsPerCluster(sorobanCfg.ledgerMaxInstructions() /
                                   mStageCount)
@@ -133,7 +132,42 @@ class Stage
             mInstructions += tx.mInstructions;
             return true;
         }
-        // Otherwise, we need try to recompute the bin-packing from scratch.
+
+        // The following is a not particularly scientific, but a useful
+        // optimization.
+        // The logic is as follows: in-place bin-packing is an unordered
+        // first-fit heuristic with 1.7 approximation factor. Full bin
+        // packing is first-fit-decreasing heuristic with 11/9 approximation,
+        // which is better, but also more expensive due to full rebuild.
+        // The first time we can't fit a cluster that has no conflicts with
+        // first-fit heuristic, it makes sense to try re-packing all the
+        // clusters with a better algorithm (thus potentially 'compacting'
+        // the bins). However, after that we can say that the packing is both
+        // almost at capacity and is already as compact as it gets with our
+        // heuristics, so it's unlikely that if a cluster doesn't fit with
+        // in-place packing, it will fit with full packing.
+        // This optimization provides tremendous savings for the case when we
+        // have a lot of independent transactions (say, a full tx queue with
+        // 2x more transactions than we can fit into transaction set), which
+        // also happens to be the worst case performance-wise. Without it we
+        // might end up rebuilding the bin-packing for every single transaction
+        // even though the bin-packing is already at capacity.
+        // We don't do a similar optimization for the cases when there are
+        // conflicts for now, as it's much less likely that all the
+        // transactions would cause the cluster merge and then fail to be
+        // packed (you'd need very specific set of transactions for that to
+        // occur). But we can consider doing the full packing just once or a
+        // few times without any additional conditions if that's ever an issue.
+        if (conflictingClusters.empty())
+        {
+            if (mTriedCompactingBinPacking)
+            {
+                return false;
+            }
+            mTriedCompactingBinPacking = true;
+        }
+        // Try to recompute the bin-packing from scratch with a more efficient
+        // heuristic.
         std::vector<uint64_t> newBinInstructions;
         auto newPacking = binPacking(*newClusters, newBinInstructions);
         // Even if the new cluster is below the limit, it may invalidate the
@@ -339,7 +373,112 @@ class Stage
     std::vector<uint64_t> mBinInstructions;
     int64_t mInstructions = 0;
     ParallelPartitionConfig mConfig;
+    bool mTriedCompactingBinPacking = false;
 };
+
+struct ParallelPhaseBuildResult
+{
+    TxStageFrameList mStages;
+    std::vector<bool> mHadTxNotFittingLane;
+    int64_t mTotalInclusionFee = 0;
+};
+
+ParallelPhaseBuildResult
+buildSurgePricedParallelSorobanPhaseWithStageCount(
+    SurgePricingPriorityQueue queue,
+    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*> const&
+        builderTxForTx,
+    TxFrameList const& txFrames, uint32_t stageCount,
+    SorobanNetworkConfig const& sorobanCfg,
+    std::shared_ptr<SurgePricingLaneConfig> laneConfig, uint32_t ledgerVersion)
+{
+    ZoneScoped;
+    ParallelPartitionConfig partitionCfg(stageCount, sorobanCfg);
+
+    std::vector<Stage> stages(partitionCfg.mStageCount, partitionCfg);
+
+    // Visit the transactions in the surge pricing queue and try to add them to
+    // at least one of the stages.
+    auto visitor = [&stages,
+                    &builderTxForTx](TransactionFrameBaseConstPtr const& tx) {
+        bool added = false;
+        auto builderTxIt = builderTxForTx.find(tx);
+        releaseAssert(builderTxIt != builderTxForTx.end());
+        for (auto& stage : stages)
+        {
+            if (stage.tryAdd(*builderTxIt->second))
+            {
+                added = true;
+                break;
+            }
+        }
+        if (added)
+        {
+            return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
+        }
+        // If a transaction didn't fit into any of the stages, we consider it
+        // to have been excluded due to resource limits and thus notify the
+        // surge pricing queue that surge pricing should be triggered (
+        // REJECTED imitates the behavior for exceeding the resource limit
+        // within the queue itself).
+        return SurgePricingPriorityQueue::VisitTxResult::REJECTED;
+    };
+
+    ParallelPhaseBuildResult result;
+    std::vector<Resource> laneLeftUntilLimitUnused;
+    queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
+                    result.mHadTxNotFittingLane, ledgerVersion);
+    // There is only a single fee lane for Soroban, so there is only a single
+    // flag that indicates whether there was a transaction that didn't fit into
+    // lane (and thus all transactions are surge priced at once).
+    releaseAssert(result.mHadTxNotFittingLane.size() == 1);
+
+    // At this point the stages have been filled with transactions and we just
+    // need to place the full transactions into the respective stages/clusters.
+    result.mStages.reserve(stages.size());
+    int64_t& totalInclusionFee = result.mTotalInclusionFee;
+    for (auto const& stage : stages)
+    {
+        auto& resStage = result.mStages.emplace_back();
+        resStage.reserve(partitionCfg.mClustersPerStage);
+
+        std::unordered_map<size_t, size_t> clusterIdToStageCluster;
+
+        stage.visitAllTransactions(
+            [&resStage, &txFrames, &clusterIdToStageCluster,
+             &totalInclusionFee](size_t clusterId, size_t txId) {
+                auto it = clusterIdToStageCluster.find(clusterId);
+                if (it == clusterIdToStageCluster.end())
+                {
+                    it = clusterIdToStageCluster
+                             .emplace(clusterId, resStage.size())
+                             .first;
+                    resStage.emplace_back();
+                }
+                totalInclusionFee += txFrames[txId]->getInclusionFee();
+                resStage[it->second].push_back(txFrames[txId]);
+            });
+        // Algorithm ensures that clusters are populated from first to last and
+        // no empty clusters are generated.
+        for (auto const& cluster : resStage)
+        {
+            releaseAssert(!cluster.empty());
+        }
+    }
+    // Ensure we don't return any empty stages, which is prohibited by the
+    // protocol. The algorithm builds the stages such that the stages are
+    // populated from first to last.
+    while (!result.mStages.empty() && result.mStages.back().empty())
+    {
+        result.mStages.pop_back();
+    }
+    for (auto const& stage : result.mStages)
+    {
+        releaseAssert(!stage.empty());
+    }
+
+    return result;
+}
 
 } // namespace
 
@@ -351,6 +490,13 @@ buildSurgePricedParallelSorobanPhase(
     std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
+    // We prefer the transaction sets that are well utilized, but we also want
+    // to lower the stage count when possible. Thus we will nominate a tx set
+    // that has the lowest amount of stages while still being within
+    // MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT from the maximum total
+    // inclusion fee (a proxy for the transaction set utilization).
+    double const MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT = 0.999;
+
     // Simplify the transactions to the minimum necessary amount of data.
     std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*>
         builderTxForTx;
@@ -434,87 +580,59 @@ buildSurgePricedParallelSorobanPhase(
         queue.add(tx, ledgerVersion);
     }
 
-    ParallelPartitionConfig partitionCfg(cfg, sorobanCfg);
-    std::vector<Stage> stages(partitionCfg.mStageCount, partitionCfg);
+    // Create a worker thread for each stage count.
+    std::vector<std::thread> threads;
+    uint32_t stageCountOptions = cfg.SOROBAN_PHASE_MAX_STAGE_COUNT -
+                                 cfg.SOROBAN_PHASE_MIN_STAGE_COUNT + 1;
+    std::vector<ParallelPhaseBuildResult> results(stageCountOptions);
 
-    // Visit the transactions in the surge pricing queue and try to add them to
-    // at least one of the stages.
-    auto visitor = [&stages,
-                    &builderTxForTx](TransactionFrameBaseConstPtr const& tx) {
-        bool added = false;
-        auto builderTxIt = builderTxForTx.find(tx);
-        releaseAssert(builderTxIt != builderTxForTx.end());
-        for (auto& stage : stages)
-        {
-            if (stage.tryAdd(*builderTxIt->second))
-            {
-                added = true;
-                break;
-            }
-        }
-        if (added)
-        {
-            return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
-        }
-        // If a transaction didn't fit into any of the stages, we consider it
-        // to have been excluded due to resource limits and thus notify the
-        // surge pricing queue that surge pricing should be triggered (
-        // REJECTED imitates the behavior for exceeding the resource limit
-        // within the queue itself).
-        return SurgePricingPriorityQueue::VisitTxResult::REJECTED;
-    };
-
-    std::vector<Resource> laneLeftUntilLimitUnused;
-    queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
-                    hadTxNotFittingLane, ledgerVersion);
-    // There is only a single fee lane for Soroban, so there is only a single
-    // flag that indicates whether there was a transaction that didn't fit into
-    // lane (and thus all transactions are surge priced at once).
-    releaseAssert(hadTxNotFittingLane.size() == 1);
-
-    // At this point the stages have been filled with transactions and we just
-    // need to place the full transactions into the respective stages/clusters.
-    TxStageFrameList resStages;
-    resStages.reserve(stages.size());
-    for (auto const& stage : stages)
+    for (uint32_t stageCount = cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
+         stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
     {
-        auto& resStage = resStages.emplace_back();
-        resStage.reserve(partitionCfg.mClustersPerStage);
-
-        std::unordered_map<size_t, size_t> clusterIdToStageCluster;
-
-        stage.visitAllTransactions([&resStage, &txFrames,
-                                    &clusterIdToStageCluster](size_t clusterId,
-                                                              size_t txId) {
-            auto it = clusterIdToStageCluster.find(clusterId);
-            if (it == clusterIdToStageCluster.end())
-            {
-                it = clusterIdToStageCluster.emplace(clusterId, resStage.size())
-                         .first;
-                resStage.emplace_back();
-            }
-            resStage[it->second].push_back(txFrames[txId]);
+        size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
+        threads.emplace_back([queue, &builderTxForTx, txFrames, stageCount,
+                              sorobanCfg, laneConfig, resultIndex, &results,
+                              ledgerVersion]() {
+            results.at(resultIndex) =
+                buildSurgePricedParallelSorobanPhaseWithStageCount(
+                    std::move(queue), builderTxForTx, txFrames, stageCount,
+                    sorobanCfg, laneConfig, ledgerVersion);
         });
-        // Algorithm ensures that clusters are populated from first to last and
-        // no empty clusters are generated.
-        for (auto const& cluster : resStage)
-        {
-            releaseAssert(!cluster.empty());
-        }
     }
-    // Ensure we don't return any empty stages, which is prohibited by the
-    // protocol. The algorithm builds the stages such that the stages are
-    // populated from first to last.
-    while (!resStages.empty() && resStages.back().empty())
+    for (auto& thread : threads)
     {
-        resStages.pop_back();
-    }
-    for (auto const& stage : resStages)
-    {
-        releaseAssert(!stage.empty());
+        thread.join();
     }
 
-    return resStages;
+    int64_t maxTotalInclusionFee = 0;
+    for (auto const& result : results)
+    {
+        maxTotalInclusionFee =
+            std::max(maxTotalInclusionFee, result.mTotalInclusionFee);
+    }
+    maxTotalInclusionFee *= MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT;
+    std::optional<size_t> bestResultIndex = std::nullopt;
+    for (size_t i = 0; i < results.size(); ++i)
+    {
+        CLOG_DEBUG(Herder,
+                   "Parallel Soroban tx set nomination: {} stages => {} total "
+                   "inclusion fee",
+                   results[i].mTotalInclusionFee, results[i].mStages.size());
+        if (results[i].mTotalInclusionFee < maxTotalInclusionFee)
+        {
+            continue;
+        }
+        if (!bestResultIndex ||
+            results[i].mStages.size() <
+                results[bestResultIndex.value()].mStages.size())
+        {
+            bestResultIndex = std::make_optional(i);
+        }
+    }
+    releaseAssert(bestResultIndex.has_value());
+    auto& bestResult = results[bestResultIndex.value()];
+    hadTxNotFittingLane = std::move(bestResult.mHadTxNotFittingLane);
+    return std::move(bestResult.mStages);
 }
 
 } // namespace stellar

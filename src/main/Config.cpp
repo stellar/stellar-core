@@ -318,9 +318,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FORCE_OLD_STYLE_LEADER_ELECTION = false;
     // This is not configurable for now. It doesn't need to be a network-wide
-    // setting, but on the other hand there aren't many good values for it and
-    // it's not clear what the right way to configure it would be, if at all.
-    SOROBAN_PHASE_STAGE_COUNT = 1;
+    // setting and there aren't many good values for it.
+    SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
+    SOROBAN_PHASE_MAX_STAGE_COUNT = 4;
 
     EMIT_CLASSIC_EVENTS = false;
     BACKFILL_STELLAR_ASSET_EVENTS = false;
