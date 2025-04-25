@@ -326,6 +326,13 @@ SurgePricingPriorityQueue::popTopTxs(
                 laneLeftUntilLimit[lane] -= res;
             }
         }
+        else if (visitRes == VisitTxResult::REJECTED)
+        {
+            // If a transaction hasn't been processed, then it is considered to
+            // be not fitting the lane.
+            hadTxNotFittingLane[GENERIC_LANE] = true;
+            hadTxNotFittingLane[lane] = true;
+        }
         erase(currIt);
     }
 }

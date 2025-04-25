@@ -1397,6 +1397,12 @@
     <ClCompile Include="..\..\src\transactions\LumenEventReconciler.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\ParallelTxSetBuilder.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\SharedModuleCacheCompiler.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2473,6 +2479,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\LumenEventReconciler.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\ParallelTxSetBuilder.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\SharedModuleCacheCompiler.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
