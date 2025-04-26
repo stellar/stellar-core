@@ -162,11 +162,11 @@ $(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
 	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
-rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
+rust/RustBridge.h: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
-rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
+rust/RustBridge.cpp: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
