@@ -210,6 +210,7 @@ class LedgerManagerImpl : public LedgerManager
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
 
     bool hasLastClosedSorobanNetworkConfig() const override;
+    bool hasSorobanNetworkConfigForApply() const override;
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;

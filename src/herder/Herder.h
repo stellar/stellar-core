@@ -130,10 +130,11 @@ class Herder
     // generator, and therefore can skip certain expensive validity checks
     virtual TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                    bool isLoadgenTx = false) = 0;
+                    bool isPreValidated, bool isLoadgenTx = false) = 0;
 #else
     virtual TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
+    recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                    bool isPreValidated) = 0;
 #endif
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;

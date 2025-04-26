@@ -94,7 +94,7 @@ class OverlayManager
 
     // Process incoming transaction, pass it down to the transaction queue
     virtual void recvTransaction(StellarMessage const& msg, Peer::pointer peer,
-                                 Hash const& index) = 0;
+                                 std::shared_ptr<Hash const> index) = 0;
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
@@ -195,6 +195,9 @@ class OverlayManager
     virtual void start() = 0;
     // drops all connections
     virtual void shutdown() = 0;
+
+    // Update snapshots used for background transaction validation
+    virtual void updateSnapshots() = 0;
 
     virtual bool isShuttingDown() const = 0;
 

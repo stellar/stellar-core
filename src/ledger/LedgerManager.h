@@ -252,6 +252,7 @@ class LedgerManager
     virtual SorobanNetworkConfig const& getSorobanNetworkConfigForApply() = 0;
 
     virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
+    virtual bool hasSorobanNetworkConfigForApply() const = 0;
 
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;

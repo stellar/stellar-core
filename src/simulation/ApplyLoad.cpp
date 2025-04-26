@@ -405,8 +405,8 @@ ApplyLoad::benchmark()
 
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            auto res = tx.second->checkValid(mApp.getAppConnector(), ltx, 0, 0,
-                                             UINT64_MAX);
+            ExtendedLedgerSnapshot ls(ltx, mApp.getAppConnector(), false);
+            auto res = tx.second->checkValid(ls, 0, 0, UINT64_MAX);
             releaseAssert((res && res->isSuccess()));
         }
 

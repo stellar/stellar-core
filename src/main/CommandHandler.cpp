@@ -967,7 +967,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // Add it to our current set and make sure it is valid.
             auto addResult =
-                mApp.getHerder().recvTransaction(transaction, true);
+                mApp.getHerder().recvTransaction(transaction, true, false);
 
             root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
             if (addResult.code ==
@@ -1398,7 +1398,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto addResult = mApp.getHerder().recvTransaction(txFrame, true);
+        auto addResult = mApp.getHerder().recvTransaction(txFrame, true, false);
         root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
         if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
