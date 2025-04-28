@@ -166,7 +166,9 @@ runApp(Application::pointer app)
 bool
 applyBucketsForLCL(Application& app)
 {
-    auto has = app.getLedgerManager().getLastClosedLedgerHAS();
+    HistoryArchiveState has;
+    has.fromString(app.getPersistentState().getState(
+        PersistentState::kHistoryArchiveState, app.getDatabase().getSession()));
     auto lclHash = app.getPersistentState().getState(
         PersistentState::kLastClosedLedger, app.getDatabase().getSession());
 
