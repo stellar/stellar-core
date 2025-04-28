@@ -249,9 +249,10 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
+    mLedgerApplyManager = LedgerApplyManager::create(*this);
+    // Herder must be created after LedgerManager
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
-    mLedgerApplyManager = LedgerApplyManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
@@ -1175,15 +1176,15 @@ ApplicationImpl::getState() const
     }
     else
     {
-        switch (mLedgerManager->getState())
+        switch (mLedgerApplyManager->getState())
         {
-        case LedgerManager::LM_BOOTING_STATE:
+        case LedgerApplyManager::LM_BOOTING_STATE:
             s = APP_CONNECTED_STANDBY_STATE;
             break;
-        case LedgerManager::LM_CATCHING_UP_STATE:
+        case LedgerApplyManager::LM_CATCHING_UP_STATE:
             s = APP_CATCHING_UP_STATE;
             break;
-        case LedgerManager::LM_SYNCED_STATE:
+        case LedgerApplyManager::LM_SYNCED_STATE:
             s = APP_SYNCED_STATE;
             break;
         default:

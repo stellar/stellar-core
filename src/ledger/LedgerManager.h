@@ -162,32 +162,14 @@ class LedgerManager
     static const uint32_t GENESIS_LEDGER_MAX_TX_SIZE;
     static const int64_t GENESIS_LEDGER_TOTAL_COINS;
 
-    enum State
+    // Output of the apply process, also what gets held as "LCL".
+    struct LedgerState
     {
-        // Loading state from database, not yet active
-        LM_BOOTING_STATE,
-
-        // local state is in sync with view of consensus coming from herder
-        // desynchronization will cause transition to LM_BOOTING_STATE.
-        LM_SYNCED_STATE,
-
-        // local state doesn't match view of consensus from herder
-        // catchup is in progress
-        LM_CATCHING_UP_STATE,
-
-        LM_NUM_STATE
+        LedgerHeaderHistoryEntry ledgerHeader;
+        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
+        HistoryArchiveState has;
+        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
     };
-
-    virtual void moveToSynced() = 0;
-    virtual void beginApply() = 0;
-    virtual State getState() const = 0;
-    virtual std::string getStateHuman() const = 0;
-
-    bool
-    isSynced() const
-    {
-        return getState() == LM_SYNCED_STATE;
-    }
 
     // Logging helpers, return strings describing the provided ledgers.
     static std::string ledgerAbbrev(uint32_t seq, uint256 const& hash);
@@ -202,12 +184,8 @@ class LedgerManager
     // Genesis ledger
     static LedgerHeader genesisLedger();
 
-    // Called by Herder to inform LedgerManager that a SCP has agreed on a new
-    // close event. This is the most common cause of LedgerManager advancing
-    // from one ledger to the next: the network reached consensus on
-    // `ledgerData`.
-    virtual void valueExternalized(LedgerCloseData const& ledgerData,
-                                   bool isLatestSlot) = 0;
+    // Return complete last closed ledger state
+    virtual LedgerState const& getLCLState() const = 0;
 
     // Return the LCL header and (complete, immutable) hash.
     virtual LedgerHeaderHistoryEntry const&
@@ -279,15 +257,6 @@ class LedgerManager
     //  and restart merges
     virtual void loadLastKnownLedger(bool restoreBucketlist) = 0;
 
-    // Forcibly switch the application into catchup mode, treating `toLedger`
-    // as the destination ledger number and count as the number of past ledgers
-    // that should be replayed. Normally this happens automatically when
-    // LedgerManager detects it is desynchronized from SCP's consensus ledger.
-    // This method is present in the public interface to permit testing and
-    // offline catchups.
-    virtual void startCatchup(CatchupConfiguration configuration,
-                              std::shared_ptr<HistoryArchive> archive) = 0;
-
     // Forcibly apply `ledgerData` to the current ledger, causing it to close.
     // This is normally done automatically as part of `valueExternalized()`
     // during normal operation (in which case `calledViaExternalize` should be
@@ -314,7 +283,5 @@ class LedgerManager
     virtual ~LedgerManager()
     {
     }
-
-    virtual bool isApplying() const = 0;
 };
 }

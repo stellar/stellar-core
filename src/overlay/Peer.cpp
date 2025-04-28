@@ -1017,7 +1017,7 @@ Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     bool ignoreIfOutOfSync = msgType == TRANSACTION ||
                              msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND;
 
-    if (!mAppConnector.getLedgerManager().isSynced() && ignoreIfOutOfSync)
+    if (!mAppConnector.getLedgerApplyManager().isSynced() && ignoreIfOutOfSync)
     {
         // For transactions, exit early during the state rebuild, as we
         // can't properly verify them

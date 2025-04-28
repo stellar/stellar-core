@@ -34,6 +34,7 @@ class AppConnector
     // Methods that can only be called from main thread
     Herder& getHerder();
     LedgerManager& getLedgerManager();
+    LedgerApplyManager& getLedgerApplyManager();
     OverlayManager& getOverlayManager();
     BanManager& getBanManager();
     bool shouldYield() const;

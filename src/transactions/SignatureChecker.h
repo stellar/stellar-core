@@ -21,6 +21,7 @@ class SignatureChecker
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
         xdr::xvector<DecoratedSignature, 20> const& signatures);
+    virtual ~SignatureChecker() = default;
 #ifdef BUILD_TESTS
     virtual bool checkSignature(std::vector<Signer> const& signersV,
                                 int32_t neededWeight);

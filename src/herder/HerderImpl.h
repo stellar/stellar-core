@@ -61,7 +61,9 @@ class HerderImpl : public Herder
 
     void lostSync();
 
-    HerderImpl(Application& app);
+    HerderImpl(Application& app,
+               std::function<LedgerManager::LedgerState const&()>
+                   getLastClosedLedgerState);
     ~HerderImpl();
 
     State getState() const override;
@@ -202,8 +204,6 @@ class HerderImpl : public Herder
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
 
-    virtual void beginApply() override;
-
     void startTxSetGCTimer();
 
 #ifdef BUILD_TESTS
@@ -264,8 +264,6 @@ class HerderImpl : public Herder
     Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
 
-    void herderOutOfSync();
-
     // attempt to retrieve additional SCP messages from peers
     void getMoreSCPState();
 
@@ -305,7 +303,10 @@ class HerderImpl : public Herder
     VirtualTimer mTxSetGarbageCollectTimer;
 
     Application& mApp;
-    LedgerManager& mLedgerManager;
+    LedgerApplyManager& mLedgerApplyManager;
+    std::function<LedgerManager::LedgerState const&()>
+        mGetLastClosedLedgerState;
+    std::function<bool()> mApplying;
 
     struct SCPMetrics
     {

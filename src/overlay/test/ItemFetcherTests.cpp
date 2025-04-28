@@ -28,7 +28,10 @@ namespace
 class HerderStub : public HerderImpl
 {
   public:
-    HerderStub(Application& app) : HerderImpl(app){};
+    HerderStub(Application& app)
+        : HerderImpl(app, [&app]() -> LedgerManager::LedgerState const& {
+            return app.getLedgerManager().getLCLState();
+        }){};
 
     std::vector<int> received;
 

@@ -168,8 +168,8 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         return std::all_of(
             std::begin(keys), std::end(keys), [&](SecretKey const& key) {
                 auto const& node = simulation->getNode(key.getPublicKey());
-                return node->getLedgerManager().getState() ==
-                       LedgerManager::LM_SYNCED_STATE;
+                return node->getLedgerApplyManager().getState() ==
+                       LedgerApplyManager::LM_SYNCED_STATE;
             });
     };
 

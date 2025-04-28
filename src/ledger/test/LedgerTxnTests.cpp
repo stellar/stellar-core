@@ -1635,7 +1635,7 @@ TEST_CASE("LedgerTxn thread invariance", "[ledgertxn]")
         SECTION("ltx1 is active")
         {
             runThreadTest([&]() { LedgerTxn ltx2(app->getLedgerTxnRoot()); },
-                          "LedgerTxnRoot called from wrong thread");
+                          "ThreadInvariant called from wrong thread");
         }
         SECTION("ltx1 is inactive")
         {

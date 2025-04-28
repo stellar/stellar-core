@@ -231,7 +231,5 @@ class Herder
 
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
-
-    virtual void beginApply() = 0;
 };
 }

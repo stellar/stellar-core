@@ -15,7 +15,6 @@
 #include "herder/QuorumIntersectionChecker.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
-#include "ledger/LedgerManager.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -64,7 +63,11 @@ constexpr uint32 const TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 std::unique_ptr<Herder>
 Herder::create(Application& app)
 {
-    return std::make_unique<HerderImpl>(app);
+    auto const& lm = app.getLedgerManager();
+    auto getLCL = [&lm]() -> LedgerManager::LedgerState const& {
+        return lm.getLCLState();
+    };
+    return std::make_unique<HerderImpl>(app, getLCL);
 }
 
 HerderImpl::SCPMetrics::SCPMetrics(Application& app)
@@ -82,7 +85,9 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 {
 }
 
-HerderImpl::HerderImpl(Application& app)
+HerderImpl::HerderImpl(
+    Application& app,
+    std::function<LedgerManager::LedgerState const&()> getLastClosedLedgerState)
     : mTransactionQueue(app, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
                         TRANSACTION_QUEUE_BAN_LEDGERS,
                         TRANSACTION_QUEUE_SIZE_MULTIPLIER)
@@ -95,7 +100,8 @@ HerderImpl::HerderImpl(Application& app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
     , mApp(app)
-    , mLedgerManager(app.getLedgerManager())
+    , mLedgerApplyManager(app.getLedgerApplyManager())
+    , mGetLastClosedLedgerState(getLastClosedLedgerState)
     , mSCPMetrics(app)
     , mState(Herder::HERDER_BOOTING_STATE)
 {
@@ -160,7 +166,7 @@ HerderImpl::trackingConsensusLedgerIndex() const
     releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
     releaseAssert(mTrackingSCP.mConsensusIndex <= UINT32_MAX);
 
-    auto lcl = mLedgerManager.getLastClosedLedgerNum();
+    auto lcl = mGetLastClosedLedgerState().ledgerHeader.header.ledgerSeq;
     if (lcl > mTrackingSCP.mConsensusIndex)
     {
         std::string msg =
@@ -231,12 +237,12 @@ HerderImpl::bootstrap()
     releaseAssert(getSCP().isValidator());
     releaseAssert(mApp.getConfig().FORCE_SCP);
 
-    mLedgerManager.moveToSynced();
+    mLedgerApplyManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
 
     setupTriggerNextLedger();
     newSlotExternalized(
-        true, mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
+        true, mGetLastClosedLedgerState().ledgerHeader.header.scpValue);
 }
 
 void
@@ -357,7 +363,7 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
         writeDebugTxSet(ledgerData);
     }
 
-    mLedgerManager.valueExternalized(ledgerData, isLatestSlot);
+    mLedgerApplyManager.valueExternalized(ledgerData, isLatestSlot);
 }
 
 void
@@ -430,15 +436,6 @@ recordExternalizeAndCheckCloseTimeDrift(
 
         ctMap.clear();
     }
-}
-
-void
-HerderImpl::beginApply()
-{
-    // Tx set might be applied async: in this case, cancel the timer. It'll be
-    // restarted when the tx set is applied. This is needed to not mess with
-    // Herder's out of sync recovery mechanism.
-    mTrackingTimer.cancel();
 }
 
 void
@@ -532,7 +529,7 @@ HerderImpl::outOfSyncRecovery()
         CLOG_INFO(Herder, "Purging slots older than {}", purgeSlot);
         eraseBelow(purgeSlot);
     }
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto const& lcl = mGetLastClosedLedgerState().ledgerHeader.header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
     {
         broadcast(e);
@@ -680,7 +677,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     auto envLedgerIndex = envelope.statement.slotIndex;
     auto& scpD = getHerderSCPDriver();
 
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto const& lcl = mGetLastClosedLedgerState().ledgerHeader.header;
     auto lastCloseIndex = lcl.ledgerSeq;
     auto lastCloseTime = lcl.scpValue.closeTime;
 
@@ -1167,8 +1164,8 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
 {
     releaseAssert(threadIsMain());
 
-    maybeSetupSorobanQueue(
-        mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
+    auto const& lcl = mGetLastClosedLedgerState().ledgerHeader.header;
+    maybeSetupSorobanQueue(lcl.ledgerVersion);
 
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
@@ -1189,9 +1186,8 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
         // Ensure out of sync recovery did not get triggered while we were
         // applying
         releaseAssert(isTracking());
-        releaseAssert(trackingConsensusLedgerIndex() ==
-                      mLedgerManager.getLastClosedLedgerNum());
-        releaseAssert(mLedgerManager.isSynced());
+        releaseAssert(trackingConsensusLedgerIndex() == lcl.ledgerSeq);
+        releaseAssert(mLedgerApplyManager.isSynced());
 
         setupTriggerNextLedger();
     }
@@ -1202,15 +1198,15 @@ HerderImpl::setupTriggerNextLedger()
 {
     // Invariant: core proceeds to vote for the next ledger only when it's _not_
     // applying to ensure block production does not conflict with ledger close.
-    releaseAssert(!mLedgerManager.isApplying());
+    releaseAssert(!mLedgerApplyManager.isApplying());
 
     // Invariant: tracking is equal to LCL when we trigger. This helps ensure
     // core emits SCP messages only for slots it can fully validate
     // (any closed ledger is fully validated)
     releaseAssert(isTracking());
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto const& lcl = mGetLastClosedLedgerState().ledgerHeader;
     releaseAssert(trackingConsensusLedgerIndex() == lcl.header.ledgerSeq);
-    releaseAssert(mLedgerManager.isSynced());
+    releaseAssert(mLedgerApplyManager.isSynced());
 
     mTriggerTimer.cancel();
 
@@ -1322,7 +1318,7 @@ HerderImpl::getMinLedgerSeqToAskPeers() const
     // messages
     // we ask for messages older than lcl in case they have SCP
     // messages needed by other peers
-    auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
+    auto low = mGetLastClosedLedgerState().ledgerHeader.header.ledgerSeq + 1;
 
     auto maxSlots = std::min<uint32>(mApp.getConfig().MAX_SLOTS_TO_REMEMBER,
                                      SCP_EXTRA_LOOKBACK_LEDGERS);
@@ -1365,13 +1361,13 @@ HerderImpl::setInSyncAndTriggerNextLedger()
     }
 
     // Bring Herder and LM in sync in case they aren't
-    if (mLedgerManager.getState() == LedgerManager::LM_BOOTING_STATE)
+    if (mLedgerApplyManager.getState() == LedgerApplyManager::LM_BOOTING_STATE)
     {
-        mLedgerManager.moveToSynced();
+        mLedgerApplyManager.moveToSynced();
     }
 
     // Trigger next ledger, without requiring Herder to properly track SCP
-    auto lcl = mLedgerManager.getLastClosedLedgerNum();
+    auto lcl = mGetLastClosedLedgerState().ledgerHeader.header.ledgerSeq;
     triggerNextLedger(lcl + 1, false);
 }
 
@@ -1386,7 +1382,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     auto isTrackingValid = isTracking() || !checkTrackingSCP;
 
-    if (!isTrackingValid || !mLedgerManager.isSynced())
+    if (!isTrackingValid || !mLedgerApplyManager.isSynced())
     {
         CLOG_DEBUG(Herder, "triggerNextLedger: skipping (out of sync) : {}",
                    mApp.getStateHuman());
@@ -1394,7 +1390,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     }
 
     // If applying, the next ledger will trigger voting
-    if (mLedgerManager.isApplying())
+    if (mLedgerApplyManager.isApplying())
     {
         // This can only happen when closing ledgers in parallel
         releaseAssert(mApp.getConfig().parallelLedgerClose());
@@ -1407,7 +1403,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // during last few ledger closes
     // Since we are not currently applying, it is safe to use read-only LCL, as
     // it's guaranteed to be up-to-date
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto const& lcl = mGetLastClosedLedgerState().ledgerHeader;
     PerPhaseTransactionList txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
@@ -1594,7 +1590,7 @@ HerderImpl::getUpgradesJson()
 void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
-    auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto const& header = mGetLastClosedLedgerState().ledgerHeader.header;
     setTrackingSCPState(header.ledgerSeq, header.scpValue,
                         /* isTrackingNetwork */ true);
 }
@@ -2159,16 +2155,14 @@ HerderImpl::maybeHandleUpgrade()
 
     uint32_t diff = 0;
     {
-        if (protocolVersionIsBefore(mApp.getLedgerManager()
-                                        .getLastClosedLedgerHeader()
-                                        .header.ledgerVersion,
+        auto const& lcl = mGetLastClosedLedgerState();
+        if (protocolVersionIsBefore(lcl.ledgerHeader.header.ledgerVersion,
                                     SOROBAN_PROTOCOL_VERSION))
         {
             // no-op on any earlier protocol
             return;
         }
-        auto const& conf =
-            mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        auto const& conf = *lcl.sorobanConfig;
 
         auto maybeNewMaxTxSize =
             conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
@@ -2214,15 +2208,14 @@ HerderImpl::start()
 {
     mMaxTxSize = mApp.getHerder().getMaxClassicTxSize();
     {
-        uint32_t version = mApp.getLedgerManager()
-                               .getLastClosedLedgerHeader()
-                               .header.ledgerVersion;
+        auto const& lcl = mGetLastClosedLedgerState();
+        uint32_t version = lcl.ledgerHeader.header.ledgerVersion;
         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
         {
-            auto const& conf =
-                mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
-            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
-                                                  getFlowControlExtraBuffer());
+            releaseAssert(lcl.sorobanConfig);
+            mMaxTxSize =
+                std::max(mMaxTxSize, lcl.sorobanConfig->txMaxSizeBytes() +
+                                         getFlowControlExtraBuffer());
         }
 
         maybeSetupSorobanQueue(version);
@@ -2249,7 +2242,7 @@ HerderImpl::start()
     }
 
     // setup a sufficient state that we can participate in consensus
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto const& lcl = mGetLastClosedLedgerState().ledgerHeader;
 
     if (!mApp.getConfig().FORCE_SCP &&
         lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
@@ -2337,8 +2330,39 @@ HerderImpl::trackingHeartBeat()
 
     mTrackingTimer.expires_from_now(
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
-    mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
-                              &VirtualTimer::onFailureNoop);
+    mTrackingTimer.async_wait(
+        [this]() {
+            // State switch from "tracking" to "out of sync" should only happen
+            // if there are no ledgers queued to be applied. If there are
+            // ledgers queued, it's possible the rest of the network is waiting
+            // for this node to vote. In this case we should _still_ remain in
+            // tracking and emit nomination; If the node does not hear anything
+            // from the network after that, then node can go into out of sync
+            // recovery.
+            releaseAssert(threadIsMain());
+            if (mLedgerApplyManager.isApplying())
+            {
+                trackingHeartBeat();
+                return;
+            }
+
+            CLOG_WARNING(Herder, "Lost track of consensus");
+
+            auto s = getJsonInfo(20).toStyledString();
+            CLOG_WARNING(Herder, "Out of sync context: {}", s);
+
+            mSCPMetrics.mLostSync.Mark();
+            lostSync();
+
+            releaseAssert(getState() == Herder::HERDER_SYNCING_STATE);
+            mPendingEnvelopes.reportCostOutliersForSlot(
+                trackingConsensusLedgerIndex(), false);
+
+            startOutOfSyncTimer();
+
+            processSCPQueue();
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -2354,7 +2378,7 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
     auto txsPerPhase =
         externalizedTxSet->createTransactionFrames(mApp.getNetworkID());
 
-    auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
+    auto const& lhhe = mGetLastClosedLedgerState().ledgerHeader;
 
     auto updateQueue = [&](auto& queue, auto const& applied) {
         queue.removeApplied(applied);
@@ -2384,36 +2408,6 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
         updateQueue(*mSorobanTransactionQueue,
                     txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)]);
     }
-}
-
-void
-HerderImpl::herderOutOfSync()
-{
-    ZoneScoped;
-    // State switch from "tracking" to "out of sync" should only happen if there
-    // are no ledgers queued to be applied. If there are ledgers queued, it's
-    // possible the rest of the network is waiting for this node to vote. In
-    // this case we should _still_ remain in tracking and emit nomination; If
-    // the node does not hear anything from the network after that, then node
-    // can go into out of sync recovery.
-    releaseAssert(threadIsMain());
-    releaseAssert(!mLedgerManager.isApplying());
-
-    CLOG_WARNING(Herder, "Lost track of consensus");
-
-    auto s = getJsonInfo(20).toStyledString();
-    CLOG_WARNING(Herder, "Out of sync context: {}", s);
-
-    mSCPMetrics.mLostSync.Mark();
-    lostSync();
-
-    releaseAssert(getState() == Herder::HERDER_SYNCING_STATE);
-    mPendingEnvelopes.reportCostOutliersForSlot(trackingConsensusLedgerIndex(),
-                                                false);
-
-    startOutOfSyncTimer();
-
-    processSCPQueue();
 }
 
 void

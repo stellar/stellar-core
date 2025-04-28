@@ -624,7 +624,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
     std::set<TransactionFramePtr> aggSet;
 
-    releaseAssert(!mLedgerManager.isApplying());
+    releaseAssert(!mApp.getLedgerApplyManager().isApplying());
     releaseAssert(threadIsMain());
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
@@ -1324,7 +1324,7 @@ uint64
 HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
                                bool const isLocalNode) const
 {
-    releaseAssert(!mLedgerManager.isApplying());
+    releaseAssert(!mApp.getLedgerApplyManager().isApplying());
     Config const& cfg = mApp.getConfig();
     bool const unsupportedProtocol = protocolVersionIsBefore(
         mApp.getLedgerManager()

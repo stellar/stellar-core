@@ -27,6 +27,22 @@ class FileTransferInfo;
 class LedgerApplyManager
 {
   public:
+    enum State
+    {
+        // Loading state from database, not yet active
+        LM_BOOTING_STATE,
+
+        // local state is in sync with view of consensus coming from herder
+        // desynchronization will cause transition to LM_BOOTING_STATE.
+        LM_SYNCED_STATE,
+
+        // local state doesn't match view of consensus from herder
+        // catchup is in progress
+        LM_CATCHING_UP_STATE,
+
+        LM_NUM_STATE
+    };
+
     struct CatchupMetrics
     {
         uint64_t mHistoryArchiveStatesDownloaded;
@@ -56,6 +72,11 @@ class LedgerApplyManager
         WAIT_TO_APPLY_BUFFERED_OR_CATCHUP
     };
     static std::unique_ptr<LedgerApplyManager> create(Application& app);
+
+    // New ledger was externalized by the network, either apply it or manage
+    // catchup flow
+    virtual void valueExternalized(LedgerCloseData const& ledgerData,
+                                   bool isLatestSlot) = 0;
 
     // Process ledgers that could not be applied, and determine if catchup
     // should run
@@ -124,5 +145,22 @@ class LedgerApplyManager
     virtual void bucketsApplied(uint32_t num = 1) = 0;
     virtual void txSetsApplied(uint32_t num = 1) = 0;
     virtual void fileDownloaded(FileType type, uint32_t num = 1) = 0;
+
+    virtual State getState() const = 0;
+
+    bool
+    isSynced() const
+    {
+        return getState() == LM_SYNCED_STATE;
+    }
+
+    virtual void moveToSynced() = 0;
+    virtual std::string getStateHuman() const = 0;
+    virtual void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
+                                     LedgerCloseData const& ledgerData) = 0;
+
+    // Returns true if the LedgerApplyManager has any contiguous ledgers to
+    // apply
+    virtual bool isApplying() const = 0;
 };
 }

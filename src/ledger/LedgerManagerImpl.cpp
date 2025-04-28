@@ -198,59 +198,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
-    , mState(LM_BOOTING_STATE)
 {
     setupLedgerCloseMetaStream();
-}
-
-void
-LedgerManagerImpl::moveToSynced()
-{
-    setState(LM_SYNCED_STATE);
-}
-
-void
-LedgerManagerImpl::beginApply()
-{
-    releaseAssert(threadIsMain());
-
-    // Go into "applying" state, this will prevent catchup from starting
-    mCurrentlyApplyingLedger = true;
-
-    // Notify Herder that application started, so it won't fire out of sync
-    // timer
-    mApp.getHerder().beginApply();
-}
-
-void
-LedgerManagerImpl::setState(State s)
-{
-    releaseAssert(threadIsMain());
-    if (s != getState())
-    {
-        std::string oldState = getStateHuman();
-        mState = s;
-        mApp.syncOwnMetrics();
-        CLOG_INFO(Ledger, "Changing state {} -> {}", oldState, getStateHuman());
-        if (mState != LM_CATCHING_UP_STATE)
-        {
-            mApp.getLedgerApplyManager().logAndUpdateCatchupStatus(true);
-        }
-    }
-}
-
-LedgerManager::State
-LedgerManagerImpl::getState() const
-{
-    return mState;
-}
-
-std::string
-LedgerManagerImpl::getStateHuman() const
-{
-    static std::array<const char*, LM_NUM_STATE> stateStrings = std::array{
-        "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
-    return std::string(stateStrings[getState()]);
 }
 
 LedgerManagerImpl::LedgerState const&
@@ -528,8 +477,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
 {
     ZoneScoped;
 
-    auto const& conf =
-        mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto const& conf = getLastClosedSorobanNetworkConfig();
     int64_t const opCount = 1;
     std::vector<int64_t> limits = {opCount,
                                    conf.txMaxInstructions(),
@@ -786,59 +734,6 @@ LedgerManagerImpl::publishSorobanMetrics()
     m.publishAndResetLedgerWideMetrics();
 }
 
-// called by txherder
-void
-LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
-                                     bool isLatestSlot)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-
-    CLOG_INFO(Ledger,
-              "Got consensus: [seq={}, prev={}, txs={}, ops={}, sv: {}]",
-              ledgerData.getLedgerSeq(),
-              hexAbbrev(ledgerData.getTxSet()->previousLedgerHash()),
-              ledgerData.getTxSet()->sizeTxTotal(),
-              ledgerData.getTxSet()->sizeOpTotalForLogging(),
-              stellarValueToString(mApp.getConfig(), ledgerData.getValue()));
-
-    auto st = getState();
-    if (st != LedgerManager::LM_BOOTING_STATE &&
-        st != LedgerManager::LM_CATCHING_UP_STATE &&
-        st != LedgerManager::LM_SYNCED_STATE)
-    {
-        releaseAssert(false);
-    }
-
-    auto& lam = mApp.getLedgerApplyManager();
-    auto res = lam.processLedger(ledgerData, isLatestSlot);
-    // Go into catchup if we have any future ledgers we're unable to apply
-    // sequentially.
-    if (res == LedgerApplyManager::ProcessLedgerResult::
-                   WAIT_TO_APPLY_BUFFERED_OR_CATCHUP)
-    {
-        if (mState != LM_CATCHING_UP_STATE)
-        {
-            // Out of sync, buffer what we just heard and start catchup.
-            CLOG_INFO(Ledger,
-                      "Lost sync, local LCL is {}, network closed ledger {}",
-                      getLastClosedLedgerHeader().header.ledgerSeq,
-                      ledgerData.getLedgerSeq());
-        }
-
-        setState(LM_CATCHING_UP_STATE);
-    }
-}
-
-void
-LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                std::shared_ptr<HistoryArchive> archive)
-{
-    ZoneScoped;
-    setState(LM_CATCHING_UP_STATE);
-    mApp.getLedgerApplyManager().startCatchup(configuration, archive);
-}
-
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
@@ -922,51 +817,6 @@ getMetaIOContext(Application& app)
     return app.getConfig().parallelLedgerClose()
                ? app.getLedgerCloseIOContext()
                : app.getClock().getIOContext();
-}
-
-void
-LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
-                                       LedgerCloseData const& ledgerData)
-{
-    // We just finished applying `lcl`, maybe change LM's state
-    // Also notify Herder so it can trigger next ledger.
-
-    releaseAssert(threadIsMain());
-    uint32_t latestHeardFromNetwork =
-        mApp.getLedgerApplyManager().getLargestLedgerSeqHeard();
-    uint32_t latestQueuedToApply =
-        mApp.getLedgerApplyManager().getMaxQueuedToApply();
-    if (calledViaExternalize)
-    {
-        releaseAssert(lcl <= latestQueuedToApply);
-        releaseAssert(latestQueuedToApply <= latestHeardFromNetwork);
-    }
-
-    // Without parallel ledger apply, this should always be true
-    bool doneApplying = lcl == latestQueuedToApply;
-    releaseAssert(doneApplying || mApp.getConfig().parallelLedgerClose());
-    if (doneApplying)
-    {
-        mCurrentlyApplyingLedger = false;
-    }
-
-    // Continue execution on the main thread
-    // if we have closed the latest ledger we have heard of, set state to
-    // "synced"
-    bool appliedLatest = false;
-
-    if (latestHeardFromNetwork == lcl)
-    {
-        mApp.getLedgerManager().moveToSynced();
-        appliedLatest = true;
-    }
-
-    if (calledViaExternalize)
-    {
-        // New ledger(s) got closed, notify Herder
-        mApp.getHerder().lastClosedLedgerIncreased(appliedLatest,
-                                                   ledgerData.getTxSet());
-    }
 }
 
 // This is the main entrypoint for the apply thread (and/or synchronous
@@ -1288,7 +1138,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
             // Step 7. Maybe set LedgerManager into synced state, maybe let
             // Herder trigger next ledger
-            ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData);
+            // TODO: can this data flow arrow be reversed?
+            mApp.getLedgerApplyManager().ledgerCloseComplete(
+                ledgerSeq, calledViaExternalize, ledgerData);
             CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
         };
 
