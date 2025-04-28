@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "medida/meter.h"
+#include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/TxAdverts.h"
@@ -153,11 +154,14 @@ TxDemandsManager::demand()
         }
     }
 
+    // We randomize peers here to avoid biasing demand pressure to any one
+    // particular peer
     auto peers = mApp.getOverlayManager().getRandomAuthenticatedPeers();
 
     UnorderedMap<Peer::pointer, std::pair<TxDemandVector, std::list<Hash>>>
         demandMap;
     bool anyNewDemand = false;
+    auto maxDemandSize = getMaxDemandSize();
     do
     {
         anyNewDemand = false;
@@ -168,7 +172,7 @@ TxDemandsManager::demand()
             auto& retry = demPair.second;
             bool addedNewDemand = false;
 
-            while (demand.size() < getMaxDemandSize() && peer->hasAdvert() &&
+            while (demand.size() < maxDemandSize && peer->hasAdvert() &&
                    !addedNewDemand)
             {
                 auto txHash = peer->popAdvert();
@@ -205,6 +209,7 @@ TxDemandsManager::demand()
             }
             anyNewDemand |= addedNewDemand;
         }
+        // Loop again if we added one new demand to any peer
     } while (anyNewDemand);
 
     for (auto const& peer : peers)
@@ -269,6 +274,24 @@ TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
     ZoneScoped;
     auto& herder = mApp.getHerder();
     auto& om = mApp.getOverlayManager().getOverlayMetrics();
+#ifdef BUILD_TESTS
+    auto msg = std::make_shared<StellarMessage>();
+    size_t batchSize = 0;
+    if (mApp.getConfig().EXPERIMENTAL_TX_BATCH_MAX_SIZE > 0)
+    {
+        msg = OverlayManager::createTxBatch();
+    }
+
+    auto sendAndReset = [&]() {
+        if (batchSize > 0)
+        {
+            om.mTxBatchSizeHistogram.Update(batchSize);
+            peer->sendMessage(std::move(msg));
+            msg = OverlayManager::createTxBatch();
+            batchSize = 0;
+        }
+    };
+#endif
 
     for (auto const& h : dmd.txHashes)
     {
@@ -281,7 +304,46 @@ TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
                        KeyUtils::toShortString(peer->getPeerID()));
             peer->getPeerMetrics().mMessagesFulfilled++;
             om.mMessagesFulfilledMeter.Mark();
-            peer->sendMessage(tx->toStellarMessage());
+
+#ifdef BUILD_TESTS
+            if (mApp.getConfig().EXPERIMENTAL_TX_BATCH_MAX_SIZE > 0)
+            {
+                // Current batch size
+                auto currSize = FlowControlCapacity::msgBodySize(*msg);
+                // New tx size to append
+                auto newTxSize =
+                    FlowControlCapacity::msgBodySize(*tx->toStellarMessage());
+
+                // Send existing batch if it exceeds the max size, create a new
+                // message
+                auto maxSize = mApp.getHerder().getMaxTxSize();
+                if ((currSize + newTxSize) > maxSize)
+                {
+                    if (currSize > maxSize || newTxSize > maxSize)
+                    {
+                        throw std::runtime_error(fmt::format(
+                            "Transaction size {} exceeds maximum allowed size "
+                            "{}",
+                            newTxSize, maxSize));
+                    }
+                    sendAndReset();
+                }
+
+                msg->txSet().txs.emplace_back(
+                    tx->toStellarMessage()->transaction());
+                batchSize++;
+
+                if (msg->txSet().txs.size() ==
+                    mApp.getConfig().EXPERIMENTAL_TX_BATCH_MAX_SIZE)
+                {
+                    sendAndReset();
+                }
+            }
+            else
+#endif
+            {
+                peer->sendMessage(tx->toStellarMessage());
+            }
         }
         else
         {
@@ -302,5 +364,14 @@ TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
             }
         }
     }
+
+#ifdef BUILD_TESTS
+    // Send any remaining transactions in the batch and record the size
+    if (mApp.getConfig().EXPERIMENTAL_TX_BATCH_MAX_SIZE > 0 &&
+        !msg->txSet().txs.empty())
+    {
+        sendAndReset();
+    }
+#endif
 }
 }

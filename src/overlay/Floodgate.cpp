@@ -56,8 +56,7 @@ Floodgate::clearBelow(uint32_t maxLedger)
 }
 
 bool
-Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer,
-                     Hash const& index)
+Floodgate::addRecord(Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
     if (mShuttingDown)

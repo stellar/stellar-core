@@ -93,6 +93,32 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     {
         mMaybeHash = xdrBlake2(msg);
     }
+
+    auto populateTxMap = [&](StellarMessage const& msg) {
+        auto transaction = TransactionFrameBase::makeTransactionFromWire(
+            self->mAppConnector.getNetworkID(), msg.transaction());
+        // Pre-populate TransactionFrame caches hashes
+        transaction->getFullHash();
+        transaction->getContentsHash();
+        mTxsMap[*mMaybeHash] = transaction;
+    };
+
+    if (mMsg.type() == TRANSACTION)
+    {
+        populateTxMap(mMsg);
+    }
+#ifdef BUILD_TESTS
+    else if (mMsg.type() == TX_SET && OverlayManager::isFloodMessage(mMsg))
+    {
+        for (auto const& tx : mMsg.txSet().txs)
+        {
+            StellarMessage txMsg;
+            txMsg.type(TRANSACTION);
+            txMsg.transaction() = tx;
+            populateTxMap(txMsg);
+        }
+    }
+#endif
 }
 
 std::optional<Hash>
@@ -784,6 +810,7 @@ Peer::sendAuthenticatedMessage(
     std::shared_ptr<StellarMessage const> msg,
     std::optional<VirtualClock::time_point> timePlaced)
 {
+    ZoneScoped;
     {
         // No need to hold the lock for the duration of this function:
         // simply check if peer is shutting down, and if so, avoid putting
@@ -801,6 +828,7 @@ Peer::sendAuthenticatedMessage(
         // Construct an authenticated message and place it in the queue
         // _synchronously_ This is important because we assign auth sequence to
         // each message, which must be ordered
+        ZoneNamedN(authZone, "sendAuthenticatedMessage CB", true);
         AuthenticatedMessage amsg;
         self->mHmac.setAuthenticatedMessageBody(amsg, *msg);
         xdr::msg_ptr xdrBytes;
@@ -1171,8 +1199,18 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     case TX_SET:
     {
-        auto t = mOverlayMetrics.mRecvTxSetTimer.TimeScope();
-        recvTxSet(stellarMsg);
+#ifdef BUILD_TESTS
+        if (OverlayManager::isFloodMessage(stellarMsg))
+        {
+            auto t = mOverlayMetrics.mRecvTxBatchTimer.TimeScope();
+            recvTxBatch(*msgTracker);
+        }
+        else
+#endif
+        {
+            auto t = mOverlayMetrics.mRecvTxSetTimer.TimeScope();
+            recvTxSet(stellarMsg);
+        }
     }
     break;
 
@@ -1279,6 +1317,28 @@ Peer::process(QueryInfo& queryInfo)
     return queryInfo.mNumQueries < QUERIES_PER_WINDOW;
 }
 
+#ifdef BUILD_TESTS
+void
+Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(OverlayManager::isFloodMessage(msgTracker.getMessage()));
+
+    for (auto const& [blake2Hash, tx] : msgTracker.getTxMap())
+    {
+        auto start = mAppConnector.now();
+        mAppConnector.getOverlayManager().recvTransaction(
+            tx, shared_from_this(), blake2Hash);
+        mOverlayMetrics.mRecvTransactionAccumulator.inc(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                mAppConnector.now() - start)
+                .count());
+        mOverlayMetrics.mRecvTransactionCounter.inc();
+    }
+}
+#endif
+
 void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
@@ -1349,8 +1409,10 @@ Peer::recvTransaction(CapacityTrackedMessage const& msg)
     ZoneScoped;
     releaseAssert(threadIsMain());
     releaseAssert(msg.maybeGetHash());
+    releaseAssert(msg.getTxMap().size() == 1);
     mAppConnector.getOverlayManager().recvTransaction(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        msg.getTxMap().begin()->second, shared_from_this(),
+        msg.maybeGetHash().value());
 }
 
 Hash
@@ -1488,7 +1550,7 @@ Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
     // add it to the floodmap so that this peer gets credit for it
     releaseAssert(msg.maybeGetHash());
     mAppConnector.getOverlayManager().recvFloodedMsgID(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        shared_from_this(), msg.maybeGetHash().value());
 
     auto res = mAppConnector.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)
@@ -1982,6 +2044,7 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
 bool
 Peer::sendAdvert(Hash const& hash)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain());
     if (!mTxAdverts)
     {

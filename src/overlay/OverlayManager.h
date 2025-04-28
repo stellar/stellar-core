@@ -62,6 +62,7 @@ class OverlayManager
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
     static bool isFloodMessage(StellarMessage const& msg);
+    static std::shared_ptr<StellarMessage> createTxBatch();
     static uint32_t getFlowControlBytesBatch(Config const& cfg);
 
     // Flush all FloodGate and ItemFetcher state for ledgers older than
@@ -83,18 +84,17 @@ class OverlayManager
     // that, call broadcastMessage, above.
     // Returns true if this is a new message
     // fills msgID with msg's hash
-    virtual bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                                  Hash const& msgID) = 0;
+    virtual bool recvFloodedMsgID(Peer::pointer peer, Hash const& msgID) = 0;
 
     bool
     recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
     {
-        return recvFloodedMsgID(msg, peer, xdrBlake2(msg));
+        return recvFloodedMsgID(peer, xdrBlake2(msg));
     }
 
     // Process incoming transaction, pass it down to the transaction queue
-    virtual void recvTransaction(StellarMessage const& msg, Peer::pointer peer,
-                                 Hash const& index) = 0;
+    virtual void recvTransaction(TransactionFrameBasePtr transaction,
+                                 Peer::pointer peer, Hash const& index) = 0;
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)

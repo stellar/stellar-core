@@ -484,6 +484,10 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool EXPERIMENTAL_PARALLEL_LEDGER_APPLY;
 
+    // Batch transactions for flooding purposes (experimental).
+    // Has no effect on non-test builds.
+    size_t EXPERIMENTAL_TX_BATCH_MAX_SIZE;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes

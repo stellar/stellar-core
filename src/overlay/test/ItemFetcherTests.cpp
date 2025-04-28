@@ -465,8 +465,7 @@ TEST_CASE("next peer strategy", "[overlay][ItemFetcher]")
         {
             StellarMessage msg(SCP_MESSAGE);
             msg.envelope() = hundredEnvelope1;
-            app->getOverlayManager().recvFloodedMsgID(msg, peer1,
-                                                      xdrBlake2(msg));
+            app->getOverlayManager().recvFloodedMsgID(peer1, xdrBlake2(msg));
             tracker->tryNextPeer();
             REQUIRE(askCount == 2);
             auto trPeer1b = tracker->getLastAskedPeer();

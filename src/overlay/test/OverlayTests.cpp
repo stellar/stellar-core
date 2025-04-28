@@ -2210,6 +2210,24 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 
     SECTION("enabled")
     {
+        SECTION("tx batches")
+        {
+            SECTION("no batching")
+            {
+                for (auto& cfg : configs)
+                {
+                    cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 0;
+                }
+            }
+            SECTION("batch size")
+            {
+                for (auto& cfg : configs)
+                {
+                    cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 5;
+                }
+            }
+        }
+
         setupSimulation();
 
         // Generate a bit of load to flood transactions, make sure nodes can
@@ -2807,13 +2825,51 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     qSet.validators.push_back(vNode2NodeID);
 
     auto configs = std::vector<Config>{};
-    auto const numAccounts = 5;
+    auto const numAccounts = 10;
 
     for (auto i = 0; i < 2; i++)
     {
         auto cfg = getTestConfig(i + 1);
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = numAccounts * MAX_OPS_PER_TX;
         configs.push_back(cfg);
+    }
+
+    // Artifical tx size limit to prevent batches from going over
+    // Herder.getMaxTxSize() No limit if set to 0.
+    uint32_t txSizeLimit = 0;
+    uint32_t const INVALID_LIMIT = 1;
+    SECTION("test batches")
+    {
+        SECTION("no batching")
+        {
+            for (auto& cfg : configs)
+            {
+                cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 0;
+            }
+        }
+        SECTION("batch size")
+        {
+            for (auto& cfg : configs)
+            {
+                cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 5;
+            }
+        }
+        SECTION("batch size with max tx size limit")
+        {
+            for (auto& cfg : configs)
+            {
+                cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 5;
+            }
+            SECTION("valid limit")
+            {
+                txSizeLimit = 10000;
+            }
+            SECTION("invalid limit")
+            {
+                // 1 byte is too low
+                txSizeLimit = INVALID_LIMIT;
+            }
+        }
     }
 
     Application::pointer node1 =
@@ -2829,31 +2885,62 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
         3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     auto& loadGen = node1->getLoadGenerator();
+    if (txSizeLimit > 0)
+    {
+        node1->getHerder().setMaxTxSize(txSizeLimit);
+        node2->getHerder().setMaxTxSize(txSizeLimit);
+    }
 
     // Create 5 txns each creating one new account.
     // Set a really high tx rate so we create the txns right away.
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ numAccounts * MAX_OPS_PER_TX,
-        /* txRate */ 1));
+        /* txRate */ 2));
 
     // Let the network close multiple ledgers.
     // If the logic to advertise or demand incorrectly sends more than
     // they're supposed to (e.g., advertise the same txn twice),
     // then it'll likely happen within a few ledgers.
-    simulation->crankUntil(
-        [&] { return simulation->haveAllExternalized(5, 1); },
-        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    auto crank = [&]() {
+        simulation->crankUntil(
+            [&] { return simulation->haveAllExternalized(5, 1); },
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    };
 
-    // Node 1 advertised 5 txn hashes to each of Node 2 and Node 3.
-    REQUIRE(getAdvertisedHashCount(node1) == numAccounts);
-    REQUIRE(getAdvertisedHashCount(node2) == 0);
+    if (txSizeLimit == INVALID_LIMIT)
+    {
+        REQUIRE_THROWS_AS(crank(), std::runtime_error);
+    }
+    else
+    {
+        crank();
+        // Node 1 advertised 5 txn hashes to each of Node 2 and Node 3.
+        REQUIRE(getAdvertisedHashCount(node1) == numAccounts);
+        REQUIRE(getAdvertisedHashCount(node2) == 0);
 
-    REQUIRE(overlaytestutils::getSentDemandCount(node2) > 0);
-    REQUIRE(overlaytestutils::getFulfilledDemandCount(node1) == numAccounts);
+        REQUIRE(overlaytestutils::getSentDemandCount(node2) > 0);
+        REQUIRE(overlaytestutils::getFulfilledDemandCount(node1) ==
+                numAccounts);
 
-    // As this is a "happy path", there should be no unknown demands.
-    REQUIRE(getUnknownDemandCount(node1) == 0);
-    REQUIRE(getUnknownDemandCount(node2) == 0);
+        // As this is a "happy path", there should be no unknown demands.
+        REQUIRE(getUnknownDemandCount(node1) == 0);
+        REQUIRE(getUnknownDemandCount(node2) == 0);
+
+        if (configs[0].EXPERIMENTAL_TX_BATCH_MAX_SIZE > 0)
+        {
+            auto& om = node1->getOverlayManager().getOverlayMetrics();
+            if (txSizeLimit > 0)
+            {
+                REQUIRE(om.mTxBatchSizeHistogram.max() <
+                        configs[0].EXPERIMENTAL_TX_BATCH_MAX_SIZE);
+            }
+            else
+            {
+                REQUIRE(om.mTxBatchSizeHistogram.max() ==
+                        configs[0].EXPERIMENTAL_TX_BATCH_MAX_SIZE);
+            }
+        }
+    }
 }
 
 TEST_CASE("overlay pull mode with many peers",

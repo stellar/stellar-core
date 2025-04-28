@@ -68,7 +68,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
-    "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING"};
+    "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
+    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -253,6 +254,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
     FLOOD_ADVERT_PERIOD_MS = std::chrono::milliseconds(100);
     FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(500);
+    EXPERIMENTAL_TX_BATCH_MAX_SIZE = 0;
 
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
@@ -1317,6 +1319,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      FLOOD_DEMAND_BACKOFF_DELAY_MS =
                          std::chrono::milliseconds(readInt<int>(item, 1));
+                 }},
+                {"EXPERIMENTAL_TX_BATCH_MAX_SIZE",
+                 [&]() {
+                     EXPERIMENTAL_TX_BATCH_MAX_SIZE = readInt<size_t>(item, 0);
                  }},
                 {"FLOOD_ARB_TX_BASE_ALLOWANCE",
                  [&]() {

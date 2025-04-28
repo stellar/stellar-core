@@ -84,6 +84,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "flood-advert"}))
     , mRecvFloodDemandTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "flood-demand"}))
+    , mRecvTxBatchTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "tx-batch"}))
 
     , mMessageDelayInWriteQueueTimer(
           app.getMetrics().NewTimer({"overlay", "delay", "write-queue"}))
@@ -178,6 +180,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "fetch", "unique-recv"}, "byte"))
     , mDuplicateFetchBytesRecv(app.getMetrics().NewMeter(
           {"overlay", "fetch", "duplicate-recv"}, "byte"))
+    , mTxBatchSizeHistogram(
+          app.getMetrics().NewHistogram({"overlay", "flood", "tx-batch-size"}))
 {
 }
 }
