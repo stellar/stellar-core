@@ -289,6 +289,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                                 bool isLatestSlot)
 {
     ZoneScoped;
+
+    releaseAssert(threadIsMain());
+
     bool validated = getSCP().isSlotFullyValidated(slotIndex);
 
     CLOG_DEBUG(Herder, "HerderSCPDriver::valueExternalized index: {} txSet: {}",

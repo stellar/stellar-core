@@ -1496,12 +1496,8 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 SearchableSnapshotConstPtr
 LedgerManagerImpl::getLastClosedSnaphot()
 {
-    if (!getLCLState().snapshot)
-    {
-        getLCLState().snapshot = mApp.getBucketManager()
-                                     .getBucketSnapshotManager()
-                                     .copySearchableLiveBucketListSnapshot();
-    }
+    releaseAssert(threadIsMain());
+    releaseAssert(getLCLState().snapshot);
     return getLCLState().snapshot;
 }
 

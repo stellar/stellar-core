@@ -1605,6 +1605,84 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
 #endif
 }
 
+TEST_CASE("LedgerTxn thread invariance", "[ledgertxn]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0, Config::TESTDB_POSTGRESQL);
+    cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+    auto app = createTestApplication(clock, cfg);
+    LedgerTxn ltx1(app->getLedgerTxnRoot());
+    std::exception_ptr exception = nullptr;
+    auto runThreadTest = [&](std::function<void()> func,
+                             std::string const& msg) {
+        std::thread t([&]() {
+            try
+            {
+                func();
+            }
+            catch (...)
+            {
+                exception = std::current_exception();
+            }
+        });
+        t.join();
+        REQUIRE(exception);
+        REQUIRE_THROWS_WITH(std::rethrow_exception(exception), msg);
+    };
+
+    SECTION("LedgerTxnRoot does not allow different threads to create children")
+    {
+        SECTION("ltx1 is active")
+        {
+            runThreadTest([&]() { LedgerTxn ltx2(app->getLedgerTxnRoot()); },
+                          "LedgerTxnRoot called from wrong thread");
+        }
+        SECTION("ltx1 is inactive")
+        {
+            ltx1.rollback();
+            std::thread t([&]() {
+                // Ltx2 is ok, because ltx1 was reset
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
+            });
+            t.join();
+        }
+    }
+    SECTION("re-using LedgerTxn across different threads")
+    {
+        std::string ledgerTxError = "LedgerTxn is accessed from wrong thread";
+        SECTION("create child")
+        {
+            runThreadTest([&]() { LedgerTxn ltx2(ltx1); }, ledgerTxError);
+        }
+        // `commit` and `rollback` terminate the program on an exception,
+        // because they are marked noexcept SECTION("commit child")
+        // {
+        //     runThreadTest([&]() { ltx1.commit(); });
+        // }
+        // SECTION("rollback")
+        // {
+        //     runThreadTest([&]() { ltx1.rollback(); });
+        // }
+        SECTION("load")
+        {
+            runThreadTest([&]() { ltx1.load(LedgerKey()); }, ledgerTxError);
+        }
+        SECTION("load without record")
+        {
+            runThreadTest([&]() { ltx1.loadWithoutRecord(LedgerKey()); },
+                          ledgerTxError);
+        }
+        SECTION("create")
+        {
+            runThreadTest([&]() { ltx1.create(LedgerEntry()); }, ledgerTxError);
+        }
+        SECTION("erase")
+        {
+            runThreadTest([&]() { ltx1.erase(LedgerKey()); }, ledgerTxError);
+        }
+    }
+}
+
 TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
 {
     VirtualClock clock;

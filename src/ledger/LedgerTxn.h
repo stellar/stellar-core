@@ -174,6 +174,14 @@
 //    accesses to a parent's entries when a child is open.
 //
 
+// THREAD-SAFETY:
+//   - The LedgerTxn subsystem is not thread-safe. It is a
+//     responsibility of the caller to ensure that no two threads
+//     access the same LedgerTxn simultaneously.
+//   - LedgerTxn preserves the following invariant: it must always be accessed
+//   from the _same_ thread, before it is commited or rolled back. If the
+//   invariant is violated, the program throws an exception.
+
 namespace stellar
 {
 
