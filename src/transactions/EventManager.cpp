@@ -556,12 +556,10 @@ OpEventManager::flushContractEvents(xdr::xvector<ContractEvent>& buf)
 };
 
 TxEventManager::TxEventManager(uint32_t protocolVersion, Hash const& networkID,
-                               Config const& config,
-                               TransactionFrameBase const& tx)
+                               Config const& config)
     : mProtocolVersion(protocolVersion)
     , mNetworkID(networkID)
     , mConfig(config)
-    , mTx(tx)
     , mDiagnosticEvents(DiagnosticEventBuffer(config))
 {
 }
