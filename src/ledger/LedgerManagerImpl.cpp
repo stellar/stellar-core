@@ -1826,7 +1826,7 @@ LedgerManagerImpl::applyTransactions(
 
             TxEventManager txEventManager(
                 ltx.loadHeader().current().ledgerVersion, mApp.getNetworkID(),
-                mApp.getConfig(), *tx);
+                mApp.getConfig());
             tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult,
                       txEventManager, subSeed);
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,

@@ -48,8 +48,7 @@ TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                             Hash const& sorobanBasePrngSeed)
 {
     TxEventManager txEventManager(ltx.loadHeader().current().ledgerVersion,
-                                  app.getNetworkID(), app.getConfig(),
-                                  *mTransactionFrame);
+                                  app.getNetworkID(), app.getConfig());
     return mTransactionFrame->apply(app, ltx, meta, mTransactionTxResult,
                                     txEventManager, sorobanBasePrngSeed);
 }
@@ -117,13 +116,6 @@ TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
         app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
         diagnosticEvents);
     return mTransactionTxResult;
-}
-
-void
-TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                       std::optional<int64_t> baseFee)
-{
-    mTransactionTxResult = mTransactionFrame->processFeeSeqNum(ltx, baseFee);
 }
 
 bool

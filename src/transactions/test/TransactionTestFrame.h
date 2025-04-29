@@ -40,9 +40,6 @@ class TransactionTestFrame : public TransactionFrameBase
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
 
-    void processFeeSeqNum(AbstractLedgerTxn& ltx,
-                          std::optional<int64_t> baseFee);
-
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
