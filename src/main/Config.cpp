@@ -69,7 +69,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
-    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING"};
+    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING",
+    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -316,6 +317,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
+    SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = false;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -698,7 +700,8 @@ Config::parseValidators(
         {
             addHistoryArchive(ve.mName, hist, "", "");
         }
-        if ((ve.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY ||
+        if (!skipHighCriticalValidatorChecks() &&
+            (ve.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY ||
              ve.mQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY) &&
             hist.empty())
         {
@@ -1170,6 +1173,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING",
                  [&]() {
                      CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = readBool(item);
+                 }},
+                {"SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING",
+                 [&]() {
+                     SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING =
+                         readBool(item);
                  }},
 #endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
@@ -2432,6 +2440,15 @@ Config::setNoPublish()
     }
 }
 
+bool
+Config::skipHighCriticalValidatorChecks() const
+{
+#ifdef BUILD_TESTS
+    return SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING;
+#endif
+    return false;
+}
+
 SCPQuorumSet
 Config::generateQuorumSetHelper(
     std::vector<ValidatorEntry>::const_iterator begin,
@@ -2456,7 +2473,7 @@ Config::generateQuorumSetHelper(
             }
             vals.emplace_back(it2->mKey);
         }
-        if (vals.size() < 3 &&
+        if (!skipHighCriticalValidatorChecks() && vals.size() < 3 &&
             (it->mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY ||
              it->mQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY))
         {

@@ -600,3 +600,34 @@ PUBLIC_KEY="GBVZFVEARURUJTN5ABZPKW36FHKVJK2GHXEVY2SZCCNU5I3CQMTZ3OES"
         c.load(ss),
         "At least one validator must have a quality level higher than LOW");
 }
+
+// Test that a config with 2 HIGH quality validators and no history archives
+// loads when `SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING` is set.
+TEST_CASE("skip validator checks", "[config]")
+{
+    Config c;
+    std::string const configStr = R"(
+NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
+NODE_HOME_DOMAIN="domain"
+NODE_IS_VALIDATOR=true
+DEPRECATED_SQL_LEDGER_STATE=false
+UNSAFE_QUORUM=true
+SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING=true
+
+[[HOME_DOMAINS]]
+HOME_DOMAIN="domain"
+QUALITY="HIGH"
+
+[[VALIDATORS]]
+NAME="a1"
+HOME_DOMAIN="domain"
+PUBLIC_KEY="GDUTST3TG4MNDLY6WLB5CIASIBZAWWWJKZDHA4HFEVKQOVTYQ2F5GKYZ"
+
+[[VALIDATORS]]
+NAME="a2"
+HOME_DOMAIN="domain"
+PUBLIC_KEY="GBVZFVEARURUJTN5ABZPKW36FHKVJK2GHXEVY2SZCCNU5I3CQMTZ3OES"
+)";
+    std::stringstream ss(configStr);
+    c.load(ss);
+}
