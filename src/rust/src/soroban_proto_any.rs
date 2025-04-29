@@ -13,10 +13,34 @@ use crate::{
 use log::{debug, error, trace, warn};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
-// This module (contract) is bound to _two separate locations_ in the module
-// tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
-// hi) version-specific definition of stellar_env_host. We therefore
-// import it from our _parent_ module rather than from the crate root.
+// This module (soroban_proto_any) is bound to _multiple locations_ in the
+// module tree of this crate:
+//
+//    crate::soroban_proto_all::p21::soroban_proto_any
+//    crate::soroban_proto_all::p22::soroban_proto_any
+//    crate::soroban_proto_all::p23::soroban_proto_any ...
+//
+// Each such location is embedded inside a parent module -- p21, p22, p23, etc.
+// -- which is an adaptor for a specific version of soroban: it provides a
+// specific soroban version binding for `soroban_env_host` which we import here
+// from the adaptor: we refer to `super::soroban_env_host`, rather than
+// referring to any extern crate directly.
+//
+// Consequently the code in this module will be interpreted _simultaneously_ by
+// the compiler as referring to each of the different soroban_env_host crates.
+// In other words the code in this module has to work with any of them, or in
+// yet other words the soroban interface you get to talk to here is the
+// intersection of any/all the sorobans linked into this crate. If you cannot
+// write code that is "version agnostic" in this way, you need to write some
+// adaptor code (that differs for each version), stick it in _all_ the p21, p22,
+// ... adaptor modules that this module is mounted inside of, and then import
+// the adaptor from there to here.
+//
+// The point of all this muddle is to allow us to have a mostly-singular set of
+// functions in this file, rather than maintaining a separate copy for each
+// version of soroban_env_host. But it does mean that you need to be careful
+// about what you do here, and sometimes compensate with indirection through the
+// outer adaptor modules.
 pub(crate) use super::soroban_env_host::{
     budget::{AsBudget, Budget},
     e2e_invoke::{extract_rent_changes, LedgerEntryChange},
