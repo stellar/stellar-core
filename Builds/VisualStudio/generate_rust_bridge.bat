@@ -10,13 +10,13 @@ set "final_source=%out_dir%\RustBridge.cpp"
 
 mkdir "%out_dir%\temp" >nul 2>nul
 
-%1 ..\..\src\rust\src\lib.rs --cfg test=false --header --output "%temp_header%"
+%1 ..\..\src\rust\src\bridge.rs --cfg test=false --header --output "%temp_header%"
 if %errorlevel% neq 0 (
     echo Error generating temporary header file.
     exit /b %errorlevel%
 )
 
-%1 ..\..\src\rust\src\lib.rs --cfg test=false --output "%temp_source%"
+%1 ..\..\src\rust\src\bridge.rs --cfg test=false --output "%temp_source%"
 if %errorlevel% neq 0 (
     echo Error generating temporary source file.
     exit /b %errorlevel%

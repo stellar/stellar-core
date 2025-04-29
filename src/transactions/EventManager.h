@@ -104,13 +104,12 @@ class TxEventManager
     uint32_t mProtocolVersion;
     Hash const& mNetworkID;
     Config const& mConfig;
-    TransactionFrameBase const& mTx;
     xdr::xvector<ContractEvent> mTxEvents;
     DiagnosticEventBuffer mDiagnosticEvents;
 
   public:
     TxEventManager(uint32_t protocolVersion, Hash const& networkID,
-                   Config const& config, TransactionFrameBase const& tx);
+                   Config const& config);
 
     OpEventManager createNewOpEventManager(Memo const& memo);
 

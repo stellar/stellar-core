@@ -574,7 +574,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         auto timerBefore = hostFnExecTimer.count();
         auto txEventManager = TxEventManager(test.getLedgerVersion(),
                                              test.getApp().getNetworkID(),
-                                             test.getApp().getConfig(), *tx);
+                                             test.getApp().getConfig());
         bool success = tx->apply(test.getApp().getAppConnector(), rootLtx, txm,
                                  result, txEventManager);
         REQUIRE(hostFnExecTimer.count() - timerBefore > 0);

@@ -927,7 +927,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // reset results of operations
         mTxResult = createSuccessResultWithFeeCharged(ltx.getHeader(), 0, true);
         TxEventManager txEventManager(ltx.loadHeader().current().ledgerVersion,
-                                      mNetworkID, app.getConfig(), *this);
+                                      mNetworkID, app.getConfig());
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
