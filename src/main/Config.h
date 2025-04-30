@@ -809,7 +809,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::chrono::seconds getExpectedLedgerCloseTime() const;
 
     bool modeDoesCatchupWithBucketList() const;
-    bool isPersistingBucketListDBIndexes() const;
+    bool allBucketsInMemory() const;
     void logBasicInfo() const;
     bool parallelLedgerClose() const;
     void setNoListen();
