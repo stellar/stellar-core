@@ -982,7 +982,7 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
     return false;
 }
 
-bool
+std::optional<LedgerEntryWrapper>
 TransactionFrame::commonValidPreSeqNum(
     AppConnector& app, std::optional<SorobanNetworkConfig> const& cfg,
     LedgerSnapshot const& ls, bool chargeFee,
@@ -1003,7 +1003,7 @@ TransactionFrame::commonValidPreSeqNum(
          mEnvelope.type() == ENVELOPE_TYPE_TX_V0))
     {
         txResult->setInnermostResultCode(txNOT_SUPPORTED);
-        return false;
+        return std::nullopt;
     }
 
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_19) &&
@@ -1011,7 +1011,7 @@ TransactionFrame::commonValidPreSeqNum(
         mEnvelope.v1().tx.cond.type() == PRECOND_V2)
     {
         txResult->setInnermostResultCode(txNOT_SUPPORTED);
-        return false;
+        return std::nullopt;
     }
 
     if (extraSignersExist())
@@ -1022,7 +1022,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (extraSigners.size() == 2 && extraSigners[0] == extraSigners[1])
         {
             txResult->setInnermostResultCode(txMALFORMED);
-            return false;
+            return std::nullopt;
         }
 
         for (auto const& signer : extraSigners)
@@ -1031,7 +1031,7 @@ TransactionFrame::commonValidPreSeqNum(
                 signer.ed25519SignedPayload().payload.empty())
             {
                 txResult->setInnermostResultCode(txMALFORMED);
-                return false;
+                return std::nullopt;
             }
         }
     }
@@ -1039,27 +1039,27 @@ TransactionFrame::commonValidPreSeqNum(
     if (getNumOperations() == 0)
     {
         txResult->setInnermostResultCode(txMISSING_OPERATION);
-        return false;
+        return std::nullopt;
     }
 
     if (!validateSorobanOpsConsistency())
     {
         txResult->setInnermostResultCode(txMALFORMED);
-        return false;
+        return std::nullopt;
     }
     if (isSoroban())
     {
         if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
         {
             txResult->setInnermostResultCode(txMALFORMED);
-            return false;
+            return std::nullopt;
         }
 
         releaseAssert(cfg);
         if (!checkSorobanResourceAndSetError(app, cfg.value(), ledgerVersion,
                                              txResult))
         {
-            return false;
+            return std::nullopt;
         }
 
         auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
@@ -1074,7 +1074,7 @@ TransactionFrame::commonValidPreSeqNum(
                  makeU64SCVal(getFullFee())});
 
             txResult->setInnermostResultCode(txSOROBAN_INVALID);
-            return false;
+            return std::nullopt;
         }
         releaseAssertOrThrow(sorobanResourceFee);
         if (sorobanResourceFee->refundable_fee >
@@ -1087,7 +1087,7 @@ TransactionFrame::commonValidPreSeqNum(
                  makeU64SCVal(sorobanResourceFee->non_refundable_fee)});
 
             txResult->setInnermostResultCode(txSOROBAN_INVALID);
-            return false;
+            return std::nullopt;
         }
         auto const resourceFees = sorobanResourceFee->refundable_fee +
                                   sorobanResourceFee->non_refundable_fee;
@@ -1101,7 +1101,7 @@ TransactionFrame::commonValidPreSeqNum(
                  makeU64SCVal(resourceFees)});
 
             txResult->setInnermostResultCode(txSOROBAN_INVALID);
-            return false;
+            return std::nullopt;
         }
 
         // check for duplicates
@@ -1129,7 +1129,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (!checkDuplicates(sorobanData.resources.footprint.readOnly) ||
             !checkDuplicates(sorobanData.resources.footprint.readWrite))
         {
-            return false;
+            return std::nullopt;
         }
     }
     else
@@ -1140,7 +1140,7 @@ TransactionFrame::commonValidPreSeqNum(
                 mEnvelope.v1().tx.ext.v() != 0)
             {
                 txResult->setInnermostResultCode(txMALFORMED);
-                return false;
+                return std::nullopt;
             }
         }
     }
@@ -1149,33 +1149,34 @@ TransactionFrame::commonValidPreSeqNum(
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
         txResult->setInnermostResultCode(txTOO_EARLY);
-        return false;
+        return std::nullopt;
     }
     if (isTooLate(header, upperBoundCloseTimeOffset))
     {
         txResult->setInnermostResultCode(txTOO_LATE);
-        return false;
+        return std::nullopt;
     }
 
     if (chargeFee &&
         getInclusionFee() < getMinInclusionFee(*this, header.current()))
     {
         txResult->setInnermostResultCode(txINSUFFICIENT_FEE);
-        return false;
+        return std::nullopt;
     }
     if (!chargeFee && getInclusionFee() < 0)
     {
         txResult->setInnermostResultCode(txINSUFFICIENT_FEE);
-        return false;
+        return std::nullopt;
     }
 
-    if (!ls.getAccount(header, *this))
+    auto sourceAccount = ls.getAccount(header, *this);
+    if (!sourceAccount)
     {
         txResult->setInnermostResultCode(txNO_ACCOUNT);
-        return false;
+        return std::nullopt;
     }
 
-    return true;
+    return sourceAccount;
 }
 
 void
@@ -1317,15 +1318,18 @@ TransactionFrame::commonValid(AppConnector& app,
                 "Applying transaction with non-current closeTime");
         }
 
-        if (!commonValidPreSeqNum(
-                app, cfg, ls, chargeFee, lowerBoundCloseTimeOffset,
-                upperBoundCloseTimeOffset, sorobanResourceFee, txResult))
+        // Get the source account during commonValidPreSeqNum to avoid redundant
+        // account loading
+        auto sourceAccount = commonValidPreSeqNum(
+            app, cfg, ls, chargeFee, lowerBoundCloseTimeOffset,
+            upperBoundCloseTimeOffset, sorobanResourceFee, txResult);
+
+        if (!sourceAccount)
         {
             return;
         }
 
         auto header = ls.getLedgerHeader();
-        auto const sourceAccount = ls.getAccount(header, *this);
 
         // in older versions, the account's sequence number is updated when
         // taking fees
@@ -1335,7 +1339,7 @@ TransactionFrame::commonValid(AppConnector& app,
         {
             if (current == 0)
             {
-                current = sourceAccount.current().data.account().seqNum;
+                current = sourceAccount->current().data.account().seqNum;
             }
             if (isBadSeq(header, current))
             {
@@ -1346,15 +1350,15 @@ TransactionFrame::commonValid(AppConnector& app,
 
         res = ValidationType::kInvalidUpdateSeqNum;
 
-        if (isTooEarlyForAccount(header, sourceAccount,
+        if (isTooEarlyForAccount(header, *sourceAccount,
                                  lowerBoundCloseTimeOffset))
         {
             txResult->setInnermostResultCode(txBAD_MIN_SEQ_AGE_OR_GAP);
             return;
         }
 
-        if (!checkSignature(signatureChecker, sourceAccount,
-                            sourceAccount.current()
+        if (!checkSignature(signatureChecker, *sourceAccount,
+                            sourceAccount->current()
                                 .data.account()
                                 .thresholds[THRESHOLD_LOW]))
         {
@@ -1383,7 +1387,7 @@ TransactionFrame::commonValid(AppConnector& app,
         // don't let the account go below the reserve after accounting for
         // liabilities
         if (chargeFee &&
-            getAvailableBalance(header.current(), sourceAccount.current()) <
+            getAvailableBalance(header.current(), sourceAccount->current()) <
                 feeToPay)
         {
             txResult->setInnermostResultCode(txINSUFFICIENT_BALANCE);
