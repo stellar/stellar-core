@@ -62,5 +62,13 @@ class AppConnector
     medida::MetricsRegistry& getMetrics() const;
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot();
+
+    // Refreshes `snapshot` if a newer snapshot is available. No-op otherwise.
+    void
+    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
+
+    // Get a snapshot of ledger state for use by the overlay thread only. Must
+    // only be called from the overlay thread.
+    SearchableSnapshotConstPtr& getOverlayThreadSnapshot();
 };
 }

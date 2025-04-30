@@ -26,6 +26,7 @@ class OperationFrame;
 class TransactionFrame;
 class FeeBumpTransactionFrame;
 class AppConnector;
+class SignatureChecker;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::shared_ptr<MutableTransactionResultBase>;
@@ -61,6 +62,10 @@ class TransactionFrameBase
                                       bool applying) const = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
+
+    virtual bool checkSignature(SignatureChecker& signatureChecker,
+                                LedgerEntryWrapper const& account,
+                                int32_t neededWeight) const = 0;
 
 #ifdef BUILD_TESTS
     virtual TransactionEnvelope& getMutableEnvelope() const = 0;
