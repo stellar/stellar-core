@@ -6,24 +6,24 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "7192d5e089fc6a021e22880358737cb8af7b3a40efbfe62f1831d37ed1e17612",
+                "hash": "c0354d7274d376fe48aefe6260a1ca64b30e6cba433324f84757d23cf15b8997",
                 "header": {
                     "ledgerVersion": 23,
-                    "previousLedgerHash": "04557df4dda107c7324ca64be8df8d7ffaa0fb15336563da786b7d45c323497e",
+                    "previousLedgerHash": "0e6a10f0871d575e8ddaf72a5058368f701ed2064831fa9c90ac4967fe9c086d",
                     "scpValue": {
-                        "txSetHash": "75f223424a07316c4a3b6ad5ec78dac8c25c6dbb529538e9e8faa183e78106b4",
+                        "txSetHash": "610aaa609785490a3881ed87a1d4600a671e03bd904461b5657e36735852146e",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "3a533a79d86995b38d1c6945e882d0e358d7a9e2367c7b8eb5b9148478a4f11ce695c4af2dfd20444d3e1be52cdff0841176704151a6f5965ea267b815cbd705"
+                                "signature": "028d19140339a7a3782aea0c2be965ea8ed1470f507951e9e39997b5621e10717966b81fc1b1479a960825e85979a6de5f82fc39d45eb08668894f8b2bc51909"
                             }
                         }
                     },
                     "txSetResultHash": "2faeae31b9d73430feb6398a535833e52b512c0822da128266d3327e43928625",
-                    "bucketListHash": "80cbee174fe132ada3c01da9453b09ba67ab027d03e3c5e34916522f62fb255d",
+                    "bucketListHash": "0b66aa1505a34adbed7489a5ce579a0ccc592e7381f04f1c972c406febbe17cf",
                     "ledgerSeq": 10,
                     "totalCoins": 1000000000000000000,
                     "feePool": 267011,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "04557df4dda107c7324ca64be8df8d7ffaa0fb15336563da786b7d45c323497e",
+                    "previousLedgerHash": "0e6a10f0871d575e8ddaf72a5058368f701ed2064831fa9c90ac4967fe9c086d",
                     "phases": [
                         {
                             "v": 0,
@@ -994,356 +994,6 @@
                             "sorobanMeta": null,
                             "events": [],
                             "diagnosticEvents": []
-                        }
-                    }
-                },
-                {
-                    "result": {
-                        "transactionHash": "324d0628e2a215d367f181f0e3aacbaa26fa638e676e73fb9ad26a360314a7b7",
-                        "result": {
-                            "feeCharged": 300,
-                            "result": {
-                                "code": "txFEE_BUMP_INNER_SUCCESS",
-                                "innerResultPair": {
-                                    "transactionHash": "b28c171f9658320b5ce8d50e4e1a36b74afbb2a92eec7df92a8981067131b025",
-                                    "result": {
-                                        "feeCharged": 200,
-                                        "result": {
-                                            "code": "txSUCCESS",
-                                            "results": [
-                                                {
-                                                    "code": "opINNER",
-                                                    "tr": {
-                                                        "type": "PAYMENT",
-                                                        "paymentResult": {
-                                                            "code": "PAYMENT_SUCCESS"
-                                                        }
-                                                    }
-                                                },
-                                                {
-                                                    "code": "opINNER",
-                                                    "tr": {
-                                                        "type": "PAYMENT",
-                                                        "paymentResult": {
-                                                            "code": "PAYMENT_SUCCESS"
-                                                        }
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                }
-                            },
-                            "ext": {
-                                "v": 0
-                            }
-                        }
-                    },
-                    "feeProcessing": [
-                        {
-                            "type": "LEDGER_ENTRY_STATE",
-                            "state": {
-                                "lastModifiedLedgerSeq": 4,
-                                "data": {
-                                    "type": "ACCOUNT",
-                                    "account": {
-                                        "accountID": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ",
-                                        "balance": 400000000,
-                                        "seqNum": 17179869184,
-                                        "numSubEntries": 0,
-                                        "inflationDest": null,
-                                        "flags": 0,
-                                        "homeDomain": "",
-                                        "thresholds": "01000000",
-                                        "signers": [],
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                "ext": {
-                                    "v": 0
-                                }
-                            }
-                        },
-                        {
-                            "type": "LEDGER_ENTRY_UPDATED",
-                            "updated": {
-                                "lastModifiedLedgerSeq": 7,
-                                "data": {
-                                    "type": "ACCOUNT",
-                                    "account": {
-                                        "accountID": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ",
-                                        "balance": 399999700,
-                                        "seqNum": 17179869184,
-                                        "numSubEntries": 0,
-                                        "inflationDest": null,
-                                        "flags": 0,
-                                        "homeDomain": "",
-                                        "thresholds": "01000000",
-                                        "signers": [],
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                "ext": {
-                                    "v": 0
-                                }
-                            }
-                        }
-                    ],
-                    "txApplyProcessing": {
-                        "v": 3,
-                        "v3": {
-                            "ext": {
-                                "v": 0
-                            },
-                            "txChangesBefore": [
-                                {
-                                    "type": "LEDGER_ENTRY_STATE",
-                                    "state": {
-                                        "lastModifiedLedgerSeq": 7,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ",
-                                                "balance": 399999700,
-                                                "seqNum": 17179869184,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                {
-                                    "type": "LEDGER_ENTRY_UPDATED",
-                                    "updated": {
-                                        "lastModifiedLedgerSeq": 7,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ",
-                                                "balance": 399999700,
-                                                "seqNum": 17179869184,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                {
-                                    "type": "LEDGER_ENTRY_STATE",
-                                    "state": {
-                                        "lastModifiedLedgerSeq": 5,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q",
-                                                "balance": 200010000,
-                                                "seqNum": 21474836480,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                {
-                                    "type": "LEDGER_ENTRY_UPDATED",
-                                    "updated": {
-                                        "lastModifiedLedgerSeq": 7,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q",
-                                                "balance": 200010000,
-                                                "seqNum": 21474836481,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 1,
-                                                    "v1": {
-                                                        "liabilities": {
-                                                            "buying": 0,
-                                                            "selling": 0
-                                                        },
-                                                        "ext": {
-                                                            "v": 2,
-                                                            "v2": {
-                                                                "numSponsored": 0,
-                                                                "numSponsoring": 0,
-                                                                "signerSponsoringIDs": [],
-                                                                "ext": {
-                                                                    "v": 3,
-                                                                    "v3": {
-                                                                        "ext": {
-                                                                            "v": 0
-                                                                        },
-                                                                        "seqLedger": 7,
-                                                                        "seqTime": 0
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                }
-                            ],
-                            "operations": [
-                                {
-                                    "changes": [
-                                        {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
-                                                "lastModifiedLedgerSeq": 6,
-                                                "data": {
-                                                    "type": "TRUSTLINE",
-                                                    "trustLine": {
-                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                        "asset": {
-                                                            "assetCode": "CUR1",
-                                                            "issuer": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
-                                                        },
-                                                        "balance": 0,
-                                                        "limit": 100,
-                                                        "flags": 1,
-                                                        "ext": {
-                                                            "v": 0
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
-                                                "lastModifiedLedgerSeq": 7,
-                                                "data": {
-                                                    "type": "TRUSTLINE",
-                                                    "trustLine": {
-                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                        "asset": {
-                                                            "assetCode": "CUR1",
-                                                            "issuer": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
-                                                        },
-                                                        "balance": 50,
-                                                        "limit": 100,
-                                                        "flags": 1,
-                                                        "ext": {
-                                                            "v": 0
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        }
-                                    ]
-                                },
-                                {
-                                    "changes": [
-                                        {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
-                                                "lastModifiedLedgerSeq": 7,
-                                                "data": {
-                                                    "type": "TRUSTLINE",
-                                                    "trustLine": {
-                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                        "asset": {
-                                                            "assetCode": "CUR1",
-                                                            "issuer": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
-                                                        },
-                                                        "balance": 50,
-                                                        "limit": 100,
-                                                        "flags": 1,
-                                                        "ext": {
-                                                            "v": 0
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
-                                                "lastModifiedLedgerSeq": 7,
-                                                "data": {
-                                                    "type": "TRUSTLINE",
-                                                    "trustLine": {
-                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                        "asset": {
-                                                            "assetCode": "CUR1",
-                                                            "issuer": "GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
-                                                        },
-                                                        "balance": 100,
-                                                        "limit": 100,
-                                                        "flags": 1,
-                                                        "ext": {
-                                                            "v": 0
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            ],
-                            "txChangesAfter": [],
-                            "sorobanMeta": null
                         }
                     }
                 }

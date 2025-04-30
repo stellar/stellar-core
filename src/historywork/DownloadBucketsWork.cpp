@@ -126,7 +126,8 @@ DownloadBucketsWork::yieldMoreWork()
     auto isHotHash = mNextLiveBucketIter == mLiveHashes.end();
     auto hash = isHotHash ? *mNextHotBucketIter : *mNextLiveBucketIter;
 
-    auto const ft = FileTransferInfo(mDownloadDir, FileType::HISTORY_FILE_TYPE_BUCKET, hash);
+    auto const ft = FileTransferInfo(mDownloadDir,
+                                     FileType::HISTORY_FILE_TYPE_BUCKET, hash);
     auto getFileWork =
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
@@ -165,7 +166,7 @@ DownloadBucketsWork::yieldMoreWork()
             {
                 onSuccessCb<HotArchiveBucket>(
                     app, ft, hash, currId, self->mHotBuckets,
-                    self->mHotIndexMap, self->mHotIndexMapMutex);
+                    self->mHotIndexMap, self->mHotMapMutex);
             }
             return true;
         };
@@ -187,7 +188,7 @@ DownloadBucketsWork::yieldMoreWork()
             {
                 onSuccessCb<LiveBucket>(app, ft, hash, currId,
                                         self->mLiveBuckets, self->mLiveIndexMap,
-                                        self->mLiveIndexMapMutex);
+                                        self->mLiveMapMutex);
             }
             return true;
         };
