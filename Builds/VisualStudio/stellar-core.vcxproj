@@ -1054,7 +1054,6 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\LedgerTxnImpl.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTypeUtils.h" />
     <ClInclude Include="..\..\src\ledger\NetworkConfig.h" />
-    <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxn.h" />
     <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />

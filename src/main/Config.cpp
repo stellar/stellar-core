@@ -2421,6 +2421,12 @@ Config::modeDoesCatchupWithBucketList() const
 }
 
 bool
+Config::allBucketsInMemory() const
+{
+    return BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT == 0;
+}
+
+bool
 Config::parallelLedgerClose() const
 {
     return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&

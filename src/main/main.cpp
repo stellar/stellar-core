@@ -4,7 +4,6 @@
 
 #include "crypto/CryptoError.h"
 #include "invariant/InvariantDoesNotHold.h"
-#include "ledger/NonSociRelatedException.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandLine.h"
 #include "main/Config.h"
@@ -41,12 +40,6 @@ printCurrentException()
         try
         {
             std::rethrow_exception(eptr);
-        }
-        catch (NonSociRelatedException const& e)
-        {
-            fprintf(stderr,
-                    "current exception: NonSociRelatedException(\"%s\")\n",
-                    e.what());
         }
         catch (CryptoError const& e)
         {

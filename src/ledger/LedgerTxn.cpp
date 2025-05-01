@@ -12,7 +12,6 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
-#include "ledger/NonSociRelatedException.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
@@ -2913,6 +2912,12 @@ LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
     }
 #endif
 
+    // Skip prefetching when everything is stored in-memory
+    if (mApp.getConfig().allBucketsInMemory())
+    {
+        return 0;
+    }
+
     ZoneScoped;
     uint32_t total = 0;
 
@@ -3370,10 +3375,6 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
             getSearchableLiveBucketListSnapshot()
                 .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
     }
-    catch (NonSociRelatedException&)
-    {
-        throw;
-    }
     catch (std::exception& e)
     {
         printErrorAndAbort("fatal error when getting pool share trust lines by "
@@ -3455,55 +3456,85 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     }
     auto const& key = gkey.ledgerKey();
 
-    if (mEntryCache.exists(key))
+    // If everything is cached in-memory, don't check or populate the cache
+    if (mApp.getConfig().allBucketsInMemory())
     {
-        std::string zoneTxt("hit");
-        ZoneText(zoneTxt.c_str(), zoneTxt.size());
-        return getFromEntryCache(key);
-    }
-    else
-    {
-        std::string zoneTxt("miss");
-        ZoneText(zoneTxt.c_str(), zoneTxt.size());
-        ++mPrefetchMisses;
-    }
-
-    std::shared_ptr<LedgerEntry const> entry;
-    try
-    {
-        if (key.type() != OFFER)
+        std::shared_ptr<LedgerEntry const> entry;
+        try
         {
             entry = getSearchableLiveBucketListSnapshot().load(key);
         }
+        catch (std::exception& e)
+        {
+            printErrorAndAbort(
+                "fatal error when loading ledger entry from LedgerTxnRoot: ",
+                e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort(
+                "unknown fatal error when loading ledger entry from "
+                "LedgerTxnRoot");
+        }
+
+        if (entry)
+        {
+            return std::make_shared<InternalLedgerEntry const>(*entry);
+        }
         else
         {
-            entry = loadOffer(key);
+            return nullptr;
         }
-    }
-    catch (NonSociRelatedException&)
-    {
-        throw;
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort(
-            "fatal error when loading ledger entry from LedgerTxnRoot: ",
-            e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort("unknown fatal error when loading ledger entry from "
-                           "LedgerTxnRoot");
-    }
-
-    putInEntryCache(key, entry, LoadType::IMMEDIATE);
-    if (entry)
-    {
-        return std::make_shared<InternalLedgerEntry const>(*entry);
     }
     else
     {
-        return nullptr;
+        if (mEntryCache.exists(key))
+        {
+            std::string zoneTxt("hit");
+            ZoneText(zoneTxt.c_str(), zoneTxt.size());
+            return getFromEntryCache(key);
+        }
+        else
+        {
+            std::string zoneTxt("miss");
+            ZoneText(zoneTxt.c_str(), zoneTxt.size());
+            ++mPrefetchMisses;
+        }
+
+        std::shared_ptr<LedgerEntry const> entry;
+        try
+        {
+            if (key.type() != OFFER)
+            {
+                entry = getSearchableLiveBucketListSnapshot().load(key);
+            }
+            else
+            {
+                entry = loadOffer(key);
+            }
+        }
+        catch (std::exception& e)
+        {
+            printErrorAndAbort(
+                "fatal error when loading ledger entry from LedgerTxnRoot: ",
+                e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort(
+                "unknown fatal error when loading ledger entry from "
+                "LedgerTxnRoot");
+        }
+
+        putInEntryCache(key, entry, LoadType::IMMEDIATE);
+        if (entry)
+        {
+            return std::make_shared<InternalLedgerEntry const>(*entry);
+        }
+        else
+        {
+            return nullptr;
+        }
     }
 }
 

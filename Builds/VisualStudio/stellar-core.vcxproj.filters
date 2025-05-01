@@ -2101,9 +2101,6 @@
     <ClInclude Include="..\..\src\ledger\NetworkConfig.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\SorobanMetrics.h">
       <Filter>ledger</Filter>
     </ClInclude>
