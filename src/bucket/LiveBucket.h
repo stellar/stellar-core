@@ -61,6 +61,9 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
             ProtocolVersion::V_11;
     static constexpr ProtocolVersion FIRST_PROTOCOL_SHADOWS_REMOVED =
         ProtocolVersion::V_12;
+    static constexpr ProtocolVersion
+        FIRST_PROTOCOL_CONVERTING_BOTTOM_LEVEL_LIVE_TO_INIT =
+            ProtocolVersion::V_23;
 
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
