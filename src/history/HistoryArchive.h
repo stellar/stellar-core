@@ -8,6 +8,8 @@
 #include "bucket/FutureBucket.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "main/Config.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-types.h"
@@ -31,10 +33,6 @@ namespace stellar
 {
 
 class Application;
-class LiveBucketList;
-class Bucket;
-class LiveBucketList;
-class HotArchiveBucketList;
 
 template <class BucketT> struct HistoryStateBucket
 {
@@ -149,14 +147,14 @@ struct HistoryArchiveState
             // networkPassphrase wasn't parsed.
             // This is expected when the input file does not contain it, but
             // should only ever happen for older versions of History Archive
-            // State.
-            if (version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
+            // State that do not support HotArchive.
+            if (hasHotArchiveBuckets())
             {
                 throw e;
             }
         }
         ar(CEREAL_NVP(currentBuckets));
-        if (version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
+        if (hasHotArchiveBuckets())
         {
             ar(CEREAL_NVP(hotArchiveBuckets));
         }
@@ -173,13 +171,12 @@ struct HistoryArchiveState
         }
         else
         {
-            // New versions of HistoryArchiveState should always have a
-            // networkPassphrase.
-            releaseAssertOrThrow(
-                version < HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE);
+            // New versions of HistoryArchiveState (i.e. support HotArchive)
+            // should always have a networkPassphrase.
+            releaseAssertOrThrow(!hasHotArchiveBuckets());
         }
         ar(CEREAL_NVP(currentBuckets));
-        if (version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
+        if (hasHotArchiveBuckets())
         {
             ar(CEREAL_NVP(hotArchiveBuckets));
         }

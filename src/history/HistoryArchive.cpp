@@ -78,19 +78,10 @@ HistoryArchiveState::futuresAllResolved() const
 bool
 HistoryArchiveState::futuresAllClear() const
 {
-    if (!std::all_of(currentBuckets.begin(), currentBuckets.end(),
-                     [](auto const& bl) { return bl.next.isClear(); }))
-    {
-        return false;
-    }
-
-    if (hasHotArchiveBuckets())
-    {
-        return std::all_of(hotArchiveBuckets.begin(), hotArchiveBuckets.end(),
-                           [](auto const& bl) { return bl.next.isClear(); });
-    }
-
-    return true;
+    return std::all_of(currentBuckets.begin(), currentBuckets.end(),
+                       [](auto const& bl) { return bl.next.isClear(); }) &&
+           std::all_of(hotArchiveBuckets.begin(), hotArchiveBuckets.end(),
+                       [](auto const& bl) { return bl.next.isClear(); });
 }
 
 void
@@ -337,126 +328,135 @@ HistoryArchiveState::allBuckets() const
     return std::vector<std::string>(buckets.begin(), buckets.end());
 }
 
+namespace
+{
+
+// Checks for structural validity of the given BucketList. This includes
+// checking that the bucket list has the correct number of levels, versioning
+// consistency, and future bucket state.
+template <typename HistoryStateBucketT>
+bool
+validateBucketListHelper(Application& app,
+                         std::vector<HistoryStateBucketT> const& buckets,
+                         uint32_t expectedLevels)
+{
+    // Get Bucket version and set nonEmptySeen
+    bool nonEmptySeen = false;
+    auto getVersionAndCheckEmpty = [&nonEmptySeen](auto const& bucket) {
+        int32_t version = 0;
+        releaseAssert(bucket);
+        if (!bucket->isEmpty())
+        {
+            version = bucket->getBucketVersion();
+            if (!nonEmptySeen)
+            {
+                nonEmptySeen = true;
+            }
+        }
+        return version;
+    };
+
+    uint32_t minBucketVersion = 0;
+    auto validateBucketVersion = [&minBucketVersion](uint32_t bucketVersion) {
+        if (bucketVersion < minBucketVersion)
+        {
+            CLOG_ERROR(History,
+                       "Incompatible bucket versions: expected version "
+                       "{} or higher, got {}",
+                       minBucketVersion, bucketVersion);
+            return false;
+        }
+        minBucketVersion = bucketVersion;
+        return true;
+    };
+
+    using BucketT =
+        typename std::decay_t<decltype(buckets)>::value_type::bucket_type;
+
+    if (buckets.size() != expectedLevels)
+    {
+        CLOG_ERROR(History, "Invalid HAS: bucket list size mismatch");
+        return false;
+    }
+
+    for (uint32_t j = expectedLevels; j != 0; --j)
+    {
+        auto i = j - 1;
+        auto const& level = buckets[i];
+        auto curr = app.getBucketManager().getBucketByHash<BucketT>(
+            hexToBin256(level.curr));
+        auto snap = app.getBucketManager().getBucketByHash<BucketT>(
+            hexToBin256(level.snap));
+
+        // Note: snap is always older than curr, and therefore must be
+        // processed first
+        if (!validateBucketVersion(getVersionAndCheckEmpty(snap)) ||
+            !validateBucketVersion(getVersionAndCheckEmpty(curr)))
+        {
+            return false;
+        }
+
+        // Level 0 future buckets are always clear
+        if (i == 0)
+        {
+            if (!level.next.isClear())
+            {
+                CLOG_ERROR(History,
+                           "Invalid HAS: next must be clear at level 0");
+                return false;
+            }
+            break;
+        }
+
+        // Validate "next" field
+        // Use previous level snap to determine "next" validity
+        auto const& prev = buckets[i - 1];
+        auto prevSnap = app.getBucketManager().getBucketByHash<BucketT>(
+            hexToBin256(prev.snap));
+        uint32_t prevSnapVersion = getVersionAndCheckEmpty(prevSnap);
+
+        if (!nonEmptySeen)
+        {
+            // We're iterating from the bottom up, so if we haven't seen a
+            // non-empty bucket yet, we can skip the check because the
+            // bucket is default initialized
+            continue;
+        }
+        else if (protocolVersionStartsFrom(
+                     prevSnapVersion,
+                     LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+        {
+            if (!level.next.isClear())
+            {
+                CLOG_ERROR(History, "Invalid HAS: future must be cleared ");
+                return false;
+            }
+        }
+        else if (!level.next.hasOutputHash())
+        {
+            CLOG_ERROR(History,
+                       "Invalid HAS: future must have resolved output");
+            return false;
+        }
+    }
+
+    return true;
+}
+}
+
 bool
 HistoryArchiveState::containsValidBuckets(Application& app) const
 {
     ZoneScoped;
-    // This function assumes presence of required buckets to verify state
-
-    auto validateBucketList = [&](auto const& buckets,
-                                  uint32_t expectedLevels) {
-        // Get Bucket version and set nonEmptySeen
-        bool nonEmptySeen = false;
-        auto getVersionAndCheckEmpty = [&](auto const& bucket) {
-            int32_t version = 0;
-            releaseAssert(bucket);
-            if (!bucket->isEmpty())
-            {
-                version = bucket->getBucketVersion();
-                if (!nonEmptySeen)
-                {
-                    nonEmptySeen = true;
-                }
-            }
-            return version;
-        };
-
-        uint32_t minBucketVersion = 0;
-        auto validateBucketVersion = [&](uint32_t bucketVersion) {
-            if (bucketVersion < minBucketVersion)
-            {
-                CLOG_ERROR(History,
-                           "Incompatible bucket versions: expected version "
-                           "{} or higher, got {}",
-                           minBucketVersion, bucketVersion);
-                return false;
-            }
-            minBucketVersion = bucketVersion;
-            return true;
-        };
-
-        using BucketT =
-            typename std::decay_t<decltype(buckets)>::value_type::bucket_type;
-
-        if (buckets.size() != expectedLevels)
-        {
-            CLOG_ERROR(History, "Invalid HAS: bucket list size mismatch");
-            return false;
-        }
-
-        for (uint32_t j = expectedLevels; j != 0; --j)
-        {
-
-            auto i = j - 1;
-            auto const& level = buckets[i];
-
-            // Note: snap is always older than curr, and therefore must be
-            // processed first
-            auto curr = app.getBucketManager().getBucketByHash<BucketT>(
-                hexToBin256(level.curr));
-            auto snap = app.getBucketManager().getBucketByHash<BucketT>(
-                hexToBin256(level.snap));
-            if (!validateBucketVersion(getVersionAndCheckEmpty(snap)) ||
-                !validateBucketVersion(getVersionAndCheckEmpty(curr)))
-            {
-                return false;
-            }
-
-            // Level 0 future buckets are always clear
-            if (i == 0)
-            {
-                if (!level.next.isClear())
-                {
-                    CLOG_ERROR(History,
-                               "Invalid HAS: next must be clear at level 0");
-                    return false;
-                }
-                break;
-            }
-
-            // Validate "next" field
-            // Use previous level snap to determine "next" validity
-            auto const& prev = buckets[i - 1];
-            auto prevSnap = app.getBucketManager().getBucketByHash<BucketT>(
-                hexToBin256(prev.snap));
-            uint32_t prevSnapVersion = getVersionAndCheckEmpty(prevSnap);
-
-            if (!nonEmptySeen)
-            {
-                // We're iterating from the bottom up, so if we haven't seen a
-                // non-empty bucket yet, we can skip the check because the
-                // bucket is default initialized
-                continue;
-            }
-            else if (protocolVersionStartsFrom(
-                         prevSnapVersion,
-                         LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
-            {
-                if (!level.next.isClear())
-                {
-                    CLOG_ERROR(History, "Invalid HAS: future must be cleared ");
-                    return false;
-                }
-            }
-            else if (!level.next.hasOutputHash())
-            {
-                CLOG_ERROR(History,
-                           "Invalid HAS: future must have resolved output");
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    if (!validateBucketList(currentBuckets, LiveBucketList::kNumLevels))
+    if (!validateBucketListHelper(app, currentBuckets,
+                                  LiveBucketList::kNumLevels))
     {
         return false;
     }
 
     if (hasHotArchiveBuckets() &&
-        !validateBucketList(hotArchiveBuckets,
-                            HotArchiveBucketList::kNumLevels))
+        !validateBucketListHelper(app, hotArchiveBuckets,
+                                  HotArchiveBucketList::kNumLevels))
     {
         return false;
     }

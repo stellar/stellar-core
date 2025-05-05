@@ -25,8 +25,8 @@ AssumeStateWork::AssumeStateWork(Application& app,
 {
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
-    auto& bm = mApp.getBucketManager();
-    auto processBuckets = [&](auto const& hasBuckets, size_t expectedLevels,
+    auto processBuckets = [&bm = mApp.getBucketManager()](
+                              auto const& hasBuckets, size_t expectedLevels,
                               auto& workBuckets) {
         releaseAssert(hasBuckets.size() == expectedLevels);
         using BucketT = typename std::decay_t<
@@ -84,10 +84,8 @@ AssumeStateWork::doWork()
         // Index Bucket files
         seq.push_back(
             std::make_shared<IndexBucketsWork<LiveBucket>>(mApp, mLiveBuckets));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         seq.push_back(std::make_shared<IndexBucketsWork<HotArchiveBucket>>(
             mApp, mHotArchiveBuckets));
-#endif
 
         // Add bucket files to BucketList and restart merges
         auto assumeStateCB = [&has = mHas,
