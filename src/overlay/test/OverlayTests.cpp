@@ -615,9 +615,22 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         getOperationGreaterThanMinMaxSizeBytes());
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
-    cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
-        txSize + 1 + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
-    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1;
+    SECTION("bytes")
+    {
+        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
+            txSize + 1 + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1;
+    }
+    SECTION("messages")
+    {
+        // initiator can only accept 1 flood message at a time
+        cfg1.PEER_FLOOD_READING_CAPACITY = 1;
+        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        // Set PEER_READING_CAPACITY to something higher so that the
+        // initiator will read both messages right away and detect capacity
+        // violation
+        cfg1.PEER_READING_CAPACITY = 2;
+    }
 
     auto app1 = createTestApplication(clock, cfg1, true, false);
     auto app2 = createTestApplication(clock, cfg2, true, false);
@@ -815,7 +828,7 @@ TEST_CASE("peers during auth", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
-TEST_CASE("outbound queue filtering", "[overlay][connections]")
+TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
@@ -881,16 +894,6 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         return std::make_shared<StellarMessage const>(msg);
     };
 
-    auto testTimeBasedTrimming =
-        [&](std::deque<FlowControl::QueuedOutboundMessage> const& queue,
-            StellarMessage const& msg) {
-            peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
-                std::make_shared<StellarMessage const>(msg));
-            REQUIRE(queue.size() == 1);
-            simulation->setCurrentVirtualTime(node->getClock().now() +
-                                              std::chrono::minutes(2));
-        };
-
     SECTION("SCP messages, slot too old")
     {
         for (auto& env : envs)
@@ -941,7 +944,8 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
             peer->getFlowControl()->getCapacityBytes().getMsgResourceCount(msg);
         SECTION("trim based on message count")
         {
-            for (uint32_t i = 0; i < limit + 10; ++i)
+            int const extraMessages = 10;
+            for (uint32_t i = 0; i < limit + extraMessages; ++i)
             {
                 peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                     std::make_shared<StellarMessage const>(msg));
@@ -949,15 +953,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
 
             REQUIRE(peer->getFlowControl()->getTxQueueByteCountForTesting() <
                     peer->getFlowControl()->getOutboundQueueByteLimit());
-            REQUIRE(peer->getTxQueueByteCount() == (limit * byteSize));
-            REQUIRE(txQueue.size() == limit);
-        }
-        SECTION("trim time-based")
-        {
-            for (uint32_t i = 0; i < 10; ++i)
-            {
-                testTimeBasedTrimming(txQueue, msg);
-            }
+            REQUIRE(peer->getTxQueueByteCount() ==
+                    ((extraMessages - 1) * byteSize));
+            REQUIRE(txQueue.size() == extraMessages - 1);
         }
         SECTION("trim based on byte count")
         {
@@ -1062,8 +1060,8 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
                     std::make_shared<StellarMessage const>(dem));
             }
 
-            REQUIRE(advertQueue.size() == limit);
-            REQUIRE(demandQueue.size() == limit);
+            REQUIRE(advertQueue.size() == 9);
+            REQUIRE(demandQueue.size() == 9);
 
             StellarMessage adv, dem, txn;
             adv.type(FLOOD_ADVERT);
@@ -1079,25 +1077,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
             peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                 std::make_shared<StellarMessage const>(dem));
 
-            REQUIRE(advertQueue.size() == limit - 1);
-            REQUIRE(demandQueue.size() == limit - 1);
-        }
-        SECTION("time-based")
-        {
-            Hash hash;
-            advertQueue.clear();
-            demandQueue.clear();
-            for (uint32_t i = 0; i < 10; ++i)
-            {
-                StellarMessage adv, dem;
-                adv.type(FLOOD_ADVERT);
-                adv.floodAdvert().txHashes.push_back(hash);
-                testTimeBasedTrimming(advertQueue, adv);
-
-                dem.type(FLOOD_DEMAND);
-                dem.floodDemand().txHashes.push_back(hash);
-                testTimeBasedTrimming(demandQueue, dem);
-            }
+            // Everything got dropped
+            REQUIRE(advertQueue.size() == 10);
+            REQUIRE(demandQueue.size() == 10);
         }
     }
 }
@@ -2208,59 +2190,60 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
         }
     };
 
-    SECTION("enabled")
+    SECTION("tx batches")
     {
-        SECTION("tx batches")
+        SECTION("no batching")
         {
-            SECTION("no batching")
-            {
-                for (auto& cfg : configs)
-                {
-                    cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 0;
-                }
-            }
-            SECTION("batch size")
-            {
-                for (auto& cfg : configs)
-                {
-                    cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 5;
-                }
-            }
+            std::for_each(configs.begin(), configs.end(), [](Config& cfg) {
+                cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 0;
+            });
         }
-
-        setupSimulation();
-
-        // Generate a bit of load to flood transactions, make sure nodes can
-        // close ledgers properly
-        auto& loadGen = node->getLoadGenerator();
-        loadGen.generateLoad(
-            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
-                                                    /* txRate */ 1));
-
-        auto& loadGenDone =
-            node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-        auto currLoadGenCount = loadGenDone.count();
-
-        simulation->crankUntil(
-            [&]() { return loadGenDone.count() > currLoadGenCount; },
-            15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        currLoadGenCount = loadGenDone.count();
-
-        loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::PAY, /* nAccounts */ 150, 200,
-            /*txRate*/ 5));
-
-        simulation->crankUntil(
-            [&]() { return loadGenDone.count() > currLoadGenCount; },
-            100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        SECTION("batch size")
+        {
+            std::for_each(configs.begin(), configs.end(), [](Config& cfg) {
+                cfg.EXPERIMENTAL_TX_BATCH_MAX_SIZE = 5;
+            });
+        }
     }
-    SECTION("do not accept peers without flow control")
-    {
-        configs[2].PEER_FLOOD_READING_CAPACITY = 0;
-        configs[2].PEER_FLOOD_READING_CAPACITY_BYTES = 0;
-        REQUIRE_THROWS_AS(setupSimulation(), std::runtime_error);
-    }
+
+    setupSimulation();
+
+    // Generate a bit of load to flood transactions, make sure nodes can
+    // close ledgers properly
+    auto& loadGen = node->getLoadGenerator();
+    loadGen.generateLoad(
+        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
+                                                /* txRate */ 1));
+
+    auto& loadGenDone =
+        node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    currLoadGenCount = loadGenDone.count();
+
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
+                                                     /* nAccounts */ 150, 200,
+                                                     /*txRate*/ 5));
+
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        30 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    REQUIRE(node->getMetrics()
+                .NewMeter({"overlay", "demand", "timeout"}, "timeout")
+                .count() == 0);
+    REQUIRE(simulation->getNode(vNode2NodeID)
+                ->getMetrics()
+                .NewMeter({"overlay", "demand", "timeout"}, "timeout")
+                .count() == 0);
+    REQUIRE(simulation->getNode(vNode3NodeID)
+                ->getMetrics()
+                .NewMeter({"overlay", "demand", "timeout"}, "timeout")
+                .count() == 0);
 }
 
 PeerBareAddress

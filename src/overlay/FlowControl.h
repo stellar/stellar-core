@@ -23,6 +23,9 @@ struct SendMoreCapacity
     uint32_t numTotalMessages{0};
 };
 
+template <typename T> using FloodQueues = typename std::array<std::deque<T>, 4>;
+using ConstStellarMessagePtr = std::shared_ptr<StellarMessage const>;
+
 // The FlowControl class allows core to throttle flood traffic among its
 // connections. If a connections wants to use flow control, it should maintain
 // an instance of this class, and use the following methods:
@@ -40,8 +43,10 @@ class FlowControl
   public:
     struct QueuedOutboundMessage
     {
-        std::shared_ptr<StellarMessage const> mMessage;
+        ConstStellarMessagePtr mMessage;
         VirtualClock::time_point mTimeEmplaced;
+        // Is the message currently being sent (for async write flows)
+        bool mBeingSent{false};
     };
 
   private:
@@ -78,7 +83,7 @@ class FlowControl
     // Priority 1 - transactions
     // Priority 2 - flood demands
     // Priority 3 - flood adverts
-    std::array<std::deque<QueuedOutboundMessage>, 4> mOutboundQueues;
+    FloodQueues<QueuedOutboundMessage> mOutboundQueues;
 
     // How many flood messages we received and processed since sending
     // SEND_MORE to this peer
@@ -108,7 +113,7 @@ class FlowControl
     // obsolete load
     void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
     // Return next batch of messages to send
-    // NOTE: this methods _releases_ capacity and cleans up flow control queues
+    // NOTE: this method consumes outbound capacity of the receiving peer
     std::vector<QueuedOutboundMessage> getNextBatchToSend();
     void updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
                           VirtualClock::time_point const& timePlaced);
@@ -132,7 +137,7 @@ class FlowControl
         addMsgAndMaybeTrimQueue(msg);
     }
 
-    std::array<std::deque<QueuedOutboundMessage>, 4>&
+    FloodQueues<QueuedOutboundMessage>&
     getQueuesForTesting()
     {
         return mOutboundQueues;
@@ -158,6 +163,7 @@ class FlowControl
 #endif
 
     static uint32_t getNumMessages(StellarMessage const& msg);
+    static uint32_t getMessagePriority(StellarMessage const& msg);
     bool isSendMoreValid(StellarMessage const& msg,
                          std::string& errorMsg) const;
 
@@ -187,6 +193,13 @@ class FlowControl
     // reset it. Returns true if peer was throttled, and false otherwise
     void stopThrottling();
     bool isThrottled() const;
+
+    // A function to be called once a batch of messages is sent (typically, this
+    // is called once async_write completes and invokes a handler that calls
+    // this function). This function will appropriatly trim outbound queues and
+    // release capacity used by the messages that were sent.
+    void processSentMessages(
+        FloodQueues<ConstStellarMessagePtr> const& sentMessages);
 };
 
 }

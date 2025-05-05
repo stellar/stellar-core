@@ -141,13 +141,13 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
         mMaybeHash = xdrBlake2(msg);
     }
 
-    auto populateTxMap = [&](StellarMessage const& msg) {
+    auto populateTxMap = [&](StellarMessage const& msg, Hash const& hash) {
         auto transaction = TransactionFrameBase::makeTransactionFromWire(
             self->mAppConnector.getNetworkID(), msg.transaction());
         // Pre-populate TransactionFrame caches hashes
         transaction->getFullHash();
         transaction->getContentsHash();
-        mTxsMap[*mMaybeHash] = transaction;
+        mTxsMap[hash] = transaction;
         return transaction;
     };
 
@@ -159,7 +159,7 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
 
     if (mMsg.type() == TRANSACTION)
     {
-        auto const txn = populateTxMap(mMsg);
+        auto const txn = populateTxMap(mMsg, mMaybeHash.value());
         if (checkTxSig)
         {
             populateSignatureCache(self->mAppConnector, txn);
@@ -173,7 +173,7 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
             StellarMessage txMsg;
             txMsg.type(TRANSACTION);
             txMsg.transaction() = tx;
-            auto const txn = populateTxMap(txMsg);
+            auto const txn = populateTxMap(txMsg, xdrBlake2(txMsg));
             if (checkTxSig)
             {
                 populateSignatureCache(self->mAppConnector, txn);
@@ -898,7 +898,7 @@ Peer::sendAuthenticatedMessage(
             ZoneNamedN(xdrZone, "XDR serialize", true);
             xdrBytes = xdr::xdr_to_msg(amsg);
         }
-        self->sendMessage(std::move(xdrBytes));
+        self->sendMessage(std::move(xdrBytes), msg);
         if (timePlaced)
         {
             self->mFlowControl->updateMsgMetrics(msg, *timePlaced);

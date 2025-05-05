@@ -53,7 +53,8 @@ class LoopbackPeer : public Peer
 
     Stats mStats;
 
-    void sendMessage(xdr::msg_ptr&& xdrBytes) override;
+    void sendMessage(xdr::msg_ptr&& xdrBytes,
+                     std::shared_ptr<StellarMessage const> msg) override;
     AuthCert getAuthCert() override;
 
     void processInQueue();
@@ -122,12 +123,6 @@ class LoopbackPeer : public Peer
     getTxQueueByteCount() const
     {
         return mFlowControl->getTxQueueByteCountForTesting();
-    }
-
-    std::string
-    getDropReason() const
-    {
-        return mDropReason;
     }
 
     std::array<std::deque<FlowControl::QueuedOutboundMessage>, 4>&

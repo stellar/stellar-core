@@ -262,7 +262,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
 
-    PEER_READING_CAPACITY = 200;
+    PEER_READING_CAPACITY = 201;
     PEER_FLOOD_READING_CAPACITY = 200;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 40;
 
@@ -1810,6 +1810,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             std::string msg =
                 "Invalid configuration: FLOW_CONTROL_SEND_MORE_BATCH_SIZE "
                 "can't be greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
+        }
+
+        if (PEER_READING_CAPACITY <= PEER_FLOOD_READING_CAPACITY)
+        {
+            std::string msg =
+                "Invalid configuration: PEER_READING_CAPACITY "
+                "must be greater than PEER_FLOOD_READING_CAPACITY";
             throw std::runtime_error(msg);
         }
 

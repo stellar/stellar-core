@@ -57,7 +57,10 @@ struct SimpleTestReporter : public ConsoleReporter
         bool res = _assertionStats.assertionResult.isOk();
         if (!res)
         {
-            ConsoleReporter::assertionStarting(*mLastAssertInfo);
+            if (mLastAssertInfo)
+            {
+                ConsoleReporter::assertionStarting(*mLastAssertInfo);
+            }
             res = ConsoleReporter::assertionEnded(_assertionStats);
         }
         mLastAssertInfo.reset();
