@@ -363,6 +363,7 @@ template <class BucketT> class BucketLevel
     FutureBucket<BucketT> mNextCurr;
     std::shared_ptr<BucketT> mCurr;
     std::shared_ptr<BucketT> mSnap;
+    std::shared_ptr<BucketT> mNextCurrInMemory;
 
   public:
     BucketLevel(uint32_t i);
@@ -379,6 +380,16 @@ template <class BucketT> class BucketLevel
                  uint32_t currLedgerProtocol, std::shared_ptr<BucketT> snap,
                  std::vector<std::shared_ptr<BucketT>> const& shadows,
                  bool countMergeEvents);
+
+    // Special version of prepare for level 0 that does an in-memory merge if
+    // possible. Falls back to regular prepare if in-memory merge is not
+    // possible., such as for the HotArchiveBucketList, or in some edge cases
+    // on startup.
+    template <typename... VectorT>
+    void prepareFirstLevel(Application& app, uint32_t currLedger,
+                           uint32_t currLedgerProtocol, bool countMergeEvents,
+                           bool doFsync, VectorT const&... inputVectors);
+
     std::shared_ptr<BucketT> snap();
 };
 

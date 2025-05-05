@@ -197,6 +197,10 @@ class InMemoryIndex
     InMemoryIndex(BucketManager const& bm,
                   std::filesystem::path const& filename, SHA256* hasher);
 
+    InMemoryIndex(BucketManager& bm,
+                  std::vector<BucketEntry> const& inMemoryState,
+                  BucketMetadata const& metadata);
+
     IterT
     begin() const
     {
@@ -233,13 +237,7 @@ class InMemoryIndex
     }
 
 #ifdef BUILD_TESTS
-    bool
-    operator==(InMemoryIndex const& in) const
-    {
-        return mInMemoryState == in.mInMemoryState &&
-               mAssetPoolIDMap == in.mAssetPoolIDMap &&
-               mCounters == in.mCounters;
-    }
+    bool operator==(InMemoryIndex const& in) const;
 #endif
 };
 }
