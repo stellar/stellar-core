@@ -536,11 +536,11 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
             uint32_t inclusion = 100;
 
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE * 5,
-                res, {}, 0, rand_uniform(101, 2'000)));
+                getApp(), stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE, res,
+                {}, 0, rand_uniform(101, 2'000)));
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE * 5,
-                res, {}, 0, rand_uniform(101, 2'000)));
+                getApp(), eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE, res,
+                {}, 0, rand_uniform(101, 2'000)));
             check = true;
         }
     }

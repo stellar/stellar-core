@@ -217,35 +217,36 @@ SECTION("both live and hot archive buckets")
 }
 #endif
 }
-SECTION("download fails file not found"){SECTION("live buckets"){
-    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
-        TestBucketState::FILE_NOT_UPLOADED));
-auto verify = wm.executeWork<DownloadBucketsWork>(
-    buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
-REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
-}
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-SECTION("hot archive buckets")
+SECTION("download fails file not found")
 {
-    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
-        TestBucketState::FILE_NOT_UPLOADED));
-    auto verify = wm.executeWork<DownloadBucketsWork>(
-        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
-    REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
-}
+    SECTION("live buckets")
+    {
+        liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
 
-SECTION("both live and hot archive buckets")
-{
-    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
-        TestBucketState::FILE_NOT_UPLOADED));
-    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
-        TestBucketState::FILE_NOT_UPLOADED));
-    auto verify = wm.executeWork<DownloadBucketsWork>(
-        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
-    REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
-}
-#endif
+    SECTION("hot archive buckets")
+    {
+        hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+
+    SECTION("both live and hot archive buckets")
+    {
+        liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
 }
 SECTION("download succeeds but unzip fails"){SECTION("live buckets"){
     liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(

@@ -1269,7 +1269,7 @@ BucketManager::assumeState(HistoryArchiveState const& has,
     releaseAssert(threadIsMain());
     releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
-    auto processBucketList = [&](auto& bl, auto const& hasBuckets) {
+    auto processBucketList = [this](auto& bl, auto const& hasBuckets) {
         auto kNumLevels = std::remove_reference<decltype(bl)>::type::kNumLevels;
         using BucketT =
             typename std::remove_reference<decltype(bl)>::type::bucket_type;
