@@ -80,7 +80,7 @@ class MutableTransactionResultBase
     // transactions that support refunds, i.e. Soroban transactions.
     void initializeRefundableFeeTracker(int64_t totalRefundableFee);
     // Returns the refundable fee tracker, or `nullopt` for results that don't
-    // support results.
+    // support refunds.
     std::optional<RefundableFeeTracker>& getRefundableFeeTracker();
 
     // Returns the transaction result XDR. This should only be called once at

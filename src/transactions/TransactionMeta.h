@@ -25,8 +25,8 @@ class OperationMetaBuilder
     void setSorobanReturnValue(SCVal const& val);
     // Returns the event manager for this operation.
     OpEventManager& getEventManager();
-    // Returns the diagnostic event buffer for the transaction.
-    // There is only one diagnstic event buffer for the transaction, so this
+    // Returns the diagnostic event manager for the transaction.
+    // There is only one diagnstic event manager for the transaction, so this
     // is just provided for convenience.
     DiagnosticEventManager& getDiagnosticEventManager();
 

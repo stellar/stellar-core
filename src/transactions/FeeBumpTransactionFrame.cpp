@@ -163,9 +163,10 @@ FeeBumpTransactionFrame::checkValid(
         return FeeBumpMutableTransactionResult::createTxError(txMALFORMED);
     }
 
-    // Setting the fees in this flow is weird/redundant, as these aren't the
-    // fees that would end up being applied, and the inner fee is supposed to
-    // be 0. Just leaving this as is for the time being.
+    // Setting the fees in this flow is potentially misleading, as these aren't
+    // the fees that would end up being applied. However, this is what Core
+    // used to return for a while, and some users may rely on this, so we
+    // maintain this logic for the time being.
     int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
     auto feeCharged = getFee(ls.getLedgerHeader().current(), minBaseFee, false);
     auto txResult = FeeBumpMutableTransactionResult::createSuccess(

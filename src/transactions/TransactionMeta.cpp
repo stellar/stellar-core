@@ -644,8 +644,7 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
     case 2:
     case 3:
     {
-        auto& opMeta =
-            mOperationMetas.emplace<0>(xdr::xvector<OperationMeta>());
+        auto& opMeta = mOperationMetas.emplace<xdr::xvector<OperationMeta>>();
         opMeta.resize(numOperations);
         for (size_t i = 0; i < numOperations; ++i)
         {
@@ -657,8 +656,7 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
     }
     case 4:
     {
-        auto& opMeta =
-            mOperationMetas.emplace<1>(xdr::xvector<OperationMetaV2>());
+        auto& opMeta = mOperationMetas.emplace<xdr::xvector<OperationMetaV2>>();
         opMeta.resize(numOperations);
         for (size_t i = 0; i < numOperations; ++i)
         {
