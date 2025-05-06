@@ -825,13 +825,13 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     }
 }
 
-void
+LedgerTxnEntry
 LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
-    getImpl()->restoreFromHotArchive(*this, entry, ttl);
+    return getImpl()->restoreFromHotArchive(*this, entry, ttl);
 }
 
-void
+LedgerTxnEntry
 LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
                                        LedgerEntry const& entry, uint32_t ttl)
 {
@@ -852,7 +852,7 @@ LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
     ttlEntry.data.type(TTL);
     ttlEntry.data.ttl().liveUntilLedgerSeq = ttl;
     ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
-    create(self, ttlEntry);
+    auto ttlLtxe = create(self, ttlEntry);
 
     // Mark the keys as restored
     auto addKey = [this](LedgerKey const& key) {
@@ -864,15 +864,17 @@ LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
     };
     addKey(LedgerEntryKey(entry));
     addKey(ttlKey);
+
+    return ttlLtxe;
 }
 
-void
+LedgerTxnEntry
 LedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
 {
-    getImpl()->restoreFromLiveBucketList(*this, key, ttl);
+    return getImpl()->restoreFromLiveBucketList(*this, key, ttl);
 }
 
-void
+LedgerTxnEntry
 LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
                                            LedgerKey const& key, uint32_t ttl)
 {
@@ -908,6 +910,8 @@ LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
     };
     addKey(key);
     addKey(ttlKey);
+
+    return ttlLtxe;
 }
 
 void

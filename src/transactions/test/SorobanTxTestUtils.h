@@ -341,6 +341,15 @@ class SorobanTest
                                        std::function<SCVal(uint256)> signFn);
     SorobanSigner createClassicAccountSigner(TestAccount const& account,
                                              std::vector<TestAccount*> signers);
+
+    void checkRefundableFee(int64_t initialBalance,
+                            TransactionFrameBaseConstPtr tx,
+                            TransactionMetaFrame const& txm,
+                            int64_t expectedRefundableFeeCharged,
+                            size_t eventsSize = 0);
+
+    // Defaults to root account
+    int64_t getAccountBalance(TestAccount* source = nullptr);
 };
 
 class AssetContractTestClient

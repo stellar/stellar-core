@@ -90,8 +90,8 @@ HostFunctionMetrics::HostFunctionMetrics(SorobanMetrics& metrics)
 }
 
 void
-HostFunctionMetrics::noteReadEntry(bool isCodeEntry, uint32_t keySize,
-                                   uint32_t entrySize)
+HostFunctionMetrics::noteDiskReadEntry(bool isCodeEntry, uint32_t keySize,
+                                       uint32_t entrySize)
 {
     mReadEntry++;
     mReadKeyByte += keySize;
@@ -260,11 +260,118 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 }
 
 bool
-InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(LedgerKey const& lk)
+InvokeHostFunctionOpFrame::ApplyHelper::meterDiskReadResource(
+    LedgerKey const& lk, uint32_t keySize, uint32_t entrySize)
 {
-    // TODO: Auto restore support in p23
+    mMetrics.noteDiskReadEntry(isContractCodeEntry(lk), keySize, entrySize);
+    if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
+    {
+        mDiagnosticEvents.pushError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "operation byte-read resources exceeds amount specified",
+            {makeU64SCVal(mMetrics.mLedgerReadByte),
+             makeU64SCVal(mResources.diskReadBytes)});
 
-    // Push appropriate diagnostic error based on entry type
+        mOpFrame.innerResult(mRes).code(
+            INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
+
+    return true;
+}
+
+bool
+InvokeHostFunctionOpFrame::ApplyHelper::checkIfEntryIsMarkedForAutorestore(
+    LedgerKey const& lk)
+{
+    auto const& resourceExt = mOpFrame.getResourcesExt();
+
+    // No keys marked for autorestore
+    if (resourceExt.v() != 1)
+    {
+        return false;
+    }
+
+    // No more keys left in autorestore vector
+    if (mNextArchivedIndexPos >=
+        resourceExt.resourceExt().archivedSorobanEntries.size())
+    {
+        return false;
+    }
+
+    // Lookup index of the next entry marked for autorestore
+    auto const& indexOfAutorestoredEntry =
+        resourceExt.resourceExt().archivedSorobanEntries.at(
+            mNextArchivedIndexPos);
+    ++mNextArchivedIndexPos;
+
+    // Lookup entry itself in footprint based on index
+    auto const& entryMarkedForAutorestore =
+        mResources.footprint.readWrite.at(indexOfAutorestoredEntry);
+
+    // Indexes are sorted in ascending order. Since we're iterating through the
+    // footprint in the same order, this key must be marked by the next
+    // autorestore index.
+    return entryMarkedForAutorestore == lk;
+}
+
+bool
+InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(
+    LedgerKey const& lk, LedgerEntry const& le, bool isReadOnly,
+    uint32_t restoredLiveUntilLedger, bool isHotArchiveEntry)
+{
+    // autorestore support started in p23. Entry must be in the read write
+    // footprint and must be marked as in the archivedSorobanEntries vector.
+    if (!isReadOnly &&
+        protocolVersionStartsFrom(
+            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+            HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION) &&
+        checkIfEntryIsMarkedForAutorestore(lk))
+    {
+        // In the auto restore case, we need to restore the entry and meter disk
+        // reads. The host will take care of rent fees, and write fees will be
+        // metered after the host returns.
+        auto leBuf = toCxxBuf(le);
+        auto entrySize = static_cast<uint32>(leBuf.data->size());
+        auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
+
+        if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
+                                         mAppConfig, mOpFrame.mParentTx,
+                                         mDiagnosticEvents))
+        {
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        // Charge for the restoration reads. TTLEntry writes come out of
+        // refundable fee, so only meter the actual code/data entry here.
+        if (!meterDiskReadResource(lk, keySize, entrySize))
+        {
+            return false;
+        }
+
+        // Restore the entry to the live BucketList
+        LedgerTxnEntry ttlEntry;
+        if (isHotArchiveEntry)
+        {
+            ttlEntry = mLtx.restoreFromHotArchive(le, restoredLiveUntilLedger);
+        }
+        else
+        {
+            ttlEntry =
+                mLtx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
+        }
+
+        // Finally, add the entries to the Cxx buffer as if they were live.
+        mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
+        auto ttlBuf = toCxxBuf(ttlEntry.current().data.ttl());
+        mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+
+        return true;
+    }
+
+    // Before p23, archived entries are never valid
     if (lk.type() == CONTRACT_CODE)
     {
         mDiagnosticEvents.pushError(
@@ -281,7 +388,6 @@ InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(LedgerKey const& lk)
              lk.contractData().key});
     }
 
-    // Cannot access an archived entry
     mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
     return false;
 }
@@ -318,8 +424,13 @@ InvokeHostFunctionOpFrame::ApplyHelper::ApplyHelper(
 
 bool
 InvokeHostFunctionOpFrame::ApplyHelper::addReads(
-    xdr::xvector<LedgerKey> const& keys)
+    xdr::xvector<LedgerKey> const& keys, bool isReadOnly)
 {
+    auto ledgerSeq = mLtx.loadHeader().current().ledgerSeq;
+    auto ledgerVersion = mLtx.loadHeader().current().ledgerVersion;
+    auto restoredLiveUntilLedger =
+        ledgerSeq + mSorobanConfig.stateArchivalSettings().minPersistentTTL - 1;
+
     for (auto const& lk : keys)
     {
         uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -331,25 +442,43 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
         if (isSorobanEntry(lk))
         {
             auto ttlKey = getTTLKey(lk);
-            auto ttlLtxe = mLtx.loadWithoutRecord(ttlKey);
-            if (ttlLtxe)
+
+            // handleArchiveEntry may need to load the TTL key to write the
+            // restored TTL, so make sure ttlLtxe destructs before calling
+            // handleArchiveEntry
+            std::optional<LedgerEntry> ttlEntryOp;
             {
-                if (!isLive(ttlLtxe.current(), mLtx.getHeader().ledgerSeq))
+                auto ttlLtxe = mLtx.loadWithoutRecord(ttlKey);
+                if (ttlLtxe)
+                {
+                    ttlEntryOp = ttlLtxe.current();
+                }
+            }
+
+            if (ttlEntryOp)
+            {
+                if (!isLive(ttlEntryOp.value(), ledgerSeq))
                 {
                     // For temporary entries, treat the expired entry as
                     // if the key did not exist
                     if (!isTemporaryEntry(lk))
                     {
-                        if (!handleArchivedEntry(lk))
+                        auto leLtxe = mLtx.loadWithoutRecord(lk);
+                        if (!handleArchivedEntry(lk, leLtxe.current(),
+                                                 isReadOnly,
+                                                 restoredLiveUntilLedger,
+                                                 /*isHotArchiveEntry=*/false))
                         {
                             return false;
                         }
+
+                        continue;
                     }
                 }
                 else
                 {
                     sorobanEntryLive = true;
-                    ttlEntry = ttlLtxe.current().data.ttl();
+                    ttlEntry = ttlEntryOp->data.ttl();
                 }
             }
             // If ttlLtxe doesn't exist, this is a new Soroban entry
@@ -364,10 +493,18 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
                 auto archiveEntry = mHotArchive->load(lk);
                 if (archiveEntry)
                 {
-                    if (!handleArchivedEntry(lk))
+                    releaseAssert(
+                        archiveEntry->type() ==
+                        HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+                    if (!handleArchivedEntry(lk, archiveEntry->archivedEntry(),
+                                             isReadOnly,
+                                             restoredLiveUntilLedger,
+                                             /*isHotArchiveEntry=*/true))
                     {
                         return false;
                     }
+
+                    continue;
                 }
             }
         }
@@ -397,7 +534,6 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
             }
         }
 
-        mMetrics.noteReadEntry(isContractCodeEntry(lk), keySize, entrySize);
         if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
                                          mAppConfig, mOpFrame.mParentTx,
                                          mDiagnosticEvents))
@@ -407,17 +543,23 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
             return false;
         }
 
-        if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
+        // Archived entries are metered already via handleArchivedEntry. Here,
+        // we only need to meter classic reads.
+        // Prior to protocol 23, all entries are metered.
+        if (!isSorobanEntry(lk) ||
+            protocolVersionIsBefore(ledgerVersion,
+                                    AUTO_RESTORE_PROTOCOL_VERSION))
         {
-            mDiagnosticEvents.pushError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                "operation byte-read resources exceeds amount specified",
-                {makeU64SCVal(mMetrics.mLedgerReadByte),
-                 makeU64SCVal(mResources.diskReadBytes)});
-
-            mOpFrame.innerResult(mRes).code(
-                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            return false;
+            if (!meterDiskReadResource(lk, keySize, entrySize))
+            {
+                return false;
+            }
+        }
+        // Still mark the readEntry for in-memory soroban entries for diagnostic
+        // purposes
+        else if (isSorobanEntry(lk))
+        {
+            mMetrics.mReadEntry++;
         }
     }
     return true;
@@ -430,13 +572,13 @@ InvokeHostFunctionOpFrame::ApplyHelper::apply()
     auto timeScope = mMetrics.getExecTimer();
     auto const& footprint = mResources.footprint;
 
-    if (!addReads(footprint.readOnly))
+    if (!addReads(footprint.readOnly, /*isReadOnly=*/true))
     {
         // Error code set in addReads
         return false;
     }
 
-    if (!addReads(footprint.readWrite))
+    if (!addReads(footprint.readWrite, /*isReadOnly=*/false))
     {
         // Error code set in addReads
         return false;
