@@ -4,8 +4,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "main/Config.h"
+#include "util/GlobalChecks.h"
 #include "xdr/Stellar-types.h"
 
 #include <cereal/cereal.hpp>
@@ -27,15 +33,14 @@ namespace stellar
 {
 
 class Application;
-class LiveBucketList;
-class Bucket;
 
-struct HistoryStateBucket
+template <class BucketT> struct HistoryStateBucket
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+    using bucket_type = BucketT;
     std::string curr;
 
-    // TODO: Add archival buckets to history
-    FutureBucket<LiveBucket> next;
+    FutureBucket<BucketT> next;
     std::string snap;
 
     template <class Archive>
@@ -75,17 +80,37 @@ struct HistoryArchiveState
     static constexpr size_t MAX_HISTORY_ARCHIVE_BUCKET_SIZE =
         1024ull * 1024ull * 1024ull * 100ull; // 100 GB
 
-    static unsigned const HISTORY_ARCHIVE_STATE_VERSION;
+    static inline unsigned const
+        HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE = 1;
+    static inline unsigned const
+        HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE = 2;
 
-    unsigned version{HISTORY_ARCHIVE_STATE_VERSION};
+    struct BucketHashReturnT
+    {
+        std::vector<std::string> live;
+        std::vector<std::string> hot;
+
+        explicit BucketHashReturnT(std::vector<std::string>&& live,
+                                   std::vector<std::string>&& hot)
+            : live(live), hot(hot)
+        {
+        }
+    };
+
+    unsigned version{HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE};
     std::string server;
     std::string networkPassphrase;
     uint32_t currentLedger{0};
-    std::vector<HistoryStateBucket> currentBuckets;
+    std::vector<HistoryStateBucket<LiveBucket>> currentBuckets;
+    std::vector<HistoryStateBucket<HotArchiveBucket>> hotArchiveBuckets;
 
     HistoryArchiveState();
 
-    HistoryArchiveState(uint32_t ledgerSeq, LiveBucketList const& buckets,
+    HistoryArchiveState(uint32_t ledgerSeq, LiveBucketList const& liveBuckets,
+                        HotArchiveBucketList const& hotBuckets,
+                        std::string const& networkPassphrase);
+
+    HistoryArchiveState(uint32_t ledgerSeq, LiveBucketList const& liveBuckets,
                         std::string const& networkPassphrase);
 
     static std::string baseName();
@@ -102,9 +127,8 @@ struct HistoryArchiveState
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'.
     // Vector is sorted from largest/highest-numbered bucket to smallest/lowest,
     // and with snap buckets occurring before curr buckets. Zero-buckets are
-    // omitted.
-    std::vector<std::string>
-    differingBuckets(HistoryArchiveState const& other) const;
+    // omitted. Hashes are distinguished by live and Hot Archive buckets.
+    BucketHashReturnT differingBuckets(HistoryArchiveState const& other) const;
 
     // Return vector of all buckets referenced by this state.
     std::vector<std::string> allBuckets() const;
@@ -118,12 +142,22 @@ struct HistoryArchiveState
         {
             ar(CEREAL_NVP(networkPassphrase));
         }
-        catch (cereal::Exception&)
+        catch (cereal::Exception& e)
         {
             // networkPassphrase wasn't parsed.
-            // This is expected when the input file does not contain it.
+            // This is expected when the input file does not contain it, but
+            // should only ever happen for older versions of History Archive
+            // State that do not support HotArchive.
+            if (hasHotArchiveBuckets())
+            {
+                throw e;
+            }
         }
         ar(CEREAL_NVP(currentBuckets));
+        if (hasHotArchiveBuckets())
+        {
+            ar(CEREAL_NVP(hotArchiveBuckets));
+        }
     }
 
     template <class Archive>
@@ -135,7 +169,17 @@ struct HistoryArchiveState
         {
             ar(CEREAL_NVP(networkPassphrase));
         }
+        else
+        {
+            // New versions of HistoryArchiveState (i.e. support HotArchive)
+            // should always have a networkPassphrase.
+            releaseAssertOrThrow(!hasHotArchiveBuckets());
+        }
         ar(CEREAL_NVP(currentBuckets));
+        if (hasHotArchiveBuckets())
+        {
+            ar(CEREAL_NVP(hotArchiveBuckets));
+        }
     }
 
     // Return true if all futures are in FB_CLEAR state
@@ -162,6 +206,12 @@ struct HistoryArchiveState
 
     void prepareForPublish(Application& app);
     bool containsValidBuckets(Application& app) const;
+
+    bool
+    hasHotArchiveBuckets() const
+    {
+        return version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE;
+    }
 };
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>

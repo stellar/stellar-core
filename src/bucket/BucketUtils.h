@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/NonCopyable.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <list>
@@ -100,7 +101,7 @@ struct EvictionResultEntry
 // Hold the list of entries eligible for eviction on the given ledger. Note that
 // if these entries are updated during the given ledger, they may not actually
 // be evicted.
-struct EvictionResultCandidates
+struct EvictionResultCandidates : public NonMovableOrCopyable
 {
     // List of entries eligible for eviction in the order in which they occur in
     // the bucket
@@ -109,24 +110,28 @@ struct EvictionResultCandidates
     // Eviction iterator at the end of the scan region
     EvictionIterator endOfRegionIterator;
 
-    // LedgerSeq which this scan is based on
-    uint32_t initialLedger{};
+    // LedgerSeq and ledger version which this scan is based on
+    uint32_t const initialLedgerSeq{};
+    uint32_t const initialLedgerVers{};
 
     // State archival settings that this scan is based on
-    StateArchivalSettings initialSas;
+    StateArchivalSettings const initialSas;
 
-    EvictionResultCandidates(StateArchivalSettings const& sas) : initialSas(sas)
+    EvictionResultCandidates(StateArchivalSettings const& sas,
+                             uint32_t initialLedger, uint32_t initialLedgerVers)
+        : initialLedgerSeq(initialLedger)
+        , initialLedgerVers(initialLedgerVers)
+        , initialSas(sas)
     {
     }
 
     // Returns true if this is a valid archival scan for the current ledger
     // and archival settings. This is necessary because we start the scan
     // for ledger N immediately after N - 1 closes. However, ledger N may
-    // contain a network upgrade changing eviction scan settings. Legacy SQL
-    // scans will run based on the changes that occurred during ledger N,
-    // meaning the scan we started at ledger N - 1 is invalid since it was based
-    // off of older settings.
-    bool isValid(uint32_t currLedger,
+    // contain a network upgrade changing eviction scan settings. Eviction scans
+    // must be based on the network settings after applying any upgrades, so if
+    // this occurs we must restart the scan.
+    bool isValid(uint32_t currLedgerSeq, uint32_t currLedgerVers,
                  StateArchivalSettings const& currSas) const;
 };
 

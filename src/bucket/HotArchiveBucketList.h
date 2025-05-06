@@ -15,6 +15,8 @@ namespace stellar
 class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
 {
   public:
+    using bucket_type = HotArchiveBucket;
+
     void addBatch(Application& app, uint32_t currLedger,
                   uint32_t currLedgerProtocol,
                   std::vector<LedgerEntry> const& archiveEntries,

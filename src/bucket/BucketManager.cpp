@@ -348,13 +348,6 @@ BucketManager::getBloomLookupMeter() const
         {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom");
 }
 
-MergeCounters
-BucketManager::readMergeCounters()
-{
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    return mMergeCounters;
-}
-
 medida::Meter&
 BucketManager::getCacheHitMeter() const
 {
@@ -367,11 +360,36 @@ BucketManager::getCacheMissMeter() const
     return mCacheMissMeter;
 }
 
-void
-BucketManager::incrMergeCounters(MergeCounters const& delta)
+template <>
+MergeCounters
+BucketManager::readMergeCounters<LiveBucket>()
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    mMergeCounters += delta;
+    return mLiveMergeCounters;
+}
+
+template <>
+MergeCounters
+BucketManager::readMergeCounters<HotArchiveBucket>()
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    return mHotArchiveMergeCounters;
+}
+
+template <>
+void
+BucketManager::incrMergeCounters<LiveBucket>(MergeCounters const& delta)
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    mLiveMergeCounters += delta;
+}
+
+template <>
+void
+BucketManager::incrMergeCounters<HotArchiveBucket>(MergeCounters const& delta)
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    mHotArchiveMergeCounters += delta;
 }
 
 bool
@@ -653,7 +671,7 @@ BucketManager::getMergeFutureInternal(MergeKey const& key,
                 auto future = promise.get_future().share();
                 promise.set_value(bucket);
                 mc.mFinishedMergeReattachments++;
-                incrMergeCounters(mc);
+                incrMergeCounters<BucketT>(mc);
                 return future;
             }
         }
@@ -668,7 +686,7 @@ BucketManager::getMergeFutureInternal(MergeKey const& key,
         "BucketManager::getMergeFuture returning running future for merge {}",
         key);
     mc.mRunningMergeReattachments++;
-    incrMergeCounters(mc);
+    incrMergeCounters<BucketT>(mc);
     return i->second;
 }
 
@@ -1044,10 +1062,10 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
                 HotArchiveBucket::
                     FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
-            // TODO: Hash Archive Bucket
-            // Dependency: HAS supports Hot Archive BucketList
-
-            hash = mLiveBucketList->getHash();
+            SHA256 hsh;
+            hsh.add(mLiveBucketList->getHash());
+            hsh.add(mHotArchiveBucketList->getHash());
+            hash = hsh.finish();
         }
         else
         {
@@ -1094,7 +1112,8 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
         mSnapshotManager->copySearchableLiveBucketListSnapshot();
     auto const& sas = cfg.stateArchivalSettings();
 
-    using task_t = std::packaged_task<EvictionResultCandidates()>;
+    using task_t =
+        std::packaged_task<std::unique_ptr<EvictionResultCandidates>()>;
     // MSVC gotcha: searchableBL has to be shared_ptr because MSVC wants to
     // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
@@ -1129,14 +1148,14 @@ BucketManager::resolveBackgroundEvictionScan(
 
     // If eviction related settings changed during the ledger, we have to
     // restart the scan
-    if (!evictionCandidates.isValid(ledgerSeq,
-                                    networkConfig.stateArchivalSettings()))
+    if (!evictionCandidates->isValid(ledgerSeq, ledgerVers,
+                                     networkConfig.stateArchivalSettings()))
     {
         startBackgroundEvictionScan(ledgerSeq, ledgerVers, networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
 
-    auto& eligibleEntries = evictionCandidates.eligibleEntries;
+    auto& eligibleEntries = evictionCandidates->eligibleEntries;
 
     for (auto iter = eligibleEntries.begin(); iter != eligibleEntries.end();)
     {
@@ -1154,7 +1173,7 @@ BucketManager::resolveBackgroundEvictionScan(
     auto remainingEntriesToEvict =
         networkConfig.stateArchivalSettings().maxEntriesToArchive;
     auto entryToEvictIter = eligibleEntries.begin();
-    auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
+    auto newEvictionIterator = evictionCandidates->endOfRegionIterator;
 
     // Return vectors include both evicted entry and associated TTL
     std::vector<LedgerKey> deletedKeys;
@@ -1194,7 +1213,7 @@ BucketManager::resolveBackgroundEvictionScan(
     // region
     if (remainingEntriesToEvict != 0)
     {
-        newEvictionIterator = evictionCandidates.endOfRegionIterator;
+        newEvictionIterator = evictionCandidates->endOfRegionIterator;
     }
 
     networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
@@ -1250,46 +1269,57 @@ BucketManager::assumeState(HistoryArchiveState const& has,
     releaseAssert(threadIsMain());
     releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
-    // TODO: Assume archival bucket state
-    // Dependency: HAS supports Hot Archive BucketList
-    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
-    {
-        auto curr = getBucketByHashInternal(
-            hexToBin256(has.currentBuckets.at(i).curr), mSharedLiveBuckets);
-        auto snap = getBucketByHashInternal(
-            hexToBin256(has.currentBuckets.at(i).snap), mSharedLiveBuckets);
-        if (!(curr && snap))
+    auto processBucketList = [this](auto& bl, auto const& hasBuckets) {
+        auto kNumLevels = std::remove_reference<decltype(bl)>::type::kNumLevels;
+        using BucketT =
+            typename std::remove_reference<decltype(bl)>::type::bucket_type;
+        for (uint32_t i = 0; i < kNumLevels; ++i)
         {
-            throw std::runtime_error("Missing bucket files while assuming "
-                                     "saved live BucketList state");
-        }
-
-        auto const& nextFuture = has.currentBuckets.at(i).next;
-        std::shared_ptr<LiveBucket> nextBucket = nullptr;
-        if (nextFuture.hasOutputHash())
-        {
-            nextBucket = getBucketByHashInternal(
-                hexToBin256(nextFuture.getOutputHash()), mSharedLiveBuckets);
-            if (!nextBucket)
+            auto curr =
+                getBucketByHash<BucketT>(hexToBin256(hasBuckets.at(i).curr));
+            auto snap =
+                getBucketByHash<BucketT>(hexToBin256(hasBuckets.at(i).snap));
+            if (!(curr && snap))
             {
-                throw std::runtime_error(
-                    "Missing future bucket files while "
-                    "assuming saved live BucketList state");
+                throw std::runtime_error("Missing bucket files while assuming "
+                                         "saved live BucketList state");
             }
-        }
 
-        // Buckets on the BucketList should always be indexed
-        releaseAssert(curr->isEmpty() || curr->isIndexed());
-        releaseAssert(snap->isEmpty() || snap->isIndexed());
-        if (nextBucket)
-        {
-            releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
-        }
+            auto const& nextFuture = hasBuckets.at(i).next;
+            std::shared_ptr<BucketT> nextBucket = nullptr;
+            if (nextFuture.hasOutputHash())
+            {
+                nextBucket = getBucketByHash<BucketT>(
+                    hexToBin256(nextFuture.getOutputHash()));
+                if (!nextBucket)
+                {
+                    throw std::runtime_error(
+                        "Missing future bucket files while "
+                        "assuming saved live BucketList state");
+                }
+            }
 
-        mLiveBucketList->getLevel(i).setCurr(curr);
-        mLiveBucketList->getLevel(i).setSnap(snap);
-        mLiveBucketList->getLevel(i).setNext(nextFuture);
+            // Buckets on the BucketList should always be indexed
+            releaseAssert(curr->isEmpty() || curr->isIndexed());
+            releaseAssert(snap->isEmpty() || snap->isIndexed());
+            if (nextBucket)
+            {
+                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
+            }
+
+            bl.getLevel(i).setCurr(curr);
+            bl.getLevel(i).setSnap(snap);
+            bl.getLevel(i).setNext(nextFuture);
+        }
+    };
+
+    processBucketList(*mLiveBucketList, has.currentBuckets);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (has.hasHotArchiveBuckets())
+    {
+        processBucketList(*mHotArchiveBucketList, has.hotArchiveBuckets);
     }
+#endif
 
     mLiveBucketList->maybeInitializeCaches(mConfig);
 
@@ -1297,6 +1327,13 @@ BucketManager::assumeState(HistoryArchiveState const& has,
     {
         mLiveBucketList->restartMerges(mApp, maxProtocolVersion,
                                        has.currentLedger);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (has.hasHotArchiveBuckets())
+        {
+            mHotArchiveBucketList->restartMerges(mApp, maxProtocolVersion,
+                                                 has.currentLedger);
+        }
+#endif
     }
     cleanupStaleFiles(has);
 }
@@ -1372,7 +1409,8 @@ BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
     {
-        HistoryStateBucket const& hsb = has.currentBuckets.at(i - 1);
+        HistoryStateBucket<LiveBucket> const& hsb =
+            has.currentBuckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
                             fmt::format(FMT_STRING("snap {:d}"), i - 1));
         hashes.emplace_back(hexToBin256(hsb.curr),
@@ -1549,7 +1587,7 @@ BucketManager::visitLedgerEntries(
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        HistoryStateBucket const& hsb = has.currentBuckets.at(i);
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr),
                             fmt::format(FMT_STRING("curr {:d}"), i));
         hashes.emplace_back(hexToBin256(hsb.snap),
@@ -1599,7 +1637,9 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
     // Persist a map of indexes so we don't have dangling references in
     // VerifyBucketsWork. We don't actually need to use the indexes created by
     // VerifyBucketsWork here, so a throwaway static map is fine.
-    static std::map<int, std::unique_ptr<LiveBucketIndex const>> indexMap;
+    static std::map<int, std::unique_ptr<LiveBucketIndex const>> liveIndexMap;
+    static std::map<int, std::unique_ptr<HotArchiveBucketIndex const>>
+        hotIndexMap;
 
     int i = 0;
     for (auto const& h : hashes)
@@ -1609,19 +1649,39 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
             continue;
         }
 
-        // TODO: Update verify to for ArchiveBucket
-        // Dependency: HAS supports Hot Archive BucketList
-        auto b = getBucketByHashInternal(h, mSharedLiveBuckets);
-        if (!b)
+        auto maybeLiveBucket = getBucketByHashInternal(h, mSharedLiveBuckets);
+        if (!maybeLiveBucket)
         {
-            throw std::runtime_error(fmt::format(
-                FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
-        }
+            auto hotBucket =
+                getBucketByHashInternal(h, mSharedHotArchiveBuckets);
 
-        auto [indexIter, _] = indexMap.emplace(i++, nullptr);
-        seq.emplace_back(std::make_shared<VerifyBucketWork>(
-            mApp, b->getFilename().string(), b->getHash(), indexIter->second,
-            nullptr));
+            // Check both live and hot archive buckets for hash. If we don't
+            // find it in either, we're missing a bucket. Note that live and
+            // hot archive buckets are guaranteed to have no hash collisions
+            // due to type field in MetaEntry.
+            if (!hotBucket)
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
+            }
+
+            auto filename = hotBucket->getFilename().string();
+            auto hash = hotBucket->getHash();
+            auto [indexIter, _] = hotIndexMap.emplace(i++, nullptr);
+
+            seq.emplace_back(
+                std::make_shared<VerifyBucketWork<HotArchiveBucket>>(
+                    mApp, filename, hash, indexIter->second, nullptr));
+        }
+        else
+        {
+            auto filename = maybeLiveBucket->getFilename().string();
+            auto hash = maybeLiveBucket->getHash();
+            auto [indexIter, _] = liveIndexMap.emplace(i++, nullptr);
+
+            seq.emplace_back(std::make_shared<VerifyBucketWork<LiveBucket>>(
+                mApp, filename, hash, indexIter->second, nullptr));
+        }
     }
     return mApp.getWorkScheduler().scheduleWork<WorkSequence>(
         "verify-referenced-buckets", seq);

@@ -410,7 +410,7 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     if (countMergeEvents)
     {
-        bucketManager.incrMergeCounters(mc);
+        bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
     return out.getBucket(bucketManager);

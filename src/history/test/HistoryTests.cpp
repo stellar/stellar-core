@@ -174,56 +174,158 @@ TEST_CASE("History bucket verification", "[history][catchup]")
     auto bucketGenerator = TestBucketGenerator{
         *app, app->getHistoryArchiveManager().getHistoryArchive(
                   cg->getArchiveDirName())};
-    std::vector<std::string> hashes;
+    std::vector<std::string> liveHashes;
+    std::vector<std::string> hotHashes;
     auto& wm = app->getWorkScheduler();
-    std::map<std::string, std::shared_ptr<LiveBucket>> mBuckets;
+
+    std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
+    std::map<std::string, std::shared_ptr<HotArchiveBucket>> hotBuckets;
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
 
-    SECTION("successful download and verify")
-    {
-        hashes.push_back(bucketGenerator.generateBucket(
+    SECTION("successful download and verify"){SECTION("live buckets"){
+        liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
             TestBucketState::CONTENTS_AND_HASH_OK));
-        hashes.push_back(bucketGenerator.generateBucket(
-            TestBucketState::CONTENTS_AND_HASH_OK));
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
-    }
-    SECTION("download fails file not found")
-    {
-        hashes.push_back(
-            bucketGenerator.generateBucket(TestBucketState::FILE_NOT_UPLOADED));
+    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+        TestBucketState::CONTENTS_AND_HASH_OK));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+}
 
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
-    }
-    SECTION("download succeeds but unzip fails")
-    {
-        hashes.push_back(bucketGenerator.generateBucket(
-            TestBucketState::CORRUPTED_ZIPPED_FILE));
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+SECTION("hot archive buckets")
+{
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::CONTENTS_AND_HASH_OK));
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::CONTENTS_AND_HASH_OK));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+}
 
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
-    }
-    SECTION("verify fails hash mismatch")
+SECTION("both live and hot archive buckets")
+{
+    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+        TestBucketState::CONTENTS_AND_HASH_OK));
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::CONTENTS_AND_HASH_OK));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+}
+#endif
+}
+SECTION("download fails file not found")
+{
+    SECTION("live buckets")
     {
-        hashes.push_back(
-            bucketGenerator.generateBucket(TestBucketState::HASH_MISMATCH));
-
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
-    }
-    SECTION("no hashes to verify")
-    {
-        // Ensure proper behavior when no hashes are passed in
+        liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
         auto verify = wm.executeWork<DownloadBucketsWork>(
-            mBuckets, std::vector<std::string>(), *tmpDir);
+            buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+
+    SECTION("hot archive buckets")
+    {
+        hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+
+    SECTION("both live and hot archive buckets")
+    {
+        liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+            TestBucketState::FILE_NOT_UPLOADED));
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+}
+SECTION("download succeeds but unzip fails"){SECTION("live buckets"){
+    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+        TestBucketState::CORRUPTED_ZIPPED_FILE));
+auto verify = wm.executeWork<DownloadBucketsWork>(
+    buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+}
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+SECTION("hot archive buckets")
+{
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::CORRUPTED_ZIPPED_FILE));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+}
+
+SECTION("both live and hot archive buckets")
+{
+    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+        TestBucketState::CORRUPTED_ZIPPED_FILE));
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::CORRUPTED_ZIPPED_FILE));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+}
+#endif
+}
+SECTION("verify fails hash mismatch"){SECTION("live buckets"){
+    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+        TestBucketState::HASH_MISMATCH));
+auto verify = wm.executeWork<DownloadBucketsWork>(
+    buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+}
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+SECTION("hot archive buckets")
+{
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::HASH_MISMATCH));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+}
+
+SECTION("both live and hot archive buckets")
+{
+    liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+        TestBucketState::HASH_MISMATCH));
+    hotHashes.push_back(bucketGenerator.generateBucket<HotArchiveBucket>(
+        TestBucketState::HASH_MISMATCH));
+    auto verify = wm.executeWork<DownloadBucketsWork>(
+        buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+    REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+}
+#endif
+}
+SECTION("no hashes to verify")
+{
+    // Ensure proper behavior when no hashes are passed in
+    SECTION("live buckets")
+    {
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, std::vector<std::string>(),
+            std::vector<std::string>(), *tmpDir);
         REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
     }
+
+    SECTION("hot archive buckets")
+    {
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            buckets, hotBuckets, std::vector<std::string>(),
+            std::vector<std::string>(), *tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+    }
+}
 }
 
 TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
@@ -1147,6 +1249,16 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             testUpgrade(SOROBAN_PROTOCOL_VERSION);
         }
     }
+    SECTION("hot archive bucket upgrade")
+    {
+        if (protocolVersionEquals(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            testUpgrade(
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+        }
+    }
 }
 
 TEST_CASE("Catchup fatal failure", "[catchup][history]")
@@ -1205,7 +1317,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
 
         // Check that during catchup/replay, we did not use any INITENTRY code,
         // were still on the old protocol.
-        auto mc = a->getBucketManager().readMergeCounters();
+        auto mc = a->getBucketManager().readMergeCounters<LiveBucket>();
         REQUIRE(mc.mPostInitEntryProtocolMerges == 0);
         REQUIRE(mc.mNewInitEntries == 0);
         REQUIRE(mc.mOldInitEntries == 0);
@@ -1247,7 +1359,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
         }
 
         // Check that we did in fact use INITENTRY code.
-        mc = a->getBucketManager().readMergeCounters();
+        mc = a->getBucketManager().readMergeCounters<LiveBucket>();
         REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
         REQUIRE(mc.mNewInitEntries != 0);
         REQUIRE(mc.mOldInitEntries != 0);
@@ -1348,7 +1460,9 @@ TEST_CASE_VERSIONS(
 
     BucketTestUtils::for_versions_with_differing_bucket_logic(
         cfg, [&](Config const& cfg) {
-            Application::pointer app = createTestApplication(clock, cfg);
+            auto app =
+                createTestApplication<BucketTestUtils::BucketTestApplication>(
+                    clock, cfg);
             auto& hm = app->getHistoryManager();
             auto& lm = app->getLedgerManager();
             auto& bl = app->getBucketManager().getLiveBucketList();
@@ -1357,9 +1471,11 @@ TEST_CASE_VERSIONS(
             {
                 auto lcl = lm.getLastClosedLedgerHeader();
                 lcl.header.ledgerSeq += 1;
-                BucketTestUtils::addLiveBatchAndUpdateSnapshot(
-                    *app, lcl.header, {},
-                    LedgerTestUtils::generateValidUniqueLedgerEntries(8), {});
+                lm.setNextLedgerEntryBatchForBucketTesting(
+                    {},
+                    LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                        {LedgerEntryType::CONFIG_SETTING}, 8),
+                    {});
                 clock.crank(true);
             }
 

@@ -831,14 +831,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
 }
 
 void
-LedgerManagerImpl::startCatchup(
-    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
+LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
+                                std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
-    mApp.getLedgerApplyManager().startCatchup(configuration, archive,
-                                              bucketsToRetain);
+    mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 
 uint64_t
@@ -1237,9 +1235,15 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
     // Step 1. Maybe queue the current checkpoint file for publishing; this
     // should not race with main, since publish on main begins strictly _after_
-    // this call.
+    // this call. There is a bug in the upgrade path where the initial
+    // ledgerVers is used in some places during ledgerClose, and the upgraded
+    // ledgerVers is used in other places (see comment in ledgerClosed).
+    // On the ledger when an upgrade occurs, the ledger header will contain the
+    // newly incremented ledgerVers. Because the history checkpoint must be
+    // consistent with the ledger header, we must base checkpoints off the new
+    // ledgerVers here and not the initial ledgerVers.
     auto& hm = mApp.getHistoryManager();
-    hm.maybeQueueHistoryCheckpoint(ledgerSeq);
+    hm.maybeQueueHistoryCheckpoint(ledgerSeq, maybeNewVersion);
 
     // step 2
     ltx.commit();
@@ -1926,8 +1930,20 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
     // Store the current HAS in the database; this is really just to
     // checkpoint the bucketlist so we can survive a restart and re-attach
     // to the buckets.
-    HistoryArchiveState has(header.ledgerSeq, bl,
-                            mApp.getConfig().NETWORK_PASSPHRASE);
+    HistoryArchiveState has;
+    if (protocolVersionStartsFrom(
+            header.ledgerVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        auto hotBl = mApp.getBucketManager().getHotArchiveBucketList();
+        has = HistoryArchiveState(header.ledgerSeq, bl, hotBl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
+    else
+    {
+        has = HistoryArchiveState(header.ledgerSeq, bl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString(), sess);

@@ -103,14 +103,15 @@ class BucketManager : NonMovableOrCopyable
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;
     EvictionCounters mBucketListEvictionCounters;
-    MergeCounters mMergeCounters;
+    MergeCounters mLiveMergeCounters;
+    MergeCounters mHotArchiveMergeCounters;
     std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
     std::map<LedgerEntryTypeAndDurability, medida::Counter&>
         mBucketListEntryCountCounters;
     std::map<LedgerEntryTypeAndDurability, medida::Counter&>
         mBucketListEntrySizeCounters;
 
-    std::future<EvictionResultCandidates> mEvictionFuture{};
+    std::future<std::unique_ptr<EvictionResultCandidates>> mEvictionFuture{};
 
     // Copy app's config for thread-safe access
     Config const mConfig;
@@ -204,8 +205,8 @@ class BucketManager : NonMovableOrCopyable
 
     // Reading and writing the merge counters is done in bulk, and takes a lock
     // briefly; this can be done from any thread.
-    MergeCounters readMergeCounters();
-    void incrMergeCounters(MergeCounters const& delta);
+    template <class BucketT> MergeCounters readMergeCounters();
+    template <class BucketT> void incrMergeCounters(MergeCounters const& delta);
 
     // Get a reference to a persistent bucket (in the BucketManager's bucket
     // directory), from the BucketManager's shared bucket-set.
