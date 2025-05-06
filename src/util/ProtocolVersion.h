@@ -55,4 +55,5 @@ constexpr ProtocolVersion PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION =
     ProtocolVersion::V_23;
 constexpr ProtocolVersion REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION =
     ProtocolVersion::V_23;
+constexpr ProtocolVersion AUTO_RESTORE_PROTOCOL_VERSION = ProtocolVersion::V_23;
 }

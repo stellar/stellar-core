@@ -2579,11 +2579,20 @@ TEST_CASE("state archival", "[tx][soroban][archival]")
                                         ContractDataDurability::PERSISTENT,
                                         test.getLCLSeq() + 1));
 
-            // Check that we can't recreate expired PERSISTENT
-            REQUIRE(client.put("persistent", ContractDataDurability::PERSISTENT,
+            // Check that we can't recreate expired PERSISTENT. Note that this
+            // will suceeed with autorestore, as the expried entry will just get
+            // restored.
+            if (protocolVersionIsBefore(
+                    test.getApp().getConfig().LEDGER_PROTOCOL_VERSION,
+                    AUTO_RESTORE_PROTOCOL_VERSION))
+            {
+                REQUIRE(client.put("persistent",
+                                   ContractDataDurability::PERSISTENT,
                                42) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+            }
 
-            // Since entry is PERSISTENT, has should fail
+            // Since entry is PERSISTENT, has should fail. Key is in the read
+            // only footprint so should fail with autorestore as well.
             REQUIRE(client.has("persistent", ContractDataDurability::PERSISTENT,
                                std::nullopt) ==
                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
@@ -3326,10 +3335,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             }
         }
 
-        // Rewriting entry should fail since key is archived
-        REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
-
-        // Reads should also fail
+        // Reads should fail since the key is archived
         REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
                            std::nullopt) ==
                 INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
@@ -3371,11 +3377,12 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
         SECTION("key accessible after restore")
         {
-            test.invokeRestoreOp({lk}, 20'048);
+            auto check = [&]() {
             auto const& stateArchivalSettings =
                 test.getNetworkCfg().stateArchivalSettings();
             auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+                    test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
+                    1;
             REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
 
             client.get("key", ContractDataDurability::PERSISTENT, 123);
@@ -3383,16 +3390,44 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             test.getApp()
                 .getBucketManager()
                 .getBucketSnapshotManager()
-                .maybeCopySearchableHotArchiveBucketListSnapshot(hotArchive);
+                    .maybeCopySearchableHotArchiveBucketListSnapshot(
+                        hotArchive);
 
             // Restored entries are deleted from Hot Archive
             REQUIRE(!hotArchive->load(lk));
+            };
+
+            SECTION("restore op")
+            {
+                test.invokeRestoreOp({lk}, 20'048);
+                check();
+            }
+
+            SECTION("autorestore")
+            {
+                // Write will automatically restore entry
+                client.put("key", ContractDataDurability::PERSISTENT, 123);
+                check();
+            }
         }
 
         SECTION("key accessible after restore in same ledger")
         {
-            auto writeSrcAccount = test.getRoot().create("src", 500000000);
+            auto extendSrcAccount = test.getRoot().create("src", 500000000);
 
+            SorobanResources restoreResources;
+            restoreResources.footprint.readOnly = {lk};
+            restoreResources.instructions = 0;
+            restoreResources.readBytes = 10'000;
+
+            auto bumpLedgers = 10'000;
+            auto resourceFee = 300'000 + 40'000;
+            auto extendTx =
+                test.createExtendOpTx(restoreResources, bumpLedgers, 1'000,
+                                      resourceFee, &extendSrcAccount);
+
+            SECTION("manual restore")
+            {
             SorobanResources restoreResources;
             restoreResources.footprint.readWrite = {lk};
             restoreResources.instructions = 0;
@@ -3403,21 +3438,33 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             auto restoreTx =
                 test.createRestoreTx(restoreResources, 1'000, resourceFee);
 
+                closeLedger(test.getApp(), {restoreTx, extendTx},
+                            /*strictOrder=*/true);
+
+                // Require that the restore went through and the entry could be
+                // bumped in the subsequent TX
+                REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+            }
+
+            SECTION("autorestore")
+            {
             auto writeInvocation = client.getContract().prepareInvocation(
-                "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(200)},
-                client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
+                    "put_persistent",
+                    {makeSymbolSCVal("key"), makeU64SCVal(200)},
+                    client.writeKeySpec("key",
+                                        ContractDataDurability::PERSISTENT));
 
             auto writeTx =
-                writeInvocation.withExactNonRefundableResourceFee().createTx(
-                    &writeSrcAccount);
+                    writeInvocation.withExactNonRefundableResourceFee()
+                        .createTx();
 
-            closeLedger(test.getApp(), {restoreTx, writeTx},
+                closeLedger(test.getApp(), {writeTx, extendTx},
                         /*strictOrder=*/true);
 
-            // Restore should succeed and entry value should be updated since
-            // writeTx comes after restore
-            REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
-            client.get("key", ContractDataDurability::PERSISTENT, 200);
+                // Require that the write TX restored the entry which could be
+                // bumped in the subsequent TX
+                REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+            }
         }
     };
 

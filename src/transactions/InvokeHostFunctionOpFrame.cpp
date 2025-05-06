@@ -287,11 +287,92 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 }
 
 bool
-InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(LedgerKey const& lk)
+InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(
+    LedgerKey const& lk, LedgerEntry const& le, bool isReadOnly,
+    uint32_t restoredLiveUntilLedger, bool isHotArchiveEntry)
 {
-    // TODO: Auto restore support in p23
+    // autorestore support started in p23. Entry must be in the read write
+    // footprint.
+    if (!isReadOnly &&
+        protocolVersionStartsFrom(
+            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+            HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        // In the auto restore case, we need to perform what are really 2
+        // separate operations from a fee and rust host perspective:
+        // 1. Restore the entry
+        // 2. Pass the restored entry on to the rust host as a read-write entry
+        //
+        // To accomplish step 1, we'll add a rust change for the rent
+        // calculation only and charge for disk reads. After charging for reads,
+        // we'll then add the entry to the buffer with the updated TTL value for
+        // step 2.
 
-    // Push appropriate diagnostic error based on entry type
+        auto leBuf = toCxxBuf(le);
+        auto entrySize = static_cast<uint32>(leBuf.data->size());
+        auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
+
+        // Charge for the restoration reads. TTLEntry writes come out of
+        // refundable fee, so only meter the actual code/data entry here.
+        mMetrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
+        if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
+                                         mAppConfig, mOpFrame.mParentTx,
+                                         mDiagnosticEvents))
+        {
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        if (mResources.readBytes < mMetrics.mLedgerReadByte)
+        {
+            mDiagnosticEvents.pushApplyTimeDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-read resources exceeds amount specified",
+                {makeU64SCVal(mMetrics.mLedgerReadByte),
+                 makeU64SCVal(mResources.readBytes)});
+
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        // After charging for the disk read, charge for rent.
+        mAutorestoreRustEntryRentChanges.emplace_back();
+        auto& rustChange = mAutorestoreRustEntryRentChanges.back();
+        rustChange.is_persistent = true;
+        rustChange.old_size_bytes = 0;
+        rustChange.old_live_until_ledger = 0;
+        rustChange.new_size_bytes = entrySize;
+        rustChange.new_live_until_ledger = restoredLiveUntilLedger;
+
+        // Restore the entry to the live BucketList
+        LedgerTxnEntry ttlEntry;
+        if (isHotArchiveEntry)
+        {
+            ttlEntry = mLtx.restoreFromHotArchive(le, restoredLiveUntilLedger);
+        }
+        else
+        {
+            ttlEntry =
+                mLtx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
+        }
+
+        // Finally, add the entries to the Cxx buffer as if they were live. If
+        // the restored entry is rent-bumped or changes size during the actual
+        // invocation, these additional fees will be covered by the invocation
+        // logic. At the end of doApply, we will charge for writes based on the
+        // final size of the entry, since this is what gets written to the
+        // ledger. Note that we charge minimum rent and read fees based on the
+        // original restored size of the entry, not the final size.
+        mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
+        auto ttlBuf = toCxxBuf(ttlEntry.current().data.ttl());
+        mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+
+        return true;
+    }
+
+    // Before p23, archived entries are never valid
     if (lk.type() == CONTRACT_CODE)
     {
         mDiagnosticEvents.pushApplyTimeDiagnosticError(
@@ -308,7 +389,6 @@ InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(LedgerKey const& lk)
              lk.contractData().key});
     }
 
-    // Cannot access an archived entry
     mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
     return false;
 }
@@ -344,8 +424,11 @@ InvokeHostFunctionOpFrame::ApplyHelper::ApplyHelper(
 
 bool
 InvokeHostFunctionOpFrame::ApplyHelper::addReads(
-    xdr::xvector<LedgerKey> const& keys)
+    xdr::xvector<LedgerKey> const& keys, bool isReadOnly)
 {
+    auto ledgerSeq = mLtx.loadHeader().current().ledgerSeq;
+    auto restoredLiveUntilLedger =
+        ledgerSeq + mSorobanConfig.stateArchivalSettings().minPersistentTTL - 1;
     for (auto const& lk : keys)
     {
         uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -357,25 +440,43 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
         if (isSorobanEntry(lk))
         {
             auto ttlKey = getTTLKey(lk);
-            auto ttlLtxe = mLtx.loadWithoutRecord(ttlKey);
-            if (ttlLtxe)
+
+            // handleArchiveEntry may need to load the TTL key to write the
+            // restored TTL, so make sure ttlLtxe destrects before calling
+            // handleArchiveEntry
+            std::optional<LedgerEntry> ttlEntryOp;
             {
-                if (!isLive(ttlLtxe.current(), mLtx.getHeader().ledgerSeq))
+                auto ttlLtxe = mLtx.loadWithoutRecord(ttlKey);
+                if (ttlLtxe)
+                {
+                    ttlEntryOp = ttlLtxe.current();
+                }
+            }
+
+            if (ttlEntryOp)
+            {
+                if (!isLive(ttlEntryOp.value(), ledgerSeq))
                 {
                     // For temporary entries, treat the expired entry as
                     // if the key did not exist
                     if (!isTemporaryEntry(lk))
                     {
-                        if (!handleArchivedEntry(lk))
+                        auto leLtxe = mLtx.loadWithoutRecord(lk);
+                        if (!handleArchivedEntry(lk, leLtxe.current(),
+                                                 isReadOnly,
+                                                 restoredLiveUntilLedger,
+                                                 /*isHotArchiveEntry=*/false))
                         {
                             return false;
                         }
+
+                        continue;
                     }
                 }
                 else
                 {
                     sorobanEntryLive = true;
-                    ttlEntry = ttlLtxe.current().data.ttl();
+                    ttlEntry = ttlEntryOp->data.ttl();
                 }
             }
             // If ttlLtxe doesn't exist, this is a new Soroban entry
@@ -390,10 +491,18 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
                 auto archiveEntry = mHotArchive->load(lk);
                 if (archiveEntry)
                 {
-                    if (!handleArchivedEntry(lk))
+                    releaseAssert(
+                        archiveEntry->type() ==
+                        HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+                    if (!handleArchivedEntry(lk, archiveEntry->archivedEntry(),
+                                             isReadOnly,
+                                             restoredLiveUntilLedger,
+                                             /*isHotArchiveEntry=*/true))
                     {
                         return false;
                     }
+
+                    continue;
                 }
             }
         }
@@ -423,6 +532,9 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
             }
         }
 
+        // TODO: When we switch to in-memory read resource, this block should be
+        // changed to classic only, since we charge for reads of archived state
+        // (i.e. disk state) in handleArchivedEntry.
         mMetrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
         if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
                                          mAppConfig, mOpFrame.mParentTx,
@@ -456,13 +568,13 @@ InvokeHostFunctionOpFrame::ApplyHelper::apply()
     auto timeScope = mMetrics.getExecTimer();
     auto const& footprint = mResources.footprint;
 
-    if (!addReads(footprint.readOnly))
+    if (!addReads(footprint.readOnly, /*isReadOnly=*/true))
     {
         // Error code set in addReads
         return false;
     }
 
-    if (!addReads(footprint.readWrite))
+    if (!addReads(footprint.readWrite, /*isReadOnly=*/false))
     {
         // Error code set in addReads
         return false;
@@ -682,10 +794,27 @@ InvokeHostFunctionOpFrame::ApplyHelper::apply()
         return false;
     }
 
+    // Calculate refundable fees (rent) for autorestored entries.
+    int64_t autorestoreFee = 0;
+
+    auto const& header = mLtx.getHeader();
+    auto ledgerSeq = header.ledgerSeq;
+    auto ledgerVersion = header.ledgerVersion;
+    if (!mAutorestoreRustEntryRentChanges.empty())
+    {
+        releaseAssertOrThrow(protocolVersionStartsFrom(
+            ledgerVersion,
+            HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        autorestoreFee = rust_bridge::compute_rent_fee(
+            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+            mAutorestoreRustEntryRentChanges,
+            mSorobanConfig.rustBridgeRentFeeConfiguration(), ledgerSeq);
+    }
+
     if (!mSorobanData->consumeRefundableSorobanResources(
-            mMetrics.mEmitEventByte, out.rent_fee,
-            mLtx.loadHeader().current().ledgerVersion, mSorobanConfig,
-            mAppConfig, mOpFrame.mParentTx, mDiagnosticEvents))
+            mMetrics.mEmitEventByte, out.rent_fee + autorestoreFee,
+            ledgerVersion, mSorobanConfig, mAppConfig, mOpFrame.mParentTx,
+            mDiagnosticEvents))
     {
         mOpFrame.innerResult(mRes).code(
             INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);

@@ -105,15 +105,22 @@ class InvokeHostFunctionOpFrame : public OperationFrame
         SearchableHotArchiveSnapshotConstPtr mHotArchive;
         DiagnosticEventBuffer& mDiagnosticEvents;
 
+        // Contains restoration info for all autorestored entries, will be
+        // charged following invocation.
+        rust::Vec<CxxLedgerEntryRentChange> mAutorestoreRustEntryRentChanges;
+
         // Helper called on all archived keys in the footprint. Returns false if
         // the operation should fail and populates result code and diagnostic
         // events. Returns true if no failure occurred.
-        bool handleArchivedEntry(LedgerKey const& lk);
+        bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                                 bool isReadOnly,
+                                 uint32_t restoredLiveUntilLedger,
+                                 bool isHotArchiveEntry);
 
         // Checks and meters the given keys. Returns false if the operation
         // should fail and populates result code and diagnostic events. Returns
         // true if no failure occurred.
-        bool addReads(xdr::xvector<LedgerKey> const& keys);
+        bool addReads(xdr::xvector<LedgerKey> const& keys, bool isReadOnly);
 
       public:
         ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,

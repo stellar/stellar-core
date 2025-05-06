@@ -581,20 +581,20 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     will create both data data/contract entry and
     //     corresponding TTL entry. Prior to this call, the data/contract key
     //     and TTL key must not exist in the live BucketList or any parent ltx,
-    //     throws otherwise.
+    //     throws otherwise. Returns the TTL entry created.
     // - restoreFromLiveBucketlist:
     //     Indicates that an entry in the live BucketList is being restored and
     //     updates the TTL entry accordingly. TTL key must exist, throws
-    //     otherwise.
+    //     otherwise. Returns the TTL entry that was modified.
     // All of these functions throw if the AbstractLedgerTxn is sealed or if
     // the AbstractLedgerTxn has a child.
     virtual LedgerTxnHeader loadHeader() = 0;
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
     virtual void erase(InternalLedgerKey const& key) = 0;
-    virtual void restoreFromHotArchive(LedgerEntry const& entry,
-                                       uint32_t ttl) = 0;
-    virtual void restoreFromLiveBucketList(LedgerKey const& key,
-                                           uint32_t ttl) = 0;
+    virtual LedgerTxnEntry restoreFromHotArchive(LedgerEntry const& entry,
+                                                 uint32_t ttl) = 0;
+    virtual LedgerTxnEntry restoreFromLiveBucketList(LedgerKey const& key,
+                                                     uint32_t ttl) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) = 0;
@@ -740,8 +740,10 @@ class LedgerTxn : public AbstractLedgerTxn
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
     void erase(InternalLedgerKey const& key) override;
-    void restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl) override;
-    void restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl) override;
+    LedgerTxnEntry restoreFromHotArchive(LedgerEntry const& entry,
+                                         uint32_t ttl) override;
+    LedgerTxnEntry restoreFromLiveBucketList(LedgerKey const& key,
+                                             uint32_t ttl) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 

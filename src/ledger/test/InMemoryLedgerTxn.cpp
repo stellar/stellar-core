@@ -274,14 +274,14 @@ InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
     throw std::runtime_error("called erase on InMemoryLedgerTxn");
 }
 
-void
+LedgerTxnEntry
 InMemoryLedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
     throw std::runtime_error(
         "called restoreFromHotArchive on InMemoryLedgerTxn");
 }
 
-void
+LedgerTxnEntry
 InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
 {
     throw std::runtime_error(
