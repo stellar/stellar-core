@@ -225,6 +225,12 @@ class SCPDriver
     {
     }
 
+    // `acceptedNomination` every time a nomination is accepted
+    virtual void
+    acceptedNomination(uint64 slotIndex)
+    {
+    }
+
     // `confirmedBallotPrepared` every time a ballot is confirmed prepared
     virtual void
     confirmedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
