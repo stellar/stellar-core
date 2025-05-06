@@ -365,15 +365,17 @@ class LedgerTxn::Impl
     // throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
-    void restoreFromHotArchive(LedgerTxn& self, LedgerEntry const& entry,
-                               uint32_t ttl);
+    LedgerTxnEntry restoreFromHotArchive(LedgerTxn& self,
+                                         LedgerEntry const& entry,
+                                         uint32_t ttl);
 
     // restoreFromLiveBucketList has the basic exception safety guarantee. If it
     // throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
-    void restoreFromLiveBucketList(LedgerTxn& self, LedgerKey const& key,
-                                   uint32_t ttl);
+    LedgerTxnEntry restoreFromLiveBucketList(LedgerTxn& self,
+                                             LedgerKey const& key,
+                                             uint32_t ttl);
 
     // getAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then

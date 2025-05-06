@@ -61,7 +61,8 @@ struct HostFunctionMetrics
     HostFunctionMetrics(SorobanMetrics& metrics);
     ~HostFunctionMetrics();
 
-    void noteReadEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize);
+    void noteDiskReadEntry(bool isCodeEntry, uint32_t keySize,
+                           uint32_t entrySize);
     void noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize);
     medida::TimerContext getExecTimer();
 };
@@ -93,27 +94,45 @@ class InvokeHostFunctionOpFrame : public OperationFrame
         InvokeHostFunctionOpFrame const& mOpFrame;
         Hash const& mSorobanBasePrngSeed;
 
-        // Config and resources - derived from app and parentTx
         SorobanResources const& mResources;
         SorobanNetworkConfig const& mSorobanConfig;
         Config const& mAppConfig;
 
-        // Derived data
         rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
         rust::Vec<CxxBuf> mTtlEntryCxxBufs;
         HostFunctionMetrics mMetrics;
         SearchableHotArchiveSnapshotConstPtr mHotArchive;
         DiagnosticEventManager& mDiagnosticEvents;
 
+        // Stores our current search position in archivedSorobanEntries. Note
+        // that archivedSorobanEntries is itself a vector of indices into the
+        // readWrite footprint, so this is an index pointing to a vector of
+        // indices.
+        uint32_t mNextArchivedIndexPos{0};
+
         // Helper called on all archived keys in the footprint. Returns false if
         // the operation should fail and populates result code and diagnostic
         // events. Returns true if no failure occurred.
-        bool handleArchivedEntry(LedgerKey const& lk);
+        bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                                 bool isReadOnly,
+                                 uint32_t restoredLiveUntilLedger,
+                                 bool isHotArchiveEntry);
+
+        // Helper to meter disk read resources and validate resource usage.
+        // Returns false if the operation should fail and populates result code
+        // and diagnostic events.
+        bool meterDiskReadResource(LedgerKey const& lk, uint32_t keySize,
+                                   uint32_t entrySize);
+
+        // Returns true if the given key is marked for autorestore, false
+        // otherwise. If the entry is marked, increments mNextArchivedIndexPos.
+        // Assumes that lk is a read-write key.
+        bool checkIfEntryIsMarkedForAutorestore(LedgerKey const& lk);
 
         // Checks and meters the given keys. Returns false if the operation
         // should fail and populates result code and diagnostic events. Returns
         // true if no failure occurred.
-        bool addReads(xdr::xvector<LedgerKey> const& keys);
+        bool addReads(xdr::xvector<LedgerKey> const& keys, bool isReadOnly);
 
       public:
         ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,
