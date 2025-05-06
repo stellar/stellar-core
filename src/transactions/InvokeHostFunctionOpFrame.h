@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
+#include "ledger/SorobanMetrics.h"
 #include "rust/RustBridge.h"
 #include "transactions/OperationFrame.h"
 #include "xdr/Stellar-transaction.h"
@@ -16,6 +18,53 @@ class MutableTransactionResultBase;
 
 static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
+
+// Metrics for host function execution
+struct HostFunctionMetrics
+{
+    SorobanMetrics& mMetrics;
+
+    uint32_t mReadEntry{0};
+    uint32_t mWriteEntry{0};
+
+    uint32_t mLedgerReadByte{0};
+    uint32_t mLedgerWriteByte{0};
+
+    uint32_t mReadKeyByte{0};
+    uint32_t mWriteKeyByte{0};
+
+    uint32_t mReadDataByte{0};
+    uint32_t mWriteDataByte{0};
+
+    uint32_t mReadCodeByte{0};
+    uint32_t mWriteCodeByte{0};
+
+    uint32_t mEmitEvent{0};
+    uint32_t mEmitEventByte{0};
+
+    // host runtime metrics
+    uint64_t mCpuInsn{0};
+    uint64_t mMemByte{0};
+    uint64_t mInvokeTimeNsecs{0};
+    uint64_t mCpuInsnExclVm{0};
+    uint64_t mInvokeTimeNsecsExclVm{0};
+    uint64_t mDeclaredCpuInsn{0};
+
+    // max single entity size metrics
+    uint32_t mMaxReadWriteKeyByte{0};
+    uint32_t mMaxReadWriteDataByte{0};
+    uint32_t mMaxReadWriteCodeByte{0};
+    uint32_t mMaxEmitEventByte{0};
+
+    bool mSuccess{false};
+
+    HostFunctionMetrics(SorobanMetrics& metrics);
+    ~HostFunctionMetrics();
+
+    void noteReadEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize);
+    void noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize);
+    medida::TimerContext getExecTimer();
+};
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
@@ -31,6 +80,50 @@ class InvokeHostFunctionOpFrame : public OperationFrame
                                        DiagnosticEventBuffer& buffer) const;
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
+
+    // Inner helper class for handling reads in doApply
+    class ApplyHelper
+    {
+      private:
+        AppConnector& mApp;
+        AbstractLedgerTxn& mLtx;
+        OperationResult& mRes;
+        std::shared_ptr<SorobanTxData> mSorobanData;
+        OpEventManager& mOpEventManager;
+        InvokeHostFunctionOpFrame const& mOpFrame;
+        Hash const& mSorobanBasePrngSeed;
+
+        // Config and resources - derived from app and parentTx
+        SorobanResources const& mResources;
+        SorobanNetworkConfig const& mSorobanConfig;
+        Config const& mAppConfig;
+
+        // Derived data
+        rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
+        rust::Vec<CxxBuf> mTtlEntryCxxBufs;
+        HostFunctionMetrics mMetrics;
+        SearchableHotArchiveSnapshotConstPtr mHotArchive;
+        DiagnosticEventBuffer& mDiagnosticEvents;
+
+        // Helper called on all archived keys in the footprint. Returns false if
+        // the operation should fail and populates result code and diagnostic
+        // events. Returns true if no failure occurred.
+        bool handleArchivedEntry(LedgerKey const& lk);
+
+        // Checks and meters the given keys. Returns false if the operation
+        // should fail and populates result code and diagnostic events. Returns
+        // true if no failure occurred.
+        bool addReads(xdr::xvector<LedgerKey> const& keys);
+
+      public:
+        ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,
+                    Hash const& sorobanBasePrngSeed, OperationResult& res,
+                    std::shared_ptr<SorobanTxData> sorobanData,
+                    OpEventManager& opEventManager,
+                    InvokeHostFunctionOpFrame const& opFrame);
+
+        bool apply();
+    };
 
   public:
     InvokeHostFunctionOpFrame(Operation const& op,
