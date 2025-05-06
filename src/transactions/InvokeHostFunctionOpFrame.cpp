@@ -82,145 +82,109 @@ metricsEvent(bool success, std::string&& topic, uint64_t value)
     de.event.body.v0().data = makeU64SCVal(value);
     return de;
 }
+}
 
-} // namespace
-
-struct HostFunctionMetrics
+HostFunctionMetrics::HostFunctionMetrics(SorobanMetrics& metrics)
+    : mMetrics(metrics)
 {
-    SorobanMetrics& mMetrics;
+}
 
-    uint32_t mReadEntry{0};
-    uint32_t mWriteEntry{0};
-
-    uint32_t mLedgerReadByte{0};
-    uint32_t mLedgerWriteByte{0};
-
-    uint32_t mReadKeyByte{0};
-    uint32_t mWriteKeyByte{0};
-
-    uint32_t mReadDataByte{0};
-    uint32_t mWriteDataByte{0};
-
-    uint32_t mReadCodeByte{0};
-    uint32_t mWriteCodeByte{0};
-
-    uint32_t mEmitEvent{0};
-    uint32_t mEmitEventByte{0};
-
-    // host runtime metrics
-    uint64_t mCpuInsn{0};
-    uint64_t mMemByte{0};
-    uint64_t mInvokeTimeNsecs{0};
-    uint64_t mCpuInsnExclVm{0};
-    uint64_t mInvokeTimeNsecsExclVm{0};
-    uint64_t mDeclaredCpuInsn{0};
-
-    // max single entity size metrics
-    uint32_t mMaxReadWriteKeyByte{0};
-    uint32_t mMaxReadWriteDataByte{0};
-    uint32_t mMaxReadWriteCodeByte{0};
-    uint32_t mMaxEmitEventByte{0};
-
-    bool mSuccess{false};
-
-    HostFunctionMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
+void
+HostFunctionMetrics::noteReadEntry(bool isCodeEntry, uint32_t keySize,
+                                   uint32_t entrySize)
+{
+    mReadEntry++;
+    mReadKeyByte += keySize;
+    mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
+    mLedgerReadByte += entrySize;
+    if (isCodeEntry)
     {
+        mReadCodeByte += entrySize;
+        mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
     }
-
-    void
-    noteReadEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
+    else
     {
-        mReadEntry++;
-        mReadKeyByte += keySize;
-        mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
-        mLedgerReadByte += entrySize;
-        if (isCodeEntry)
-        {
-            mReadCodeByte += entrySize;
-            mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
-        }
-        else
-        {
-            mReadDataByte += entrySize;
-            mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
-        }
+        mReadDataByte += entrySize;
+        mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
     }
+}
 
-    void
-    noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
+void
+HostFunctionMetrics::noteWriteEntry(bool isCodeEntry, uint32_t keySize,
+                                    uint32_t entrySize)
+{
+    mWriteEntry++;
+    mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
+    mLedgerWriteByte += entrySize;
+    if (isCodeEntry)
     {
-        mWriteEntry++;
-        mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
-        mLedgerWriteByte += entrySize;
-        if (isCodeEntry)
-        {
-            mWriteCodeByte += entrySize;
-            mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
-        }
-        else
-        {
-            mWriteDataByte += entrySize;
-            mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
-        }
+        mWriteCodeByte += entrySize;
+        mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
     }
-
-    ~HostFunctionMetrics()
+    else
     {
-        mMetrics.mHostFnOpReadEntry.Mark(mReadEntry);
-        mMetrics.mHostFnOpWriteEntry.Mark(mWriteEntry);
-
-        mMetrics.mHostFnOpReadKeyByte.Mark(mReadKeyByte);
-        mMetrics.mHostFnOpWriteKeyByte.Mark(mWriteKeyByte);
-
-        mMetrics.mHostFnOpReadLedgerByte.Mark(mLedgerReadByte);
-        mMetrics.mHostFnOpReadDataByte.Mark(mReadDataByte);
-        mMetrics.mHostFnOpReadCodeByte.Mark(mReadCodeByte);
-
-        mMetrics.mHostFnOpWriteLedgerByte.Mark(mLedgerWriteByte);
-        mMetrics.mHostFnOpWriteDataByte.Mark(mWriteDataByte);
-        mMetrics.mHostFnOpWriteCodeByte.Mark(mWriteCodeByte);
-
-        mMetrics.mHostFnOpEmitEvent.Mark(mEmitEvent);
-        mMetrics.mHostFnOpEmitEventByte.Mark(mEmitEventByte);
-
-        mMetrics.mHostFnOpCpuInsn.Mark(mCpuInsn);
-        mMetrics.mHostFnOpMemByte.Mark(mMemByte);
-        mMetrics.mHostFnOpInvokeTimeNsecs.Update(
-            std::chrono::nanoseconds(mInvokeTimeNsecs));
-        mMetrics.mHostFnOpCpuInsnExclVm.Mark(mCpuInsnExclVm);
-        mMetrics.mHostFnOpInvokeTimeNsecsExclVm.Update(
-            std::chrono::nanoseconds(mInvokeTimeNsecsExclVm));
-        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatio.Update(
-            mInvokeTimeNsecs * 1000000 / std::max(mCpuInsn, uint64_t(1)));
-        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.Update(
-            mInvokeTimeNsecsExclVm * 1000000 /
-            std::max(mCpuInsnExclVm, uint64_t(1)));
-        mMetrics.mHostFnOpDeclaredInsnsUsageRatio.Update(
-            mCpuInsn * 1000000 / std::max(mDeclaredCpuInsn, uint64_t(1)));
-
-        mMetrics.mHostFnOpMaxRwKeyByte.Mark(mMaxReadWriteKeyByte);
-        mMetrics.mHostFnOpMaxRwDataByte.Mark(mMaxReadWriteDataByte);
-        mMetrics.mHostFnOpMaxRwCodeByte.Mark(mMaxReadWriteCodeByte);
-        mMetrics.mHostFnOpMaxEmitEventByte.Mark(mMaxEmitEventByte);
-
-        mMetrics.accumulateModelledCpuInsns(mCpuInsn, mCpuInsnExclVm,
-                                            mInvokeTimeNsecs);
-
-        if (mSuccess)
-        {
-            mMetrics.mHostFnOpSuccess.Mark();
-        }
-        else
-        {
-            mMetrics.mHostFnOpFailure.Mark();
-        }
+        mWriteDataByte += entrySize;
+        mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
     }
-    medida::TimerContext
-    getExecTimer()
+}
+
+HostFunctionMetrics::~HostFunctionMetrics()
+{
+    mMetrics.mHostFnOpReadEntry.Mark(mReadEntry);
+    mMetrics.mHostFnOpWriteEntry.Mark(mWriteEntry);
+
+    mMetrics.mHostFnOpReadKeyByte.Mark(mReadKeyByte);
+    mMetrics.mHostFnOpWriteKeyByte.Mark(mWriteKeyByte);
+
+    mMetrics.mHostFnOpReadLedgerByte.Mark(mLedgerReadByte);
+    mMetrics.mHostFnOpReadDataByte.Mark(mReadDataByte);
+    mMetrics.mHostFnOpReadCodeByte.Mark(mReadCodeByte);
+
+    mMetrics.mHostFnOpWriteLedgerByte.Mark(mLedgerWriteByte);
+    mMetrics.mHostFnOpWriteDataByte.Mark(mWriteDataByte);
+    mMetrics.mHostFnOpWriteCodeByte.Mark(mWriteCodeByte);
+
+    mMetrics.mHostFnOpEmitEvent.Mark(mEmitEvent);
+    mMetrics.mHostFnOpEmitEventByte.Mark(mEmitEventByte);
+
+    mMetrics.mHostFnOpCpuInsn.Mark(mCpuInsn);
+    mMetrics.mHostFnOpMemByte.Mark(mMemByte);
+    mMetrics.mHostFnOpInvokeTimeNsecs.Update(
+        std::chrono::nanoseconds(mInvokeTimeNsecs));
+    mMetrics.mHostFnOpCpuInsnExclVm.Mark(mCpuInsnExclVm);
+    mMetrics.mHostFnOpInvokeTimeNsecsExclVm.Update(
+        std::chrono::nanoseconds(mInvokeTimeNsecsExclVm));
+    mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatio.Update(
+        mInvokeTimeNsecs * 1000000 / std::max(mCpuInsn, uint64_t(1)));
+    mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.Update(
+        mInvokeTimeNsecsExclVm * 1000000 /
+        std::max(mCpuInsnExclVm, uint64_t(1)));
+    mMetrics.mHostFnOpDeclaredInsnsUsageRatio.Update(
+        mCpuInsn * 1000000 / std::max(mDeclaredCpuInsn, uint64_t(1)));
+
+    mMetrics.mHostFnOpMaxRwKeyByte.Mark(mMaxReadWriteKeyByte);
+    mMetrics.mHostFnOpMaxRwDataByte.Mark(mMaxReadWriteDataByte);
+    mMetrics.mHostFnOpMaxRwCodeByte.Mark(mMaxReadWriteCodeByte);
+    mMetrics.mHostFnOpMaxEmitEventByte.Mark(mMaxEmitEventByte);
+
+    mMetrics.accumulateModelledCpuInsns(mCpuInsn, mCpuInsnExclVm,
+                                        mInvokeTimeNsecs);
+
+    if (mSuccess)
     {
-        return mMetrics.mHostFnOpExec.TimeScope();
+        mMetrics.mHostFnOpSuccess.Mark();
     }
-};
+    else
+    {
+        mMetrics.mHostFnOpFailure.Mark();
+    }
+}
+
+medida::TimerContext
+HostFunctionMetrics::getExecTimer()
+{
+    return mMetrics.mHostFnOpExec.TimeScope();
+}
 
 InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(
     Operation const& op, TransactionFrame const& parentTx)
@@ -296,179 +260,175 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 }
 
 bool
-InvokeHostFunctionOpFrame::doApply(
+InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(LedgerKey const& lk)
+{
+    // TODO: Auto restore support in p23
+
+    // Push appropriate diagnostic error based on entry type
+    if (lk.type() == CONTRACT_CODE)
+    {
+        mDiagnosticEvents.pushError(
+            SCE_VALUE, SCEC_INVALID_INPUT,
+            "trying to access an archived contract code entry",
+            {makeBytesSCVal(lk.contractCode().hash)});
+    }
+    else if (lk.type() == CONTRACT_DATA)
+    {
+        mDiagnosticEvents.pushError(
+            SCE_VALUE, SCEC_INVALID_INPUT,
+            "trying to access an archived contract data entry",
+            {makeAddressSCVal(lk.contractData().contract),
+             lk.contractData().key});
+    }
+
+    // Cannot access an archived entry
+    mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+    return false;
+}
+
+InvokeHostFunctionOpFrame::ApplyHelper::ApplyHelper(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+    OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
+    : mApp(app)
+    , mLtx(ltx)
+    , mRes(res)
+    , mRefundableFeeTracker(refundableFeeTracker)
+    , mOpMeta(opMeta)
+    , mOpFrame(opFrame)
+    , mSorobanBasePrngSeed(sorobanBasePrngSeed)
+    , mResources(mOpFrame.mParentTx.sorobanResources())
+    , mSorobanConfig(app.getSorobanNetworkConfigForApply())
+    , mAppConfig(app.getConfig())
+    , mMetrics(app.getSorobanMetrics())
+    , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
+    , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
 {
-    ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
-    releaseAssertOrThrow(refundableFeeTracker);
+    mMetrics.mDeclaredCpuInsn = mResources.instructions;
 
-    Config const& appConfig = app.getConfig();
-    HostFunctionMetrics metrics(app.getSorobanMetrics());
-    auto timeScope = metrics.getExecTimer();
-    auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
-
-    // Get the entries for the footprint
-    rust::Vec<CxxBuf> ledgerEntryCxxBufs;
-    rust::Vec<CxxBuf> ttlEntryCxxBufs;
-
-    auto const& resources = mParentTx.sorobanResources();
-    metrics.mDeclaredCpuInsn = resources.instructions;
-
-    auto const& footprint = resources.footprint;
+    auto const& footprint = mResources.footprint;
     auto footprintLength =
         footprint.readOnly.size() + footprint.readWrite.size();
-    auto hotArchive = app.copySearchableHotArchiveBucketListSnapshot();
 
-    ledgerEntryCxxBufs.reserve(footprintLength);
-    ttlEntryCxxBufs.reserve(footprintLength);
+    // Get the entries for the footprint
+    mLedgerEntryCxxBufs.reserve(footprintLength);
+    mTtlEntryCxxBufs.reserve(footprintLength);
+}
 
-    auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
-    auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, &sorobanConfig, &appConfig, &diagnosticEvents,
-                     &res, &hotArchive, this](auto const& keys) -> bool {
-        for (auto const& lk : keys)
+bool
+InvokeHostFunctionOpFrame::ApplyHelper::addReads(
+    xdr::xvector<LedgerKey> const& keys)
+{
+    for (auto const& lk : keys)
+    {
+        uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
+        uint32_t entrySize = 0u;
+        std::optional<TTLEntry> ttlEntry;
+        bool sorobanEntryLive = false;
+
+        // For soroban entries, check if the entry is expired before loading
+        if (isSorobanEntry(lk))
         {
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
-            uint32_t entrySize = 0u;
-            std::optional<TTLEntry> ttlEntry;
-            bool sorobanEntryLive = false;
-
-            // For soroban entries, check if the entry is expired before loading
-            if (isSorobanEntry(lk))
+            auto ttlKey = getTTLKey(lk);
+            auto ttlLtxe = mLtx.loadWithoutRecord(ttlKey);
+            if (ttlLtxe)
             {
-                auto ttlKey = getTTLKey(lk);
-                auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-                if (ttlLtxe)
+                if (!isLive(ttlLtxe.current(), mLtx.getHeader().ledgerSeq))
                 {
-                    if (!isLive(ttlLtxe.current(), ltx.getHeader().ledgerSeq))
+                    // For temporary entries, treat the expired entry as
+                    // if the key did not exist
+                    if (!isTemporaryEntry(lk))
                     {
-                        // For temporary entries, treat the expired entry as
-                        // if the key did not exist
-                        if (!isTemporaryEntry(lk))
+                        if (!handleArchivedEntry(lk))
                         {
-                            if (lk.type() == CONTRACT_CODE)
-                            {
-                                diagnosticEvents.pushError(
-                                    SCE_VALUE, SCEC_INVALID_INPUT,
-                                    "trying to access an archived contract "
-                                    "code "
-                                    "entry",
-                                    {makeBytesSCVal(lk.contractCode().hash)});
-                            }
-                            else if (lk.type() == CONTRACT_DATA)
-                            {
-                                diagnosticEvents.pushError(
-                                    SCE_VALUE, SCEC_INVALID_INPUT,
-                                    "trying to access an archived contract "
-                                    "data "
-                                    "entry",
-                                    {makeAddressSCVal(
-                                         lk.contractData().contract),
-                                     lk.contractData().key});
-                            }
-                            // Cannot access an archived entry
-                            this->innerResult(res).code(
-                                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
                             return false;
                         }
                     }
-                    else
-                    {
-                        sorobanEntryLive = true;
-                        ttlEntry = ttlLtxe.current().data.ttl();
-                    }
                 }
-                // If ttlLtxe doesn't exist, this is a new Soroban entry
-                // Starting in protocol 23, we must check the Hot Archive for
-                // new keys. If a new key is actually archived, fail the op.
-                else if (isPersistentEntry(lk) &&
-                         protocolVersionStartsFrom(
-                             ltx.getHeader().ledgerVersion,
-                             HotArchiveBucket::
-                                 FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                else
                 {
-                    auto archiveEntry = hotArchive->load(lk);
-                    if (archiveEntry)
+                    sorobanEntryLive = true;
+                    ttlEntry = ttlLtxe.current().data.ttl();
+                }
+            }
+            // If ttlLtxe doesn't exist, this is a new Soroban entry
+            // Starting in protocol 23, we must check the Hot Archive for
+            // new keys. If a new key is actually archived, fail the op.
+            else if (isPersistentEntry(lk) &&
+                     protocolVersionStartsFrom(
+                         mLtx.getHeader().ledgerVersion,
+                         HotArchiveBucket::
+                             FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                auto archiveEntry = mHotArchive->load(lk);
+                if (archiveEntry)
+                {
+                    if (!handleArchivedEntry(lk))
                     {
-                        if (lk.type() == CONTRACT_CODE)
-                        {
-                            diagnosticEvents.pushError(
-                                SCE_VALUE, SCEC_INVALID_INPUT,
-                                "trying to access an archived contract code "
-                                "entry",
-                                {makeBytesSCVal(lk.contractCode().hash)});
-                        }
-                        else if (lk.type() == CONTRACT_DATA)
-                        {
-                            diagnosticEvents.pushError(
-                                SCE_VALUE, SCEC_INVALID_INPUT,
-                                "trying to access an archived contract data "
-                                "entry",
-                                {makeAddressSCVal(lk.contractData().contract),
-                                 lk.contractData().key});
-                        }
-                        // Cannot access an archived entry
-                        this->innerResult(res).code(
-                            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
                         return false;
                     }
                 }
             }
+        }
 
-            if (!isSorobanEntry(lk) || sorobanEntryLive)
+        if (!isSorobanEntry(lk) || sorobanEntryLive)
+        {
+            auto ltxe = mLtx.loadWithoutRecord(lk);
+            if (ltxe)
             {
-                auto ltxe = ltx.loadWithoutRecord(lk);
-                if (ltxe)
-                {
-                    auto leBuf = toCxxBuf(ltxe.current());
-                    entrySize = static_cast<uint32_t>(leBuf.data->size());
+                auto leBuf = toCxxBuf(ltxe.current());
+                entrySize = static_cast<uint32_t>(leBuf.data->size());
 
-                    // For entry types that don't have an ttlEntry (i.e.
-                    // Accounts), the rust host expects an "empty" CxxBuf such
-                    // that the buffer has a non-null pointer that points to an
-                    // empty byte vector
-                    auto ttlBuf =
-                        ttlEntry
-                            ? toCxxBuf(*ttlEntry)
-                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+                // For entry types that don't have an ttlEntry (i.e.
+                // Accounts), the rust host expects an "empty" CxxBuf such
+                // that the buffer has a non-null pointer that points to an
+                // empty byte vector
+                auto ttlBuf =
+                    ttlEntry ? toCxxBuf(*ttlEntry)
+                             : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
 
-                    ledgerEntryCxxBufs.emplace_back(std::move(leBuf));
-                    ttlEntryCxxBufs.emplace_back(std::move(ttlBuf));
-                }
-                else if (isSorobanEntry(lk))
-                {
-                    releaseAssertOrThrow(!ttlEntry);
-                }
+                mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
+                mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
             }
-
-            metrics.noteReadEntry(isContractCodeEntry(lk), keySize, entrySize);
-            if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                             appConfig, mParentTx,
-                                             diagnosticEvents))
+            else if (isSorobanEntry(lk))
             {
-                this->innerResult(res).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            if (resources.diskReadBytes < metrics.mLedgerReadByte)
-            {
-                diagnosticEvents.pushError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation byte-read resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.diskReadBytes)});
-
-                this->innerResult(res).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                return false;
+                releaseAssertOrThrow(!ttlEntry);
             }
         }
-        return true;
-    };
+
+        mMetrics.noteReadEntry(isContractCodeEntry(lk), keySize, entrySize);
+        if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
+                                         mAppConfig, mOpFrame.mParentTx,
+                                         mDiagnosticEvents))
+        {
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
+        {
+            mDiagnosticEvents.pushError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-read resources exceeds amount specified",
+                {makeU64SCVal(mMetrics.mLedgerReadByte),
+                 makeU64SCVal(mResources.diskReadBytes)});
+
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
+InvokeHostFunctionOpFrame::ApplyHelper::apply()
+{
+    ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
+    auto timeScope = mMetrics.getExecTimer();
+    auto const& footprint = mResources.footprint;
 
     if (!addReads(footprint.readOnly))
     {
@@ -483,8 +443,8 @@ InvokeHostFunctionOpFrame::doApply(
     }
 
     rust::Vec<CxxBuf> authEntryCxxBufs;
-    authEntryCxxBufs.reserve(mInvokeHostFunction.auth.size());
-    for (auto const& authEntry : mInvokeHostFunction.auth)
+    authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
+    for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
     {
         authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
     }
@@ -495,27 +455,28 @@ InvokeHostFunctionOpFrame::doApply(
     {
         CxxBuf basePrngSeedBuf{};
         basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
-        basePrngSeedBuf.data->assign(sorobanBasePrngSeed.begin(),
-                                     sorobanBasePrngSeed.end());
-        auto moduleCache = app.getModuleCache();
+        basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
+                                     mSorobanBasePrngSeed.end());
+        auto moduleCache = mApp.getModuleCache();
         out = rust_bridge::invoke_host_function(
-            appConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
-            appConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, resources.instructions,
-            toCxxBuf(mInvokeHostFunction.hostFunction), toCxxBuf(resources),
-            toCxxBuf(getSourceID()), authEntryCxxBufs,
-            getLedgerInfo(ltx, app, sorobanConfig), ledgerEntryCxxBufs,
-            ttlEntryCxxBufs, basePrngSeedBuf,
-            sorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
-        metrics.mCpuInsn = out.cpu_insns;
-        metrics.mMemByte = out.mem_bytes;
-        metrics.mInvokeTimeNsecs = out.time_nsecs;
-        metrics.mCpuInsnExclVm = out.cpu_insns_excluding_vm_instantiation;
-        metrics.mInvokeTimeNsecsExclVm =
+            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+            mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
+            mResources.instructions,
+            toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
+            toCxxBuf(mResources), toCxxBuf(mOpFrame.getSourceID()),
+            authEntryCxxBufs, getLedgerInfo(mLtx, mApp, mSorobanConfig),
+            mLedgerEntryCxxBufs, mTtlEntryCxxBufs, basePrngSeedBuf,
+            mSorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
+        mMetrics.mCpuInsn = out.cpu_insns;
+        mMetrics.mMemByte = out.mem_bytes;
+        mMetrics.mInvokeTimeNsecs = out.time_nsecs;
+        mMetrics.mCpuInsnExclVm = out.cpu_insns_excluding_vm_instantiation;
+        mMetrics.mInvokeTimeNsecsExclVm =
             out.time_nsecs_excluding_vm_instantiation;
         if (!out.success)
         {
-            maybePopulateDiagnosticEvents(appConfig, out, metrics,
-                                          diagnosticEvents);
+            mOpFrame.maybePopulateDiagnosticEvents(mAppConfig, out, mMetrics,
+                                                   mDiagnosticEvents);
         }
     }
     catch (std::exception& e)
@@ -533,27 +494,29 @@ InvokeHostFunctionOpFrame::doApply(
             throw std::runtime_error(
                 "Got internal error during Soroban host invocation.");
         }
-        if (resources.instructions < out.cpu_insns)
+        if (mResources.instructions < out.cpu_insns)
         {
-            diagnosticEvents.pushError(
+            mDiagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
-                 makeU64SCVal(resources.instructions)});
-            innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                 makeU64SCVal(mResources.instructions)});
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         }
-        else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
+        else if (mSorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
-            diagnosticEvents.pushError(
+            mDiagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
                 {makeU64SCVal(out.mem_bytes),
-                 makeU64SCVal(sorobanConfig.txMemoryLimit())});
-            innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                 makeU64SCVal(mSorobanConfig.txMemoryLimit())});
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         }
         else
         {
-            innerResult(res).code(INVOKE_HOST_FUNCTION_TRAPPED);
+            mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_TRAPPED);
         }
         return false;
     }
@@ -566,10 +529,11 @@ InvokeHostFunctionOpFrame::doApply(
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
         if (!validateContractLedgerEntry(LedgerEntryKey(le), buf.data.size(),
-                                         sorobanConfig, appConfig, mParentTx,
-                                         diagnosticEvents))
+                                         mSorobanConfig, mAppConfig,
+                                         mOpFrame.mParentTx, mDiagnosticEvents))
         {
-            innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
 
@@ -583,28 +547,29 @@ InvokeHostFunctionOpFrame::doApply(
         // accounted for by the host
         if (lk.type() != TTL)
         {
-            metrics.noteWriteEntry(isContractCodeEntry(lk), keySize, entrySize);
-            if (resources.writeBytes < metrics.mLedgerWriteByte)
+            mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
+                                    entrySize);
+            if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
             {
-                diagnosticEvents.pushError(
+                mDiagnosticEvents.pushError(
                     SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerWriteByte),
-                     makeU64SCVal(resources.writeBytes)});
-                innerResult(res).code(
+                    {makeU64SCVal(mMetrics.mLedgerWriteByte),
+                     makeU64SCVal(mResources.writeBytes)});
+                mOpFrame.innerResult(mRes).code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
         }
 
-        auto ltxe = ltx.load(lk);
+        auto ltxe = mLtx.load(lk);
         if (ltxe)
         {
             ltxe.current() = le;
         }
         else
         {
-            ltx.create(le);
+            mLtx.create(le);
             createdKeys.insert(lk);
         }
     }
@@ -632,17 +597,17 @@ InvokeHostFunctionOpFrame::doApply(
     {
         if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
         {
-            auto ltxe = ltx.load(lk);
+            auto ltxe = mLtx.load(lk);
             if (ltxe)
             {
                 releaseAssertOrThrow(isSorobanEntry(lk));
-                ltx.erase(lk);
+                mLtx.erase(lk);
 
                 // Also delete associated ttlEntry
                 auto ttlLK = getTTLKey(lk);
-                auto ttlLtxe = ltx.load(ttlLK);
+                auto ttlLtxe = mLtx.load(ttlLK);
                 releaseAssertOrThrow(ttlLtxe);
-                ltx.erase(ttlLK);
+                mLtx.erase(ttlLK);
             }
         }
     }
@@ -653,20 +618,21 @@ InvokeHostFunctionOpFrame::doApply(
     success.events.reserve(out.contract_events.size());
     for (auto const& buf : out.contract_events)
     {
-        metrics.mEmitEvent++;
+        mMetrics.mEmitEvent++;
         uint32_t eventSize = static_cast<uint32_t>(buf.data.size());
-        metrics.mEmitEventByte += eventSize;
-        metrics.mMaxEmitEventByte =
-            std::max(metrics.mMaxEmitEventByte, eventSize);
-        if (sorobanConfig.txMaxContractEventsSizeBytes() <
-            metrics.mEmitEventByte)
+        mMetrics.mEmitEventByte += eventSize;
+        mMetrics.mMaxEmitEventByte =
+            std::max(mMetrics.mMaxEmitEventByte, eventSize);
+        if (mSorobanConfig.txMaxContractEventsSizeBytes() <
+            mMetrics.mEmitEventByte)
         {
-            diagnosticEvents.pushError(
+            mDiagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "total events size exceeds network config maximum",
-                {makeU64SCVal(metrics.mEmitEventByte),
-                 makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
-            innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                {makeU64SCVal(mMetrics.mEmitEventByte),
+                 makeU64SCVal(mSorobanConfig.txMaxContractEventsSizeBytes())});
+            mOpFrame.innerResult(mRes).code(
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
         ContractEvent evt;
@@ -674,37 +640,57 @@ InvokeHostFunctionOpFrame::doApply(
         success.events.emplace_back(evt);
     }
 
-    maybePopulateDiagnosticEvents(appConfig, out, metrics, diagnosticEvents);
+    mOpFrame.maybePopulateDiagnosticEvents(mAppConfig, out, mMetrics,
+                                           mDiagnosticEvents);
 
-    metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
-    if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
+    mMetrics.mEmitEventByte +=
+        static_cast<uint32>(out.result_value.data.size());
+    if (mSorobanConfig.txMaxContractEventsSizeBytes() < mMetrics.mEmitEventByte)
     {
-        diagnosticEvents.pushError(
+        mDiagnosticEvents.pushError(
             SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
-            {makeU64SCVal(metrics.mEmitEventByte),
-             makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
-        innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            {makeU64SCVal(mMetrics.mEmitEventByte),
+             makeU64SCVal(mSorobanConfig.txMaxContractEventsSizeBytes())});
+        mOpFrame.innerResult(mRes).code(
+            INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         return false;
     }
 
-    if (!refundableFeeTracker->consumeRefundableSorobanResources(
-            metrics.mEmitEventByte, out.rent_fee,
-            ltx.loadHeader().current().ledgerVersion, sorobanConfig, appConfig,
-            mParentTx, diagnosticEvents))
+    if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
+            mMetrics.mEmitEventByte, out.rent_fee,
+            mLtx.loadHeader().current().ledgerVersion, mSorobanConfig,
+            mAppConfig, mOpFrame.mParentTx, mDiagnosticEvents))
     {
-        innerResult(res).code(INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
+        mOpFrame.innerResult(mRes).code(
+            INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
 
     xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
-    innerResult(res).code(INVOKE_HOST_FUNCTION_SUCCESS);
-    innerResult(res).success() = xdrSha256(success);
+    mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
+    mOpFrame.innerResult(mRes).success() = xdrSha256(success);
 
-    opMeta.getEventManager().setEvents(std::move(success.events));
-    opMeta.setSorobanReturnValue(success.returnValue);
-    metrics.mSuccess = true;
+    mOpMeta.getEventManager().setEvents(std::move(success.events));
+    mOpMeta.setSorobanReturnValue(success.returnValue);
+    mMetrics.mSuccess = true;
     return true;
+}
+
+bool
+InvokeHostFunctionOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
+{
+    ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
+    releaseAssertOrThrow(refundableFeeTracker);
+
+    // Create ApplyHelper and delegate processing to it
+    ApplyHelper helper(app, ltx, sorobanBasePrngSeed, res, refundableFeeTracker,
+                       opMeta, *this);
+    return helper.apply();
 }
 
 bool
