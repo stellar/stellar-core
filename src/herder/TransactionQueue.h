@@ -92,12 +92,12 @@ class TransactionQueue
 
         // AddResult with error txResult with the specified txErrorCode
         explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           TransactionFrameBasePtr tx,
+                           TransactionFrameBase const& tx,
                            TransactionResultCode txErrorCode);
 
         // Same as above, also populating diagnostics
         explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           TransactionFrameBasePtr tx,
+                           TransactionFrameBase const& tx,
                            TransactionResultCode txErrorCode,
                            xdr::xvector<DiagnosticEvent>&& diagnostics);
     };

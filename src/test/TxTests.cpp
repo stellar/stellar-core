@@ -165,15 +165,17 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
             // else, leave feeCharged as per checkValid
             try
             {
-                TransactionMetaFrame cleanTm(
+                TransactionMetaBuilder cleanTm(
+                    true, *checkedTx,
                     ltxCleanTx.loadHeader().current().ledgerVersion,
-                    app.getConfig());
+                    app.getAppConnector());
                 checkedTxApplyRes = checkedTx->apply(app.getAppConnector(),
                                                      ltxCleanTx, cleanTm);
             }
             catch (...)
             {
-                checkedTx->getResult().result.code(txINTERNAL_ERROR);
+                checkedTx->overrideResult(
+                    checkedTx->createTxErrorResult(txINTERNAL_ERROR));
             }
             // do not commit this one
         }
@@ -225,7 +227,7 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
         {
             // this basically makes it that we ignore that field when we
             // don't have an account
-            tx->getResult().feeCharged = checkResult.feeCharged;
+            tx->overrideResultFeeCharged(checkResult.feeCharged);
         }
         ltxFeeProc.commit();
     }
@@ -233,16 +235,19 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
-        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion,
-                                app.getConfig());
+        TransactionMetaBuilder tmBuilder(
+            true, *tx, ltxTx.loadHeader().current().ledgerVersion,
+            app.getAppConnector());
         try
         {
-            res = tx->apply(app.getAppConnector(), ltxTx, tm);
+            res = tx->apply(app.getAppConnector(), ltxTx, tmBuilder);
         }
         catch (...)
         {
-            tx->getResult().result.code(txINTERNAL_ERROR);
+            checkedTx->overrideResult(
+                checkedTx->createTxErrorResult(txINTERNAL_ERROR));
         }
+        TransactionMetaFrame tm(tmBuilder.finalize(res));
 
         // check that both tx and cleanTx behave the same
         REQUIRE(res == checkedTxApplyRes);
@@ -409,7 +414,7 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
         // the TestTransactionFrame does not have it's internal cached state
         // updated during apply. We manually update the result here.
         REQUIRE(resultSet.results.size() == 1);
-        tx->getResult() = resultSet.results.at(0).result;
+        tx->overrideResultXDR(resultSet.results.at(0).result);
 
         auto meta = app.getLedgerManager().getLastClosedLedgerTxMeta();
         REQUIRE(meta.size() == 1);

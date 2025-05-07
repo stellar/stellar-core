@@ -5,7 +5,7 @@
 #pragma once
 
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 
 namespace stellar
 {
@@ -69,35 +69,29 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     virtual ~FeeBumpTransactionFrame(){};
 
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, MutableTxResultPtr txResult,
-               TxEventManager& txEventManager,
+               TransactionMetaBuilder& meta,
+               MutableTransactionResultBase& txResult,
+
                Hash const& sorobanBasePrngSeed) const override;
 
-    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta,
-                          MutableTxResultPtr txResult,
-                          TxEventManager& txEventManager) const override;
-
-    MutableTxResultPtr checkValid(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventBuffer* diagnosticEvents = nullptr) const override;
-    bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult,
-        DiagnosticEventBuffer* diagnosticEvents) const override;
-
-    MutableTxResultPtr createSuccessResult() const override;
+    void
+    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult) const override;
 
     MutableTxResultPtr
-    createSuccessResultWithFeeCharged(LedgerHeader const& header,
-                                      std::optional<int64_t> baseFee,
-                                      bool applying) const override;
+    checkValid(AppConnector& app, LedgerSnapshot const& ls,
+               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset,
+               DiagnosticEventManager& diagnosticEvents) const override;
+    bool checkSorobanResources(
+        SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
+        DiagnosticEventManager& diagnosticEvents) const override;
 
     MutableTxResultPtr
-    createSuccessResultWithNewInnerTx(MutableTxResultPtr&& outerResult,
-                                      MutableTxResultPtr&& innerResult,
-                                      TransactionFrameBasePtr innerTx) const;
+    createTxErrorResult(TransactionResultCode txErrorCode) const override;
+
+    MutableTxResultPtr createValidationSuccessResult() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
 
@@ -111,6 +105,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Hash const& getInnerFullHash() const;
 
     uint32_t getNumOperations() const override;
+    std::vector<std::shared_ptr<OperationFrame const>> const&
+    getOperationFrames() const override;
     Resource getResources(bool useByteLimitInClassic) const override;
 
     std::vector<Operation> const& getRawOperations() const override;

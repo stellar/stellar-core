@@ -977,7 +977,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 releaseAssertOrThrow(addResult.txResult);
 
                 auto const& payload = addResult.txResult;
-                auto resultBin = xdr::xdr_to_opaque(payload->getResult());
+                auto resultBin = xdr::xdr_to_opaque(payload->getXDR());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);

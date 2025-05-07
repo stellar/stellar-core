@@ -29,13 +29,11 @@ class InternalLedgerKey;
 class SorobanNetworkConfig;
 class TransactionFrame;
 class TransactionFrameBase;
-class SorobanTxData;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
-struct DiagnosticEventBuffer;
 
 template <typename IterType>
 std::pair<IterType, bool>
@@ -318,7 +316,7 @@ bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                                  SorobanNetworkConfig const& config,
                                  Config const& appConfig,
                                  TransactionFrame const& parentTx,
-                                 DiagnosticEventBuffer& diagnosticEvents);
+                                 DiagnosticEventManager& diagnosticEvents);
 
 struct LumenContractInfo
 {

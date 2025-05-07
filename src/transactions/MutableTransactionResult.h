@@ -4,174 +4,206 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/FeeBumpTransactionFrame.h"
+#include "transactions/EventManager.h"
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionFrameBase.h"
-#include "util/NonCopyable.h"
-#include "util/types.h"
 
 #include <memory>
 
 namespace stellar
 {
 
-class Config;
-class InternalLedgerEntry;
-class SorobanNetworkConfig;
-
-class SorobanTxData
+// This class tracks the refundable resources and corresponding fees for a
+// transaction.
+// This can not be instantiated directly and is only accessible through
+// MutableTransactionResult.
+class RefundableFeeTracker
 {
-  private:
-    SCVal mReturnValue;
-    // Size of the emitted Soroban events.
-    uint32_t mConsumedContractEventsSizeBytes{};
-    int64_t mFeeRefund{};
-    int64_t mConsumedNonRefundableFee{};
-    int64_t mConsumedRentFee{};
-    int64_t mConsumedRefundableFee{};
-
   public:
+    // Consumes the refundable fees for the provided refundable resources, as
+    // well as the rent fee.
+    // Returns `false` when the consumed fees exceed the available refundable
+    // fee for a transaction, which means that the transaction has to fail.
+    // `diagnosticEvents` will contain a detailed error message in that case.
     bool consumeRefundableSorobanResources(
         uint32_t contractEventSizeBytes, int64_t rentFee,
         uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
         Config const& cfg, TransactionFrame const& tx,
-        DiagnosticEventBuffer& diagnosticEvents);
+        DiagnosticEventManager& diagnosticEvents);
+    // Returns the total fee refund to apply for transaction.
+    int64_t getFeeRefund() const;
+    // Returns the rent fee consumed so far.
+    int64_t getConsumedRentFee() const;
+    // Returns the total refundable fee consumed so far.
+    int64_t getConsumedRefundableFee() const;
 
-    void setSorobanConsumedNonRefundableFee(int64_t);
-    int64_t getSorobanFeeRefund() const;
-    void setSorobanFeeRefund(int64_t fee);
+  private:
+    friend class MutableTransactionResultBase;
+    friend class FeeBumpMutableTransactionResult;
 
-    void setReturnValue(SCVal const& returnValue);
+    explicit RefundableFeeTracker(int64_t maximumRefundableFee);
 
-    void publishSuccessMeta(TransactionMetaFrame& meta, Config const& cfg);
-    void publishFailureMeta(TransactionMetaFrame& meta, Config const& cfg);
+    // Resets all the consumed fees to 0, thus setting the refund to the
+    // maximum possible value.
+    // This should be used when the transaction fails.
+    void resetConsumedFee();
+
+    int64_t mMaximumRefundableFee{};
+
+    uint32_t mConsumedContractEventsSizeBytes{};
+    int64_t mConsumedRentFee{};
+    int64_t mConsumedRefundableFee{};
 };
 
-// This class holds all mutable state that is associated with a transaction.
-class MutableTransactionResultBase : public NonMovableOrCopyable
+// This class holds result of a transaction that can be modified during the
+// apply/validation flows.
+// This also manages the refundable fee tracker, as the refunds are tied to
+// the execution result and charged fee tracking.
+// Note, that this tries to limit the possible result mutations to the
+// minimum necessary set of simple transitions. E.g. errors can only be set
+// once and can't go to success, fee charged may only be modified by
+// refunds etc.
+class MutableTransactionResultBase
 {
   protected:
-    std::unique_ptr<TransactionResult> mTxResult;
-    std::optional<TransactionResult> mReplayTransactionResult{std::nullopt};
+    MutableTransactionResultBase(TransactionResultCode resultCode);
 
-    MutableTransactionResultBase();
-    MutableTransactionResultBase(MutableTransactionResultBase&& rhs);
+    TransactionResult mTxResult;
+    std::optional<RefundableFeeTracker> mRefundableFeeTracker{};
+#ifdef BUILD_TESTS
+    std::optional<TransactionResult> mReplayTransactionResult{};
+#endif
 
   public:
-    // For FeeBumpTxs, returns the inner TX result. For normal TXs, returns the
-    // TX result.
-    virtual TransactionResult& getInnermostResult() = 0;
-    virtual void setInnermostResultCode(TransactionResultCode code) = 0;
+    virtual ~MutableTransactionResultBase() = default;
 
-    virtual TransactionResult& getResult() = 0;
-    virtual TransactionResult const& getResult() const = 0;
-    virtual TransactionResultCode getResultCode() const = 0;
+    // Initializes the refundable fee tracker. This is only necessary for the
+    // transactions that support refunds, i.e. Soroban transactions.
+    void initializeRefundableFeeTracker(int64_t totalRefundableFee);
+    // Returns the refundable fee tracker, or `nullopt` for results that don't
+    // support refunds.
+    std::optional<RefundableFeeTracker>& getRefundableFeeTracker();
 
-    // Note: changing "code" normally causes the XDR structure to be destructed,
-    // then a different XDR structure is constructed. However, txFAILED and
-    // txSUCCESS have the same underlying field number so this does not
-    // occur when changing between these two codes.
-    virtual void setResultCode(TransactionResultCode code) = 0;
+    // Returns the transaction result XDR. This should only be called once at
+    // the very end of transaction processing flow.
+    TransactionResult const& getXDR() const;
+
+    // Returns the result code of the transaction.
+    TransactionResultCode getResultCode() const;
+
+    // Sets the error code for the transaction result.
+    void setError(TransactionResultCode code);
+    // Sets the error code for the transaction to txINSUFFICIENT_FEE and also
+    // sets `feeCharged` to the provided value.
+    // This is only used for the transaction acceptance flow to communicate
+    // the fee necessary to get into tx queue.
+    void setInsufficientFeeErrorWithFeeCharged(int64_t feeCharged);
+
+    // Finalizes the fee charged for the transaction based on the refund
+    // tracked by this result.
+    virtual void finalizeFeeRefund(uint32_t ledgerVersion) = 0;
+
+    // Gets the code of the innermost transaction result (that's always the
+    // result of the regular transaction, not the fee bump).
+    virtual TransactionResultCode getInnermostResultCode() const = 0;
+    // Sets the error code for the innermost transaction result (that's always
+    // the result of the regular transaction, not the fee bump).
+    virtual void setInnermostError(TransactionResultCode code) = 0;
+
+    // Returns the result of the operation at specified index.
+    // This is only valid for the results that have operations and will trigger
+    // an assertion for the results that don't have operations (typically
+    // validation time errors).
     virtual OperationResult& getOpResultAt(size_t index) = 0;
-    virtual std::shared_ptr<SorobanTxData> getSorobanData() = 0;
 
-    virtual void refundSorobanFee(int64_t feeRefund,
-                                  uint32_t ledgerVersion) = 0;
+    // Returns `true` if the result represents success.
     virtual bool isSuccess() const = 0;
+
 #ifdef BUILD_TESTS
-    virtual std::optional<TransactionResult> const&
-    getReplayTransactionResult() const = 0;
-    virtual void
-    setReplayTransactionResult(TransactionResult const& replayResult) = 0;
+    int64_t getFeeCharged() const;
+
+    virtual std::unique_ptr<MutableTransactionResultBase> clone() const = 0;
+
+    void overrideFeeCharged(int64_t feeCharged);
+    void overrideXDR(TransactionResult const& resultXDR);
+
+    // Stores the replayed result for this transaction, but doesn't mutate the
+    // actual result.
+    void setReplayTransactionResult(TransactionResult const& replayResult);
+    // If there is a replayed transaction result, and it's a failure, then
+    // modify the internal result to match the replayed result and return
+    // `true`. Otherwise, do nothing and return `false`.
+    bool adoptFailedReplayResult();
+    // Returns `true` if there is a stored replayed transaction result.
+    bool hasReplayTransactionResult() const;
 #endif
 };
 
+// Result of a 'regular' (non-fee-bump) transaction.
 class MutableTransactionResult : public MutableTransactionResultBase
 {
   private:
-    std::shared_ptr<SorobanTxData> mSorobanExtension;
-
+    MutableTransactionResult(TransactionResultCode txErrorCode);
     MutableTransactionResult(TransactionFrame const& tx, int64_t feeCharged);
 
-    friend MutableTxResultPtr TransactionFrame::createSuccessResult() const;
-
-    friend MutableTxResultPtr
-    TransactionFrame::createSuccessResultWithFeeCharged(
-        LedgerHeader const& header, std::optional<int64_t> baseFee,
-        bool applying) const;
-
   public:
-    virtual ~MutableTransactionResult() = default;
+    // Creates a transaction result with the provided error code.
+    static std::unique_ptr<MutableTransactionResult>
+    createTxError(TransactionResultCode txErrorCode);
 
-    TransactionResult& getInnermostResult() override;
-    void setInnermostResultCode(TransactionResultCode code) override;
-    TransactionResult& getResult() override;
-    TransactionResult const& getResult() const override;
-    TransactionResultCode getResultCode() const override;
-    void setResultCode(TransactionResultCode code) override;
-#ifdef BUILD_TESTS
-    void
-    setReplayTransactionResult(TransactionResult const& replayResult) override;
-    std::optional<TransactionResult> const&
-    getReplayTransactionResult() const override;
-#endif // BUILD_TESTS
+    // Creates a successful transaction result with the provided fee charged.
+    static std::unique_ptr<MutableTransactionResult>
+    createSuccess(TransactionFrame const& tx, int64_t feeCharged);
+
+    ~MutableTransactionResult() override = default;
+
+    TransactionResultCode getInnermostResultCode() const override;
+    void setInnermostError(TransactionResultCode code) override;
+
+    void finalizeFeeRefund(uint32_t ledgerVersion) override;
 
     OperationResult& getOpResultAt(size_t index) override;
-    std::shared_ptr<SorobanTxData> getSorobanData() override;
 
-    void refundSorobanFee(int64_t feeRefund, uint32_t ledgerVersion) override;
     bool isSuccess() const override;
+#ifdef BUILD_TESTS
+    std::unique_ptr<MutableTransactionResultBase> clone() const override;
+#endif
 };
 
+// Result of a fee bump transaction.
 class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
 {
-    // mTxResult is outer result
-    MutableTxResultPtr const mInnerTxResult;
+  private:
+    FeeBumpMutableTransactionResult(TransactionResultCode txErrorCode);
+    FeeBumpMutableTransactionResult(TransactionFrame const& innerTx,
+                                    int64_t feeCharged,
+                                    int64_t innerFeeCharged);
 
-    FeeBumpMutableTransactionResult(MutableTxResultPtr innerTxResult);
-
-    FeeBumpMutableTransactionResult(MutableTxResultPtr&& outerTxResult,
-                                    MutableTxResultPtr&& innerTxResult,
-                                    TransactionFrameBasePtr innerTx);
-
-    friend MutableTxResultPtr
-    FeeBumpTransactionFrame::createSuccessResult() const;
-
-    friend MutableTxResultPtr
-    FeeBumpTransactionFrame::createSuccessResultWithFeeCharged(
-        LedgerHeader const& header, std::optional<int64_t> baseFee,
-        bool applying) const;
-
-    friend MutableTxResultPtr
-    FeeBumpTransactionFrame::createSuccessResultWithNewInnerTx(
-        MutableTxResultPtr&& outerResult, MutableTxResultPtr&& innerResult,
-        TransactionFrameBasePtr innerTx) const;
+    InnerTransactionResult& getInnerResult();
+    InnerTransactionResult const& getInnerResult() const;
 
   public:
-    virtual ~FeeBumpMutableTransactionResult() = default;
+    // Creates a fee bump transaction result with the provided error code.
+    static std::unique_ptr<FeeBumpMutableTransactionResult>
+    createTxError(TransactionResultCode txErrorCode);
+    // Creates a successful fee bump transaction result with the provided fee
+    // charged and fee charged for the inner transaction.
+    static std::unique_ptr<FeeBumpMutableTransactionResult>
+    createSuccess(TransactionFrame const& innerTx, int64_t feeCharged,
+                  int64_t innerFeeCharged);
 
-    // Updates outer fee bump result based on inner result.
-    static void updateResult(TransactionFrameBasePtr innerTx,
-                             MutableTransactionResultBase& txResult);
+    ~FeeBumpMutableTransactionResult() override = default;
 
-    TransactionResult& getInnermostResult() override;
-    void setInnermostResultCode(TransactionResultCode code) override;
-    TransactionResult& getResult() override;
-    TransactionResult const& getResult() const override;
-    TransactionResultCode getResultCode() const override;
-    void setResultCode(TransactionResultCode code) override;
+    TransactionResultCode getInnermostResultCode() const override;
+    void setInnermostError(TransactionResultCode code) override;
 
     OperationResult& getOpResultAt(size_t index) override;
-    std::shared_ptr<SorobanTxData> getSorobanData() override;
 
-    void refundSorobanFee(int64_t feeRefund, uint32_t ledgerVersion) override;
     bool isSuccess() const override;
 
+    void finalizeFeeRefund(uint32_t protocolVersion) override;
+
 #ifdef BUILD_TESTS
-    void
-    setReplayTransactionResult(TransactionResult const& replayResult) override;
-    std::optional<TransactionResult> const&
-    getReplayTransactionResult() const override;
-#endif // BUILD_TESTS
+    std::unique_ptr<MutableTransactionResultBase> clone() const override;
+#endif
 };
 }

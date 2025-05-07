@@ -137,11 +137,11 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
 }
 
 bool
-CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                              Hash const& sorobanBasePrngSeed,
-                              OperationResult& res,
-                              std::shared_ptr<SorobanTxData> sorobanData,
-                              OpEventManager& opEventManager) const
+CreateAccountOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (stellar::loadAccount(ltx, mCreateAccount.destination))
@@ -164,7 +164,7 @@ CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     if (success)
     {
         Asset native(ASSET_TYPE_NATIVE);
-        opEventManager.newTransferEvent(
+        opMeta.getEventManager().newTransferEvent(
             native, makeMuxedAccountAddress(getSourceAccount()),
             makeAccountAddress(mCreateAccount.destination),
             mCreateAccount.startingBalance, true);
