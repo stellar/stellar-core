@@ -2113,7 +2113,9 @@ TransactionFrame::processRefundAndEmitFeeEvent(
 {
     ZoneScoped;
     // emit a fee event before any refund
-    txEventManager.newFeeEvent(feeSource, txResult.getResult().feeCharged);
+    txEventManager.newFeeEvent(
+        feeSource, txResult.getResult().feeCharged,
+        TransactionEventStage::TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS);
 
     if (!isSoroban())
     {
@@ -2124,14 +2126,18 @@ TransactionFrame::processRefundAndEmitFeeEvent(
     LedgerTxn ltx(ltxOuter);
     int64_t refund = refundSorobanFee(ltx, feeSource, txResult);
 
-    // TODO: handle fee event logic here
-
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
 
     // Emit fee refund event. A refund counts as a negative amount of fee
     // charged.
-    txEventManager.newFeeEvent(feeSource, -refund);
+    auto stage = TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_TX;
+    if (protocolVersionStartsFrom(ltxOuter.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_23))
+    {
+        stage = TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_ALL_TXS;
+    }
+    txEventManager.newFeeEvent(feeSource, -refund, stage);
     return refund;
 }
 
