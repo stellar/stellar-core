@@ -889,9 +889,11 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
         }
     }
 
-    valid = valid &&
-            outputApplicableTxSet->checkValid(app, lowerBoundCloseTimeOffset,
-                                              upperBoundCloseTimeOffset);
+    // We already trimmed invalid transactions in an earlier call to
+    // `trimInvalid`, so skip transaction validation here
+    valid = valid && outputApplicableTxSet->checkValidInternal(
+                         app, lowerBoundCloseTimeOffset,
+                         upperBoundCloseTimeOffset, true);
     if (!valid)
     {
         throw std::runtime_error("Created invalid tx set frame");
@@ -1643,7 +1645,8 @@ TxSetPhaseFrame::sortedForApply(Hash const& txSetHash) const
 bool
 TxSetPhaseFrame::checkValid(Application& app,
                             uint64_t lowerBoundCloseTimeOffset,
-                            uint64_t upperBoundCloseTimeOffset) const
+                            uint64_t upperBoundCloseTimeOffset,
+                            bool txsAreValidated) const
 {
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Verify the fee map for the phase. This check is independent of the phase
@@ -1680,6 +1683,11 @@ TxSetPhaseFrame::checkValid(Application& app,
     if (!checkPhaseSpecific)
     {
         return false;
+    }
+
+    if (txsAreValidated)
+    {
+        return true;
     }
 
     return txsAreValid(app, lowerBoundCloseTimeOffset,
@@ -1988,13 +1996,25 @@ ApplicableTxSetFrame::getPhasesInApplyOrder() const
     return mApplyOrderPhases;
 }
 
-// need to make sure every account that is submitting a tx has enough to pay
-// the fees of all the tx it has submitted in this set
-// check seq num
 bool
 ApplicableTxSetFrame::checkValid(Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
+{
+    // For public-facing methods, always do full validation
+    return checkValidInternal(app, lowerBoundCloseTimeOffset,
+                              upperBoundCloseTimeOffset,
+                              /* txsAreValidated */ false);
+}
+
+// need to make sure every account that is submitting a tx has enough to pay
+// the fees of all the tx it has submitted in this set
+// check seq num
+bool
+ApplicableTxSetFrame::checkValidInternal(Application& app,
+                                         uint64_t lowerBoundCloseTimeOffset,
+                                         uint64_t upperBoundCloseTimeOffset,
+                                         bool txsAreValidated) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2055,7 +2075,7 @@ ApplicableTxSetFrame::checkValid(Application& app,
     for (auto const& phase : mPhases)
     {
         if (!phase.checkValid(app, lowerBoundCloseTimeOffset,
-                              upperBoundCloseTimeOffset))
+                              upperBoundCloseTimeOffset, txsAreValidated))
         {
             return false;
         }

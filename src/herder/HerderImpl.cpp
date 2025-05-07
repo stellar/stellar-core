@@ -1477,6 +1477,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         makeTxSetFromTransactions(txPhases, mApp, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset, invalidTxPhases);
 
+    // New proposed tx set must be valid, so we explicitly populate tx set
+    // validity cache so SCP can re-use the result.
+    mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
+                                     upperBoundCloseTimeOffset);
+
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {

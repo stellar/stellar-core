@@ -202,6 +202,7 @@ HerderSCPDriver::validatePastOrFutureValue(
     uint64_t slotIndex, StellarValue const& b,
     LedgerHeaderHistoryEntry const& lcl) const
 {
+    ZoneScoped;
     releaseAssert(slotIndex != lcl.header.ledgerSeq + 1);
     if (slotIndex == lcl.header.ledgerSeq)
     {
@@ -1235,6 +1236,32 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;
+}
+
+void
+HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
+                                 LedgerHeaderHistoryEntry const& lcl,
+                                 uint64_t closeTimeOffset) const
+{
+    auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
+                                closeTimeOffset, closeTimeOffset};
+    bool* pRes = mTxSetValidCache.maybeGet(key);
+    if (pRes == nullptr)
+    {
+#ifdef SCP_DEBUGGING
+        releaseAssert(txSet.checkValid(mApp, closeTimeOffset, closeTimeOffset));
+#endif
+        mTxSetValidCache.put(key, true);
+    }
+    else
+    {
+        if (!*pRes)
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("Inconsistent txSet validity for tx set {}"),
+                hexAbbrev(txSet.getContentsHash())));
+        }
+    }
 }
 
 bool
