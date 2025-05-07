@@ -583,7 +583,7 @@ TxEventManager::flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf)
 };
 
 void
-TxEventManager::flushTxEvents(xdr::xvector<ContractEvent>& buf)
+TxEventManager::flushTxEvents(xdr::xvector<TransactionEvent>& buf)
 {
     std::move(mTxEvents.begin(), mTxEvents.end(), std::back_inserter(buf));
     mTxEvents.clear();
@@ -620,7 +620,8 @@ TxEventManager::shouldEmitClassicEvents() const
 }
 
 void
-TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount)
+TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount,
+                            TransactionEventStage stage)
 {
     // We don't emit 0 fee events. This is relevant for Soroban transactions
     // that end up with no refunds.
@@ -637,7 +638,7 @@ TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount)
     ev.body.v0().topics = topics;
     ev.body.v0().data = makeI128SCVal(amount);
 
-    mTxEvents.emplace_back(std::move(ev));
+    mTxEvents.emplace_back(TransactionEvent(stage, std::move(ev)));
 }
 
 } // namespace stellar

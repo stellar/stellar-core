@@ -55,8 +55,9 @@ makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
                     Asset const& asset, SCAddress const& addr, int64 amount,
                     std::optional<SCMapEntry> memoEntry = std::nullopt);
 
-void validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
-                      int64_t feeCharged);
+void validateFeeEvent(TransactionEvent const& feeEvent,
+                      PublicKey const& feeSource, int64_t feeCharged,
+                      uint32_t protocolVersion, bool isRefund);
 
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`

@@ -31,7 +31,7 @@ class TransactionMetaFrame
     TransactionMeta const& getXDR() const;
 
     void maybePushSorobanContractEvents(OperationMetaArray& opMetas);
-    void pushTxContractEvents(xdr::xvector<ContractEvent>&& events);
+    void pushTxEvents(xdr::xvector<TransactionEvent>&& events);
     void maybePushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& events,
                                    bool isSoroban);
     void setReturnValue(SCVal&& returnValue);
@@ -42,7 +42,7 @@ class TransactionMetaFrame
     TransactionMetaFrame(TransactionMeta meta);
     SCVal const& getReturnValue() const;
     xdr::xvector<stellar::DiagnosticEvent> const& getDiagnosticEvents() const;
-    xdr::xvector<stellar::ContractEvent> const& getTxEvents() const;
+    xdr::xvector<stellar::TransactionEvent> const& getTxEvents() const;
     xdr::xvector<stellar::ContractEvent> getSorobanContractEvents() const;
     stellar::LedgerEntryChanges const&
     getLedgerEntryChangesAtOp(size_t opIdx) const;
