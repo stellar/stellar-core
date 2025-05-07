@@ -409,7 +409,6 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
 
     SorobanTest test(cfg);
-    auto& app = test.getApp();
     auto& root = test.getRoot();
 
     auto a1 = root.create("a1", 1'000'000'000);
@@ -2588,7 +2587,7 @@ TEST_CASE("state archival", "[tx][soroban][archival]")
             {
                 REQUIRE(client.put("persistent",
                                    ContractDataDurability::PERSISTENT,
-                               42) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                                   42) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
             }
 
             // Since entry is PERSISTENT, has should fail. Key is in the read
@@ -3378,23 +3377,23 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         SECTION("key accessible after restore")
         {
             auto check = [&]() {
-            auto const& stateArchivalSettings =
-                test.getNetworkCfg().stateArchivalSettings();
-            auto newExpectedLiveUntilLedger =
+                auto const& stateArchivalSettings =
+                    test.getNetworkCfg().stateArchivalSettings();
+                auto newExpectedLiveUntilLedger =
                     test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
                     1;
-            REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
+                REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
 
-            client.get("key", ContractDataDurability::PERSISTENT, 123);
+                client.get("key", ContractDataDurability::PERSISTENT, 123);
 
-            test.getApp()
-                .getBucketManager()
-                .getBucketSnapshotManager()
+                test.getApp()
+                    .getBucketManager()
+                    .getBucketSnapshotManager()
                     .maybeCopySearchableHotArchiveBucketListSnapshot(
                         hotArchive);
 
-            // Restored entries are deleted from Hot Archive
-            REQUIRE(!hotArchive->load(lk));
+                // Restored entries are deleted from Hot Archive
+                REQUIRE(!hotArchive->load(lk));
             };
 
             SECTION("restore op")
@@ -3428,15 +3427,15 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
             SECTION("manual restore")
             {
-            SorobanResources restoreResources;
-            restoreResources.footprint.readWrite = {lk};
-            restoreResources.instructions = 0;
-            restoreResources.readBytes = 10'000;
-            restoreResources.writeBytes = 10'000;
+                SorobanResources restoreResources;
+                restoreResources.footprint.readWrite = {lk};
+                restoreResources.instructions = 0;
+                restoreResources.readBytes = 10'000;
+                restoreResources.writeBytes = 10'000;
 
-            auto resourceFee = 300'000 + 40'000;
-            auto restoreTx =
-                test.createRestoreTx(restoreResources, 1'000, resourceFee);
+                auto resourceFee = 300'000 + 40'000;
+                auto restoreTx =
+                    test.createRestoreTx(restoreResources, 1'000, resourceFee);
 
                 closeLedger(test.getApp(), {restoreTx, extendTx},
                             /*strictOrder=*/true);
@@ -3448,18 +3447,18 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
             SECTION("autorestore")
             {
-            auto writeInvocation = client.getContract().prepareInvocation(
+                auto writeInvocation = client.getContract().prepareInvocation(
                     "put_persistent",
                     {makeSymbolSCVal("key"), makeU64SCVal(200)},
                     client.writeKeySpec("key",
                                         ContractDataDurability::PERSISTENT));
 
-            auto writeTx =
+                auto writeTx =
                     writeInvocation.withExactNonRefundableResourceFee()
                         .createTx();
 
                 closeLedger(test.getApp(), {writeTx, extendTx},
-                        /*strictOrder=*/true);
+                            /*strictOrder=*/true);
 
                 // Require that the write TX restored the entry which could be
                 // bumped in the subsequent TX
@@ -3476,6 +3475,265 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
     SECTION("expiration without eviction")
     {
         test(false);
+    }
+}
+
+TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
+{
+    auto cfg = getTestConfig();
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.stateArchivalSettings().minPersistentTTL =
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+        // Never snapshot bucket list so we have stable rent fees
+        cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 10'000;
+    });
+
+    ContractStorageTestClient client(test);
+
+    client.put("key", ContractDataDurability::PERSISTENT, 123);
+
+    auto expirationLedger =
+        test.getLCLSeq() +
+        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+    // Close ledgers until ContractData entry, contract code, and instance are
+    // all expired
+    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+         ledgerSeq <= expirationLedger; ++ledgerSeq)
+    {
+        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+    }
+
+    auto lk = client.getContract().getDataKey(
+        makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+    // We need to restore instance, wasm, and data entry
+    auto const refundableRestoreCost = 60'144;
+    auto keysToRestore = client.getContract().getKeys();
+    keysToRestore.push_back(lk);
+
+    SECTION("manual restore")
+    {
+        test.invokeRestoreOp(keysToRestore, refundableRestoreCost);
+
+        // Contract and entry should be restored
+        client.has("key", ContractDataDurability::PERSISTENT, 123);
+    }
+
+    SECTION("autorestore")
+    {
+        // Now submit an invocation with all keys in the write footprint so
+        // everything is restored
+        auto spec = client.defaultSpecWithoutFootprint()
+                        .setReadWriteFootprint(keysToRestore)
+                        .setWriteBytes(10000)
+                        .setRefundableResourceFee(70'000);
+
+        auto invocation = client.getContract().prepareInvocation(
+            "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)}, spec,
+            /*addContractKeys=*/false);
+        auto autorestoreTx =
+            invocation.withExactNonRefundableResourceFee().createTx();
+
+        auto initialBalance = test.getAccountBalance();
+        auto txm = TransactionMetaFrame(test.getLedgerVersion(),
+                                        test.getApp().getConfig());
+        REQUIRE(test.invokeTx(autorestoreTx, &txm).result.code() ==
+                TransactionResultCode::txSUCCESS);
+
+        // Check that the refundable fee charged matches what we expect for
+        // restoration
+        auto const eventSize = 4;
+        test.checkRefundableFee(initialBalance, autorestoreTx, txm,
+                                refundableRestoreCost, eventSize);
+
+        // Entry should be restored again
+        client.has("key", ContractDataDurability::PERSISTENT, 123);
+    }
+}
+
+TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
+{
+    auto cfg = getTestConfig();
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.stateArchivalSettings().minPersistentTTL =
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        cfg.mWriteFee1KBBucketListLow = 20'000;
+        cfg.mWriteFee1KBBucketListHigh = 1'000'000;
+
+        // Never snapshot bucket list so we have stable rent fees
+        cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 10'000;
+    });
+
+    auto isSuccess = [](auto resultCode) {
+        return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
+    };
+
+    ContractStorageTestClient client(test);
+
+    // Contract should not expire
+    test.invokeExtendOp(client.getContract().getKeys(), 100'000);
+
+    auto inititSpec =
+        client.writeKeySpec("key", ContractDataDurability::PERSISTENT)
+            .setWriteBytes(10'000);
+    REQUIRE(
+        isSuccess(client.resizeStorageAndExtend("key", 1, 0, 0, inititSpec)));
+    auto lk = client.getContract().getDataKey(
+        makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+    auto const bumpLedgers = 1'000'000;
+    auto const costOfBumpAndEvents = 106'032;
+    auto const resizeKb = 3;
+    auto const constOfBumpResizeAndEvents = 264'461;
+
+    // Sanity check rent bump constants. We have to use a seperate section for
+    // the actual test so that the sanity check does not make observable
+    // differences to the ledger.
+    SECTION("sanity check constants")
+    {
+        SECTION("bump fail")
+        {
+            REQUIRE(client.resizeStorageAndExtend(
+                        "key", 1, bumpLedgers, bumpLedgers,
+                        inititSpec.setRefundableResourceFee(
+                            costOfBumpAndEvents - 1)) ==
+                    INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
+        }
+
+        SECTION("bump succeed")
+        {
+            REQUIRE(isSuccess(client.resizeStorageAndExtend(
+                "key", 1, bumpLedgers, bumpLedgers,
+                inititSpec.setRefundableResourceFee(costOfBumpAndEvents))));
+        }
+
+        SECTION("resize fail")
+        {
+            REQUIRE(client.resizeStorageAndExtend(
+                        "key", resizeKb, bumpLedgers, bumpLedgers,
+                        inititSpec.setRefundableResourceFee(
+                            constOfBumpResizeAndEvents - 1)) ==
+                    INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
+        }
+
+        SECTION("resize succeed")
+        {
+            REQUIRE(isSuccess(client.resizeStorageAndExtend(
+                "key", resizeKb, bumpLedgers, bumpLedgers,
+                inititSpec.setRefundableResourceFee(
+                    constOfBumpResizeAndEvents))));
+        }
+    }
+
+    SECTION("test")
+    {
+        auto expirationLedger =
+            test.getLCLSeq() +
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+        // Close ledgers until ContractData entry, contract code, and instance
+        // are all expired
+        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+             ledgerSeq <= expirationLedger; ++ledgerSeq)
+        {
+            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        }
+
+        REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
+
+        auto const costToRestore1KB = 20'939;
+        auto getExpectedRestoredLedger = [&]() {
+            return test.getLCLSeq() +
+                   MinimumSorobanNetworkConfig::
+                       MINIMUM_PERSISTENT_ENTRY_LIFETIME -
+                   1;
+        };
+
+        // First, test just restoring the 1KB entry
+        SECTION("manual restore")
+        {
+            test.invokeRestoreOp({lk}, costToRestore1KB);
+            REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
+            REQUIRE(test.getTTL(lk) == getExpectedRestoredLedger());
+        }
+
+        // Now submit an invocation with all keys in the write footprint so
+        // everything is restored
+        auto autorestoreSpec = client.defaultSpecWithoutFootprint()
+                                   .setReadWriteFootprint({lk})
+                                   .setReadBytes(10000)
+                                   .setWriteBytes(10000)
+                                   .setRefundableResourceFee(1'000'000);
+
+        auto invokeAndCheck = [&](auto invocation,
+                                  auto expectedRefundableFeeCharged,
+                                  auto eventSize,
+                                  auto expectedLiveUntilLedger) {
+            auto autorestoreTx =
+                invocation.withExactNonRefundableResourceFee().createTx();
+
+            auto initialBalance = test.getAccountBalance();
+            auto txm = TransactionMetaFrame(test.getLedgerVersion(),
+                                            test.getApp().getConfig());
+            REQUIRE(test.invokeTx(autorestoreTx, &txm).result.code() ==
+                    TransactionResultCode::txSUCCESS);
+
+            // Check that the refundable fee charged matches what we expect
+            // for restoration
+            test.checkRefundableFee(initialBalance, autorestoreTx, txm,
+                                    expectedRefundableFeeCharged, eventSize);
+            REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
+
+            // We close a ledger during the invocation so offset by one
+            REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger + 1);
+        };
+
+        SECTION("autorestore")
+        {
+            // Write 1 KB at the same key with no rent extension, triggering
+            // autorestore. Should be equivalent to RestoreOp from a rent fee
+            // perspective
+            auto invocation = client.getContract().prepareInvocation(
+                "replace_with_bytes_and_extend",
+                {makeSymbolSCVal("key"), makeU32(1), makeU32(0), makeU32(0)},
+                autorestoreSpec);
+            invokeAndCheck(invocation, costToRestore1KB, 4,
+                           getExpectedRestoredLedger());
+        }
+
+        SECTION("autorestore with rent bump")
+        {
+            // autorestore and extend in the same tx
+            auto invocation = client.getContract().prepareInvocation(
+                "replace_with_bytes_and_extend",
+                {makeSymbolSCVal("key"), makeU32(1), makeU32(bumpLedgers),
+                 makeU32(bumpLedgers)},
+                autorestoreSpec);
+
+            // Check that the refundable fee charged matches the cost of
+            // restoration followed by a rent bump. Event cost has already been
+            // included, so set eventSize to 0 for check
+            invokeAndCheck(invocation, costToRestore1KB + costOfBumpAndEvents,
+                           0, bumpLedgers + test.getLCLSeq());
+        }
+
+        SECTION("autorestore with rent bump and resize")
+        {
+            // autorestore and extend in the same tx
+            auto invocation = client.getContract().prepareInvocation(
+                "replace_with_bytes_and_extend",
+                {makeSymbolSCVal("key"), makeU32(resizeKb),
+                 makeU32(bumpLedgers), makeU32(bumpLedgers)},
+                autorestoreSpec);
+
+            // Check that bump + resize is handled properly. Event cost has
+            // already been included, so set eventSize to 0 for check
+            invokeAndCheck(invocation,
+                           costToRestore1KB + constOfBumpResizeAndEvents, 0,
+                           bumpLedgers + test.getLCLSeq());
+        }
     }
 }
 

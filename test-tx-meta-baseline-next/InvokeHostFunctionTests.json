@@ -1340,6 +1340,18 @@
 		"ggnpCOwYXac="
 	],
 	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],
+	"autorestore contract instance" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
+	"autorestore with storage resize" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
 	"basic contract invocation" : 
 	[
 		"+cR3oq2qY0I=",
@@ -1444,10 +1456,24 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"persistent entry archival|eviction" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"persistent entry archival|eviction|key accessible after restore in same ledger" : [ "x+jcrgP4L+c=" ],
-	"persistent entry archival|expiration without eviction" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger" : [ "x+jcrgP4L+c=" ],
+	"persistent entry archival|eviction" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"persistent entry archival|eviction|key accessible after restore in same ledger" : [ "X6v/mOWiiW4=", "X6v/mOWiiW4=" ],
+	"persistent entry archival|expiration without eviction" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger" : [ "X6v/mOWiiW4=", "X6v/mOWiiW4=" ],
 	"refund account merged|protocol version 20" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=", "HKURUDFC4f8=" ],
 	"refund account merged|protocol version 21" : [ "krqalR4VBqg=", "ibmBre1y48o=", "pbEBZ3W1weM=", "HKURUDFC4f8=" ],
 	"refund account merged|protocol version 22" : [ "krqalR4VBqg=", "Yn/dIXLvAQU=", "sTchUemldDs=", "Be3X15PT6Gc=" ],
