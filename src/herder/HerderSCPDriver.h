@@ -142,6 +142,25 @@ class HerderSCPDriver : public SCPDriver
     // 2. Higher quality orgs win more frequently than lower quality orgs.
     uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
                          bool isLocalNode) const override;
+    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
+    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
+    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
+
+    class TxSetValidityKeyHash
+    {
+      public:
+        size_t operator()(TxSetValidityKey const& key) const;
+    };
+    void cacheValidTxSet(ApplicableTxSetFrame const& txSet,
+                         LedgerHeaderHistoryEntry const& lcl,
+                         uint64_t closeTimeOffset) const;
+#ifdef BUILD_TESTS
+    RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>&
+    getTxSetValidityCache()
+    {
+        return mTxSetValidCache;
+    }
+#endif
 
   private:
     Application& mApp;
@@ -210,15 +229,7 @@ class HerderSCPDriver : public SCPDriver
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
-    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
-    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
-    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
 
-    class TxSetValidityKeyHash
-    {
-      public:
-        size_t operator()(TxSetValidityKey const& key) const;
-    };
     // validity of txSet
     mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
         mTxSetValidCache;

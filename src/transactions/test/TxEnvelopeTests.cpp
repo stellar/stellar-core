@@ -38,13 +38,6 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
-/*
-  Tests that are testing the common envelope used in transactions.
-  Things like:
-    authz/authn
-    double spend
-*/
-
 TEST_CASE("txset - correct apply order", "[tx][envelope]")
 {
     Config cfg = getTestConfig();

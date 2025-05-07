@@ -274,6 +274,7 @@ testTxSet(uint32 protocolVersion)
     {
         auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
         REQUIRE(txSet->sizeTxTotal() == nbAccounts);
+        REQUIRE(txSet->checkValid(*app, 0, 0));
     }
 
     SECTION("too many txs")
@@ -284,6 +285,7 @@ testTxSet(uint32 protocolVersion)
         }
         auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
         REQUIRE(txSet->sizeTxTotal() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->checkValid(*app, 0, 0));
     }
     SECTION("invalid tx")
     {
@@ -296,6 +298,7 @@ testTxSet(uint32 protocolVersion)
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
             REQUIRE(removed.size() == 1);
             REQUIRE(txSet->sizeTxTotal() == nbAccounts);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
         SECTION("sequence gap")
         {
@@ -308,6 +311,7 @@ testTxSet(uint32 protocolVersion)
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
             REQUIRE(removed.size() == 1);
             REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
         SECTION("insufficient balance")
         {
@@ -321,6 +325,7 @@ testTxSet(uint32 protocolVersion)
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
             REQUIRE(removed.size() == 1);
             REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
         SECTION("bad signature")
         {
@@ -333,6 +338,7 @@ testTxSet(uint32 protocolVersion)
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
             REQUIRE(removed.size() == 1);
             REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
     }
 }
@@ -2210,6 +2216,23 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         }
     }
 
+    SECTION("validateValue txSet cached")
+    {
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto seq = herder.trackingConsensusLedgerIndex() + 1;
+        auto ct = app->timeNow() + 1;
+
+        auto& cache = herder.getHerderSCPDriver().getTxSetValidityCache();
+        REQUIRE(cache.getCounters().mHits == 0);
+        REQUIRE(cache.getCounters().mMisses == 0);
+
+        // Triggering next ledger will construct and cache the block
+        herder.triggerNextLedger(seq, true);
+        // All hits during the whole SCP round
+        REQUIRE(cache.getCounters().mHits == 8);
+        // One miss from the initial makeTxSetFromTransactions
+        REQUIRE(cache.getCounters().mMisses == 1);
+    }
     SECTION("accept qset and txset")
     {
         auto makePublicKey = [](int i) {
