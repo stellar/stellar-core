@@ -2829,7 +2829,7 @@ TEST_CASE("charge rent fees for storage resize", "[tx][soroban]")
     }
 }
 
-TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 {
     auto test = [](Config& cfg) {
         TmpDirManager tdm(std::string("soroban-storage-meta-") +
@@ -2913,7 +2913,6 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
             REQUIRE(evicted);
         }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         SECTION("persistent entry meta")
         {
             auto persistentInvocation = client.getContract().prepareInvocation(
@@ -2933,97 +2932,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                 persistentLE = ltxe.current();
             }
 
-            // Entry must merge down the BucketList until it is in the first
-            // scan level
-            auto evictionLedger = 8193;
-
-            // Close ledgers until entry is evicted
-            for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
-            {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-            }
-
-            if (protocolVersionStartsFrom(
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-            {
-                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                REQUIRE(!ltx.load(persistentKey));
-            }
-
-            SECTION("eviction meta")
-            {
-                XDRInputFileStream in;
-                in.open(metaPath);
-                LedgerCloseMeta lcm;
-                bool evicted = false;
-                LedgerKeySet keysToEvict = {persistentKey,
-                                            getTTLKey(persistentKey)};
-                while (in.readOne(lcm))
-                {
-                    REQUIRE(lcm.v() == 1);
-                    if (lcm.v1().ledgerHeader.header.ledgerSeq ==
-                        evictionLedger)
-                    {
-                        // Only support persistent eviction meta >= p23
-                        if (protocolVersionStartsFrom(
-                                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                LiveBucket::
-                                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                        {
-                            // TLL and data key should both be in "deleted"
-                            // evictedTemporaryLedgerKeys. For legacy reasons,
-                            // this field is misnamed.
-                            REQUIRE(
-                                lcm.v1().evictedTemporaryLedgerKeys.size() ==
-                                2);
-
-                            for (auto const& key :
-                                 lcm.v1().evictedTemporaryLedgerKeys)
-                            {
-                                REQUIRE(keysToEvict.find(key) !=
-                                        keysToEvict.end());
-                                keysToEvict.erase(key);
-                            }
-
-                            // This field should always be empty and never used.
-                            // The field only exists for legacy reasons.
-                            REQUIRE(
-                                lcm.v1()
-                                    .evictedPersistentLedgerEntries.size() ==
-                                0);
-                            evicted = true;
-                        }
-                        else
-                        {
-                            REQUIRE(
-                                lcm.v1().evictedTemporaryLedgerKeys.empty());
-                            REQUIRE(
-                                lcm.v1()
-                                    .evictedPersistentLedgerEntries.empty());
-                            evicted = false;
-                        }
-
-                        break;
-                    }
-                }
-
-                if (protocolVersionStartsFrom(
-                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                        LiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                {
-                    REQUIRE(evicted);
-                    REQUIRE(keysToEvict.empty());
-                }
-                else
-                {
-                    REQUIRE(!evicted);
-                }
-            }
-
-            SECTION("Restoration Meta")
-            {
+            auto testRestore = [&]() {
                 test.invokeRestoreOp({persistentKey}, 20'048);
                 auto targetRestorationLedger = test.getLCLSeq();
 
@@ -3055,46 +2964,13 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                         REQUIRE(changes.size() == 2);
                         for (auto const& change : changes)
                         {
-
-                            // Only support persistent eviction meta >= p23
-                            LedgerKey lk;
-                            if (protocolVersionStartsFrom(
-                                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    LiveBucket::
-                                        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                            {
-                                REQUIRE(change.type() ==
-                                        LedgerEntryChangeType::
-                                            LEDGER_ENTRY_RESTORED);
-                                lk = LedgerEntryKey(change.restored());
-                                REQUIRE(keysToRestore.find(lk) !=
-                                        keysToRestore.end());
-                                keysToRestore.erase(lk);
-                            }
-                            else
-                            {
-                                if (change.type() ==
-                                    LedgerEntryChangeType::LEDGER_ENTRY_STATE)
-                                {
-                                    lk = LedgerEntryKey(change.state());
-                                    REQUIRE(lk == getTTLKey(persistentKey));
-                                    keysToRestore.erase(lk);
-                                }
-                                else
-                                {
-                                    REQUIRE(change.type() ==
-                                            LedgerEntryChangeType::
-                                                LEDGER_ENTRY_UPDATED);
-                                    lk = LedgerEntryKey(change.updated());
-                                    REQUIRE(lk == getTTLKey(persistentKey));
-
-                                    // While we will see the TTL key twice,
-                                    // remove the TTL key in the path above and
-                                    // the persistent key here to make the check
-                                    // easier
-                                    keysToRestore.erase(persistentKey);
-                                }
-                            }
+                            REQUIRE(
+                                change.type() ==
+                                LedgerEntryChangeType::LEDGER_ENTRY_RESTORED);
+                            auto lk = LedgerEntryKey(change.restored());
+                            REQUIRE(keysToRestore.find(lk) !=
+                                    keysToRestore.end());
+                            keysToRestore.erase(lk);
                         }
 
                         restoreMeta = true;
@@ -3104,9 +2980,125 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
 
                 REQUIRE(restoreMeta);
                 REQUIRE(keysToRestore.empty());
+            };
+
+            // First, close ledgers until entry is expired, but not yet evicted
+            auto expirationLedger =
+                test.getLCLSeq() +
+                test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
+            for (uint32_t i = test.getLCLSeq(); i <= expirationLedger; ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+            REQUIRE(!test.isEntryLive(persistentKey, test.getLCLSeq()));
+
+            // First, check restoration meta in non-evicted case. This should be
+            // identical to meta in the evicted case.
+            SECTION("restore expired but not evicted")
+            {
+                testRestore();
+            }
+
+            SECTION("entry evicted")
+            {
+                // Entry must merge down the BucketList until it is in the first
+                // scan level
+                auto evictionLedger = 8193;
+
+                // Close ledgers until entry is evicted
+                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
+                {
+                    closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                }
+
+                if (protocolVersionStartsFrom(
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                        LiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                    REQUIRE(!ltx.load(persistentKey));
+                }
+
+                SECTION("eviction meta")
+                {
+                    XDRInputFileStream in;
+                    in.open(metaPath);
+                    LedgerCloseMeta lcm;
+                    bool evicted = false;
+                    LedgerKeySet keysToEvict = {persistentKey,
+                                                getTTLKey(persistentKey)};
+                    while (in.readOne(lcm))
+                    {
+                        REQUIRE(lcm.v() == 1);
+                        if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                            evictionLedger)
+                        {
+                            // Only support persistent eviction meta >= p23
+                            if (protocolVersionStartsFrom(
+                                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                    LiveBucket::
+                                        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                            {
+                                // TLL and data key should both be in "deleted"
+                                // evictedTemporaryLedgerKeys. For legacy
+                                // reasons, this field is misnamed.
+                                REQUIRE(
+                                    lcm.v1()
+                                        .evictedTemporaryLedgerKeys.size() ==
+                                    2);
+
+                                for (auto const& key :
+                                     lcm.v1().evictedTemporaryLedgerKeys)
+                                {
+                                    REQUIRE(keysToEvict.find(key) !=
+                                            keysToEvict.end());
+                                    keysToEvict.erase(key);
+                                }
+
+                                // This field should always be empty and never
+                                // used. The field only exists for legacy
+                                // reasons.
+                                REQUIRE(lcm.v1()
+                                            .evictedPersistentLedgerEntries
+                                            .size() == 0);
+                                evicted = true;
+                            }
+                            else
+                            {
+                                REQUIRE(
+                                    lcm.v1()
+                                        .evictedTemporaryLedgerKeys.empty());
+                                REQUIRE(lcm.v1()
+                                            .evictedPersistentLedgerEntries
+                                            .empty());
+                                evicted = false;
+                            }
+
+                            break;
+                        }
+                    }
+
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            LiveBucket::
+                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    {
+                        REQUIRE(evicted);
+                        REQUIRE(keysToEvict.empty());
+                    }
+                    else
+                    {
+                        REQUIRE(!evicted);
+                    }
+                }
+
+                SECTION("Restoration Meta")
+                {
+                    testRestore();
+                }
             }
         }
-#endif
 
         SECTION(
             "Create temp entry with same key as an expired entry on eviction "
@@ -4192,7 +4184,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                            .tx.ext.sorobanData()
                            .resources.footprint.readWrite.at(0);
 
-    SECTION("entry expired")
     {
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());

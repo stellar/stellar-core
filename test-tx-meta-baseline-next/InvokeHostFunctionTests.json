@@ -1340,6 +1340,38 @@
 		"ggnpCOwYXac="
 	],
 	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],
+	"archival meta|protocol version 20" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"archival meta|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"archival meta|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"archival meta|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
 	"autorestore contract instance" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"autorestore with storage resize" : 
 	[
@@ -1405,10 +1437,6 @@
 		"+cR3oq2qY0I="
 	],
 	"contract storage|footprint|unused readWrite key" : [ "KxHGewG2KcM=" ],
-	"entry eviction|protocol version 20" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"entry eviction|protocol version 21" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"entry eviction|protocol version 22" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"entry eviction|protocol version 23" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"failure diagnostics" : [ "+cR3oq2qY0I=" ],
 	"fee bump refund account merged|protocol version 20" : 
 	[
@@ -1491,14 +1519,7 @@
 	"refund test with closeLedger|protocol version 22" : [ "krqalR4VBqg=", "Yn/dIXLvAQU=" ],
 	"refund test with closeLedger|protocol version 23" : [ "krqalR4VBqg=", "t+MG8Dn0eQ4=" ],
 	"settings upgrade" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"settings upgrade command line utils" : 
-	[
-		"bQzyJNptErg=",
-		"bQzyJNptErg=",
-		"bQzyJNptErg=",
-		"bQzyJNptErg=",
-		"bQzyJNptErg="
-	],
+	"settings upgrade command line utils" : [ "bQzyJNptErg=", "bQzyJNptErg=", "bQzyJNptErg=", "bQzyJNptErg=" ],
 	"state archival" : 
 	[
 		"+cR3oq2qY0I=",

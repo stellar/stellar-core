@@ -62,7 +62,6 @@ namespace
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 // Starting in protocol 23, some operation meta needs to be modified
 // to be consumed by downstream systems. In particular, restoration is
 // (mostly) logically a new entry creation from the perspective of ltx and
@@ -100,42 +99,58 @@ processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
     //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(newValue)
     // Meta after changes:
     //     Data/Code: LEDGER_ENTRY_RESTORED
-    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_RESTORED(newValue)
+    //     TTL: LEDGER_ENTRY_RESTORED(newValue)
     //
     // First, iterate through existing meta and change everything we need to
     // update.
-    for (auto& change : changes)
+    for (auto iter = changes.begin(); iter != changes.end();)
     {
         // For entry creation meta, we only need to check for Hot Archive
         // restores
-        if (change.type() == LEDGER_ENTRY_CREATED)
+        if (iter->type() == LEDGER_ENTRY_CREATED)
         {
-            auto le = change.created();
+            auto le = iter->created();
             if (hotArchiveRestores.find(LedgerEntryKey(le)) !=
                 hotArchiveRestores.end())
             {
                 releaseAssertOrThrow(isPersistentEntry(le.data) ||
                                      le.data.type() == TTL);
-                change.type(LEDGER_ENTRY_RESTORED);
-                change.restored() = le;
+                iter->type(LEDGER_ENTRY_RESTORED);
+                iter->restored() = le;
             }
         }
         // Update meta only applies to TTL meta
-        else if (change.type() == LEDGER_ENTRY_UPDATED)
+        else if (iter->type() == LEDGER_ENTRY_UPDATED)
         {
-            if (change.updated().data.type() == TTL)
+            if (iter->updated().data.type() == TTL)
             {
-                auto ttlLe = change.updated();
+                auto ttlLe = iter->updated();
                 if (liveRestores.find(LedgerEntryKey(ttlLe)) !=
                     liveRestores.end())
                 {
                     // Update the TTL change from LEDGER_ENTRY_UPDATED to
                     // LEDGER_ENTRY_RESTORED.
-                    change.type(LEDGER_ENTRY_RESTORED);
-                    change.restored() = ttlLe;
+                    iter->type(LEDGER_ENTRY_RESTORED);
+                    iter->restored() = ttlLe;
                 }
             }
         }
+        else if (iter->type() == LEDGER_ENTRY_STATE)
+        {
+            // We only need to remove the TTL state meta from live entry
+            // restores
+            if (iter->state().data.type() == TTL)
+            {
+                if (liveRestores.find(LedgerEntryKey(iter->state())) !=
+                    liveRestores.end())
+                {
+                    iter = changes.erase(iter);
+                    continue;
+                }
+            }
+        }
+
+        ++iter;
     }
 
     // Now we need to insert all the LEDGER_ENTRY_RESTORED changes for the
@@ -167,8 +182,6 @@ processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
 
     return changes;
 }
-#endif
-
 } // namespace
 
 using namespace std;
@@ -1806,20 +1819,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 app.checkOnOperationApply(op->getOperation(), opResult, delta,
                                           opEventManager.getContractEvents());
 
-                LedgerEntryChanges changes;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                if (protocolVersionStartsFrom(
-                        ledgerVersion,
-                        LiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                {
-                    changes = processOpLedgerEntryChanges(op, ltxOp);
-                }
-                else
-#endif
-                {
-                    changes = ltxOp.getChanges();
-                }
+                LedgerEntryChanges changes =
+                    processOpLedgerEntryChanges(op, ltxOp);
                 xdr::xvector<ContractEvent> xdrContractEvents;
                 opEventManager.flushContractEvents(xdrContractEvents);
                 opMetas.push(std::move(changes), std::move(xdrContractEvents));
