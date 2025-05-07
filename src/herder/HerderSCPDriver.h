@@ -223,10 +223,13 @@ class HerderSCPDriver : public SCPDriver
     mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
         mTxSetValidCache;
 
-    SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
-                                                   StellarValue const& sv,
-                                                   bool nomination) const;
+    SCPDriver::ValidationLevel
+    validateValueAgainstLocalState(uint64_t slotIndex, StellarValue const& sv,
+                                   bool nomination) const;
 
+    SCPDriver::ValidationLevel
+    validatePastOrFutureValue(uint64_t slotIndex, StellarValue const& b,
+                              LedgerHeaderHistoryEntry const& lcl) const;
     void logQuorumInformationAndUpdateMetrics(uint64_t index);
 
     void clearSCPExecutionEvents();
