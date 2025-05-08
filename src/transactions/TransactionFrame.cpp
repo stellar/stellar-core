@@ -62,7 +62,7 @@ namespace
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
-// Starting in protocol 23, some operation meta needs to be modified
+// Some operation meta needs to be modified
 // to be consumed by downstream systems. In particular, restoration is
 // (mostly) logically a new entry creation from the perspective of ltx and
 // stellar-core as a whole, but this change type is reclassified to
@@ -71,7 +71,8 @@ LedgerEntryChanges
 processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
                             AbstractLedgerTxn& ltx)
 {
-    if (op->getOperation().body.type() != RESTORE_FOOTPRINT)
+    if (op->getOperation().body.type() != RESTORE_FOOTPRINT &&
+        op->getOperation().body.type() != INVOKE_HOST_FUNCTION)
     {
         return ltx.getChanges();
     }
@@ -81,71 +82,137 @@ processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
 
     LedgerEntryChanges changes = ltx.getChanges();
 
+    // Entry was restored from the hot archive and modified, so we need to
+    // construct and insert a RESTORE change with the restored value.
+    std::set<LedgerKey> stateChangesToAdd;
+
+    // Entry was restored from the live BucketList and modified, so we need to
+    // convert the STATE change with the original state to a RESTORE change.
+    std::set<LedgerKey> stateChangesToConvert;
+
+    // Entry was restored from the live BucketList, but rewritten (auto
+    // restore). The original meta will have both a STATE and UPDATED change,
+    // so we need to remove the STATE change. The UPDATED change will be
+    // converted to a RESTORE change below.
+    std::set<LedgerKey> stateChangesToRemove;
+
     // Depending on whether the restored entry is still in the live
     // BucketList (has not yet been evicted), or has been evicted and is in
     // the hot archive, meta will be handled differently as follows:
     //
     // Entry restore from Hot Archive:
     // Meta before changes:
-    //     Data/Code: LEDGER_ENTRY_CREATED
-    //     TTL: LEDGER_ENTRY_CREATED
+    //     Data/Code/TTL: LEDGER_ENTRY_CREATED(newValue)
     // Meta after changes:
-    //     Data/Code: LEDGER_ENTRY_RESTORED
-    //     TTL: LEDGER_ENTRY_RESTORED
+    //     Data/Code/TTL:
+    //        if oldValue != newValue: (i.e. restored then modified)
+    //          LEDGER_ENTRY_RESTORED(oldValue), LEDGER_ENTRY_UPDATED(newValue)
+    //        else (i.e. restored and not modified)
+    //          LEDGER_ENTRY_RESTORED(oldValue)
     //
-    // Entry restore from Live BucketList:
+    // Entry restore from Live BucketList (autorestore):
+    // For autorestore, all restored entries are re-written, even if they
+    // haven't been modified. This means we always have meta for both the TTL
+    // and code/data entry as follows, and the lastModifiedLedgerSeq for all
+    // entries is updated.
     // Meta before changes:
-    //     Data/Code: no meta
+    //     Data/Code/TTL:
+    //        if oldValue != newValue: (i.e. restored then modified)
+    //          LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(newValue)
+    //        else (i.e. restored and not modified)
+    //          LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(oldValue)
+    //
+    // Meta after changes:
+    //     Data/Code/TTL:
+    //        if oldValue != newValue: (i.e. restored then modified)
+    //          LEDGER_ENTRY_RESTORED(oldValue), LEDGER_ENTRY_UPDATED(newValue)
+    //        else
+    //          LEDGER_ENTRY_RESTORED(oldValue)
+    //
+    // Entry restore from Live BucketList (RestoreOp):
+    // For RestoreOp from the live BucketList, only the TTL value is modified,
+    // so we don't have meta for the code/data entry, and the
+    // lastModifiedLedgerSeq is not updated.
+    // Meta before changes:
     //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(newValue)
     // Meta after changes:
-    //     Data/Code: LEDGER_ENTRY_RESTORED
     //     TTL: LEDGER_ENTRY_RESTORED(newValue)
+    //     Data/Code: LEDGER_ENTRY_RESTORED(oldValue, oldLedgerSeq)
     //
+    // Subtle: with the exception of the RestoreOp data/code from live
+    // BucketList, all other RESTORE meta should have the current ledger as
+    // the lastModifiedLedgerSeq.
+
     // First, iterate through existing meta and change everything we need to
     // update.
     for (auto iter = changes.begin(); iter != changes.end();)
     {
-        // For entry creation meta, we only need to check for Hot Archive
-        // restores
         if (iter->type() == LEDGER_ENTRY_CREATED)
         {
-            auto le = iter->created();
-            if (hotArchiveRestores.find(LedgerEntryKey(le)) !=
-                hotArchiveRestores.end())
+            if (iter->created().data.type() == TTL ||
+                isPersistentEntry(iter->created().data))
             {
-                releaseAssertOrThrow(isPersistentEntry(le.data) ||
-                                     le.data.type() == TTL);
-                iter->type(LEDGER_ENTRY_RESTORED);
-                iter->restored() = le;
-            }
-        }
-        // Update meta only applies to TTL meta
-        else if (iter->type() == LEDGER_ENTRY_UPDATED)
-        {
-            if (iter->updated().data.type() == TTL)
-            {
-                auto ttlLe = iter->updated();
-                if (liveRestores.find(LedgerEntryKey(ttlLe)) !=
-                    liveRestores.end())
+                // For entry creation meta, we only need to check for Hot
+                // Archive restores
+                auto key = LedgerEntryKey(iter->created());
+                releaseAssertOrThrow(liveRestores.find(key) ==
+                                     liveRestores.end());
+
+                auto hotRestoreIter = hotArchiveRestores.find(key);
+                if (hotRestoreIter != hotArchiveRestores.end())
                 {
-                    // Update the TTL change from LEDGER_ENTRY_UPDATED to
-                    // LEDGER_ENTRY_RESTORED.
-                    iter->type(LEDGER_ENTRY_RESTORED);
-                    iter->restored() = ttlLe;
+                    // Entry was only restored during the TX, change create to
+                    // restore
+                    auto le = iter->created();
+                    if (le.data == hotRestoreIter->second.data)
+                    {
+                        iter->type(LEDGER_ENTRY_RESTORED);
+                        iter->restored() = le;
+                    }
+                    else
+                    {
+                        // Entry was restored and modified during the TX, change
+                        // create to a modify and add original value as restored
+                        iter->type(LEDGER_ENTRY_UPDATED);
+                        iter->updated() = le;
+                        stateChangesToAdd.insert(key);
+                    }
                 }
             }
         }
-        else if (iter->type() == LEDGER_ENTRY_STATE)
+        else if (iter->type() == LEDGER_ENTRY_UPDATED)
         {
-            // We only need to remove the TTL state meta from live entry
-            // restores
-            if (iter->state().data.type() == TTL)
+            if (iter->updated().data.type() == TTL ||
+                isPersistentEntry(iter->updated().data))
             {
-                if (liveRestores.find(LedgerEntryKey(iter->state())) !=
-                    liveRestores.end())
+                // Only entries restored from the live BucketList can have
+                // UPDATED meta, Hot Archive entries will have CREATED meta.
+                auto key = LedgerEntryKey(iter->updated());
+                releaseAssertOrThrow(hotArchiveRestores.find(key) ==
+                                     hotArchiveRestores.end());
+
+                auto liveRestoreIter = liveRestores.find(key);
+                if (liveRestoreIter != liveRestores.end())
                 {
-                    iter = changes.erase(iter);
-                    continue;
+                    // The entry was restored from the live BucketList. Either:
+                    // 1. The entry was only restored and not modified.
+                    //    In this case, original meta will be STATE(value),
+                    //    UPDATED(value). We will change the UPDATED to RESTORED
+                    //    below and just delete the STATE change.
+                    if (iter->updated().data == liveRestoreIter->second.data)
+                    {
+                        auto le = iter->updated();
+                        iter->type(LEDGER_ENTRY_RESTORED);
+                        iter->restored() = le;
+                        stateChangesToRemove.insert(key);
+                        continue;
+                    }
+
+                    // 2. The entry was restored and then modified.
+                    //    In this case, meta will emit STATE(oldValue),
+                    //    UPDATED(newValue). We will convert the STATE to
+                    //    RESTORED and leave the UPDATED change as is.
+                    stateChangesToConvert.insert(key);
                 }
             }
         }
@@ -153,31 +220,75 @@ processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
         ++iter;
     }
 
-    // Now we need to insert all the LEDGER_ENTRY_RESTORED changes for the
-    // data entries that were not created but already existed on the live
-    // BucketList. These data/code entries have not been modified (only the TTL
-    // is updated), so ltx doesn't have any meta. However this is still useful
-    // for downstream so we manually insert restore meta here.
-    for (auto const& key : liveRestores)
+    // First remove and convert STATE changes
+    for (auto iter = changes.begin(); iter != changes.end();)
     {
-        if (key.type() == TTL)
+        if (iter->type() == LEDGER_ENTRY_STATE)
         {
-            continue;
+            auto lk = LedgerEntryKey(iter->state());
+            if (stateChangesToRemove.find(lk) != stateChangesToRemove.end())
+            {
+                releaseAssertOrThrow(stateChangesToConvert.find(lk) ==
+                                     stateChangesToConvert.end());
+                releaseAssertOrThrow(stateChangesToAdd.find(lk) ==
+                                     stateChangesToAdd.end());
+                iter = changes.erase(iter);
+                continue;
+            }
+
+            if (stateChangesToConvert.find(lk) != stateChangesToConvert.end())
+            {
+                releaseAssertOrThrow(stateChangesToAdd.find(lk) ==
+                                     stateChangesToAdd.end());
+
+                auto le = iter->state();
+                iter->type(LEDGER_ENTRY_RESTORED);
+                iter->restored() = le;
+
+                // For consistency between live and hot archive restores,
+                // restores lastModifiedLedgerSeq should be the current ledger
+                iter->restored().lastModifiedLedgerSeq =
+                    ltx.getHeader().ledgerSeq;
+            }
         }
-        releaseAssertOrThrow(isPersistentEntry(key));
 
-        // Note: this is already in the cache since the RestoreOp loaded
-        // all data keys for size calculation during apply already
-        auto entry = ltx.getNewestVersion(key);
+        ++iter;
+    }
 
-        // If TTL already exists and is just being updated, the
-        // data entry must also already exist
-        releaseAssertOrThrow(entry);
-
+    for (auto const& key : stateChangesToAdd)
+    {
+        auto le = hotArchiveRestores.at(key);
         LedgerEntryChange change;
         change.type(LEDGER_ENTRY_RESTORED);
-        change.restored() = entry->ledgerEntry();
+        change.restored() = le;
+        change.restored().lastModifiedLedgerSeq = ltx.getHeader().ledgerSeq;
         changes.push_back(change);
+    }
+
+    if (op->getOperation().body.type() == RESTORE_FOOTPRINT)
+    {
+        // RestoreOp will create both the TTL and Code/Data entry in the hot
+        // archive case (which was converted to RESTORE above). However, when
+        // restoring from live BucketList, only the TTL value will be modified,
+        // so we have to manually insert the RESTORED meta for the Code/Data
+        // entry here.
+        for (auto const& [key, entry] : liveRestores)
+        {
+            if (key.type() == TTL)
+            {
+                continue;
+            }
+            releaseAssertOrThrow(isPersistentEntry(key));
+
+            LedgerEntryChange change;
+            change.type(LEDGER_ENTRY_RESTORED);
+            change.restored() = entry;
+            changes.push_back(change);
+        }
+
+        // RestoreOp can't modify entries
+        releaseAssertOrThrow(stateChangesToAdd.empty());
+        releaseAssertOrThrow(stateChangesToConvert.empty());
     }
 
     return changes;

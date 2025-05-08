@@ -374,7 +374,7 @@ class LedgerTxn::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     LedgerTxnEntry restoreFromLiveBucketList(LedgerTxn& self,
-                                             LedgerKey const& key,
+                                             LedgerEntry const& entry,
                                              uint32_t ttl);
 
     // getAllOffers has the basic exception safety guarantee. If it throws an
@@ -452,8 +452,8 @@ class LedgerTxn::Impl
                        std::vector<LedgerKey>& deadEntries);
     // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys
     // have the strong exception safety guarantee
-    UnorderedSet<LedgerKey> const& getRestoredHotArchiveKeys() const;
-    UnorderedSet<LedgerKey> const& getRestoredLiveBucketListKeys() const;
+    UnorderedMap<LedgerKey, LedgerEntry> const& getRestoredHotArchiveKeys() const;
+    UnorderedMap<LedgerKey, LedgerEntry> const& getRestoredLiveBucketListKeys() const;
 
     LedgerKeySet getAllTTLKeysWithoutSealing() const;
 

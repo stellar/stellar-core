@@ -637,18 +637,18 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
         printErrorAndAbort("unknown fatal error during commit to LedgerTxn");
     }
 
-    for (auto const& key : restoredKeys.hotArchive)
+    for (auto const& [key, entry] : restoredKeys.hotArchive)
     {
-        auto [_, inserted] = mRestoredKeys.hotArchive.emplace(key);
+        auto [_, inserted] = mRestoredKeys.hotArchive.emplace(key, entry);
         if (!inserted)
         {
             printErrorAndAbort("restored hot archive entry already exists");
         }
     }
 
-    for (auto const& key : restoredKeys.liveBucketList)
+    for (auto const& [key, entry] : restoredKeys.liveBucketList)
     {
-        auto [_, inserted] = mRestoredKeys.liveBucketList.emplace(key);
+        auto [_, inserted] = mRestoredKeys.liveBucketList.emplace(key, entry);
         if (!inserted)
         {
             printErrorAndAbort("restored live BucketList entry already exists");
@@ -855,32 +855,34 @@ LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
     auto ttlLtxe = create(self, ttlEntry);
 
     // Mark the keys as restored
-    auto addKey = [this](LedgerKey const& key) {
-        auto [_, inserted] = mRestoredKeys.hotArchive.insert(key);
+    auto addEntry = [this](LedgerEntry const& entry, LedgerKey const& key) {
+        auto [_, inserted] = mRestoredKeys.hotArchive.emplace(key, entry);
         if (!inserted)
         {
             throw std::runtime_error("Key already removed from hot archive");
         }
     };
-    addKey(LedgerEntryKey(entry));
-    addKey(ttlKey);
+    addEntry(entry, LedgerEntryKey(entry));
+    addEntry(ttlLtxe.current(), ttlKey);
 
     return ttlLtxe;
 }
 
 LedgerTxnEntry
-LedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
+LedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry, uint32_t ttl)
 {
-    return getImpl()->restoreFromLiveBucketList(*this, key, ttl);
+    return getImpl()->restoreFromLiveBucketList(*this, entry, ttl);
 }
 
 LedgerTxnEntry
 LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
-                                           LedgerKey const& key, uint32_t ttl)
+                                           LedgerEntry const& entry,
+                                           uint32_t ttl)
 {
     throwIfSealed();
     throwIfChild();
 
+    auto key = LedgerEntryKey(entry);
     if (!isPersistentEntry(key))
     {
         throw std::runtime_error("Key type not supported for restoration");
@@ -900,16 +902,16 @@ LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
     ttlLtxe.current().data.ttl().liveUntilLedgerSeq = ttl;
 
     // Mark the keys as restored
-    auto addKey = [this](LedgerKey const& key) {
-        auto [_, inserted] = mRestoredKeys.liveBucketList.insert(key);
+    auto addEntry = [this](LedgerEntry const& entry, LedgerKey const& key) {
+        auto [_, inserted] = mRestoredKeys.liveBucketList.emplace(key, entry);
         if (!inserted)
         {
             throw std::runtime_error(
                 "Key already restored from Live BucketList");
         }
     };
-    addKey(key);
-    addKey(ttlKey);
+    addEntry(entry, key);
+    addEntry(ttlLtxe.current(), ttlKey);
 
     return ttlLtxe;
 }
@@ -1582,25 +1584,25 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     deadEntries.swap(resDead);
 }
 
-UnorderedSet<LedgerKey> const&
+UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::getRestoredHotArchiveKeys() const
 {
     return getImpl()->getRestoredHotArchiveKeys();
 }
 
-UnorderedSet<LedgerKey> const&
+UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::Impl::getRestoredHotArchiveKeys() const
 {
     return mRestoredKeys.hotArchive;
 }
 
-UnorderedSet<LedgerKey> const&
+UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::getRestoredLiveBucketListKeys() const
 {
     return getImpl()->getRestoredLiveBucketListKeys();
 }
 
-UnorderedSet<LedgerKey> const&
+UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
 {
     return mRestoredKeys.liveBucketList;

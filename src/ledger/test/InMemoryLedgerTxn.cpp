@@ -282,7 +282,7 @@ InMemoryLedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 }
 
 LedgerTxnEntry
-InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerKey const& key, uint32_t ttl)
+InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry, uint32_t ttl)
 {
     throw std::runtime_error(
         "called restoreFromLiveBucketList on InMemoryLedgerTxn");

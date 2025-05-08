@@ -186,7 +186,10 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         {
             // Entry exists in the live BucketList if we get this this point due
             // to the constTTLLtxe loadWithoutRecord logic above.
-            ltx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
+            // Get the actual ledger entry (since we know it exists already at this point)
+            auto entry = ltx.getNewestVersion(lk);
+            releaseAssertOrThrow(entry);
+            ltx.restoreFromLiveBucketList(entry->ledgerEntry(), restoredLiveUntilLedger);
         }
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
