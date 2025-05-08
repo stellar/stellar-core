@@ -136,7 +136,45 @@ LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
-ALL_SOROBAN_PROTOCOLS=$(notdir $(wildcard rust/soroban/p*))
+
+# There's some subtlety to the way the next few lines work and interact with the
+# "next protocol" flag `--enable-next-protocol-version-unsafe-for-production`.
+#
+# There are two possible and legitimate ways to interpret this flag:
+#
+#    1. If the flag is on, build the submodule named by the next protocol
+#       version, with no additional feature-flags passed to cargo. If the flag
+#       is off, don't build that submodule at all.
+#
+#    2. If the flag is on, build the submodule named by the _current_ protocol
+#       version but pass the `--features=next` flag to cargo. If the flag is
+#       off, don't pass `--features=next` to the submodule.
+#
+# Both of these interpretations are valid and have their own use cases. They
+# happen at different times during the development process and we want to allow
+# both. Interpretation #1 is useful while a protocol is in-development and we
+# want to be certain that the entire submodule isn't built or shipped by
+# accident. Interpretation #2 is useful when a protocol is in-production but we
+# still want the "next" builds to be available to experiment with protocol
+# changes in the current codebase (or at minimum: to be identical to curr, but
+# to pass CI and not spuriously fail to build or run)
+#
+# If you want interpretation #1, you should put the submodule in the variable
+# `WIP_SOROBAN_PROTOCOL`. If you want interpretation #2, you should leave that
+# variable empty (and include or exclude submodules from the list of
+# ALL_SOROBAN_PROTOCOLS as you see fit).
+
+ALL_SOROBAN_PROTOCOLS=p21 p22 p23
+WIP_SOROBAN_PROTOCOL=
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)
+# This means "only pass --features=next if there's no WIP submodule"
+SOROBAN_FEATURE_NEXT=$(if $(WIP_SOROBAN_PROTOCOL),,$(CARGO_FEATURE_NEXT))
+else
+SOROBAN_FEATURE_NEXT=
+endif
+
 SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
 
 define soroban_lib_dir
@@ -246,7 +284,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 				FEATURE_FLAGS="" \
 			;; \
 			$(SOROBAN_MAX_PROTOCOL)) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(SOROBAN_FEATURE_NEXT)" \
 			;; \
 			*) \
 				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \

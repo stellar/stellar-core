@@ -14,7 +14,9 @@
 // current-protocol cache as soon as we start, as well as the next-protocol
 // cache (if it exists) so that we can upgrade without stalling.
 
-use crate::soroban_proto_all::{p23, soroban_curr};
+use crate::soroban_proto_all::soroban_curr;
+
+use crate::soroban_proto_all::p23;
 
 pub(crate) struct SorobanModuleCache {
     pub(crate) p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache,
@@ -29,10 +31,10 @@ impl SorobanModuleCache {
     pub fn compile(
         &mut self,
         ledger_protocol: u32,
-        wasm: &[u8],
+        _wasm: &[u8],
     ) -> Result<(), Box<dyn std::error::Error>> {
         match ledger_protocol {
-            23 => self.p23_cache.compile(wasm),
+            23 => self.p23_cache.compile(_wasm),
             // Add other protocols here as needed.
             _ => Err(Box::new(
                 soroban_curr::soroban_proto_any::CoreHostError::General("unsupported protocol"),
@@ -46,14 +48,16 @@ impl SorobanModuleCache {
     }
 
     pub fn evict_contract_code(&mut self, key: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        let hash: [u8; 32] = key
+        let _hash: [u8; 32] = key
             .as_ref()
             .try_into()
             .map_err(|_| "Invalid contract-code key length")?;
-        self.p23_cache.evict(&hash)
+        self.p23_cache.evict(&_hash)?;
+        Ok(())
     }
     pub fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.p23_cache.clear()
+        self.p23_cache.clear()?;
+        Ok(())
     }
 
     pub fn contains_module(
@@ -61,19 +65,22 @@ impl SorobanModuleCache {
         protocol: u32,
         key: &[u8],
     ) -> Result<bool, Box<dyn std::error::Error>> {
-        let hash: [u8; 32] = key
+        let _hash: [u8; 32] = key
             .as_ref()
             .try_into()
             .map_err(|_| "Invalid contract-code key length")?;
         match protocol {
-            23 => self.p23_cache.contains_module(&hash),
+            23 => self.p23_cache.contains_module(&_hash),
             _ => Err(Box::new(
                 soroban_curr::soroban_proto_any::CoreHostError::General("unsupported protocol"),
             )),
         }
     }
     pub fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
-        self.p23_cache.get_mem_bytes_consumed()
+        #[allow(unused_mut)]
+        let mut bytes = 0;
+        bytes = bytes.max(self.p23_cache.get_mem_bytes_consumed()?);
+        Ok(bytes)
     }
 }
 
