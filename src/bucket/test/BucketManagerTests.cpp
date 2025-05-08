@@ -355,8 +355,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
                 LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
                     {CONTRACT_CODE}, 10, addedHotArchiveKeys);
             hotArchive.getLevel(0).setCurr(HotArchiveBucket::fresh(
-                bm, vers, {}, initialHotArchiveBucket, {}, {},
-                clock.getIOContext(), /*doFsync=*/true));
+                bm, vers, {}, initialHotArchiveBucket, {}, clock.getIOContext(),
+                /*doFsync=*/true));
         }
 
         do
@@ -375,9 +375,10 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
                     LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 addHotArchiveBatchAndUpdateSnapshot(
-                    *app, lh, {}, {},
-                    LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
-                        {CONTRACT_CODE}, 10, addedHotArchiveKeys));
+                    *app, lh,
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_CODE}, 10, addedHotArchiveKeys),
+                    {});
             }
             bm.forgetUnreferencedBuckets(
                 app->getLedgerManager().getLastClosedLedgerHAS());
@@ -540,7 +541,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
                     *app, lh,
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
                         {CONTRACT_CODE}, 100),
-                    {}, {});
+                    {});
             }
 
             bm.forgetUnreferencedBuckets(
@@ -730,9 +731,10 @@ TEST_CASE_VERSIONS(
                 if (hasHotArchive)
                 {
                     lm.setNextArchiveBatchForBucketTesting(
-                        {}, {},
-                        LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
-                            {CONTRACT_CODE}, 10, hotArchiveKeys));
+                        LedgerTestUtils::
+                            generateValidUniqueLedgerEntriesWithTypes(
+                                {CONTRACT_CODE}, 10, hotArchiveKeys),
+                        {});
                 }
             }
 
@@ -1432,8 +1434,8 @@ class StopAndRestartBucketMergesTest
                 .getLevel(0)
                 .setCurr(HotArchiveBucket::fresh(
                     app->getBucketManager(), mProtocol, {},
-                    mHotArchiveInitialBatch, {}, {},
-                    app->getClock().getIOContext(), /*doFsync=*/true));
+                    mHotArchiveInitialBatch, {}, app->getClock().getIOContext(),
+                    /*doFsync=*/true));
         }
 
         for (uint32_t i = 2;
@@ -1536,7 +1538,7 @@ class StopAndRestartBucketMergesTest
             {
                 mArchiveEntryBatches.emplace_back(archiveEntries);
                 lm.setNextArchiveBatchForBucketTesting(
-                    mArchiveEntryBatches.back(), {}, {});
+                    mArchiveEntryBatches.back(), {});
             }
 
             closeLedger(*app);
@@ -1588,8 +1590,8 @@ class StopAndRestartBucketMergesTest
                 .getLevel(0)
                 .setCurr(HotArchiveBucket::fresh(
                     app->getBucketManager(), mProtocol, {},
-                    mHotArchiveInitialBatch, {}, {},
-                    app->getClock().getIOContext(), /*doFsync=*/true));
+                    mHotArchiveInitialBatch, {}, app->getClock().getIOContext(),
+                    /*doFsync=*/true));
         }
 
         for (uint32_t i = 2;
@@ -1606,7 +1608,7 @@ class StopAndRestartBucketMergesTest
                     LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 lm.setNextArchiveBatchForBucketTesting(
-                    mArchiveEntryBatches[i - 2], {}, {});
+                    mArchiveEntryBatches[i - 2], {});
                 resolveAllMerges(
                     app->getBucketManager().getHotArchiveBucketList());
             }
@@ -1770,13 +1772,9 @@ TEST_CASE("bucket persistence over app restart with initentry",
               1,
           static_cast<uint32_t>(
               LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-              ,
+          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED),
           static_cast<uint32_t>(
-              HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)
-#endif
-         })
+              HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)})
     {
         for (uint32_t level : {2, 3})
         {
@@ -1796,13 +1794,9 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
               1,
           static_cast<uint32_t>(
               LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-              ,
+          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED),
           static_cast<uint32_t>(
-              HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)
-#endif
-         })
+              HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)})
     {
         for (uint32_t level : {2, 3, 4, 5})
         {

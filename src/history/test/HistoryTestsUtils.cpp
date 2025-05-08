@@ -168,9 +168,10 @@ BucketOutputIteratorForTesting<BucketT>::writeTmpTestBucket()
         else
         {
             UnorderedSet<LedgerKey> empty;
-            auto keys = LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
-                {CONTRACT_CODE}, NUM_ITEMS_PER_BUCKET, empty);
-            return BucketT::convertToBucketEntry({}, {}, keys);
+            auto entries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {CONTRACT_CODE}, NUM_ITEMS_PER_BUCKET, empty);
+            return BucketT::convertToBucketEntry(entries, {});
         }
     };
 

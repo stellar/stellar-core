@@ -993,8 +993,7 @@ void
 BucketManager::addHotArchiveBatch(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archivedEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries)
+    std::vector<LedgerKey> const& restoredEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -1009,14 +1008,12 @@ BucketManager::addHotArchiveBatch(
 #endif
     auto timer = mBucketAddArchiveBatch.TimeScope();
     mBucketArchiveObjectInsertBatch.Mark(archivedEntries.size() +
-                                         restoredEntries.size() +
-                                         deletedEntries.size());
+                                         restoredEntries.size());
 
     // Hot archive should never modify an existing entry, so there are never
     // live entries
     mHotArchiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
-                                    archivedEntries, restoredEntries,
-                                    deletedEntries);
+                                    archivedEntries, restoredEntries);
     mArchiveBucketListSizeCounter.set_count(mHotArchiveBucketList->getSize());
 }
 
@@ -1314,12 +1311,10 @@ BucketManager::assumeState(HistoryArchiveState const& has,
     };
 
     processBucketList(*mLiveBucketList, has.currentBuckets);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (has.hasHotArchiveBuckets())
     {
         processBucketList(*mHotArchiveBucketList, has.hotArchiveBuckets);
     }
-#endif
 
     mLiveBucketList->maybeInitializeCaches(mConfig);
 
@@ -1327,13 +1322,11 @@ BucketManager::assumeState(HistoryArchiveState const& has,
     {
         mLiveBucketList->restartMerges(mApp, maxProtocolVersion,
                                        has.currentLedger);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (has.hasHotArchiveBuckets())
         {
             mHotArchiveBucketList->restartMerges(mApp, maxProtocolVersion,
                                                  has.currentLedger);
         }
-#endif
     }
     cleanupStaleFiles(has);
 }

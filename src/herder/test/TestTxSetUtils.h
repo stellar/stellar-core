@@ -24,7 +24,6 @@ std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSetBasedOnLedgerVersion(
     std::vector<TransactionFrameBasePtr> const& txs, Application& app,
     Hash const& previousLedgerHash);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void normalizeParallelPhaseXDR(TransactionPhase& phase);
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -33,6 +32,5 @@ makeNonValidatedGeneralizedTxSet(PhaseComponents const& classicTxsPerBaseFee,
                                  TxStageFrameList const& sorobanTxsPerStage,
                                  Application& app,
                                  Hash const& previousLedgerHash);
-#endif
 } // namespace testtxset
 } // namespace stellar

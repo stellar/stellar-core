@@ -285,7 +285,6 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                             scenarios[1].end());
         scenarios[1].insert(scenarios[1].end(), scenarios[0].begin(),
                             scenarios[0].begin() + classicScenariosSize);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // Scenarios for the Soroban parallel phase.
         auto parallelPhase = [&](std::vector<std::vector<int>> shape,
                                  bool normalize = true,
@@ -439,7 +438,6 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             scenarios[0].emplace_back(scenarios[1][i]);
             std::get<1>(scenarios[0].back()) = false;
         }
-#endif
         for (auto const& [classicPhase, classicIsValid, classicScenario] :
              scenarios[0])
 
@@ -502,7 +500,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
             {
                 SorobanResources resources;
                 resources.instructions = 800'000;
-                resources.readBytes = 1000;
+                resources.diskReadBytes = 1000;
                 resources.writeBytes = 1000;
                 txs.emplace_back(createUploadWasmTx(
                     *app, source, fee, DEFAULT_TEST_RESOURCE_FEE, resources));
@@ -611,7 +609,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         REQUIRE(comps[3].txsMaybeDiscountedFee().txs.size() == 3);
         checkXdrRoundtrip(txSetXdr);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(static_cast<uint32_t>(protocolVersion),
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
     {
@@ -730,7 +727,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
             }
         }
     }
-#endif
     SECTION("built from transactions")
     {
         auto const& lclHeader =
@@ -780,7 +776,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                         if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
                             isParallelSoroban)
                         {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                             REQUIRE(phase.v() == 1);
                             REQUIRE(*phase.parallelTxsComponent().baseFee ==
                                     lclHeader.header.baseFee);
@@ -792,9 +787,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             REQUIRE(phase.parallelTxsComponent()
                                         .executionStages[0][0]
                                         .size() == 5);
-#else
-                            releaseAssert(false);
-#endif
                         }
                         else
                         {
@@ -834,7 +826,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                         if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
                             isParallelSoroban)
                         {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                             REQUIRE(phase.v() == 1);
                             REQUIRE(*phase.parallelTxsComponent().baseFee ==
                                     expectedBaseFee);
@@ -846,9 +837,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             REQUIRE(phase.parallelTxsComponent()
                                         .executionStages[0][0]
                                         .size() == 5);
-#else
-                            releaseAssert(false);
-#endif
                         }
                         else
                         {
@@ -885,21 +873,22 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
 }
 
-TEST_CASE("generalized tx set XDR conversion",
-          "[txset]"){SECTION("soroban protocol version"){
-    testGeneralizedTxSetXDRConversion(SOROBAN_PROTOCOL_VERSION);
-}
-SECTION("current protocol version")
+TEST_CASE("generalized tx set XDR conversion", "[txset]")
 {
-    testGeneralizedTxSetXDRConversion(
-        static_cast<ProtocolVersion>(Config::CURRENT_LEDGER_PROTOCOL_VERSION));
-}
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-SECTION("parallel soroban protocol version")
-{
-    testGeneralizedTxSetXDRConversion(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-}
-#endif
+    SECTION("soroban protocol version")
+    {
+        testGeneralizedTxSetXDRConversion(SOROBAN_PROTOCOL_VERSION);
+    }
+    SECTION("current protocol version")
+    {
+        testGeneralizedTxSetXDRConversion(static_cast<ProtocolVersion>(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+    }
+    SECTION("parallel soroban protocol version")
+    {
+        testGeneralizedTxSetXDRConversion(
+            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    }
 }
 
 TEST_CASE("applicable txset validation - Soroban phase version is correct",
@@ -931,7 +920,6 @@ TEST_CASE("applicable txset validation - Soroban phase version is correct",
                 false));
         }
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("sequential phase invalid at parallel tx set protocol version")
     {
         REQUIRE(!runTest(
@@ -954,7 +942,6 @@ TEST_CASE("applicable txset validation - Soroban phase version is correct",
                 true));
         }
     }
-#endif
 }
 
 TEST_CASE("applicable txset validation - transactions belong to correct phase",
@@ -978,7 +965,7 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
             {
                 SorobanResources resources;
                 resources.instructions = 800'000;
-                resources.readBytes = 1000;
+                resources.diskReadBytes = 1000;
                 resources.writeBytes = 1000;
                 tx = createUploadWasmTx(*app, source, 1000, 100'000'000,
                                         resources);
@@ -1103,7 +1090,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             SorobanResources resources;
             resources.instructions =
                 MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-            resources.readBytes = 5'000;
+            resources.diskReadBytes = 5'000;
             resources.writeBytes =
                 MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
@@ -1152,18 +1139,18 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     sorobanCfg.mLedgerMaxInstructions =
                         txCount * sorobanCfg.mTxMaxInstructions;
 
-                    sorobanCfg.mTxMaxReadBytes = 5000;
-                    sorobanCfg.mLedgerMaxReadBytes =
-                        txCount * sorobanCfg.mTxMaxReadBytes;
+                    sorobanCfg.mTxMaxDiskReadBytes = 5000;
+                    sorobanCfg.mledgerMaxDiskReadBytes =
+                        txCount * sorobanCfg.mTxMaxDiskReadBytes;
 
                     sorobanCfg.mTxMaxWriteBytes =
                         MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
                     sorobanCfg.mLedgerMaxWriteBytes =
                         txCount * sorobanCfg.mTxMaxWriteBytes;
 
-                    sorobanCfg.mTxMaxReadLedgerEntries = 10;
-                    sorobanCfg.mLedgerMaxReadLedgerEntries =
-                        txCount * sorobanCfg.mTxMaxReadLedgerEntries;
+                    sorobanCfg.mTxMaxDiskReadEntries = 10;
+                    sorobanCfg.mledgerMaxDiskReadEntries =
+                        txCount * sorobanCfg.mTxMaxDiskReadEntries;
 
                     sorobanCfg.mTxMaxWriteLedgerEntries = 2;
                     sorobanCfg.mLedgerMaxWriteLedgerEntries =
@@ -1206,7 +1193,6 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                 }
                 else
                 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                     auto takeTxs = [&](int from, int to) {
                         return std::vector<TransactionFrameBaseConstPtr>(
                             txs.begin() + from, txs.begin() + to);
@@ -1240,7 +1226,6 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                                     .getLastClosedLedgerHeader()
                                     .hash)
                                 .second;
-#endif
                 }
                 return txSet->checkValid(*app, 0, 0);
             };
@@ -1260,7 +1245,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             {
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                        sorobanCfg.mLedgerMaxReadBytes -= 1;
+                        sorobanCfg.mledgerMaxDiskReadBytes -= 1;
                     });
                 REQUIRE(!buildAndValidate());
             }
@@ -1276,7 +1261,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             {
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                        sorobanCfg.mLedgerMaxReadLedgerEntries -= 1;
+                        sorobanCfg.mledgerMaxDiskReadEntries -= 1;
                     });
                 REQUIRE(!buildAndValidate());
             }
@@ -1304,7 +1289,6 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     });
                 REQUIRE(!buildAndValidate());
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             if (protocolVersionStartsFrom(
                     protocolVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
             {
@@ -1317,9 +1301,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     REQUIRE(!buildAndValidate());
                 }
             }
-#endif
         }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (protocolVersionStartsFrom(protocolVersion,
                                       PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
         {
@@ -1342,11 +1324,11 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxInstructions =
                             std::numeric_limits<int64_t>::max();
-                        sorobanCfg.mLedgerMaxReadBytes =
+                        sorobanCfg.mledgerMaxDiskReadBytes =
                             std::numeric_limits<uint32_t>::max();
                         sorobanCfg.mLedgerMaxWriteBytes =
                             std::numeric_limits<uint32_t>::max();
-                        sorobanCfg.mLedgerMaxReadLedgerEntries =
+                        sorobanCfg.mledgerMaxDiskReadEntries =
                             std::numeric_limits<uint32_t>::max();
                         sorobanCfg.mLedgerMaxWriteLedgerEntries =
                             std::numeric_limits<uint32_t>::max();
@@ -1420,7 +1402,6 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                 }
             }
         }
-#endif
     };
 
     SECTION("previous protocol")
@@ -1503,7 +1484,7 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     {
         SorobanResources resources;
         resources.instructions = 800'000;
-        resources.readBytes = 1000;
+        resources.diskReadBytes = 1000;
         resources.writeBytes = 1000;
         uint32_t inclusionFee = 500;
         int64_t resourceFee = sorobanResourceFee(*app, resources, 5000, 100);
@@ -1552,7 +1533,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         {
             SorobanResources resources;
             resources.instructions = 800'000;
-            resources.readBytes = 1000;
+            resources.diskReadBytes = 1000;
             resources.writeBytes = 1000;
             resources.footprint.readWrite.emplace_back();
             auto resourceFee = sorobanResourceFee(*app, resources, 5000, 40);
@@ -1733,7 +1714,7 @@ TEST_CASE("txset nomination", "[txset]")
             "xdr_hash,total_fees,total_inclusion_fees,classic_"
             "ops,classic_non_dex_txs,classic_non_dex_txs_base_fee,classic_dex_"
             "txs,classic_dex_txs_base_fee,soroban_ops,soroban_base_fee,"
-            "insns,read_bytes,write_bytes,read_entries,write_"
+            "insns,disk_read_bytes,write_bytes,disk_read_entries,write_"
             "entries,tx_size_bytes");
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -1794,15 +1775,15 @@ TEST_CASE("txset nomination", "[txset]")
                     static_cast<int64_t>(cfg.mLedgerMaxWriteLedgerEntries) *
                     100 / txToLedgerRatioPercentDistr(rng);
 
-                cfg.mLedgerMaxReadLedgerEntries =
+                cfg.mledgerMaxDiskReadEntries =
                     cfg.mLedgerMaxWriteLedgerEntries + ledgerEntriesDistr(rng);
-                cfg.mTxMaxReadLedgerEntries =
-                    static_cast<int64_t>(cfg.mLedgerMaxReadLedgerEntries) *
-                    100 / txToLedgerRatioPercentDistr(rng);
+                cfg.mTxMaxDiskReadEntries =
+                    static_cast<int64_t>(cfg.mledgerMaxDiskReadEntries) * 100 /
+                    txToLedgerRatioPercentDistr(rng);
 
-                cfg.mLedgerMaxReadBytes = ledgerBytesDistr(rng);
-                cfg.mTxMaxReadBytes =
-                    static_cast<int64_t>(cfg.mLedgerMaxReadBytes) * 100 /
+                cfg.mledgerMaxDiskReadBytes = ledgerBytesDistr(rng);
+                cfg.mTxMaxDiskReadBytes =
+                    static_cast<int64_t>(cfg.mledgerMaxDiskReadBytes) * 100 /
                     txToLedgerRatioPercentDistr(rng);
 
                 cfg.mLedgerMaxWriteBytes = ledgerBytesDistr(rng);
@@ -1826,10 +1807,10 @@ TEST_CASE("txset nomination", "[txset]")
             auto const& sorobanConfig =
                 app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             stellar::uniform_int_distribution<> txReadEntriesDistr(
-                1, sorobanConfig.txMaxReadLedgerEntries());
+                1, sorobanConfig.txMaxDiskReadEntries());
 
             stellar::uniform_int_distribution<> txReadBytesDistr(
-                50, sorobanConfig.txMaxReadBytes());
+                50, sorobanConfig.txMaxDiskReadBytes());
             stellar::uniform_int_distribution<> txWriteBytesDistr(
                 50, sorobanConfig.txMaxWriteBytes());
 
@@ -1890,7 +1871,7 @@ TEST_CASE("txset nomination", "[txset]")
             {
                 SorobanResources resources;
                 resources.instructions = txInsnsDistr(rng);
-                resources.readBytes = txReadBytesDistr(rng);
+                resources.diskReadBytes = txReadBytesDistr(rng);
                 resources.writeBytes = txWriteBytesDistr(rng);
 
                 auto readEntries = txReadEntriesDistr(rng);
@@ -1964,7 +1945,7 @@ TEST_CASE("txset nomination", "[txset]")
             {
                 auto const& resources = tx->sorobanResources();
                 totalInsns += resources.instructions;
-                totalReadBytes += resources.readBytes;
+                totalReadBytes += resources.diskReadBytes;
                 totalWriteBytes += resources.writeBytes;
                 totalReadEntries += resources.footprint.readOnly.size() +
                                     resources.footprint.readWrite.size();
@@ -2007,14 +1988,12 @@ TEST_CASE("txset nomination", "[txset]")
             }
             else
             {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 auto const& sorobanComponent =
                     xdrTxSet.v1TxSet().phases[1].parallelTxsComponent();
                 if (sorobanComponent.baseFee)
                 {
                     sorobanBaseFee = *sorobanComponent.baseFee;
                 }
-#endif
             }
 
             oss << binToHex(xdrSha256(xdrTxSet)) << ","
@@ -2093,7 +2072,6 @@ TEST_CASE("txset nomination", "[txset]")
 #endif
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("parallel tx set building", "[txset][soroban]")
 {
     int const STAGE_COUNT = 4;
@@ -2115,13 +2093,13 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
     modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& sorobanCfg) {
         sorobanCfg.mTxMaxInstructions = 100'000'000;
         sorobanCfg.mLedgerMaxInstructions = 400'000'000;
-        sorobanCfg.mTxMaxReadLedgerEntries = 3000;
-        sorobanCfg.mLedgerMaxReadLedgerEntries = 3000;
+        sorobanCfg.mTxMaxDiskReadEntries = 3000;
+        sorobanCfg.mledgerMaxDiskReadEntries = 3000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
         sorobanCfg.mLedgerMaxWriteLedgerEntries = 2000;
-        sorobanCfg.mTxMaxReadBytes = 1'000'000;
-        sorobanCfg.mLedgerMaxReadBytes = 1'000'000;
+        sorobanCfg.mTxMaxDiskReadBytes = 1'000'000;
+        sorobanCfg.mledgerMaxDiskReadBytes = 1'000'000;
         sorobanCfg.mTxMaxWriteBytes = 100'000;
         sorobanCfg.mLedgerMaxWriteBytes = 100'000;
         sorobanCfg.mLedgerMaxTxCount = 1000;
@@ -2154,7 +2132,7 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
         auto source = it->second;
         SorobanResources resources;
         resources.instructions = instructions;
-        resources.readBytes = readBytes;
+        resources.diskReadBytes = readBytes;
         resources.writeBytes = writeBytes;
         for (auto roKeyId : roKeys)
         {
@@ -2303,8 +2281,8 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
         {
             modifySorobanNetworkConfig(
                 *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                    sorobanCfg.mTxMaxReadLedgerEntries = 4 * 10 + 3;
-                    sorobanCfg.mLedgerMaxReadLedgerEntries = 4 * 10 + 3;
+                    sorobanCfg.mTxMaxDiskReadEntries = 4 * 10 + 3;
+                    sorobanCfg.mledgerMaxDiskReadEntries = 4 * 10 + 3;
                 });
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
@@ -2678,9 +2656,9 @@ TEST_CASE("parallel tx set building benchmark",
     sorobanCfg.mLedgerMaxInstructions =
         static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
         MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
-    sorobanCfg.mLedgerMaxReadLedgerEntries =
+    sorobanCfg.mledgerMaxDiskReadEntries =
         MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX) * 2;
-    sorobanCfg.mLedgerMaxReadBytes =
+    sorobanCfg.mledgerMaxDiskReadBytes =
         MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX * 2;
     sorobanCfg.mLedgerMaxWriteLedgerEntries =
         MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX * 2;
@@ -2714,7 +2692,7 @@ TEST_CASE("parallel tx set building benchmark",
         auto& resources = txEnvelope.v1().tx.ext.sorobanData().resources;
 
         resources.instructions = instructions;
-        resources.readBytes = readBytes;
+        resources.diskReadBytes = readBytes;
         resources.writeBytes = writeBytes;
         for (auto roKeyId : roKeys)
         {
@@ -2902,6 +2880,5 @@ TEST_CASE("parallel tx set building benchmark",
     runBenchmark(20, 40, 1);
     runBenchmark(10, 10, 10);
 }
-#endif
 } // namespace
 } // namespace stellar

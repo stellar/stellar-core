@@ -1131,7 +1131,7 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
+    resources.diskReadBytes = 2000;
     resources.writeBytes = 1000;
 
     auto tx = createUploadWasmTx(*app, *root, 10'000'000,
@@ -1263,7 +1263,7 @@ TEST_CASE("Soroban TransactionQueue limits",
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
+    resources.diskReadBytes = 2000;
     resources.writeBytes = 1000;
 
     int const resourceFee = 2'000'000;

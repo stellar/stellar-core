@@ -69,6 +69,7 @@ ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     rustEntryRentChanges.reserve(footprint.readOnly.size());
     uint32_t ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // Extend for `extendTo` more ledgers since the current
     // ledger. Current ledger has to be payed for in order for entry
     // to be extendable, hence don't include it.
@@ -117,13 +118,13 @@ ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             return false;
         }
 
-        if (resources.readBytes < metrics.mLedgerReadByte)
+        if (resources.diskReadBytes < metrics.mLedgerReadByte)
         {
             diagnosticEvents.pushApplyTimeDiagnosticError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
-                 makeU64SCVal(resources.readBytes)});
+                 makeU64SCVal(resources.diskReadBytes)});
 
             innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -135,14 +136,30 @@ ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
         rustChange.is_persistent = !isTemporaryEntry(lk);
-        rustChange.old_size_bytes = static_cast<uint32>(entrySize);
+
+        uint32_t entrySizeForRent = entrySize;
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
+        {
+            if (isContractCodeEntry(lk))
+            {
+                entrySizeForRent =
+                    rust_bridge::contract_code_memory_size_for_rent(
+                        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+                        ledgerVersion,
+                        toCxxBuf(entryLtxe.current().data.contractCode()),
+                        toCxxBuf(sorobanConfig.cpuCostParams()),
+                        toCxxBuf(sorobanConfig.memCostParams()));
+            }
+        }
+
+        rustChange.old_size_bytes = entrySizeForRent;
         rustChange.new_size_bytes = rustChange.old_size_bytes;
         rustChange.old_live_until_ledger =
             ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
         rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
         ttlLtxe.current().data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
     }
-    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+
     // This may throw, but only in case of the Core version misconfiguration.
     int64_t rentFee = rust_bridge::compute_rent_fee(
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,

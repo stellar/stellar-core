@@ -280,7 +280,7 @@ TxGenerator::createUploadWasmTransaction(
     {
         uploadResources = SorobanResources{};
         uploadResources->instructions = 2'500'000;
-        uploadResources->readBytes = wasm.size() + 500;
+        uploadResources->diskReadBytes = wasm.size() + 500;
         uploadResources->writeBytes = wasm.size() + 500;
     }
 
@@ -314,7 +314,7 @@ TxGenerator::createContractTransaction(
         accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
     SorobanResources createResources{};
     createResources.instructions = 1'000'000;
-    createResources.readBytes = contractOverheadBytes;
+    createResources.diskReadBytes = contractOverheadBytes;
     createResources.writeBytes = 300;
 
     auto contractIDPreimage = makeContractIDPreimage(*account, salt);
@@ -488,8 +488,9 @@ TxGenerator::invokeSorobanLoadTransaction(
     ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
                                  kiloBytesPerEntryU32};
 
-    resources.readBytes = footprintSize(mApp, resources.footprint.readOnly) +
-                          footprintSize(mApp, resources.footprint.readWrite);
+    resources.diskReadBytes =
+        footprintSize(mApp, resources.footprint.readOnly) +
+        footprintSize(mApp, resources.footprint.readWrite);
     resources.writeBytes = totalWriteBytes;
 
     increaseOpSize(op, paddingBytes);
@@ -642,8 +643,9 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
                                  makeU32(eventCount)};
     resources.writeBytes = dataEntrySize * rwEntries;
-    resources.readBytes = dataEntrySize * roEntries +
-                          instance.contractEntriesSize + resources.writeBytes;
+    resources.diskReadBytes = dataEntrySize * roEntries +
+                              instance.contractEntriesSize +
+                              resources.writeBytes;
 
     increaseOpSize(op, paddingBytes);
 
@@ -740,7 +742,6 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
         }
 
         auto entryPtr = lsg.load(configSettingKey(type));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // This could happen if we have not yet upgraded
         if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
              t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0) &&
@@ -748,7 +749,6 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
         {
             continue;
         }
-#endif
         auto entry = entryPtr.current();
 
         auto& setting = entry.data.configSetting();
@@ -787,16 +787,16 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             }
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-            if (upgradeCfg.ledgerMaxReadLedgerEntries.has_value())
+            if (upgradeCfg.ledgerMaxDiskReadEntries.has_value())
             {
-                setting.contractLedgerCost().ledgerMaxReadLedgerEntries =
-                    *upgradeCfg.ledgerMaxReadLedgerEntries;
+                setting.contractLedgerCost().ledgerMaxDiskReadEntries =
+                    *upgradeCfg.ledgerMaxDiskReadEntries;
             }
 
-            if (upgradeCfg.ledgerMaxReadBytes.has_value())
+            if (upgradeCfg.ledgerMaxDiskReadBytes.has_value())
             {
-                setting.contractLedgerCost().ledgerMaxReadBytes =
-                    *upgradeCfg.ledgerMaxReadBytes;
+                setting.contractLedgerCost().ledgerMaxDiskReadBytes =
+                    *upgradeCfg.ledgerMaxDiskReadBytes;
             }
 
             if (upgradeCfg.ledgerMaxWriteLedgerEntries.has_value())
@@ -811,16 +811,16 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.ledgerMaxWriteBytes;
             }
 
-            if (upgradeCfg.txMaxReadLedgerEntries.has_value())
+            if (upgradeCfg.txMaxDiskReadEntries.has_value())
             {
-                setting.contractLedgerCost().txMaxReadLedgerEntries =
-                    *upgradeCfg.txMaxReadLedgerEntries;
+                setting.contractLedgerCost().txMaxDiskReadEntries =
+                    *upgradeCfg.txMaxDiskReadEntries;
             }
 
-            if (upgradeCfg.txMaxReadBytes.has_value())
+            if (upgradeCfg.txMaxDiskReadBytes.has_value())
             {
-                setting.contractLedgerCost().txMaxReadBytes =
-                    *upgradeCfg.txMaxReadBytes;
+                setting.contractLedgerCost().txMaxDiskReadBytes =
+                    *upgradeCfg.txMaxDiskReadBytes;
             }
 
             if (upgradeCfg.txMaxWriteLedgerEntries.has_value())
@@ -835,10 +835,10 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.txMaxWriteBytes;
             }
 
-            if (upgradeCfg.feeReadLedgerEntry.has_value())
+            if (upgradeCfg.feeDiskReadLedgerEntry.has_value())
             {
-                setting.contractLedgerCost().feeReadLedgerEntry =
-                    *upgradeCfg.feeReadLedgerEntry;
+                setting.contractLedgerCost().feeDiskReadLedgerEntry =
+                    *upgradeCfg.feeDiskReadLedgerEntry;
             }
 
             if (upgradeCfg.feeWriteLedgerEntry.has_value())
@@ -847,22 +847,22 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.feeWriteLedgerEntry;
             }
 
-            if (upgradeCfg.feeRead1KB.has_value())
+            if (upgradeCfg.feeDiskRead1KB.has_value())
             {
-                setting.contractLedgerCost().feeRead1KB =
-                    *upgradeCfg.feeRead1KB;
+                setting.contractLedgerCost().feeDiskRead1KB =
+                    *upgradeCfg.feeDiskRead1KB;
             }
 
-            if (upgradeCfg.writeFee1KBBucketListLow.has_value())
+            if (upgradeCfg.rentFee1KBSorobanStateSizeLow.has_value())
             {
-                setting.contractLedgerCost().writeFee1KBBucketListLow =
-                    *upgradeCfg.writeFee1KBBucketListLow;
+                setting.contractLedgerCost().rentFee1KBSorobanStateSizeLow =
+                    *upgradeCfg.rentFee1KBSorobanStateSizeLow;
             }
 
-            if (upgradeCfg.writeFee1KBBucketListHigh.has_value())
+            if (upgradeCfg.rentFee1KBSorobanStateSizeHigh.has_value())
             {
-                setting.contractLedgerCost().writeFee1KBBucketListHigh =
-                    *upgradeCfg.writeFee1KBBucketListHigh;
+                setting.contractLedgerCost().rentFee1KBSorobanStateSizeHigh =
+                    *upgradeCfg.rentFee1KBSorobanStateSizeHigh;
             }
 
             break;
@@ -951,16 +951,16 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                 ses.maxEntriesToArchive = *upgradeCfg.maxEntriesToArchive;
             }
 
-            if (upgradeCfg.bucketListSizeWindowSampleSize.has_value())
+            if (upgradeCfg.liveSorobanStateSizeWindowSampleSize.has_value())
             {
-                ses.bucketListSizeWindowSampleSize =
-                    *upgradeCfg.bucketListSizeWindowSampleSize;
+                ses.liveSorobanStateSizeWindowSampleSize =
+                    *upgradeCfg.liveSorobanStateSizeWindowSampleSize;
             }
 
-            if (upgradeCfg.bucketListWindowSamplePeriod.has_value())
+            if (upgradeCfg.liveSorobanStateSizeWindowSamplePeriod.has_value())
             {
-                ses.bucketListWindowSamplePeriod =
-                    *upgradeCfg.bucketListWindowSamplePeriod;
+                ses.liveSorobanStateSizeWindowSamplePeriod =
+                    *upgradeCfg.liveSorobanStateSizeWindowSamplePeriod;
             }
 
             if (upgradeCfg.evictionScanSize.has_value())
@@ -982,7 +982,6 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.ledgerMaxTxCount;
             }
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
             if (upgradeCfg.ledgerMaxDependentTxClusters.has_value())
             {
@@ -997,13 +996,12 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.txMaxInMemoryReadEntries;
             }
 
-            if (upgradeCfg.flatRateFeeWrite1KB.has_value())
+            if (upgradeCfg.feeFlatRateWrite1KB.has_value())
             {
                 setting.contractLedgerCostExt().feeWrite1KB =
-                    *upgradeCfg.flatRateFeeWrite1KB;
+                    *upgradeCfg.feeFlatRateWrite1KB;
             }
             break;
-#endif
         default:
             releaseAssert(false);
             break;
@@ -1054,7 +1052,7 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     {
         resources = SorobanResources{};
         resources->instructions = 2'500'000;
-        resources->readBytes = 3'100;
+        resources->diskReadBytes = 3'100;
         resources->writeBytes = 3'100;
     }
 
@@ -1102,7 +1100,7 @@ TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
     int64_t resourceFee = sorobanResourceFee(
         mApp, resources, 5000 + static_cast<size_t>(wasmSize), 100);
     // Roughly cover the rent fee.
-    resourceFee += 1'000'000;
+    resourceFee += 10'000'000;
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                              {uploadOp}, {}, resources,
                                              inclusionFee, resourceFee);

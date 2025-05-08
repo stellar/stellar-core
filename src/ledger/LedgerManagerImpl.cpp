@@ -534,9 +534,9 @@ LedgerManagerImpl::maxSorobanTransactionResources()
     std::vector<int64_t> limits = {opCount,
                                    conf.txMaxInstructions(),
                                    conf.txMaxSizeBytes(),
-                                   conf.txMaxReadBytes(),
+                                   conf.txMaxDiskReadBytes(),
                                    conf.txMaxWriteBytes(),
-                                   conf.txMaxReadLedgerEntries(),
+                                   conf.txMaxDiskReadEntries(),
                                    conf.txMaxWriteLedgerEntries()};
     return Resource(limits);
 }
@@ -762,8 +762,8 @@ LedgerManagerImpl::publishSorobanMetrics()
     m.mConfigTxMaxSizeByte.set_count(conf.txMaxSizeBytes());
     m.mConfigTxMaxCpuInsn.set_count(conf.txMaxInstructions());
     m.mConfigTxMemoryLimitBytes.set_count(conf.txMemoryLimit());
-    m.mConfigTxMaxReadLedgerEntries.set_count(conf.txMaxReadLedgerEntries());
-    m.mConfigTxMaxReadBytes.set_count(conf.txMaxReadBytes());
+    m.mConfigtxMaxDiskReadEntries.set_count(conf.txMaxDiskReadEntries());
+    m.mConfigtxMaxDiskReadBytes.set_count(conf.txMaxDiskReadBytes());
     m.mConfigTxMaxWriteLedgerEntries.set_count(conf.txMaxWriteLedgerEntries());
     m.mConfigTxMaxWriteBytes.set_count(conf.txMaxWriteBytes());
     m.mConfigMaxContractEventsSizeBytes.set_count(
@@ -772,15 +772,15 @@ LedgerManagerImpl::publishSorobanMetrics()
     m.mConfigLedgerMaxInstructions.set_count(conf.ledgerMaxInstructions());
     m.mConfigLedgerMaxTxsSizeByte.set_count(
         conf.ledgerMaxTransactionSizesBytes());
-    m.mConfigLedgerMaxReadLedgerEntries.set_count(
-        conf.ledgerMaxReadLedgerEntries());
-    m.mConfigLedgerMaxReadBytes.set_count(conf.ledgerMaxReadBytes());
+    m.mConfigledgerMaxDiskReadEntries.set_count(
+        conf.ledgerMaxDiskReadEntries());
+    m.mConfigledgerMaxDiskReadBytes.set_count(conf.ledgerMaxDiskReadBytes());
     m.mConfigLedgerMaxWriteEntries.set_count(
         conf.ledgerMaxWriteLedgerEntries());
     m.mConfigLedgerMaxWriteBytes.set_count(conf.ledgerMaxWriteBytes());
     m.mConfigBucketListTargetSizeByte.set_count(
-        conf.bucketListTargetSizeBytes());
-    m.mConfigFeeWrite1KB.set_count(conf.feeWrite1KB());
+        conf.sorobanStateTargetSizeBytes());
+    m.mConfigFeeWrite1KB.set_count(conf.feeRent1KB());
 
     // then publish the actual ledger usage
     m.publishAndResetLedgerWideMetrics();
@@ -2002,7 +2002,7 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                     }
                 }
                 mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries, restoredKeys, {});
+                    mApp, lh, evictedState.archivedEntries, restoredKeys);
             }
 
             if (ledgerCloseMeta)

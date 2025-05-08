@@ -20,8 +20,7 @@ void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
 void addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archiveEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries);
+    std::vector<LedgerKey> const& restoredEntries);
 
 uint32_t getAppLedgerVersion(Application& app);
 
@@ -92,13 +91,11 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     void
     setNextArchiveBatchForBucketTesting(
         std::vector<LedgerEntry> const& archiveEntries,
-        std::vector<LedgerKey> const& restoredEntries,
-        std::vector<LedgerKey> const& deletedEntries)
+        std::vector<LedgerKey> const& restoredEntries)
     {
         mUseTestEntries = true;
         mTestArchiveEntries = archiveEntries;
         mTestRestoredEntries = restoredEntries;
-        mTestDeletedEntries = deletedEntries;
     }
 
     LedgerManagerForBucketTests(Application& app) : LedgerManagerImpl(app)

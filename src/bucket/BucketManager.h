@@ -282,8 +282,7 @@ class BucketManager : NonMovableOrCopyable
                       std::vector<LedgerKey> const& deadEntries);
     void addHotArchiveBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerEntry> const& archivedEntries,
-                            std::vector<LedgerKey> const& restoredEntries,
-                            std::vector<LedgerKey> const& deletedEntries);
+                            std::vector<LedgerKey> const& restoredEntries);
 
     // Update the given LedgerHeader's bucketListHash to reflect the current
     // state of the bucket list.

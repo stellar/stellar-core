@@ -154,20 +154,20 @@ template <typename BucketT> struct BucketEntryIdCmp
             }
             else
             {
-                if (bty != HOT_ARCHIVE_DELETED && bty != HOT_ARCHIVE_LIVE)
+                if (bty != HOT_ARCHIVE_LIVE)
                 {
                     throw std::runtime_error("Malformed bucket: expected "
-                                             "DELETED/LIVE key.");
+                                             "LIVE key.");
                 }
                 return LedgerEntryIdCmp{}(a.archivedEntry().data, b.key());
             }
         }
         else
         {
-            if (aty != HOT_ARCHIVE_DELETED && aty != HOT_ARCHIVE_LIVE)
+            if (aty != HOT_ARCHIVE_LIVE)
             {
                 throw std::runtime_error(
-                    "Malformed bucket: expected DELETED/LIVE key.");
+                    "Malformed bucket: expected LIVE key.");
             }
 
             if (bty == HOT_ARCHIVE_ARCHIVED)
@@ -176,10 +176,10 @@ template <typename BucketT> struct BucketEntryIdCmp
             }
             else
             {
-                if (bty != HOT_ARCHIVE_DELETED && bty != HOT_ARCHIVE_LIVE)
+                if (bty != HOT_ARCHIVE_LIVE)
                 {
                     throw std::runtime_error("Malformed bucket: expected "
-                                             "DELETED/RESTORED key.");
+                                             "LIVE key.");
                 }
                 return LedgerEntryIdCmp{}(a.key(), b.key());
             }

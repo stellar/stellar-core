@@ -77,6 +77,7 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     // the current ledger.
     uint32_t restoredLiveUntilLedger =
         ledgerSeq + archivalSettings.minPersistentTTL - 1;
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     rustEntryRentChanges.reserve(footprint.readWrite.size());
     auto& diagnosticEvents = opEventManager.getDiagnosticEventsBuffer();
     for (auto const& lk : footprint.readWrite)
@@ -117,10 +118,11 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         // We must load the ContractCode/ContractData entry for fee purposes, as
         // restore is considered a write
         uint32_t entrySize = 0;
+        LedgerEntry entry;
         if (hotArchiveEntry)
         {
-            entrySize = static_cast<uint32>(
-                xdr::xdr_size(hotArchiveEntry->archivedEntry()));
+            entry = hotArchiveEntry->archivedEntry();
+            entrySize = static_cast<uint32>(xdr::xdr_size(entry));
         }
         else
         {
@@ -128,19 +130,18 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
             // We checked for TTLEntry existence above
             releaseAssertOrThrow(constEntryLtxe);
-
-            entrySize =
-                static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+            entry = constEntryLtxe.current();
+            entrySize = static_cast<uint32>(xdr::xdr_size(entry));
         }
 
         metrics.mLedgerReadByte += entrySize;
-        if (resources.readBytes < metrics.mLedgerReadByte)
+        if (resources.diskReadBytes < metrics.mLedgerReadByte)
         {
             diagnosticEvents.pushApplyTimeDiagnosticError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
-                 makeU64SCVal(resources.readBytes)});
+                 makeU64SCVal(resources.diskReadBytes)});
             innerResult(res).code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
@@ -174,7 +175,21 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         // for the rent fee purposes.
         rustChange.old_size_bytes = 0;
         rustChange.old_live_until_ledger = 0;
-        rustChange.new_size_bytes = entrySize;
+
+        uint32_t entrySizeForRent = entrySize;
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
+        {
+            if (isContractCodeEntry(lk))
+            {
+                entrySizeForRent =
+                    rust_bridge::contract_code_memory_size_for_rent(
+                        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+                        ledgerVersion, toCxxBuf(entry.data.contractCode()),
+                        toCxxBuf(sorobanConfig.cpuCostParams()),
+                        toCxxBuf(sorobanConfig.memCostParams()));
+            }
+        }
+        rustChange.new_size_bytes = entrySizeForRent;
         rustChange.new_live_until_ledger = restoredLiveUntilLedger;
 
         if (hotArchiveEntry)
@@ -184,12 +199,11 @@ RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         }
         else
         {
-            // Entry exists in the live BucketList if we get this this point due
+            // Entry exists in the live BucketList if we get to this point due
             // to the constTTLLtxe loadWithoutRecord logic above.
             ltx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
         }
     }
-    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
         rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),

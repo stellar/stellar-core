@@ -65,13 +65,11 @@ AssumeStateWork::AssumeStateWork(Application& app,
     processBuckets(mHas.currentBuckets, LiveBucketList::kNumLevels,
                    mLiveBuckets);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (has.hasHotArchiveBuckets())
     {
         processBuckets(mHas.hotArchiveBuckets, HotArchiveBucketList::kNumLevels,
                        mHotArchiveBuckets);
     }
-#endif
 }
 
 BasicWork::State

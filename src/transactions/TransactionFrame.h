@@ -95,14 +95,12 @@ class TransactionFrame : public TransactionFrameBase
                               uint64_t lowerBoundCloseTimeOffset) const;
 
     // If check passes, returns the source account. Otherwise returns nullopt.
-    std::optional<LedgerEntryWrapper> commonValidPreSeqNum(AppConnector& app,
-                              std::optional<SorobanNetworkConfig> const& cfg,
-                              LedgerSnapshot const& ls, bool chargeFee,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              std::optional<FeePair> sorobanResourceFee,
-                              MutableTxResultPtr txResult,
-                              DiagnosticEventBuffer* diagnosticEvents) const;
+    std::optional<LedgerEntryWrapper> commonValidPreSeqNum(
+        AppConnector& app, std::optional<SorobanNetworkConfig> const& cfg,
+        LedgerSnapshot const& ls, bool chargeFee,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        std::optional<FeePair> sorobanResourceFee, MutableTxResultPtr txResult,
+        DiagnosticEventBuffer* diagnosticEvents) const;
 
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;

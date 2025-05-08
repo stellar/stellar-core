@@ -1,7 +1,7 @@
 use crate::{
     soroban_proto_all::get_host_module_for_protocol, CxxBuf, CxxFeeConfiguration,
-    CxxLedgerEntryRentChange, CxxLedgerInfo, CxxRentFeeConfiguration, CxxTransactionResources,
-    CxxWriteFeeConfiguration, FeePair, InvokeHostFunctionOutput, SorobanModuleCache,
+    CxxLedgerEntryRentChange, CxxLedgerInfo, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration,
+    CxxTransactionResources, FeePair, InvokeHostFunctionOutput, SorobanModuleCache,
 };
 
 pub(crate) fn invoke_host_function(
@@ -95,12 +95,15 @@ pub(crate) fn compute_rent_fee(
     ))
 }
 
-pub(crate) fn compute_write_fee_per_1kb(
+pub(crate) fn compute_rent_write_fee_per_1kb(
     config_max_protocol: u32,
     protocol_version: u32,
     bucket_list_size: i64,
-    fee_config: CxxWriteFeeConfiguration,
+    fee_config: CxxRentWriteFeeConfiguration,
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
-    Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
+    Ok((hm.compute_rent_write_fee_per_1kb)(
+        bucket_list_size,
+        fee_config,
+    ))
 }

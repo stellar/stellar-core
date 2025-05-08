@@ -411,14 +411,14 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
     cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
     cfg.mTxMemoryLimit = 100 * 1024 * 1024;
 
-    cfg.mTxMaxReadLedgerEntries = 40;
-    cfg.mTxMaxReadBytes = 200 * 1024;
+    cfg.mTxMaxDiskReadEntries = 40;
+    cfg.mTxMaxDiskReadBytes = 200 * 1024;
 
     cfg.mTxMaxWriteLedgerEntries = 20;
     cfg.mTxMaxWriteBytes = 100 * 1024;
 
-    cfg.mLedgerMaxReadLedgerEntries = cfg.mTxMaxReadLedgerEntries * 10;
-    cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes * 10;
+    cfg.mledgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
+    cfg.mledgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
     cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
     cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
 

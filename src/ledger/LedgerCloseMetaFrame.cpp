@@ -152,15 +152,14 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     for (auto const& key : evictedState.deletedKeys)
     {
         releaseAssertOrThrow(isTemporaryEntry(key) || key.type() == TTL);
-        mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.emplace_back(key);
+        mLedgerCloseMeta.v1().evictedKeys.emplace_back(key);
     }
     for (auto const& entry : evictedState.archivedEntries)
     {
         releaseAssertOrThrow(isPersistentEntry(entry.data));
-        // Unfortunately, for legacy purposes, evictedTemporaryLedgerKeys is
+        // Unfortunately, for legacy purposes, evictedKeys is
         // misnamed and stores all evicted keys, both temp and persistent.
-        mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.emplace_back(
-            LedgerEntryKey(entry));
+        mLedgerCloseMeta.v1().evictedKeys.emplace_back(LedgerEntryKey(entry));
     }
 }
 
@@ -169,14 +168,14 @@ LedgerCloseMetaFrame::setNetworkConfiguration(
     SorobanNetworkConfig const& networkConfig, bool emitExtV1)
 {
     releaseAssert(mVersion == 1);
-    mLedgerCloseMeta.v1().totalByteSizeOfBucketList =
+    mLedgerCloseMeta.v1().totalByteSizeOfLiveSorobanState =
         networkConfig.getAverageBucketListSize();
 
     if (emitExtV1)
     {
         mLedgerCloseMeta.v1().ext.v(1);
         auto& ext = mLedgerCloseMeta.v1().ext.v1();
-        ext.sorobanFeeWrite1KB = networkConfig.feeWrite1KB();
+        ext.sorobanFeeWrite1KB = networkConfig.feeRent1KB();
     }
 }
 

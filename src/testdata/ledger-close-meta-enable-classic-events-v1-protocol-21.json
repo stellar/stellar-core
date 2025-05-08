@@ -1163,9 +1163,9 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfBucketList": 1128,
-            "evictedTemporaryLedgerKeys": [],
-            "evictedPersistentLedgerEntries": []
+            "totalByteSizeOfLiveSorobanState": 1128,
+            "evictedKeys": [],
+            "unused": []
         }
     }
 }

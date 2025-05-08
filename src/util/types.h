@@ -134,7 +134,6 @@ getBucketLedgerKey(HotArchiveBucketEntry const& be)
     switch (be.type())
     {
     case HOT_ARCHIVE_LIVE:
-    case HOT_ARCHIVE_DELETED:
         return be.key();
     case HOT_ARCHIVE_ARCHIVED:
         return LedgerEntryKey(be.archivedEntry());

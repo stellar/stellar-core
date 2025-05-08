@@ -357,7 +357,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             SorobanResources restoreResources;
             restoreResources.footprint.readWrite = {archivedLk};
             restoreResources.instructions = 0;
-            restoreResources.readBytes = 5'000;
+            restoreResources.diskReadBytes = 5'000;
             restoreResources.writeBytes = 1'000;
             auto tx1 = test.createRestoreTx(restoreResources, 1'000,
                                             DEFAULT_TEST_RESOURCE_FEE, &acc1);
@@ -366,7 +366,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             SorobanResources extendResources;
             extendResources.footprint.readOnly = contract.getKeys();
             extendResources.instructions = 0;
-            extendResources.readBytes = 10'000;
+            extendResources.diskReadBytes = 10'000;
             extendResources.writeBytes = 0;
             auto tx2 =
                 test.createExtendOpTx(extendResources, /*extendTo*/ 10'000,
@@ -400,7 +400,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                            .createTx(&acc4);
             SorobanResources createResources;
             createResources.instructions = 200'000;
-            createResources.readBytes = 5000;
+            createResources.diskReadBytes = 5000;
             createResources.writeBytes = 5000;
 
             auto tx5 = makeSorobanCreateContractTx(
@@ -429,7 +429,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& cfg) {
                         cfg.mStateArchivalSettings
-                            .bucketListWindowSamplePeriod = 1;
+                            .liveSorobanStateSizeWindowSamplePeriod = 1;
                     });
 
                 // Modify Soroban network config closes 4 ledgers
