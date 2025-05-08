@@ -360,7 +360,7 @@ InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(
         else
         {
             ttlEntry =
-                mLtx.restoreFromLiveBucketList(lk, restoredLiveUntilLedger);
+                mLtx.restoreFromLiveBucketList(le, restoredLiveUntilLedger);
         }
 
         // Finally, add the entries to the Cxx buffer as if they were live.

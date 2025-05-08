@@ -114,7 +114,7 @@ class InMemoryLedgerTxn : public LedgerTxn
     void erase(InternalLedgerKey const& key) override;
     LedgerTxnEntry restoreFromHotArchive(LedgerEntry const& entry,
                                          uint32_t ttl) override;
-    LedgerTxnEntry restoreFromLiveBucketList(LedgerKey const& key,
+    LedgerTxnEntry restoreFromLiveBucketList(LedgerEntry const& entry,
                                              uint32_t ttl) override;
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
     ConstLedgerTxnEntry

@@ -106,7 +106,6 @@ class OperationFrame
     SorobanResources const& getSorobanResources() const;
 
     Memo const& getTxMemo() const;
-    virtual bool hasArchivedEntryExt() const;
     SorobanTransactionData::_ext_t const& getResourcesExt() const;
 };
 }

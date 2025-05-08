@@ -245,7 +245,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                 {
                     std::vector<LedgerKey> restoredKeys;
                     auto restoredKeysMap = ltx.getRestoredHotArchiveKeys();
-                    for (auto const& key : restoredKeysMap)
+                    for (auto const& [key, entry] : restoredKeysMap)
                     {
                         // Hot Archive does not track TTLs
                         if (key.type() == CONTRACT_DATA ||

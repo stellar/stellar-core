@@ -315,11 +315,13 @@ struct InflationWinner
 };
 
 // Tracks the set of both TTL keys and corresponding code/data keys that have
-// been restored.
+// been restored. Maps LedgerKey -> LedgerEntry at the point of restoration. For
+// contract code/data, this is the original, restored value. For TTL entries,
+// this is the value after applying the minimum rent required to restore.
 struct RestoredKeys
 {
-    UnorderedSet<LedgerKey> hotArchive;
-    UnorderedSet<LedgerKey> liveBucketList;
+    UnorderedMap<LedgerKey, LedgerEntry> hotArchive;
+    UnorderedMap<LedgerKey, LedgerEntry> liveBucketList;
 };
 
 class AbstractLedgerTxn;
@@ -593,7 +595,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry restoreFromHotArchive(LedgerEntry const& entry,
                                                  uint32_t ttl) = 0;
-    virtual LedgerTxnEntry restoreFromLiveBucketList(LedgerKey const& key,
+    virtual LedgerTxnEntry restoreFromLiveBucketList(LedgerEntry const& entry,
                                                      uint32_t ttl) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
@@ -637,11 +639,11 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
-    // Returns set of TTL and corresponding contract/data keys that have been
+    // Returns map of TTL and corresponding contract/data keys that have been
     // restored from the Hot Archive/Live Bucket List.
-    virtual UnorderedSet<LedgerKey> const&
+    virtual UnorderedMap<LedgerKey, LedgerEntry> const&
     getRestoredHotArchiveKeys() const = 0;
-    virtual UnorderedSet<LedgerKey> const&
+    virtual UnorderedMap<LedgerKey, LedgerEntry> const&
     getRestoredLiveBucketListKeys() const = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
@@ -742,7 +744,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void erase(InternalLedgerKey const& key) override;
     LedgerTxnEntry restoreFromHotArchive(LedgerEntry const& entry,
                                          uint32_t ttl) override;
-    LedgerTxnEntry restoreFromLiveBucketList(LedgerKey const& key,
+    LedgerTxnEntry restoreFromLiveBucketList(LedgerEntry const& entry,
                                              uint32_t ttl) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
@@ -780,8 +782,9 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerKey>& deadEntries) override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
 
-    UnorderedSet<LedgerKey> const& getRestoredHotArchiveKeys() const override;
-    UnorderedSet<LedgerKey> const&
+    UnorderedMap<LedgerKey, LedgerEntry> const&
+    getRestoredHotArchiveKeys() const override;
+    UnorderedMap<LedgerKey, LedgerEntry> const&
     getRestoredLiveBucketListKeys() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
