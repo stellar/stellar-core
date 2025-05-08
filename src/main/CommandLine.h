@@ -21,6 +21,7 @@ struct CommandLineArgs
 };
 
 int handleCommandLine(int argc, char* const* argv);
+int runVersion(CommandLineArgs const&);
 
 void writeWithTextFlow(std::ostream& os, std::string const& text);
 }

@@ -33,6 +33,7 @@ use crate::RustBuf;
 // that's just always supposed to use the latest.
 pub(crate) use p22 as soroban_curr;
 
+#[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p23 {
     pub(crate) extern crate soroban_env_host_p23;
@@ -57,10 +58,8 @@ pub(crate) mod p23 {
         v.interface.pre_release
     }
 
-    pub(crate) const fn get_version_protocol(_v: &soroban_env_host::Version) -> u32 {
-        // Temporarily hardcode the protocol version until we actually bump it
-        // in the host library.
-        23
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        v.interface.protocol
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -413,6 +412,7 @@ macro_rules! proto_versioned_functions_for_module {
 const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p21),
     proto_versioned_functions_for_module!(p22),
+    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p23),
 ];
 
@@ -453,6 +453,6 @@ fn protocol_dispatches_as_expected() {
     let last_proto = HOST_MODULES.last().unwrap().max_proto;
     assert!(get_host_module_for_protocol(last_proto + 1, last_proto + 1).is_err());
 
-    // No ledger protocol has to be less than config max.
+    // Ledger protocol has to be less than config max.
     assert!(get_host_module_for_protocol(20, 21).is_err());
 }
