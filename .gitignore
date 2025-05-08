@@ -123,5 +123,3 @@ min-testcases/
 /src/util/xdrquery/stack.hh
 
 __pycache__
-
-**/.claude/settings.local.json
