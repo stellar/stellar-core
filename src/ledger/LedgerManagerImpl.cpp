@@ -1992,7 +1992,7 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
             {
                 std::vector<LedgerKey> restoredKeys;
                 auto const& restoredKeyMap = ltx.getRestoredHotArchiveKeys();
-                for (auto const& key : restoredKeyMap)
+                for (auto const& [key, entry] : restoredKeyMap)
                 {
                     // TTL keys are not recorded in the hot archive BucketList
                     if (key.type() == CONTRACT_DATA ||

@@ -256,7 +256,8 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
 
         SECTION("live BL restore key does not exist")
         {
-            REQUIRE_THROWS(ltx1.restoreFromLiveBucketList(randomKeys[0], 42));
+            REQUIRE_THROWS(
+                ltx1.restoreFromLiveBucketList(randomEntries[0], 42));
         }
 
         auto checkKey = [](auto const& keySet, auto const& dataKey) {
@@ -316,7 +317,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                 // Populate live BL with key, then restore it
                 ltx1.create(randomEntries[0]);
                 ltx1.create(getTTLEntry(randomKeys[0]));
-                ltx1.restoreFromLiveBucketList(randomKeys[0], 42);
+                ltx1.restoreFromLiveBucketList(randomEntries[0], 42);
 
                 SECTION("rollback")
                 {
@@ -324,7 +325,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                         LedgerTxn ltx2(ltx1);
                         ltx2.create(randomEntries[1]);
                         ltx2.create(getTTLEntry(randomKeys[1]));
-                        ltx2.restoreFromLiveBucketList(randomKeys[1], 42);
+                        ltx2.restoreFromLiveBucketList(randomEntries[1], 42);
                     }
 
                     REQUIRE(ltx1.getRestoredHotArchiveKeys().empty());
@@ -341,7 +342,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                         LedgerTxn ltx2(ltx1);
                         ltx2.create(randomEntries[1]);
                         ltx2.create(getTTLEntry(randomKeys[1]));
-                        ltx2.restoreFromLiveBucketList(randomKeys[1], 42);
+                        ltx2.restoreFromLiveBucketList(randomEntries[1], 42);
                         ltx2.commit();
                     }
 
