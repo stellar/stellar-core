@@ -1,4 +1,4 @@
-soroban-env-host v22.0.0 (src/rust/soroban/p22/soroban-env-host)
+soroban-env-host v22.1.4 (src/rust/soroban/p22/soroban-env-host)
 ├── ark-bls12-381 v0.4.0
 │   ├── ark-ec v0.4.2
 │   │   ├── ark-ff v0.4.2
@@ -42,29 +42,31 @@ soroban-env-host v22.0.0 (src/rust/soroban/p22/soroban-env-host)
 │   │   │   │   │       │       └── getrandom v0.2.11
 │   │   │   │   │       │           ├── cfg-if v1.0.0
 │   │   │   │   │       │           ├── js-sys v0.3.64
-│   │   │   │   │       │           │   └── wasm-bindgen v0.2.87
+│   │   │   │   │       │           │   └── wasm-bindgen v0.2.100
 │   │   │   │   │       │           │       ├── cfg-if v1.0.0
-│   │   │   │   │       │           │       └── wasm-bindgen-macro v0.2.87 (proc-macro)
+│   │   │   │   │       │           │       ├── once_cell v1.19.0
+│   │   │   │   │       │           │       ├── rustversion v1.0.14 (proc-macro)
+│   │   │   │   │       │           │       └── wasm-bindgen-macro v0.2.100 (proc-macro)
 │   │   │   │   │       │           │           ├── quote v1.0.33 (*)
-│   │   │   │   │       │           │           └── wasm-bindgen-macro-support v0.2.87
+│   │   │   │   │       │           │           └── wasm-bindgen-macro-support v0.2.100
 │   │   │   │   │       │           │               ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   │       │           │               ├── quote v1.0.33 (*)
 │   │   │   │   │       │           │               ├── syn v2.0.39
 │   │   │   │   │       │           │               │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   │       │           │               │   ├── quote v1.0.33 (*)
 │   │   │   │   │       │           │               │   └── unicode-ident v1.0.9
-│   │   │   │   │       │           │               ├── wasm-bindgen-backend v0.2.87
+│   │   │   │   │       │           │               ├── wasm-bindgen-backend v0.2.100
 │   │   │   │   │       │           │               │   ├── bumpalo v3.13.0
 │   │   │   │   │       │           │               │   ├── log v0.4.19
-│   │   │   │   │       │           │               │   ├── once_cell v1.19.0
 │   │   │   │   │       │           │               │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   │       │           │               │   ├── quote v1.0.33 (*)
 │   │   │   │   │       │           │               │   ├── syn v2.0.39 (*)
-│   │   │   │   │       │           │               │   └── wasm-bindgen-shared v0.2.87
-│   │   │   │   │       │           │               └── wasm-bindgen-shared v0.2.87
+│   │   │   │   │       │           │               │   └── wasm-bindgen-shared v0.2.100
+│   │   │   │   │       │           │               │       └── unicode-ident v1.0.9
+│   │   │   │   │       │           │               └── wasm-bindgen-shared v0.2.100 (*)
 │   │   │   │   │       │           ├── libc v0.2.150
 │   │   │   │   │       │           ├── wasi v0.11.0+wasi-snapshot-preview1
-│   │   │   │   │       │           └── wasm-bindgen v0.2.87 (*)
+│   │   │   │   │       │           └── wasm-bindgen v0.2.100 (*)
 │   │   │   │   │       └── rand_core v0.6.4 (*)
 │   │   │   │   ├── digest v0.10.7
 │   │   │   │   │   ├── block-buffer v0.10.4
@@ -222,17 +224,17 @@ soroban-env-host v22.0.0 (src/rust/soroban/p22/soroban-env-host)
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
 │       └── cpufeatures v0.2.8 (*)
-├── soroban-builtin-sdk-macros v22.0.0 (proc-macro) (src/rust/soroban/p22/soroban-builtin-sdk-macros)
+├── soroban-builtin-sdk-macros v22.1.4 (proc-macro) (src/rust/soroban/p22/soroban-builtin-sdk-macros)
 │   ├── itertools v0.10.5
 │   │   └── either v1.8.1
 │   ├── proc-macro2 v1.0.69 (*)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
-├── soroban-env-common v22.0.0 (src/rust/soroban/p22/soroban-env-common)
+├── soroban-env-common v22.1.4 (src/rust/soroban/p22/soroban-env-common)
 │   ├── ethnum v1.5.0
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
-│   ├── soroban-env-macros v22.0.0 (proc-macro) (src/rust/soroban/p22/soroban-env-macros)
+│   ├── soroban-env-macros v22.1.4 (proc-macro) (src/rust/soroban/p22/soroban-env-macros)
 │   │   ├── itertools v0.10.5 (*)
 │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   ├── quote v1.0.33 (*)
@@ -245,7 +247,7 @@ soroban-env-host v22.0.0 (src/rust/soroban/p22/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v22.0.0
+│   │   ├── stellar-xdr v22.1.0
 │   │   │   ├── escape-bytes v0.1.1
 │   │   │   ├── hex v0.4.3
 │   │   │   └── stellar-strkey v0.0.9
@@ -275,7 +277,7 @@ soroban-env-host v22.0.0 (src/rust/soroban/p22/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v22.0.0
+│   ├── stellar-xdr v22.1.0
 │   │   ├── base64 v0.13.1
 │   │   ├── escape-bytes v0.1.1
 │   │   ├── hex v0.4.3

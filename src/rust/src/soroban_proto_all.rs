@@ -33,7 +33,6 @@ use crate::RustBuf;
 // that's just always supposed to use the latest.
 pub(crate) use p22 as soroban_curr;
 
-#[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p23 {
     pub(crate) extern crate soroban_env_host_p23;
@@ -412,7 +411,6 @@ macro_rules! proto_versioned_functions_for_module {
 const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p21),
     proto_versioned_functions_for_module!(p22),
-    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p23),
 ];
 
