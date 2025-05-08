@@ -107,9 +107,9 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewCounter({"soroban", "config", "tx-max-cpu-insn"}))
     , mConfigTxMemoryLimitBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-mem-byte"}))
-    , mConfigTxMaxReadLedgerEntries(
+    , mConfigtxMaxDiskReadEntries(
           metrics.NewCounter({"soroban", "config", "tx-max-read-entry"}))
-    , mConfigTxMaxReadBytes(
+    , mConfigtxMaxDiskReadBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"}))
     , mConfigTxMaxWriteLedgerEntries(
           metrics.NewCounter({"soroban", "config", "tx-max-write-entry"}))
@@ -123,9 +123,9 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewCounter({"soroban", "config", "ledger-max-cpu-insn"}))
     , mConfigLedgerMaxTxsSizeByte(
           metrics.NewCounter({"soroban", "config", "ledger-max-txs-size-byte"}))
-    , mConfigLedgerMaxReadLedgerEntries(
+    , mConfigledgerMaxDiskReadEntries(
           metrics.NewCounter({"soroban", "config", "ledger-max-read-entry"}))
-    , mConfigLedgerMaxReadBytes(metrics.NewCounter(
+    , mConfigledgerMaxDiskReadBytes(metrics.NewCounter(
           {"soroban", "config", "ledger-max-read-ledger-byte"}))
     , mConfigLedgerMaxWriteEntries(
           metrics.NewCounter({"soroban", "config", "ledger-max-write-entry"}))

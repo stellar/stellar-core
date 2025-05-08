@@ -239,14 +239,14 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
     {
         resources.instructions =
             static_cast<uint32_t>(500'000 + (wasm.data.size() * 5000));
-        resources.readBytes = 1000;
+        resources.diskReadBytes = 1000;
         resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 150);
     }
     else
     {
         resources.instructions =
             static_cast<uint32_t>(500'000 + (wasm.data.size() * 1000));
-        resources.readBytes = 1000;
+        resources.diskReadBytes = 1000;
         resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 100);
     }
     return resources;
@@ -420,7 +420,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
             additionalResources.footprint.readWrite.begin(),
             additionalResources.footprint.readWrite.end());
         createResources.instructions += additionalResources.instructions;
-        createResources.readBytes += additionalResources.readBytes;
+        createResources.diskReadBytes += additionalResources.diskReadBytes;
         createResources.writeBytes += additionalResources.writeBytes;
     }
 
@@ -606,7 +606,7 @@ SorobanInvocationSpec
 SorobanInvocationSpec::setReadBytes(uint32_t readBytes) const
 {
     auto newSpec = *this;
-    newSpec.mResources.readBytes = readBytes;
+    newSpec.mResources.diskReadBytes = readBytes;
     return newSpec;
 }
 
@@ -1049,11 +1049,28 @@ SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
     {
         auto ltxe = ltx.loadWithoutRecord(key);
         REQUIRE(ltxe);
-        size_t entrySize = xdr::xdr_size(ltxe.current());
+        auto entry = ltxe.current();
+        size_t entrySize = xdr::xdr_size(entry);
+        uint32_t entrySizeForRent = static_cast<uint32_t>(entrySize);
+        if (protocolVersionStartsFrom(getLedgerVersion(),
+                                      ProtocolVersion::V_23))
+        {
+            if (isContractCodeEntry(key))
+            {
+                entrySizeForRent =
+                    rust_bridge::contract_code_memory_size_for_rent(
+                        getApp().getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+                        getLedgerVersion(), toCxxBuf(entry.data.contractCode()),
+                        toCxxBuf(getNetworkCfg().cpuCostParams()),
+                        toCxxBuf(getNetworkCfg().memCostParams()));
+            }
+        }
+
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
         rustChange.is_persistent = !isTemporaryEntry(key);
-        rustChange.old_size_bytes = static_cast<uint32>(entrySize);
+
+        rustChange.old_size_bytes = entrySizeForRent;
         rustChange.new_size_bytes = rustChange.old_size_bytes;
         auto ttlLtxe = ltx.loadWithoutRecord(getTTLKey(key));
         REQUIRE(ttlLtxe);
@@ -1097,7 +1114,7 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
     {
         createResources.emplace();
         createResources->instructions = 5'000'000;
-        createResources->readBytes =
+        createResources->diskReadBytes =
             static_cast<uint32_t>(wasm.data.size() + 1000);
         createResources->writeBytes = 1000;
     }
@@ -1128,7 +1145,7 @@ SorobanTest::deployAssetContract(Asset const& asset)
 {
     SorobanResources createResources;
     createResources.instructions = 400'000;
-    createResources.readBytes = 1000;
+    createResources.diskReadBytes = 1000;
     createResources.writeBytes = 1000;
 
     SCAddress contractAddress =
@@ -1262,7 +1279,7 @@ SorobanTest::invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
     SorobanResources resources;
     resources.footprint.readWrite = readWrite;
     resources.instructions = 0;
-    resources.readBytes = 10'000;
+    resources.diskReadBytes = 10'000;
     resources.writeBytes = 10'000;
 
     auto resourceFee = 300'000 + 40'000 * readWrite.size();
@@ -1283,7 +1300,7 @@ SorobanTest::invokeExtendOp(xdr::xvector<LedgerKey> const& readOnly,
 
     SorobanResources extendResources;
     extendResources.footprint.readOnly = readOnly;
-    extendResources.readBytes = 10'000;
+    extendResources.diskReadBytes = 10'000;
 
     auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * readOnly.size();
     auto tx = createExtendOpTx(extendResources, extendTo, 1'000, resourceFee);

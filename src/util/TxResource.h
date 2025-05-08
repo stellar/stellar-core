@@ -27,7 +27,7 @@ class Resource
         OPERATIONS = 0,
         INSTRUCTIONS = 1,
         TX_BYTE_SIZE = 2,
-        READ_BYTES = 3,
+        DISK_READ_BYTES = 3,
         WRITE_BYTES = 4,
         READ_LEDGER_ENTRIES = 5,
         WRITE_LEDGER_ENTRIES = 6
@@ -44,8 +44,8 @@ class Resource
             return "Instructions";
         case Type::TX_BYTE_SIZE:
             return "TxByteSize";
-        case Type::READ_BYTES:
-            return "ReadBytes";
+        case Type::DISK_READ_BYTES:
+            return "DiskReadBytes";
         case Type::WRITE_BYTES:
             return "WriteBytes";
         case Type::READ_LEDGER_ENTRIES:

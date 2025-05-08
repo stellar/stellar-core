@@ -178,13 +178,13 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     auto& app = *nodes[0]; // pick a node to generate load
 
     const uint32_t ledgerMaxTxCount = 42;
-    const uint32_t bucketListSizeWindowSampleSize = 99;
+    const uint32_t liveSorobanStateSizeWindowSampleSize = 99;
     // Upgrade the network config.
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxTxCount = ledgerMaxTxCount;
-            cfg.stateArchivalSettings().bucketListSizeWindowSampleSize =
-                bucketListSizeWindowSampleSize;
+            cfg.stateArchivalSettings().liveSorobanStateSizeWindowSampleSize =
+                liveSorobanStateSizeWindowSampleSize;
         },
         simulation);
     // Check that the settings were properly updated.
@@ -200,8 +200,8 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     REQUIRE(contractExecutionLanesSettings.contractExecutionLanes()
                 .ledgerMaxTxCount == ledgerMaxTxCount);
     REQUIRE(stateArchivalSettings.stateArchivalSettings()
-                .bucketListSizeWindowSampleSize ==
-            bucketListSizeWindowSampleSize);
+                .liveSorobanStateSizeWindowSampleSize ==
+            liveSorobanStateSizeWindowSampleSize);
 }
 
 TEST_CASE("generate soroban load", "[loadgen][soroban]")
@@ -327,9 +327,9 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
     upgradeCfg.txMemoryLimit =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxReadLedgerEntries =
+    upgradeCfg.ledgerMaxDiskReadEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.ledgerMaxReadBytes =
+    upgradeCfg.ledgerMaxDiskReadBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
     upgradeCfg.ledgerMaxWriteLedgerEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
@@ -337,9 +337,9 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
     upgradeCfg.ledgerMaxTxCount =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxReadLedgerEntries =
+    upgradeCfg.txMaxDiskReadEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.txMaxReadBytes =
+    upgradeCfg.txMaxDiskReadBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
     upgradeCfg.txMaxWriteLedgerEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
@@ -351,23 +351,21 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
     upgradeCfg.txMaxSizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    upgradeCfg.bucketListSizeWindowSampleSize =
+    upgradeCfg.liveSorobanStateSizeWindowSampleSize =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
     upgradeCfg.evictionScanSize =
         rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
     upgradeCfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                                   ProtocolVersion::V_23))
     {
         upgradeCfg.ledgerMaxDependentTxClusters = rand_uniform<uint32_t>(2, 10);
         upgradeCfg.txMaxInMemoryReadEntries =
             rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-        upgradeCfg.flatRateFeeWrite1KB =
+        upgradeCfg.feeFlatRateWrite1KB =
             rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
     }
-#endif
 
     auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(
         createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
@@ -437,18 +435,18 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                     upgradeCfg.txMemoryLimit);
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-            REQUIRE(setting.contractLedgerCost().ledgerMaxReadLedgerEntries ==
-                    upgradeCfg.ledgerMaxReadLedgerEntries);
-            REQUIRE(setting.contractLedgerCost().ledgerMaxReadBytes ==
-                    upgradeCfg.ledgerMaxReadBytes);
+            REQUIRE(setting.contractLedgerCost().ledgerMaxDiskReadEntries ==
+                    upgradeCfg.ledgerMaxDiskReadEntries);
+            REQUIRE(setting.contractLedgerCost().ledgerMaxDiskReadBytes ==
+                    upgradeCfg.ledgerMaxDiskReadBytes);
             REQUIRE(setting.contractLedgerCost().ledgerMaxWriteLedgerEntries ==
                     upgradeCfg.ledgerMaxWriteLedgerEntries);
             REQUIRE(setting.contractLedgerCost().ledgerMaxWriteBytes ==
                     upgradeCfg.ledgerMaxWriteBytes);
-            REQUIRE(setting.contractLedgerCost().txMaxReadLedgerEntries ==
-                    upgradeCfg.txMaxReadLedgerEntries);
-            REQUIRE(setting.contractLedgerCost().txMaxReadBytes ==
-                    upgradeCfg.txMaxReadBytes);
+            REQUIRE(setting.contractLedgerCost().txMaxDiskReadEntries ==
+                    upgradeCfg.txMaxDiskReadEntries);
+            REQUIRE(setting.contractLedgerCost().txMaxDiskReadBytes ==
+                    upgradeCfg.txMaxDiskReadBytes);
             REQUIRE(setting.contractLedgerCost().txMaxWriteLedgerEntries ==
                     upgradeCfg.txMaxWriteLedgerEntries);
             REQUIRE(setting.contractLedgerCost().txMaxWriteBytes ==
@@ -480,8 +478,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         case CONFIG_SETTING_STATE_ARCHIVAL:
         {
             auto& ses = setting.stateArchivalSettings();
-            REQUIRE(ses.bucketListSizeWindowSampleSize ==
-                    upgradeCfg.bucketListSizeWindowSampleSize);
+            REQUIRE(ses.liveSorobanStateSizeWindowSampleSize ==
+                    upgradeCfg.liveSorobanStateSizeWindowSampleSize);
             REQUIRE(ses.evictionScanSize == upgradeCfg.evictionScanSize);
             REQUIRE(ses.startingEvictionScanLevel ==
                     upgradeCfg.startingEvictionScanLevel);
@@ -491,7 +489,6 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
                     upgradeCfg.ledgerMaxTxCount);
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
             REQUIRE(setting.contractParallelCompute()
                         .ledgerMaxDependentTxClusters ==
@@ -501,9 +498,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             REQUIRE(setting.contractLedgerCostExt().txMaxInMemoryReadEntries ==
                     upgradeCfg.txMaxInMemoryReadEntries);
             REQUIRE(setting.contractLedgerCostExt().feeWrite1KB ==
-                    upgradeCfg.flatRateFeeWrite1KB);
+                    upgradeCfg.feeFlatRateWrite1KB);
             break;
-#endif
         default:
             REQUIRE(false);
             break;
@@ -520,16 +516,16 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 
             // Set write limits so that we can write all keys in a single TX
             // during setup
-            cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxReadLedgerEntries;
-            cfg.mTxMaxWriteBytes = cfg.mTxMaxReadBytes;
+            cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxDiskReadEntries;
+            cfg.mTxMaxWriteBytes = cfg.mTxMaxDiskReadBytes;
 
             // Allow every TX to have the maximum TX resources
             cfg.mLedgerMaxInstructions =
                 cfg.mTxMaxInstructions * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxReadLedgerEntries =
-                cfg.mTxMaxReadLedgerEntries * cfg.mLedgerMaxTxCount;
-            cfg.mLedgerMaxReadBytes =
-                cfg.mTxMaxReadBytes * cfg.mLedgerMaxTxCount;
+            cfg.mledgerMaxDiskReadEntries =
+                cfg.mTxMaxDiskReadEntries * cfg.mLedgerMaxTxCount;
+            cfg.mledgerMaxDiskReadBytes =
+                cfg.mTxMaxDiskReadBytes * cfg.mLedgerMaxTxCount;
             cfg.mLedgerMaxWriteLedgerEntries =
                 cfg.mTxMaxWriteLedgerEntries * cfg.mLedgerMaxTxCount;
             cfg.mLedgerMaxWriteBytes =

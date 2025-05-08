@@ -42,7 +42,7 @@ getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
     SorobanResources restoreResources;
     restoreResources.footprint.readWrite = {contractCodeLedgerKey};
     restoreResources.instructions = 0;
-    restoreResources.readBytes = 2000;
+    restoreResources.diskReadBytes = 2000;
     restoreResources.writeBytes = 2000;
 
     tx.ext.v(1);
@@ -89,7 +89,7 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
     SorobanResources uploadResources;
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
     uploadResources.instructions = 2'000'000;
-    uploadResources.readBytes = 2000;
+    uploadResources.diskReadBytes = 2000;
     uploadResources.writeBytes = 2000;
 
     tx.ext.v(1);
@@ -173,7 +173,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     uploadResources.footprint.readOnly = {contractCodeLedgerKey};
     uploadResources.footprint.readWrite = {contractSourceRefLedgerKey};
     uploadResources.instructions = 2'000'000;
-    uploadResources.readBytes = 2000;
+    uploadResources.diskReadBytes = 2000;
     uploadResources.writeBytes = 120;
 
     tx.ext.v(1);
@@ -190,7 +190,7 @@ validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
     {
         if (entry.configSettingID() == CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
         {
-            if (entry.contractLedgerCost().bucketListWriteFeeGrowthFactor >
+            if (entry.contractLedgerCost().sorobanStateRentFeeGrowthFactor >
                 50'000)
             {
                 throw std::runtime_error("Invalid contractLedgerCost");
@@ -267,7 +267,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
                                           contractCodeLedgerKey};
     invokeResources.footprint.readWrite = {upgrade};
     invokeResources.instructions = 2'000'000;
-    invokeResources.readBytes = 3200;
+    invokeResources.diskReadBytes = 3200;
     invokeResources.writeBytes = 3200;
 
     tx.ext.v(1);

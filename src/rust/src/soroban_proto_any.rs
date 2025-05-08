@@ -6,7 +6,7 @@ use crate::{
     log::partition::TX,
     rust_bridge::{
         CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
-        CxxRentFeeConfiguration, CxxTransactionResources, CxxWriteFeeConfiguration, FeePair,
+        CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration, CxxTransactionResources, FeePair,
         InvokeHostFunctionOutput, RustBuf, SorobanVersionInfo, XDRFileHash,
     },
 };
@@ -47,14 +47,13 @@ pub(crate) use super::soroban_env_host::{
     fees::{
         compute_rent_fee as host_compute_rent_fee,
         compute_transaction_resource_fee as host_compute_transaction_resource_fee,
-        compute_write_fee_per_1kb as host_compute_write_fee_per_1kb, FeeConfiguration,
-        LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
+        FeeConfiguration, LedgerEntryRentChange, RentFeeConfiguration, TransactionResources,
     },
     xdr::{
-        self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
-        ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
-        LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal,
-        TransactionEnvelope, TtlEntry, WriteXdr, XDR_FILES_SHA256,
+        self, ContractCodeEntry, ContractCostParams, ContractEvent, ContractEventBody,
+        ContractEventType, ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry,
+        LedgerEntryData, LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType,
+        ScSymbol, ScVal, TransactionEnvelope, TtlEntry, WriteXdr, XDR_FILES_SHA256,
     },
     HostError, LedgerInfo, Val, VERSION,
 };
@@ -83,30 +82,13 @@ impl TryFrom<&CxxLedgerInfo> for LedgerInfo {
 
 impl From<CxxTransactionResources> for TransactionResources {
     fn from(value: CxxTransactionResources) -> Self {
-        Self {
-            instructions: value.instructions,
-            read_entries: value.read_entries,
-            write_entries: value.write_entries,
-            read_bytes: value.read_bytes,
-            write_bytes: value.write_bytes,
-            contract_events_size_bytes: value.contract_events_size_bytes,
-            transaction_size_bytes: value.transaction_size_bytes,
-        }
+        super::convert_transaction_resources(&value)
     }
 }
 
 impl From<CxxFeeConfiguration> for FeeConfiguration {
     fn from(value: CxxFeeConfiguration) -> Self {
-        Self {
-            fee_per_instruction_increment: value.fee_per_instruction_increment,
-            fee_per_read_entry: value.fee_per_read_entry,
-            fee_per_write_entry: value.fee_per_write_entry,
-            fee_per_read_1kb: value.fee_per_read_1kb,
-            fee_per_write_1kb: value.fee_per_write_1kb,
-            fee_per_historical_1kb: value.fee_per_historical_1kb,
-            fee_per_contract_event_1kb: value.fee_per_contract_event_1kb,
-            fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
-        }
+        super::convert_fee_configuration(value)
     }
 }
 
@@ -124,23 +106,7 @@ impl From<&CxxLedgerEntryRentChange> for LedgerEntryRentChange {
 
 impl From<&CxxRentFeeConfiguration> for RentFeeConfiguration {
     fn from(value: &CxxRentFeeConfiguration) -> Self {
-        Self {
-            fee_per_write_1kb: value.fee_per_write_1kb,
-            fee_per_write_entry: value.fee_per_write_entry,
-            persistent_rent_rate_denominator: value.persistent_rent_rate_denominator,
-            temporary_rent_rate_denominator: value.temporary_rent_rate_denominator,
-        }
-    }
-}
-
-impl From<CxxWriteFeeConfiguration> for WriteFeeConfiguration {
-    fn from(value: CxxWriteFeeConfiguration) -> Self {
-        Self {
-            bucket_list_target_size_bytes: value.bucket_list_target_size_bytes,
-            write_fee_1kb_bucket_list_low: value.write_fee_1kb_bucket_list_low,
-            write_fee_1kb_bucket_list_high: value.write_fee_1kb_bucket_list_high,
-            bucket_list_write_fee_growth_factor: value.bucket_list_write_fee_growth_factor,
-        }
+        super::convert_rent_fee_configuration(value)
     }
 }
 
@@ -643,11 +609,29 @@ pub(crate) fn compute_rent_fee(
     )
 }
 
-pub(crate) fn compute_write_fee_per_1kb(
+pub(crate) fn compute_rent_write_fee_per_1kb(
     bucket_list_size: i64,
-    fee_config: CxxWriteFeeConfiguration,
+    fee_config: CxxRentWriteFeeConfiguration,
 ) -> i64 {
-    host_compute_write_fee_per_1kb(bucket_list_size, &fee_config.into())
+    super::compute_rent_write_fee_per_1kb_wrapper(bucket_list_size, fee_config)
+}
+
+pub(crate) fn contract_code_memory_size_for_rent(
+    contract_code_entry_xdr: &CxxBuf,
+    cpu_cost_params: &CxxBuf,
+    mem_cost_params: &CxxBuf,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    let contract_code_entry =
+        non_metered_xdr_from_cxx_buf::<ContractCodeEntry>(contract_code_entry_xdr)?;
+    let budget = Budget::try_from_configs(
+        0,
+        0,
+        non_metered_xdr_from_cxx_buf::<ContractCostParams>(cpu_cost_params)?,
+        non_metered_xdr_from_cxx_buf::<ContractCostParams>(mem_cost_params)?,
+    )?;
+    super::wasm_module_memory_cost_wrapper(&budget, &contract_code_entry)?
+        .try_into()
+        .map_err(Into::into)
 }
 
 pub(crate) fn can_parse_transaction(xdr: &CxxBuf, depth_limit: u32) -> bool {

@@ -94,7 +94,7 @@ DownloadBucketsWork::onSuccessCb(Application& app, FileTransferInfo const& ft,
     }
 
     auto b = app.getBucketManager().adoptFileAsBucket<BucketT>(
-        bucketPath, hexToBin256(hash),
+        bucketPath.string(), hexToBin256(hash),
         /*mergeKey=*/nullptr,
         /*index=*/std::move(index));
 
@@ -122,10 +122,10 @@ DownloadBucketsWork::prepareWorkForBucketType(
         mApp, ft.localPath_nogz(), hexToBin256(hash), indexIter->second,
         failureCb);
 
-    // C++17 does not support templated lambdas, so we have to manually dispatch
-    // based on type
-    constexpr bool isLiveBucket = std::is_same_v<BucketT, LiveBucket>;
     auto adoptBucketCb = [weakSelf, ft, hash, currId](Application& app) {
+        // C++17 does not support templated lambdas, so we have to manually
+        // dispatch based on type
+        constexpr bool isLiveBucket = std::is_same_v<BucketT, LiveBucket>;
         auto self = weakSelf.lock();
         if (self)
         {

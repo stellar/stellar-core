@@ -105,7 +105,7 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_LOW = 1'000;
     static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_HIGH = 10'000;
     // No growth fee initially to make sure fees are accessible
-    static constexpr uint32_t BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR = 1;
+    static constexpr uint32_t STATE_SIZE_RENT_FEE_GROWTH_FACTOR = 1;
 
     static constexpr uint64_t BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE = 30;
 
@@ -152,9 +152,8 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Ledger cost extension settings
-    // TODO: These are placeholder values and need to be tested and set.
     static constexpr uint32_t TX_MAX_IN_MEMORY_READ_ENTRIES = 100;
-    static constexpr int64_t FEE_WRITE_1KB = 1'000;
+    static constexpr int64_t FEE_LEDGER_WRITE_1KB = 1'000;
 };
 
 // Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for
@@ -269,34 +268,40 @@ class SorobanNetworkConfig
 
     // Ledger access settings for contracts.
     // Maximum number of ledger entry read operations per ledger
-    uint32_t ledgerMaxReadLedgerEntries() const;
+    uint32_t ledgerMaxDiskReadEntries() const;
     // Maximum number of bytes that can be read per ledger
-    uint32_t ledgerMaxReadBytes() const;
+    uint32_t ledgerMaxDiskReadBytes() const;
     // Maximum number of ledger entry write operations per ledger
     uint32_t ledgerMaxWriteLedgerEntries() const;
     // Maximum number of bytes that can be written per ledger
     uint32_t ledgerMaxWriteBytes() const;
     // Maximum number of ledger entry read operations per transaction
-    uint32_t txMaxReadLedgerEntries() const;
+    uint32_t txMaxDiskReadEntries() const;
+    // Maximum number of in-memory ledger entries accessed by a transaction
+    uint32_t txMaxInMemoryReadEntries() const;
     // Maximum number of bytes that can be read per transaction
-    uint32_t txMaxReadBytes() const;
+    uint32_t txMaxDiskReadBytes() const;
     // Maximum number of ledger entry write operations per transaction
     uint32_t txMaxWriteLedgerEntries() const;
     // Maximum number of bytes that can be written per transaction
     uint32_t txMaxWriteBytes() const;
     // Fee per ledger entry read
-    int64_t feeReadLedgerEntry() const;
+    int64_t feeDiskReadLedgerEntry() const;
     // Fee per ledger entry write
     int64_t feeWriteLedgerEntry() const;
     // Fee for reading 1KB
-    int64_t feeRead1KB() const;
-    // Fee for writing 1KB
-    int64_t feeWrite1KB() const;
+    int64_t feeDiskRead1KB() const;
+    // Fee for writing 1KB to ledger (no matter if it is a new entry or a
+    // modification of an existing entry).
+    // This is always 0 prior to protocol 23.
+    int64_t feeFlatRateWrite1KB() const;
+    // Fee for renting 1KB of ledger space per rent period.
+    int64_t feeRent1KB() const;
     // Bucket list target size (in bytes)
-    int64_t bucketListTargetSizeBytes() const;
-    int64_t writeFee1KBBucketListLow() const;
-    int64_t writeFee1KBBucketListHigh() const;
-    uint32_t bucketListWriteFeeGrowthFactor() const;
+    int64_t sorobanStateTargetSizeBytes() const;
+    int64_t rentFee1KBSorobanStateSizeLow() const;
+    int64_t rentFee1KBSorobanStateSizeHigh() const;
+    uint32_t sorobanStateRentFeeGrowthFactor() const;
 
     // Historical data (pushed to core archives) settings for contracts.
     // Fee for storing 1KB in archives
@@ -342,7 +347,8 @@ class SorobanNetworkConfig
     static bool isValidCostParams(ContractCostParams const& params,
                                   uint32_t ledgerVersion);
 
-    CxxFeeConfiguration rustBridgeFeeConfiguration() const;
+    CxxFeeConfiguration
+    rustBridgeFeeConfiguration(uint32_t ledgerVersion) const;
     CxxRentFeeConfiguration rustBridgeRentFeeConfiguration() const;
 
     // State archival settings
@@ -354,10 +360,6 @@ class SorobanNetworkConfig
 
     // Parallel execution settings
     uint32_t ledgerMaxDependentTxClusters() const;
-
-    // Ledger cost extension settings
-    uint32_t txMaxInMemoryReadEntries() const;
-    int64_t flatRateFeeWrite1KB() const;
 
     Resource maxLedgerResources() const;
 
@@ -389,11 +391,11 @@ class SorobanNetworkConfig
     void loadMemCostParams(AbstractLedgerTxn& ltx);
     void loadStateArchivalSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
-    void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
+    void loadliveSorobanStateSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
-    void loadLedgerCostExtConfig(AbstractLedgerTxn& ltx);
-    void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
+    void computeRentWriteFee(uint32_t configMaxProtocol,
+                             uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
     // newSize > currSize, add as many copies of the current BucketList size to
@@ -411,7 +413,7 @@ class SorobanNetworkConfig
   public:
 #endif
 
-    void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
+    void writeliveSorobanStateSizeWindow(AbstractLedgerTxn& ltxRoot) const;
     void updateBucketListSizeAverage();
 
     uint32_t mMaxContractSizeBytes{};
@@ -425,23 +427,23 @@ class SorobanNetworkConfig
     uint32_t mTxMemoryLimit{};
 
     // Ledger access settings for contracts.
-    uint32_t mLedgerMaxReadLedgerEntries{};
-    uint32_t mLedgerMaxReadBytes{};
+    uint32_t mledgerMaxDiskReadEntries{};
+    uint32_t mledgerMaxDiskReadBytes{};
     uint32_t mLedgerMaxWriteLedgerEntries{};
     uint32_t mLedgerMaxWriteBytes{};
     uint32_t mLedgerMaxTxCount{};
-    uint32_t mTxMaxReadLedgerEntries{};
-    uint32_t mTxMaxReadBytes{};
+    uint32_t mTxMaxDiskReadEntries{};
+    uint32_t mTxMaxDiskReadBytes{};
     uint32_t mTxMaxWriteLedgerEntries{};
     uint32_t mTxMaxWriteBytes{};
-    int64_t mFeeReadLedgerEntry{};
+    int64_t mfeeDiskReadLedgerEntry{};
     int64_t mFeeWriteLedgerEntry{};
-    int64_t mFeeRead1KB{};
-    int64_t mFeeWrite1KB{};
-    int64_t mBucketListTargetSizeBytes{};
-    int64_t mWriteFee1KBBucketListLow{};
-    int64_t mWriteFee1KBBucketListHigh{};
-    uint32_t mBucketListWriteFeeGrowthFactor{};
+    int64_t mFeeDiskRead1KB{};
+    int64_t mFeeRent1KB{};
+    int64_t mSorobanStateTargetSizeBytes{};
+    int64_t mRentFee1KBSorobanStateSizeLow{};
+    int64_t mRentFee1KBSorobanStateSizeHigh{};
+    uint32_t mSorobanStateRentFeeGrowthFactor{};
 
     // Historical data (pushed to core archives) settings for contracts.
     int64_t mFeeHistorical1KB{};
@@ -474,11 +476,7 @@ class SorobanNetworkConfig
     uint32_t mTxMaxInMemoryReadEntries{};
 
     // Flat rate fee for writing 1KB applies only post protocol 23
-    int64_t mFlatRateFeeWrite1KB{};
-
-#ifdef BUILD_TESTS
-    void writeAllSettings(AbstractLedgerTxn& ltx, Application& app) const;
-#endif
+    int64_t mFeeFlatRateWrite1KB{};
 };
 
 }

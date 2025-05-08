@@ -10,6 +10,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
+#include <xdrpp/marshal.h>
 
 #include <algorithm>
 #include <optional>
@@ -355,4 +356,12 @@ SCAddress makeClaimableBalanceAddress(ClaimableBalanceID const& id);
 SCAddress makeLiquidityPoolAddress(PoolID const& id);
 SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr);
 bool isIssuer(SCAddress const& addr, Asset const& asset);
+
+template <typename T>
+CxxBuf
+toCxxBuf(T const& t)
+{
+    return CxxBuf{
+        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(t))};
+}
 }

@@ -14,7 +14,6 @@ std::shared_ptr<HotArchiveBucket>
 HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
                         std::vector<LedgerEntry> const& archivedEntries,
                         std::vector<LedgerKey> const& restoredEntries,
-                        std::vector<LedgerKey> const& deletedEntries,
                         bool countMergeEvents, asio::io_context& ctx,
                         bool doFsync)
 {
@@ -23,8 +22,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     meta.ledgerVersion = protocolVersion;
     meta.ext.v(1);
     meta.ext.bucketListType() = BucketListType::HOT_ARCHIVE;
-    auto entries =
-        convertToBucketEntry(archivedEntries, restoredEntries, deletedEntries);
+    auto entries = convertToBucketEntry(archivedEntries, restoredEntries);
 
     MergeCounters mc;
     HotArchiveBucketOutputIterator out(bucketManager.getTmpDir(), true, meta,
@@ -45,8 +43,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 std::vector<HotArchiveBucketEntry>
 HotArchiveBucket::convertToBucketEntry(
     std::vector<LedgerEntry> const& archivedEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries)
+    std::vector<LedgerKey> const& restoredEntries)
 {
     std::vector<HotArchiveBucketEntry> bucket;
     for (auto const& e : archivedEntries)
@@ -60,13 +57,6 @@ HotArchiveBucket::convertToBucketEntry(
     {
         HotArchiveBucketEntry be;
         be.type(HOT_ARCHIVE_LIVE);
-        be.key() = k;
-        bucket.push_back(be);
-    }
-    for (auto const& k : deletedEntries)
-    {
-        HotArchiveBucketEntry be;
-        be.type(HOT_ARCHIVE_DELETED);
         be.key() = k;
         bucket.push_back(be);
     }

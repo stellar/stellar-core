@@ -100,9 +100,9 @@ pub(crate) mod rust_bridge {
 
     struct CxxTransactionResources {
         instructions: u32,
-        read_entries: u32,
+        disk_read_entries: u32,
         write_entries: u32,
-        read_bytes: u32,
+        disk_read_bytes: u32,
         write_bytes: u32,
         contract_events_size_bytes: u32,
         transaction_size_bytes: u32,
@@ -110,9 +110,9 @@ pub(crate) mod rust_bridge {
 
     struct CxxFeeConfiguration {
         fee_per_instruction_increment: i64,
-        fee_per_read_entry: i64,
+        fee_per_disk_read_entry: i64,
         fee_per_write_entry: i64,
-        fee_per_read_1kb: i64,
+        fee_per_disk_read_1kb: i64,
         fee_per_write_1kb: i64,
         fee_per_historical_1kb: i64,
         fee_per_contract_event_1kb: i64,
@@ -127,18 +127,20 @@ pub(crate) mod rust_bridge {
         new_live_until_ledger: u32,
     }
 
+    #[derive(Debug)]
     struct CxxRentFeeConfiguration {
         fee_per_write_1kb: i64,
+        fee_per_rent_1kb: i64,
         fee_per_write_entry: i64,
         persistent_rent_rate_denominator: i64,
         temporary_rent_rate_denominator: i64,
     }
 
-    struct CxxWriteFeeConfiguration {
-        bucket_list_target_size_bytes: i64,
-        write_fee_1kb_bucket_list_low: i64,
-        write_fee_1kb_bucket_list_high: i64,
-        bucket_list_write_fee_growth_factor: u32,
+    struct CxxRentWriteFeeConfiguration {
+        state_target_size_bytes: i64,
+        rent_fee_1kb_state_size_low: i64,
+        rent_fee_1kb_state_size_high: i64,
+        state_size_rent_fee_growth_factor: u32,
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -218,11 +220,11 @@ pub(crate) mod rust_bridge {
 
         // Computes the write fee per 1kb written to the ledger given the
         // current bucket list size and network configuration.
-        fn compute_write_fee_per_1kb(
+        fn compute_rent_write_fee_per_1kb(
             config_max_protocol: u32,
             protocol_version: u32,
             bucket_list_size: i64,
-            fee_config: CxxWriteFeeConfiguration,
+            fee_config: CxxRentWriteFeeConfiguration,
         ) -> Result<i64>;
 
         // Computes the rent fee given the ledger entry changes and network
@@ -234,6 +236,18 @@ pub(crate) mod rust_bridge {
             fee_config: CxxRentFeeConfiguration,
             current_ledger_seq: u32,
         ) -> Result<i64>;
+
+        // Computes in-memory size of the ContractCodeEntry used for the rent
+        // fee computation.
+        // In-memory size is only used for contract code starting from protocol
+        // 23, so it's an error to call this in the earlier protocols.
+        fn contract_code_memory_size_for_rent(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            contract_code_entry: &CxxBuf,
+            cpu_cost_params: &CxxBuf,
+            mem_cost_params: &CxxBuf,
+        ) -> Result<u32>;
 
         // Checks if a provided `TransactionEnvelope` XDR can be parsed in the
         // provided `protocol_version`.

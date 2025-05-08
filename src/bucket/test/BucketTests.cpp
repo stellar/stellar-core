@@ -291,35 +291,33 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
             auto e2 =
                 LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
             auto e3 =
-                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
             auto e4 =
-                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
 
             // Old bucket:
             // e1 -> ARCHIVED
             // e2 -> LIVE
-            // e3 -> DELETED
-            // e4 -> DELETED
+            // e3 -> ARCHIVED
             auto b1 = HotArchiveBucket::fresh(
-                bm, vers, {e1}, {LedgerEntryKey(e2)},
-                {LedgerEntryKey(e3), LedgerEntryKey(e4)},
+                bm, vers, {e1, e3}, {LedgerEntryKey(e2)},
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
 
             // New bucket:
-            // e1 -> DELETED
+            // e1 -> LIVE
             // e2 -> ARCHIVED
-            // e3 -> LIVE
+            // e4 -> LIVE
             auto b2 = HotArchiveBucket::fresh(
-                bm, vers, {e2}, {LedgerEntryKey(e3)}, {LedgerEntryKey(e1)},
+                bm, vers, {e2}, {LedgerEntryKey(e1), LedgerEntryKey(e4)},
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
 
             // Expected result:
-            // e1 -> DELETED
+            // e1 -> LIVE
             // e2 -> ARCHIVED
-            // e3 -> LIVE
-            // e4 -> DELETED
+            // e3 -> ARCHIVED
+            // e4 -> LIVE
             auto merged = HotArchiveBucket::merge(
                 bm, vers, b1, b2, /*shadows=*/{},
                 /*keepTombstoneEntries=*/true,
@@ -327,6 +325,8 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
                 /*doFsync=*/true);
 
             bool seen1 = false;
+            bool seen2 = false;
+            bool seen3 = false;
             bool seen4 = false;
             auto count = 0;
             for (HotArchiveBucketInputIterator iter(merged); iter; ++iter)
@@ -335,22 +335,25 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
                 auto const& e = *iter;
                 if (e.type() == HOT_ARCHIVE_ARCHIVED)
                 {
-                    REQUIRE(e.archivedEntry() == e2);
+                    if (e.archivedEntry() == e2)
+                    {
+                        seen2 = true;
+                    }
+                    else
+                    {
+                        REQUIRE(e.archivedEntry() == e3);
+                        seen3 = true;
+                    }
                 }
                 else if (e.type() == HOT_ARCHIVE_LIVE)
                 {
-                    REQUIRE(e.key() == LedgerEntryKey(e3));
-                }
-                else if (e.type() == HOT_ARCHIVE_DELETED)
-                {
                     if (e.key() == LedgerEntryKey(e1))
                     {
-                        REQUIRE(!seen1);
                         seen1 = true;
                     }
-                    else if (e.key() == LedgerEntryKey(e4))
+                    else
                     {
-                        REQUIRE(!seen4);
+                        REQUIRE(e.key() == LedgerEntryKey(e4));
                         seen4 = true;
                     }
                 }
@@ -360,9 +363,11 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
                 }
             }
 
-            REQUIRE(seen1);
-            REQUIRE(seen4);
             REQUIRE(count == 4);
+            REQUIRE(seen1);
+            REQUIRE(seen2);
+            REQUIRE(seen3);
+            REQUIRE(seen4);
         }
     });
 }

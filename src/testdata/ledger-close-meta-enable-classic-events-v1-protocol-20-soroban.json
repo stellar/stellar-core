@@ -158,7 +158,7 @@
                                                                         ]
                                                                     },
                                                                     "instructions": 200000,
-                                                                    "readBytes": 5000,
+                                                                    "diskReadBytes": 5000,
                                                                     "writeBytes": 5000
                                                                 },
                                                                 "resourceFee": 1043855
@@ -255,7 +255,7 @@
                                                                         ]
                                                                     },
                                                                     "instructions": 4000000,
-                                                                    "readBytes": 10000,
+                                                                    "diskReadBytes": 10000,
                                                                     "writeBytes": 1000
                                                                 },
                                                                 "resourceFee": 126626
@@ -320,7 +320,7 @@
                                                                         ]
                                                                     },
                                                                     "instructions": 0,
-                                                                    "readBytes": 5000,
+                                                                    "diskReadBytes": 5000,
                                                                     "writeBytes": 1000
                                                                 },
                                                                 "resourceFee": 1000000
@@ -405,7 +405,7 @@
                                                                         "readWrite": []
                                                                     },
                                                                     "instructions": 4000000,
-                                                                    "readBytes": 10000,
+                                                                    "diskReadBytes": 10000,
                                                                     "writeBytes": 1000
                                                                 },
                                                                 "resourceFee": 101512
@@ -476,7 +476,7 @@
                                                                         "readWrite": []
                                                                     },
                                                                     "instructions": 0,
-                                                                    "readBytes": 10000,
+                                                                    "diskReadBytes": 10000,
                                                                     "writeBytes": 0
                                                                 },
                                                                 "resourceFee": 1000000
@@ -2409,9 +2409,9 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfBucketList": 0,
-            "evictedTemporaryLedgerKeys": [],
-            "evictedPersistentLedgerEntries": []
+            "totalByteSizeOfLiveSorobanState": 0,
+            "evictedKeys": [],
+            "unused": []
         }
     }
 }

@@ -247,7 +247,7 @@ soroban-env-host v23.0.0 (src/rust/soroban/p23/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=fdd0c4f467ea654c3aaf139e8e914e1c416a39b8#fdd0c4f4)
+│   │   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=523624edf7ee92edaf9aca5a2df68994d1a87de3#523624ed)
 │   │   │   ├── escape-bytes v0.1.1
 │   │   │   ├── hex v0.4.3
 │   │   │   └── stellar-strkey v0.0.13
@@ -272,7 +272,7 @@ soroban-env-host v23.0.0 (src/rust/soroban/p23/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=fdd0c4f467ea654c3aaf139e8e914e1c416a39b8#fdd0c4f4)
+│   ├── stellar-xdr v22.1.0 (https://github.com/stellar/rs-stellar-xdr?rev=523624edf7ee92edaf9aca5a2df68994d1a87de3#523624ed)
 │   │   ├── base64 v0.13.1
 │   │   ├── escape-bytes v0.1.1
 │   │   ├── hex v0.4.3

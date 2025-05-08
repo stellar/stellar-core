@@ -178,7 +178,7 @@ void
 LedgerKeyMeter::addTxn(SorobanResources const& resources)
 {
     TxReadBytesPtr txReadBytesPtr =
-        std::make_shared<uint32_t>(resources.readBytes);
+        std::make_shared<uint32_t>(resources.diskReadBytes);
     auto addKeyToTxnMap = [&](auto const& key) {
         mLedgerKeyToTxReadBytes[key].emplace_back(txReadBytesPtr);
     };

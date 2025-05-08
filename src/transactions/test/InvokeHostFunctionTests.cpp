@@ -100,16 +100,17 @@ overrideNetworkSettingsToMin(Application& app)
             .current()
             .data.configSetting()
             .contractLedgerCost();
-    costEntry.txMaxReadLedgerEntries =
+    costEntry.txMaxDiskReadEntries =
         MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-    costEntry.txMaxReadBytes = MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
+    costEntry.txMaxDiskReadBytes =
+        MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
 
     costEntry.txMaxWriteLedgerEntries =
         MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
     costEntry.txMaxWriteBytes = MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
-    costEntry.ledgerMaxReadLedgerEntries = costEntry.txMaxReadLedgerEntries;
-    costEntry.ledgerMaxReadBytes = costEntry.txMaxReadBytes;
+    costEntry.ledgerMaxDiskReadEntries = costEntry.txMaxDiskReadEntries;
+    costEntry.ledgerMaxDiskReadBytes = costEntry.txMaxDiskReadBytes;
     costEntry.ledgerMaxWriteLedgerEntries = costEntry.txMaxWriteLedgerEntries;
     costEntry.ledgerMaxWriteBytes = costEntry.txMaxWriteBytes;
 
@@ -129,7 +130,7 @@ overrideNetworkSettingsToMin(Application& app)
         MinimumSorobanNetworkConfig::RENT_RATE_DENOMINATOR;
     exp.maxEntriesToArchive =
         MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE;
-    exp.bucketListSizeWindowSampleSize =
+    exp.liveSorobanStateSizeWindowSampleSize =
         MinimumSorobanNetworkConfig::BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE;
     exp.evictionScanSize = MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE;
     exp.startingEvictionScanLevel =
@@ -400,8 +401,6 @@ TEST_CASE("Native stellar asset contract",
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-
 TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
           "[tx][soroban]")
 {
@@ -507,8 +506,6 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
         runTest(false);
     }
 }
-
-#endif
 
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
@@ -875,7 +872,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
+    resources.diskReadBytes = 2000;
 
     // Tests for each Soroban op
     auto testValidInvoke = [&](bool shouldBeValid) {
@@ -1113,16 +1110,9 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
     }
 }
 
-TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
+TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
+                   "[tx][soroban]")
 {
-    auto cfgModifyFn = [](SorobanNetworkConfig& cfg) {
-        cfg.mFeeRatePerInstructionsIncrement = 1000;
-        cfg.mFeeReadLedgerEntry = 2000;
-        cfg.mFeeWriteLedgerEntry = 3000;
-        cfg.mFeeRead1KB = 4000;
-        cfg.mFeeHistorical1KB = 6000;
-        cfg.mFeeTransactionSize1KB = 8000;
-    };
     // Historical fee is always paid for 300 byte of transaction result.
     // ceil(6000 * 300 / 1024) == 1758
     int64_t const baseHistoricalFee = 1758;
@@ -1131,139 +1121,177 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
     int64_t const baseSizeFee = 16'352;
     int64_t const baseTxFee = baseHistoricalFee + baseSizeFee;
     uint32_t const minInclusionFee = 100;
+    uint32_t const writeFee = 5000;
 
-    SorobanTest test(getTestConfig(),
-                     /*useTestLimits=*/true, cfgModifyFn);
-    auto makeTx = [&test](SorobanResources const& resources,
-                          uint32_t inclusionFee, int64_t resourceFee) {
-        Operation uploadOp;
-        uploadOp.body.type(INVOKE_HOST_FUNCTION);
-        auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
-        uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-        uploadHF.wasm().resize(1000);
-        return sorobanTransactionFrameFromOps(
-            test.getApp().getNetworkID(), test.getRoot(), {uploadOp}, {},
-            resources, inclusionFee, resourceFee);
-    };
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(clock, cfg);
 
-    auto checkFees = [&](SorobanResources const& resources,
-                         int64_t expectedNonRefundableFee) {
-        auto validTx =
-            makeTx(resources, minInclusionFee, expectedNonRefundableFee);
-        auto& app = test.getApp();
-        // Sanity check the tx fee computation logic.
-        auto actualFeePair =
-            validTx->getRawTransactionFrame().computePreApplySorobanResourceFee(
-                app.getLedgerManager()
-                    .getLastClosedLedgerHeader()
-                    .header.ledgerVersion,
-                app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-                app.getConfig());
-        REQUIRE(expectedNonRefundableFee == actualFeePair.non_refundable_fee);
+    for_versions_from(20, *app, [&] {
+        auto cfgModifyFn = [&](SorobanNetworkConfig& cfg) {
+            cfg.mFeeRatePerInstructionsIncrement = 1000;
+            cfg.mfeeDiskReadLedgerEntry = 2000;
+            cfg.mFeeWriteLedgerEntry = 3000;
+            cfg.mFeeDiskRead1KB = 4000;
+            cfg.mFeeHistorical1KB = 6000;
+            cfg.mFeeTransactionSize1KB = 8000;
 
-        REQUIRE(test.isTxValid(validTx));
+            // In protocol 23 we switched to using the 'flat' write fee. In
+            // previous protocol it was dynamic (currently that fee is named
+            // 'rent write fee').
+            if (protocolVersionStartsFrom(app->getLedgerManager()
+                                              .getLastClosedLedgerHeader()
+                                              .header.ledgerVersion,
+                                          ProtocolVersion::V_23))
+            {
+                cfg.mFeeFlatRateWrite1KB = writeFee;
+            }
+        };
 
-        // Check that just below minimum resource fee fails
-        auto notEnoughResourceFeeTx =
-            makeTx(resources,
-                   // It doesn't matter how high inclusion fee is.
-                   1'000'000'000, expectedNonRefundableFee - 1);
-        REQUIRE(!test.isTxValid(notEnoughResourceFeeTx));
+        SorobanTest test(app, cfg,
+                         /*useTestLimits=*/true, cfgModifyFn);
+        auto makeTx = [&test](SorobanResources const& resources,
+                              uint32_t inclusionFee, int64_t resourceFee) {
+            Operation uploadOp;
+            uploadOp.body.type(INVOKE_HOST_FUNCTION);
+            auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+            uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+            uploadHF.wasm().resize(1000);
+            return sorobanTransactionFrameFromOps(
+                test.getApp().getNetworkID(), test.getRoot(), {uploadOp}, {},
+                resources, inclusionFee, resourceFee);
+        };
 
-        // check that just below minimum inclusion fee fails
-        auto notEnoughInclusionFeeTx =
-            makeTx(resources, minInclusionFee - 1,
-                   // It doesn't matter how high the resource fee is.
-                   1'000'000'000);
-        REQUIRE(!test.isTxValid(notEnoughInclusionFeeTx));
-    };
+        auto checkFees = [&](SorobanResources const& resources,
+                             int64_t expectedNonRefundableFee) {
+            auto validTx =
+                makeTx(resources, minInclusionFee, expectedNonRefundableFee);
+            auto& app = test.getApp();
+            // Sanity check the tx fee computation logic.
+            auto actualFeePair =
+                validTx->getRawTransactionFrame()
+                    .computePreApplySorobanResourceFee(
+                        app.getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerVersion,
+                        app.getLedgerManager()
+                            .getLastClosedSorobanNetworkConfig(),
+                        app.getConfig());
+            REQUIRE(expectedNonRefundableFee ==
+                    actualFeePair.non_refundable_fee);
 
-    // In the following tests, we isolate a single fee to test by zeroing out
-    // every other resource, as much as is possible
-    SECTION("tx size fees")
-    {
-        SorobanResources resources;
-        checkFees(resources, baseTxFee);
-    }
-    SECTION("compute fee")
-    {
-        SorobanResources resources;
-        resources.instructions = 12'345'678;
-        checkFees(resources, 1'234'568 + baseTxFee);
-    }
+            REQUIRE(test.isTxValid(validTx));
 
-    SECTION("footprint entries")
-    {
-        // Fee for additonal 6 footprint entries (6 * 36 = 216 bytes)
-        // ceil(216 * 6000 / 1024) + ceil(216 * 8000 / 1024) == 2954
-        const int64_t additionalTxSizeFee = 2954;
-        SECTION("RO only")
+            // Check that just below minimum resource fee fails
+            auto notEnoughResourceFeeTx =
+                makeTx(resources,
+                       // It doesn't matter how high inclusion fee is.
+                       1'000'000'000, expectedNonRefundableFee - 1);
+            REQUIRE(!test.isTxValid(notEnoughResourceFeeTx));
+
+            // check that just below minimum inclusion fee fails
+            auto notEnoughInclusionFeeTx =
+                makeTx(resources, minInclusionFee - 1,
+                       // It doesn't matter how high the resource fee is.
+                       1'000'000'000);
+            REQUIRE(!test.isTxValid(notEnoughInclusionFeeTx));
+        };
+
+        // In the following tests, we isolate a single fee to test by zeroing
+        // out every other resource, as much as is possible
+        SECTION("tx size fees")
         {
             SorobanResources resources;
-            LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
-            for (uint8_t i = 0; i < 6; ++i)
-            {
-                lk.contractCode().hash[0] = i;
-                resources.footprint.readOnly.push_back(lk);
-            }
-
-            checkFees(resources, 2000 * 6 + baseTxFee + additionalTxSizeFee);
+            checkFees(resources, baseTxFee);
         }
-        SECTION("RW only")
+        SECTION("compute fee")
         {
             SorobanResources resources;
-            LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
-            for (uint8_t i = 0; i < 6; ++i)
-            {
-                lk.contractCode().hash[0] = i;
-                resources.footprint.readWrite.push_back(lk);
-            }
-
-            // RW entries are also counted towards reads.
-            checkFees(resources,
-                      2000 * 6 + 3000 * 6 + baseTxFee + additionalTxSizeFee);
+            resources.instructions = 12'345'678;
+            checkFees(resources, 1'234'568 + baseTxFee);
         }
-        SECTION("RW and RO")
+
+        SECTION("footprint entries")
+        {
+            // Fee for additonal 6 footprint entries (6 * 36 = 216 bytes)
+            // ceil(216 * 6000 / 1024) + ceil(216 * 8000 / 1024) == 2954
+            const int64_t additionalTxSizeFee = 2954;
+            SECTION("RO only")
+            {
+                SorobanResources resources;
+                LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
+                for (uint8_t i = 0; i < 6; ++i)
+                {
+                    lk.contractCode().hash[0] = i;
+                    resources.footprint.readOnly.push_back(lk);
+                }
+
+                checkFees(resources,
+                          2000 * 6 + baseTxFee + additionalTxSizeFee);
+            }
+            SECTION("RW only")
+            {
+                SorobanResources resources;
+                LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
+                for (uint8_t i = 0; i < 6; ++i)
+                {
+                    lk.contractCode().hash[0] = i;
+                    resources.footprint.readWrite.push_back(lk);
+                }
+
+                // RW entries are also counted towards reads.
+                checkFees(resources, 2000 * 6 + 3000 * 6 + baseTxFee +
+                                         additionalTxSizeFee);
+            }
+            SECTION("RW and RO")
+            {
+                SorobanResources resources;
+                LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
+                for (uint8_t i = 0; i < 3; ++i)
+                {
+                    lk.contractCode().hash[0] = i;
+                    resources.footprint.readOnly.push_back(lk);
+                }
+                for (uint8_t i = 3; i < 6; ++i)
+                {
+                    lk.contractCode().hash[0] = i;
+                    resources.footprint.readWrite.push_back(lk);
+                }
+                // RW entries are also counted towards reads.
+                checkFees(resources, 2000 * (3 + 3) + 3000 * 3 + baseTxFee +
+                                         additionalTxSizeFee);
+            }
+        }
+
+        // Prior to protocol 23 `mFeeRent1KB` was also used as the regular
+        // write fee.
+        if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                    ProtocolVersion::V_23))
+        {
+            // Since mFeeWrite1KB is based on the BucketList size sliding
+            // window, we
+            // must explicitly override the in-memory cached value after
+            // initializing the test.
+            test.getApp()
+                .getLedgerManager()
+                .getMutableSorobanNetworkConfigForApply()
+                .mFeeRent1KB = 5000;
+        }
+
+        SECTION("readBytes fee")
         {
             SorobanResources resources;
-            LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
-            for (uint8_t i = 0; i < 3; ++i)
-            {
-                lk.contractCode().hash[0] = i;
-                resources.footprint.readOnly.push_back(lk);
-            }
-            for (uint8_t i = 3; i < 6; ++i)
-            {
-                lk.contractCode().hash[0] = i;
-                resources.footprint.readWrite.push_back(lk);
-            }
-            // RW entries are also counted towards reads.
-            checkFees(resources, 2000 * (3 + 3) + 3000 * 3 + baseTxFee +
-                                     additionalTxSizeFee);
+            resources.diskReadBytes = 5 * 1024 + 1;
+            checkFees(resources, 20'004 + baseTxFee);
         }
-    }
 
-    // Since mFeeWrite1KB is based on the BucketList size sliding window, we
-    // must explicitly override the in-memory cached value after initializing
-    // the test.
-    test.getApp()
-        .getLedgerManager()
-        .getMutableSorobanNetworkConfigForApply()
-        .mFeeWrite1KB = 5000;
-
-    SECTION("readBytes fee")
-    {
-        SorobanResources resources;
-        resources.readBytes = 5 * 1024 + 1;
-        checkFees(resources, 20'004 + baseTxFee);
-    }
-
-    SECTION("writeBytes fee")
-    {
-        SorobanResources resources;
-        resources.writeBytes = 5 * 1024 + 1;
-        checkFees(resources, 25'005 + baseTxFee);
-    }
+        SECTION("writeBytes fee")
+        {
+            SorobanResources resources;
+            resources.writeBytes = 5 * 1024 + 1;
+            checkFees(resources, 25'005 + baseTxFee);
+        }
+    });
 }
 
 TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
@@ -1455,7 +1483,6 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
-
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
@@ -1472,7 +1499,11 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         auto r = closeLedger(test.getApp(), {tx});
         checkTx(0, r, txSUCCESS);
 
-        int64_t expectedRefund = 981'527;
+        int64_t expectedRefund =
+            protocolVersionStartsFrom(test.getLedgerVersion(),
+                                      ProtocolVersion::V_23)
+                ? 981'525
+                : 981'527;
         int64_t initialFee = tx->getEnvelope().v1().tx.fee;
         REQUIRE(a1.getBalance() ==
                 a1StartingBalance - initialFee + expectedRefund);
@@ -1540,7 +1571,11 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         bool afterV20 = protocolVersionStartsFrom(
             getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
-        int64_t expectedRefund = 981'527;
+        int64_t expectedRefund =
+            protocolVersionStartsFrom(test.getLedgerVersion(),
+                                      ProtocolVersion::V_23)
+                ? 981'525
+                : 981'527;
 
         // Use the inner transactions fee, which already includes the minimum
         // inclusion fee of 100 stroops, and add the additional 100 because of
@@ -1769,24 +1804,25 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             // make sure LedgerManager picked up cached values by looking at
             // a couple settings
             auto const& networkConfig = test.getNetworkCfg();
-            REQUIRE(networkConfig.txMaxReadBytes() ==
+            REQUIRE(networkConfig.txMaxDiskReadBytes() ==
                     MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES);
-            REQUIRE(networkConfig.ledgerMaxReadBytes() ==
-                    networkConfig.txMaxReadBytes());
+            REQUIRE(networkConfig.ledgerMaxDiskReadBytes() ==
+                    networkConfig.txMaxDiskReadBytes());
         }
 
         SorobanResources maxResources;
         maxResources.instructions =
             MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-        maxResources.readBytes = MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        maxResources.diskReadBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
         maxResources.writeBytes =
             MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
         // build upgrade
 
         // This test assumes that all settings including and after
-        // CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW are not upgradeable, so they
-        // won't be included in the upgrade.
+        // CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW are not upgradeable, so
+        // they won't be included in the upgrade.
         xdr::xvector<ConfigSettingEntry> updatedEntries;
         for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
         {
@@ -1820,23 +1856,23 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto& cost = updatedEntries.at(static_cast<uint32_t>(
             ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0));
         // check a couple settings to make sure they're at the minimum
-        REQUIRE(cost.contractLedgerCost().txMaxReadLedgerEntries ==
+        REQUIRE(cost.contractLedgerCost().txMaxDiskReadEntries ==
                 MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
-        REQUIRE(cost.contractLedgerCost().txMaxReadBytes ==
+        REQUIRE(cost.contractLedgerCost().txMaxDiskReadBytes ==
                 MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES);
         REQUIRE(cost.contractLedgerCost().txMaxWriteBytes ==
                 MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES);
-        REQUIRE(cost.contractLedgerCost().ledgerMaxReadLedgerEntries ==
-                cost.contractLedgerCost().txMaxReadLedgerEntries);
-        REQUIRE(cost.contractLedgerCost().ledgerMaxReadBytes ==
-                cost.contractLedgerCost().txMaxReadBytes);
+        REQUIRE(cost.contractLedgerCost().ledgerMaxDiskReadEntries ==
+                cost.contractLedgerCost().txMaxDiskReadEntries);
+        REQUIRE(cost.contractLedgerCost().ledgerMaxDiskReadBytes ==
+                cost.contractLedgerCost().txMaxDiskReadBytes);
         REQUIRE(cost.contractLedgerCost().ledgerMaxWriteBytes ==
                 cost.contractLedgerCost().txMaxWriteBytes);
-        cost.contractLedgerCost().feeRead1KB = 1000;
+        cost.contractLedgerCost().feeDiskRead1KB = 1000;
 
         // additional testing to make sure a negative value is accepted for the
         // low value.
-        cost.contractLedgerCost().writeFee1KBBucketListLow = -100;
+        cost.contractLedgerCost().rentFee1KBSorobanStateSizeLow = -100;
 
         ConfigUpgradeSet upgradeSet;
         upgradeSet.updatedEntry = updatedEntries;
@@ -1916,7 +1952,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             REQUIRE(costEntry.current()
                         .data.configSetting()
                         .contractLedgerCost()
-                        .feeRead1KB == 1000);
+                        .feeDiskRead1KB == 1000);
         }
     };
     SECTION("from init settings")
@@ -2063,7 +2099,7 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
         SorobanResources resources;
         resources.footprint.readWrite = {lk};
         resources.instructions = 0;
-        resources.readBytes = cfg.txMaxReadBytes();
+        resources.diskReadBytes = cfg.txMaxDiskReadBytes();
         resources.writeBytes = cfg.txMaxWriteBytes();
         auto resourceFee = 1'000'000;
 
@@ -2079,7 +2115,7 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
         SorobanResources resources;
         resources.footprint.readOnly = {lk};
         resources.instructions = 0;
-        resources.readBytes = cfg.txMaxReadBytes();
+        resources.diskReadBytes = cfg.txMaxDiskReadBytes();
         resources.writeBytes = cfg.txMaxWriteBytes();
         auto resourceFee = 1'000'000;
 
@@ -2186,8 +2222,8 @@ TEST_CASE("contract storage", "[tx][soroban][archival]")
 {
     auto modifyCfg = [](SorobanNetworkConfig& cfg) {
         // Increase write fee so the fee will be greater than 1
-        cfg.mWriteFee1KBBucketListLow = 20'000;
-        cfg.mWriteFee1KBBucketListHigh = 1'000'000;
+        cfg.mRentFee1KBSorobanStateSizeLow = 20'000;
+        cfg.mRentFee1KBSorobanStateSizeHigh = 1'000'000;
     };
     auto appCfg = getTestConfig();
     appCfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
@@ -2340,450 +2376,524 @@ TEST_CASE("contract storage", "[tx][soroban][archival]")
     }
 }
 
-TEST_CASE("state archival", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
 {
-    SorobanTest test(getTestConfig(), true, [](SorobanNetworkConfig& cfg) {
-        cfg.mWriteFee1KBBucketListLow = 20'000;
-        cfg.mWriteFee1KBBucketListHigh = 1'000'000;
-    });
-    auto const& stateArchivalSettings =
-        test.getNetworkCfg().stateArchivalSettings();
-    auto isSuccess = [](auto resultCode) {
-        return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
-    };
-    ContractStorageTestClient client(test);
-    SECTION("contract instance and Wasm archival")
-    {
-        uint32_t originalExpectedLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= originalExpectedLiveUntilLedger + 1; ++i)
+    for_versions_from(20, getTestConfig(), [](Config const& cfg) {
+        SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+            cfg.mRentFee1KBSorobanStateSizeLow = 20'000;
+            cfg.mRentFee1KBSorobanStateSizeHigh = 1'000'000;
+        });
+        auto const& stateArchivalSettings =
+            test.getNetworkCfg().stateArchivalSettings();
+        auto isSuccess = [](auto resultCode) {
+            return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
+        };
+        ContractStorageTestClient client(test);
+        SECTION("contract instance and Wasm archival")
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-        }
-
-        // Contract instance and code should be expired
-        auto const& contractKeys = client.getContract().getKeys();
-        REQUIRE(!test.isEntryLive(contractKeys[0], test.getLCLSeq()));
-        REQUIRE(!test.isEntryLive(contractKeys[1], test.getLCLSeq()));
-        // Wasm is created 1 ledger before code, so lives for 1 ledger less.
-        REQUIRE(test.getTTL(contractKeys[0]) ==
-                originalExpectedLiveUntilLedger - 1);
-        REQUIRE(test.getTTL(contractKeys[1]) ==
-                originalExpectedLiveUntilLedger);
-
-        // Contract instance and code are expired, any TX should fail
-        REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY, 0) ==
-                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
-
-        SECTION("restore contract instance and wasm")
-        {
-            // Restore Instance and Wasm
-            test.invokeRestoreOp(contractKeys, 1881 /* rent bump */ +
-                                                    40000 /* two LE-writes
-                                                    */);
-            auto newExpectedLiveUntilLedger =
+            uint32_t originalExpectedLiveUntilLedger =
                 test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
 
-            // Instance should now be useable
-            REQUIRE(isSuccess(
-                client.put("temp", ContractDataDurability::TEMPORARY, 0)));
-            REQUIRE(test.getTTL(contractKeys[0]) == newExpectedLiveUntilLedger);
-            REQUIRE(test.getTTL(contractKeys[1]) == newExpectedLiveUntilLedger);
-        }
+            for (uint32_t i =
+                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                 i <= originalExpectedLiveUntilLedger + 1; ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
 
-        SECTION("restore contract instance, not wasm")
-        {
-            // Only restore client instance
-            test.invokeRestoreOp({contractKeys[1]},
-                                 939 /* rent bump */ +
-                                     20000 /* one LE write */);
-            auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-
-            // invocation should fail
-            REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY, 0) ==
-                    INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+            // Contract instance and code should be expired
+            auto const& contractKeys = client.getContract().getKeys();
+            REQUIRE(!test.isEntryLive(contractKeys[0], test.getLCLSeq()));
+            REQUIRE(!test.isEntryLive(contractKeys[1], test.getLCLSeq()));
             // Wasm is created 1 ledger before code, so lives for 1 ledger less.
             REQUIRE(test.getTTL(contractKeys[0]) ==
                     originalExpectedLiveUntilLedger - 1);
-            REQUIRE(test.getTTL(contractKeys[1]) == newExpectedLiveUntilLedger);
-        }
-
-        SECTION("restore contract Wasm, not instance")
-        {
-            // Only restore Wasm
-            test.invokeRestoreOp({contractKeys[0]},
-                                 943 /* rent bump */ +
-                                     20000 /* one LE write */);
-            auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-
-            // invocation should fail
-            REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY, 0) ==
-                    INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
-            REQUIRE(test.getTTL(contractKeys[0]) == newExpectedLiveUntilLedger);
             REQUIRE(test.getTTL(contractKeys[1]) ==
                     originalExpectedLiveUntilLedger);
+
+            // Contract instance and code are expired, any TX should fail
+            REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY, 0) ==
+                    INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+            // Note, that post protocol 23 the rent bumps are cheaper. The
+            // reason for that is that due to the way the test is set up, the
+            // rent bump fee has been dominated by the TTL write fee (because
+            // the write fee itself is high). After protocol 23 the write fee
+            // is just 1000, and the rent fee itself is small in both cases due
+            // to large denominator.
+            // We should eventually update this test to use the small
+            // denominators instead of large write fees in order to get more
+            // sensible numbers, but keeping it as is for now in order to
+            // ensure that protocols before 23 are not broken.
+            int const rentBumpForWasm =
+                protocolVersionStartsFrom(test.getLedgerVersion(),
+                                          ProtocolVersion::V_23)
+                    ? 167
+                    : 943;
+            int const rentBumpForInstance =
+                protocolVersionStartsFrom(test.getLedgerVersion(),
+                                          ProtocolVersion::V_23)
+                    ? 48
+                    : 939;
+            int const rentBumpForInstanceAndWasm =
+                protocolVersionStartsFrom(test.getLedgerVersion(),
+                                          ProtocolVersion::V_23)
+                    ? 215
+                    : 1881;
+
+            SECTION("restore contract instance and wasm")
+            {
+                // Restore Instance and Wasm
+                test.invokeRestoreOp(contractKeys, rentBumpForInstanceAndWasm +
+                                                    40000 /* two LE-writes
+                                                    */);
+                auto newExpectedLiveUntilLedger =
+                    test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
+                    1;
+
+                // Instance should now be useable
+                REQUIRE(isSuccess(
+                    client.put("temp", ContractDataDurability::TEMPORARY, 0)));
+                REQUIRE(test.getTTL(contractKeys[0]) ==
+                        newExpectedLiveUntilLedger);
+                REQUIRE(test.getTTL(contractKeys[1]) ==
+                        newExpectedLiveUntilLedger);
+            }
+
+            SECTION("restore contract instance, not wasm")
+            {
+                // Only restore client instance
+                test.invokeRestoreOp({contractKeys[1]},
+                                     rentBumpForInstance +
+                                         20000 /* one LE write */);
+                auto newExpectedLiveUntilLedger =
+                    test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
+                    1;
+
+                // invocation should fail
+                REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY,
+                                   0) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                // Wasm is created 1 ledger before code, so lives for 1 ledger
+                // less.
+                REQUIRE(test.getTTL(contractKeys[0]) ==
+                        originalExpectedLiveUntilLedger - 1);
+                REQUIRE(test.getTTL(contractKeys[1]) ==
+                        newExpectedLiveUntilLedger);
+            }
+
+            SECTION("restore contract Wasm, not instance")
+            {
+                // Only restore Wasm
+                test.invokeRestoreOp({contractKeys[0]},
+                                     rentBumpForWasm +
+                                         20000 /* one LE write */);
+                auto newExpectedLiveUntilLedger =
+                    test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
+                    1;
+
+                // invocation should fail
+                REQUIRE(client.put("temp", ContractDataDurability::TEMPORARY,
+                                   0) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                REQUIRE(test.getTTL(contractKeys[0]) ==
+                        newExpectedLiveUntilLedger);
+                REQUIRE(test.getTTL(contractKeys[1]) ==
+                        originalExpectedLiveUntilLedger);
+            }
+
+            SECTION("lifetime extensions")
+            {
+                // Restore Instance and Wasm
+                test.invokeRestoreOp(contractKeys,
+                                     rentBumpForInstanceAndWasm +
+                                         40000 /* two LE writes */);
+                test.invokeExtendOp({contractKeys[0]}, 10'000);
+                test.invokeExtendOp({contractKeys[1]}, 15'000);
+                REQUIRE(test.getTTL(contractKeys[0]) ==
+                        test.getLCLSeq() + 10'000 - 1);
+                // No -1 here because instance lives for 1 ledger longer than
+                // Wasm.
+                REQUIRE(test.getTTL(contractKeys[1]) ==
+                        test.getLCLSeq() + 15'000);
+            }
         }
 
-        SECTION("lifetime extensions")
+        SECTION("contract storage archival")
         {
-            // Restore Instance and Wasm
-            test.invokeRestoreOp(contractKeys, 1881 /* rent bump */ +
-                                                   40000 /* two LE writes */);
-            test.invokeExtendOp({contractKeys[0]}, 10'000);
-            test.invokeExtendOp({contractKeys[1]}, 15'000);
-            REQUIRE(test.getTTL(contractKeys[0]) ==
-                    test.getLCLSeq() + 10'000 - 1);
-            // No -1 here because instance lives for 1 ledger longer than Wasm.
-            REQUIRE(test.getTTL(contractKeys[1]) == test.getLCLSeq() + 15'000);
-        }
-    }
+            // Wasm and instance should not expire during test
+            test.invokeExtendOp(client.getContract().getKeys(), 10'000);
 
-    SECTION("contract storage archival")
-    {
-        // Wasm and instance should not expire during test
-        test.invokeExtendOp(client.getContract().getKeys(), 10'000);
-
-        REQUIRE(isSuccess(
-            client.put("persistent", ContractDataDurability::PERSISTENT, 10)));
-        // Extend the persistent entry, so that it doesn't expire while we
-        // execute all the contract calls (every one closes a ledger).
-        REQUIRE(isSuccess(client.extend(
-            "persistent", ContractDataDurability::PERSISTENT, 20, 32)));
-        auto expectedPersistentLiveUntilLedger = test.getLCLSeq() + 32;
-        REQUIRE(isSuccess(
-            client.put("temp", ContractDataDurability::TEMPORARY, 0)));
-        auto expectedTempLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minTemporaryTTL - 1;
-
-        // Check for expected minimum lifetime values
-        REQUIRE(
-            client.getTTL("persistent", ContractDataDurability::PERSISTENT) ==
-            expectedPersistentLiveUntilLedger);
-        REQUIRE(client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
-                expectedTempLiveUntilLedger);
-
-        // Close ledgers until temp entry expires
-        uint32 nextLedgerSeq =
-            test.getApp().getLedgerManager().getLastClosedLedgerNum();
-        for (; nextLedgerSeq < expectedTempLiveUntilLedger; ++nextLedgerSeq)
-        {
-            closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
-        }
-
-        REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger - 1);
-
-        SECTION("entry accessible when currentLedger == liveUntilLedger")
-        {
-            // Entry should still be accessible when currentLedger ==
-            // liveUntilLedgerSeq
+            REQUIRE(isSuccess(client.put(
+                "persistent", ContractDataDurability::PERSISTENT, 10)));
+            // Extend the persistent entry, so that it doesn't expire while we
+            // execute all the contract calls (every one closes a ledger).
+            REQUIRE(isSuccess(client.extend(
+                "persistent", ContractDataDurability::PERSISTENT, 20, 32)));
+            auto expectedPersistentLiveUntilLedger = test.getLCLSeq() + 32;
             REQUIRE(isSuccess(
-                client.has("temp", ContractDataDurability::TEMPORARY, true)));
-        }
+                client.put("temp", ContractDataDurability::TEMPORARY, 0)));
+            auto expectedTempLiveUntilLedger =
+                test.getLCLSeq() + stateArchivalSettings.minTemporaryTTL - 1;
 
-        SECTION("write does not increase TTL")
-        {
-            REQUIRE(isSuccess(
-                client.put("temp", ContractDataDurability::TEMPORARY, 42)));
-            // TTL should not be network minimum since entry already exists
+            // Check for expected minimum lifetime values
+            REQUIRE(client.getTTL("persistent",
+                                  ContractDataDurability::PERSISTENT) ==
+                    expectedPersistentLiveUntilLedger);
             REQUIRE(client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
                     expectedTempLiveUntilLedger);
-        }
 
-        SECTION("extendOp when currentLedger == liveUntilLedger")
-        {
-            test.invokeExtendOp({client.getContract().getDataKey(
-                                    makeSymbolSCVal("temp"),
-                                    ContractDataDurability::TEMPORARY)},
-                                10'000);
-            REQUIRE(client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
-                    test.getLCLSeq() + 10'000);
-        }
-
-        SECTION("TTL enforcement")
-        {
-            // Close one more ledger so temp entry is expired
-            closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
-            REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger);
-
-            // Check that temp entry has expired in the current ledger, i.e.
-            // after LCL.
-            REQUIRE(!client.isEntryLive("temp",
-                                        ContractDataDurability::TEMPORARY,
-                                        test.getLCLSeq() + 1));
-
-            // Get should fail since entry no longer exists
-            REQUIRE(client.get("temp", ContractDataDurability::TEMPORARY,
-                               std::nullopt) == INVOKE_HOST_FUNCTION_TRAPPED);
-
-            // Has should succeed since the entry is TEMPORARY, but should
-            // return false
-            REQUIRE(isSuccess(
-                client.has("temp", ContractDataDurability::TEMPORARY, false)));
-
-            // PERSISTENT entry is still live, has higher minimum TTL
-            REQUIRE(client.isEntryLive("persistent",
-                                       ContractDataDurability::PERSISTENT,
-                                       test.getLCLSeq()));
-            REQUIRE(isSuccess(client.has(
-                "persistent", ContractDataDurability::PERSISTENT, true)));
-
-            // Check that we can recreate an expired TEMPORARY entry
-            REQUIRE(isSuccess(
-                client.put("temp", ContractDataDurability::TEMPORARY, 42)));
-
-            // Recreated entry should be live
-            REQUIRE(client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
-                    test.getLCLSeq() + stateArchivalSettings.minTemporaryTTL -
-                        1);
-            REQUIRE(isSuccess(
-                client.get("temp", ContractDataDurability::TEMPORARY, 42)));
-            nextLedgerSeq = test.getLCLSeq() + 1;
-            // Close ledgers until PERSISTENT entry liveUntilLedger
-            for (; nextLedgerSeq < expectedPersistentLiveUntilLedger;
-                 ++nextLedgerSeq)
+            // Close ledgers until temp entry expires
+            uint32 nextLedgerSeq =
+                test.getApp().getLedgerManager().getLastClosedLedgerNum();
+            for (; nextLedgerSeq < expectedTempLiveUntilLedger; ++nextLedgerSeq)
             {
                 closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
             }
 
+            REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger - 1);
+
             SECTION("entry accessible when currentLedger == liveUntilLedger")
             {
+                // Entry should still be accessible when currentLedger ==
+                // liveUntilLedgerSeq
+                REQUIRE(isSuccess(client.has(
+                    "temp", ContractDataDurability::TEMPORARY, true)));
+            }
+
+            SECTION("write does not increase TTL")
+            {
+                REQUIRE(isSuccess(
+                    client.put("temp", ContractDataDurability::TEMPORARY, 42)));
+                // TTL should not be network minimum since entry already exists
+                REQUIRE(
+                    client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
+                    expectedTempLiveUntilLedger);
+            }
+
+            SECTION("extendOp when currentLedger == liveUntilLedger")
+            {
+                test.invokeExtendOp({client.getContract().getDataKey(
+                                        makeSymbolSCVal("temp"),
+                                        ContractDataDurability::TEMPORARY)},
+                                    10'000);
+                REQUIRE(
+                    client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
+                    test.getLCLSeq() + 10'000);
+            }
+
+            SECTION("TTL enforcement")
+            {
+                // Close one more ledger so temp entry is expired
+                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger);
+
+                // Check that temp entry has expired in the current ledger, i.e.
+                // after LCL.
+                REQUIRE(!client.isEntryLive("temp",
+                                            ContractDataDurability::TEMPORARY,
+                                            test.getLCLSeq() + 1));
+
+                // Get should fail since entry no longer exists
+                REQUIRE(client.get("temp", ContractDataDurability::TEMPORARY,
+                                   std::nullopt) ==
+                        INVOKE_HOST_FUNCTION_TRAPPED);
+
+                // Has should succeed since the entry is TEMPORARY, but should
+                // return false
+                REQUIRE(isSuccess(client.has(
+                    "temp", ContractDataDurability::TEMPORARY, false)));
+
+                // PERSISTENT entry is still live, has higher minimum TTL
+                REQUIRE(client.isEntryLive("persistent",
+                                           ContractDataDurability::PERSISTENT,
+                                           test.getLCLSeq()));
                 REQUIRE(isSuccess(client.has(
                     "persistent", ContractDataDurability::PERSISTENT, true)));
-            }
-            auto lk = client.getContract().getDataKey(
-                makeSymbolSCVal("persistent"),
-                ContractDataDurability::PERSISTENT);
-            SECTION("restoreOp skips when currentLedger == liveUntilLedger")
-            {
-                // Restore should skip entry, refund all of refundableFee
-                test.invokeRestoreOp({lk}, 0);
 
-                // TTL should be unchanged
-                REQUIRE(client.getTTL("persistent",
-                                      ContractDataDurability::PERSISTENT) ==
-                        expectedPersistentLiveUntilLedger);
-            }
+                // Check that we can recreate an expired TEMPORARY entry
+                REQUIRE(isSuccess(
+                    client.put("temp", ContractDataDurability::TEMPORARY, 42)));
 
-            // Close one more ledger so entry is expired
-            closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
-            REQUIRE(test.getApp().getLedgerManager().getLastClosedLedgerNum() ==
+                // Recreated entry should be live
+                REQUIRE(
+                    client.getTTL("temp", ContractDataDurability::TEMPORARY) ==
+                    test.getLCLSeq() + stateArchivalSettings.minTemporaryTTL -
+                        1);
+                REQUIRE(isSuccess(
+                    client.get("temp", ContractDataDurability::TEMPORARY, 42)));
+                nextLedgerSeq = test.getLCLSeq() + 1;
+                // Close ledgers until PERSISTENT entry liveUntilLedger
+                for (; nextLedgerSeq < expectedPersistentLiveUntilLedger;
+                     ++nextLedgerSeq)
+                {
+                    closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
+                }
+
+                SECTION(
+                    "entry accessible when currentLedger == liveUntilLedger")
+                {
+                    REQUIRE(isSuccess(
+                        client.has("persistent",
+                                   ContractDataDurability::PERSISTENT, true)));
+                }
+                auto lk = client.getContract().getDataKey(
+                    makeSymbolSCVal("persistent"),
+                    ContractDataDurability::PERSISTENT);
+                SECTION("restoreOp skips when currentLedger == liveUntilLedger")
+                {
+                    // Restore should skip entry, refund all of refundableFee
+                    test.invokeRestoreOp({lk}, 0);
+
+                    // TTL should be unchanged
+                    REQUIRE(client.getTTL("persistent",
+                                          ContractDataDurability::PERSISTENT) ==
+                            expectedPersistentLiveUntilLedger);
+                }
+
+                // Close one more ledger so entry is expired
+                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                REQUIRE(
+                    test.getApp().getLedgerManager().getLastClosedLedgerNum() ==
                     expectedPersistentLiveUntilLedger);
 
-            // Check that persistent entry has expired in the current ledger
-            REQUIRE(!client.isEntryLive("persistent",
-                                        ContractDataDurability::PERSISTENT,
-                                        test.getLCLSeq() + 1));
+                // Check that persistent entry has expired in the current ledger
+                REQUIRE(!client.isEntryLive("persistent",
+                                            ContractDataDurability::PERSISTENT,
+                                            test.getLCLSeq() + 1));
 
-            // Check that we can't recreate expired PERSISTENT
-            REQUIRE(client.put("persistent", ContractDataDurability::PERSISTENT,
-                               42) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                // Check that we can't recreate expired PERSISTENT
+                REQUIRE(client.put("persistent",
+                                   ContractDataDurability::PERSISTENT,
+                                   42) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
-            // Since entry is PERSISTENT, has should fail
-            REQUIRE(client.has("persistent", ContractDataDurability::PERSISTENT,
-                               std::nullopt) ==
-                    INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                // Since entry is PERSISTENT, has should fail
+                REQUIRE(client.has("persistent",
+                                   ContractDataDurability::PERSISTENT,
+                                   std::nullopt) ==
+                        INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
-            client.put("persistent2", ContractDataDurability::PERSISTENT, 0);
-            auto lk2 = client.getContract().getDataKey(
-                makeSymbolSCVal("persistent2"),
-                ContractDataDurability::PERSISTENT);
-            uint32_t expectedLiveUntilLedger2 =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-            REQUIRE(client.getTTL("persistent2",
-                                  ContractDataDurability::PERSISTENT) ==
-                    expectedLiveUntilLedger2);
-
-            // Restore ARCHIVED key and LIVE key, should only be charged for
-            // one
-            test.invokeRestoreOp({lk, lk2}, /*charge for one entry*/
-                                 20939);
-
-            // Live entry TTL should be unchanged
-            REQUIRE(client.getTTL("persistent2",
-                                  ContractDataDurability::PERSISTENT) ==
-                    expectedLiveUntilLedger2);
-
-            // Check value and TTL of restored entry
-            REQUIRE(client.getTTL("persistent",
-                                  ContractDataDurability::PERSISTENT) ==
+                client.put("persistent2", ContractDataDurability::PERSISTENT,
+                           0);
+                auto lk2 = client.getContract().getDataKey(
+                    makeSymbolSCVal("persistent2"),
+                    ContractDataDurability::PERSISTENT);
+                uint32_t expectedLiveUntilLedger2 =
                     test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
-                        1);
-            REQUIRE(isSuccess(client.get(
-                "persistent", ContractDataDurability::PERSISTENT, 10)));
+                    1;
+                REQUIRE(client.getTTL("persistent2",
+                                      ContractDataDurability::PERSISTENT) ==
+                        expectedLiveUntilLedger2);
+
+                // Restore ARCHIVED key and LIVE key, should only be charged for
+                // one
+                test.invokeRestoreOp(
+                    {lk, lk2}, /*charge for one entry*/
+                    protocolVersionStartsFrom(test.getLedgerVersion(),
+                                              ProtocolVersion::V_23)
+                        ? 20'048
+                        : 20'939);
+
+                // Live entry TTL should be unchanged
+                REQUIRE(client.getTTL("persistent2",
+                                      ContractDataDurability::PERSISTENT) ==
+                        expectedLiveUntilLedger2);
+
+                // Check value and TTL of restored entry
+                REQUIRE(client.getTTL("persistent",
+                                      ContractDataDurability::PERSISTENT) ==
+                        test.getLCLSeq() +
+                            stateArchivalSettings.minPersistentTTL - 1);
+                REQUIRE(isSuccess(client.get(
+                    "persistent", ContractDataDurability::PERSISTENT, 10)));
+            }
         }
-    }
 
-    SECTION("conditional TTL extension")
-    {
-        // Large bump, followed by smaller bump
-        REQUIRE(isSuccess(
-            client.put("key", ContractDataDurability::PERSISTENT, 0)));
-        REQUIRE(isSuccess(client.extend(
-            "key", ContractDataDurability::PERSISTENT, 10'000, 10'000)));
-        auto originalExpectedLiveUntilLedger = test.getLCLSeq() + 10'000;
-        REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
-                originalExpectedLiveUntilLedger);
-
-        // Expiration already above 5'000, should be a no-op
-        REQUIRE(isSuccess(client.extend(
-            "key", ContractDataDurability::PERSISTENT, 5'000, 5'000)));
-        REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
-                originalExpectedLiveUntilLedger);
-
-        // Small bump followed by larger bump
-        REQUIRE(isSuccess(
-            client.put("key2", ContractDataDurability::PERSISTENT, 0)));
-        REQUIRE(isSuccess(client.extend(
-            "key2", ContractDataDurability::PERSISTENT, 10'000, 10'000)));
-        REQUIRE(client.getTTL("key2", ContractDataDurability::PERSISTENT) ==
-                test.getLCLSeq() + 10'000);
-
-        REQUIRE(isSuccess(
-            client.put("key3", ContractDataDurability::PERSISTENT, 0)));
-        REQUIRE(isSuccess(client.extend(
-            "key3", ContractDataDurability::PERSISTENT, 50'000, 50'000)));
-        uint32_t key3ExpectedLiveUntilLedger = test.getLCLSeq() + 50'000;
-        REQUIRE(client.getTTL("key3", ContractDataDurability::PERSISTENT) ==
-                key3ExpectedLiveUntilLedger);
-
-        // Bump multiple keys to live 10100 ledger from now
-        xdr::xvector<LedgerKey> keysToExtend = {
-            client.getContract().getDataKey(makeSymbolSCVal("key"),
-                                            ContractDataDurability::PERSISTENT),
-            client.getContract().getDataKey(makeSymbolSCVal("key2"),
-                                            ContractDataDurability::PERSISTENT),
-            client.getContract().getDataKey(
-                makeSymbolSCVal("key3"), ContractDataDurability::PERSISTENT)};
-
-        SECTION("calculate refund")
+        SECTION("conditional TTL extension")
         {
-            test.invokeExtendOp(keysToExtend, 10'100);
+            // Large bump, followed by smaller bump
+            REQUIRE(isSuccess(
+                client.put("key", ContractDataDurability::PERSISTENT, 0)));
+            REQUIRE(isSuccess(client.extend(
+                "key", ContractDataDurability::PERSISTENT, 10'000, 10'000)));
+            auto originalExpectedLiveUntilLedger = test.getLCLSeq() + 10'000;
             REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
-                    test.getLCLSeq() + 10'100);
-            REQUIRE(client.getTTL("key2", ContractDataDurability::PERSISTENT) ==
-                    test.getLCLSeq() + 10'100);
+                    originalExpectedLiveUntilLedger);
 
-            // No change for key3 since expiration is already past 10100
-            // ledgers from now
+            // Expiration already above 5'000, should be a no-op
+            REQUIRE(isSuccess(client.extend(
+                "key", ContractDataDurability::PERSISTENT, 5'000, 5'000)));
+            REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
+                    originalExpectedLiveUntilLedger);
+
+            // Small bump followed by larger bump
+            REQUIRE(isSuccess(
+                client.put("key2", ContractDataDurability::PERSISTENT, 0)));
+            REQUIRE(isSuccess(client.extend(
+                "key2", ContractDataDurability::PERSISTENT, 10'000, 10'000)));
+            REQUIRE(client.getTTL("key2", ContractDataDurability::PERSISTENT) ==
+                    test.getLCLSeq() + 10'000);
+
+            REQUIRE(isSuccess(
+                client.put("key3", ContractDataDurability::PERSISTENT, 0)));
+            REQUIRE(isSuccess(client.extend(
+                "key3", ContractDataDurability::PERSISTENT, 50'000, 50'000)));
+            uint32_t key3ExpectedLiveUntilLedger = test.getLCLSeq() + 50'000;
             REQUIRE(client.getTTL("key3", ContractDataDurability::PERSISTENT) ==
                     key3ExpectedLiveUntilLedger);
-        }
 
-        // Check same extendOp with hardcoded expected refund to detect if
-        // refund logic changes unexpectedly
-        SECTION("absolute refund")
-        {
-            test.invokeExtendOp(keysToExtend, 10'100, 41'877);
-            REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
+            // Bump multiple keys to live 10100 ledger from now
+            xdr::xvector<LedgerKey> keysToExtend = {
+                client.getContract().getDataKey(
+                    makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT),
+                client.getContract().getDataKey(
+                    makeSymbolSCVal("key2"),
+                    ContractDataDurability::PERSISTENT),
+                client.getContract().getDataKey(
+                    makeSymbolSCVal("key3"),
+                    ContractDataDurability::PERSISTENT)};
+
+            SECTION("calculate refund")
+            {
+                test.invokeExtendOp(keysToExtend, 10'100);
+                REQUIRE(
+                    client.getTTL("key", ContractDataDurability::PERSISTENT) ==
                     test.getLCLSeq() + 10'100);
-            REQUIRE(client.getTTL("key2", ContractDataDurability::PERSISTENT) ==
+                REQUIRE(
+                    client.getTTL("key2", ContractDataDurability::PERSISTENT) ==
                     test.getLCLSeq() + 10'100);
 
-            // No change for key3 since expiration is already past 10100
-            // ledgers from now
-            REQUIRE(client.getTTL("key3", ContractDataDurability::PERSISTENT) ==
+                // No change for key3 since expiration is already past 10100
+                // ledgers from now
+                REQUIRE(
+                    client.getTTL("key3", ContractDataDurability::PERSISTENT) ==
                     key3ExpectedLiveUntilLedger);
-        }
-    }
+            }
 
-    SECTION("TTL threshold")
-    {
-        REQUIRE(isSuccess(
-            client.put("key", ContractDataDurability::PERSISTENT, 0)));
-        uint32_t initialLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-        REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
-                initialLiveUntilLedger);
-        // Try extending entry, but set the threshold 1 ledger below the
-        // current TTL.
-        uint32_t currentTTL = stateArchivalSettings.minPersistentTTL - 2;
-        REQUIRE(
-            isSuccess(client.extend("key", ContractDataDurability::PERSISTENT,
-                                    currentTTL - 1, 50'000)));
-        REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
-                initialLiveUntilLedger);
+            // Check same extendOp with hardcoded expected refund to detect if
+            // refund logic changes unexpectedly
+            SECTION("absolute refund")
+            {
+                int64_t const expectedRefund =
+                    protocolVersionStartsFrom(test.getLedgerVersion(),
+                                              ProtocolVersion::V_23)
+                        ? 40'096
+                        : 41'877;
+                test.invokeExtendOp(keysToExtend, 10'100, expectedRefund);
+                REQUIRE(
+                    client.getTTL("key", ContractDataDurability::PERSISTENT) ==
+                    test.getLCLSeq() + 10'100);
+                REQUIRE(
+                    client.getTTL("key2", ContractDataDurability::PERSISTENT) ==
+                    test.getLCLSeq() + 10'100);
 
-        // Ledger has been advanced by client.extend, so now exactly the same
-        // call should extend the TTL.
-        REQUIRE(
-            isSuccess(client.extend("key", ContractDataDurability::PERSISTENT,
-                                    currentTTL - 1, 50'000)));
-        REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
-                test.getLCLSeq() + 50'000);
-
-        // Check that threshold > extendTo fails
-        REQUIRE(client.extend("key", ContractDataDurability::PERSISTENT, 60'001,
-                              60'000) == INVOKE_HOST_FUNCTION_TRAPPED);
-    }
-
-    SECTION("max TTL extension")
-    {
-        REQUIRE(isSuccess(
-            client.put("key", ContractDataDurability::PERSISTENT, 0)));
-        auto lk = client.getContract().getDataKey(
-            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
-
-        SECTION("extension op")
-        {
-            // Max TTL includes current ledger, so subtract 1
-            test.invokeExtendOp({lk}, stateArchivalSettings.maxEntryTTL - 1);
-            REQUIRE(test.getTTL(lk) ==
-                    test.getLCLSeq() + stateArchivalSettings.maxEntryTTL - 1);
+                // No change for key3 since expiration is already past 10100
+                // ledgers from now
+                REQUIRE(
+                    client.getTTL("key3", ContractDataDurability::PERSISTENT) ==
+                    key3ExpectedLiveUntilLedger);
+            }
         }
 
-        SECTION("extend host function persistent")
-        {
-            REQUIRE(isSuccess(client.extend(
-                "key", ContractDataDurability::PERSISTENT, 100, 100)));
-            REQUIRE(test.getTTL(lk) == 100 + test.getLCLSeq());
-
-            REQUIRE(isSuccess(client.extend(
-                "key", ContractDataDurability::PERSISTENT,
-                stateArchivalSettings.maxEntryTTL + 10,
-                stateArchivalSettings.maxEntryTTL + 10,
-                client.readKeySpec("key", ContractDataDurability::PERSISTENT)
-                    .setRefundableResourceFee(80'000))));
-
-            // Capped at max (Max TTL includes current ledger, so subtract 1)
-            REQUIRE(test.getTTL(lk) ==
-                    test.getLCLSeq() + stateArchivalSettings.maxEntryTTL - 1);
-        }
-
-        SECTION("extend host function temp")
+        SECTION("TTL threshold")
         {
             REQUIRE(isSuccess(
-                client.put("key", ContractDataDurability::TEMPORARY, 0)));
-            auto lkTemp = client.getContract().getDataKey(
-                makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
-            uint32_t ledgerSeq = test.getLCLSeq();
-            REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY,
-                                  stateArchivalSettings.maxEntryTTL,
-                                  stateArchivalSettings.maxEntryTTL) ==
-                    INVOKE_HOST_FUNCTION_TRAPPED);
-            REQUIRE(test.getTTL(lkTemp) ==
-                    ledgerSeq + stateArchivalSettings.minTemporaryTTL - 1);
+                client.put("key", ContractDataDurability::PERSISTENT, 0)));
+            uint32_t initialLiveUntilLedger =
+                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+            REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
+                    initialLiveUntilLedger);
+            // Try extending entry, but set the threshold 1 ledger below the
+            // current TTL.
+            uint32_t currentTTL = stateArchivalSettings.minPersistentTTL - 2;
+            REQUIRE(isSuccess(client.extend("key",
+                                            ContractDataDurability::PERSISTENT,
+                                            currentTTL - 1, 50'000)));
+            REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
+                    initialLiveUntilLedger);
 
-            // Max TTL includes current ledger, so subtract 1
-            REQUIRE(isSuccess(
-                client.extend("key", ContractDataDurability::TEMPORARY,
-                              stateArchivalSettings.maxEntryTTL - 1,
-                              stateArchivalSettings.maxEntryTTL - 1)));
-            REQUIRE(test.getTTL(lkTemp) ==
-                    test.getLCLSeq() + stateArchivalSettings.maxEntryTTL - 1);
+            // Ledger has been advanced by client.extend, so now exactly the
+            // same call should extend the TTL.
+            REQUIRE(isSuccess(client.extend("key",
+                                            ContractDataDurability::PERSISTENT,
+                                            currentTTL - 1, 50'000)));
+            REQUIRE(client.getTTL("key", ContractDataDurability::PERSISTENT) ==
+                    test.getLCLSeq() + 50'000);
+
+            // Check that threshold > extendTo fails
+            REQUIRE(client.extend("key", ContractDataDurability::PERSISTENT,
+                                  60'001,
+                                  60'000) == INVOKE_HOST_FUNCTION_TRAPPED);
         }
-    }
+
+        SECTION("max TTL extension")
+        {
+            REQUIRE(isSuccess(
+                client.put("key", ContractDataDurability::PERSISTENT, 0)));
+            auto lk = client.getContract().getDataKey(
+                makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+            SECTION("extension op")
+            {
+                // Max TTL includes current ledger, so subtract 1
+                test.invokeExtendOp({lk},
+                                    stateArchivalSettings.maxEntryTTL - 1);
+                REQUIRE(test.getTTL(lk) ==
+                        test.getLCLSeq() + stateArchivalSettings.maxEntryTTL -
+                            1);
+            }
+
+            SECTION("extend host function persistent")
+            {
+                REQUIRE(isSuccess(client.extend(
+                    "key", ContractDataDurability::PERSISTENT, 100, 100)));
+                REQUIRE(test.getTTL(lk) == 100 + test.getLCLSeq());
+
+                REQUIRE(isSuccess(client.extend(
+                    "key", ContractDataDurability::PERSISTENT,
+                    stateArchivalSettings.maxEntryTTL + 10,
+                    stateArchivalSettings.maxEntryTTL + 10,
+                    client
+                        .readKeySpec("key", ContractDataDurability::PERSISTENT)
+                        .setRefundableResourceFee(80'000))));
+
+                // Capped at max (Max TTL includes current ledger, so subtract
+                // 1)
+                REQUIRE(test.getTTL(lk) ==
+                        test.getLCLSeq() + stateArchivalSettings.maxEntryTTL -
+                            1);
+            }
+
+            SECTION("extend host function temp")
+            {
+                REQUIRE(isSuccess(
+                    client.put("key", ContractDataDurability::TEMPORARY, 0)));
+                auto lkTemp = client.getContract().getDataKey(
+                    makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
+                uint32_t ledgerSeq = test.getLCLSeq();
+                REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY,
+                                      stateArchivalSettings.maxEntryTTL,
+                                      stateArchivalSettings.maxEntryTTL) ==
+                        INVOKE_HOST_FUNCTION_TRAPPED);
+                REQUIRE(test.getTTL(lkTemp) ==
+                        ledgerSeq + stateArchivalSettings.minTemporaryTTL - 1);
+
+                // Max TTL includes current ledger, so subtract 1
+                REQUIRE(isSuccess(
+                    client.extend("key", ContractDataDurability::TEMPORARY,
+                                  stateArchivalSettings.maxEntryTTL - 1,
+                                  stateArchivalSettings.maxEntryTTL - 1)));
+                REQUIRE(test.getTTL(lkTemp) ==
+                        test.getLCLSeq() + stateArchivalSettings.maxEntryTTL -
+                            1);
+            }
+        }
+    });
 }
 
 TEST_CASE("charge rent fees for storage resize", "[tx][soroban]")
 {
     SorobanTest test(getTestConfig(), true, [](SorobanNetworkConfig& cfg) {
-        cfg.mWriteFee1KBBucketListLow = 1'000;
-        cfg.mWriteFee1KBBucketListHigh = 1'000'000;
+        cfg.mRentFee1KBSorobanStateSizeLow = 1'000;
+        cfg.mRentFee1KBSorobanStateSizeHigh = 1'000'000;
     });
     auto isSuccess = [](auto resultCode) {
         return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
@@ -2889,8 +2999,8 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                 REQUIRE(lcm.v() == 1);
                 if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
                 {
-                    REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
-                    auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
+                    REQUIRE(lcm.v1().evictedKeys.size() == 2);
+                    auto sortedKeys = lcm.v1().evictedKeys;
                     std::sort(sortedKeys.begin(), sortedKeys.end());
                     REQUIRE(sortedKeys[0] == lk);
                     REQUIRE(sortedKeys[1] == getTTLKey(lk));
@@ -2898,14 +3008,12 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                 }
                 else
                 {
-                    REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+                    REQUIRE(lcm.v1().evictedKeys.empty());
                 }
             }
 
             REQUIRE(evicted);
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         SECTION("persistent entry meta")
         {
             auto persistentInvocation = client.getContract().prepareInvocation(
@@ -2964,35 +3072,21 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                                     FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                         {
                             // TLL and data key should both be in "deleted"
-                            // evictedTemporaryLedgerKeys. For legacy reasons,
+                            // evictedKeys. For legacy reasons,
                             // this field is misnamed.
-                            REQUIRE(
-                                lcm.v1().evictedTemporaryLedgerKeys.size() ==
-                                2);
+                            REQUIRE(lcm.v1().evictedKeys.size() == 2);
 
-                            for (auto const& key :
-                                 lcm.v1().evictedTemporaryLedgerKeys)
+                            for (auto const& key : lcm.v1().evictedKeys)
                             {
                                 REQUIRE(keysToEvict.find(key) !=
                                         keysToEvict.end());
                                 keysToEvict.erase(key);
                             }
-
-                            // This field should always be empty and never used.
-                            // The field only exists for legacy reasons.
-                            REQUIRE(
-                                lcm.v1()
-                                    .evictedPersistentLedgerEntries.size() ==
-                                0);
                             evicted = true;
                         }
                         else
                         {
-                            REQUIRE(
-                                lcm.v1().evictedTemporaryLedgerKeys.empty());
-                            REQUIRE(
-                                lcm.v1()
-                                    .evictedPersistentLedgerEntries.empty());
+                            REQUIRE(lcm.v1().evictedKeys.empty());
                             evicted = false;
                         }
 
@@ -3032,9 +3126,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                     if (lcm.v1().ledgerHeader.header.ledgerSeq ==
                         targetRestorationLedger)
                     {
-                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
-                        REQUIRE(
-                            lcm.v1().evictedPersistentLedgerEntries.empty());
+                        REQUIRE(lcm.v1().evictedKeys.empty());
 
                         REQUIRE(lcm.v1().txProcessing.size() == 1);
                         auto txMeta = lcm.v1().txProcessing.front();
@@ -3098,8 +3190,6 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                 REQUIRE(keysToRestore.empty());
             }
         }
-#endif
-
         SECTION(
             "Create temp entry with same key as an expired entry on eviction "
             "ledger")
@@ -3124,7 +3214,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
             LedgerCloseMeta lcm;
             while (in.readOne(lcm))
             {
-                REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+                REQUIRE(lcm.v1().evictedKeys.empty());
             }
         }
     };
@@ -3162,7 +3252,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
         }
         SorobanResources restoreResources;
         restoreResources.footprint.readWrite = dataKeys;
-        restoreResources.readBytes = 9'000;
+        restoreResources.diskReadBytes = 9'000;
         restoreResources.writeBytes = 9'000;
 
         auto const resourceFee = 300'000 + 40'000 * dataKeys.size();
@@ -3183,7 +3273,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
         SECTION("exceeded readBytes")
         {
             auto resourceCopy = restoreResources;
-            resourceCopy.readBytes = 8'000;
+            resourceCopy.diskReadBytes = 8'000;
             auto tx = test.createRestoreTx(resourceCopy, 1'000, resourceFee);
             auto result = test.invokeTx(tx);
             REQUIRE(!isSuccessResult(result));
@@ -3220,7 +3310,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
 
         SorobanResources extendResources;
         extendResources.footprint.readOnly = dataKeys;
-        extendResources.readBytes = 9'000;
+        extendResources.diskReadBytes = 9'000;
         SECTION("too large extension")
         {
             auto tx = test.createExtendOpTx(extendResources,
@@ -3231,7 +3321,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
         SECTION("exceeded readBytes")
         {
             auto resourceCopy = extendResources;
-            resourceCopy.readBytes = 8'000;
+            resourceCopy.diskReadBytes = 8'000;
 
             auto tx = test.createExtendOpTx(resourceCopy, 10'000, 1'000,
                                             DEFAULT_TEST_RESOURCE_FEE);
@@ -3264,7 +3354,6 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 {
     auto test = [](bool evict) {
@@ -3339,7 +3428,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         resources.footprint.readOnly = {lk};
 
         resources.instructions = 0;
-        resources.readBytes = 1000;
+        resources.diskReadBytes = 1000;
         resources.writeBytes = 1000;
         auto resourceFee = 1'000'000;
 
@@ -3396,7 +3485,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             SorobanResources restoreResources;
             restoreResources.footprint.readWrite = {lk};
             restoreResources.instructions = 0;
-            restoreResources.readBytes = 10'000;
+            restoreResources.diskReadBytes = 10'000;
             restoreResources.writeBytes = 10'000;
 
             auto resourceFee = 300'000 + 40'000;
@@ -3432,8 +3521,6 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
     }
 }
 
-#endif
-
 /*
  This test uses the same utils (SettingsUpgradeUtils.h) as the
  get-settings-upgrade-txs command to make sure the transactions have the
@@ -3451,7 +3538,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     // Update the snapshot period and close a ledger to update
     // mAverageBucketListSize
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-        cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod = 1;
         // These are required to allow for an upgrade of all settings at once.
         cfg.mMaxContractDataEntrySizeBytes = 3200;
     });
@@ -3720,8 +3807,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
     closeLedger(*app);
 
-    // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes
-    // into play
+    // Update sorobanStateTargetSizeBytes so sorobanStateRentFeeGrowthFactor
+    // comes into play
     auto const& blSize = app->getLedgerManager()
                              .getLastClosedSorobanNetworkConfig()
                              .getAverageBucketListSize();
@@ -3734,11 +3821,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         costEntry.current()
             .data.configSetting()
             .contractLedgerCost()
-            .bucketListTargetSizeBytes = static_cast<int64>(blSize * .95);
+            .sorobanStateTargetSizeBytes = static_cast<int64>(blSize * .95);
         costEntry.current()
             .data.configSetting()
             .contractLedgerCost()
-            .bucketListWriteFeeGrowthFactor = 1000;
+            .sorobanStateRentFeeGrowthFactor = 1000;
         ltx.commit();
         closeLedger(*app);
     }
@@ -3868,13 +3955,13 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         costEntry.current()
             .data.configSetting()
             .contractLedgerCost()
-            .bucketListTargetSizeBytes =
+            .sorobanStateTargetSizeBytes =
             InitialSorobanNetworkConfig::BUCKET_LIST_TARGET_SIZE_BYTES;
         costEntry.current()
             .data.configSetting()
             .contractLedgerCost()
-            .bucketListWriteFeeGrowthFactor =
-            InitialSorobanNetworkConfig::BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR;
+            .sorobanStateRentFeeGrowthFactor =
+            InitialSorobanNetworkConfig::STATE_SIZE_RENT_FEE_GROWTH_FACTOR;
         ltx.commit();
         closeLedger(*app);
     }
@@ -3944,7 +4031,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     SECTION("Valid XDR but hash mismatch")
     {
         ConfigSettingEntry costSetting(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-        costSetting.contractLedgerCost().feeRead1KB = 1234;
+        costSetting.contractLedgerCost().feeDiskRead1KB = 1234;
 
         ConfigUpgradeSet upgradeSet2;
         upgradeSet2.updatedEntry.emplace_back(costSetting);
@@ -3964,11 +4051,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                                CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
                     });
 
-        SECTION("Invalid bucketListWriteFeeGrowthFactor")
+        SECTION("Invalid sorobanStateRentFeeGrowthFactor")
         {
             // Value is too high due to the check in validateConfigUpgradeSet
-            costEntryIter->contractLedgerCost().bucketListWriteFeeGrowthFactor =
-                50'001;
+            costEntryIter->contractLedgerCost()
+                .sorobanStateRentFeeGrowthFactor = 50'001;
             REQUIRE_THROWS_AS(
                 getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
                             contractSourceRefLedgerKey, contractID, upgradeSet,
@@ -3989,7 +4076,7 @@ TEST_CASE("overly large soroban values are handled gracefully", "[tx][soroban]")
     auto spec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())
-            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
             .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes())
             // Put client instance to RW footprint in order to be able to
             // use the instance storage.
@@ -4087,7 +4174,7 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
     auto defaultSpec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())
-            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
             .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
     TestContract& authContract = test.deployWasmContract(
         rust_bridge::get_auth_wasm(), defaultSpec.getResources());
@@ -4365,7 +4452,7 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
     auto defaultSpec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())
-            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
             .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
     TestContract& accountContract = test.deployWasmContract(
         rust_bridge::get_custom_account_wasm(), defaultSpec.getResources());
@@ -4496,7 +4583,7 @@ TEST_CASE("Soroban authorization", "[tx][soroban]")
     auto defaultSpec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())
-            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
             .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
     auto account = test.getRoot().create(
         "a1", test.getApp().getLedgerManager().getLastMinBalance(1) * 100);
@@ -4955,7 +5042,7 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
     auto defaultSpec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())
-            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
             .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
     auto constructorDefaultSpec = [&]() {
         auto contractAddress = test.nextContractID();
@@ -5047,8 +5134,6 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
         REQUIRE(invocation.getReturnValue().u32() == 303);
     }
 }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 static TransactionFrameBasePtr
 makeAddTx(TestContract const& contract, int64_t instructions,
@@ -5155,7 +5240,6 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     size_t baseContractCount = app->getLedgerManager()
                                    .getSorobanMetrics()
                                    .mModuleCacheNumEntries.count();
-
     auto const& addContract =
         test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
 
@@ -5168,12 +5252,16 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     REQUIRE(!invoke(INVOKE_ADD_UNCACHED_COST_FAIL));
     REQUIRE(invoke(INVOKE_ADD_UNCACHED_COST_PASS));
 
-    // The upload should have triggered a single compilation for the p23 module
-    // cache, which _exists_ in this version of stellar-core, and needs to be
-    // populated on each upload, is just not yet active.
+    // The upload should have triggered a single compilation for the p23+ module
+    // caches, which _exist_ in this version of stellar-core, and need to be
+    // populated on each upload, but are just not yet active.
+    int moduleCacheProtocolCount =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION -
+        static_cast<int>(REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION) + 1;
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
-                .mModuleCacheNumEntries.count() == baseContractCount + 1);
+                .mModuleCacheNumEntries.count() ==
+            baseContractCount + moduleCacheProtocolCount);
 
     // Upgrade to protocol 23 (with the reusable module cache)
     auto upgradeTo23 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
@@ -5265,7 +5353,7 @@ TEST_CASE("Module cache miss on immediate execution",
         SCAddress contractId = makeContractAddress(xdrSha256(hashPreimage));
         auto createResources = SorobanResources();
         createResources.instructions = 5'000'000;
-        createResources.readBytes =
+        createResources.diskReadBytes =
             static_cast<uint32_t>(wasm.data.size() + 1000);
         createResources.writeBytes = 1000;
         auto createContractTx =
@@ -5348,7 +5436,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
     SECTION("scenario A: restore in one ledger, invoke in next")
     {
         // Restore contract in ledger N+1
-        test.invokeRestoreOp(contractKeys, 40096);
+        test.invokeRestoreOp(contractKeys, 40098);
 
         // Invoke in ledger N+2
         // Because we have a gap between restore and invoke, the module cache
@@ -5368,7 +5456,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
         SorobanResources resources;
         resources.footprint.readWrite = contractKeys;
         resources.instructions = 0;
-        resources.readBytes = 10'000;
+        resources.diskReadBytes = 10'000;
         resources.writeBytes = 10'000;
         auto resourceFee = 300'000 + 40'000 * contractKeys.size();
         auto tx1 = test.createRestoreTx(resources, 1'000, resourceFee);
@@ -5386,4 +5474,3 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
         REQUIRE(isSuccessResult(txResults.results[2].result));
     }
 }
-#endif

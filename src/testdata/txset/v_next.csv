@@ -1,4 +1,4 @@
-xdr_hash,total_fees,total_inclusion_fees,classic_ops,classic_non_dex_txs,classic_non_dex_txs_base_fee,classic_dex_txs,classic_dex_txs_base_fee,soroban_ops,soroban_base_fee,insns,read_bytes,write_bytes,read_entries,write_entries,tx_size_bytes
+xdr_hash,total_fees,total_inclusion_fees,classic_ops,classic_non_dex_txs,classic_non_dex_txs_base_fee,classic_dex_txs,classic_dex_txs_base_fee,soroban_ops,soroban_base_fee,insns,disk_read_bytes,write_bytes,disk_read_entries,write_entries,tx_size_bytes
 d1b5ecefdc2ff0edb4a7ddbda8775a4d37d0f21147c87cbad07723e174316c29,700048846,118323,116,5,408,0,0,11,138,119175300,75731,70977,182,115,502588
 cdb3a654b7d7cc67a709a2ba1fbcb87188e4ca77aafdf42dc94fd451a74950cd,900043318,80160,299,87,100,35,206,12,279,636495051,122125,55684,373,135,646972
 2de0028bba89ee28f432ed5c881835230963472fd01d4807676df7fabb85d423,500035835,182672,294,29,100,0,0,9,715,463534214,27084,229046,130,15,160552

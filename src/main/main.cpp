@@ -347,14 +347,25 @@ main(int argc, char* const* argv)
     initializeAllGlobalState();
     xdr::marshaling_stack_limit = 1000;
 
-    checkStellarCoreMajorVersionProtocolIdentity();
-    rust_bridge::check_sensible_soroban_config_for_protocol(
-        Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    try
+    {
 
-    // Disable XDR hash checking in vnext builds
+        checkStellarCoreMajorVersionProtocolIdentity();
+        rust_bridge::check_sensible_soroban_config_for_protocol(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
+        // Disable XDR hash checking in vnext builds
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    checkXDRFileIdentity();
+        checkXDRFileIdentity();
 #endif
+    }
+    catch (...)
+    {
+        // Diagnosing version-mismatch errors is hard so we print
+        // the version information before we throw.
+        runVersion(CommandLineArgs{});
+        throw;
+    }
 
     int res = handleCommandLine(argc, argv);
     return res;

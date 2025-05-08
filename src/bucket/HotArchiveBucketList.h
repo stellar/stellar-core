@@ -20,7 +20,6 @@ class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
     void addBatch(Application& app, uint32_t currLedger,
                   uint32_t currLedgerProtocol,
                   std::vector<LedgerEntry> const& archiveEntries,
-                  std::vector<LedgerKey> const& restoredEntries,
-                  std::vector<LedgerKey> const& deletedEntries);
+                  std::vector<LedgerKey> const& restoredEntries);
 };
 }

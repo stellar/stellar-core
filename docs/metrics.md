@@ -244,7 +244,7 @@ soroban.config.tx-max-size-byte              | counter   | soroban config settin
 soroban.config.tx-max-cpu-insn               | counter   | soroban config setting `tx_max_instructions`
 soroban.config.tx-max-mem-byte               | counter   | soroban config setting `tx_memory_limit`
 soroban.config.tx-max-read-entry             | counter   | soroban config setting `tx_max_read_ledger_entries`
-soroban.config.tx-max-read-ledger-byte       | counter   | soroban config setting `tx_max_read_bytes`
+soroban.config.tx-max-read-ledger-byte       | counter   | soroban config setting `tx_max_disk_read_bytes`
 soroban.config.tx-max-write-entry            | counter   | soroban config setting `tx_max_write_ledger_entries`
 soroban.config.tx-max-write-ledger-byte      | counter   | soroban config setting `tx_max_write_bytes`
 soroban.config.tx-max-emit-event-byte        | counter   | soroban config setting `tx_max_contract_events_size_bytes`
@@ -253,10 +253,10 @@ soroban.config.ledger-max-tx-count           | counter   | soroban config settin
 soroban.config.ledger-max-cpu-insn           | counter   | soroban config setting `ledger_max_instructions`
 soroban.config.ledger-max-txs-size-byte      | counter   | soroban config setting `ledger_max_txs_size_bytes`
 soroban.config.ledger-max-read-entry         | counter   | soroban config setting `ledger_max_read_ledger_entries`
-soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_read_bytes`
+soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_disk_read_bytes`
 soroban.config.ledger-max-write-entry        | counter   | soroban config setting `ledger_max_write_ledger_entries`
 soroban.config.ledger-max-write-ledger-byte  | counter   | soroban config setting `ledger_max_write_bytes`
-soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `bucket_list_target_size_bytes`
+soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `state_target_size_bytes`
 soroban.module-cache.num-entries             | counter   | current number of entries in module cache
 soroban.module-cache.compilation-time        | timer     | times each contract compilation when adding to module cache
 soroban.module-cache.rebuild-time            | timer     | times each rebuild of module cache (including all compilations)

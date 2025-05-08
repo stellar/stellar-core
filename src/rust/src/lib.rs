@@ -50,8 +50,8 @@ use rust_bridge::CxxLedgerInfo;
 use rust_bridge::CxxRentFeeConfiguration;
 
 use rust_bridge::CxxI128;
+use rust_bridge::CxxRentWriteFeeConfiguration;
 use rust_bridge::CxxTransactionResources;
-use rust_bridge::CxxWriteFeeConfiguration;
 use rust_bridge::FeePair;
 use rust_bridge::InvokeHostFunctionOutput;
 use rust_bridge::RustBuf;

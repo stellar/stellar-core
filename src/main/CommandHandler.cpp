@@ -782,25 +782,26 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 
             // Ledger access settings
             res["ledger"]["max_read_ledger_entries"] =
-                conf.ledgerMaxReadLedgerEntries();
-            res["ledger"]["max_read_bytes"] = conf.ledgerMaxReadBytes();
+                conf.ledgerMaxDiskReadEntries();
+            res["ledger"]["max_disk_read_bytes"] =
+                conf.ledgerMaxDiskReadBytes();
             res["ledger"]["max_write_ledger_entries"] =
                 conf.ledgerMaxWriteLedgerEntries();
             res["ledger"]["max_write_bytes"] = conf.ledgerMaxWriteBytes();
-            res["tx"]["max_read_ledger_entries"] =
-                conf.txMaxReadLedgerEntries();
-            res["tx"]["max_read_bytes"] = conf.txMaxReadBytes();
+            res["tx"]["max_read_ledger_entries"] = conf.txMaxDiskReadEntries();
+            res["tx"]["max_disk_read_bytes"] = conf.txMaxDiskReadBytes();
             res["tx"]["max_write_ledger_entries"] =
                 conf.txMaxWriteLedgerEntries();
             res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
 
             // Fees
             res["fee_read_ledger_entry"] =
-                static_cast<Json::Int64>(conf.feeReadLedgerEntry());
+                static_cast<Json::Int64>(conf.feeDiskReadLedgerEntry());
             res["fee_write_ledger_entry"] =
                 static_cast<Json::Int64>(conf.feeWriteLedgerEntry());
-            res["fee_read_1kb"] = static_cast<Json::Int64>(conf.feeRead1KB());
-            res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeWrite1KB());
+            res["fee_read_1kb"] =
+                static_cast<Json::Int64>(conf.feeDiskRead1KB());
+            res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeRent1KB());
             res["fee_historical_1kb"] =
                 static_cast<Json::Int64>(conf.feeHistorical1KB());
 
@@ -839,14 +840,14 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             archivalInfo["max_entries_to_archive"] =
                 stateArchivalSettings.maxEntriesToArchive;
             archivalInfo["bucketlist_size_window_sample_size"] =
-                stateArchivalSettings.bucketListSizeWindowSampleSize;
+                stateArchivalSettings.liveSorobanStateSizeWindowSampleSize;
 
             archivalInfo["eviction_scan_size"] = static_cast<Json::UInt64>(
                 stateArchivalSettings.evictionScanSize);
             archivalInfo["starting_eviction_scan_level"] =
                 stateArchivalSettings.startingEvictionScanLevel;
             archivalInfo["bucket_list_size_snapshot_period"] =
-                stateArchivalSettings.bucketListSizeWindowSampleSize;
+                stateArchivalSettings.liveSorobanStateSizeWindowSampleSize;
 
             // non-configurable settings
             archivalInfo["average_bucket_list_size"] =
@@ -1218,9 +1219,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint64_t>(map, "txmxinstrc");
             upgradeCfg.txMemoryLimit =
                 parseOptionalParam<uint64_t>(map, "txmemlim");
-            upgradeCfg.ledgerMaxReadLedgerEntries =
+            upgradeCfg.ledgerMaxDiskReadEntries =
                 parseOptionalParam<uint32_t>(map, "ldgrmxrdntry");
-            upgradeCfg.ledgerMaxReadBytes =
+            upgradeCfg.ledgerMaxDiskReadBytes =
                 parseOptionalParam<uint32_t>(map, "ldgrmxrdbyt");
             upgradeCfg.ledgerMaxWriteLedgerEntries =
                 parseOptionalParam<uint32_t>(map, "ldgrmxwrntry");
@@ -1228,9 +1229,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "ldgrmxwrbyt");
             upgradeCfg.ledgerMaxTxCount =
                 parseOptionalParam<uint32_t>(map, "ldgrmxtxcnt");
-            upgradeCfg.txMaxReadLedgerEntries =
+            upgradeCfg.txMaxDiskReadEntries =
                 parseOptionalParam<uint32_t>(map, "txmxrdntry");
-            upgradeCfg.txMaxReadBytes =
+            upgradeCfg.txMaxDiskReadBytes =
                 parseOptionalParam<uint32_t>(map, "txmxrdbyt");
             upgradeCfg.txMaxWriteLedgerEntries =
                 parseOptionalParam<uint32_t>(map, "txmxwrntry");
@@ -1242,7 +1243,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "ldgrmxtxsz");
             upgradeCfg.txMaxSizeBytes =
                 parseOptionalParam<uint32_t>(map, "txmxsz");
-            upgradeCfg.bucketListSizeWindowSampleSize =
+            upgradeCfg.liveSorobanStateSizeWindowSampleSize =
                 parseOptionalParam<uint32_t>(map, "wndowsz");
             upgradeCfg.evictionScanSize =
                 parseOptionalParam<uint64_t>(map, "evctsz");

@@ -2534,7 +2534,6 @@ TEST_CASE("XDR protocol 22 compatibility validation", "[tx][envelope]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
 {
     auto runTest = [](ProtocolVersion protocolVersion, bool expectSuccess) {
@@ -2622,7 +2621,6 @@ TEST_CASE("XDR protocol 23 compatibility validation", "[tx][envelope]")
         runTest(ProtocolVersion::V_23, true);
     }
 }
-#endif
 
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
                    "[tx][envelope][soroban]")
@@ -2697,7 +2695,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         validateResources(resources, true);
     }
     resources.instructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-    resources.readBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
+    resources.diskReadBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
     resources.writeBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
     auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
@@ -2717,7 +2715,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     }
     SECTION("read bytes exceeded")
     {
-        resources.readBytes += 1;
+        resources.diskReadBytes += 1;
         validateResources(resources, false);
     }
     SECTION("write bytes exceeded")

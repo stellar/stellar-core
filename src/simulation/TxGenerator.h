@@ -29,16 +29,16 @@ struct SorobanUpgradeConfig
     std::optional<uint32_t> txMemoryLimit{};
 
     // Ledger access settings for contracts.
-    std::optional<uint32_t> ledgerMaxReadLedgerEntries{};
-    std::optional<uint32_t> ledgerMaxReadBytes{};
+    std::optional<uint32_t> ledgerMaxDiskReadEntries{};
+    std::optional<uint32_t> ledgerMaxDiskReadBytes{};
     std::optional<uint32_t> ledgerMaxWriteLedgerEntries{};
     std::optional<uint32_t> ledgerMaxWriteBytes{};
-    std::optional<int64_t> feeReadLedgerEntry{};
+    std::optional<int64_t> feeDiskReadLedgerEntry{};
     std::optional<int64_t> feeWriteLedgerEntry{};
-    std::optional<int64_t> feeRead1KB{};
+    std::optional<int64_t> feeDiskRead1KB{};
     std::optional<uint32_t> ledgerMaxTxCount{};
-    std::optional<uint32_t> txMaxReadLedgerEntries{};
-    std::optional<uint32_t> txMaxReadBytes{};
+    std::optional<uint32_t> txMaxDiskReadEntries{};
+    std::optional<uint32_t> txMaxDiskReadBytes{};
     std::optional<uint32_t> txMaxWriteLedgerEntries{};
     std::optional<uint32_t> txMaxWriteBytes{};
 
@@ -60,20 +60,20 @@ struct SorobanUpgradeConfig
     std::optional<int64_t> persistentRentRateDenominator{};
     std::optional<int64_t> tempRentRateDenominator{};
     std::optional<uint32_t> maxEntriesToArchive{};
-    std::optional<uint32_t> bucketListSizeWindowSampleSize{};
-    std::optional<uint32_t> bucketListWindowSamplePeriod{};
+    std::optional<uint32_t> liveSorobanStateSizeWindowSampleSize{};
+    std::optional<uint32_t> liveSorobanStateSizeWindowSamplePeriod{};
     std::optional<uint32_t> evictionScanSize{};
     std::optional<uint32_t> startingEvictionScanLevel{};
 
-    std::optional<int64_t> writeFee1KBBucketListLow{};
-    std::optional<int64_t> writeFee1KBBucketListHigh{};
+    std::optional<int64_t> rentFee1KBSorobanStateSizeLow{};
+    std::optional<int64_t> rentFee1KBSorobanStateSizeHigh{};
 
     // Parallel execution settings
     std::optional<uint32_t> ledgerMaxDependentTxClusters{};
 
     // Ledger cost extension settings
     std::optional<uint32_t> txMaxInMemoryReadEntries{};
-    std::optional<int64_t> flatRateFeeWrite1KB{};
+    std::optional<int64_t> feeFlatRateWrite1KB{};
 };
 
 class TxGenerator
