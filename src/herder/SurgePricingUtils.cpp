@@ -197,7 +197,6 @@ SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx)
     bool inserted = mTxSortedSets[lane].insert(tx).second;
     if (inserted)
     {
-        // auto txResources = mLaneConfig->getTxResources(*tx);
         mLaneCurrentCount[lane] += mLaneConfig->getTxResources(*tx);
     }
 }
