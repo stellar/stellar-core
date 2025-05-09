@@ -198,12 +198,159 @@ HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
 }
 
 SCPDriver::ValidationLevel
-HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
-                                     bool nomination) const
+HerderSCPDriver::validatePastOrFutureValue(
+    uint64_t slotIndex, StellarValue const& b,
+    LedgerHeaderHistoryEntry const& lcl) const
 {
     ZoneScoped;
-    uint64_t lastCloseTime;
+    releaseAssert(slotIndex != lcl.header.ledgerSeq + 1);
+    if (slotIndex == lcl.header.ledgerSeq)
+    {
+        // previous ledger
+        if (b.closeTime != lcl.header.scpValue.closeTime)
+        {
+            CLOG_TRACE(Herder,
+                       "Got a bad close time for ledger {}, got {} vs {}",
+                       slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
+            return SCPDriver::kInvalidValue;
+        }
+    }
+    else if (slotIndex < lcl.header.ledgerSeq)
+    {
+        // basic sanity check on older value
+        if (b.closeTime >= lcl.header.scpValue.closeTime)
+        {
+            CLOG_TRACE(Herder,
+                       "Got a bad close time for ledger {}, got {} vs {}",
+                       slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
+            return SCPDriver::kInvalidValue;
+        }
+    }
+    else if (!checkCloseTime(slotIndex, lcl.header.scpValue.closeTime, b))
+    {
+        // future messages must be valid compared to lastCloseTime
+        return SCPDriver::kInvalidValue;
+    }
+
+    if (!mHerder.isTracking())
+    {
+        // if we're not tracking, there is not much more we can do to
+        // validate
+        CLOG_TRACE(Herder, "MaybeValidValue (not tracking) for slot {}",
+                   slotIndex);
+        return SCPDriver::kMaybeValidValue;
+    }
+
+    // Check slotIndex.
+    if (mHerder.nextConsensusLedgerIndex() > slotIndex)
+    {
+        // we already moved on from this slot
+        // still send it through for emitting the final messages
+        CLOG_TRACE(Herder,
+                   "MaybeValidValue (already moved on) for slot {}, at {}",
+                   slotIndex, mHerder.nextConsensusLedgerIndex());
+        return SCPDriver::kMaybeValidValue;
+    }
+    if (mHerder.nextConsensusLedgerIndex() < slotIndex)
+    {
+        // this is probably a bug as "tracking" means we're processing
+        // messages only for smaller slots
+        CLOG_ERROR(Herder,
+                   "HerderSCPDriver::validateValue i: {} processing a future "
+                   "message while tracking {} ",
+                   slotIndex, mHerder.trackingConsensusLedgerIndex());
+        return SCPDriver::kInvalidValue;
+    }
+
+    // when tracking, we use the tracked time for last close time
+    auto lastCloseTime = mHerder.trackingConsensusCloseTime();
+    if (!checkCloseTime(slotIndex, lastCloseTime, b))
+    {
+        return SCPDriver::kInvalidValue;
+    }
+
+    // this is as far as we can go if we don't have the state
+    CLOG_TRACE(Herder, "Can't validate locally, value may be valid for slot {}",
+               slotIndex);
+    return SCPDriver::kMaybeValidValue;
+}
+
+SCPDriver::ValidationLevel
+HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
+                                                StellarValue const& b,
+                                                bool nomination) const
+{
+    ZoneScoped;
     releaseAssert(threadIsMain());
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    // We can only fully validate values for LCL+1
+    // For past and future slots, perform partial validity checks, specifically
+    // validate close time and network tracking ledger sequence.
+    bool isCurrentLedger = slotIndex == lcl.header.ledgerSeq + 1;
+
+    SCPDriver::ValidationLevel res;
+    if (isCurrentLedger)
+    {
+        // The value is for LCL+1, perform all possible checks
+        if (!checkCloseTime(slotIndex, lcl.header.scpValue.closeTime, b))
+        {
+            return SCPDriver::kInvalidValue;
+        }
+
+        Hash const& txSetHash = b.txSetHash;
+        TxSetXDRFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+
+        auto closeTimeOffset = b.closeTime - lcl.header.scpValue.closeTime;
+
+        if (!txSet)
+        {
+            CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
+                       hexAbbrev(txSetHash));
+
+            res = SCPDriver::kInvalidValue;
+        }
+        else if (!checkAndCacheTxSetValid(*txSet, lcl, closeTimeOffset))
+        {
+            CLOG_DEBUG(Herder,
+                       "HerderSCPDriver::validateValue i: {} invalid txSet {}",
+                       slotIndex, hexAbbrev(txSetHash));
+            res = SCPDriver::kInvalidValue;
+        }
+        else
+        {
+            CLOG_DEBUG(Herder,
+                       "HerderSCPDriver::validateValue i: {} valid txSet {}",
+                       slotIndex, hexAbbrev(txSetHash));
+            res = SCPDriver::kFullyValidatedValue;
+        }
+    }
+    else
+    {
+        res = validatePastOrFutureValue(slotIndex, b, lcl);
+    }
+    return res;
+}
+
+SCPDriver::ValidationLevel
+HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
+                               bool nomination)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+
+    StellarValue b;
+    try
+    {
+        ZoneNamedN(xdrZone, "XDR deserialize", true);
+        xdr::xdr_from_opaque(value, b);
+    }
+    catch (...)
+    {
+        mSCPMetrics.mValueInvalid.Mark();
+        return SCPDriver::kInvalidValue;
+    }
+
     if (b.ext.v() != STELLAR_VALUE_SIGNED)
     {
         CLOG_TRACE(Herder,
@@ -221,144 +368,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         }
     }
 
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    // when checking close time, start with what we have locally
-    lastCloseTime = lcl.header.scpValue.closeTime;
-
-    // if this value is not for our local state,
-    // perform as many checks as we can
-    if (slotIndex != (lcl.header.ledgerSeq + 1))
-    {
-        if (slotIndex == lcl.header.ledgerSeq)
-        {
-            // previous ledger
-            if (b.closeTime != lastCloseTime)
-            {
-                CLOG_TRACE(Herder,
-                           "Got a bad close time for ledger {}, got {} vs {}",
-                           slotIndex, b.closeTime, lastCloseTime);
-                return SCPDriver::kInvalidValue;
-            }
-        }
-        else if (slotIndex < lcl.header.ledgerSeq)
-        {
-            // basic sanity check on older value
-            if (b.closeTime >= lastCloseTime)
-            {
-                CLOG_TRACE(Herder,
-                           "Got a bad close time for ledger {}, got {} vs {}",
-                           slotIndex, b.closeTime, lastCloseTime);
-                return SCPDriver::kInvalidValue;
-            }
-        }
-        else if (!checkCloseTime(slotIndex, lastCloseTime, b))
-        {
-            // future messages must be valid compared to lastCloseTime
-            return SCPDriver::kInvalidValue;
-        }
-
-        if (!mHerder.isTracking())
-        {
-            // if we're not tracking, there is not much more we can do to
-            // validate
-            CLOG_TRACE(Herder, "MaybeValidValue (not tracking) for slot {}",
-                       slotIndex);
-            return SCPDriver::kMaybeValidValue;
-        }
-
-        // Check slotIndex.
-        if (mHerder.nextConsensusLedgerIndex() > slotIndex)
-        {
-            // we already moved on from this slot
-            // still send it through for emitting the final messages
-            CLOG_TRACE(Herder,
-                       "MaybeValidValue (already moved on) for slot {}, at {}",
-                       slotIndex, mHerder.nextConsensusLedgerIndex());
-            return SCPDriver::kMaybeValidValue;
-        }
-        if (mHerder.nextConsensusLedgerIndex() < slotIndex)
-        {
-            // this is probably a bug as "tracking" means we're processing
-            // messages only for smaller slots
-            CLOG_ERROR(
-                Herder,
-                "HerderSCPDriver::validateValue i: {} processing a future "
-                "message while tracking {} ",
-                slotIndex, mHerder.trackingConsensusLedgerIndex());
-            return SCPDriver::kInvalidValue;
-        }
-
-        // when tracking, we use the tracked time for last close time
-        lastCloseTime = mHerder.trackingConsensusCloseTime();
-        if (!checkCloseTime(slotIndex, lastCloseTime, b))
-        {
-            return SCPDriver::kInvalidValue;
-        }
-
-        // this is as far as we can go if we don't have the state
-        CLOG_TRACE(Herder,
-                   "Can't validate locally, value may be valid for slot {}",
-                   slotIndex);
-        return SCPDriver::kMaybeValidValue;
-    }
-
-    // the value is against the local state, we can perform all checks
-
-    if (!checkCloseTime(slotIndex, lastCloseTime, b))
-    {
-        return SCPDriver::kInvalidValue;
-    }
-
-    Hash const& txSetHash = b.txSetHash;
-    TxSetXDRFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
-
-    SCPDriver::ValidationLevel res;
-
-    auto closeTimeOffset = b.closeTime - lastCloseTime;
-
-    if (!txSet)
-    {
-        CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
-                   hexAbbrev(txSetHash));
-
-        res = SCPDriver::kInvalidValue;
-    }
-    else if (!checkAndCacheTxSetValid(*txSet, lcl, closeTimeOffset))
-    {
-        CLOG_DEBUG(Herder,
-                   "HerderSCPDriver::validateValue i: {} invalid txSet {}",
-                   slotIndex, hexAbbrev(txSetHash));
-        res = SCPDriver::kInvalidValue;
-    }
-    else
-    {
-        CLOG_DEBUG(Herder,
-                   "HerderSCPDriver::validateValue i: {} valid txSet {}",
-                   slotIndex, hexAbbrev(txSetHash));
-        res = SCPDriver::kFullyValidatedValue;
-    }
-    return res;
-}
-
-SCPDriver::ValidationLevel
-HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
-                               bool nomination)
-{
-    ZoneScoped;
-    StellarValue b;
-    try
-    {
-        ZoneNamedN(xdrZone, "XDR deserialize", true);
-        xdr::xdr_from_opaque(value, b);
-    }
-    catch (...)
-    {
-        mSCPMetrics.mValueInvalid.Mark();
-        return SCPDriver::kInvalidValue;
-    }
-
     SCPDriver::ValidationLevel res =
-        validateValueHelper(slotIndex, b, nomination);
+        validateValueAgainstLocalState(slotIndex, b, nomination);
     if (res != SCPDriver::kInvalidValue)
     {
         LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
@@ -415,7 +426,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         return nullptr;
     }
     ValueWrapperPtr res;
-    if (validateValueHelper(slotIndex, b, true) ==
+    if (validateValueAgainstLocalState(slotIndex, b, true) ==
         SCPDriver::kFullyValidatedValue)
     {
         // remove the upgrade steps we don't like
@@ -1225,6 +1236,32 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;
+}
+
+void
+HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
+                                 LedgerHeaderHistoryEntry const& lcl,
+                                 uint64_t closeTimeOffset) const
+{
+    auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
+                                closeTimeOffset, closeTimeOffset};
+    bool* pRes = mTxSetValidCache.maybeGet(key);
+    if (pRes == nullptr)
+    {
+#ifdef SCP_DEBUGGING
+        releaseAssert(txSet.checkValid(mApp, closeTimeOffset, closeTimeOffset));
+#endif
+        mTxSetValidCache.put(key, true);
+    }
+    else
+    {
+        if (!*pRes)
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("Inconsistent txSet validity for tx set {}"),
+                hexAbbrev(txSet.getContentsHash())));
+        }
+    }
 }
 
 bool

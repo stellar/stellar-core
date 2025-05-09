@@ -340,7 +340,8 @@ class TxSetPhaseFrame
     // Returns a copy of this phase with transactions sorted for apply.
     TxSetPhaseFrame sortedForApply(Hash const& txSetHash) const;
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset) const;
+                    uint64_t upperBoundCloseTimeOffset,
+                    bool txsAreValidated = false) const;
     bool checkValidClassic(LedgerHeader const& lclHeader) const;
     bool checkValidSoroban(LedgerHeader const& lclHeader,
                            SorobanNetworkConfig const& sorobanConfig) const;
@@ -451,6 +452,10 @@ class ApplicableTxSetFrame
   private:
 #endif
     TxSetXDRFrameConstPtr toWireTxSetFrame() const;
+    bool checkValidInternal(Application& app,
+                            uint64_t lowerBoundCloseTimeOffset,
+                            uint64_t upperBoundCloseTimeOffset,
+                            bool txsAreValidated) const;
 
   private:
     friend class TxSetXDRFrame;
