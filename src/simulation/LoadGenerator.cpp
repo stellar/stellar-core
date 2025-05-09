@@ -1600,16 +1600,18 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
         cfg.feeRatePerInstructionsIncrement();
     upgradeCfg.txMemoryLimit = cfg.txMemoryLimit();
 
-    upgradeCfg.ledgerMaxReadLedgerEntries = cfg.ledgerMaxReadLedgerEntries();
-    upgradeCfg.ledgerMaxReadBytes = cfg.ledgerMaxReadBytes();
+    upgradeCfg.ledgerMaxDiskReadEntries = cfg.ledgerMaxDiskReadEntries();
+    upgradeCfg.ledgerMaxDiskReadBytes = cfg.ledgerMaxDiskReadBytes();
     upgradeCfg.ledgerMaxWriteLedgerEntries = cfg.ledgerMaxWriteLedgerEntries();
     upgradeCfg.ledgerMaxWriteBytes = cfg.ledgerMaxWriteBytes();
     upgradeCfg.ledgerMaxTxCount = cfg.ledgerMaxTxCount();
-    upgradeCfg.feeReadLedgerEntry = cfg.feeReadLedgerEntry();
+    upgradeCfg.feeDiskReadLedgerEntry = cfg.feeDiskReadLedgerEntry();
     upgradeCfg.feeWriteLedgerEntry = cfg.feeWriteLedgerEntry();
-    upgradeCfg.feeRead1KB = cfg.feeRead1KB();
-    upgradeCfg.txMaxReadLedgerEntries = cfg.txMaxReadLedgerEntries();
-    upgradeCfg.txMaxReadBytes = cfg.txMaxReadBytes();
+    upgradeCfg.feeDiskRead1KB = cfg.feeDiskRead1KB();
+    upgradeCfg.feeFlatRateWrite1KB = cfg.feeFlatRateWrite1KB();
+    upgradeCfg.txMaxDiskReadEntries = cfg.txMaxDiskReadEntries();
+    upgradeCfg.txMaxInMemoryReadEntries = cfg.txMaxInMemoryReadEntries();
+    upgradeCfg.txMaxDiskReadBytes = cfg.txMaxDiskReadBytes();
     upgradeCfg.txMaxWriteLedgerEntries = cfg.txMaxWriteLedgerEntries();
     upgradeCfg.txMaxWriteBytes = cfg.txMaxWriteBytes();
 
@@ -1632,23 +1634,21 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
         cfg.stateArchivalSettings().tempRentRateDenominator;
     upgradeCfg.maxEntriesToArchive =
         cfg.stateArchivalSettings().maxEntriesToArchive;
-    upgradeCfg.bucketListSizeWindowSampleSize =
-        cfg.stateArchivalSettings().bucketListSizeWindowSampleSize;
-    upgradeCfg.bucketListWindowSamplePeriod =
-        cfg.stateArchivalSettings().bucketListWindowSamplePeriod;
+    upgradeCfg.liveSorobanStateSizeWindowSampleSize =
+        cfg.stateArchivalSettings().liveSorobanStateSizeWindowSampleSize;
+    upgradeCfg.liveSorobanStateSizeWindowSamplePeriod =
+        cfg.stateArchivalSettings().liveSorobanStateSizeWindowSamplePeriod;
     upgradeCfg.evictionScanSize = cfg.stateArchivalSettings().evictionScanSize;
     upgradeCfg.startingEvictionScanLevel =
         cfg.stateArchivalSettings().startingEvictionScanLevel;
 
-    upgradeCfg.writeFee1KBBucketListLow = cfg.writeFee1KBBucketListLow();
-    upgradeCfg.writeFee1KBBucketListHigh = cfg.writeFee1KBBucketListHigh();
+    upgradeCfg.rentFee1KBSorobanStateSizeLow =
+        cfg.rentFee1KBSorobanStateSizeLow();
+    upgradeCfg.rentFee1KBSorobanStateSizeHigh =
+        cfg.rentFee1KBSorobanStateSizeHigh();
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     upgradeCfg.ledgerMaxDependentTxClusters =
         cfg.ledgerMaxDependentTxClusters();
-    upgradeCfg.txMaxInMemoryReadEntries = cfg.txMaxInMemoryReadEntries();
-    upgradeCfg.flatRateFeeWrite1KB = cfg.flatRateFeeWrite1KB();
-#endif
 }
 
 GeneratedLoadConfig

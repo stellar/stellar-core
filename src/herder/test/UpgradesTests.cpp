@@ -245,15 +245,15 @@ makeMaxContractSizeBytesTestUpgrade(
 }
 
 ConfigUpgradeSetFrameConstPtr
-makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
-                                              AbstractLedgerTxn& ltx,
-                                              uint32_t newWindowSize)
+makeliveSorobanStateSizeWindowSampleSizeTestUpgrade(Application& app,
+                                                    AbstractLedgerTxn& ltx,
+                                                    uint32_t newWindowSize)
 {
     // Modify window size
     auto sas = app.getLedgerManager()
                    .getLastClosedSorobanNetworkConfig()
                    .stateArchivalSettings();
-    sas.bucketListSizeWindowSampleSize = newWindowSize;
+    sas.liveSorobanStateSizeWindowSampleSize = newWindowSize;
 
     // Make entry for the upgrade
     ConfigUpgradeSet configUpgradeSet;
@@ -273,15 +273,14 @@ getMaxContractSizeKey()
 }
 
 LedgerKey
-getBucketListSizeWindowKey()
+getliveSorobanStateSizeWindowKey()
 {
     LedgerKey windowKey(CONFIG_SETTING);
     windowKey.configSetting().configSettingID =
-        CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+        CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
     return windowKey;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey
 getParallelComputeSettingsLedgerKey()
 {
@@ -302,7 +301,6 @@ makeParallelComputeUpdgrade(AbstractLedgerTxn& ltx,
         maxDependentTxClusters;
     return makeConfigUpgradeSet(ltx, configUpgradeSet);
 }
-#endif
 
 void
 testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
@@ -846,7 +844,6 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
 {
     auto runTest = [&](uint32_t protocolVersion, uint32_t clusterCount) {
@@ -901,7 +898,6 @@ TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
                         0) == Upgrades::UpgradeValidity::INVALID);
     }
 }
-#endif
 
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
@@ -952,7 +948,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
     }
 
-    SECTION("modify BucketListSizeWindowSampleSize")
+    SECTION("modify liveSorobanStateSizeWindowSampleSize")
     {
         auto populateValuesAndUpgradeSize = [&](uint32_t size) {
             ConfigUpgradeSetFrameConstPtr configUpgradeSet;
@@ -967,12 +963,12 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 {
                     val = i++;
                 }
-                cfg.writeBucketListSizeWindow(ltx2);
+                cfg.writeliveSorobanStateSizeWindow(ltx2);
                 cfg.updateBucketListSizeAverage();
 
                 configUpgradeSet =
-                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
-                                                                  size);
+                    makeliveSorobanStateSizeWindowSampleSizeTestUpgrade(
+                        *app, ltx2, size);
                 ltx2.commit();
             }
 
@@ -1038,14 +1034,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 
                 auto const& cfg =
                     app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-                initialSize =
-                    cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
+                initialSize = cfg.mStateArchivalSettings
+                                  .liveSorobanStateSizeWindowSampleSize;
                 initialWindow = cfg.mBucketListSizeSnapshots;
                 REQUIRE(initialWindow.size() == initialSize);
 
                 configUpgradeSet =
-                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
-                                                                  size);
+                    makeliveSorobanStateSizeWindowSampleSizeTestUpgrade(
+                        *app, ltx2, size);
                 ltx2.commit();
             }
 
@@ -1054,8 +1050,8 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 
             auto const& cfg =
                 app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-            REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
-                    initialSize);
+            REQUIRE(cfg.mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize == initialSize);
             REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
         };
 
@@ -2339,10 +2335,10 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     }
 
     // Check LedgerEntry with window
-    auto onDiskWindow = ltx.load(getBucketListSizeWindowKey())
+    auto onDiskWindow = ltx.load(getliveSorobanStateSizeWindowKey())
                             .current()
                             .data.configSetting()
-                            .bucketListSizeWindow();
+                            .liveSorobanStateSizeWindow();
     REQUIRE(onDiskWindow.size() ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
     for (auto const& e : onDiskWindow)
@@ -2351,7 +2347,6 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
 {
     VirtualClock clock;
@@ -2420,7 +2415,6 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
                 .getLastClosedSorobanNetworkConfig()
                 .ledgerMaxDependentTxClusters() == 5);
 }
-#endif
 
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {

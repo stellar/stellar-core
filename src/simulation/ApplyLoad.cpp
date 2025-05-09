@@ -34,16 +34,16 @@ getUpgradeConfig(Config const& cfg)
         cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS;
     upgradeConfig.txMaxInstructions = cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS;
     upgradeConfig.txMemoryLimit = 41943040;
-    upgradeConfig.ledgerMaxReadLedgerEntries =
+    upgradeConfig.ledgerMaxDiskReadEntries =
         cfg.APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES;
-    upgradeConfig.ledgerMaxReadBytes = cfg.APPLY_LOAD_LEDGER_MAX_READ_BYTES;
+    upgradeConfig.ledgerMaxDiskReadBytes = cfg.APPLY_LOAD_LEDGER_MAX_READ_BYTES;
     upgradeConfig.ledgerMaxWriteLedgerEntries =
         cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
     upgradeConfig.ledgerMaxWriteBytes = cfg.APPLY_LOAD_LEDGER_MAX_WRITE_BYTES;
     upgradeConfig.ledgerMaxTxCount = cfg.APPLY_LOAD_MAX_TX_COUNT;
-    upgradeConfig.txMaxReadLedgerEntries =
+    upgradeConfig.txMaxDiskReadEntries =
         cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
-    upgradeConfig.txMaxReadBytes = cfg.APPLY_LOAD_TX_MAX_READ_BYTES;
+    upgradeConfig.txMaxDiskReadBytes = cfg.APPLY_LOAD_TX_MAX_READ_BYTES;
     upgradeConfig.txMaxWriteLedgerEntries =
         cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES;
     upgradeConfig.txMaxWriteBytes = cfg.APPLY_LOAD_TX_MAX_WRITE_BYTES;
@@ -52,7 +52,7 @@ getUpgradeConfig(Config const& cfg)
     upgradeConfig.ledgerMaxTransactionsSizeBytes =
         cfg.APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES;
     upgradeConfig.txMaxSizeBytes = cfg.APPLY_LOAD_MAX_TX_SIZE_BYTES;
-    upgradeConfig.bucketListSizeWindowSampleSize = 30;
+    upgradeConfig.liveSorobanStateSizeWindowSampleSize = 30;
     upgradeConfig.evictionScanSize = 100000;
     upgradeConfig.startingEvictionScanLevel = 7;
     // Increase the default TTL and reduce the rent rate in order to avoid the
@@ -68,13 +68,13 @@ getUpgradeConfig(Config const& cfg)
     // will fail if the config file is missing any of these values.
     releaseAssert(upgradeConfig.ledgerMaxInstructions > 0);
     releaseAssert(upgradeConfig.txMaxInstructions > 0);
-    releaseAssert(upgradeConfig.ledgerMaxReadLedgerEntries > 0);
-    releaseAssert(upgradeConfig.ledgerMaxReadBytes > 0);
+    releaseAssert(upgradeConfig.ledgerMaxDiskReadEntries > 0);
+    releaseAssert(upgradeConfig.ledgerMaxDiskReadBytes > 0);
     releaseAssert(upgradeConfig.ledgerMaxWriteLedgerEntries > 0);
     releaseAssert(upgradeConfig.ledgerMaxWriteBytes > 0);
     releaseAssert(upgradeConfig.ledgerMaxTxCount > 0);
-    releaseAssert(upgradeConfig.txMaxReadLedgerEntries > 0);
-    releaseAssert(upgradeConfig.txMaxReadBytes > 0);
+    releaseAssert(upgradeConfig.txMaxDiskReadEntries > 0);
+    releaseAssert(upgradeConfig.txMaxDiskReadBytes > 0);
     releaseAssert(upgradeConfig.txMaxWriteLedgerEntries > 0);
     releaseAssert(upgradeConfig.txMaxWriteBytes > 0);
     releaseAssert(upgradeConfig.txMaxContractEventsSizeBytes > 0);
@@ -175,7 +175,7 @@ ApplyLoad::setupUpgradeContract()
 
     SorobanResources uploadResources;
     uploadResources.instructions = 2'000'000;
-    uploadResources.readBytes = wasmBytes.size() + 500;
+    uploadResources.diskReadBytes = wasmBytes.size() + 500;
     uploadResources.writeBytes = wasmBytes.size() + 500;
 
     auto const& lm = mApp.getLedgerManager();
@@ -210,7 +210,7 @@ ApplyLoad::upgradeSettings()
 
     SorobanResources resources;
     resources.instructions = 1'250'000;
-    resources.readBytes = 3'100;
+    resources.diskReadBytes = 3'100;
     resources.writeBytes = 3'100;
 
     auto invokeTx = mTxGenerator.invokeSorobanCreateUpgradeTransaction(
@@ -451,8 +451,8 @@ ApplyLoad::benchmark()
                 resourcesSnapshot.getVal(Resource::Type::TX_BYTE_SIZE))) *
         100000.0);
     mReadByteUtilization.Update(
-        (1.0 - (resources.getVal(Resource::Type::READ_BYTES) * 1.0 /
-                resourcesSnapshot.getVal(Resource::Type::READ_BYTES))) *
+        (1.0 - (resources.getVal(Resource::Type::DISK_READ_BYTES) * 1.0 /
+                resourcesSnapshot.getVal(Resource::Type::DISK_READ_BYTES))) *
         100000.0);
     mWriteByteUtilization.Update(
         (1.0 - (resources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /

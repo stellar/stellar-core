@@ -6,27 +6,27 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "4b1913d79f94b9fa7ce32782fa5f9ab1ff5fcf4bf34710a6ee8eea1ef9a833d2",
+                "hash": "18f698579f2604a433542ad3c036a8fbba6af2e8abcdaf4700ecf4b23483ff09",
                 "header": {
-                    "ledgerVersion": 20,
-                    "previousLedgerHash": "294f54f19c42f70cb38ba8170608f123da0782d9b12520dda99e05704bf841cb",
+                    "ledgerVersion": 24,
+                    "previousLedgerHash": "6a24719c8c96006f5257bb6eb04260e01d4a0fcc05f993b84a596ef0661eaed8",
                     "scpValue": {
-                        "txSetHash": "e40e0c949789baeaeac797971c41648d1d3ea604fc3a1b1a29969e8b3441ddf9",
+                        "txSetHash": "f33e88d2078560bfa129c96d0d883f28ca1eda67254b5f99e42286f324ff68b6",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "199f711b0599d01f7aaf43d038c7ad6d4c9e4144ad48ac2ab2d461e621eafe666e498874e98f5ad8c67b7a66042483b337d0d8b2c3ee46d5f67e776204617c09"
+                                "signature": "0f7f7ea086a3d93878bccdbe6dfd163c501c3432864d3fe79d14f699c8ed29d4da800bc82db78799b4f20878da957a3f57d44d47cdd6a2c535148b7d0a2e3e04"
                             }
                         }
                     },
                     "txSetResultHash": "7888c59bd2faad45dcefb4ed58d4a392c284c1e4a28395042ea9c061d57c05e5",
-                    "bucketListHash": "e4189c6442feabd77d3bc28c1cc4b05d73fc8d68d2ed0567443c297da2c60dc1",
+                    "bucketListHash": "93b668669cbab58824235db39b6b47855e6eae05b35d10b0d5a6b2093fdd140a",
                     "ledgerSeq": 10,
                     "totalCoins": 1000000000000000000,
-                    "feePool": 224198,
+                    "feePool": 373636,
                     "inflationSeq": 0,
                     "idPool": 0,
                     "baseFee": 100,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "294f54f19c42f70cb38ba8170608f123da0782d9b12520dda99e05704bf841cb",
+                    "previousLedgerHash": "6a24719c8c96006f5257bb6eb04260e01d4a0fcc05f993b84a596ef0661eaed8",
                     "phases": [
                         {
                             "v": 0,
@@ -176,8 +176,11 @@
                             ]
                         },
                         {
-                            "v": 0,
-                            "v0Components": []
+                            "v": 1,
+                            "parallelTxsComponent": {
+                                "baseFee": null,
+                                "executionStages": []
+                            }
                         }
                     ]
                 }
@@ -216,7 +219,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                        "balance": 999999998999766302,
+                                        "balance": 999999998999616864,
                                         "seqNum": 6,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
@@ -266,7 +269,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                        "balance": 999999998999766202,
+                                        "balance": 999999998999616764,
                                         "seqNum": 6,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
@@ -324,7 +327,7 @@
                                             "type": "ACCOUNT",
                                             "account": {
                                                 "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                "balance": 999999998999766202,
+                                                "balance": 999999998999616764,
                                                 "seqNum": 6,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
@@ -374,7 +377,7 @@
                                             "type": "ACCOUNT",
                                             "account": {
                                                 "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                "balance": 999999998999766202,
+                                                "balance": 999999998999616764,
                                                 "seqNum": 7,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
@@ -531,7 +534,7 @@
                                                     "type": "ACCOUNT",
                                                     "account": {
                                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                        "balance": 999999998999766202,
+                                                        "balance": 999999998999616764,
                                                         "seqNum": 7,
                                                         "numSubEntries": 0,
                                                         "inflationDest": null,
@@ -581,7 +584,7 @@
                                                     "type": "ACCOUNT",
                                                     "account": {
                                                         "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                        "balance": 999999998999765202,
+                                                        "balance": 999999998999615764,
                                                         "seqNum": 7,
                                                         "numSubEntries": 0,
                                                         "inflationDest": null,
@@ -624,80 +627,12 @@
                                             }
                                         }
                                     ],
-                                    "events": [
-                                        {
-                                            "ext": {
-                                                "v": 0
-                                            },
-                                            "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                            "type": "CONTRACT",
-                                            "body": {
-                                                "v": 0,
-                                                "v0": {
-                                                    "topics": [
-                                                        {
-                                                            "type": "SCV_SYMBOL",
-                                                            "sym": "transfer"
-                                                        },
-                                                        {
-                                                            "type": "SCV_ADDRESS",
-                                                            "address": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X"
-                                                        },
-                                                        {
-                                                            "type": "SCV_ADDRESS",
-                                                            "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
-                                                        },
-                                                        {
-                                                            "type": "SCV_STRING",
-                                                            "str": "native"
-                                                        }
-                                                    ],
-                                                    "data": {
-                                                        "type": "SCV_I128",
-                                                        "i128": {
-                                                            "hi": 0,
-                                                            "lo": 1000
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ]
+                                    "events": []
                                 }
                             ],
                             "txChangesAfter": [],
                             "sorobanMeta": null,
-                            "events": [
-                                {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 100
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ],
+                            "events": [],
                             "diagnosticEvents": []
                         }
                     }
@@ -994,41 +929,7 @@
                                             }
                                         }
                                     ],
-                                    "events": [
-                                        {
-                                            "ext": {
-                                                "v": 0
-                                            },
-                                            "contractID": "daeb920027ff2366d5e92f93b1f13482edbdfa2adba2c3efe6af2dffa2ee86d5",
-                                            "type": "CONTRACT",
-                                            "body": {
-                                                "v": 0,
-                                                "v0": {
-                                                    "topics": [
-                                                        {
-                                                            "type": "SCV_SYMBOL",
-                                                            "sym": "mint"
-                                                        },
-                                                        {
-                                                            "type": "SCV_ADDRESS",
-                                                            "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
-                                                        },
-                                                        {
-                                                            "type": "SCV_STRING",
-                                                            "str": "CUR1:GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
-                                                        }
-                                                    ],
-                                                    "data": {
-                                                        "type": "SCV_I128",
-                                                        "i128": {
-                                                            "hi": 0,
-                                                            "lo": 50
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ]
+                                    "events": []
                                 },
                                 {
                                     "ext": {
@@ -1086,76 +987,12 @@
                                             }
                                         }
                                     ],
-                                    "events": [
-                                        {
-                                            "ext": {
-                                                "v": 0
-                                            },
-                                            "contractID": "daeb920027ff2366d5e92f93b1f13482edbdfa2adba2c3efe6af2dffa2ee86d5",
-                                            "type": "CONTRACT",
-                                            "body": {
-                                                "v": 0,
-                                                "v0": {
-                                                    "topics": [
-                                                        {
-                                                            "type": "SCV_SYMBOL",
-                                                            "sym": "mint"
-                                                        },
-                                                        {
-                                                            "type": "SCV_ADDRESS",
-                                                            "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
-                                                        },
-                                                        {
-                                                            "type": "SCV_STRING",
-                                                            "str": "CUR1:GCGE27HU2VYQANKL2VZWLCAOJYMEFST5DXPBWQ7BRRPOHUPK626DNG4Q"
-                                                        }
-                                                    ],
-                                                    "data": {
-                                                        "type": "SCV_I128",
-                                                        "i128": {
-                                                            "hi": 0,
-                                                            "lo": 50
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ]
+                                    "events": []
                                 }
                             ],
                             "txChangesAfter": [],
                             "sorobanMeta": null,
-                            "events": [
-                                {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 300
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ],
+                            "events": [],
                             "diagnosticEvents": []
                         }
                     }
@@ -1163,7 +1000,7 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfLiveSorobanState": 943,
+            "totalByteSizeOfLiveSorobanState": 1359,
             "evictedKeys": [],
             "unused": []
         }

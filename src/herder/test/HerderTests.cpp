@@ -987,8 +987,8 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
     modifySorobanNetworkConfig(*app, [max](SorobanNetworkConfig& cfg) {
         cfg.mLedgerMaxTxCount = max;
-        cfg.mLedgerMaxReadLedgerEntries = max;
-        cfg.mLedgerMaxReadBytes = max;
+        cfg.mledgerMaxDiskReadEntries = max;
+        cfg.mledgerMaxDiskReadBytes = max;
         cfg.mLedgerMaxWriteLedgerEntries = max;
         cfg.mLedgerMaxWriteBytes = max;
         cfg.mLedgerMaxTransactionsSizeBytes = max;
@@ -1005,7 +1005,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         {
             SorobanResources res;
             res.instructions = 1;
-            res.readBytes = 0;
+            res.diskReadBytes = 0;
             res.writeBytes = 0;
 
             return createUploadWasmTx(*app, acc, 100,
@@ -1166,7 +1166,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         uint32_t const baseFee = 10'000'000;
         SorobanResources resources;
         resources.instructions = 800'000;
-        resources.readBytes = conf.txMaxReadBytes();
+        resources.diskReadBytes = conf.txMaxDiskReadBytes();
         resources.writeBytes = 1000;
         auto sorobanTx = createUploadWasmTx(
             *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
@@ -1179,15 +1179,15 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 SorobanResources res;
                 res.instructions = rand_uniform<uint32_t>(
                     1, static_cast<uint32>(conf.txMaxInstructions()));
-                res.readBytes =
-                    rand_uniform<uint32_t>(1, conf.txMaxReadBytes());
+                res.diskReadBytes =
+                    rand_uniform<uint32_t>(1, conf.txMaxDiskReadBytes());
                 res.writeBytes =
                     rand_uniform<uint32_t>(1, conf.txMaxWriteBytes());
                 auto read =
-                    rand_uniform<uint32_t>(0, conf.txMaxReadLedgerEntries());
+                    rand_uniform<uint32_t>(0, conf.txMaxDiskReadEntries());
                 auto write = rand_uniform<uint32_t>(
                     0, std::min(conf.txMaxWriteLedgerEntries(),
-                                (conf.txMaxReadLedgerEntries() - read)));
+                                (conf.txMaxDiskReadEntries() - read)));
                 for (auto const& key :
                      LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
                          write))
@@ -1216,8 +1216,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                           "Generated tx with {} instructions, {} read "
                           "bytes, {} write bytes, data bytes, {} read "
                           "ledger entries, {} write ledger entries",
-                          res.instructions, res.readBytes, res.writeBytes, read,
-                          write);
+                          res.instructions, res.diskReadBytes, res.writeBytes,
+                          read, write);
             }
             return txs;
         };
@@ -1305,14 +1305,14 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         {
             // Another soroban tx with high fee and a bit less resources
             // Still half capacity available
-            resources.readBytes = conf.txMaxReadBytes() / 2;
+            resources.diskReadBytes = conf.txMaxDiskReadBytes() / 2;
             auto sorobanTxHighFee = createUploadWasmTx(
                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             // Create another small soroban tx, with small fee. It should be
             // picked up anyway since we can't fit sorobanTx (gaps are allowed)
             resources.instructions = 1;
-            resources.readBytes = 1;
+            resources.diskReadBytes = 1;
             resources.writeBytes = 1;
 
             auto smallSorobanLowFee = createUploadWasmTx(
@@ -1714,6 +1714,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
 {
     Config cfg(getTestConfig());
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = app->getRoot();
@@ -1731,7 +1732,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
 
     SorobanResources resources;
     resources.instructions = 3'000'000;
-    resources.readBytes = 0;
+    resources.diskReadBytes = 0;
     resources.writeBytes = 2000;
     auto dummyAccount = root->create("dummy", startingBalance);
     auto dummyUploadTx =
@@ -1739,10 +1740,8 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     resources.footprint.readWrite.emplace_back();
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
-    // This value should not be changed for the test setup, but if it ever
-    // is changed,/ then we'd need to compute the rent fee via the rust bridge
-    // function (which is a bit verbose).
-    uint32_t const rentFee = 20'048;
+
+    uint32_t const rentFee = 20'050;
     resourceFee += rentFee;
     resources.footprint.readWrite.pop_back();
     auto addSorobanTx = [&](uint32_t inclusionFee) {
@@ -3022,8 +3021,8 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                     cfg.mLedgerMaxTxCount = mx;
                     cfg.mLedgerMaxInstructions = mx;
                     cfg.mLedgerMaxTransactionsSizeBytes = mx;
-                    cfg.mLedgerMaxReadLedgerEntries = mx;
-                    cfg.mLedgerMaxReadBytes = mx;
+                    cfg.mledgerMaxDiskReadEntries = mx;
+                    cfg.mledgerMaxDiskReadBytes = mx;
                     cfg.mLedgerMaxWriteLedgerEntries = mx;
                     cfg.mLedgerMaxWriteBytes = mx;
                     tweakSorobanConfig(cfg);
@@ -3108,14 +3107,12 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                                            .baseFee;
                         }
                         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                     case 1:
                         if (phase.parallelTxsComponent().baseFee)
                         {
                             baseFee = *phase.parallelTxsComponent().baseFee;
                         }
                         break;
-#endif
                     default:
                         releaseAssert(false);
                     }
@@ -3173,9 +3170,9 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("read entries")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxReadLedgerEntries = static_cast<uint32>(
+            cfg.mledgerMaxDiskReadEntries = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxReadLedgerEntries);
+                cfg.mTxMaxDiskReadEntries);
         };
         auto tweakAppConfig = [](Config& cfg) {
             cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
@@ -3196,12 +3193,12 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     }
     SECTION("read bytes")
     {
-        uint32_t constexpr txMaxReadBytes = 100 * 1024;
+        uint32_t constexpr txMaxDiskReadBytes = 100 * 1024;
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mTxMaxReadBytes = txMaxReadBytes;
-            cfg.mLedgerMaxReadBytes = static_cast<uint32>(
+            cfg.mTxMaxDiskReadBytes = txMaxDiskReadBytes;
+            cfg.mledgerMaxDiskReadBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxReadBytes);
+                cfg.mTxMaxDiskReadBytes);
         };
         test(tweakSorobanConfig, idTweakAppConfig);
     }
@@ -3592,7 +3589,8 @@ herderExternalizesValuesWithProtocol(uint32_t version,
     simulation->startAllNodes();
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
-            cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+            cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+                1;
         },
         simulation);
 
@@ -4398,8 +4396,8 @@ TEST_CASE("do not flood too many soroban transactions",
             setSorobanNetworkConfigForTest(cfg);
             // Update read entries to allow flooding at most 1 tx per broadcast
             // interval.
-            cfg.mLedgerMaxReadLedgerEntries = 40;
-            cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes;
+            cfg.mledgerMaxDiskReadEntries = 40;
+            cfg.mledgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes;
         },
         simulation);
 
@@ -4428,7 +4426,7 @@ TEST_CASE("do not flood too many soroban transactions",
     uint32_t const baseInclusionFee = 100'000;
     SorobanResources resources;
     resources.instructions = 800'000;
-    resources.readBytes = 2000;
+    resources.diskReadBytes = 2000;
     resources.writeBytes = 1000;
 
     auto genTx = [&](TestAccount& source, bool highFee) {
@@ -4527,7 +4525,7 @@ TEST_CASE("do not flood too many soroban transactions",
         // For large txs, there might not be enough resources allocated for
         // this flooding period. In this case, wait a few periods to accumulate
         // enough quota
-        resources.readBytes = 200 * 1024;
+        resources.diskReadBytes = 200 * 1024;
 
         genTx(*root, true);
         simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);

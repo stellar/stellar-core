@@ -50,8 +50,7 @@ class HotArchiveBucket
     static std::shared_ptr<HotArchiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
           std::vector<LedgerEntry> const& archivedEntries,
-          std::vector<LedgerKey> const& restoredEntries,
-          std::vector<LedgerKey> const& deletedEntries, bool countMergeEvents,
+          std::vector<LedgerKey> const& restoredEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
@@ -95,8 +94,7 @@ class HotArchiveBucket
 
     static std::vector<HotArchiveBucketEntry>
     convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
-                         std::vector<LedgerKey> const& restoredEntries,
-                         std::vector<LedgerKey> const& deletedEntries);
+                         std::vector<LedgerKey> const& restoredEntries);
 
     friend class HotArchiveBucketSnapshot;
 };

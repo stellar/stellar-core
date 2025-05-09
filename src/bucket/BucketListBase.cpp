@@ -766,15 +766,12 @@ template class BucketListBase<HotArchiveBucket>;
 template class BucketLevel<LiveBucket>;
 template class BucketLevel<HotArchiveBucket>;
 
-template void BucketListBase<HotArchiveBucket>::addBatchInternal<
-    std::vector<LedgerEntry>, std::vector<LedgerKey>, std::vector<LedgerKey>>(
+template void BucketListBase<HotArchiveBucket>::addBatchInternal(
     Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
     std::vector<LedgerEntry> const& archiveEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries);
+    std::vector<LedgerKey> const& restoredEntries);
 
-template void BucketListBase<LiveBucket>::addBatchInternal<
-    std::vector<LedgerEntry>, std::vector<LedgerEntry>, std::vector<LedgerKey>>(
+template void BucketListBase<LiveBucket>::addBatchInternal(
     Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
     std::vector<LedgerEntry> const& initEntries,
     std::vector<LedgerEntry> const& liveEntries,

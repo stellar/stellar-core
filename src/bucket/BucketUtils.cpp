@@ -271,7 +271,7 @@ bucketEntryToLedgerEntryAndDurabilityType<HotArchiveBucket>(
     {
         key = LedgerEntryKey(be.archivedEntry());
     }
-    else if (bet == HOT_ARCHIVE_LIVE || bet == HOT_ARCHIVE_DELETED)
+    else if (bet == HOT_ARCHIVE_LIVE)
     {
         key = be.key();
     }

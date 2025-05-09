@@ -58,12 +58,11 @@ void
 addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archiveEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries)
+    std::vector<LedgerKey> const& restoredEntries)
 {
     auto& hotArchiveBl = app.getBucketManager().getHotArchiveBucketList();
     hotArchiveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion,
-                          archiveEntries, restoredEntries, deletedEntries);
+                          archiveEntries, restoredEntries);
     auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
         app.getBucketManager().getLiveBucketList(), header);
     auto hotArchiveSnapshot =
@@ -84,13 +83,9 @@ for_versions_with_differing_bucket_logic(
              1,
          static_cast<uint32_t>(
              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-         static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-             ,
+         static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED),
          static_cast<uint32_t>(
-             LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)
-#endif
-        },
+             LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)},
         cfg, f);
 }
 
@@ -169,9 +164,6 @@ EntryCounts<HotArchiveBucket>::EntryCounts(
             break;
         case HOT_ARCHIVE_LIVE:
             ++nLive;
-            break;
-        case HOT_ARCHIVE_DELETED:
-            ++nDead;
             break;
         case HOT_ARCHIVE_METAENTRY:
             // This should never happen: only the first record can be METAENTRY
@@ -270,8 +262,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                         evictedState.archivedEntries.begin(),
                         evictedState.archivedEntries.end());
                     mApp.getBucketManager().addHotArchiveBatch(
-                        mApp, lh, mTestArchiveEntries, mTestRestoredEntries,
-                        mTestDeletedEntries);
+                        mApp, lh, mTestArchiveEntries, mTestRestoredEntries);
                 }
 
                 if (ledgerCloseMeta)

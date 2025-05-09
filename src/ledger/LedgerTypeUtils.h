@@ -66,6 +66,13 @@ isSorobanEntry(T const& e)
 
 template <typename T>
 bool
+isContractCodeEntry(T const& e)
+{
+    return e.type() == CONTRACT_CODE;
+}
+
+template <typename T>
+bool
 isTemporaryEntry(T const& e)
 {
     return e.type() == CONTRACT_DATA &&

@@ -2998,7 +2998,7 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
             keysToPrefetch.emplace(k);
             if (k.type() != TTL)
             {
-                resources.readBytes += xdr::xdr_size(e);
+                resources.diskReadBytes += xdr::xdr_size(e);
                 // Randomly add the key to either the read or write set.
                 if (stellar::rand_flip())
                 {
@@ -3012,7 +3012,7 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
         }
         if (!enoughQuota)
         {
-            resources.readBytes -= 1;
+            resources.diskReadBytes -= 1;
         }
 
         for (auto& k : deadKeys)
@@ -3114,7 +3114,7 @@ TEST_CASE("LedgerKeyMeter tests")
     UnorderedSet<LedgerKey> keys;
     keys.emplace(key);
     SorobanResources resources;
-    resources.readBytes = entrySize;
+    resources.diskReadBytes = entrySize;
     resources.footprint.readOnly = {key};
     lkMeter.addTxn(resources);
 
@@ -3125,7 +3125,7 @@ TEST_CASE("LedgerKeyMeter tests")
 
     // Adding another txn with less readQuota should not change the
     // fact the key can be loaded.
-    resources.readBytes = 0;
+    resources.diskReadBytes = 0;
     resources.footprint.readOnly = {key};
     lkMeter.addTxn(resources);
     REQUIRE(lkMeter.canLoad(key, entrySize));
@@ -3135,7 +3135,7 @@ TEST_CASE("LedgerKeyMeter tests")
     // After updating, the read quota for the key should be zero.
     REQUIRE(!lkMeter.canLoad(key, 1));
     // Add another transaction with the same key and 2 * entrySize read quota.
-    resources.readBytes = 2 * entrySize;
+    resources.diskReadBytes = 2 * entrySize;
     resources.footprint.readOnly = {key};
     lkMeter.addTxn(resources);
     REQUIRE(lkMeter.canLoad(key, 2 * entrySize));

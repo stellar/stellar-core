@@ -62,7 +62,6 @@ namespace
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 // Starting in protocol 23, some operation meta needs to be modified
 // to be consumed by downstream systems. In particular, restoration is
 // (mostly) logically a new entry creation from the perspective of ltx and
@@ -167,7 +166,6 @@ processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
 
     return changes;
 }
-#endif
 
 } // namespace
 
@@ -309,7 +307,7 @@ TransactionFrame::getResources(bool useByteLimitInClassic) const
         // is used for constructing TX sets before invoking the host, so we need
         // to sum readOnly size and readWrite size for correct resource limits
         // here.
-        return Resource({opCount, r.instructions, txSize, r.readBytes,
+        return Resource({opCount, r.instructions, txSize, r.diskReadBytes,
                          r.writeBytes,
                          static_cast<int64_t>(r.footprint.readOnly.size() +
                                               r.footprint.readWrite.size()),
@@ -685,13 +683,13 @@ TransactionFrame::validateSorobanResources(
              makeU64SCVal(config.txMaxInstructions())});
         return false;
     }
-    if (resources.readBytes > config.txMaxReadBytes())
+    if (resources.diskReadBytes > config.txMaxDiskReadBytes())
     {
         pushValidationTimeDiagnosticError(
             diagnosticEvents, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction byte-read resources exceed network config limit",
-            {makeU64SCVal(resources.readBytes),
-             makeU64SCVal(config.txMaxReadBytes())});
+            {makeU64SCVal(resources.diskReadBytes),
+             makeU64SCVal(config.txMaxDiskReadBytes())});
         return false;
     }
     if (resources.writeBytes > config.txMaxWriteBytes())
@@ -704,13 +702,13 @@ TransactionFrame::validateSorobanResources(
         return false;
     }
     if (readEntries.size() + writeEntries.size() >
-        config.txMaxReadLedgerEntries())
+        config.txMaxDiskReadEntries())
     {
         pushValidationTimeDiagnosticError(
             diagnosticEvents, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction entry-read resources exceed network config limit",
             {makeU64SCVal(readEntries.size() + writeEntries.size()),
-             makeU64SCVal(config.txMaxReadLedgerEntries())});
+             makeU64SCVal(config.txMaxDiskReadEntries())});
         return false;
     }
     if (writeEntries.size() > config.txMaxWriteLedgerEntries())
@@ -851,7 +849,7 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     metrics.accumulateLedgerTxsSizeByte(txSize);
     metrics.accumulateLedgerReadEntry(static_cast<int64_t>(
         r.footprint.readOnly.size() + r.footprint.readWrite.size()));
-    metrics.accumulateLedgerReadByte(r.readBytes);
+    metrics.accumulateLedgerReadByte(r.diskReadBytes);
     metrics.accumulateLedgerWriteEntry(
         static_cast<int64_t>(r.footprint.readWrite.size()));
     metrics.accumulateLedgerWriteByte(r.writeBytes);
@@ -869,12 +867,14 @@ TransactionFrame::computeSorobanResourceFee(
     CxxTransactionResources cxxResources{};
     cxxResources.instructions = txResources.instructions;
 
-    cxxResources.read_entries =
+    // This is going to be changed in protocol 23 to only account for the
+    // actual disk reads.
+    cxxResources.disk_read_entries =
         static_cast<uint32>(txResources.footprint.readOnly.size());
     cxxResources.write_entries =
         static_cast<uint32>(txResources.footprint.readWrite.size());
 
-    cxxResources.read_bytes = txResources.readBytes;
+    cxxResources.disk_read_bytes = txResources.diskReadBytes;
     cxxResources.write_bytes = txResources.writeBytes;
 
     cxxResources.transaction_size_bytes = txSize;
@@ -883,7 +883,7 @@ TransactionFrame::computeSorobanResourceFee(
     // This may throw, but only in case of the Core version misconfiguration.
     return rust_bridge::compute_transaction_resource_fee(
         cfg.CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion, cxxResources,
-        sorobanConfig.rustBridgeFeeConfiguration());
+        sorobanConfig.rustBridgeFeeConfiguration(protocolVersion));
 }
 
 int64
@@ -1807,7 +1807,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                           opEventManager.getContractEvents());
 
                 LedgerEntryChanges changes;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 if (protocolVersionStartsFrom(
                         ledgerVersion,
                         LiveBucket::
@@ -1816,7 +1815,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     changes = processOpLedgerEntryChanges(op, ltxOp);
                 }
                 else
-#endif
                 {
                     changes = ltxOp.getChanges();
                 }

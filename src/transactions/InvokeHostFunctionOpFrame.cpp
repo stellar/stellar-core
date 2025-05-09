@@ -36,26 +36,6 @@ namespace stellar
 {
 namespace
 {
-bool
-isCodeKey(LedgerKey const& lk)
-{
-    return lk.type() == CONTRACT_CODE;
-}
-
-template <typename T>
-std::vector<uint8_t>
-toVec(T const& t)
-{
-    return std::vector<uint8_t>(xdr::xdr_to_opaque(t));
-}
-
-template <typename T>
-CxxBuf
-toCxxBuf(T const& t)
-{
-    return CxxBuf{std::make_unique<std::vector<uint8_t>>(toVec(t))};
-}
-
 CxxLedgerInfo
 getLedgerInfo(AbstractLedgerTxn& ltx, AppConnector& app,
               SorobanNetworkConfig const& sorobanConfig)
@@ -471,7 +451,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                 }
             }
 
-            metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
+            metrics.noteReadEntry(isContractCodeEntry(lk), keySize, entrySize);
             if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
                                              appConfig, mParentTx,
                                              diagnosticEvents))
@@ -481,13 +461,13 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                 return false;
             }
 
-            if (resources.readBytes < metrics.mLedgerReadByte)
+            if (resources.diskReadBytes < metrics.mLedgerReadByte)
             {
                 diagnosticEvents.pushApplyTimeDiagnosticError(
                     SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.readBytes)});
+                     makeU64SCVal(resources.diskReadBytes)});
 
                 this->innerResult(res).code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
@@ -610,7 +590,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         // accounted for by the host
         if (lk.type() != TTL)
         {
-            metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
+            metrics.noteWriteEntry(isContractCodeEntry(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
                 diagnosticEvents.pushApplyTimeDiagnosticError(

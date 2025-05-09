@@ -12,14 +12,13 @@ void
 HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
                                uint32_t currLedgerProtocol,
                                std::vector<LedgerEntry> const& archiveEntries,
-                               std::vector<LedgerKey> const& restoredEntries,
-                               std::vector<LedgerKey> const& deletedEntries)
+                               std::vector<LedgerKey> const& restoredEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(protocolVersionStartsFrom(
         currLedgerProtocol,
         HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
     addBatchInternal(app, currLedger, currLedgerProtocol, archiveEntries,
-                     restoredEntries, deletedEntries);
+                     restoredEntries);
 }
 }

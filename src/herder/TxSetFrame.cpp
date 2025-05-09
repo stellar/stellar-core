@@ -99,7 +99,6 @@ validateSequentialPhaseXDRStructure(TransactionPhase const& phase)
     return true;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 bool
 validateParallelComponent(ParallelTxsComponent const& component)
 {
@@ -121,16 +120,12 @@ validateParallelComponent(ParallelTxsComponent const& component)
     }
     return true;
 }
-#endif
 
 bool
 validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     int const MAX_PHASE = 1;
-#else
-    int const MAX_PHASE = 0;
-#endif
+
     if (txSet.v() != 1)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: unsupported version {}", txSet.v());
@@ -156,7 +151,6 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
                        phase.v());
             return false;
         }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (phase.v() == 1)
         {
             if (phaseId != static_cast<size_t>(TxSetPhase::SOROBAN))
@@ -172,7 +166,6 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
             }
         }
         else
-#endif
         {
             if (!validateSequentialPhaseXDRStructure(phase))
             {
@@ -283,7 +276,6 @@ sequentialPhaseToXdr(TxFrameList const& txs,
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 parallelPhaseToXdr(TxStageFrameList const& txs,
                    InclusionFeeMap const& inclusionFeeMap,
@@ -324,8 +316,6 @@ parallelPhaseToXdr(TxStageFrameList const& txs,
         }
     }
 }
-
-#endif
 
 void
 transactionsToGeneralizedTransactionSetXDR(
@@ -917,11 +907,9 @@ TxSetXDRFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
                                   SOROBAN_PROTOCOL_VERSION))
     {
         bool isParallelSoroban = false;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         isParallelSoroban =
             protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
                                       PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-#endif
         std::vector<TxSetPhaseFrame> emptyPhases = {
             TxSetPhaseFrame::makeEmpty(TxSetPhase::CLASSIC, false),
             TxSetPhaseFrame::makeEmpty(TxSetPhase::SOROBAN, isParallelSoroban)};
@@ -1119,7 +1107,6 @@ TxSetXDRFrame::sizeTxTotal() const
                     totalSize += component.txsMaybeDiscountedFee().txs.size();
                 }
                 break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             case 1:
                 for (auto const& stage :
                      phase.parallelTxsComponent().executionStages)
@@ -1130,7 +1117,6 @@ TxSetXDRFrame::sizeTxTotal() const
                     }
                 }
                 break;
-#endif
             default:
                 break;
             }
@@ -1182,7 +1168,6 @@ TxSetXDRFrame::sizeOpTotalForLogging() const
                         accumulateTxsFn);
                 }
                 break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             case 1:
                 for (auto const& stage :
                      phase.parallelTxsComponent().executionStages)
@@ -1195,7 +1180,6 @@ TxSetXDRFrame::sizeOpTotalForLogging() const
                     }
                 }
                 break;
-#endif
             default:
                 break;
             }
@@ -1233,7 +1217,6 @@ TxSetXDRFrame::createTransactionFrames(Hash const& networkID) const
                     }
                 }
                 break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             case 1:
                 for (auto const& stage :
                      phase.parallelTxsComponent().executionStages)
@@ -1249,7 +1232,6 @@ TxSetXDRFrame::createTransactionFrames(Hash const& networkID) const
                     }
                 }
                 break;
-#endif
             default:
                 break;
             }
@@ -1415,7 +1397,6 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
             TxSetPhaseFrame(phase, std::move(txList), inclusionFeeMapPtr));
         break;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 1:
     {
         auto const& xdrStages = xdrPhase.parallelTxsComponent().executionStages;
@@ -1482,7 +1463,6 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
             TxSetPhaseFrame(phase, std::move(stages), inclusionFeeMapPtr));
         break;
     }
-#endif
     default:
         releaseAssert(false);
     }
@@ -1629,12 +1609,7 @@ TxSetPhaseFrame::toXDR(TransactionPhase& xdrPhase) const
 
     if (isParallel())
     {
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         parallelPhaseToXdr(mStages, *mInclusionFeeMap, xdrPhase);
-#else
-        releaseAssert(false);
-#endif
     }
     else
     {

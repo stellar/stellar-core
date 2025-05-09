@@ -130,7 +130,6 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
         addIfExists(std::make_shared<FileTransferInfo>(*b));
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     for (auto const& hash : hashes.hot)
     {
         auto b = mApp.getBucketManager().getBucketByHash<HotArchiveBucket>(
@@ -138,7 +137,6 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
         releaseAssert(b);
         addIfExists(std::make_shared<FileTransferInfo>(*b));
     }
-#endif
 
     return files;
 }
