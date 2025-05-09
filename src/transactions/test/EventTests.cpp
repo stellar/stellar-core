@@ -67,7 +67,8 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
                                        .getTxEvents();
             REQUIRE(txEvents.size() == 1);
             validateFeeEvent(txEvents[0], a1,
-                             prePaymentA1Balance - amt - a1.getBalance());
+                             prePaymentA1Balance - amt - a1.getBalance(),
+                             getLclProtocolVersion(*app), false);
         });
     }
 

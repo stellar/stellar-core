@@ -829,58 +829,64 @@
                             },
                             "events": [
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GDWWCIR2FIWTY2D3CEDXZYRTRNTFZCC5PBCGC6XPMKCLUV7BRG2AT3RD"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 126726
+                                    "stage": "TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GDWWCIR2FIWTY2D3CEDXZYRTRNTFZCC5PBCGC6XPMKCLUV7BRG2AT3RD"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": 0,
+                                                        "lo": 126726
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GDWWCIR2FIWTY2D3CEDXZYRTRNTFZCC5PBCGC6XPMKCLUV7BRG2AT3RD"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": -1,
-                                                    "lo": 18446744073709531665
+                                    "stage": "TRANSACTION_EVENT_STAGE_AFTER_TX",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GDWWCIR2FIWTY2D3CEDXZYRTRNTFZCC5PBCGC6XPMKCLUV7BRG2AT3RD"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": -1,
+                                                        "lo": 18446744073709531665
+                                                    }
                                                 }
                                             }
                                         }
@@ -1208,58 +1214,64 @@
                             },
                             "events": [
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 1000100
+                                    "stage": "TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": 0,
+                                                        "lo": 1000100
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": -1,
-                                                    "lo": 18446744073708603063
+                                    "stage": "TRANSACTION_EVENT_STAGE_AFTER_TX",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": -1,
+                                                        "lo": 18446744073708603063
+                                                    }
                                                 }
                                             }
                                         }
@@ -1538,58 +1550,64 @@
                             "sorobanMeta": null,
                             "events": [
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 101612
+                                    "stage": "TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": 0,
+                                                        "lo": 101612
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": -1,
-                                                    "lo": 18446744073709511616
+                                    "stage": "TRANSACTION_EVENT_STAGE_AFTER_TX",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": -1,
+                                                        "lo": 18446744073709511616
+                                                    }
                                                 }
                                             }
                                         }
@@ -1949,58 +1967,64 @@
                             },
                             "events": [
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 1000100
+                                    "stage": "TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": 0,
+                                                        "lo": 1000100
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": -1,
-                                                    "lo": 18446744073708612075
+                                    "stage": "TRANSACTION_EVENT_STAGE_AFTER_TX",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": -1,
+                                                        "lo": 18446744073708612075
+                                                    }
                                                 }
                                             }
                                         }
@@ -2279,58 +2303,64 @@
                             "sorobanMeta": null,
                             "events": [
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": 0,
-                                                    "lo": 1043955
+                                    "stage": "TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": 0,
+                                                        "lo": 1043955
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 {
-                                    "ext": {
-                                        "v": 0
-                                    },
-                                    "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
-                                    "type": "CONTRACT",
-                                    "body": {
-                                        "v": 0,
-                                        "v0": {
-                                            "topics": [
-                                                {
-                                                    "type": "SCV_SYMBOL",
-                                                    "sym": "fee"
-                                                },
-                                                {
-                                                    "type": "SCV_ADDRESS",
-                                                    "address": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU"
-                                                }
-                                            ],
-                                            "data": {
-                                                "type": "SCV_I128",
-                                                "i128": {
-                                                    "hi": -1,
-                                                    "lo": 18446744073708550615
+                                    "stage": "TRANSACTION_EVENT_STAGE_AFTER_TX",
+                                    "event": {
+                                        "ext": {
+                                            "v": 0
+                                        },
+                                        "contractID": "baa393105df75969301ed9ce82ecc9fe38d4063f97ac0a41d07a7b505d8e9d43",
+                                        "type": "CONTRACT",
+                                        "body": {
+                                            "v": 0,
+                                            "v0": {
+                                                "topics": [
+                                                    {
+                                                        "type": "SCV_SYMBOL",
+                                                        "sym": "fee"
+                                                    },
+                                                    {
+                                                        "type": "SCV_ADDRESS",
+                                                        "address": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU"
+                                                    }
+                                                ],
+                                                "data": {
+                                                    "type": "SCV_I128",
+                                                    "i128": {
+                                                        "hi": -1,
+                                                        "lo": 18446744073708550615
+                                                    }
                                                 }
                                             }
                                         }

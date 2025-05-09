@@ -408,7 +408,6 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
 
     SorobanTest test(cfg);
-    auto& app = test.getApp();
     auto& root = test.getRoot();
 
     auto a1 = root.create("a1", 1'000'000'000);
@@ -1305,6 +1304,7 @@ TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
+        auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
@@ -1313,8 +1313,8 @@ TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
         auto b1 = test.getRoot().create("B", startingBalance);
         auto c1 = test.getRoot().create("C", startingBalance);
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(
-            wasm, getLclProtocolVersion(test.getApp()));
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 1000);
 
@@ -1343,7 +1343,8 @@ TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
 
         // The refund event was not emitted because the account was merged.
         REQUIRE(txEvents.size() == 1);
-        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee);
+        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee,
+                         ledgerVersion, false);
     });
 }
 
@@ -1358,6 +1359,7 @@ TEST_CASE_VERSIONS("fee bump refund account merged", "[tx][soroban][merge]")
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
+        auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
@@ -1368,8 +1370,8 @@ TEST_CASE_VERSIONS("fee bump refund account merged", "[tx][soroban][merge]")
         auto feeBumper = test.getRoot().create("feeBumper", startingBalance);
 
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(
-            wasm, getLclProtocolVersion(test.getApp()));
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
@@ -1415,7 +1417,8 @@ TEST_CASE_VERSIONS("fee bump refund account merged", "[tx][soroban][merge]")
 
         // The refund event was not emitted because the account was merged.
         REQUIRE(txEvents.size() == 1);
-        validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee);
+        validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee,
+                         ledgerVersion, false);
     });
 }
 
@@ -1430,6 +1433,7 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
+        auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
@@ -1437,8 +1441,8 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
         auto a1 = test.getRoot().create("A", startingBalance);
         auto b1 = test.getRoot().create("B", startingBalance);
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(
-            wasm, getLclProtocolVersion(test.getApp()));
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
@@ -1467,8 +1471,10 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
                                    .getTxEvents();
 
         REQUIRE(txEvents.size() == 2);
-        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee);
-        validateFeeEvent(txEvents[1], a1.getPublicKey(), -expectedRefund);
+        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee,
+                         ledgerVersion, false);
+        validateFeeEvent(txEvents[1], a1.getPublicKey(), -expectedRefund,
+                         ledgerVersion, true);
     });
 }
 
@@ -1483,6 +1489,8 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
+        auto ledgerVersion = getLclProtocolVersion(test.getApp());
+
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
@@ -1491,8 +1499,8 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         auto a1StartingBalance = a1.getBalance();
 
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(
-            wasm, getLclProtocolVersion(test.getApp()));
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
@@ -1518,8 +1526,10 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
                                    .getTxEvents();
 
         REQUIRE(txEvents.size() == 2);
-        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee);
-        validateFeeEvent(txEvents[1], a1.getPublicKey(), -expectedRefund);
+        validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee,
+                         ledgerVersion, false);
+        validateFeeEvent(txEvents[1], a1.getPublicKey(), -expectedRefund,
+                         ledgerVersion, true);
     });
 }
 
@@ -1535,6 +1545,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
+        auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
@@ -1546,8 +1557,8 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto feeBumperStartingBalance = feeBumper.getBalance();
 
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(
-            wasm, getLclProtocolVersion(test.getApp()));
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
@@ -1568,8 +1579,8 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto r = closeLedger(test.getApp(), {feeBumpTxFrame});
         checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
 
-        bool afterV20 = protocolVersionStartsFrom(
-            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
+        bool afterV20 =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21);
 
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
@@ -1607,9 +1618,10 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
                                    .getTxEvents();
 
         REQUIRE(txEvents.size() == 2);
-        validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee);
-        validateFeeEvent(txEvents[1], feeBumper.getPublicKey(),
-                         -expectedRefund);
+        validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee,
+                         ledgerVersion, false);
+        validateFeeEvent(txEvents[1], feeBumper.getPublicKey(), -expectedRefund,
+                         ledgerVersion, true);
     });
 }
 

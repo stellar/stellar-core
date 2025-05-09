@@ -104,7 +104,7 @@ class TxEventManager
     uint32_t mProtocolVersion;
     Hash const& mNetworkID;
     Config const& mConfig;
-    xdr::xvector<ContractEvent> mTxEvents;
+    xdr::xvector<TransactionEvent> mTxEvents;
     DiagnosticEventBuffer mDiagnosticEvents;
 
   public:
@@ -117,7 +117,7 @@ class TxEventManager
 
     void flushDiagnosticEvents(xdr::xvector<DiagnosticEvent>& buf);
 
-    void flushTxEvents(xdr::xvector<ContractEvent>& buf);
+    void flushTxEvents(xdr::xvector<TransactionEvent>& buf);
 
     Hash const& getNetworkID() const;
     uint32_t getProtocolVersion() const;
@@ -125,7 +125,8 @@ class TxEventManager
 
     bool shouldEmitClassicEvents() const;
 
-    void newFeeEvent(AccountID const& feeSource, int64 amount);
+    void newFeeEvent(AccountID const& feeSource, int64 amount,
+                     TransactionEventStage stage);
 
 #ifdef BUILD_TESTS
     xdr::xvector<DiagnosticEvent> const&

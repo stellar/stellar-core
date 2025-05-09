@@ -346,11 +346,10 @@ makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
 }
 
 void
-validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
-                 int64_t feeCharged)
+validateFeeEvent(TransactionEvent const& feeEvent, PublicKey const& feeSource,
+                 int64_t feeCharged, uint32_t protocolVersion, bool isRefund)
 {
-    auto const& feeEventTopics = feeEvent.body.v0().topics;
-
+    auto const& feeEventTopics = feeEvent.event.body.v0().topics;
     REQUIRE(feeEventTopics.size() == 2);
 
     auto const& firstTopic = feeEventTopics.at(0);
@@ -360,11 +359,31 @@ validateFeeEvent(ContractEvent const& feeEvent, PublicKey const& feeSource,
     REQUIRE((secondTopic.type() == SCV_ADDRESS &&
              secondTopic.address().accountId() == feeSource));
 
-    auto const& feeEventData = feeEvent.body.v0().data;
+    auto const& feeEventData = feeEvent.event.body.v0().data;
 
     auto feei128 = rust_bridge::i128_from_i64(feeCharged);
     REQUIRE(feeEventData.i128().hi == feei128.hi);
     REQUIRE(feeEventData.i128().lo == feei128.lo);
+
+    if (!isRefund)
+    {
+        REQUIRE(feeEvent.stage ==
+                TransactionEventStage::TRANSACTION_EVENT_STAGE_BEFORE_ALL_TXS);
+    }
+    else
+    {
+        if (protocolVersionIsBefore(protocolVersion, ProtocolVersion::V_23))
+        {
+            REQUIRE(feeEvent.stage ==
+                    TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_TX);
+        }
+        else
+        {
+            REQUIRE(
+                feeEvent.stage ==
+                TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_ALL_TXS);
+        }
+    }
 }
 
 SorobanResources

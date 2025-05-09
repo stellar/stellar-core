@@ -241,7 +241,7 @@ TransactionMetaFrame::maybePushSorobanContractEvents(
 }
 
 void
-TransactionMetaFrame::pushTxContractEvents(xdr::xvector<ContractEvent>&& events)
+TransactionMetaFrame::pushTxEvents(xdr::xvector<TransactionEvent>&& events)
 {
     switch (mTransactionMeta.v())
     {
@@ -300,7 +300,7 @@ TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
             std::move(returnValue);
         break;
     case 4:
-        mTransactionMeta.v4().sorobanMeta.activate().returnValue =
+        mTransactionMeta.v4().sorobanMeta.activate().returnValue.activate() =
             std::move(returnValue);
         break;
     default:
@@ -324,7 +324,7 @@ TransactionMetaFrame::getReturnValue() const
     case 3:
         return mTransactionMeta.v3().sorobanMeta->returnValue;
     case 4:
-        return mTransactionMeta.v4().sorobanMeta->returnValue;
+        return mTransactionMeta.v4().sorobanMeta->returnValue.activate();
     default:
         releaseAssert(false);
     }
@@ -346,7 +346,7 @@ TransactionMetaFrame::getDiagnosticEvents() const
     }
 }
 
-xdr::xvector<stellar::ContractEvent> const&
+xdr::xvector<stellar::TransactionEvent> const&
 TransactionMetaFrame::getTxEvents() const
 {
     switch (mTransactionMeta.v())
