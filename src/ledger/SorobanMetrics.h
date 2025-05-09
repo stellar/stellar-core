@@ -7,6 +7,7 @@
 // This class exists to cache soroban metrics: resource usage and network config
 // limits. It also performs aggregation of ledger-wide resource usage across
 // different operations.
+#include <atomic>
 #include <cstdint>
 
 namespace medida
@@ -32,9 +33,10 @@ class SorobanMetrics
     uint64_t mCounterLedgerWriteEntry{0};
     uint64_t mCounterLedgerWriteByte{0};
 
-    uint64_t mLedgerInsnsCount{0};
-    uint64_t mLedgerInsnsExclVmCount{0};
-    uint64_t mLedgerHostFnExecTimeNsecs{0};
+    // These are modified within InvokeHostFunctionOp
+    std::atomic<uint64_t> mLedgerInsnsCount{0};
+    std::atomic<uint64_t> mLedgerInsnsExclVmCount{0};
+    std::atomic<uint64_t> mLedgerHostFnExecTimeNsecs{0};
 
   public:
     // ledger-wide metrics

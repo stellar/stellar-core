@@ -175,6 +175,27 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
+    UnorderedSet<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage);
+
+    std::unique_ptr<ThreadEntryMap> collectEntries(AppConnector& app,
+                                                   AbstractLedgerTxn& ltx,
+                                                   Cluster const& cluster);
+
+    std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>> applyThread(
+        AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMapByCluster,
+        Cluster const& cluster, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
+        SorobanMetrics& sorobanMetrics);
+
+    void applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
+                           ApplyStage const& stage,
+                           Hash const& sorobanBasePrngSeed);
+
+    void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
+                            std::vector<ApplyStage> const& stages,
+                            Hash const& sorobanBasePrngSeed);
+
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.

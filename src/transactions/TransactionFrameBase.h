@@ -17,6 +17,8 @@
 #include "util/types.h"
 #include <optional>
 
+#include "ledger/SorobanMetrics.h"
+
 namespace stellar
 {
 class AbstractLedgerTxn;
@@ -38,6 +40,222 @@ using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
+using ModifiedEntryMap = UnorderedMap<LedgerKey, std::optional<LedgerEntry>>;
+
+struct ThreadEntry
+{
+    // Will not be set if the entry doesn't exist, or if no tx was able to load
+    // it due to hitting read limits.
+    std::optional<LedgerEntry> mLedgerEntry;
+    bool isDirty;
+};
+
+using ThreadEntryMap = UnorderedMap<LedgerKey, ThreadEntry>;
+
+class ParallelTxReturnVal
+{
+  public:
+    ParallelTxReturnVal(bool success, ModifiedEntryMap const&& modifiedEntryMap)
+        : mSuccess(success), mModifiedEntryMap(std::move(modifiedEntryMap))
+    {
+    }
+    ParallelTxReturnVal(bool success, ModifiedEntryMap const&& modifiedEntryMap,
+                        RestoredKeys const&& restoredKeys)
+        : mSuccess(success)
+        , mModifiedEntryMap(std::move(modifiedEntryMap))
+        , mRestoredKeys(std::move(restoredKeys))
+    {
+    }
+
+    bool
+    getSuccess() const
+    {
+        return mSuccess;
+    }
+    ModifiedEntryMap const&
+    getModifiedEntryMap() const
+    {
+        return mModifiedEntryMap;
+    }
+    RestoredKeys const&
+    getRestoredKeys() const
+    {
+        return mRestoredKeys;
+    }
+
+  private:
+    bool mSuccess;
+    // This will contain a key for every entry modified by a transaction
+    ModifiedEntryMap mModifiedEntryMap;
+    RestoredKeys mRestoredKeys;
+};
+
+class ParallelLedgerInfo
+{
+
+  public:
+    ParallelLedgerInfo(uint32_t version, uint32_t seq, uint32_t reserve,
+                       TimePoint time, Hash id)
+        : ledgerVersion(version)
+        , ledgerSeq(seq)
+        , baseReserve(reserve)
+        , closeTime(time)
+        , networkID(id)
+    {
+    }
+
+    uint32_t
+    getLedgerVersion() const
+    {
+        return ledgerVersion;
+    }
+    uint32_t
+    getLedgerSeq() const
+    {
+        return ledgerSeq;
+    }
+    uint32_t
+    getBaseReserve() const
+    {
+        return baseReserve;
+    }
+    TimePoint
+    getCloseTime() const
+    {
+        return closeTime;
+    }
+    Hash
+    getNetworkID() const
+    {
+        return networkID;
+    }
+
+  private:
+    uint32_t ledgerVersion;
+    uint32_t ledgerSeq;
+    uint32_t baseReserve;
+    TimePoint closeTime;
+    Hash networkID;
+};
+
+class TxEffects
+{
+  public:
+    TxEffects(uint32_t ledgerVersion, Config const& config,
+              Hash const& networkID)
+        : mMeta(ledgerVersion, config)
+        , mEventManager(ledgerVersion, networkID, config)
+    {
+    }
+
+    TransactionMetaFrame&
+    getMeta()
+    {
+        return mMeta;
+    }
+    LedgerTxnDelta&
+    getDelta()
+    {
+        return mDelta;
+    }
+    TxEventManager&
+    getTxEventManager()
+    {
+        return mEventManager;
+    }
+
+  private:
+    TransactionMetaFrame mMeta;
+    LedgerTxnDelta mDelta;
+    TxEventManager mEventManager;
+};
+
+class TxBundle
+{
+  public:
+    TxBundle(TransactionFrameBasePtr tx, MutableTxResultPtr resPayload,
+             Config const& config, Hash const& networkID,
+             uint32_t ledgerVersion, uint64_t txNum)
+        : tx(tx)
+        , resPayload(resPayload)
+        , txNum(txNum)
+        , mEffects(new TxEffects(ledgerVersion, config, networkID))
+    {
+    }
+
+    TransactionFrameBasePtr
+    getTx() const
+    {
+        return tx;
+    }
+    MutableTxResultPtr
+    getResPayload() const
+    {
+        return resPayload;
+    }
+    uint64_t
+    getTxNum() const
+    {
+        return txNum;
+    }
+    TxEffects&
+    getEffects() const
+    {
+        return *mEffects;
+    }
+
+  private:
+    TransactionFrameBasePtr tx;
+    MutableTxResultPtr resPayload;
+    uint64_t txNum;
+    std::unique_ptr<TxEffects> mEffects;
+};
+
+typedef std::vector<TxBundle> Cluster;
+typedef UnorderedMap<LedgerKey, TTLEntry> TTLs;
+
+class ApplyStage
+{
+  public:
+    ApplyStage(std::vector<Cluster>&& clusters) : mClusters(std::move(clusters))
+    {
+    }
+
+    class Iterator
+    {
+      public:
+        using value_type = TxBundle;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using reference = value_type&;
+        using iterator_category = std::forward_iterator_tag;
+
+        TxBundle const& operator*() const;
+
+        Iterator& operator++();
+        Iterator operator++(int);
+
+        bool operator==(Iterator const& other) const;
+        bool operator!=(Iterator const& other) const;
+
+      private:
+        friend class ApplyStage;
+
+        Iterator(std::vector<Cluster> const& clusters, size_t clusterIndex);
+        std::vector<Cluster> const& mClusters;
+        size_t mClusterIndex = 0;
+        size_t mTxIndex = 0;
+    };
+    Iterator begin() const;
+    Iterator end() const;
+
+    Cluster const& getCluster(size_t i) const;
+    size_t numClusters() const;
+
+  private:
+    std::vector<Cluster> mClusters;
+};
+
 class TransactionFrameBase
 {
   public:
@@ -49,6 +267,24 @@ class TransactionFrameBase
                        TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                        TxEventManager& txEventManager,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
+
+    virtual void preloadEntriesForParallelApply(
+        AppConnector& app, SorobanMetrics& sorobanMetrics,
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap,
+        MutableTxResultPtr txResult, DiagnosticEventBuffer& buffer) const = 0;
+    virtual void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                  TransactionMetaFrame& meta,
+                                  MutableTxResultPtr resPayload,
+                                  TxEventManager& txEventManager) const = 0;
+
+    virtual ParallelTxReturnVal parallelApply(
+        AppConnector& app,
+        ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo, MutableTxResultPtr resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const = 0;
+
     virtual MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,

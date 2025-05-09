@@ -38,6 +38,8 @@ class TransactionMetaFrame
     void setSorobanFeeInfo(int64_t nonRefundableFeeSpent,
                            int64_t totalRefundableFeeSpent,
                            int64_t rentFeeCharged);
+
+    xdr::xvector<ContractEvent> const& getOpEventsAtOp(size_t opIdx) const;
 #ifdef BUILD_TESTS
     TransactionMetaFrame(TransactionMeta meta);
     SCVal const& getReturnValue() const;
@@ -46,7 +48,6 @@ class TransactionMetaFrame
     xdr::xvector<stellar::ContractEvent> getSorobanContractEvents() const;
     stellar::LedgerEntryChanges const&
     getLedgerEntryChangesAtOp(size_t opIdx) const;
-    xdr::xvector<ContractEvent> const& getOpEventsAtOp(size_t opIdx) const;
 #endif
 
   private:

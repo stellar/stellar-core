@@ -826,6 +826,37 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
 }
 
 void
+LedgerTxn::addRestoredFromHotArchiveKey(LedgerKey const& key)
+{
+    getImpl()->addRestoredFromHotArchiveKey(key);
+}
+
+void
+LedgerTxn::Impl::addRestoredFromHotArchiveKey(LedgerKey const& key)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(key))
+    {
+        throw std::runtime_error("Key type not supported in Hot Archive");
+    }
+
+    auto ttlKey = getTTLKey(key);
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerKey const& key) {
+        auto [_, inserted] = mRestoredKeys.hotArchive.insert(key);
+        if (!inserted)
+        {
+            throw std::runtime_error("Key already removed from hot archive");
+        }
+    };
+    addKey(key);
+    addKey(ttlKey);
+}
+
+void
 LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
     getImpl()->restoreFromHotArchive(*this, entry, ttl);

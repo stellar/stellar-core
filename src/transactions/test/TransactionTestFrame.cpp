@@ -281,6 +281,41 @@ TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
     mTransactionFrame->insertKeysForTxApply(keys, lkMeter);
 }
 
+void
+TransactionTestFrame::preloadEntriesForParallelApply(
+    AppConnector& app, SorobanMetrics& sorobanMetrics, AbstractLedgerTxn& ltx,
+    ThreadEntryMap& entryMap, MutableTxResultPtr txResult,
+    DiagnosticEventBuffer& buffer) const
+{
+    mTransactionFrame->preloadEntriesForParallelApply(
+        app, sorobanMetrics, ltx, entryMap, txResult, buffer);
+}
+
+void
+TransactionTestFrame::preParallelApply(AppConnector& app,
+                                       AbstractLedgerTxn& ltx,
+                                       TransactionMetaFrame& meta,
+                                       MutableTxResultPtr resPayload,
+                                       TxEventManager& txEventManager) const
+{
+    mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
+                                        txEventManager);
+}
+
+ParallelTxReturnVal
+TransactionTestFrame::parallelApply(
+    AppConnector& app,
+    ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+    Config const& config, SorobanNetworkConfig const& sorobanConfig,
+    ParallelLedgerInfo const& ledgerInfo, MutableTxResultPtr resPayload,
+    SorobanMetrics& sorobanMetrics, Hash const& txPrngSeed,
+    TxEffects& effects) const
+{
+    return mTransactionFrame->parallelApply(
+        app, entryMap, config, sorobanConfig, ledgerInfo, resPayload,
+        sorobanMetrics, txPrngSeed, effects);
+}
+
 MutableTxResultPtr
 TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                        std::optional<int64_t> baseFee) const

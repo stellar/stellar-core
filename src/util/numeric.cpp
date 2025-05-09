@@ -350,4 +350,5 @@ doubleToClampedUint32(double d)
     }
     return static_cast<uint32_t>(std::clamp<double>(d, 0, maxUint32));
 }
+
 }

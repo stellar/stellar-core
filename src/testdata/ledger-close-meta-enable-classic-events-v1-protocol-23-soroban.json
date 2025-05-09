@@ -672,7 +672,7 @@
                                         {
                                             "type": "LEDGER_ENTRY_CREATED",
                                             "created": {
-                                                "lastModifiedLedgerSeq": 31,
+                                                "lastModifiedLedgerSeq": 0,
                                                 "data": {
                                                     "type": "CONTRACT_DATA",
                                                     "contractData": {
@@ -699,7 +699,7 @@
                                         {
                                             "type": "LEDGER_ENTRY_CREATED",
                                             "created": {
-                                                "lastModifiedLedgerSeq": 31,
+                                                "lastModifiedLedgerSeq": 0,
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
@@ -1434,7 +1434,7 @@
                                         {
                                             "type": "LEDGER_ENTRY_RESTORED",
                                             "restored": {
-                                                "lastModifiedLedgerSeq": 31,
+                                                "lastModifiedLedgerSeq": 10,
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
@@ -2143,7 +2143,7 @@
                                         {
                                             "type": "LEDGER_ENTRY_UPDATED",
                                             "updated": {
-                                                "lastModifiedLedgerSeq": 31,
+                                                "lastModifiedLedgerSeq": 9,
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
@@ -2175,7 +2175,7 @@
                                         {
                                             "type": "LEDGER_ENTRY_UPDATED",
                                             "updated": {
-                                                "lastModifiedLedgerSeq": 31,
+                                                "lastModifiedLedgerSeq": 9,
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {

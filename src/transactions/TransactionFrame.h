@@ -241,6 +241,30 @@ class TransactionFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
+    void preloadEntriesForParallelApply(
+        AppConnector& app, SorobanMetrics& sorobanMetrics,
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap,
+        MutableTxResultPtr txResult,
+        DiagnosticEventBuffer& buffer) const override;
+
+    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta,
+                          MutableTxResultPtr resPayload,
+                          TxEventManager& txEventManager, bool chargeFee) const;
+
+    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta,
+                          MutableTxResultPtr resPayload,
+                          TxEventManager& txEventManager) const override;
+
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app,
+        ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo, MutableTxResultPtr resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const override;
+
     // apply this transaction to the current ledger
     // returns true if successfully applied
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,

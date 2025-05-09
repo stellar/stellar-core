@@ -308,6 +308,22 @@ TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
     }
 }
 
+xdr::xvector<ContractEvent> const&
+TransactionMetaFrame::getOpEventsAtOp(size_t opIdx) const
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+    case 3:
+        throw std::runtime_error(
+            "Operation events not available for v2/v3 meta");
+    case 4:
+        return mTransactionMeta.v4().operations.at(opIdx).events;
+    default:
+        releaseAssert(false);
+    }
+}
+
 #ifdef BUILD_TESTS
 TransactionMetaFrame::TransactionMetaFrame(TransactionMeta meta)
     : mTransactionMeta(meta), mVersion(meta.v())
@@ -401,22 +417,6 @@ TransactionMetaFrame::getLedgerEntryChangesAtOp(size_t opIdx) const
         return mTransactionMeta.v3().operations.at(opIdx).changes;
     case 4:
         return mTransactionMeta.v4().operations.at(opIdx).changes;
-    default:
-        releaseAssert(false);
-    }
-}
-
-xdr::xvector<ContractEvent> const&
-TransactionMetaFrame::getOpEventsAtOp(size_t opIdx) const
-{
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-    case 3:
-        throw std::runtime_error(
-            "Operation events not available for v2/v3 meta");
-    case 4:
-        return mTransactionMeta.v4().operations.at(opIdx).events;
     default:
         releaseAssert(false);
     }

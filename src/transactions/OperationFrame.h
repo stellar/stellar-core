@@ -50,6 +50,19 @@ class OperationFrame
                          std::shared_ptr<SorobanTxData> sorobanData,
                          OpEventManager& opEventManager) const = 0;
 
+    // returns false if preloading failed.
+    virtual bool doPreloadEntriesForParallelApply(
+        AppConnector& app, SorobanMetrics& sorobanMetrics,
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap, OperationResult& res,
+        DiagnosticEventBuffer& buffer) const;
+
+    virtual ParallelTxReturnVal doParallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig, Hash const& txPrngSeed,
+        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+        OperationResult& res, SorobanTxData& sorobanData,
+        OpEventManager& opEventManager) const;
+
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
 
@@ -59,6 +72,11 @@ class OperationFrame
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header) const;
+
+    bool preloadEntryHelper(
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap,
+        std::function<bool(LedgerKey const&, uint32_t /*entrySize*/)>
+            readEntryCallback) const;
 
   public:
     static std::shared_ptr<OperationFrame>
@@ -86,6 +104,21 @@ class OperationFrame
                AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
                OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData,
                OpEventManager& opEventManager) const;
+
+    bool preloadEntriesForParallelApply(AppConnector& app,
+                                        SorobanMetrics& sorobanMetrics,
+                                        AbstractLedgerTxn& ltx,
+                                        ThreadEntryMap& entryMap,
+                                        OperationResult& res,
+                                        DiagnosticEventBuffer& buffer) const;
+
+    ParallelTxReturnVal applyParallel(
+        AppConnector& app,
+        ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+        OperationResult& res, SorobanTxData& sorobanData,
+        OpEventManager& opEventManager, Hash const& sorobanBasePrngSeed) const;
 
     Operation const&
     getOperation() const
