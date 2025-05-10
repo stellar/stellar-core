@@ -157,8 +157,6 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     for (auto const& entry : evictedState.archivedEntries)
     {
         releaseAssertOrThrow(isPersistentEntry(entry.data));
-        // Unfortunately, for legacy purposes, evictedKeys is
-        // misnamed and stores all evicted keys, both temp and persistent.
         mLedgerCloseMeta.v1().evictedKeys.emplace_back(LedgerEntryKey(entry));
     }
 }
