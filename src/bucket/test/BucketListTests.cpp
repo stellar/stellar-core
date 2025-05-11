@@ -166,8 +166,6 @@ basicBucketListTest()
                     {
                         bl.addBatch(
                             *app, i, getAppLedgerVersion(app), {},
-                            LedgerTestUtils::generateValidUniqueLedgerEntries(
-                                8),
                             LedgerTestUtils::
                                 generateValidLedgerEntryKeysWithExclusions(
                                     {CONFIG_SETTING}, 5));
@@ -176,14 +174,11 @@ basicBucketListTest()
                     {
                         bl.addBatch(
                             *app, i, getAppLedgerVersion(app),
-                            stellar::LedgerTestUtils::
-                                generateValidUniqueLedgerEntriesWithTypes(
-                                    {CONTRACT_CODE, CONTRACT_DATA}, 8,
-                                    seenKeys),
-                            stellar::LedgerTestUtils::
-                                generateValidUniqueLedgerKeysWithTypes(
-                                    {CONTRACT_CODE, CONTRACT_DATA}, 5,
-                                    seenKeys));
+                            LedgerTestUtils::
+                                generateUniquePersistentLedgerEntries(8,
+                                                                      seenKeys),
+                            LedgerTestUtils::generateUniquePersistentLedgerKeys(
+                                5, seenKeys));
                     }
                 }
 
@@ -439,10 +434,8 @@ TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",
         {
             bl.addBatch(
                 *app, ledger, getAppLedgerVersion(app),
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                    {CONTRACT_DATA, CONTRACT_CODE}, 5, keys),
-                LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
-                    {CONTRACT_CODE, CONTRACT_DATA}, 5, keys));
+                LedgerTestUtils::generateUniquePersistentLedgerEntries(5, keys),
+                LedgerTestUtils::generateUniquePersistentLedgerKeys(5, keys));
 
             // Once all entries merge to the bottom level, only deleted entries
             // should remain

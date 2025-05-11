@@ -29,7 +29,6 @@
 
 using namespace stellar;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("getledgerentry", "[queryserver]")
 {
     VirtualClock clock;
@@ -105,7 +104,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         }
 
         lm.setNextLedgerEntryBatchForBucketTesting({}, liveEntriesToInsert, {});
-        lm.setNextArchiveBatchForBucketTesting(archivedEntries, {}, {});
+        lm.setNextArchiveBatchForBucketTesting(archivedEntries, {});
         closeLedger(*app);
     }
 
@@ -116,12 +115,12 @@ TEST_CASE("getledgerentry", "[queryserver]")
         std::string body;
         if (ledgerSeq)
         {
-            body = "ledger=" + std::to_string(*ledgerSeq);
+            body = "ledgerSeq=" + std::to_string(*ledgerSeq);
         }
 
         for (auto const& key : keys)
         {
-            body += (body.empty() ? "" : "&") + std::string("k=") +
+            body += (body.empty() ? "" : "&") + std::string("key=") +
                     toOpaqueBase64(key);
         }
         return body;
@@ -133,15 +132,16 @@ TEST_CASE("getledgerentry", "[queryserver]")
                          uint32_t ledgerSeq) -> bool {
         for (auto const& entry : entries)
         {
-            REQUIRE(entry.isMember("e"));
-            REQUIRE(entry.isMember("s"));
-            if (entry["s"].asString() == "new")
+            REQUIRE(entry.isMember("state"));
+            if (entry["state"].asString() == "not-found")
             {
                 continue;
             }
 
+            REQUIRE(entry.isMember("entry"));
+
             LedgerEntry responseLE;
-            fromOpaqueBase64(responseLE, entry["e"].asString());
+            fromOpaqueBase64(responseLE, entry["entry"].asString());
             if (responseLE == le)
             {
                 std::string expectedState;
@@ -170,17 +170,18 @@ TEST_CASE("getledgerentry", "[queryserver]")
                     }
                 }
 
-                REQUIRE(entry["s"].asString() == expectedState);
+                REQUIRE(entry["state"].asString() == expectedState);
 
                 // Only live soroban entries should have a TTL
                 if (isSorobanEntry(le.data) && expectedState == "live")
                 {
-                    REQUIRE(entry.isMember("t"));
-                    REQUIRE(entry["t"].asUInt() == *expectedTTL);
+                    REQUIRE(entry.isMember("liveUntilLedgerSeq"));
+                    REQUIRE(entry["liveUntilLedgerSeq"].asUInt() ==
+                            *expectedTTL);
                 }
                 else
                 {
-                    REQUIRE(!entry.isMember("t"));
+                    REQUIRE(!entry.isMember("liveUntilLedgerSeq"));
                 }
 
                 return true;
@@ -189,26 +190,27 @@ TEST_CASE("getledgerentry", "[queryserver]")
         return false;
     };
 
-    // Check response for entries that should not exist
-    auto checkNewEntry = [](auto const& entries, LedgerKey const& key) -> bool {
+    // Check response for entries that should not exist. We return not-found
+    // keys implicitly based on position, so just check structure correctness
+    // and count here.
+    auto checkNewEntryCount = [](auto const& entries,
+                                 size_t expectedNewEntryCount) {
+        size_t newEntryCount = 0;
         for (auto const& entry : entries)
         {
-            REQUIRE(entry.isMember("e"));
-            REQUIRE(entry.isMember("s"));
-            if (entry["s"].asString() != "new")
+            REQUIRE(entry.isMember("state"));
+            if (entry["state"].asString() != "not-found")
             {
                 continue;
             }
 
-            LedgerKey responseKey;
-            fromOpaqueBase64(responseKey, entry["e"].asString());
-            if (responseKey == key)
-            {
-                REQUIRE(!entry.isMember("t"));
-                return true;
-            }
+            // For not-found entries, the 'entry' field should be omitted
+            REQUIRE(!entry.isMember("entry"));
+            REQUIRE(!entry.isMember("liveUntilLedgerSeq"));
+            ++newEntryCount;
         }
-        return false;
+
+        REQUIRE(newEntryCount == expectedNewEntryCount);
     };
 
     SECTION("lookup")
@@ -246,15 +248,10 @@ TEST_CASE("getledgerentry", "[queryserver]")
         Json::Reader reader;
         REQUIRE(reader.parse(retStr, root));
         REQUIRE(root.isMember("entries"));
-        REQUIRE(root.isMember("ledger"));
-        REQUIRE(root["ledger"].asUInt() == ledgerSeq);
+        REQUIRE(root.isMember("ledgerSeq"));
+        REQUIRE(root["ledgerSeq"].asUInt() == ledgerSeq);
 
         auto const& entries = root["entries"];
-
-        for (auto const& key : newKeys)
-        {
-            REQUIRE(checkNewEntry(entries, key));
-        }
 
         for (auto const& [lk, le] : archivedEntryMap)
         {
@@ -262,6 +259,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
             REQUIRE(checkEntry(entries, le, std::nullopt, ledgerSeq));
         }
 
+        auto expectedNewEntryCount = newKeys.size();
         for (auto const& [lk, le] : liveEntryMap)
         {
             std::optional<uint32_t> expectedTTL = std::nullopt;
@@ -276,7 +274,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
                 {
                     if (ttlIter->second < ledgerSeq)
                     {
-                        REQUIRE(checkNewEntry(entries, lk));
+                        ++expectedNewEntryCount;
                         continue;
                     }
                 }
@@ -284,6 +282,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
 
             REQUIRE(checkEntry(entries, le, expectedTTL, ledgerSeq));
         }
+
+        checkNewEntryCount(entries, expectedNewEntryCount);
     }
 
     SECTION("snapshot lookup")
@@ -312,15 +312,17 @@ TEST_CASE("getledgerentry", "[queryserver]")
             }
             else if (isSorobanEntry(le.data))
             {
-                if (isPersistentEntry(le.data) &&
-                    liveTTLEntryMap[LedgerEntryKey(le)] >
+                if (isPersistentEntry(le.data))
+                {
+                    if (liveTTLEntryMap[LedgerEntryKey(le)] >
                         lm.getLastClosedLedgerNum())
-                {
-                    entryToArchive = le;
-                }
-                else
-                {
-                    entryToRestore = le;
+                    {
+                        entryToArchive = le;
+                    }
+                    else
+                    {
+                        entryToRestore = le;
+                    }
                 }
             }
         }
@@ -373,8 +375,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
             Json::Reader reader;
             REQUIRE(reader.parse(retStr, root));
             REQUIRE(root.isMember("entries"));
-            REQUIRE(root.isMember("ledger"));
-            REQUIRE(root["ledger"].asUInt() == newLedger);
+            REQUIRE(root.isMember("ledgerSeq"));
+            REQUIRE(root["ledgerSeq"].asUInt() == newLedger);
 
             auto const& entries = root["entries"];
 
@@ -383,7 +385,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
                 checkEntry(entries, modifiedEntry, std::nullopt, newLedger));
 
             // Check that deleted entry does not exist
-            REQUIRE(checkNewEntry(entries, LedgerEntryKey(*entryToDelete)));
+            checkNewEntryCount(entries, 1);
 
             // Check that entry that was restored is live
             REQUIRE(
@@ -408,8 +410,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
             Json::Reader reader;
             REQUIRE(reader.parse(retStr, root));
             REQUIRE(root.isMember("entries"));
-            REQUIRE(root.isMember("ledger"));
-            REQUIRE(root["ledger"].asUInt() == oldLedger);
+            REQUIRE(root.isMember("ledgerSeq"));
+            REQUIRE(root["ledgerSeq"].asUInt() == oldLedger);
 
             auto const& entries = root["entries"];
 
@@ -431,7 +433,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
                                newLedger));
 
             // Newly created entry should not exist
-            REQUIRE(checkNewEntry(entries, LedgerEntryKey(newEntry)));
+            checkNewEntryCount(entries, 1);
         }
     }
 
@@ -439,10 +441,10 @@ TEST_CASE("getledgerentry", "[queryserver]")
     {
         std::string retStr;
         std::string empty;
-        auto body = "ledger=10"; // No keys provided
+        auto body = "ledgerSeq=10"; // No keys provided
         REQUIRE(!qServer->getLedgerEntry(empty, body, retStr));
         REQUIRE(retStr ==
-                "Must specify key in POST body: k=<LedgerKey in base64 "
+                "Must specify key in POST body: key=<LedgerKey in base64 "
                 "XDR format>\n");
     }
 
@@ -482,10 +484,14 @@ TEST_CASE("getledgerentry", "[queryserver]")
     SECTION("response order matches request order")
     {
         UnorderedSet<LedgerKey> keySet;
-        auto randomKeys =
-            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes({TRUSTLINE},
-                                                                    2, keySet);
-        auto testKeyOrder = [&](std::vector<LedgerKey> const& keyOrder) {
+        auto newKey =
+            LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions({TTL},
+                                                                        1)
+                .front();
+        auto liveKey = liveEntryMap.begin()->first;
+
+        auto testKeyOrder = [&](std::vector<LedgerKey> const& keyOrder,
+                                bool liveFirst) {
             auto reqBody = buildRequestBody(std::nullopt, keyOrder);
             std::string retStr;
             std::string empty;
@@ -499,18 +505,32 @@ TEST_CASE("getledgerentry", "[queryserver]")
             auto entries = root["entries"];
             REQUIRE(entries.size() == keyOrder.size());
 
-            for (auto i = 0; i < keyOrder.size(); ++i)
+            auto checkLive = [&](auto entry) {
+                REQUIRE(entry.isMember("state"));
+                REQUIRE(entry["state"].asString() == "live");
+                REQUIRE(entry.isMember("entry"));
+            };
+
+            auto checkNotFound = [&](auto entry) {
+                REQUIRE(entry.isMember("state"));
+                REQUIRE(entry["state"].asString() == "not-found");
+                REQUIRE(!entry.isMember("entry"));
+            };
+
+            if (liveFirst)
             {
-                LedgerKey responseKey;
-                fromOpaqueBase64(responseKey, entries[i]["e"].asString());
-                REQUIRE(responseKey == keyOrder[i]);
-                REQUIRE(entries[i]["s"].asString() == "new");
+                checkLive(entries[0]);
+                checkNotFound(entries[1]);
+            }
+            else
+            {
+                checkNotFound(entries[0]);
+                checkLive(entries[1]);
             }
         };
 
         // Test both orderings
-        testKeyOrder({randomKeys[0], randomKeys[1]});
-        testKeyOrder({randomKeys[1], randomKeys[0]});
+        testKeyOrder({liveKey, newKey}, true);
+        testKeyOrder({newKey, liveKey}, false);
     }
 }
-#endif
