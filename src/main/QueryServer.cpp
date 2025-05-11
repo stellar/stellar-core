@@ -154,8 +154,8 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
     std::map<std::string, std::vector<std::string>> paramMap;
     httpThreaded::server::server::parsePostParams(body, paramMap);
 
-    auto keys = paramMap["k"];
-    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledger");
+    auto keys = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
 
     if (!keys.empty())
     {
@@ -178,7 +178,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         // If a snapshot ledger is specified, use it to get the ledger entry
         if (snapshotLedger)
         {
-            root["ledger"] = *snapshotLedger;
+            root["ledgerSeq"] = *snapshotLedger;
 
             auto loadedKeysOp =
                 bl.loadKeysFromLedger(orderedKeys, *snapshotLedger);
@@ -186,7 +186,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
             // Return 404 if ledgerSeq not found
             if (!loadedKeysOp)
             {
-                retStr = "Ledger not found";
+                retStr = "Ledger not found\n";
                 return false;
             }
 
@@ -197,20 +197,20 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         {
             loadedKeys = bl.loadKeysWithLimits(orderedKeys, "query",
                                                /*lkMeter=*/nullptr);
-            root["ledger"] = bl.getLedgerSeq();
+            root["ledgerSeq"] = bl.getLedgerSeq();
         }
 
         for (auto const& le : loadedKeys)
         {
             Json::Value entry;
-            entry["le"] = toOpaqueBase64(le);
+            entry["entry"] = toOpaqueBase64(le);
             root["entries"].append(entry);
         }
     }
     else
     {
         throw std::invalid_argument(
-            "Must specify ledger key in POST body: k=<LedgerKey in base64 "
+            "Must specify ledger key in POST body: key=<LedgerKey in base64 "
             "XDR format>");
     }
     retStr = Json::FastWriter().write(root);
@@ -235,12 +235,12 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     std::map<std::string, std::vector<std::string>> paramMap;
     httpThreaded::server::server::parsePostParams(body, paramMap);
 
-    auto const keys = paramMap["k"];
-    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledger");
+    auto const keys = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
 
     if (keys.empty())
     {
-        retStr = "Must specify key in POST body: k=<LedgerKey in base64 "
+        retStr = "Must specify key in POST body: key=<LedgerKey in base64 "
                  "XDR format>\n";
         return false;
     }
@@ -281,7 +281,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     std::vector<HotArchiveBucketEntry> archivedEntries;
     uint32_t ledgerSeq =
         snapshotLedger ? *snapshotLedger : liveBl->getLedgerSeq();
-    root["ledger"] = ledgerSeq;
+    root["ledgerSeq"] = ledgerSeq;
 
     auto liveEntriesOp = liveBl->loadKeysFromLedger(keysToSearch, ledgerSeq);
 
@@ -355,7 +355,6 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     {
         LedgerKey lk = LedgerEntryKey(le);
         Json::Value entry;
-        entry["e"] = toOpaqueBase64(le);
 
         // Check TTL to set state for Soroban entries
         if (isSorobanEntry(le.data))
@@ -364,23 +363,26 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
             releaseAssertOrThrow(ttlIter != ttlMap.end());
             if (isLive(ttlIter->second, ledgerSeq))
             {
-                entry["s"] = "live";
-                entry["t"] = ttlIter->second.data.ttl().liveUntilLedgerSeq;
+                entry["entry"] = toOpaqueBase64(le);
+                entry["state"] = "live";
+                entry["liveUntilLedgerSeq"] =
+                    ttlIter->second.data.ttl().liveUntilLedgerSeq;
             }
             else if (isPersistentEntry(lk))
             {
-                entry["s"] = "archived";
+                entry["entry"] = toOpaqueBase64(le);
+                entry["state"] = "archived";
             }
-            // Archived temporary entries are considered "new"
+            // Archived temporary entries are considered "not-found"
             else
             {
-                entry["e"] = toOpaqueBase64(lk);
-                entry["s"] = "new";
+                entry["state"] = "not-found";
             }
         }
         else
         {
-            entry["s"] = "live";
+            entry["entry"] = toOpaqueBase64(le);
+            entry["state"] = "live";
         }
 
         responseEntries[lk] = entry;
@@ -396,19 +398,18 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
         keysToSearch.erase(lk);
 
         Json::Value entry;
-        entry["e"] = toOpaqueBase64(le);
-        entry["s"] = "archived";
+        entry["entry"] = toOpaqueBase64(le);
+        entry["state"] = "archived";
 
         responseEntries[lk] = entry;
     }
 
     // Since we removed entries found in the live BucketList and archived
-    // entries found in the Hot Archive, any remaining keys must be new.
+    // entries found in the Hot Archive, any remaining keys must be not-found.
     for (auto const& key : keysToSearch)
     {
         Json::Value entry;
-        entry["e"] = toOpaqueBase64(key);
-        entry["s"] = "new";
+        entry["state"] = "not-found";
 
         responseEntries[key] = entry;
     }
