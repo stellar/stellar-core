@@ -423,7 +423,7 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
                                   mApp.getConfig().NETWORK_PASSPHRASE);
     }
 
-    CLOG_DEBUG(History, "Queueing publish state for ledger {}", ledger);
+    CLOG_INFO(History, "Queueing publish state for ledger {}", ledger);
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
 
     // We queue history inside ledger commit, so do not finalize the file yet
@@ -458,7 +458,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     }
     auto allBucketsFromHAS = has.allBuckets();
     auto ledgerSeq = has.currentLedger;
-    CLOG_DEBUG(History, "Activating publish for ledger {}", ledgerSeq);
+    CLOG_INFO(History, "Activating publish for ledger {}", ledgerSeq);
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
 
     // Phase 1: resolve futures in snapshot
@@ -647,7 +647,7 @@ HistoryManagerImpl::historyPublished(
         if (iter != mEnqueueTimes.end())
         {
             auto now = std::chrono::steady_clock::now();
-            CLOG_DEBUG(
+            CLOG_INFO(
                 Perf, "Published history for ledger {} in {} seconds",
                 ledgerSeq,
                 std::chrono::duration<double>(now - iter->second).count());
