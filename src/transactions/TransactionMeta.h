@@ -33,13 +33,15 @@ class OperationMetaBuilder
   private:
     friend class TransactionMetaBuilder;
 
-    OperationMetaBuilder(bool metaEnabled, OperationMeta& meta,
-                         OperationFrame const& op, uint32_t protocolVersion,
-                         Hash const& networkID, Config const& config,
+    OperationMetaBuilder(Config const& cfg, bool metaEnabled,
+                         OperationMeta& meta, OperationFrame const& op,
+                         uint32_t protocolVersion, Hash const& networkID,
+                         Config const& config,
                          DiagnosticEventManager& diagnosticEventManager);
-    OperationMetaBuilder(bool metaEnabled, OperationMetaV2& meta,
-                         OperationFrame const& op, uint32_t protocolVersion,
-                         Hash const& networkID, Config const& config,
+    OperationMetaBuilder(Config const& cfg, bool metaEnabled,
+                         OperationMetaV2& meta, OperationFrame const& op,
+                         uint32_t protocolVersion, Hash const& networkID,
+                         Config const& config,
                          DiagnosticEventManager& diagnosticEventManager);
     bool maybeFinalizeOpEvents();
 
@@ -53,6 +55,7 @@ class OperationMetaBuilder
         mMeta;
     OpEventManager mEventManager;
     DiagnosticEventManager& mDiagnosticEventManager;
+    Config const& mConfig;
 };
 
 #ifdef BUILD_TESTS

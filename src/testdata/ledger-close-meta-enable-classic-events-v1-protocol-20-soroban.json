@@ -1419,6 +1419,33 @@
                                     },
                                     "changes": [
                                         {
+                                            "type": "LEDGER_ENTRY_RESTORED",
+                                            "restored": {
+                                                "lastModifiedLedgerSeq": 10,
+                                                "data": {
+                                                    "type": "CONTRACT_DATA",
+                                                    "contractData": {
+                                                        "ext": {
+                                                            "v": 0
+                                                        },
+                                                        "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
+                                                        "key": {
+                                                            "type": "SCV_SYMBOL",
+                                                            "sym": "archived"
+                                                        },
+                                                        "durability": "PERSISTENT",
+                                                        "val": {
+                                                            "type": "SCV_U64",
+                                                            "u64": 42
+                                                        }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
                                             "type": "LEDGER_ENTRY_STATE",
                                             "state": {
                                                 "lastModifiedLedgerSeq": 10,
@@ -1435,8 +1462,8 @@
                                             }
                                         },
                                         {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
+                                            "type": "LEDGER_ENTRY_RESTORED",
+                                            "restored": {
                                                 "lastModifiedLedgerSeq": 31,
                                                 "data": {
                                                     "type": "TTL",

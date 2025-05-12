@@ -37,15 +37,15 @@ vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
 // stellar-core as a whole, but this change type is reclassified to
 // LEDGER_ENTRY_RESTORED for easier consumption downstream.
 LedgerEntryChanges
-processOpLedgerEntryChanges(OperationFrame const& op, AbstractLedgerTxn& ltx,
-                            uint32_t protocolVersion)
+processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
+                            AbstractLedgerTxn& ltx, uint32_t protocolVersion)
 {
     auto changes = ltx.getChanges();
     bool needToProcess =
         op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT &&
-        protocolVersionStartsFrom(
-            protocolVersion,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+        (protocolVersionStartsFrom(protocolVersion,
+                                   RESTORE_META_PROTOCOL_VERSION) ||
+         cfg.BACKFILL_RESTORE_META);
     if (!needToProcess)
     {
         return changes;
@@ -151,8 +151,8 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx)
     }
     std::visit(
         [&opLtx, this](auto&& meta) {
-            meta.get().changes =
-                processOpLedgerEntryChanges(mOp, opLtx, mProtocolVersion);
+            meta.get().changes = processOpLedgerEntryChanges(
+                mConfig, mOp, opLtx, mProtocolVersion);
         },
         mMeta);
 }
@@ -181,9 +181,9 @@ OperationMetaBuilder::getDiagnosticEventManager()
 }
 
 OperationMetaBuilder::OperationMetaBuilder(
-    bool metaEnabled, OperationMeta& meta, OperationFrame const& op,
-    uint32_t protocolVersion, Hash const& networkID, Config const& config,
-    DiagnosticEventManager& diagnosticEventManager)
+    Config const& cfg, bool metaEnabled, OperationMeta& meta,
+    OperationFrame const& op, uint32_t protocolVersion, Hash const& networkID,
+    Config const& config, DiagnosticEventManager& diagnosticEventManager)
     : mEnabled(metaEnabled)
     , mProtocolVersion(protocolVersion)
     , mOp(op)
@@ -191,13 +191,14 @@ OperationMetaBuilder::OperationMetaBuilder(
     , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, networkID,
                     op.getTxMemo(), config)
     , mDiagnosticEventManager(diagnosticEventManager)
+    , mConfig(cfg)
 {
 }
 
 OperationMetaBuilder::OperationMetaBuilder(
-    bool metaEnabled, OperationMetaV2& meta, OperationFrame const& op,
-    uint32_t protocolVersion, Hash const& networkID, Config const& config,
-    DiagnosticEventManager& diagnosticEventManager)
+    Config const& cfg, bool metaEnabled, OperationMetaV2& meta,
+    OperationFrame const& op, uint32_t protocolVersion, Hash const& networkID,
+    Config const& config, DiagnosticEventManager& diagnosticEventManager)
     : mEnabled(metaEnabled)
     , mProtocolVersion(protocolVersion)
     , mOp(op)
@@ -205,6 +206,7 @@ OperationMetaBuilder::OperationMetaBuilder(
     , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, networkID,
                     op.getTxMemo(), config)
     , mDiagnosticEventManager(diagnosticEventManager)
+    , mConfig(cfg)
 {
 }
 
@@ -647,8 +649,9 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         for (size_t i = 0; i < numOperations; ++i)
         {
             mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
-                metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
-                app.getNetworkID(), app.getConfig(), mDiagnosticEventManager));
+                app.getConfig(), metaEnabled, opMeta[i], *operationFrames[i],
+                protocolVersion, app.getNetworkID(), app.getConfig(),
+                mDiagnosticEventManager));
         }
         break;
     }
@@ -659,8 +662,9 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         for (size_t i = 0; i < numOperations; ++i)
         {
             mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
-                metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
-                app.getNetworkID(), app.getConfig(), mDiagnosticEventManager));
+                app.getConfig(), metaEnabled, opMeta[i], *operationFrames[i],
+                protocolVersion, app.getNetworkID(), app.getConfig(),
+                mDiagnosticEventManager));
         }
         break;
     }
