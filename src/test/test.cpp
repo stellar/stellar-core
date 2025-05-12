@@ -320,6 +320,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.WORKER_THREADS = 3;
         thisConfig.QUORUM_INTERSECTION_CHECKER = false;
         thisConfig.METADATA_DEBUG_LEDGERS = 0;
+        thisConfig.BACKFILL_RESTORE_META = true;
 
         thisConfig.PEER_READING_CAPACITY = 20;
         thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
