@@ -1806,18 +1806,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 app.checkOnOperationApply(op->getOperation(), opResult, delta,
                                           opEventManager.getContractEvents());
 
-                LedgerEntryChanges changes;
-                if (protocolVersionStartsFrom(
-                        ledgerVersion,
-                        LiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                {
-                    changes = processOpLedgerEntryChanges(op, ltxOp);
-                }
-                else
-                {
-                    changes = ltxOp.getChanges();
-                }
+                auto changes = processOpLedgerEntryChanges(op, ltxOp);
                 xdr::xvector<ContractEvent> xdrContractEvents;
                 opEventManager.flushContractEvents(xdrContractEvents);
                 opMetas.push(std::move(changes), std::move(xdrContractEvents));
