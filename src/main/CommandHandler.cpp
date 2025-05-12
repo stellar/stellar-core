@@ -783,13 +783,12 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             // Ledger access settings
             res["ledger"]["max_read_ledger_entries"] =
                 conf.ledgerMaxDiskReadEntries();
-            res["ledger"]["max_disk_read_bytes"] =
-                conf.ledgerMaxDiskReadBytes();
+            res["ledger"]["max_read_bytes"] = conf.ledgerMaxDiskReadBytes();
             res["ledger"]["max_write_ledger_entries"] =
                 conf.ledgerMaxWriteLedgerEntries();
             res["ledger"]["max_write_bytes"] = conf.ledgerMaxWriteBytes();
             res["tx"]["max_read_ledger_entries"] = conf.txMaxDiskReadEntries();
-            res["tx"]["max_disk_read_bytes"] = conf.txMaxDiskReadBytes();
+            res["tx"]["max_read_bytes"] = conf.txMaxDiskReadBytes();
             res["tx"]["max_write_ledger_entries"] =
                 conf.txMaxWriteLedgerEntries();
             res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
