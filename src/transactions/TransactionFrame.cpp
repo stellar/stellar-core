@@ -424,6 +424,22 @@ TransactionFrame::sorobanResources() const
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
 
+bool
+TransactionFrame::hasArchivedEntryExt() const
+{
+    return mEnvelope.v1().tx.ext.sorobanData().ext.v() == 1;
+}
+
+std::vector<uint32_t> const&
+TransactionFrame::getArchivedEntryIndexes() const
+{
+    releaseAssertOrThrow(hasArchivedEntryExt());
+    return mEnvelope.v1()
+        .tx.ext.sorobanData()
+        .ext.resourceExt()
+        .archivedSorobanEntries;
+}
+
 MutableTxResultPtr
 TransactionFrame::createTxErrorResult(TransactionResultCode txErrorCode) const
 {
@@ -689,6 +705,56 @@ TransactionFrame::checkSorobanResources(
             {makeU64SCVal(txSize), makeU64SCVal(config.txMaxSizeBytes())});
         return false;
     }
+
+    if (hasArchivedEntryExt())
+    {
+        if (protocolVersionIsBefore(ledgerVersion,
+                                    AUTO_RESTORE_PROTOCOL_VERSION))
+        {
+            diagnosticEvents.pushError(
+                SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
+                "protocol version does not support SorobanResourcesExtV0");
+            return false;
+        }
+
+        std::optional<uint32_t> lastValue = std::nullopt;
+        for (auto const index : getArchivedEntryIndexes())
+        {
+            // Check that indexes are sorted
+            if (lastValue && index <= lastValue)
+            {
+                diagnosticEvents.pushError(
+                    SCE_STORAGE, SCEC_INVALID_INPUT,
+                    "archivedSorobanEntries must be sorted in ascending order");
+                return false;
+            }
+            lastValue = index;
+
+            // Check that index is in bounds
+            if (index >= resources.footprint.readWrite.size())
+            {
+                diagnosticEvents.pushError(
+                    SCE_STORAGE, SCEC_INVALID_INPUT,
+                    "archivedSorobanEntries index is out of bounds",
+                    {makeU64SCVal(index),
+                     makeU64SCVal(resources.footprint.readWrite.size())});
+                return false;
+            }
+
+            // Finally, check that the index points to a persistent entry
+            auto const& key = resources.footprint.readWrite.at(index);
+            if (!isPersistentEntry(key))
+            {
+                diagnosticEvents.pushError(
+                    SCE_STORAGE, SCEC_INVALID_INPUT,
+                    "archivedSorobanEntries index points to a non-persistent "
+                    "entry",
+                    {makeU64SCVal(index), makeU64SCVal(key.type())});
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 int64_t

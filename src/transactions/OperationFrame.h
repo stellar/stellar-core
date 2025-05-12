@@ -106,5 +106,7 @@ class OperationFrame
     SorobanResources const& getSorobanResources() const;
 
     Memo const& getTxMemo() const;
+    virtual bool hasArchivedEntryExt() const;
+    virtual std::vector<uint32_t> const& getArchivedEntryIndexes() const;
 };
 }

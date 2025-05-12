@@ -283,6 +283,8 @@ class TransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
+    bool hasArchivedEntryExt() const override;
+    std::vector<uint32_t> const& getArchivedEntryIndexes() const override;
 
     static FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanResources const& txResources,

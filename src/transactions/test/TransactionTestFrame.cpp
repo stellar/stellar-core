@@ -344,6 +344,18 @@ TransactionTestFrame::sorobanResources() const
     return mTransactionFrame->sorobanResources();
 }
 
+bool
+TransactionTestFrame::hasArchivedEntryExt() const
+{
+    return mTransactionFrame->hasArchivedEntryExt();
+}
+
+std::vector<uint32_t> const&
+TransactionTestFrame::getArchivedEntryIndexes() const
+{
+    return mTransactionFrame->getArchivedEntryIndexes();
+}
+
 int64
 TransactionTestFrame::declaredSorobanResourceFee() const
 {

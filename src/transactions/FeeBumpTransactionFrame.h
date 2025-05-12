@@ -139,6 +139,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
+    bool hasArchivedEntryExt() const override;
+    std::vector<uint32_t> const& getArchivedEntryIndexes() const override;
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
 };

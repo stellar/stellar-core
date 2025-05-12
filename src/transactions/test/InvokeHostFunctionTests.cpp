@@ -871,26 +871,35 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
     resources.diskReadBytes = 2000;
 
     // Tests for each Soroban op
-    auto testValidInvoke = [&](bool shouldBeValid) {
-        SorobanInvocationSpec spec(resources, DEFAULT_TEST_RESOURCE_FEE,
-                                   DEFAULT_TEST_RESOURCE_FEE, 100);
-        auto tx = addContract
-                      .prepareInvocation("add", {makeI32(7), makeI32(16)}, spec)
-                      .createTx();
-        MutableTxResultPtr result;
-        {
-            auto diagnostics = DiagnosticEventManager::createDisabled();
-            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0,
-                                    0, diagnostics);
-        }
-        REQUIRE(result->isSuccess() == shouldBeValid);
+    auto testValidInvoke =
+        [&](bool shouldBeValid,
+            std::optional<std::vector<uint32_t>> archivedIndexes =
+                std::nullopt) {
+            SorobanInvocationSpec spec(resources, DEFAULT_TEST_RESOURCE_FEE,
+                                       DEFAULT_TEST_RESOURCE_FEE, 100);
+            if (archivedIndexes)
+            {
+                spec = spec.setArchivedIndexes(*archivedIndexes);
+            }
 
-        if (!shouldBeValid)
-        {
-            REQUIRE(result->getResultCode() == txSOROBAN_INVALID);
-        }
-    };
+            auto tx =
+                addContract
+                    .prepareInvocation("add", {makeI32(7), makeI32(16)}, spec)
+                    .createTx();
+            MutableTxResultPtr result;
+            {
+                auto diagnostics = DiagnosticEventManager::createDisabled();
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0,
+                                        0, 0, diagnostics);
+            }
+            REQUIRE(result->isSuccess() == shouldBeValid);
+
+            if (!shouldBeValid)
+            {
+                REQUIRE(result->getResultCode() == txSOROBAN_INVALID);
+            }
+        };
 
     auto testValidExtendOp = [&](bool shouldBeValid) {
         auto tx = test.createExtendOpTx(resources, 10, 100,
@@ -959,6 +968,10 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
     auto tempKey = addContract.getDataKey(makeSymbolSCVal("key1"),
                                           ContractDataDurability::TEMPORARY);
     auto ttlKey = getTTLKey(persistentKey);
+    auto persistentKey2 = addContract.getDataKey(
+        makeSymbolSCVal("key2"), ContractDataDurability::PERSISTENT);
+    auto persistentKey3 = addContract.getDataKey(
+        makeSymbolSCVal("key3"), ContractDataDurability::PERSISTENT);
 
     // This function adds every invalid type to footprint and then runs f,
     // where f is either testValidInvoke, testValidExtendOp, or
@@ -1105,6 +1118,60 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         {
             invalidateFootprint(resources.footprint.readWrite,
                                 testValidRestoreOp);
+        }
+    }
+
+    SECTION("autorestore footprint")
+    {
+        SECTION("valid keys")
+        {
+            resources.footprint.readWrite.emplace_back(persistentKey);
+            resources.footprint.readWrite.emplace_back(persistentKey2);
+            resources.footprint.readWrite.emplace_back(persistentKey3);
+            testValidInvoke(true, std::vector<uint32_t>{0, 2});
+        }
+
+        SECTION("entry in readOnly footprint")
+        {
+            resources.footprint.readOnly.emplace_back(persistentKey);
+            testValidInvoke(false, {{0}});
+        }
+
+        SECTION("temporary key marked as archived")
+        {
+            resources.footprint.readWrite.emplace_back(tempKey);
+            testValidInvoke(false, {{0}});
+        }
+
+        SECTION("classic key marked as archived")
+        {
+            resources.footprint.readWrite.emplace_back(trustlineKey(
+                test.getRoot().getPublicKey(), makeAsset(acc, "USD")));
+            testValidInvoke(false, {{0}});
+        }
+
+        SECTION("duplicate entries")
+        {
+            resources.footprint.readWrite.emplace_back(persistentKey);
+            resources.footprint.readWrite.emplace_back(persistentKey2);
+            resources.footprint.readWrite.emplace_back(persistentKey3);
+            testValidInvoke(false, {{0, 1, 0}});
+        }
+
+        SECTION("unsorted archived indexes")
+        {
+            resources.footprint.readWrite.emplace_back(persistentKey);
+            resources.footprint.readWrite.emplace_back(persistentKey2);
+            resources.footprint.readWrite.emplace_back(persistentKey3);
+            testValidInvoke(false, {{0, 2, 1}});
+        }
+
+        SECTION("index out of bounds")
+        {
+            resources.footprint.readWrite.emplace_back(persistentKey);
+            resources.footprint.readWrite.emplace_back(persistentKey2);
+            resources.footprint.readWrite.emplace_back(persistentKey3);
+            testValidInvoke(false, {{0, 2, 3}});
         }
     }
 }
