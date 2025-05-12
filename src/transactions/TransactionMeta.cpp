@@ -44,7 +44,7 @@ processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
     bool needToProcess =
         op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT &&
         (protocolVersionStartsFrom(protocolVersion,
-                                   RESTORE_META_PROTOCOL_VERSION) ||
+                                   AUTO_RESTORE_PROTOCOL_VERSION) ||
          cfg.BACKFILL_RESTORE_META);
     if (!needToProcess)
     {

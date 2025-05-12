@@ -537,7 +537,8 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
 {
     return sorobanTransactionFrameFromOps(
         networkID, source, ops, opKeys, spec.getResources(),
-        spec.getInclusionFee(), spec.getResourceFee());
+        spec.getInclusionFee(), spec.getResourceFee(), memo, seq,
+        spec.getArchivedIndexes());
 }
 
 SorobanInvocationSpec::SorobanInvocationSpec(SorobanResources const& resources,
@@ -573,6 +574,12 @@ uint32_t
 SorobanInvocationSpec::getInclusionFee() const
 {
     return mInclusionFee;
+}
+
+std::optional<std::vector<uint32_t>>
+SorobanInvocationSpec::getArchivedIndexes() const
+{
+    return mArchivedIndexes;
 }
 
 SorobanInvocationSpec
@@ -658,6 +665,15 @@ SorobanInvocationSpec::setInclusionFee(uint32_t fee) const
 {
     auto newSpec = *this;
     newSpec.mInclusionFee = fee;
+    return newSpec;
+}
+
+SorobanInvocationSpec
+SorobanInvocationSpec::setArchivedIndexes(
+    std::vector<uint32_t> const& indexes) const
+{
+    auto newSpec = *this;
+    newSpec.mArchivedIndexes = indexes;
     return newSpec;
 }
 

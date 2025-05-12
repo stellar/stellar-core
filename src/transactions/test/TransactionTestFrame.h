@@ -135,6 +135,8 @@ class TransactionTestFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
+    bool hasArchivedEntryExt() const override;
+    std::vector<uint32_t> const& getArchivedEntryIndexes() const override;
     int64 declaredSorobanResourceFee() const override;
     bool XDRProvidesValidFee() const override;
 
