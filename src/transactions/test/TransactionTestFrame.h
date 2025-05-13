@@ -14,7 +14,10 @@ using TransactionTestFramePtr = std::shared_ptr<TransactionTestFrame>;
 // The normal TransactionFrame object is immutable, and the caller needs to
 // manage mutable result state via MutableTransactionResultBase. This class
 // wraps an immutable TransactionFrame object with its associated mutable
-// MutableTransactionResultBase for testing purposes.
+// MutableTransactionResultBase for the purpose of supporting the legacy
+// tests that don't use the result directly.
+// Prefer using the regular transaction frame and external result explicitly
+// in the new tests when possible.
 class TransactionTestFrame : public TransactionFrameBase
 {
   private:
@@ -26,13 +29,11 @@ class TransactionTestFrame : public TransactionFrameBase
   public:
     static TransactionTestFramePtr fromTxFrame(TransactionFrameBasePtr txFrame);
 
-    virtual ~TransactionTestFrame()
-    {
-    }
+    virtual ~TransactionTestFrame() = default;
 
     // Test only functions
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta,
+               TransactionMetaBuilder& meta,
                Hash const& sorobanBasePrngSeed = Hash{});
 
     bool checkValidForTesting(AppConnector& app, AbstractLedgerTxn& ltxOuter,
@@ -52,8 +53,8 @@ class TransactionTestFrame : public TransactionFrameBase
 
     // Redefinitions of TransactionFrameBase functions
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, MutableTxResultPtr txResult,
-               TxEventManager& txEventManager,
+               TransactionMetaBuilder& meta,
+               MutableTransactionResultBase& txResult,
                Hash const& sorobanBasePrngSeed = Hash{}) const override;
 
     MutableTxResultPtr checkValid(AppConnector& app,
@@ -61,21 +62,23 @@ class TransactionTestFrame : public TransactionFrameBase
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset) const;
-    MutableTxResultPtr checkValid(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventBuffer* diagnosticEvents = nullptr) const override;
-    bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult,
-        DiagnosticEventBuffer* diagnosticEvents) const override;
-
-    MutableTxResultPtr createSuccessResult() const override;
+    MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                                  SequenceNumber current,
+                                  uint64_t lowerBoundCloseTimeOffset,
+                                  uint64_t upperBoundCloseTimeOffset) const;
+    MutableTxResultPtr
+    checkValid(AppConnector& app, LedgerSnapshot const& ls,
+               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset,
+               DiagnosticEventManager& diagnosticEvents) const override;
+    bool checkSorobanResources(
+        SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
+        DiagnosticEventManager& diagnosticEvents) const override;
 
     MutableTxResultPtr
-    createSuccessResultWithFeeCharged(LedgerHeader const& header,
-                                      std::optional<int64_t> baseFee,
-                                      bool applying) const override;
+    createTxErrorResult(TransactionResultCode txErrorCode) const override;
+
+    MutableTxResultPtr createValidationSuccessResult() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getMutableEnvelope() const override;
@@ -96,11 +99,13 @@ class TransactionTestFrame : public TransactionFrameBase
     Hash const& getFullHash() const override;
 
     uint32_t getNumOperations() const override;
+    std::vector<std::shared_ptr<OperationFrame const>> const&
+    getOperationFrames() const override;
     Resource getResources(bool useByteLimitInClassic) const override;
 
     std::vector<Operation> const& getRawOperations() const override;
 
-    TransactionResult& getResult();
+    TransactionResult const& getResult() const;
     TransactionResultCode getResultCode() const;
 
     SequenceNumber getSeqNum() const override;
@@ -119,10 +124,10 @@ class TransactionTestFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
-    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta,
-                          MutableTxResultPtr txResult,
-                          TxEventManager& txEventManager) const override;
+    void
+    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult) const override;
 
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 
@@ -138,5 +143,9 @@ class TransactionTestFrame : public TransactionFrameBase
     {
         return true;
     }
+
+    void overrideResult(MutableTxResultPtr result);
+    void overrideResultXDR(TransactionResult const& resultXDR);
+    void overrideResultFeeCharged(int64_t feeCharged);
 };
 }

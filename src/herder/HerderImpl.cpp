@@ -643,7 +643,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
         // Received Soroban transaction before protocol 20; since this
         // transaction isn't supported yet, return ERROR
         result = TransactionQueue::AddResult(
-            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
             txNOT_SUPPORTED);
     }
 

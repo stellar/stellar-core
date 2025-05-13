@@ -960,7 +960,7 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
             auto source =
                 root->create("source" + std::to_string(accountId++),
                              app->getLedgerManager().getLastMinBalance(2));
-            TransactionFrameBaseConstPtr tx = nullptr;
+            TransactionTestFramePtr tx = nullptr;
             if (isSoroban)
             {
                 SorobanResources resources;

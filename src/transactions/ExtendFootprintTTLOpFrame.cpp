@@ -50,13 +50,13 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                   Hash const& sorobanBasePrngSeed,
-                                   OperationResult& res,
-                                   std::shared_ptr<SorobanTxData> sorobanData,
-                                   OpEventManager& opEventManager) const
+ExtendFootprintTTLOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
-    releaseAssertOrThrow(sorobanData);
+    releaseAssertOrThrow(refundableFeeTracker);
     ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
 
     ExtendFootprintTTLMetrics metrics(app.getSorobanMetrics());
@@ -74,7 +74,7 @@ ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     // ledger. Current ledger has to be payed for in order for entry
     // to be extendable, hence don't include it.
     uint32_t newLiveUntilLedgerSeq = ledgerSeq + mExtendFootprintTTLOp.extendTo;
-    auto& diagnosticEvents = opEventManager.getDiagnosticEventsBuffer();
+    auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
     for (auto const& lk : footprint.readOnly)
     {
         auto ttlKey = getTTLKey(lk);
@@ -120,7 +120,7 @@ ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
         if (resources.diskReadBytes < metrics.mLedgerReadByte)
         {
-            diagnosticEvents.pushApplyTimeDiagnosticError(
+            diagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -165,7 +165,7 @@ ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
         rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    if (!sorobanData->consumeRefundableSorobanResources(
+    if (!refundableFeeTracker->consumeRefundableSorobanResources(
             0, rentFee, ledgerVersion, sorobanConfig, app.getConfig(),
             mParentTx, diagnosticEvents))
     {
@@ -180,14 +180,14 @@ bool
 ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    DiagnosticEventBuffer* diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents) const
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())
     {
         innerResult(res).code(EXTEND_FOOTPRINT_TTL_MALFORMED);
-        pushValidationTimeDiagnosticError(
-            diagnosticEvents, SCE_STORAGE, SCEC_INVALID_INPUT,
+        diagnosticEvents.pushError(
+            SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-write footprint must be empty for ExtendFootprintTTL "
             "operation",
             {});
@@ -199,8 +199,8 @@ ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
         if (!isSorobanEntry(lk))
         {
             innerResult(res).code(EXTEND_FOOTPRINT_TTL_MALFORMED);
-            pushValidationTimeDiagnosticError(
-                diagnosticEvents, SCE_STORAGE, SCEC_INVALID_INPUT,
+            diagnosticEvents.pushError(
+                SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only entries with TTL (contract data or code entries) can "
                 "have it extended",
                 {});
@@ -212,8 +212,8 @@ ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
         networkConfig.stateArchivalSettings().maxEntryTTL - 1)
     {
         innerResult(res).code(EXTEND_FOOTPRINT_TTL_MALFORMED);
-        pushValidationTimeDiagnosticError(
-            diagnosticEvents, SCE_STORAGE, SCEC_INVALID_INPUT,
+        diagnosticEvents.pushError(
+            SCE_STORAGE, SCEC_INVALID_INPUT,
             "TTL extension is too large: {} > {}",
             {
                 makeU64SCVal(mExtendFootprintTTLOp.extendTo),

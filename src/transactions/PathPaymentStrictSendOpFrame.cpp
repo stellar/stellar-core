@@ -33,8 +33,9 @@ PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 bool
 PathPaymentStrictSendOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData,
-    OpEventManager& opEventManager) const
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -128,11 +129,12 @@ PathPaymentStrictSendOpFrame::doApply(
 
     auto const& success = innerResult(res).success();
 
-    opEventManager.eventsForClaimAtoms(getSourceAccount(), success.offers);
+    opMeta.getEventManager().eventsForClaimAtoms(getSourceAccount(),
+                                                 success.offers);
 
     // Emit the final event between the source and destination account wrt the
     // dest asset.
-    opEventManager.eventForTransferWithIssuerCheck(
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
         getDestAsset(), makeMuxedAccountAddress(getSourceAccount()),
         makeMuxedAccountAddress(getDestMuxedAccount()), maxAmountSend, true);
 

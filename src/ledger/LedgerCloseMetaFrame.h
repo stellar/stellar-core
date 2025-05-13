@@ -22,7 +22,7 @@ class LedgerCloseMetaFrame
     void pushTxProcessingEntry();
     void
     setLastTxProcessingFeeProcessingChanges(LedgerEntryChanges const& changes);
-    void setTxProcessingMetaAndResultPair(TransactionMeta const& tm,
+    void setTxProcessingMetaAndResultPair(TransactionMeta&& tm,
                                           TransactionResultPair&& rp,
                                           int index);
 

@@ -238,79 +238,72 @@ InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 void
 InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
     Config const& cfg, InvokeHostFunctionOutput const& output,
-    HostFunctionMetrics const& metrics, DiagnosticEventBuffer& buffer) const
+    HostFunctionMetrics const& metrics, DiagnosticEventManager& buffer) const
 {
     if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
     {
-        xdr::xvector<DiagnosticEvent> diagnosticEvents;
-        diagnosticEvents.reserve(output.diagnostic_events.size() + 20);
         for (auto const& e : output.diagnostic_events)
         {
             DiagnosticEvent evt;
             xdr::xdr_from_opaque(e.data, evt);
-            diagnosticEvents.emplace_back(evt);
+            buffer.pushEvent(std::move(evt));
             CLOG_DEBUG(Tx, "Soroban diagnostic event: {}",
                        xdr::xdr_to_string(evt));
         }
 
         // add additional diagnostic events for metrics
-        diagnosticEvents.emplace_back(
+        buffer.pushEvent(
             metricsEvent(metrics.mSuccess, "read_entry", metrics.mReadEntry));
-        diagnosticEvents.emplace_back(
+        buffer.pushEvent(
             metricsEvent(metrics.mSuccess, "write_entry", metrics.mWriteEntry));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "ledger_read_byte", metrics.mLedgerReadByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "ledger_write_byte", metrics.mLedgerWriteByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "read_key_byte", metrics.mReadKeyByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "write_key_byte", metrics.mWriteKeyByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "read_data_byte", metrics.mReadDataByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "write_data_byte", metrics.mWriteDataByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "read_code_byte", metrics.mReadCodeByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "write_code_byte", metrics.mWriteCodeByte));
-        diagnosticEvents.emplace_back(
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "ledger_read_byte",
+                                      metrics.mLedgerReadByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "ledger_write_byte",
+                                      metrics.mLedgerWriteByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "read_key_byte",
+                                      metrics.mReadKeyByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "write_key_byte",
+                                      metrics.mWriteKeyByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "read_data_byte",
+                                      metrics.mReadDataByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "write_data_byte",
+                                      metrics.mWriteDataByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "read_code_byte",
+                                      metrics.mReadCodeByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "write_code_byte",
+                                      metrics.mWriteCodeByte));
+        buffer.pushEvent(
             metricsEvent(metrics.mSuccess, "emit_event", metrics.mEmitEvent));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "emit_event_byte", metrics.mEmitEventByte));
-        diagnosticEvents.emplace_back(
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "emit_event_byte",
+                                      metrics.mEmitEventByte));
+        buffer.pushEvent(
             metricsEvent(metrics.mSuccess, "cpu_insn", metrics.mCpuInsn));
-        diagnosticEvents.emplace_back(
+        buffer.pushEvent(
             metricsEvent(metrics.mSuccess, "mem_byte", metrics.mMemByte));
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "invoke_time_nsecs", metrics.mInvokeTimeNsecs));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "invoke_time_nsecs",
+                                      metrics.mInvokeTimeNsecs));
         // skip publishing `cpu_insn_excl_vm` and `invoke_time_nsecs_excl_vm`,
         // we are mostly interested in those internally
-        diagnosticEvents.emplace_back(metricsEvent(
-            metrics.mSuccess, "max_rw_key_byte", metrics.mMaxReadWriteKeyByte));
-        diagnosticEvents.emplace_back(
-            metricsEvent(metrics.mSuccess, "max_rw_data_byte",
-                         metrics.mMaxReadWriteDataByte));
-        diagnosticEvents.emplace_back(
-            metricsEvent(metrics.mSuccess, "max_rw_code_byte",
-                         metrics.mMaxReadWriteCodeByte));
-        diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
-                                                   "max_emit_event_byte",
-                                                   metrics.mMaxEmitEventByte));
-
-        buffer.pushDiagnosticEvents(diagnosticEvents);
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_rw_key_byte",
+                                      metrics.mMaxReadWriteKeyByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_rw_data_byte",
+                                      metrics.mMaxReadWriteDataByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_rw_code_byte",
+                                      metrics.mMaxReadWriteCodeByte));
+        buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_emit_event_byte",
+                                      metrics.mMaxEmitEventByte));
     }
 }
 
 bool
-InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                   Hash const& sorobanBasePrngSeed,
-                                   OperationResult& res,
-                                   std::shared_ptr<SorobanTxData> sorobanData,
-                                   OpEventManager& opEventManager) const
+InvokeHostFunctionOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
-    releaseAssertOrThrow(sorobanData);
     ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
+    releaseAssertOrThrow(refundableFeeTracker);
 
     Config const& appConfig = app.getConfig();
     HostFunctionMetrics metrics(app.getSorobanMetrics());
@@ -332,7 +325,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     ledgerEntryCxxBufs.reserve(footprintLength);
     ttlEntryCxxBufs.reserve(footprintLength);
 
-    auto& diagnosticEvents = opEventManager.getDiagnosticEventsBuffer();
+    auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
                      &resources, &sorobanConfig, &appConfig, &diagnosticEvents,
                      &res, &hotArchive, this](auto const& keys) -> bool {
@@ -358,7 +351,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                         {
                             if (lk.type() == CONTRACT_CODE)
                             {
-                                diagnosticEvents.pushApplyTimeDiagnosticError(
+                                diagnosticEvents.pushError(
                                     SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "code "
@@ -367,7 +360,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                             }
                             else if (lk.type() == CONTRACT_DATA)
                             {
-                                diagnosticEvents.pushApplyTimeDiagnosticError(
+                                diagnosticEvents.pushError(
                                     SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "data "
@@ -402,7 +395,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                     {
                         if (lk.type() == CONTRACT_CODE)
                         {
-                            diagnosticEvents.pushApplyTimeDiagnosticError(
+                            diagnosticEvents.pushError(
                                 SCE_VALUE, SCEC_INVALID_INPUT,
                                 "trying to access an archived contract code "
                                 "entry",
@@ -410,7 +403,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                         }
                         else if (lk.type() == CONTRACT_DATA)
                         {
-                            diagnosticEvents.pushApplyTimeDiagnosticError(
+                            diagnosticEvents.pushError(
                                 SCE_VALUE, SCEC_INVALID_INPUT,
                                 "trying to access an archived contract data "
                                 "entry",
@@ -463,7 +456,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
             if (resources.diskReadBytes < metrics.mLedgerReadByte)
             {
-                diagnosticEvents.pushApplyTimeDiagnosticError(
+                diagnosticEvents.pushError(
                     SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerReadByte),
@@ -542,7 +535,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         }
         if (resources.instructions < out.cpu_insns)
         {
-            diagnosticEvents.pushApplyTimeDiagnosticError(
+            diagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
@@ -551,7 +544,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         }
         else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
-            diagnosticEvents.pushApplyTimeDiagnosticError(
+            diagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
                 {makeU64SCVal(out.mem_bytes),
@@ -593,7 +586,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             metrics.noteWriteEntry(isContractCodeEntry(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
-                diagnosticEvents.pushApplyTimeDiagnosticError(
+                diagnosticEvents.pushError(
                     SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -668,7 +661,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         if (sorobanConfig.txMaxContractEventsSizeBytes() <
             metrics.mEmitEventByte)
         {
-            diagnosticEvents.pushApplyTimeDiagnosticError(
+            diagnosticEvents.pushError(
                 SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "total events size exceeds network config maximum",
                 {makeU64SCVal(metrics.mEmitEventByte),
@@ -686,7 +679,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
-        diagnosticEvents.pushApplyTimeDiagnosticError(
+        diagnosticEvents.pushError(
             SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
             {makeU64SCVal(metrics.mEmitEventByte),
@@ -695,7 +688,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-    if (!sorobanData->consumeRefundableSorobanResources(
+    if (!refundableFeeTracker->consumeRefundableSorobanResources(
             metrics.mEmitEventByte, out.rent_fee,
             ltx.loadHeader().current().ledgerVersion, sorobanConfig, appConfig,
             mParentTx, diagnosticEvents))
@@ -708,8 +701,8 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     innerResult(res).code(INVOKE_HOST_FUNCTION_SUCCESS);
     innerResult(res).success() = xdrSha256(success);
 
-    opEventManager.pushContractEvents(success.events);
-    sorobanData->setReturnValue(success.returnValue);
+    opMeta.getEventManager().setEvents(std::move(success.events));
+    opMeta.setSorobanReturnValue(success.returnValue);
     metrics.mSuccess = true;
     return true;
 }
@@ -718,15 +711,15 @@ bool
 InvokeHostFunctionOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    DiagnosticEventBuffer* diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents) const
 {
     // check wasm size if uploading contract
     auto const& hostFn = mInvokeHostFunction.hostFunction;
     if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
         hostFn.wasm().size() > networkConfig.maxContractSizeBytes())
     {
-        pushValidationTimeDiagnosticError(
-            diagnosticEvents, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+        diagnosticEvents.pushError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "uploaded Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(hostFn.wasm().size()),
              makeU64SCVal(networkConfig.maxContractSizeBytes())});
@@ -738,9 +731,8 @@ InvokeHostFunctionOpFrame::doCheckValidForSoroban(
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
-            pushValidationTimeDiagnosticError(
-                diagnosticEvents, SCE_VALUE, SCEC_INVALID_INPUT,
-                "invalid asset to create contract from");
+            diagnosticEvents.pushError(SCE_VALUE, SCEC_INVALID_INPUT,
+                                       "invalid asset to create contract from");
             return false;
         }
     }

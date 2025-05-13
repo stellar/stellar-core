@@ -1556,11 +1556,10 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
 
-        auto resultStr =
-            addResult.txResult
-                ? xdrToCerealString(addResult.txResult->getResult(),
-                                    "TransactionResult")
-                : "";
+        auto resultStr = addResult.txResult
+                             ? xdrToCerealString(addResult.txResult->getXDR(),
+                                                 "TransactionResult")
+                             : "";
         CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
                   TX_STATUS_STRING[static_cast<int>(addResult.code)],
                   txf->isSoroban() ? "soroban"

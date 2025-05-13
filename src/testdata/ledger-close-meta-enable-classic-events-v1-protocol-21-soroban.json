@@ -1640,10 +1640,7 @@
                                 "ext": {
                                     "v": 0
                                 },
-                                "returnValue": {
-                                    "type": "SCV_BOOL",
-                                    "b": "FALSE"
-                                }
+                                "returnValue": null
                             },
                             "events": [
                                 {
@@ -2361,10 +2358,7 @@
                                 "ext": {
                                     "v": 0
                                 },
-                                "returnValue": {
-                                    "type": "SCV_BOOL",
-                                    "b": "FALSE"
-                                }
+                                "returnValue": null
                             },
                             "events": [
                                 {

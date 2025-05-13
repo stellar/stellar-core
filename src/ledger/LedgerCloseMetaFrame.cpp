@@ -5,7 +5,7 @@
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerTypeUtils.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
@@ -91,21 +91,21 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
 
 void
 LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
-    TransactionMeta const& tm, TransactionResultPair&& rp, int index)
+    TransactionMeta&& tm, TransactionResultPair&& rp, int index)
 {
     switch (mVersion)
     {
     case 0:
     {
         auto& txp = mLedgerCloseMeta.v0().txProcessing.at(index);
-        txp.txApplyProcessing = tm;
+        txp.txApplyProcessing = std::move(tm);
         txp.result = std::move(rp);
     }
     break;
     case 1:
     {
         auto& txp = mLedgerCloseMeta.v1().txProcessing.at(index);
-        txp.txApplyProcessing = tm;
+        txp.txApplyProcessing = std::move(tm);
         txp.result = std::move(rp);
     }
     break;

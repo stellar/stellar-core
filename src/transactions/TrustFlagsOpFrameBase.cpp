@@ -52,11 +52,11 @@ TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
 }
 
 bool
-TrustFlagsOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                               Hash const& sorobanBasePrngSeed,
-                               OperationResult& res,
-                               std::shared_ptr<SorobanTxData> sorobanData,
-                               OpEventManager& opEventManager) const
+TrustFlagsOpFrameBase::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "TrustFlagsOpFrameBase apply", true);
 
@@ -122,6 +122,7 @@ TrustFlagsOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             !isAuthorizedToMaintainLiabilitiesUnsafe(expectedFlagValue);
     }
 
+    auto& opEventManager = opMeta.getEventManager();
     // Remove offers, the ledgerVersion check is only relevant for AllowTrust
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10) &&
         shouldRemoveOffers)
