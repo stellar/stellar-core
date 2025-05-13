@@ -463,9 +463,10 @@ InvokeHostFunctionOpFrame::ApplyHelper::apply()
             mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
             mResources.instructions,
             toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
-            toCxxBuf(mResources), toCxxBuf(mOpFrame.getSourceID()),
-            authEntryCxxBufs, getLedgerInfo(mLtx, mApp, mSorobanConfig),
-            mLedgerEntryCxxBufs, mTtlEntryCxxBufs, basePrngSeedBuf,
+            toCxxBuf(mResources), toCxxBuf(mOpFrame.getResourcesExt()),
+            toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
+            getLedgerInfo(mLtx, mApp, mSorobanConfig), mLedgerEntryCxxBufs,
+            mTtlEntryCxxBufs, basePrngSeedBuf,
             mSorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
         mMetrics.mCpuInsn = out.cpu_insns;
         mMetrics.mMemByte = out.mem_bytes;

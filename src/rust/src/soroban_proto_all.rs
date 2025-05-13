@@ -80,6 +80,7 @@ pub(crate) mod p23 {
         enable_diagnostics: bool,
         encoded_host_fn: T,
         encoded_resources: T,
+        encoded_resources_ext: T,
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
@@ -90,11 +91,12 @@ pub(crate) mod p23 {
         trace_hook: Option<TraceHook>,
         module_cache: &SorobanModuleCache,
     ) -> Result<InvokeHostFunctionResult, HostError> {
-        e2e_invoke::invoke_host_function_with_trace_hook_and_module_cache(
-            &budget,
+        e2e_invoke::invoke_host_function(
+            budget,
             enable_diagnostics,
             encoded_host_fn,
             encoded_resources,
+            encoded_resources_ext,
             encoded_source_account,
             encoded_auth_entries,
             ledger_info,
@@ -258,6 +260,7 @@ pub(crate) mod p22 {
         enable_diagnostics: bool,
         encoded_host_fn: T,
         encoded_resources: T,
+        _encoded_resources_ext: T, // Ignored before p23
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
@@ -433,6 +436,7 @@ pub(crate) mod p21 {
         enable_diagnostics: bool,
         encoded_host_fn: T,
         encoded_resources: T,
+        _encoded_resources_ext: T, // Ignored before p23
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
@@ -580,6 +584,7 @@ pub(crate) struct HostModule {
             instruction_limit: u32,
             hf_buf: &CxxBuf,
             resources_buf: &CxxBuf,
+            resources_ext_buf: &CxxBuf,
             source_account_buf: &CxxBuf,
             auth_entries: &Vec<CxxBuf>,
             ledger_info: &CxxLedgerInfo,

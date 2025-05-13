@@ -359,15 +359,9 @@ OperationFrame::getTxMemo() const
     return mParentTx.getMemo();
 }
 
-bool
-OperationFrame::hasArchivedEntryExt() const
+SorobanTransactionData::_ext_t const&
+OperationFrame::getResourcesExt() const
 {
-    return mParentTx.hasArchivedEntryExt();
-}
-
-std::vector<uint32_t> const&
-OperationFrame::getArchivedEntryIndexes() const
-{
-    return mParentTx.getArchivedEntryIndexes();
+    return mParentTx.getResourcesExt();
 }
 }
