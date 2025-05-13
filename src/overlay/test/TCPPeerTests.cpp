@@ -330,8 +330,6 @@ TEST_CASE("Queue purging after asio writes completion",
     auto tcpPeer = std::static_pointer_cast<TCPPeer>(p1);
     tcpPeer->mStopReadingForTesting = true;
 
-    auto initialQueueSize =
-        p0->getFlowControl()->getQueuesForTesting()[1].size();
     auto initialQueueDrops =
         n0->getMetrics()
             .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
@@ -347,10 +345,6 @@ TEST_CASE("Queue purging after asio writes completion",
     auto finalQueueDrops =
         n0->getMetrics()
             .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
-            .count();
-    auto initialMsgCount =
-        n1->getMetrics()
-            .NewCounter({"overlay", "recv-transaction", "count"})
             .count();
 
     REQUIRE(finalQueueDrops > initialQueueDrops);

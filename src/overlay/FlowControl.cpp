@@ -460,16 +460,12 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     auto& om = mOverlayMetrics;
     if (type == TRANSACTION)
     {
-        auto isOverLimit = [&](auto const& queue) {
-            bool overLimit =
-                queue.size() > limit ||
-                mTxQueueByteCount > getOutboundQueueByteLimit(guard);
-            return overLimit;
-        };
+        bool isOverLimit = queue.size() > limit ||
+                           mTxQueueByteCount > getOutboundQueueByteLimit(guard);
 
         // If we are at limit, we're probably really behind, so drop the entire
         // queue
-        if (isOverLimit(queue))
+        if (isOverLimit)
         {
             dropped = queue.size();
             mTxQueueByteCount = 0;

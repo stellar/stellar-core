@@ -146,6 +146,7 @@ class FlowControl
 
     void
     addToQueueAndMaybeTrimForTesting(std::shared_ptr<StellarMessage const> msg)
+        LOCKS_EXCLUDED(mFlowControlMutex)
     {
         addMsgAndMaybeTrimQueue(msg);
     }
@@ -157,18 +158,20 @@ class FlowControl
     }
 
     size_t
-    getTxQueueByteCountForTesting() const
+    getTxQueueByteCountForTesting() const LOCKS_EXCLUDED(mFlowControlMutex)
     {
+        MutexLocker lockGuard(mFlowControlMutex);
         return mTxQueueByteCount;
     }
     std::optional<size_t> mOutboundQueueLimit GUARDED_BY(mFlowControlMutex);
     void
-    setOutboundQueueLimit(size_t bytes)
+    setOutboundQueueLimit(size_t bytes) LOCKS_EXCLUDED(mFlowControlMutex)
     {
+        MutexLocker lockGuard(mFlowControlMutex);
         mOutboundQueueLimit = std::make_optional<size_t>(bytes);
     }
     size_t
-    getOutboundQueueByteLimit() const
+    getOutboundQueueByteLimit() const LOCKS_EXCLUDED(mFlowControlMutex)
     {
         MutexLocker lockGuard(mFlowControlMutex);
         return getOutboundQueueByteLimit(lockGuard);
