@@ -56,16 +56,10 @@ FeeBumpTransactionFrame::sorobanResources() const
     return mInnerTx->sorobanResources();
 }
 
-bool
-FeeBumpTransactionFrame::hasArchivedEntryExt() const
+SorobanTransactionData::_ext_t const&
+FeeBumpTransactionFrame::getResourcesExt() const
 {
-    return mInnerTx->hasArchivedEntryExt();
-}
-
-std::vector<uint32_t> const&
-FeeBumpTransactionFrame::getArchivedEntryIndexes() const
-{
-    return mInnerTx->getArchivedEntryIndexes();
+    return mInnerTx->getResourcesExt();
 }
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(

@@ -424,20 +424,11 @@ TransactionFrame::sorobanResources() const
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
 
-bool
-TransactionFrame::hasArchivedEntryExt() const
+SorobanTransactionData::_ext_t const&
+TransactionFrame::getResourcesExt() const
 {
-    return mEnvelope.v1().tx.ext.sorobanData().ext.v() == 1;
-}
-
-std::vector<uint32_t> const&
-TransactionFrame::getArchivedEntryIndexes() const
-{
-    releaseAssertOrThrow(hasArchivedEntryExt());
-    return mEnvelope.v1()
-        .tx.ext.sorobanData()
-        .ext.resourceExt()
-        .archivedSorobanEntries;
+    releaseAssertOrThrow(isSoroban());
+    return mEnvelope.v1().tx.ext.sorobanData().ext;
 }
 
 MutableTxResultPtr
@@ -706,7 +697,9 @@ TransactionFrame::checkSorobanResources(
         return false;
     }
 
-    if (hasArchivedEntryExt())
+    // Check that archived indexes are valid if they are present in the TX
+    auto const& resourcesExt = getResourcesExt();
+    if (resourcesExt.v() == 1)
     {
         if (protocolVersionIsBefore(ledgerVersion,
                                     AUTO_RESTORE_PROTOCOL_VERSION))
@@ -718,7 +711,9 @@ TransactionFrame::checkSorobanResources(
         }
 
         std::optional<uint32_t> lastValue = std::nullopt;
-        for (auto const index : getArchivedEntryIndexes())
+        auto const& archivedEntryIndexes =
+            resourcesExt.resourceExt().archivedSorobanEntries;
+        for (auto const index : archivedEntryIndexes)
         {
             // Check that indexes are sorted
             if (lastValue && index <= lastValue)

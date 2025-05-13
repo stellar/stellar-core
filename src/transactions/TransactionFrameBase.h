@@ -118,8 +118,7 @@ class TransactionFrameBase
 
     virtual bool isSoroban() const = 0;
     virtual SorobanResources const& sorobanResources() const = 0;
-    virtual bool hasArchivedEntryExt() const = 0;
-    virtual std::vector<uint32_t> const& getArchivedEntryIndexes() const = 0;
+    virtual SorobanTransactionData::_ext_t const& getResourcesExt() const = 0;
     virtual int64 declaredSorobanResourceFee() const = 0;
     virtual bool XDRProvidesValidFee() const = 0;
 };

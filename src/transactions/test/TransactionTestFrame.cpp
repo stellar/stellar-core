@@ -335,16 +335,10 @@ TransactionTestFrame::sorobanResources() const
     return mTransactionFrame->sorobanResources();
 }
 
-bool
-TransactionTestFrame::hasArchivedEntryExt() const
+SorobanTransactionData::_ext_t const&
+TransactionTestFrame::getResourcesExt() const
 {
-    return mTransactionFrame->hasArchivedEntryExt();
-}
-
-std::vector<uint32_t> const&
-TransactionTestFrame::getArchivedEntryIndexes() const
-{
-    return mTransactionFrame->getArchivedEntryIndexes();
+    return mTransactionFrame->getResourcesExt();
 }
 
 int64
