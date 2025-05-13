@@ -281,52 +281,31 @@ InvokeHostFunctionOpFrame::ApplyHelper::meterDiskReadResource(
 }
 
 bool
-InvokeHostFunctionOpFrame::ApplyHelper::checkIfEntryIsMarkedForAutorestore(
-    LedgerKey const& lk)
+InvokeHostFunctionOpFrame::ApplyHelper::
+    checkIfReadWriteEntryIsMarkedForAutorestore(LedgerKey const& lk,
+                                                uint32_t index)
 {
-    auto const& resourceExt = mOpFrame.getResourcesExt();
-
-    // No keys marked for autorestore
-    if (resourceExt.v() != 1)
+    // If the autorestore vector is empty, there are no entries to restore
+    if (mAutorestoredEntries.empty())
     {
         return false;
     }
 
-    // No more keys left in autorestore vector
-    if (mNextArchivedIndexPos >=
-        resourceExt.resourceExt().archivedSorobanEntries.size())
-    {
-        return false;
-    }
-
-    // Lookup index of the next entry marked for autorestore
-    auto const& indexOfAutorestoredEntry =
-        resourceExt.resourceExt().archivedSorobanEntries.at(
-            mNextArchivedIndexPos);
-    ++mNextArchivedIndexPos;
-
-    // Lookup entry itself in footprint based on index
-    auto const& entryMarkedForAutorestore =
-        mResources.footprint.readWrite.at(indexOfAutorestoredEntry);
-
-    // Indexes are sorted in ascending order. Since we're iterating through the
-    // footprint in the same order, this key must be marked by the next
-    // autorestore index.
-    return entryMarkedForAutorestore == lk;
+    return mAutorestoredEntries.at(index);
 }
 
 bool
 InvokeHostFunctionOpFrame::ApplyHelper::handleArchivedEntry(
     LedgerKey const& lk, LedgerEntry const& le, bool isReadOnly,
-    uint32_t restoredLiveUntilLedger, bool isHotArchiveEntry)
+    uint32_t restoredLiveUntilLedger, bool isHotArchiveEntry, uint32_t index)
 {
     // autorestore support started in p23. Entry must be in the read write
     // footprint and must be marked as in the archivedSorobanEntries vector.
     if (!isReadOnly &&
         protocolVersionStartsFrom(
-            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+            mLtx.getHeader().ledgerVersion,
             HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION) &&
-        checkIfEntryIsMarkedForAutorestore(lk))
+        checkIfReadWriteEntryIsMarkedForAutorestore(lk, index))
     {
         // In the auto restore case, we need to restore the entry and meter disk
         // reads. The host will take care of rent fees, and write fees will be
@@ -420,6 +399,28 @@ InvokeHostFunctionOpFrame::ApplyHelper::ApplyHelper(
     // Get the entries for the footprint
     mLedgerEntryCxxBufs.reserve(footprintLength);
     mTtlEntryCxxBufs.reserve(footprintLength);
+
+    // Initialize the autorestore lookup vector
+    auto const& resourceExt = mOpFrame.getResourcesExt();
+    auto const& rwFootprint = mResources.footprint.readWrite;
+
+    // No keys marked for autorestore
+    if (resourceExt.v() != 1)
+    {
+        return;
+    }
+
+    auto const& archivedEntries =
+        resourceExt.resourceExt().archivedSorobanEntries;
+    if (!archivedEntries.empty())
+    {
+        // Initialize vector with false values for all keys
+        mAutorestoredEntries.resize(rwFootprint.size(), false);
+        for (auto index : archivedEntries)
+        {
+            mAutorestoredEntries.at(index) = true;
+        }
+    }
 }
 
 bool
@@ -431,8 +432,9 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
     auto restoredLiveUntilLedger =
         ledgerSeq + mSorobanConfig.stateArchivalSettings().minPersistentTTL - 1;
 
-    for (auto const& lk : keys)
+    for (size_t i = 0; i < keys.size(); ++i)
     {
+        auto const& lk = keys[i];
         uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
         uint32_t entrySize = 0u;
         std::optional<TTLEntry> ttlEntry;
@@ -464,10 +466,10 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
                     if (!isTemporaryEntry(lk))
                     {
                         auto leLtxe = mLtx.loadWithoutRecord(lk);
-                        if (!handleArchivedEntry(lk, leLtxe.current(),
-                                                 isReadOnly,
-                                                 restoredLiveUntilLedger,
-                                                 /*isHotArchiveEntry=*/false))
+                        if (!handleArchivedEntry(
+                                lk, leLtxe.current(), isReadOnly,
+                                restoredLiveUntilLedger,
+                                /*isHotArchiveEntry=*/false, i))
                         {
                             return false;
                         }
@@ -493,13 +495,13 @@ InvokeHostFunctionOpFrame::ApplyHelper::addReads(
                 auto archiveEntry = mHotArchive->load(lk);
                 if (archiveEntry)
                 {
-                    releaseAssert(
+                    releaseAssertOrThrow(
                         archiveEntry->type() ==
                         HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
                     if (!handleArchivedEntry(lk, archiveEntry->archivedEntry(),
                                              isReadOnly,
                                              restoredLiveUntilLedger,
-                                             /*isHotArchiveEntry=*/true))
+                                             /*isHotArchiveEntry=*/true, i))
                     {
                         return false;
                     }

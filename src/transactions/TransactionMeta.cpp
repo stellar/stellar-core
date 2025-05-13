@@ -58,17 +58,19 @@ processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
 
     // Entry was restored from the hot archive and modified, so we need to
     // construct and insert a RESTORE change with the restored value.
+    // Note: for meta ordering stability, it's nice for this to be ordered. The
+    // fields below are for lookup only.
     std::set<LedgerKey> stateChangesToAdd;
 
     // Entry was restored from the live BucketList and modified, so we need to
     // convert the STATE change with the original state to a RESTORE change.
-    std::set<LedgerKey> stateChangesToConvert;
+    std::unordered_set<LedgerKey> stateChangesToConvert;
 
     // Entry was restored from the live BucketList, but rewritten (auto
     // restore). The original meta will have both a STATE and UPDATED change,
     // so we need to remove the STATE change. The UPDATED change will be
     // converted to a RESTORE change below.
-    std::set<LedgerKey> stateChangesToRemove;
+    std::unordered_set<LedgerKey> stateChangesToRemove;
 
     // Depending on whether the restored entry is still in the live
     // BucketList (has not yet been evicted), or has been evicted and is in

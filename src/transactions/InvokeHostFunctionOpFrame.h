@@ -104,11 +104,11 @@ class InvokeHostFunctionOpFrame : public OperationFrame
         SearchableHotArchiveSnapshotConstPtr mHotArchive;
         DiagnosticEventManager& mDiagnosticEvents;
 
-        // Stores our current search position in archivedSorobanEntries. Note
-        // that archivedSorobanEntries is itself a vector of indices into the
-        // readWrite footprint, so this is an index pointing to a vector of
-        // indices.
-        uint32_t mNextArchivedIndexPos{0};
+        // Bitmap to track which entries in the read-write footprint are
+        // marked for autorestore based on readWrite footprint ordering. If
+        // true, the entry is marked for autorestore.
+        // If no entries are marked for autorestore, the vector is empty.
+        std::vector<bool> mAutorestoredEntries{};
 
         // Helper called on all archived keys in the footprint. Returns false if
         // the operation should fail and populates result code and diagnostic
@@ -116,7 +116,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
         bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
                                  bool isReadOnly,
                                  uint32_t restoredLiveUntilLedger,
-                                 bool isHotArchiveEntry);
+                                 bool isHotArchiveEntry, uint32_t index);
 
         // Helper to meter disk read resources and validate resource usage.
         // Returns false if the operation should fail and populates result code
@@ -125,9 +125,9 @@ class InvokeHostFunctionOpFrame : public OperationFrame
                                    uint32_t entrySize);
 
         // Returns true if the given key is marked for autorestore, false
-        // otherwise. If the entry is marked, increments mNextArchivedIndexPos.
-        // Assumes that lk is a read-write key.
-        bool checkIfEntryIsMarkedForAutorestore(LedgerKey const& lk);
+        // otherwise. Assumes that lk is a read-write key.
+        bool checkIfReadWriteEntryIsMarkedForAutorestore(LedgerKey const& lk,
+                                                         uint32_t index);
 
         // Checks and meters the given keys. Returns false if the operation
         // should fail and populates result code and diagnostic events. Returns

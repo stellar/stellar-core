@@ -506,9 +506,16 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
     }
 }
 
-TEST_CASE("basic contract invocation", "[tx][soroban]")
+TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
 {
-    SorobanTest test;
+    auto cfg = getTestConfig();
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return;
+    }
+
+    SorobanTest test(cfg);
     TestContract& addContract =
         test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
     auto& hostFnExecTimer =
@@ -756,20 +763,39 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                              invocationSpec.setInstructions(10000)) ==
                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
     }
-    SECTION("insufficient read bytes")
+    SECTION("insufficient read bytes after p23")
     {
-        // We fail while reading the footprint, before the host function
-        // is called. Only classic entries are metered, and they must exist, so
-        // use root account
-        auto classicEntry = accountKey(test.getRoot().getPublicKey());
-        auto readFootprint = addContract.getKeys();
-        readFootprint.emplace_back(classicEntry);
-        REQUIRE(
-            failedInvoke(addContract, fnName, {sc7, sc16},
-                         invocationSpec.setReadBytes(10).setReadOnlyFootprint(
-                             readFootprint),
-                         /* addContractKeys */ false) ==
-            INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        // Only run this test for protocol version >= 23
+        // (AUTO_RESTORE_PROTOCOL_VERSION)
+        if (protocolVersionStartsFrom(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                AUTO_RESTORE_PROTOCOL_VERSION))
+        {
+            // We fail while reading the footprint, before the host
+            // function is called. Only classic entries are metered, and
+            // they must exist, so use root account
+            auto classicEntry = accountKey(test.getRoot().getPublicKey());
+            auto readFootprint = addContract.getKeys();
+            readFootprint.emplace_back(classicEntry);
+            REQUIRE(failedInvoke(
+                        addContract, fnName, {sc7, sc16},
+                        invocationSpec.setReadBytes(10).setReadOnlyFootprint(
+                            readFootprint),
+                        /* addContractKeys */ false) ==
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        }
+    }
+    SECTION("insufficient read bytes before p23")
+    {
+        if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                    AUTO_RESTORE_PROTOCOL_VERSION))
+        {
+            // We fail while reading the footprint, before the host
+            // function is called.
+            REQUIRE(failedInvoke(addContract, fnName, {sc7, sc16},
+                                 invocationSpec.setReadBytes(100)) ==
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        }
     }
     SECTION("incorrect footprint")
     {
@@ -2305,14 +2331,20 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
     }
 }
 
-TEST_CASE("contract storage", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("contract storage", "[tx][soroban][archival]")
 {
+    auto appCfg = getTestConfig();
+    if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+        return;
+    }
+
     auto modifyCfg = [](SorobanNetworkConfig& cfg) {
         // Increase write fee so the fee will be greater than 1
         cfg.mRentFee1KBSorobanStateSizeLow = 20'000;
         cfg.mRentFee1KBSorobanStateSizeHigh = 1'000'000;
     };
-    auto appCfg = getTestConfig();
     appCfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(appCfg, true, modifyCfg);
 
@@ -2354,18 +2386,38 @@ TEST_CASE("contract storage", "[tx][soroban][archival]")
             client.has("key2", ContractDataDurability::PERSISTENT, false)));
     }
 
-    SECTION("live state does not meter read bytes")
+    SECTION("read bytes limit enforced")
     {
         // Write 5 KB entry.
         REQUIRE(isSuccess(client.resizeStorageAndExtend("key", 5, 1, 1)));
 
-        auto readSpec =
-            client.readKeySpec("key", ContractDataDurability::PERSISTENT)
-                .setReadBytes(5000);
+        if (protocolVersionStartsFrom(
+                appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                AUTO_RESTORE_PROTOCOL_VERSION))
+        {
+            auto readSpec =
+                client.readKeySpec("key", ContractDataDurability::PERSISTENT)
+                    .setReadBytes(0);
 
-        // Entry is above 5 KB, but this should succeed because it is live
-        REQUIRE(isSuccess(client.has("key", ContractDataDurability::PERSISTENT,
+            // Entry is above 5 KB, but this should succeed because it is
+            // live and in protocol version 23+ live Soroban entries are not
+            // metered
+            REQUIRE(
+                isSuccess(client.has("key", ContractDataDurability::PERSISTENT,
                                      std::nullopt, readSpec)));
+        }
+        else
+        {
+            auto readSpec =
+                client.readKeySpec("key", ContractDataDurability::PERSISTENT)
+                    .setReadBytes(5000);
+            REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                               std::nullopt, readSpec) ==
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            REQUIRE(isSuccess(
+                client.has("key", ContractDataDurability::PERSISTENT,
+                           std::nullopt, readSpec.setReadBytes(10'000))));
+        }
     }
 
     SECTION("write bytes limit enforced")
@@ -3808,13 +3860,15 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
     auto const refundableRestoreCost = 60'146;
     auto keysToRestore = client.getContract().getKeys();
     keysToRestore.push_back(lk);
+    REQUIRE(client.get("key", ContractDataDurability::PERSISTENT,
+                       std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
     SECTION("manual restore")
     {
         test.invokeRestoreOp(keysToRestore, refundableRestoreCost);
 
         // Contract and entry should be restored
-        client.has("key", ContractDataDurability::PERSISTENT, 123);
+        client.get("key", ContractDataDurability::PERSISTENT, 123);
     }
 
     SECTION("autorestore fees")
@@ -3845,7 +3899,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
                                 refundableRestoreCost, eventSize);
 
         // Entry should be live again
-        client.has("key", ContractDataDurability::PERSISTENT, 123);
+        client.get("key", ContractDataDurability::PERSISTENT, 123);
     }
 
     SECTION("missing archived key index")
@@ -3876,7 +3930,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
             "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(999)}, spec,
             /*addContractKeys=*/false);
         REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
-        client.has("key", ContractDataDurability::PERSISTENT, 999);
+        client.get("key", ContractDataDurability::PERSISTENT, 999);
     }
 
     // Check that entries are properly restored and persisted even if we don't
@@ -3889,6 +3943,78 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
                         .setWriteBytes(10000)
                         .setRefundableResourceFee(70'000);
 
+        SECTION("insufficient read bytes")
+        {
+            auto badSpec = spec.setReadBytes(0);
+            auto invocation = client.getContract().prepareInvocation(
+                "has_persistent", {makeSymbolSCVal("key")}, badSpec,
+                /*addContractKeys=*/false);
+            REQUIRE(!invocation.withExactNonRefundableResourceFee().invoke());
+        }
+
+        SECTION("classic entries count towards read bytes")
+        {
+            auto contractKeys = client.getContract().getKeys();
+            auto specWithoutClassic = client.defaultSpecWithoutFootprint()
+                                          .setReadWriteFootprint({lk})
+                                          .setArchivedIndexes({0})
+                                          .setReadOnlyFootprint(contractKeys)
+                                          .setRefundableResourceFee(70'000);
+
+            auto const expectedSize = 80;
+
+            // Restore wasm and instance so we just restore data later
+            test.invokeRestoreOp(contractKeys, 40'098);
+
+            SECTION("insufficient read bytes")
+            {
+                auto invocation = client.getContract().prepareInvocation(
+                    "has_persistent", {makeSymbolSCVal("key")},
+                    specWithoutClassic.setWriteBytes(expectedSize)
+                        .setReadBytes(expectedSize - 1),
+                    /*addContractKeys=*/false);
+                REQUIRE(
+                    !invocation.withExactNonRefundableResourceFee().invoke());
+            }
+
+            SECTION("insufficient write bytes")
+            {
+                auto invocation = client.getContract().prepareInvocation(
+                    "has_persistent", {makeSymbolSCVal("key")},
+                    specWithoutClassic.setWriteBytes(expectedSize - 1)
+                        .setReadBytes(expectedSize),
+                    /*addContractKeys=*/false);
+                REQUIRE(
+                    !invocation.withExactNonRefundableResourceFee().invoke());
+            }
+
+            SECTION("classic keys count towards read bytes")
+            {
+                auto readOnly = contractKeys;
+                readOnly.push_back(accountKey(test.getRoot().getPublicKey()));
+                auto specWithClassic =
+                    specWithoutClassic.setReadOnlyFootprint(readOnly)
+                        .setWriteBytes(expectedSize)
+                        .setReadBytes(expectedSize);
+                auto invocation = client.getContract().prepareInvocation(
+                    "has_persistent", {makeSymbolSCVal("key")}, specWithClassic,
+                    /*addContractKeys=*/false);
+                REQUIRE(
+                    !invocation.withExactNonRefundableResourceFee().invoke());
+            }
+
+            SECTION("Success")
+            {
+                auto invocation = client.getContract().prepareInvocation(
+                    "has_persistent", {makeSymbolSCVal("key")},
+                    specWithoutClassic.setWriteBytes(expectedSize)
+                        .setReadBytes(expectedSize),
+                    /*addContractKeys=*/false);
+                REQUIRE(
+                    invocation.withExactNonRefundableResourceFee().invoke());
+            }
+        }
+
         // Invocation writes no new state
         auto invocation = client.getContract().prepareInvocation(
             "has_persistent", {makeSymbolSCVal("key")}, spec,
@@ -3896,7 +4022,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
         REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
 
         // Check that entry still exists and is live
-        client.has("key", ContractDataDurability::PERSISTENT, 123);
+        client.get("key", ContractDataDurability::PERSISTENT, 123);
     }
 }
 
