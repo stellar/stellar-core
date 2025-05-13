@@ -55,7 +55,7 @@ BucketSnapshotManager::BucketSnapshotManager(
 SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    // SharedLockShared guard(mSnapshotMutex);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
@@ -68,7 +68,7 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
 {
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    // SharedLockShared guard(mSnapshotMutex);
     releaseAssert(mCurrHotArchiveSnapshot);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
@@ -86,8 +86,7 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
-
+    SharedLockShared guard(mSnapshotMutex);
     if (!snapshot ||
         snapshot->getLedgerSeq() < mCurrLiveSnapshot->getLedgerSeq())
     {
@@ -102,7 +101,7 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
 
     if (!snapshot ||
         snapshot->getLedgerSeq() < mCurrHotArchiveSnapshot->getLedgerSeq())
@@ -142,7 +141,7 @@ BucketSnapshotManager::updateCurrentSnapshot(
 
     // Updating the BucketSnapshotManager canonical snapshot, must lock
     // exclusively for write access.
-    std::unique_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockExclusive guard(mSnapshotMutex);
     updateSnapshot(mCurrLiveSnapshot, mLiveHistoricalSnapshots, liveSnapshot);
     updateSnapshot(mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots,
                    hotArchiveSnapshot);

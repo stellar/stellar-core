@@ -15,6 +15,7 @@
 #define THREAD_ANNOTATIONS_H_
 
 #include <mutex>
+#include <shared_mutex>
 
 #if defined(__clang__) && (!defined(SWIG))
 #define THREAD_ANNOTATION_ATTRIBUTE__(x) __attribute__((x))
@@ -169,6 +170,82 @@ class SCOPED_LOCKABLE MutexLocker
     ~MutexLocker() UNLOCK_FUNCTION()
     {
         mut.Unlock();
+    }
+};
+
+// Defines an annotated interface for shared mutexes (read-write locks).
+// These methods can be implemented to use any internal shared_mutex
+// implementation.
+class LOCKABLE SharedMutex
+{
+  private:
+    std::shared_mutex mSharedMutex;
+
+  public:
+    // Acquire/lock this mutex exclusively (for writing).
+    // Only one thread can have exclusive access at any one time.
+    void
+    Lock() EXCLUSIVE_LOCK_FUNCTION()
+    {
+        mSharedMutex.lock();
+    }
+
+    // Acquire/lock this mutex for shared (read-only) access.
+    // Multiple threads can acquire the mutex simultaneously for shared access.
+    void
+    LockShared() SHARED_LOCK_FUNCTION()
+    {
+        mSharedMutex.lock_shared();
+    }
+
+    // Release/unlock the mutex from exclusive mode.
+    void
+    Unlock() UNLOCK_FUNCTION()
+    {
+        mSharedMutex.unlock();
+    }
+
+    // Release/unlock the mutex from shared mode.
+    void
+    UnlockShared() UNLOCK_FUNCTION()
+    {
+        mSharedMutex.unlock_shared();
+    }
+};
+
+// SharedLockExclusive is an RAII class that acquires a shared mutex in
+// exclusive mode in its constructor, and releases it in its destructor.
+class SCOPED_LOCKABLE SharedLockExclusive
+{
+  private:
+    SharedMutex& mut;
+
+  public:
+    SharedLockExclusive(SharedMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mut(mu)
+    {
+        mu.Lock();
+    }
+    ~SharedLockExclusive() UNLOCK_FUNCTION()
+    {
+        mut.Unlock();
+    }
+};
+
+// SharedLockShared is an RAII class that acquires a shared mutex in shared
+// mode in its constructor, and releases it in its destructor.
+class SCOPED_LOCKABLE SharedLockShared
+{
+  private:
+    SharedMutex& mut;
+
+  public:
+    SharedLockShared(SharedMutex& mu) SHARED_LOCK_FUNCTION(mu) : mut(mu)
+    {
+        mu.LockShared();
+    }
+    ~SharedLockShared() UNLOCK_FUNCTION()
+    {
+        mut.UnlockShared();
     }
 };
 
