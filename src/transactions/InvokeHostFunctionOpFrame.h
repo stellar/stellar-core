@@ -4,8 +4,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketUtils.h"
-#include "ledger/SorobanMetrics.h"
 #include "rust/RustBridge.h"
 #include "transactions/OperationFrame.h"
 #include "xdr/Stellar-transaction.h"
@@ -19,53 +17,8 @@ class MutableTransactionResultBase;
 static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
 
-// Metrics for host function execution
-struct HostFunctionMetrics
-{
-    SorobanMetrics& mMetrics;
-
-    uint32_t mReadEntry{0};
-    uint32_t mWriteEntry{0};
-
-    uint32_t mLedgerReadByte{0};
-    uint32_t mLedgerWriteByte{0};
-
-    uint32_t mReadKeyByte{0};
-    uint32_t mWriteKeyByte{0};
-
-    uint32_t mReadDataByte{0};
-    uint32_t mWriteDataByte{0};
-
-    uint32_t mReadCodeByte{0};
-    uint32_t mWriteCodeByte{0};
-
-    uint32_t mEmitEvent{0};
-    uint32_t mEmitEventByte{0};
-
-    // host runtime metrics
-    uint64_t mCpuInsn{0};
-    uint64_t mMemByte{0};
-    uint64_t mInvokeTimeNsecs{0};
-    uint64_t mCpuInsnExclVm{0};
-    uint64_t mInvokeTimeNsecsExclVm{0};
-    uint64_t mDeclaredCpuInsn{0};
-
-    // max single entity size metrics
-    uint32_t mMaxReadWriteKeyByte{0};
-    uint32_t mMaxReadWriteDataByte{0};
-    uint32_t mMaxReadWriteCodeByte{0};
-    uint32_t mMaxEmitEventByte{0};
-
-    bool mSuccess{false};
-
-    HostFunctionMetrics(SorobanMetrics& metrics);
-    ~HostFunctionMetrics();
-
-    void noteDiskReadEntry(bool isCodeEntry, uint32_t keySize,
-                           uint32_t entrySize);
-    void noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize);
-    medida::TimerContext getExecTimer();
-};
+struct HostFunctionMetrics;
+class ApplyHelper;
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
@@ -81,68 +34,6 @@ class InvokeHostFunctionOpFrame : public OperationFrame
                                        DiagnosticEventManager& buffer) const;
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
-
-    // Inner helper class for handling reads in doApply
-    class ApplyHelper
-    {
-      private:
-        AppConnector& mApp;
-        AbstractLedgerTxn& mLtx;
-        OperationResult& mRes;
-        std::optional<RefundableFeeTracker>& mRefundableFeeTracker;
-        OperationMetaBuilder& mOpMeta;
-        InvokeHostFunctionOpFrame const& mOpFrame;
-        Hash const& mSorobanBasePrngSeed;
-
-        SorobanResources const& mResources;
-        SorobanNetworkConfig const& mSorobanConfig;
-        Config const& mAppConfig;
-
-        rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
-        rust::Vec<CxxBuf> mTtlEntryCxxBufs;
-        HostFunctionMetrics mMetrics;
-        SearchableHotArchiveSnapshotConstPtr mHotArchive;
-        DiagnosticEventManager& mDiagnosticEvents;
-
-        // Bitmap to track which entries in the read-write footprint are
-        // marked for autorestore based on readWrite footprint ordering. If
-        // true, the entry is marked for autorestore.
-        // If no entries are marked for autorestore, the vector is empty.
-        std::vector<bool> mAutorestoredEntries{};
-
-        // Helper called on all archived keys in the footprint. Returns false if
-        // the operation should fail and populates result code and diagnostic
-        // events. Returns true if no failure occurred.
-        bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
-                                 bool isReadOnly,
-                                 uint32_t restoredLiveUntilLedger,
-                                 bool isHotArchiveEntry, uint32_t index);
-
-        // Helper to meter disk read resources and validate resource usage.
-        // Returns false if the operation should fail and populates result code
-        // and diagnostic events.
-        bool meterDiskReadResource(LedgerKey const& lk, uint32_t keySize,
-                                   uint32_t entrySize);
-
-        // Returns true if the given key is marked for autorestore, false
-        // otherwise. Assumes that lk is a read-write key.
-        bool checkIfReadWriteEntryIsMarkedForAutorestore(LedgerKey const& lk,
-                                                         uint32_t index);
-
-        // Checks and meters the given keys. Returns false if the operation
-        // should fail and populates result code and diagnostic events. Returns
-        // true if no failure occurred.
-        bool addReads(xdr::xvector<LedgerKey> const& keys, bool isReadOnly);
-
-      public:
-        ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,
-                    Hash const& sorobanBasePrngSeed, OperationResult& res,
-                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                    OperationMetaBuilder& opMeta,
-                    InvokeHostFunctionOpFrame const& opFrame);
-
-        bool apply();
-    };
 
   public:
     InvokeHostFunctionOpFrame(Operation const& op,
@@ -172,5 +63,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     }
 
     virtual bool isSoroban() const override;
+
+    friend class ApplyHelper;
 };
 }

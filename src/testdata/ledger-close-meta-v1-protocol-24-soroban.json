@@ -1298,22 +1298,6 @@
                                             }
                                         },
                                         {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
-                                                "lastModifiedLedgerSeq": 10,
-                                                "data": {
-                                                    "type": "TTL",
-                                                    "ttl": {
-                                                        "keyHash": "4791962cd1e2c7b8f8af3f96514f9777f0156a48261fb885a571a7f69b33a058",
-                                                        "liveUntilLedgerSeq": 29
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
                                             "type": "LEDGER_ENTRY_RESTORED",
                                             "restored": {
                                                 "lastModifiedLedgerSeq": 31,

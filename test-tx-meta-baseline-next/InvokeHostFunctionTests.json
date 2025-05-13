@@ -1259,6 +1259,20 @@
 		"+cR3oq2qY0I=",
 		"yUdeRF+Clzk=",
 		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
+		"yUdeRF+Clzk=",
+		"+cR3oq2qY0I=",
 		"yUdeRF+Clzk="
 	],
 	"Soroban non-refundable resource fees are stable|protocol version 20" : 
@@ -1394,8 +1408,149 @@
 		"KHSvDVDy2Lw="
 	],
 	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],
-	"basic contract invocation" : 
+	"archival meta|protocol version 20" : 
 	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"archival meta|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"archival meta|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"archival meta|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"archival meta|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"autorestore contract instance" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"autorestore with storage resize" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"basic contract invocation|protocol version 20" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"basic contract invocation|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"basic contract invocation|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"basic contract invocation|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"basic contract invocation|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -1436,7 +1591,7 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"contract storage" : 
+	"contract storage|protocol version 23" : 
 	[
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -1446,12 +1601,18 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"contract storage|footprint|unused readWrite key" : [ "3iUQDoFsxoI=" ],
-	"entry eviction|protocol version 20" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"entry eviction|protocol version 21" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"entry eviction|protocol version 22" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"entry eviction|protocol version 23" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"entry eviction|protocol version 24" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
+	"contract storage|protocol version 23|footprint|unused readWrite key" : [ "3iUQDoFsxoI=" ],
+	"contract storage|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"contract storage|protocol version 24|footprint|unused readWrite key" : [ "3iUQDoFsxoI=" ],
 	"failure diagnostics" : [ "+cR3oq2qY0I=" ],
 	"fee bump refund account merged|protocol version 20" : 
 	[
@@ -1507,10 +1668,24 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"persistent entry archival|eviction" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"persistent entry archival|eviction|key accessible after restore in same ledger" : [ "5qCN0M3sAow=" ],
-	"persistent entry archival|expiration without eviction" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger" : [ "5qCN0M3sAow=" ],
+	"persistent entry archival|eviction" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"persistent entry archival|eviction|key accessible after restore in same ledger" : [ "5qCN0M3sAow=", "5qCN0M3sAow=" ],
+	"persistent entry archival|expiration without eviction" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger" : [ "5qCN0M3sAow=", "5qCN0M3sAow=" ],
 	"refund account merged|protocol version 20" : [ "NTGGdj1offM=", "EkVyTSMyahI=", "M5RYpUu6W68=", "PZS4PZiq+S8=" ],
 	"refund account merged|protocol version 21" : [ "NTGGdj1offM=", "EkVyTSMyahI=", "M5RYpUu6W68=", "PZS4PZiq+S8=" ],
 	"refund account merged|protocol version 22" : [ "NTGGdj1offM=", "T6mtbzXOpO0=", "ETkwO8hbBJs=", "ToQZ4ttonjk=" ],
