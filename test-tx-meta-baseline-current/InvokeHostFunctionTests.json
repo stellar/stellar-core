@@ -1438,6 +1438,10 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
 	"autorestore with storage resize" : 
@@ -1448,8 +1452,54 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"basic contract invocation" : 
+	"basic contract invocation|protocol version 20" : 
 	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"basic contract invocation|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"basic contract invocation|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"basic contract invocation|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -1490,7 +1540,7 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"contract storage" : 
+	"contract storage|protocol version 23" : 
 	[
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -1500,7 +1550,7 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
-	"contract storage|footprint|unused readWrite key" : [ "3iUQDoFsxoI=" ],
+	"contract storage|protocol version 23|footprint|unused readWrite key" : [ "3iUQDoFsxoI=" ],
 	"failure diagnostics" : [ "+cR3oq2qY0I=" ],
 	"fee bump refund account merged|protocol version 20" : 
 	[
