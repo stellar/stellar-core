@@ -88,6 +88,18 @@ class BucketSnapshotManager : NonMovableOrCopyable
     copySearchableHotArchiveBucketListSnapshot() const
         LOCKS_EXCLUDED(mSnapshotMutex);
 
+    // Copy the most recent snapshot for the live bucket list, while holding the
+    // lock
+    SearchableSnapshotConstPtr
+    copySearchableLiveBucketListSnapshot(SharedLockShared const& guard) const
+        REQUIRES_SHARED(mSnapshotMutex);
+
+    // Copy the most recent snapshot for the hot archive bucket list, while
+    // holding the lock
+    SearchableHotArchiveSnapshotConstPtr
+    copySearchableHotArchiveBucketListSnapshot(
+        SharedLockShared const& guard) const REQUIRES_SHARED(mSnapshotMutex);
+
     // `maybeCopy` interface refreshes `snapshot` if a newer snapshot is
     // available. It's a no-op otherwise. This is useful to avoid unnecessary
     // copying.

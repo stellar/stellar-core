@@ -55,7 +55,24 @@ BucketSnapshotManager::BucketSnapshotManager(
 SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
-    // SharedLockShared guard(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
+    // Can't use std::make_shared due to private constructor
+    return copySearchableLiveBucketListSnapshot(guard);
+}
+
+SearchableHotArchiveSnapshotConstPtr
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+{
+    SharedLockShared guard(mSnapshotMutex);
+    releaseAssert(mCurrHotArchiveSnapshot);
+    // Can't use std::make_shared due to private constructor
+    return copySearchableHotArchiveBucketListSnapshot(guard);
+}
+
+SearchableSnapshotConstPtr
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+    SharedLockShared const& guard) const
+{
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
@@ -66,9 +83,9 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 }
 
 SearchableHotArchiveSnapshotConstPtr
-BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+    SharedLockShared const& guard) const
 {
-    // SharedLockShared guard(mSnapshotMutex);
     releaseAssert(mCurrHotArchiveSnapshot);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
@@ -90,7 +107,7 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     if (!snapshot ||
         snapshot->getLedgerSeq() < mCurrLiveSnapshot->getLedgerSeq())
     {
-        snapshot = copySearchableLiveBucketListSnapshot();
+        snapshot = copySearchableLiveBucketListSnapshot(guard);
     }
 }
 
@@ -106,7 +123,7 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     if (!snapshot ||
         snapshot->getLedgerSeq() < mCurrHotArchiveSnapshot->getLedgerSeq())
     {
-        snapshot = copySearchableHotArchiveBucketListSnapshot();
+        snapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
 }
 
