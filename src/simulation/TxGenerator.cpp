@@ -1002,6 +1002,9 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                     *upgradeCfg.feeFlatRateWrite1KB;
             }
             break;
+        case CONFIG_SETTING_SCP_TIMING:
+            // TODO: Implement
+            continue;
         default:
             releaseAssert(false);
             break;

@@ -3133,11 +3133,11 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             bool evicted = false;
             while (in.readOne(lcm))
             {
-                REQUIRE(lcm.v() == 1);
-                if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
+                LedgerCloseMetaFrame lcmFrame(lcm);
+                if (lcmFrame.getLedgerHeader().ledgerSeq == evictionLedger)
                 {
-                    REQUIRE(lcm.v1().evictedKeys.size() == 2);
-                    auto sortedKeys = lcm.v1().evictedKeys;
+                    REQUIRE(lcmFrame.getEvictedKeys().size() == 2);
+                    auto sortedKeys = lcmFrame.getEvictedKeys();
                     std::sort(sortedKeys.begin(), sortedKeys.end());
                     REQUIRE(sortedKeys[0] == temporaryLk);
                     REQUIRE(sortedKeys[1] == getTTLKey(temporaryLk));
@@ -3145,7 +3145,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 }
                 else
                 {
-                    REQUIRE(lcm.v1().evictedKeys.empty());
+                    REQUIRE(lcmFrame.getEvictedKeys().empty());
                 }
             }
 
@@ -3190,17 +3190,16 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
                 while (in.readOne(lcm))
                 {
-                    REQUIRE(lcm.v() == 1);
-                    if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                    LedgerCloseMetaFrame lcmFrame(lcm);
+
+                    if (lcmFrame.getLedgerHeader().ledgerSeq ==
                         targetRestorationLedger)
                     {
-                        REQUIRE(lcm.v1().evictedKeys.empty());
-                        REQUIRE(lcm.v1().unused.empty());
+                        REQUIRE(lcmFrame.getEvictedKeys().empty());
 
-                        REQUIRE(lcm.v1().txProcessing.size() == 1);
-                        auto txMeta = lcm.v1().txProcessing.front();
-                        auto txApplyProcessing =
-                            TransactionMetaFrame(txMeta.txApplyProcessing);
+                        REQUIRE(lcmFrame.getTransactionResultMetaCount() == 1);
+                        auto txMeta = lcmFrame.getTransactionMeta(0);
+                        auto txApplyProcessing = TransactionMetaFrame(txMeta);
                         REQUIRE(txApplyProcessing.getNumOperations() == 1);
 
                         auto const& changes =
@@ -3358,8 +3357,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                                 getTTLKey(persistentKey)};
                     while (in.readOne(lcm))
                     {
-                        REQUIRE(lcm.v() == 1);
-                        if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                        LedgerCloseMetaFrame lcmFrame(lcm);
+                        if (lcmFrame.getLedgerHeader().ledgerSeq ==
                             evictionLedger)
                         {
                             // Only support persistent eviction meta >= p23
@@ -3368,24 +3367,20 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                     LiveBucket::
                                         FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                             {
-                                REQUIRE(lcm.v1().evictedKeys.size() == 2);
-                                for (auto const& key : lcm.v1().evictedKeys)
+                                REQUIRE(lcmFrame.getEvictedKeys().size() == 2);
+                                for (auto const& key :
+                                     lcmFrame.getEvictedKeys())
                                 {
                                     REQUIRE(keysToEvict.find(key) !=
                                             keysToEvict.end());
                                     keysToEvict.erase(key);
                                 }
 
-                                // This field should always be empty and never
-                                // used. The field only exists for legacy
-                                // reasons.
-                                REQUIRE(lcm.v1().unused.empty());
                                 evicted = true;
                             }
                             else
                             {
-                                REQUIRE(lcm.v1().evictedKeys.empty());
-                                REQUIRE(lcm.v1().unused.empty());
+                                REQUIRE(lcmFrame.getEvictedKeys().empty());
                                 evicted = false;
                             }
 
@@ -3473,7 +3468,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             LedgerCloseMeta lcm;
             while (in.readOne(lcm))
             {
-                REQUIRE(lcm.v1().evictedKeys.empty());
+                LedgerCloseMetaFrame lcmFrame(lcm);
+                REQUIRE(lcmFrame.getEvictedKeys().empty());
             }
         }
     };
