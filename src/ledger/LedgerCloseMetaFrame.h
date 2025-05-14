@@ -38,6 +38,15 @@ class LedgerCloseMetaFrame
 
     LedgerCloseMeta const& getXDR() const;
 
+#ifdef BUILD_TESTS
+    LedgerCloseMetaFrame(LedgerCloseMeta const& lm);
+    LedgerHeader const& getLedgerHeader() const;
+    xdr::xvector<LedgerKey> const& getEvictedKeys() const;
+    size_t getTransactionResultMetaCount() const;
+    TransactionMeta const& getTransactionMeta(size_t index) const;
+
+#endif
+
   private:
     LedgerCloseMeta mLedgerCloseMeta;
     int mVersion;

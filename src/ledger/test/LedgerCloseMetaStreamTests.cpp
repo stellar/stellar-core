@@ -186,6 +186,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
+    else if (lcms.back().v() == 2)
+    {
+        REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
+    }
     else
     {
         REQUIRE(false);
@@ -490,13 +494,23 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
                 ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
             }
-            else
+            else if (protocolVersionIsBefore(
+                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                         PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
             {
                 // LCM v1
                 REQUIRE(lcm.v() == 1);
                 REQUIRE(lcm.v1().ledgerHeader.header.ledgerVersion ==
                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
                 ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
+            }
+            else
+            {
+                // LCM v2
+                REQUIRE(lcm.v() == 2);
+                REQUIRE(lcm.v2().ledgerHeader.header.ledgerVersion ==
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+                ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
             }
 
             if (ledgerSeq == targetSeq)

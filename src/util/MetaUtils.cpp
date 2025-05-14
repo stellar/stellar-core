@@ -156,6 +156,20 @@ normalizeMeta(LedgerCloseMeta& lcm)
         }
         break;
     }
+    case 2:
+    {
+        auto& v2 = lcm.v2();
+        for (auto& u : v2.upgradesProcessing)
+        {
+            sortChanges(u.changes);
+        }
+        for (auto& tx : v2.txProcessing)
+        {
+            sortChanges(tx.feeProcessing);
+            normalizeMeta(tx.txApplyProcessing);
+        }
+        break;
+    }
     default:
         abort();
     }
