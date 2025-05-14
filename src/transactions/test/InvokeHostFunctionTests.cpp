@@ -3482,9 +3482,16 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
     for_versions(20, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, test);
 }
 
-TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
 {
-    SorobanTest test;
+    auto cfg = getTestConfig();
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return;
+    }
+
+    SorobanTest test(cfg);
     ContractStorageTestClient client(test);
     auto const& stateArchivalSettings =
         test.getNetworkCfg().stateArchivalSettings();
@@ -3578,18 +3585,39 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
             REQUIRE(!test.isTxValid(tx));
         }
 
-        // Read byte limits no longer apply to extension, since the footprint is
-        // always live soroban state
-        SECTION("exceeded readBytes")
+        SECTION("readBytes limit")
         {
-            auto resourceCopy = extendResources;
-            resourceCopy.diskReadBytes = 0;
+            // With p23, eead byte limits no longer apply to extension, since
+            // the footprint is always live soroban state
+            if (protocolVersionStartsFrom(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    AUTO_RESTORE_PROTOCOL_VERSION))
+            {
+                auto resourceCopy = extendResources;
+                resourceCopy.diskReadBytes = 0;
 
-            auto tx = test.createExtendOpTx(resourceCopy, 10'000, 1'000,
-                                            DEFAULT_TEST_RESOURCE_FEE);
-            auto result = test.invokeTx(tx);
-            REQUIRE(isSuccessResult(result));
+                auto tx = test.createExtendOpTx(resourceCopy, 10'000, 1'000,
+                                                DEFAULT_TEST_RESOURCE_FEE);
+                auto result = test.invokeTx(tx);
+                REQUIRE(isSuccessResult(result));
+            }
+            else
+            {
+                auto resourceCopy = extendResources;
+                resourceCopy.diskReadBytes = 8'000;
+
+                auto tx = test.createExtendOpTx(resourceCopy, 10'000, 1'000,
+                                                DEFAULT_TEST_RESOURCE_FEE);
+                auto result = test.invokeTx(tx);
+                REQUIRE(!isSuccessResult(result));
+                REQUIRE(result.result.results()[0]
+                            .tr()
+                            .extendFootprintTTLResult()
+                            .code() ==
+                        EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            }
         }
+
         SECTION("insufficient refundable fee")
         {
             auto tx =
