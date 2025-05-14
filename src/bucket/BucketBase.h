@@ -4,12 +4,12 @@
 // under the apache license, version 2.0. see the copying file at the root
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
 #include <filesystem>
-#include <optional>
 #include <string>
 
 namespace asio
@@ -129,6 +129,23 @@ class BucketBase : public NonMovableOrCopyable
           std::vector<std::shared_ptr<BucketT>> const& shadows,
           bool keepTombstoneEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+
+    // Returns whether shadowed lifecycle entries should be kept
+    static bool updateMergeCountersForProtocolVersion(
+        MergeCounters& mc, uint32_t protocolVersion,
+        std::vector<BucketInputIterator<BucketT>> const& shadowIterators);
+
+    // Helper function that implements the core merge algorithm logic for both
+    // iterator based and in-memory merges.
+    // PutFunc will be called to write entries that are the result of the merge.
+    // We have to use a template here to break a dependency on the BucketT type,
+    // but PutFuncT == std::function<void(typename BucketT::EntryT const&)>
+    template <typename InputSource, typename PutFuncT>
+    static void
+    mergeInternal(BucketManager& bucketManager, InputSource& inputSource,
+                  PutFuncT putFunc, uint32_t protocolVersion,
+                  std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+                  bool keepShadowedLifecycleEntries, MergeCounters& mc);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
