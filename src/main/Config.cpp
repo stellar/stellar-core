@@ -1116,56 +1116,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "BACKGROUND_EVICTION_SCAN is deprecated and ignored. "
                          "Please remove this from config");
                  }},
-                {"EXPERIMENTAL_BACKGROUND_EVICTION_SCAN",
-                 [&]() {
-                     CLOG_WARNING(
-                         Bucket,
-                         "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN is deprecated "
-                         "and "
-                         "is ignored. Please remove from config");
-                 }},
-                {"DEPRECATED_SQL_LEDGER_STATE",
-                 [&]() {
-                     CLOG_WARNING(
-                         Bucket,
-                         "DEPRECATED_SQL_LEDGER_STATE is deprecated and "
-                         "ignored. Please remove from config");
-                 }},
-                // https://github.com/stellar/stellar-core/issues/4581
-                {"EXPERIMENTAL_BUCKETLIST_DB",
-                 [&]() {
-                     CLOG_WARNING(
-                         Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated. "
-                         "please remove from config");
-                 }},
-                {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
-                 [&]() {
-                     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
-                         readInt<size_t>(item);
-                     CLOG_WARNING(
-                         Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
-                         "is "
-                         "deprecated, "
-                         "use BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT instead.");
-                 }},
-                {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF",
-                 [&]() {
-                     BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
-                     CLOG_WARNING(Bucket,
-                                  "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is "
-                                  "deprecated, "
-                                  "use BUCKETLIST_DB_INDEX_CUTOFF instead.");
-                 }},
-                {"EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX",
-                 [&]() {
-                     BUCKETLIST_DB_PERSIST_INDEX = readBool(item);
-                     CLOG_WARNING(Bucket,
-                                  "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX is "
-                                  "deprecated, "
-                                  "use BUCKETLIST_DB_PERSIST_INDEX instead.");
-                 }},
                 {"BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
                  [&]() {
                      BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
@@ -1901,43 +1851,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
-
-        // Only allow one version of all BucketListDB flags, either the
-        // deprecated flag or new flag, but not both.
-        if (t->contains(
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
-            t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT and "
-                "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT is "
-                "deprecated, use BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT only.";
-            throw std::runtime_error(msg);
-        }
-        else if (t->contains("EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX") &&
-                 t->contains("BUCKETLIST_DB_PERSIST_INDEX"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX and "
-                "BUCKETLIST_DB_PERSIST_INDEX must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX is deprecated, use "
-                "BUCKETLIST_DB_PERSIST_INDEX only.";
-            throw std::runtime_error(msg);
-        }
-        else if (t->contains("EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF") &&
-                 t->contains("BUCKETLIST_DB_INDEX_CUTOFF"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF and "
-                "BUCKETLIST_DB_INDEX_CUTOFF must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is deprecated, use "
-                "BUCKETLIST_DB_INDEX_CUTOFF only.";
-            throw std::runtime_error(msg);
-        }
 
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
