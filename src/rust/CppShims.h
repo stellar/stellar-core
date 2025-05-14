@@ -23,7 +23,6 @@ struct CxxBuf;
 namespace stellar
 {
 class Application;
-struct HostFunctionMetrics;
 
 inline bool
 shim_isLogLevelAtLeast(std::string const& partition, LogLevel level)

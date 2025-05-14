@@ -1953,14 +1953,25 @@
                                 {
                                     "changes": [
                                         {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
+                                            "type": "LEDGER_ENTRY_RESTORED",
+                                            "restored": {
                                                 "lastModifiedLedgerSeq": 10,
                                                 "data": {
-                                                    "type": "TTL",
-                                                    "ttl": {
-                                                        "keyHash": "4791962cd1e2c7b8f8af3f96514f9777f0156a48261fb885a571a7f69b33a058",
-                                                        "liveUntilLedgerSeq": 29
+                                                    "type": "CONTRACT_DATA",
+                                                    "contractData": {
+                                                        "ext": {
+                                                            "v": 0
+                                                        },
+                                                        "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
+                                                        "key": {
+                                                            "type": "SCV_SYMBOL",
+                                                            "sym": "archived"
+                                                        },
+                                                        "durability": "PERSISTENT",
+                                                        "val": {
+                                                            "type": "SCV_U64",
+                                                            "u64": 42
+                                                        }
                                                     }
                                                 },
                                                 "ext": {
@@ -1969,8 +1980,8 @@
                                             }
                                         },
                                         {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
+                                            "type": "LEDGER_ENTRY_RESTORED",
+                                            "restored": {
                                                 "lastModifiedLedgerSeq": 31,
                                                 "data": {
                                                     "type": "TTL",

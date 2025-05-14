@@ -31,21 +31,23 @@ vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
     std::move(b.begin(), b.end(), std::back_inserter(a));
 }
 
-// Starting in protocol 23, some operation meta needs to be modified
+// Some operation meta needs to be modified
 // to be consumed by downstream systems. In particular, restoration is
 // (mostly) logically a new entry creation from the perspective of ltx and
 // stellar-core as a whole, but this change type is reclassified to
 // LEDGER_ENTRY_RESTORED for easier consumption downstream.
 LedgerEntryChanges
-processOpLedgerEntryChanges(OperationFrame const& op, AbstractLedgerTxn& ltx,
-                            uint32_t protocolVersion)
+processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
+                            AbstractLedgerTxn& ltx, uint32_t protocolVersion)
 {
     auto changes = ltx.getChanges();
     bool needToProcess =
-        op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT &&
-        protocolVersionStartsFrom(
-            protocolVersion,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+        (op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT ||
+         op.getOperation().body.type() ==
+             OperationType::INVOKE_HOST_FUNCTION) &&
+        (protocolVersionStartsFrom(protocolVersion,
+                                   AUTO_RESTORE_PROTOCOL_VERSION) ||
+         cfg.BACKFILL_RESTORE_META);
     if (!needToProcess)
     {
         return changes;
@@ -54,92 +56,221 @@ processOpLedgerEntryChanges(OperationFrame const& op, AbstractLedgerTxn& ltx,
     auto const& hotArchiveRestores = ltx.getRestoredHotArchiveKeys();
     auto const& liveRestores = ltx.getRestoredLiveBucketListKeys();
 
+    // Entry was restored from the hot archive and modified, so we need to
+    // construct and insert a RESTORE change with the restored value.
+    // Note: for meta ordering stability, it's nice for this to be ordered. The
+    // fields below are for lookup only.
+    std::set<LedgerKey> stateChangesToAdd;
+
+    // Entry was restored from the live BucketList and modified, so we need to
+    // convert the STATE change with the original state to a RESTORE change.
+    std::unordered_set<LedgerKey> stateChangesToConvert;
+
+    // Entry was restored from the live BucketList, but rewritten (auto
+    // restore). The original meta will have both a STATE and UPDATED change,
+    // so we need to remove the STATE change. The UPDATED change will be
+    // converted to a RESTORE change below.
+    std::unordered_set<LedgerKey> stateChangesToRemove;
+
     // Depending on whether the restored entry is still in the live
     // BucketList (has not yet been evicted), or has been evicted and is in
     // the hot archive, meta will be handled differently as follows:
     //
     // Entry restore from Hot Archive:
     // Meta before changes:
-    //     Data/Code: LEDGER_ENTRY_CREATED
-    //     TTL: LEDGER_ENTRY_CREATED
+    //     Data/Code/TTL: LEDGER_ENTRY_CREATED(newValue, newLastModified)
     // Meta after changes:
-    //     Data/Code: LEDGER_ENTRY_RESTORED
-    //     TTL: LEDGER_ENTRY_RESTORED
+    //     Data/Code/TTL:
+    //        if oldValue != newValue: (i.e. restored then modified)
+    //          LEDGER_ENTRY_RESTORED(oldValue, newLastModified),
+    //          LEDGER_ENTRY_UPDATED(newValue, newLastModified)
+    //        else (i.e. restored and not modified)
+    //          LEDGER_ENTRY_RESTORED(oldValue, newLastModified)
     //
-    // Entry restore from Live BucketList:
+    // Entry restore from Live BucketList (autorestore):
+    // For autorestore, all restored entries are re-written, even if they
+    // haven't been modified. This means we always have meta for both the TTL
+    // and code/data entry as follows:
     // Meta before changes:
-    //     Data/Code: no meta
-    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_UPDATED(newValue)
-    // Meta after changes:
-    //     Data/Code: LEDGER_ENTRY_RESTORED
-    //     TTL: LEDGER_ENTRY_STATE(oldValue), LEDGER_ENTRY_RESTORED(newValue)
+    //     Data/Code/TTL:
+    //        if oldValue != newValue: (i.e. restored then modified)
+    //          LEDGER_ENTRY_STATE(oldValue, oldLastModified),
+    //          LEDGER_ENTRY_UPDATED(newValue, newLastModified)
+    //        else (i.e. restored and not modified)
+    //          LEDGER_ENTRY_STATE(oldValue, oldLastModified),
+    //          LEDGER_ENTRY_UPDATED(oldValue, newLastModified)
     //
+    // Meta after changes:
+    //     Data/Code/TTL:
+    //        if oldValue != newValue: (i.e. restored then modified)
+    //          LEDGER_ENTRY_RESTORED(oldValue, newLastModified),
+    //          LEDGER_ENTRY_UPDATED(newValue, newLastModified)
+    //        else
+    //          LEDGER_ENTRY_RESTORED(oldValue, newLastModified)
+    //
+    // Entry restore from Live BucketList (RestoreOp):
+    // For RestoreOp from the live BucketList, only the TTL value is modified,
+    // so we don't have meta for the code/data entry, and the
+    // lastModifiedLedgerSeq of the code/data entry is not updated.
+    // Meta before changes:
+    //     TTL: LEDGER_ENTRY_STATE(oldValue, oldLastModified),
+    //          LEDGER_ENTRY_UPDATED(newValue, newLastModified)
+    // Meta after changes:
+    //     TTL: LEDGER_ENTRY_RESTORED(newValue, newLastModified)
+    //     Data/Code: LEDGER_ENTRY_RESTORED(oldValue, oldLastModified)
+    //
+    // Subtle: with the exception of the RestoreOp data/code from live
+    // BucketList, all other RESTORE meta should have the current ledger as
+    // the lastModifiedLedgerSeq.
+
     // First, iterate through existing meta and change everything we need to
     // update.
     for (auto& change : changes)
     {
-        // For entry creation meta, we only need to check for Hot Archive
-        // restores
         if (change.type() == LEDGER_ENTRY_CREATED)
         {
-            auto le = change.created();
-            if (hotArchiveRestores.find(LedgerEntryKey(le)) !=
-                hotArchiveRestores.end())
+            if (change.created().data.type() == TTL ||
+                isPersistentEntry(change.created().data))
             {
-                releaseAssertOrThrow(isPersistentEntry(le.data) ||
-                                     le.data.type() == TTL);
-                change.type(LEDGER_ENTRY_RESTORED);
-                change.restored() = le;
+                // For entry creation meta, we only need to check for Hot
+                // Archive restores
+                auto key = LedgerEntryKey(change.created());
+                releaseAssertOrThrow(liveRestores.find(key) ==
+                                     liveRestores.end());
+
+                auto hotRestoreIter = hotArchiveRestores.find(key);
+                if (hotRestoreIter != hotArchiveRestores.end())
+                {
+                    // Entry was only restored during the TX, change create to
+                    // restore
+                    auto le = change.created();
+                    if (le.data == hotRestoreIter->second.data)
+                    {
+                        change.type(LEDGER_ENTRY_RESTORED);
+                        change.restored() = le;
+                    }
+                    else
+                    {
+                        // Entry was restored and modified during the TX, change
+                        // create to a modify and add original value as restored
+                        change.type(LEDGER_ENTRY_UPDATED);
+                        change.updated() = le;
+                        stateChangesToAdd.insert(key);
+                    }
+                }
             }
         }
-        // Update meta only applies to TTL meta
         else if (change.type() == LEDGER_ENTRY_UPDATED)
         {
-            if (change.updated().data.type() == TTL)
+            if (change.updated().data.type() == TTL ||
+                isPersistentEntry(change.updated().data))
             {
-                auto ttlLe = change.updated();
-                if (liveRestores.find(LedgerEntryKey(ttlLe)) !=
-                    liveRestores.end())
+                // Only entries restored from the live BucketList can have
+                // UPDATED meta, Hot Archive entries will have CREATED meta.
+                auto key = LedgerEntryKey(change.updated());
+                releaseAssertOrThrow(hotArchiveRestores.find(key) ==
+                                     hotArchiveRestores.end());
+
+                auto liveRestoreIter = liveRestores.find(key);
+                if (liveRestoreIter != liveRestores.end())
                 {
-                    // Update the TTL change from LEDGER_ENTRY_UPDATED to
-                    // LEDGER_ENTRY_RESTORED.
-                    change.type(LEDGER_ENTRY_RESTORED);
-                    change.restored() = ttlLe;
+                    // The entry was restored from the live BucketList. Either:
+                    // 1. The entry was only restored and not modified.
+                    //    In this case, original meta will be STATE(value),
+                    //    UPDATED(value). We will change the UPDATED to RESTORED
+                    //    below and just delete the STATE change.
+                    if (change.updated().data == liveRestoreIter->second.data)
+                    {
+                        auto le = change.updated();
+                        change.type(LEDGER_ENTRY_RESTORED);
+                        change.restored() = le;
+                        stateChangesToRemove.insert(key);
+                        continue;
+                    }
+
+                    // 2. The entry was restored and then modified.
+                    //    In this case, meta will emit STATE(oldValue),
+                    //    UPDATED(newValue). We will convert the STATE to
+                    //    RESTORED and leave the UPDATED change as is.
+                    stateChangesToConvert.insert(key);
                 }
             }
         }
     }
 
-    // Now we need to insert all the LEDGER_ENTRY_RESTORED changes for the
-    // data entries that were not created but already existed on the live
-    // BucketList. These data/code entries have not been modified (only the TTL
-    // is updated), so ltx doesn't have any meta. However this is still useful
-    // for downstream so we manually insert restore meta here.
-    for (auto const& key : liveRestores)
+    // First remove and convert STATE changes
+    for (auto iter = changes.begin(); iter != changes.end();)
     {
-        if (key.type() == TTL)
+        if (iter->type() == LEDGER_ENTRY_STATE)
         {
-            continue;
+            auto lk = LedgerEntryKey(iter->state());
+            if (stateChangesToRemove.find(lk) != stateChangesToRemove.end())
+            {
+                releaseAssertOrThrow(stateChangesToConvert.find(lk) ==
+                                     stateChangesToConvert.end());
+                releaseAssertOrThrow(stateChangesToAdd.find(lk) ==
+                                     stateChangesToAdd.end());
+                iter = changes.erase(iter);
+                continue;
+            }
+
+            if (stateChangesToConvert.find(lk) != stateChangesToConvert.end())
+            {
+                releaseAssertOrThrow(stateChangesToAdd.find(lk) ==
+                                     stateChangesToAdd.end());
+
+                auto le = iter->state();
+                iter->type(LEDGER_ENTRY_RESTORED);
+                iter->restored() = le;
+
+                // For consistency between live and hot archive restores,
+                // restores lastModifiedLedgerSeq should be the current ledger
+                iter->restored().lastModifiedLedgerSeq =
+                    ltx.getHeader().ledgerSeq;
+            }
         }
-        releaseAssertOrThrow(isPersistentEntry(key));
 
-        // Note: this is already in the cache since the RestoreOp loaded
-        // all data keys for size calculation during apply already
-        auto entry = ltx.getNewestVersion(key);
+        ++iter;
+    }
 
-        // If TTL already exists and is just being updated, the
-        // data entry must also already exist
-        releaseAssertOrThrow(entry);
-
+    for (auto const& key : stateChangesToAdd)
+    {
+        auto le = hotArchiveRestores.at(key);
         LedgerEntryChange change;
         change.type(LEDGER_ENTRY_RESTORED);
-        change.restored() = entry->ledgerEntry();
+        change.restored() = le;
+        change.restored().lastModifiedLedgerSeq = ltx.getHeader().ledgerSeq;
         changes.push_back(change);
+    }
+
+    if (op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT)
+    {
+        // RestoreOp will create both the TTL and Code/Data entry in the hot
+        // archive case (which was converted to RESTORE above). However, when
+        // restoring from live BucketList, only the TTL value will be modified,
+        // so we have to manually insert the RESTORED meta for the Code/Data
+        // entry here.
+        for (auto const& [key, entry] : liveRestores)
+        {
+            if (key.type() == TTL)
+            {
+                continue;
+            }
+            releaseAssertOrThrow(isPersistentEntry(key));
+
+            LedgerEntryChange change;
+            change.type(LEDGER_ENTRY_RESTORED);
+            change.restored() = entry;
+            changes.push_back(change);
+        }
+
+        // RestoreOp can't modify entries
+        releaseAssertOrThrow(stateChangesToAdd.empty());
+        releaseAssertOrThrow(stateChangesToConvert.empty());
     }
 
     return changes;
 }
-
 } // namespace
 
 void
@@ -151,8 +282,8 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx)
     }
     std::visit(
         [&opLtx, this](auto&& meta) {
-            meta.get().changes =
-                processOpLedgerEntryChanges(mOp, opLtx, mProtocolVersion);
+            meta.get().changes = processOpLedgerEntryChanges(
+                mConfig, mOp, opLtx, mProtocolVersion);
         },
         mMeta);
 }
@@ -181,9 +312,9 @@ OperationMetaBuilder::getDiagnosticEventManager()
 }
 
 OperationMetaBuilder::OperationMetaBuilder(
-    bool metaEnabled, OperationMeta& meta, OperationFrame const& op,
-    uint32_t protocolVersion, Hash const& networkID, Config const& config,
-    DiagnosticEventManager& diagnosticEventManager)
+    Config const& cfg, bool metaEnabled, OperationMeta& meta,
+    OperationFrame const& op, uint32_t protocolVersion, Hash const& networkID,
+    Config const& config, DiagnosticEventManager& diagnosticEventManager)
     : mEnabled(metaEnabled)
     , mProtocolVersion(protocolVersion)
     , mOp(op)
@@ -191,13 +322,14 @@ OperationMetaBuilder::OperationMetaBuilder(
     , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, networkID,
                     op.getTxMemo(), config)
     , mDiagnosticEventManager(diagnosticEventManager)
+    , mConfig(cfg)
 {
 }
 
 OperationMetaBuilder::OperationMetaBuilder(
-    bool metaEnabled, OperationMetaV2& meta, OperationFrame const& op,
-    uint32_t protocolVersion, Hash const& networkID, Config const& config,
-    DiagnosticEventManager& diagnosticEventManager)
+    Config const& cfg, bool metaEnabled, OperationMetaV2& meta,
+    OperationFrame const& op, uint32_t protocolVersion, Hash const& networkID,
+    Config const& config, DiagnosticEventManager& diagnosticEventManager)
     : mEnabled(metaEnabled)
     , mProtocolVersion(protocolVersion)
     , mOp(op)
@@ -205,6 +337,7 @@ OperationMetaBuilder::OperationMetaBuilder(
     , mEventManager(metaEnabled, op.isSoroban(), protocolVersion, networkID,
                     op.getTxMemo(), config)
     , mDiagnosticEventManager(diagnosticEventManager)
+    , mConfig(cfg)
 {
 }
 
@@ -647,8 +780,9 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         for (size_t i = 0; i < numOperations; ++i)
         {
             mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
-                metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
-                app.getNetworkID(), app.getConfig(), mDiagnosticEventManager));
+                app.getConfig(), metaEnabled, opMeta[i], *operationFrames[i],
+                protocolVersion, app.getNetworkID(), app.getConfig(),
+                mDiagnosticEventManager));
         }
         break;
     }
@@ -659,8 +793,9 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         for (size_t i = 0; i < numOperations; ++i)
         {
             mOperationMetaBuilders.emplace_back(OperationMetaBuilder(
-                metaEnabled, opMeta[i], *operationFrames[i], protocolVersion,
-                app.getNetworkID(), app.getConfig(), mDiagnosticEventManager));
+                app.getConfig(), metaEnabled, opMeta[i], *operationFrames[i],
+                protocolVersion, app.getNetworkID(), app.getConfig(),
+                mDiagnosticEventManager));
         }
         break;
     }

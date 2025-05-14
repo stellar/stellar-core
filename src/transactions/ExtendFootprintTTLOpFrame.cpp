@@ -10,6 +10,7 @@
 #include "medida/timer.h"
 #include "transactions/MutableTransactionResult.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -108,7 +109,6 @@ ExtendFootprintTTLOpFrame::doApply(
 
         uint32_t entrySize =
             static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
-        metrics.mLedgerReadByte += entrySize;
 
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
                                          app.getConfig(), mParentTx,
@@ -118,16 +118,22 @@ ExtendFootprintTTLOpFrame::doApply(
             return false;
         }
 
-        if (resources.diskReadBytes < metrics.mLedgerReadByte)
+        if (protocolVersionIsBefore(ledgerVersion,
+                                    AUTO_RESTORE_PROTOCOL_VERSION))
         {
-            diagnosticEvents.pushError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                "operation byte-read resources exceeds amount specified",
-                {makeU64SCVal(metrics.mLedgerReadByte),
-                 makeU64SCVal(resources.diskReadBytes)});
+            metrics.mLedgerReadByte += entrySize;
+            if (resources.diskReadBytes < metrics.mLedgerReadByte)
+            {
+                diagnosticEvents.pushError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-read resources exceeds amount specified",
+                    {makeU64SCVal(metrics.mLedgerReadByte),
+                     makeU64SCVal(resources.diskReadBytes)});
 
-            innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
-            return false;
+                innerResult(res).code(
+                    EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
         }
 
         // We already checked that the TTLEntry exists in the logic above

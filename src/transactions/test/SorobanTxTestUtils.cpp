@@ -537,7 +537,8 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
 {
     return sorobanTransactionFrameFromOps(
         networkID, source, ops, opKeys, spec.getResources(),
-        spec.getInclusionFee(), spec.getResourceFee());
+        spec.getInclusionFee(), spec.getResourceFee(), memo, seq,
+        spec.getArchivedIndexes());
 }
 
 SorobanInvocationSpec::SorobanInvocationSpec(SorobanResources const& resources,
@@ -573,6 +574,12 @@ uint32_t
 SorobanInvocationSpec::getInclusionFee() const
 {
     return mInclusionFee;
+}
+
+std::optional<std::vector<uint32_t>>
+SorobanInvocationSpec::getArchivedIndexes() const
+{
+    return mArchivedIndexes;
 }
 
 SorobanInvocationSpec
@@ -658,6 +665,15 @@ SorobanInvocationSpec::setInclusionFee(uint32_t fee) const
 {
     auto newSpec = *this;
     newSpec.mInclusionFee = fee;
+    return newSpec;
+}
+
+SorobanInvocationSpec
+SorobanInvocationSpec::setArchivedIndexes(
+    std::vector<uint32_t> const& indexes) const
+{
+    auto newSpec = *this;
+    newSpec.mArchivedIndexes = indexes;
     return newSpec;
 }
 
@@ -938,6 +954,53 @@ SorobanTest::computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
     return (num + increment - 1) / increment;
 };
 
+int64_t
+SorobanTest::getAccountBalance(TestAccount* source)
+{
+    auto& account = source ? *source : getRoot();
+    return account.getBalance();
+}
+
+void
+SorobanTest::checkRefundableFee(int64_t initialBalance,
+                                TransactionFrameBaseConstPtr tx,
+                                TransactionMetaFrame const& txm,
+                                int64_t expectedRefundableFeeCharged,
+                                size_t eventsSize)
+{
+    // Get the account balance after transaction execution
+    int64_t balanceAfterFeeCharged;
+    if (tx->getSourceID() == getRoot().getPublicKey())
+    {
+        balanceAfterFeeCharged = getRoot().getBalance();
+    }
+    else
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        auto account = ltx.load(accountKey(tx->getSourceID()));
+        REQUIRE(account);
+        balanceAfterFeeCharged = account.current().data.account().balance;
+    }
+
+    int64_t baseFee = 100;
+    auto changesAfter = txm.getChangesAfter();
+    REQUIRE(changesAfter.size() == 2);
+    int64_t nonRefundableResourceFee =
+        sorobanResourceFee(getApp(), tx->sorobanResources(),
+                           xdr::xdr_size(tx->getEnvelope()), eventsSize);
+    int64_t expectedFeeCharged =
+        nonRefundableResourceFee + expectedRefundableFeeCharged + baseFee;
+    int64_t actualFeeCharged = initialBalance - balanceAfterFeeCharged;
+    REQUIRE(actualFeeCharged == expectedFeeCharged);
+
+    // Meta should contain the refund in `changesAfter`.
+    int64_t chargedBeforeRefund =
+        (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
+    REQUIRE(changesAfter[1].updated().data.account().balance -
+                changesAfter[0].state().data.account().balance ==
+            chargedBeforeRefund - expectedFeeCharged);
+}
+
 void
 SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
                               int64_t expectedRefundableFeeCharged)
@@ -950,8 +1013,8 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
                                 diagnostics);
     }
     REQUIRE(result->isSuccess());
-    int64_t initBalance = getRoot().getBalance();
 
+    int64_t initBalance = getAccountBalance();
     int64_t baseFee = 100;
     int64_t chargedBeforeRefund =
         (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
@@ -960,21 +1023,7 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
     TransactionMetaFrame txm;
     REQUIRE(isSuccessResult(invokeTx(tx, &txm)));
 
-    int64_t balanceAfterFeeCharged = getRoot().getBalance();
-
-    auto changesAfter = txm.getChangesAfter();
-    REQUIRE(changesAfter.size() == 2);
-    int64_t nonRefundableResourceFee = sorobanResourceFee(
-        getApp(), tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()), 0);
-    int64_t expectedFeeCharged =
-        nonRefundableResourceFee + expectedRefundableFeeCharged + baseFee;
-    int64_t actualFeeCharged = initBalance - balanceAfterFeeCharged;
-    REQUIRE(actualFeeCharged == expectedFeeCharged);
-
-    // Meta should contain the refund in `changesAfter`.
-    REQUIRE(changesAfter[1].updated().data.account().balance -
-                changesAfter[0].state().data.account().balance ==
-            chargedBeforeRefund - expectedFeeCharged);
+    checkRefundableFee(initBalance, tx, txm, expectedRefundableFeeCharged);
 }
 
 Hash

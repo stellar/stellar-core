@@ -111,6 +111,7 @@ class SorobanInvocationSpec
     uint32_t mNonRefundableResourceFee = DEFAULT_TEST_RESOURCE_FEE;
     uint32_t mRefundableResourceFee = DEFAULT_TEST_RESOURCE_FEE;
     uint32_t mInclusionFee = 100;
+    std::optional<std::vector<uint32_t>> mArchivedIndexes;
 
   public:
     SorobanInvocationSpec() = default;
@@ -123,6 +124,7 @@ class SorobanInvocationSpec
     uint32_t getFee() const;
     uint32_t getResourceFee() const;
     uint32_t getInclusionFee() const;
+    std::optional<std::vector<uint32_t>> getArchivedIndexes() const;
 
     SorobanInvocationSpec setInstructions(int64_t instructions) const;
     SorobanInvocationSpec
@@ -139,6 +141,9 @@ class SorobanInvocationSpec
     SorobanInvocationSpec setRefundableResourceFee(uint32_t fee) const;
     SorobanInvocationSpec setNonRefundableResourceFee(uint32_t fee) const;
     SorobanInvocationSpec setInclusionFee(uint32_t fee) const;
+
+    SorobanInvocationSpec
+    setArchivedIndexes(std::vector<uint32_t> const& indexes) const;
 };
 
 TransactionFrameBaseConstPtr sorobanTransactionFrameFromOps(
@@ -336,6 +341,15 @@ class SorobanTest
                                        std::function<SCVal(uint256)> signFn);
     SorobanSigner createClassicAccountSigner(TestAccount const& account,
                                              std::vector<TestAccount*> signers);
+
+    void checkRefundableFee(int64_t initialBalance,
+                            TransactionFrameBaseConstPtr tx,
+                            TransactionMetaFrame const& txm,
+                            int64_t expectedRefundableFeeCharged,
+                            size_t eventsSize = 0);
+
+    // Defaults to root account
+    int64_t getAccountBalance(TestAccount* source = nullptr);
 };
 
 class AssetContractTestClient

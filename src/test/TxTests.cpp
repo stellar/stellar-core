@@ -1707,7 +1707,8 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        SorobanResources const& resources, uint32_t totalFee,
                        int64_t resourceFee, std::optional<std::string> memo,
                        std::optional<SequenceNumber> seq,
-                       std::optional<uint64_t> muxedData)
+                       std::optional<uint64_t> muxedData,
+                       std::optional<std::vector<uint32_t>> archivedIndexes)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     if (muxedData)
@@ -1726,6 +1727,19 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
     tx.v1().tx.ext.sorobanData().resourceFee = resourceFee;
+
+    if (archivedIndexes)
+    {
+        tx.v1().tx.ext.sorobanData().ext.v(1);
+        auto& archivedEntriesRef = tx.v1()
+                                       .tx.ext.sorobanData()
+                                       .ext.resourceExt()
+                                       .archivedSorobanEntries;
+        archivedEntriesRef.insert(archivedEntriesRef.end(),
+                                  archivedIndexes->begin(),
+                                  archivedIndexes->end());
+    }
+
     if (memo)
     {
         Memo textMemo(MEMO_TEXT);
@@ -1755,13 +1769,13 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 }
 
 TransactionTestFramePtr
-sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
-                               std::vector<Operation> const& ops,
-                               std::vector<SecretKey> const& opKeys,
-                               SorobanResources const& resources,
-                               uint32_t inclusionFee, int64_t resourceFee,
-                               std::optional<std::string> memo,
-                               std::optional<SequenceNumber> seq)
+sorobanTransactionFrameFromOps(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t inclusionFee,
+    int64_t resourceFee, std::optional<std::string> memo,
+    std::optional<SequenceNumber> seq,
+    std::optional<std::vector<uint32_t>> archivedIndexes)
 {
     uint64 totalFee = inclusionFee;
     totalFee += resourceFee;
@@ -1770,7 +1784,7 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID,
         sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
                                static_cast<uint32>(totalFee), resourceFee, memo,
-                               seq, std::nullopt));
+                               seq, std::nullopt, archivedIndexes));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
@@ -1779,12 +1793,14 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
-    std::optional<std::string> memo, std::optional<uint64> muxedData)
+    std::optional<std::string> memo, std::optional<uint64> muxedData,
+    std::optional<std::vector<uint32_t>> archivedIndexes)
 {
     auto tx = TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, totalFee, resourceFee,
-                                          memo, std::nullopt, muxedData));
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               totalFee, resourceFee, memo, std::nullopt,
+                               muxedData, archivedIndexes));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 

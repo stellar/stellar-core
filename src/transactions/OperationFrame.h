@@ -106,5 +106,6 @@ class OperationFrame
     SorobanResources const& getSorobanResources() const;
 
     Memo const& getTxMemo() const;
+    SorobanTransactionData::_ext_t const& getResourcesExt() const;
 };
 }

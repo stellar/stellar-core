@@ -335,6 +335,12 @@ TransactionTestFrame::sorobanResources() const
     return mTransactionFrame->sorobanResources();
 }
 
+SorobanTransactionData::_ext_t const&
+TransactionTestFrame::getResourcesExt() const
+{
+    return mTransactionFrame->getResourcesExt();
+}
+
 int64
 TransactionTestFrame::declaredSorobanResourceFee() const
 {

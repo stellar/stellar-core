@@ -56,6 +56,12 @@ FeeBumpTransactionFrame::sorobanResources() const
     return mInnerTx->sorobanResources();
 }
 
+SorobanTransactionData::_ext_t const&
+FeeBumpTransactionFrame::getResourcesExt() const
+{
+    return mInnerTx->getResourcesExt();
+}
+
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)
     : mEnvelope(envelope)

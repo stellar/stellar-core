@@ -788,6 +788,10 @@ class Config : public std::enable_shared_from_this<Config>
     // be enabled
     bool BACKFILL_STELLAR_ASSET_EVENTS;
 
+    // When enabled, meta will be populated with LedgerEntryChange
+    // RESTORE type for protocol versions prior to 23.
+    bool BACKFILL_RESTORE_META;
+
     uint32_t SOROBAN_PHASE_STAGE_COUNT;
 
 #ifdef BUILD_TESTS

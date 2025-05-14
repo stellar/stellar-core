@@ -351,4 +351,10 @@ OperationFrame::getTxMemo() const
 {
     return mParentTx.getMemo();
 }
+
+SorobanTransactionData::_ext_t const&
+OperationFrame::getResourcesExt() const
+{
+    return mParentTx.getResourcesExt();
+}
 }

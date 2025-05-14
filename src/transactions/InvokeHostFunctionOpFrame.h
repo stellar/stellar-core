@@ -17,6 +17,9 @@ class MutableTransactionResultBase;
 static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
 
+struct HostFunctionMetrics;
+class ApplyHelper;
+
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
     InvokeHostFunctionResult&
@@ -60,5 +63,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     }
 
     virtual bool isSoroban() const override;
+
+    friend class ApplyHelper;
 };
 }

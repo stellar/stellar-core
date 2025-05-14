@@ -324,6 +324,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     EMIT_CLASSIC_EVENTS = false;
     BACKFILL_STELLAR_ASSET_EVENTS = false;
+    BACKFILL_RESTORE_META = false;
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1737,7 +1738,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"EMIT_CLASSIC_EVENTS",
                  [&]() { EMIT_CLASSIC_EVENTS = readBool(item); }},
                 {"BACKFILL_STELLAR_ASSET_EVENTS",
-                 [&]() { BACKFILL_STELLAR_ASSET_EVENTS = readBool(item); }}};
+                 [&]() { BACKFILL_STELLAR_ASSET_EVENTS = readBool(item); }},
+                {"BACKFILL_RESTORE_META",
+                 [&]() { BACKFILL_RESTORE_META = readBool(item); }}};
 
             auto it = confProcessor.find(item.first);
             if (it != confProcessor.end())
