@@ -157,17 +157,17 @@ class LOCKABLE Mutex
 
 // MutexLocker is an RAII class that acquires a mutex in its constructor, and
 // releases it in its destructor.
-class SCOPED_LOCKABLE MutexLocker
+template <typename MutexType> class SCOPED_LOCKABLE MutexLockerT
 {
   private:
-    Mutex& mut;
+    MutexType& mut;
 
   public:
-    MutexLocker(Mutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mut(mu)
+    MutexLockerT(MutexType& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mut(mu)
     {
         mu.Lock();
     }
-    ~MutexLocker() UNLOCK_FUNCTION()
+    ~MutexLockerT() UNLOCK_FUNCTION()
     {
         mut.Unlock();
     }
@@ -213,24 +213,6 @@ class LOCKABLE SharedMutex
     }
 };
 
-// SharedLockExclusive is an RAII class that acquires a shared mutex in
-// exclusive mode in its constructor, and releases it in its destructor.
-class SCOPED_LOCKABLE SharedLockExclusive
-{
-  private:
-    SharedMutex& mut;
-
-  public:
-    SharedLockExclusive(SharedMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mut(mu)
-    {
-        mu.Lock();
-    }
-    ~SharedLockExclusive() UNLOCK_FUNCTION()
-    {
-        mut.Unlock();
-    }
-};
-
 // SharedLockShared is an RAII class that acquires a shared mutex in shared
 // mode in its constructor, and releases it in its destructor.
 class SCOPED_LOCKABLE SharedLockShared
@@ -248,5 +230,36 @@ class SCOPED_LOCKABLE SharedLockShared
         mut.UnlockShared();
     }
 };
+
+// Defines an annotated interface for recursive mutexes.
+// These methods can be implemented to use any internal recursive_mutex
+// implementation.
+class LOCKABLE RecursiveMutex
+{
+  private:
+    std::recursive_mutex mRecursiveMutex;
+
+  public:
+    // Acquire/lock this mutex exclusively. The same thread may acquire the
+    // mutex multiple times without blocking. The owning thread must release the
+    // mutex the same number of times it was acquired.
+    void
+    Lock() EXCLUSIVE_LOCK_FUNCTION()
+    {
+        mRecursiveMutex.lock();
+    }
+
+    // Release/unlock the mutex. Only the owning thread can release the mutex,
+    // and the mutex must be released as many times as it was acquired.
+    void
+    Unlock() UNLOCK_FUNCTION()
+    {
+        mRecursiveMutex.unlock();
+    }
+};
+
+using MutexLocker = MutexLockerT<Mutex>;
+using RecursiveMutexLocker = MutexLockerT<RecursiveMutex>;
+using SharedLockExclusive = MutexLockerT<SharedMutex>;
 
 #endif // THREAD_ANNOTATIONS_H_
