@@ -127,6 +127,14 @@ AS_IF([test "x$enable_threadsanitizer" = "xyes"], [
   sanitizeopts="thread"
 ])
 
+AC_ARG_ENABLE([threadsafety],
+  AS_HELP_STRING([--enable-threadsafety],
+        [build with thread safety static analysis instrumentation (Clang only)]))
+AS_IF([test "x$enable_threadsafety" = "xyes"], [
+  AC_MSG_NOTICE([enabling thread safety static analysis, see https://clang.llvm.org/docs/ThreadSafetyAnalysis.html])
+  CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety"
+])
+
 AC_ARG_ENABLE([memcheck],
   AS_HELP_STRING([--enable-memcheck],
         [build with memcheck (memory-sanitizer) instrumentation]))

@@ -13,6 +13,7 @@
 #include "overlay/PeerBareAddress.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/NonCopyable.h"
+#include "util/ThreadAnnotations.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
 #include <medida/counter.h>
@@ -187,13 +188,16 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     PeerRole const mRole;
     OverlayMetrics& mOverlayMetrics;
+    // No need for GUARDED_BY, PeerMettrics is thread-safe
     PeerMetrics mPeerMetrics;
-    std::string mDropReason;
+#ifdef BUILD_TESTS
+    std::string mDropReason GUARDED_BY(mStateMutex);
+#endif
 
     // Mutex to protect PeerState, which can be accessed and modified from
     // multiple threads
 #ifndef USE_TRACY
-    std::recursive_mutex mutable mStateMutex;
+    RecursiveMutex mutable mStateMutex;
 #else
     mutable TracyLockable(std::recursive_mutex, mStateMutex);
 #endif
@@ -217,10 +221,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // they all take a LockGuard that should be holding mStateMutex,
     // but do not lock that mutex themselves (to allow atomic
     // read-modify-write cycles or similar patterns in callers).
-    bool shouldAbort(RecursiveLockGuard const& stateGuard) const;
-    void setState(RecursiveLockGuard const& stateGuard, PeerState newState);
+    bool shouldAbort(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex);
+    void setState(RecursiveLockGuard const& stateGuard, PeerState newState)
+        REQUIRES(mStateMutex);
     PeerState
-    getState(RecursiveLockGuard const& stateGuard) const
+    getState(RecursiveLockGuard const& stateGuard) const REQUIRES(mStateMutex)
     {
         return mState;
     }
@@ -248,7 +254,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // IOW, all methods using these private variables and functions below must
     // synchronize access manually
   private:
-    PeerState mState;
+    PeerState mState GUARDED_BY(mStateMutex);
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
@@ -424,8 +430,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     /* The following functions can be called from background thread, so they
      * must be thread-safe */
-    bool isConnected(RecursiveLockGuard const& stateGuard) const;
-    bool isAuthenticated(RecursiveLockGuard const& stateGuard) const;
+    bool isConnected(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex);
+    bool isAuthenticated(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex);
 
     PeerMetrics&
     getPeerMetrics()

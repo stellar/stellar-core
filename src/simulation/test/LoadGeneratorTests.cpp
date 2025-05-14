@@ -663,11 +663,6 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             mixLoadCfg.setMinSorobanPercentSuccess(100);
 
             loadGen.generateLoad(mixLoadCfg);
-            auto numSuccessBefore = getSuccessfulTxCount();
-            auto numFailedBefore =
-                app.getMetrics()
-                    .NewCounter({"ledger", "apply-soroban", "failure"})
-                    .count();
             completeCount = complete.count();
             simulation->crankUntil(
                 [&]() { return complete.count() == completeCount + 1; },

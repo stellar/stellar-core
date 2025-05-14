@@ -7,6 +7,7 @@
 #include "lib/json/json.h"
 #include "medida/timer.h"
 #include "overlay/FlowControlCapacity.h"
+#include "util/ThreadAnnotations.h"
 #include "util/Timer.h"
 #include <optional>
 
@@ -61,18 +62,21 @@ class FlowControl
 
     // How many _hashes_ in total are queued?
     // NB: Each advert & demand contains a _vector_ of tx hashes.
-    size_t mAdvertQueueTxHashCount{0};
-    size_t mDemandQueueTxHashCount{0};
-    size_t mTxQueueByteCount{0};
+    size_t mAdvertQueueTxHashCount GUARDED_BY(mFlowControlMutex){0};
+    size_t mDemandQueueTxHashCount GUARDED_BY(mFlowControlMutex){0};
+    size_t mTxQueueByteCount GUARDED_BY(mFlowControlMutex){0};
 
     // Mutex to synchronize flow control state
-    std::mutex mutable mFlowControlMutex;
+    Mutex mutable mFlowControlMutex;
     // Is this peer currently throttled due to lack of capacity
-    std::optional<VirtualClock::time_point> mLastThrottle;
+    std::optional<VirtualClock::time_point>
+        mLastThrottle GUARDED_BY(mFlowControlMutex);
 
-    NodeID mNodeID;
-    FlowControlMessageCapacity mFlowControlCapacity;
-    FlowControlByteCapacity mFlowControlBytesCapacity;
+    NodeID mNodeID GUARDED_BY(mFlowControlMutex);
+    FlowControlMessageCapacity
+        mFlowControlCapacity GUARDED_BY(mFlowControlMutex);
+    FlowControlByteCapacity
+        mFlowControlBytesCapacity GUARDED_BY(mFlowControlMutex);
 
     OverlayMetrics& mOverlayMetrics;
     AppConnector& mAppConnector;
@@ -83,40 +87,49 @@ class FlowControl
     // Priority 1 - transactions
     // Priority 2 - flood demands
     // Priority 3 - flood adverts
-    FloodQueues<QueuedOutboundMessage> mOutboundQueues;
+    FloodQueues<QueuedOutboundMessage>
+        mOutboundQueues GUARDED_BY(mFlowControlMutex);
 
     // How many flood messages we received and processed since sending
     // SEND_MORE to this peer
-    uint64_t mFloodDataProcessed{0};
+    uint64_t mFloodDataProcessed GUARDED_BY(mFlowControlMutex){0};
     // How many bytes we received and processed since sending
     // SEND_MORE to this peer
-    uint64_t mFloodDataProcessedBytes{0};
+    uint64_t mFloodDataProcessedBytes GUARDED_BY(mFlowControlMutex){0};
     // How many total messages we received and processed so far (used to track
     // throttling)
-    uint64_t mTotalMsgsProcessed{0};
-    std::optional<VirtualClock::time_point> mNoOutboundCapacity;
-    FlowControlMetrics mMetrics;
+    uint64_t mTotalMsgsProcessed GUARDED_BY(mFlowControlMutex){0};
+    std::optional<VirtualClock::time_point>
+        mNoOutboundCapacity GUARDED_BY(mFlowControlMutex);
+    FlowControlMetrics mMetrics GUARDED_BY(mFlowControlMutex);
 
     bool hasOutboundCapacity(StellarMessage const& msg,
-                             std::lock_guard<std::mutex>& lockGuard) const;
-    virtual size_t
-    getOutboundQueueByteLimit(std::lock_guard<std::mutex>& lockGuard) const;
-    bool canRead(std::lock_guard<std::mutex> const& lockGuard) const;
+                             MutexLocker& lockGuard) const
+        REQUIRES(mFlowControlMutex);
+    virtual size_t getOutboundQueueByteLimit(MutexLocker& lockGuard) const
+        REQUIRES(mFlowControlMutex);
+    bool canRead(MutexLocker const& lockGuard) const
+        REQUIRES(mFlowControlMutex);
 
   public:
     FlowControl(AppConnector& connector, bool useBackgoundThread);
     virtual ~FlowControl() = default;
 
-    void maybeReleaseCapacity(StellarMessage const& msg);
-    void handleTxSizeIncrease(uint32_t increase);
+    void maybeReleaseCapacity(StellarMessage const& msg)
+        LOCKS_EXCLUDED(mFlowControlMutex);
+    void handleTxSizeIncrease(uint32_t increase)
+        LOCKS_EXCLUDED(mFlowControlMutex);
     // This method adds a new message to the outbound queue, while shedding
     // obsolete load
-    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
+    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
+        LOCKS_EXCLUDED(mFlowControlMutex);
     // Return next batch of messages to send
     // NOTE: this method consumes outbound capacity of the receiving peer
-    std::vector<QueuedOutboundMessage> getNextBatchToSend();
+    std::vector<QueuedOutboundMessage> getNextBatchToSend()
+        LOCKS_EXCLUDED(mFlowControlMutex);
     void updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
-                          VirtualClock::time_point const& timePlaced);
+                          VirtualClock::time_point const& timePlaced)
+        LOCKS_EXCLUDED(mFlowControlMutex);
 
 #ifdef BUILD_TESTS
     FlowControlCapacity&
@@ -133,6 +146,7 @@ class FlowControl
 
     void
     addToQueueAndMaybeTrimForTesting(std::shared_ptr<StellarMessage const> msg)
+        LOCKS_EXCLUDED(mFlowControlMutex)
     {
         addMsgAndMaybeTrimQueue(msg);
     }
@@ -144,62 +158,69 @@ class FlowControl
     }
 
     size_t
-    getTxQueueByteCountForTesting() const
+    getTxQueueByteCountForTesting() const LOCKS_EXCLUDED(mFlowControlMutex)
     {
+        MutexLocker lockGuard(mFlowControlMutex);
         return mTxQueueByteCount;
     }
-    std::optional<size_t> mOutboundQueueLimit;
+    std::optional<size_t> mOutboundQueueLimit GUARDED_BY(mFlowControlMutex);
     void
-    setOutboundQueueLimit(size_t bytes)
+    setOutboundQueueLimit(size_t bytes) LOCKS_EXCLUDED(mFlowControlMutex)
     {
+        MutexLocker lockGuard(mFlowControlMutex);
         mOutboundQueueLimit = std::make_optional<size_t>(bytes);
     }
     size_t
-    getOutboundQueueByteLimit() const
+    getOutboundQueueByteLimit() const LOCKS_EXCLUDED(mFlowControlMutex)
     {
-        std::lock_guard<std::mutex> lockGuard(mFlowControlMutex);
+        MutexLocker lockGuard(mFlowControlMutex);
         return getOutboundQueueByteLimit(lockGuard);
     }
 #endif
 
     static uint32_t getNumMessages(StellarMessage const& msg);
     static uint32_t getMessagePriority(StellarMessage const& msg);
-    bool isSendMoreValid(StellarMessage const& msg,
-                         std::string& errorMsg) const;
+    bool isSendMoreValid(StellarMessage const& msg, std::string& errorMsg) const
+        LOCKS_EXCLUDED(mFlowControlMutex);
 
     // This method ensures local capacity is locked now that we've received a
     // new message
-    bool beginMessageProcessing(StellarMessage const& msg);
+    bool beginMessageProcessing(StellarMessage const& msg)
+        LOCKS_EXCLUDED(mFlowControlMutex);
 
     // This method ensures local capacity is released now that we've finished
     // processing the message. It returns available capacity that can now be
     // requested from the peer.
-    SendMoreCapacity endMessageProcessing(StellarMessage const& msg);
-    bool canRead() const;
+    SendMoreCapacity endMessageProcessing(StellarMessage const& msg)
+        LOCKS_EXCLUDED(mFlowControlMutex);
+    bool canRead() const LOCKS_EXCLUDED(mFlowControlMutex);
 
     // This method checks whether a peer has not requested new data within a
     // `timeout` (useful to diagnose if the connection is stuck for any reason)
     bool noOutboundCapacityTimeout(VirtualClock::time_point now,
-                                   std::chrono::seconds timeout) const;
+                                   std::chrono::seconds timeout) const
+        LOCKS_EXCLUDED(mFlowControlMutex);
 
-    Json::Value getFlowControlJsonInfo(bool compact) const;
+    Json::Value getFlowControlJsonInfo(bool compact) const
+        LOCKS_EXCLUDED(mFlowControlMutex);
 
     // Stores `peerID` to produce more useful log messages.
-    void setPeerID(NodeID const& peerID);
+    void setPeerID(NodeID const& peerID) LOCKS_EXCLUDED(mFlowControlMutex);
 
     // Stop reading from this peer until capacity is released
-    bool maybeThrottleRead();
+    bool maybeThrottleRead() LOCKS_EXCLUDED(mFlowControlMutex);
     // After releasing capacity, check if throttling was applied, and if so,
     // reset it. Returns true if peer was throttled, and false otherwise
-    void stopThrottling();
-    bool isThrottled() const;
+    void stopThrottling() LOCKS_EXCLUDED(mFlowControlMutex);
+    bool isThrottled() const LOCKS_EXCLUDED(mFlowControlMutex);
 
     // A function to be called once a batch of messages is sent (typically, this
     // is called once async_write completes and invokes a handler that calls
     // this function). This function will appropriatly trim outbound queues and
     // release capacity used by the messages that were sent.
-    void processSentMessages(
-        FloodQueues<ConstStellarMessagePtr> const& sentMessages);
+    void
+    processSentMessages(FloodQueues<ConstStellarMessagePtr> const& sentMessages)
+        LOCKS_EXCLUDED(mFlowControlMutex);
 };
 
 }

@@ -9,6 +9,7 @@
 #include "bucket/LiveBucket.h"
 #include "main/AppConnector.h"
 #include "util/NonCopyable.h"
+#include "util/ThreadAnnotations.h"
 
 #include <map>
 #include <memory>
@@ -45,28 +46,31 @@ class BucketSnapshotManager : NonMovableOrCopyable
   private:
     AppConnector mAppConnector;
 
+    // Lock must be held when accessing any member variables holding snapshots
+    mutable SharedMutex mSnapshotMutex;
+
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
     // snapshot, they will copy this snapshot.
-    SnapshotPtrT<LiveBucket> mCurrLiveSnapshot{};
-    SnapshotPtrT<HotArchiveBucket> mCurrHotArchiveSnapshot{};
+    SnapshotPtrT<LiveBucket> mCurrLiveSnapshot GUARDED_BY(mSnapshotMutex){};
+    SnapshotPtrT<HotArchiveBucket>
+        mCurrHotArchiveSnapshot GUARDED_BY(mSnapshotMutex){};
 
     // ledgerSeq that the snapshot is based on -> snapshot
-    std::map<uint32_t, SnapshotPtrT<LiveBucket>> mLiveHistoricalSnapshots;
+    std::map<uint32_t, SnapshotPtrT<LiveBucket>>
+        mLiveHistoricalSnapshots GUARDED_BY(mSnapshotMutex);
     std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>
-        mHotArchiveHistoricalSnapshots;
+        mHotArchiveHistoricalSnapshots GUARDED_BY(mSnapshotMutex);
 
     uint32_t const mNumHistoricalSnapshots;
-
-    // Lock must be held when accessing any member variables holding snapshots
-    mutable std::shared_mutex mSnapshotMutex;
 
   public:
     // Called by main thread to update snapshots whenever the BucketList
     // is updated
     void
     updateCurrentSnapshot(SnapshotPtrT<LiveBucket>&& liveSnapshot,
-                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot);
+                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
+        LOCKS_EXCLUDED(mSnapshotMutex);
 
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
@@ -76,18 +80,34 @@ class BucketSnapshotManager : NonMovableOrCopyable
                           uint32_t numHistoricalLedgers);
 
     // Copy the most recent snapshot for the live bucket list
-    SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot() const;
+    SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot() const
+        LOCKS_EXCLUDED(mSnapshotMutex);
 
     // Copy the most recent snapshot for the hot archive bucket list
     SearchableHotArchiveSnapshotConstPtr
-    copySearchableHotArchiveBucketListSnapshot() const;
+    copySearchableHotArchiveBucketListSnapshot() const
+        LOCKS_EXCLUDED(mSnapshotMutex);
+
+    // Copy the most recent snapshot for the live bucket list, while holding the
+    // lock
+    SearchableSnapshotConstPtr
+    copySearchableLiveBucketListSnapshot(SharedLockShared const& guard) const
+        REQUIRES_SHARED(mSnapshotMutex);
+
+    // Copy the most recent snapshot for the hot archive bucket list, while
+    // holding the lock
+    SearchableHotArchiveSnapshotConstPtr
+    copySearchableHotArchiveBucketListSnapshot(
+        SharedLockShared const& guard) const REQUIRES_SHARED(mSnapshotMutex);
 
     // `maybeCopy` interface refreshes `snapshot` if a newer snapshot is
     // available. It's a no-op otherwise. This is useful to avoid unnecessary
     // copying.
     void
-    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
+    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot)
+        LOCKS_EXCLUDED(mSnapshotMutex);
     void maybeCopySearchableHotArchiveBucketListSnapshot(
-        SearchableHotArchiveSnapshotConstPtr& snapshot);
+        SearchableHotArchiveSnapshotConstPtr& snapshot)
+        LOCKS_EXCLUDED(mSnapshotMutex);
 };
 }

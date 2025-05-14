@@ -16,8 +16,7 @@ namespace stellar
 {
 
 size_t
-FlowControl::getOutboundQueueByteLimit(
-    std::lock_guard<std::mutex>& lockGuard) const
+FlowControl::getOutboundQueueByteLimit(MutexLocker& lockGuard) const
 {
 #ifdef BUILD_TESTS
     if (mOutboundQueueLimit)
@@ -44,7 +43,7 @@ FlowControl::FlowControl(AppConnector& connector, bool useBackgroundThread)
 
 bool
 FlowControl::hasOutboundCapacity(StellarMessage const& msg,
-                                 std::lock_guard<std::mutex>& lockGuard) const
+                                 MutexLocker& lockGuard) const
 {
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
     return mFlowControlCapacity.hasOutboundCapacity(msg) &&
@@ -55,7 +54,7 @@ bool
 FlowControl::noOutboundCapacityTimeout(VirtualClock::time_point now,
                                        std::chrono::seconds timeout) const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     return mNoOutboundCapacity && now - *mNoOutboundCapacity >= timeout;
 }
 
@@ -63,7 +62,7 @@ void
 FlowControl::setPeerID(NodeID const& peerID)
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     mNodeID = peerID;
 }
 
@@ -72,7 +71,7 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     if (msg.type() == SEND_MORE_EXTENDED)
     {
@@ -103,7 +102,7 @@ FlowControl::processSentMessages(
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
 
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     for (int i = 0; i < sentMessages.size(); i++)
     {
         auto const& sentMsgs = sentMessages[i];
@@ -162,7 +161,7 @@ FlowControl::getNextBatchToSend()
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
 
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     std::vector<QueuedOutboundMessage> batchToSend;
 
     int sent = 0;
@@ -217,7 +216,7 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
 {
     // The lock isn't strictly needed here, but is added for consistency and
     // future-proofing this function
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     auto diff = mAppConnector.now() - timePlaced;
 
     auto updateQueueDelay = [&](auto& queue, auto& metrics) {
@@ -258,7 +257,7 @@ FlowControl::handleTxSizeIncrease(uint32_t increase)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     releaseAssert(increase > 0);
     // Bump flood capacity to accommodate the upgrade
     mFlowControlBytesCapacity.handleTxSizeIncrease(increase);
@@ -269,7 +268,7 @@ FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     return mFlowControlCapacity.lockLocalCapacity(msg) &&
            mFlowControlBytesCapacity.lockLocalCapacity(msg);
@@ -279,7 +278,7 @@ SendMoreCapacity
 FlowControl::endMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     mFloodDataProcessed += mFlowControlCapacity.releaseLocalCapacity(msg);
     mFloodDataProcessedBytes +=
@@ -318,7 +317,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
 }
 
 bool
-FlowControl::canRead(std::lock_guard<std::mutex> const& guard) const
+FlowControl::canRead(MutexLocker const& guard) const
 {
     return mFlowControlBytesCapacity.canRead() &&
            mFlowControlCapacity.canRead();
@@ -327,7 +326,7 @@ FlowControl::canRead(std::lock_guard<std::mutex> const& guard) const
 bool
 FlowControl::canRead() const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     return canRead(guard);
 }
 
@@ -365,7 +364,7 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
                              std::string& errorMsg) const
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     if (msg.type() != SEND_MORE_EXTENDED)
     {
@@ -404,7 +403,7 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     releaseAssert(msg);
     auto type = msg->type();
     size_t msgQInd = 0;
@@ -461,16 +460,12 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     auto& om = mOverlayMetrics;
     if (type == TRANSACTION)
     {
-        auto isOverLimit = [&](auto const& queue) {
-            bool overLimit =
-                queue.size() > limit ||
-                mTxQueueByteCount > getOutboundQueueByteLimit(guard);
-            return overLimit;
-        };
+        bool isOverLimit = queue.size() > limit ||
+                           mTxQueueByteCount > getOutboundQueueByteLimit(guard);
 
         // If we are at limit, we're probably really behind, so drop the entire
         // queue
-        if (isOverLimit(queue))
+        if (isOverLimit)
         {
             dropped = queue.size();
             mTxQueueByteCount = 0;
@@ -559,7 +554,7 @@ Json::Value
 FlowControl::getFlowControlJsonInfo(bool compact) const
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     Json::Value res;
     if (mFlowControlCapacity.getCapacity().mTotalCapacity)
@@ -601,7 +596,7 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
 bool
 FlowControl::maybeThrottleRead()
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     if (!canRead(guard))
     {
         CLOG_DEBUG(Overlay, "Throttle reading from peer {}",
@@ -615,7 +610,7 @@ FlowControl::maybeThrottleRead()
 void
 FlowControl::stopThrottling()
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     releaseAssert(mLastThrottle);
     CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
                mAppConnector.getConfig().toShortString(mNodeID));
@@ -627,7 +622,7 @@ FlowControl::stopThrottling()
 bool
 FlowControl::isThrottled() const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     return static_cast<bool>(mLastThrottle);
 }
 

@@ -22,6 +22,8 @@ namespace stellar
 // pair of them wrapped in a LoopbackPeerConnection that explicitly manages the
 // lifecycle of the connection.
 
+// This class is not thread-safe and is not meant to utilize multi-threading. It
+// is only safe to call its methods from the main thread.
 class LoopbackPeer : public Peer
 {
   private:
@@ -57,7 +59,7 @@ class LoopbackPeer : public Peer
                      std::shared_ptr<StellarMessage const> msg) override;
     AuthCert getAuthCert() override;
 
-    void processInQueue();
+    void processInQueue() NO_THREAD_SAFETY_ANALYSIS;
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
   public:
@@ -70,11 +72,12 @@ class LoopbackPeer : public Peer
 
     static std::pair<std::shared_ptr<LoopbackPeer>,
                      std::shared_ptr<LoopbackPeer>>
-    initiate(Application& app, Application& otherApp);
+    initiate(Application& app, Application& otherApp) NO_THREAD_SAFETY_ANALYSIS;
 
-    void drop(std::string const& reason, DropDirection dropDirection) override;
+    void drop(std::string const& reason,
+              DropDirection dropDirection) NO_THREAD_SAFETY_ANALYSIS override;
 
-    void deliverOne();
+    void deliverOne() NO_THREAD_SAFETY_ANALYSIS;
     void deliverAll();
     void dropAll();
     size_t getBytesQueued() const;

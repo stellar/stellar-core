@@ -55,7 +55,24 @@ BucketSnapshotManager::BucketSnapshotManager(
 SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
+    // Can't use std::make_shared due to private constructor
+    return copySearchableLiveBucketListSnapshot(guard);
+}
+
+SearchableHotArchiveSnapshotConstPtr
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+{
+    SharedLockShared guard(mSnapshotMutex);
+    releaseAssert(mCurrHotArchiveSnapshot);
+    // Can't use std::make_shared due to private constructor
+    return copySearchableHotArchiveBucketListSnapshot(guard);
+}
+
+SearchableSnapshotConstPtr
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+    SharedLockShared const& guard) const
+{
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
@@ -66,9 +83,9 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 }
 
 SearchableHotArchiveSnapshotConstPtr
-BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+    SharedLockShared const& guard) const
 {
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
     releaseAssert(mCurrHotArchiveSnapshot);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
@@ -86,12 +103,11 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
-
+    SharedLockShared guard(mSnapshotMutex);
     if (!snapshot ||
         snapshot->getLedgerSeq() < mCurrLiveSnapshot->getLedgerSeq())
     {
-        snapshot = copySearchableLiveBucketListSnapshot();
+        snapshot = copySearchableLiveBucketListSnapshot(guard);
     }
 }
 
@@ -102,12 +118,12 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
 
     if (!snapshot ||
         snapshot->getLedgerSeq() < mCurrHotArchiveSnapshot->getLedgerSeq())
     {
-        snapshot = copySearchableHotArchiveBucketListSnapshot();
+        snapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
 }
 
@@ -142,7 +158,7 @@ BucketSnapshotManager::updateCurrentSnapshot(
 
     // Updating the BucketSnapshotManager canonical snapshot, must lock
     // exclusively for write access.
-    std::unique_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockExclusive guard(mSnapshotMutex);
     updateSnapshot(mCurrLiveSnapshot, mLiveHistoricalSnapshots, liveSnapshot);
     updateSnapshot(mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots,
                    hotArchiveSnapshot);
