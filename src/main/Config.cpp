@@ -1085,14 +1085,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { DISABLE_XDR_FSYNC = readBool(item); }},
                 {"METADATA_OUTPUT_STREAM",
                  [&]() { METADATA_OUTPUT_STREAM = readString(item); }},
-                {"EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING",
-                 [&]() {
-                     CLOG_WARNING(Overlay,
-                                  "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING "
-                                  "is deprecated. Use "
-                                  "BACKGROUND_OVERLAY_PROCESSING instead");
-                     BACKGROUND_OVERLAY_PROCESSING = readBool(item);
-                 }},
                 {"BACKGROUND_OVERLAY_PROCESSING",
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
                 {"EXPERIMENTAL_PARALLEL_LEDGER_APPLY",
