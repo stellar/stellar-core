@@ -431,6 +431,8 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
                 if (vl == SCPDriver::kFullyValidatedValue)
                 {
                     mAccepted.emplace(vw);
+                    mSlot.getSCPDriver().acceptedNomination(
+                        mSlot.getSlotIndex());
                     mVotes.emplace(vw);
                     modified = true;
                 }

@@ -59,6 +59,8 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "nomination", "combinecandidates"}, "value"))
     , mNominateToPrepare(
           app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
+    , mNominationStartToFirstAccept(
+          app.getMetrics().NewTimer({"scp", "timing", "first-accept"}))
     , mPrepareToExternalize(
           app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
     , mFirstToSelfExternalizeLag(app.getMetrics().NewTimer(
@@ -926,6 +928,28 @@ HerderSCPDriver::acceptedBallotPrepared(uint64_t slotIndex,
 }
 
 void
+HerderSCPDriver::acceptedNomination(uint64_t slotIndex)
+{
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        // Only track first acceptance
+        if (!it->second.mNominationAccept)
+        {
+            it->second.mNominationAccept =
+                std::make_optional<VirtualClock::time_point>(
+                    mApp.getClock().now());
+
+            recordLogTiming(*it->second.mNominationStart,
+                            *it->second.mNominationAccept,
+                            mSCPMetrics.mNominationStartToFirstAccept,
+                            "Nomination start to first accept",
+                            std::chrono::nanoseconds::zero(), slotIndex);
+        }
+    }
+}
+
+void
 HerderSCPDriver::confirmedBallotPrepared(uint64_t slotIndex,
                                          SCPBallot const& ballot)
 {
@@ -944,6 +968,18 @@ HerderSCPDriver::getPrepareStart(uint64_t slotIndex)
     if (it != mSCPExecutionTimes.end())
     {
         res = it->second.mPrepareStart;
+    }
+    return res;
+}
+
+std::optional<VirtualClock::time_point>
+HerderSCPDriver::getNominationAccept(uint64_t slotIndex)
+{
+    std::optional<VirtualClock::time_point> res = std::nullopt;
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        res = it->second.mNominationAccept;
     }
     return res;
 }

@@ -177,6 +177,7 @@ scp.sync.lost                             | meter     | validator lost sync
 scp.timeout.nominate                      | meter     | timeouts in nomination
 scp.timeout.prepare                       | meter     | timeouts in ballot protocol
 scp.timing.nominated                      | timer     | time spent in nomination
+scp.timing.first-accept                   | timer     | time spent from the start of nomination to the first accept
 scp.timing.externalized                   | timer     | time spent in ballot protocol
 scp.timing.first-to-self-externalize-lag  | timer     | delay between first externalize message and local node externalizing
 scp.timing.self-to-others-externalize-lag | timer     | delay between local node externalizing and later externalize messages from other nodes

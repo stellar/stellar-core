@@ -109,11 +109,17 @@ class HerderSCPDriver : public SCPDriver
                                SCPBallot const& ballot) override;
     void acceptedBallotPrepared(uint64_t slotIndex,
                                 SCPBallot const& ballot) override;
+    void acceptedNomination(uint64_t slotIndex) override;
     void confirmedBallotPrepared(uint64_t slotIndex,
                                  SCPBallot const& ballot) override;
     void acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot) override;
 
     std::optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
+
+    // Returns the time when we first voted to accept for the given slotIndex,
+    // or std::nullopt if we haven't voted to accept yet.
+    std::optional<VirtualClock::time_point>
+    getNominationAccept(uint64_t slotIndex);
 
     // converts a Value into a StellarValue
     // returns false on error
@@ -163,6 +169,9 @@ class HerderSCPDriver : public SCPDriver
 
         // Timers for nomination and ballot protocols
         medida::Timer& mNominateToPrepare;
+
+        // Tracks time from the start of nomination to the first accept
+        medida::Timer& mNominationStartToFirstAccept;
         medida::Timer& mPrepareToExternalize;
 
         // Timers tracking externalize messages
@@ -186,8 +195,9 @@ class HerderSCPDriver : public SCPDriver
 
     struct SCPTiming
     {
-        std::optional<VirtualClock::time_point> mNominationStart;
-        std::optional<VirtualClock::time_point> mPrepareStart;
+        std::optional<VirtualClock::time_point> mNominationStart{};
+        std::optional<VirtualClock::time_point> mNominationAccept{};
+        std::optional<VirtualClock::time_point> mPrepareStart{};
 
         // Nomination timeouts before first prepare
         int64_t mNominationTimeoutCount{0};

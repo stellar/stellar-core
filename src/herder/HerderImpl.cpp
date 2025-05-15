@@ -1223,7 +1223,17 @@ HerderImpl::setupTriggerNextLedger()
     // the ballot protocol started last
     auto now = mApp.getClock().now();
     auto lastBallotStart = now - seconds;
-    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+    std::optional<VirtualClock::time_point> lastStart = std::nullopt;
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  ProtocolVersion::V_23))
+    {
+        lastStart = mHerderSCPDriver.getNominationAccept(lastIndex);
+    }
+    else
+    {
+        lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+    }
+
     if (lastStart)
     {
         lastBallotStart = *lastStart;
