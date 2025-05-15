@@ -138,6 +138,15 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
     }
 }
 
+void
+LedgerCloseMetaFrame::setPostTxApplyFeeProcessing(LedgerEntryChanges&& changes,
+                                                  int index)
+{
+    releaseAssert(mVersion == 2);
+    mLedgerCloseMeta.v2().txProcessing.at(index).postTxApplyFeeProcessing =
+        std::move(changes);
+}
+
 xdr::xvector<UpgradeEntryMeta>&
 LedgerCloseMetaFrame::upgradesProcessing()
 {

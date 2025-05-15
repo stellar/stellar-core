@@ -133,6 +133,10 @@ class TransactionTestFrame : public TransactionFrameBase
                      TransactionMetaBuilder& meta,
                      MutableTransactionResultBase& txResult) const override;
 
+    void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                               MutableTransactionResultBase& txResult,
+                               TxEventManager& txEventManager) const override;
+
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 
     bool hasDexOperations() const override;

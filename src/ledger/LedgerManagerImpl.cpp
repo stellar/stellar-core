@@ -1851,6 +1851,26 @@ LedgerManagerImpl::applyTransactions(
             tx->processPostApply(mApp.getAppConnector(), ltx, tm,
                                  mutableTxResult);
 
+            // TODO: This is currently in the wrong spot, as it should be called
+            // after the tx set as been applied. This will be fixed when
+            // parallel soroban is implemented
+            if (protocolVersionStartsFrom(
+                    ltx.loadHeader().current().ledgerVersion,
+                    ProtocolVersion::V_23))
+            {
+                LedgerTxn ltxInner(ltx);
+                tx->processPostTxSetApply(mApp.getAppConnector(), ltxInner,
+                                          mutableTxResult,
+                                          tm.getTxEventManager());
+
+                if (ledgerCloseMeta)
+                {
+                    ledgerCloseMeta->setPostTxApplyFeeProcessing(
+                        ltxInner.getChanges(), index);
+                }
+                ltxInner.commit();
+            }
+
             resultPair.result = mutableTxResult.getXDR();
             if (mutableTxResult.isSuccess())
             {

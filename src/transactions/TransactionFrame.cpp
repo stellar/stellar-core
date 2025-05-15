@@ -1962,17 +1962,35 @@ TransactionFrame::processPostApply(AppConnector& app,
                                    TransactionMetaBuilder& meta,
                                    MutableTransactionResultBase& txResult) const
 {
-    processRefund(app, ltxOuter, meta, getSourceID(), txResult);
+    if (protocolVersionIsBefore(ltxOuter.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_23) &&
+        isSoroban())
+    {
+        LedgerTxn ltx(ltxOuter);
+        processRefund(app, ltx, getSourceID(), txResult,
+                      meta.getTxEventManager());
+        meta.pushTxChangesAfter(ltx);
+        ltx.commit();
+    }
     meta.maybeSetRefundableFeeMeta(txResult.getRefundableFeeTracker());
+}
+
+void
+TransactionFrame::processPostTxSetApply(AppConnector& app,
+                                        AbstractLedgerTxn& ltx,
+                                        MutableTransactionResultBase& txResult,
+                                        TxEventManager& txEventManager) const
+{
+    processRefund(app, ltx, getSourceID(), txResult, txEventManager);
 }
 
 // This is a TransactionFrame specific function that should only be used by
 // FeeBumpTransactionFrame to forward a different account for the refund.
 void
 TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                                TransactionMetaBuilder& meta,
                                 AccountID const& feeSource,
-                                MutableTransactionResultBase& txResult) const
+                                MutableTransactionResultBase& txResult,
+                                TxEventManager& txEventManager) const
 {
     ZoneScoped;
     if (!isSoroban())
@@ -1981,11 +1999,7 @@ TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     }
     // Process Soroban resource fee refund (this is independent of the
     // transaction success).
-    LedgerTxn ltx(ltxOuter);
-    int64_t refund = refundSorobanFee(ltx, feeSource, txResult);
-
-    meta.pushTxChangesAfter(ltx);
-    ltx.commit();
+    int64_t refund = refundSorobanFee(ltxOuter, feeSource, txResult);
 
     // Emit fee refund event. A refund counts as a negative amount of fee
     // charged.
@@ -1995,7 +2009,7 @@ TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     {
         stage = TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_ALL_TXS;
     }
-    meta.getTxEventManager().newFeeEvent(feeSource, -refund, stage);
+    txEventManager.newFeeEvent(feeSource, -refund, stage);
 }
 
 std::shared_ptr<StellarMessage const>

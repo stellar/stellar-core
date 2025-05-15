@@ -134,8 +134,28 @@ FeeBumpTransactionFrame::processPostApply(
     // Note that we are not calling TransactionFrame::processPostApply, so if
     // any logic is added there, we would have to reason through if that logic
     // should also be reflected here.
-    mInnerTx->processRefund(app, ltx, meta, getFeeSourceID(), txResult);
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_23) &&
+        isSoroban())
+    {
+        LedgerTxn ltxInner(ltx);
+        mInnerTx->processRefund(app, ltxInner, getFeeSourceID(), txResult,
+                                meta.getTxEventManager());
+        meta.pushTxChangesAfter(ltxInner);
+        ltxInner.commit();
+    }
+
     meta.maybeSetRefundableFeeMeta(txResult.getRefundableFeeTracker());
+}
+
+void
+FeeBumpTransactionFrame::processPostTxSetApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    MutableTransactionResultBase& txResult,
+    TxEventManager& txEventManager) const
+{
+    mInnerTx->processRefund(app, ltx, getFeeSourceID(), txResult,
+                            txEventManager);
 }
 
 bool
