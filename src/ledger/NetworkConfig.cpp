@@ -934,6 +934,20 @@ initialLedgerCostExtEntry()
     return entry;
 }
 
+// TODO: Set to proper values
+ConfigSettingEntry
+initialScpTimingEntry()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_SCP_TIMING);
+    entry.contractSCPTiming().ledgerTargetCloseTimeMilliseconds = 0;
+    entry.contractSCPTiming().nominationTimeoutInitialMilliseconds = 0;
+    entry.contractSCPTiming().nominationTimeoutIncrementMilliseconds = 0;
+    entry.contractSCPTiming().ballotTimeoutInitialMilliseconds = 0;
+    entry.contractSCPTiming().ballotTimeoutIncrementMilliseconds = 0;
+
+    return entry;
+}
+
 ConfigSettingEntry
 initialliveSorobanStateSizeWindow(Application& app)
 {
@@ -1098,6 +1112,18 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
+    case ConfigSettingID::CONFIG_SETTING_SCP_TIMING:
+        // TODO: Set to proper values
+        valid = protocolVersionStartsFrom(ledgerVersion,
+                                          ProtocolVersion::V_23) /* &&
+ cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds > 0 &&
+ cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds > 0 &&
+ cfg.contractSCPTiming()
+         .nominationTimeoutIncrementMilliseconds > 0 &&
+ cfg.contractSCPTiming().ballotTimeoutInitialMilliseconds > 0 &&
+ cfg.contractSCPTiming().ballotTimeoutIncrementMilliseconds > 0 */
+            ;
+        break;
     default:
         break;
     }
@@ -1193,6 +1219,8 @@ SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
     createConfigSettingEntry(initialLedgerCostExtEntry(), ltx,
+                             static_cast<uint32_t>(ProtocolVersion::V_23));
+    createConfigSettingEntry(initialScpTimingEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
 }
 

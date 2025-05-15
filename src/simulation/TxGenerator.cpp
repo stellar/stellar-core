@@ -741,6 +741,12 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             continue;
         }
 
+        // TODO: Remove this when SCP timing work is implemented
+        if (t == CONFIG_SETTING_SCP_TIMING)
+        {
+            continue;
+        }
+
         auto entryPtr = lsg.load(configSettingKey(type));
         // This could happen if we have not yet upgraded
         if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
