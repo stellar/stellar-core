@@ -4231,7 +4231,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod = 1;
         // These are required to allow for an upgrade of all settings at once.
-        cfg.mMaxContractDataEntrySizeBytes = 3200;
+        cfg.mMaxContractDataEntrySizeBytes = 5000;
+        cfg.mledgerMaxDiskReadBytes = 5000;
+        cfg.mLedgerMaxWriteBytes = 5000;
+        cfg.mTxMaxDiskReadBytes = 5000;
+        cfg.mTxMaxWriteBytes = 5000;
     });
 
     const int64_t startingBalance =
