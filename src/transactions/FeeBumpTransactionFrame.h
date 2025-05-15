@@ -79,6 +79,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                      TransactionMetaBuilder& meta,
                      MutableTransactionResultBase& txResult) const override;
 
+    void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                               MutableTransactionResultBase& txResult,
+                               TxEventManager& txEventManager) const override;
+
     MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,

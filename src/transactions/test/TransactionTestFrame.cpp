@@ -311,6 +311,16 @@ TransactionTestFrame::processPostApply(
     mTransactionTxResult = txResult.clone();
 }
 
+void
+TransactionTestFrame::processPostTxSetApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    MutableTransactionResultBase& txResult,
+    TxEventManager& txEventManager) const
+{
+    mTransactionFrame->processPostTxSetApply(app, ltx, txResult,
+                                             txEventManager);
+}
+
 std::shared_ptr<StellarMessage const>
 TransactionTestFrame::toStellarMessage() const
 {
