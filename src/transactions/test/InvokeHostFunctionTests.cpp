@@ -918,7 +918,17 @@ TEST_CASE("version test", "[tx][soroban]")
 
 TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
-    SorobanTest test;
+    auto appCfg = getTestConfig();
+    if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+        return;
+    }
+
+    SorobanTest test(appCfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxDiskReadEntries;
+        cfg.mTxMaxInMemoryReadEntries = (cfg.mTxMaxDiskReadEntries * 2) + 10;
+    });
     auto const& cfg = test.getNetworkCfg();
 
     auto& addContract =
@@ -1230,6 +1240,205 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
             resources.footprint.readWrite.emplace_back(persistentKey2);
             resources.footprint.readWrite.emplace_back(persistentKey3);
             testValidInvoke(false, {{0, 2, 3}});
+        }
+    }
+
+    auto testReadWritesLimits = [&](bool readOnly, bool addArchivedEntries,
+                                    std::unordered_set<LedgerEntryType> types,
+                                    auto count, bool shouldBeValid) {
+        UnorderedSet<LedgerKey> seenKeys;
+        auto entries = LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+            types, count, seenKeys);
+        std::optional<std::vector<uint32_t>> archivedIndexes;
+
+        for (size_t i = 0; i < entries.size(); ++i)
+        {
+            auto const& entry = entries[i];
+            if (readOnly)
+            {
+                resources.footprint.readOnly.emplace_back(entry);
+            }
+            else if (addArchivedEntries)
+            {
+                resources.footprint.readWrite.emplace_back(entry);
+                if (!archivedIndexes)
+                {
+                    archivedIndexes = std::vector<uint32_t>();
+                }
+                archivedIndexes->push_back(i);
+            }
+            else
+            {
+                if (rand_flip())
+                {
+                    resources.footprint.readWrite.emplace_back(entry);
+                }
+                else
+                {
+                    resources.footprint.readOnly.emplace_back(entry);
+                }
+            }
+        }
+        testValidInvoke(shouldBeValid, archivedIndexes);
+    };
+
+    if (protocolVersionStartsFrom(
+            appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+            AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+
+        auto const maxDiskReads = cfg.mTxMaxDiskReadEntries;
+
+        // contract instance and WASM entry are already in the fooprint
+        auto const maxTotalReads = cfg.mTxMaxInMemoryReadEntries - 2;
+
+        SECTION("classic entries counted as disk")
+        {
+            SECTION("read only")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+
+            SECTION("read write")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+        }
+
+        SECTION("soroban entries")
+        {
+            SECTION("in-memory")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxTotalReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxTotalReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+
+            SECTION("archived entries")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/true,
+                                         {CONTRACT_CODE}, maxDiskReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/true,
+                                         {CONTRACT_CODE}, maxDiskReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+        }
+    }
+    else
+    {
+        auto const maxReads = cfg.mTxMaxDiskReadEntries;
+
+        SECTION("soroban only")
+        {
+            SECTION("max + 1")
+            {
+                SECTION("read only")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("read and write")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+            }
+        }
+
+        SECTION("soroban classic mixed")
+        {
+            SECTION("read only")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+
+            SECTION("read and write")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
         }
     }
 }

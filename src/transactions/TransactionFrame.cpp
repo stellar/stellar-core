@@ -59,6 +59,35 @@ namespace
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
+uint32_t
+getNumDiskReadEntries(SorobanResources const& resources,
+                      SorobanTransactionData::_ext_t const& ext)
+{
+    // First count classic entry reads
+    uint32_t count = 0;
+    auto countClassic = [&count](auto keys) {
+        for (auto const& key : keys)
+        {
+            if (!isSorobanEntry(key))
+            {
+                ++count;
+            }
+        }
+    };
+
+    countClassic(resources.footprint.readOnly);
+    countClassic(resources.footprint.readWrite);
+
+    // Next, count soroban on-disk entries. Only archived entries are on disk,
+    // and they have to be marked in the readWrite footprint, so we can just
+    // count the number of marked entries directly.
+    if (ext.v() == 1)
+    {
+        count += ext.resourceExt().archivedSorobanEntries.size();
+    }
+
+    return count;
+}
 } // namespace
 
 using namespace std;
@@ -601,13 +630,36 @@ TransactionFrame::checkSorobanResources(
              makeU64SCVal(config.txMaxWriteBytes())});
         return false;
     }
-    if (readEntries.size() + writeEntries.size() >
-        config.txMaxDiskReadEntries())
+
+    uint32_t numDiskReads;
+    if (protocolVersionStartsFrom(ledgerVersion, AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+        numDiskReads = getNumDiskReadEntries(resources, getResourcesExt());
+
+        auto totalReads = resources.footprint.readOnly.size() +
+                          resources.footprint.readWrite.size();
+        if (totalReads > config.txMaxInMemoryReadEntries())
     {
         diagnosticEvents.pushError(
             SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
-            "transaction entry-read resources exceed network config limit",
-            {makeU64SCVal(readEntries.size() + writeEntries.size()),
+                "transaction total-entry-read resources exceed network config "
+                "limit",
+                {makeU64SCVal(totalReads),
+                 makeU64SCVal(config.txMaxInMemoryReadEntries())});
+            return false;
+        }
+    }
+    else
+    {
+        numDiskReads = readEntries.size() + writeEntries.size();
+    }
+
+    if (numDiskReads > config.txMaxDiskReadEntries())
+    {
+        diagnosticEvents.pushError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction entry-disk-read resources exceed network config limit",
+            {makeU64SCVal(numDiskReads),
              makeU64SCVal(config.txMaxDiskReadEntries())});
         return false;
     }
