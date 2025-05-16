@@ -623,6 +623,12 @@ LedgerManagerImpl::getLastClosedLedgerTxMeta()
     return mLastLedgerTxMeta;
 }
 
+std::optional<LedgerCloseMetaFrame> const&
+LedgerManagerImpl::getLastClosedLedgerCloseMeta()
+{
+    return mLastLedgerCloseMeta;
+}
+
 void
 LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
@@ -992,6 +998,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
 #ifdef BUILD_TESTS
     mLastLedgerTxMeta.clear();
+    mLastLedgerCloseMeta.reset();
 #endif
     ZoneScoped;
     auto ledgerTime = mApplyState.mMetrics.mLedgerClose.TimeScope();
@@ -1106,6 +1113,17 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         ledgerCloseMeta->reserveTxProcessing(applicableTxSet->sizeTxTotal());
         ledgerCloseMeta->populateTxSet(*txSet);
     }
+
+#ifdef BUILD_TESTS
+    // We always store the ledgerCloseMeta in tests so we can inspect it.
+    if (!ledgerCloseMeta)
+    {
+        ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
+            header.current().ledgerVersion);
+        ledgerCloseMeta->reserveTxProcessing(applicableTxSet->sizeTxTotal());
+        ledgerCloseMeta->populateTxSet(*txSet);
+    }
+#endif
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
@@ -1917,6 +1935,11 @@ LedgerManagerImpl::applyTransactions(
             ++index;
         }
     }
+
+#ifdef BUILD_TESTS
+    releaseAssert(ledgerCloseMeta);
+    mLastLedgerCloseMeta = *ledgerCloseMeta;
+#endif
 
     mApplyState.mMetrics.mTransactionApplySucceeded.inc(txSucceeded);
     mApplyState.mMetrics.mTransactionApplyFailed.inc(txFailed);

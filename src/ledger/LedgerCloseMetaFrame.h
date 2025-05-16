@@ -45,6 +45,7 @@ class LedgerCloseMetaFrame
     xdr::xvector<LedgerKey> const& getEvictedKeys() const;
     size_t getTransactionResultMetaCount() const;
     TransactionMeta const& getTransactionMeta(size_t index) const;
+    LedgerEntryChanges const& getPostTxApplyFeeProcessing(size_t index) const;
 
 #endif
 

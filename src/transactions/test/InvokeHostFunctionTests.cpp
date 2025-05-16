@@ -587,8 +587,32 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
             ltx.commit();
         }
 
+        // This is a little weird. This test does not call into ledger manager
+        // for transaction application, so all we get in terms of meta is
+        // TransactionMeta, which is passed into TransactionFrame::apply. To
+        // make sure we can test the refund, we create a LedgerCloseMetaFrame
+        // here and force the refund to be set on it (post v23). This LCM will
+        // only contain the refund, and nothing else.
+        LedgerCloseMetaFrame lcm(test.getLedgerVersion());
+        if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+        {
+            LedgerTxn ltx(rootLtx);
+            tx->processPostTxSetApply(test.getApp().getAppConnector(), ltx,
+                                      *result, txmBuilder.getTxEventManager());
+
+            lcm.pushTxProcessingEntry();
+            lcm.setPostTxApplyFeeProcessing(ltx.getChanges(), 0);
+
+            ltx.commit();
+        }
+
         TransactionMetaFrame txm(txmBuilder.finalize(success));
-        auto changesAfter = txm.getChangesAfter();
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : lcm.getPostTxApplyFeeProcessing(0);
 
         // In case of failure we simply refund the whole refundable fee portion.
         if (!expectedRefund)
@@ -603,9 +627,9 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
         }
 
         // Verify refund meta
-        REQUIRE(changesAfter.size() == 2);
-        REQUIRE(changesAfter[1].updated().data.account().balance -
-                    changesAfter[0].state().data.account().balance ==
+        REQUIRE(refundChanges.size() == 2);
+        REQUIRE(refundChanges[1].updated().data.account().balance -
+                    refundChanges[0].state().data.account().balance ==
                 *expectedRefund);
 
         // Make sure account receives expected refund
@@ -858,9 +882,10 @@ TEST_CASE("version test", "[tx][soroban]")
 
         REQUIRE(test.isTxValid(tx));
 
-        TransactionMetaFrame txm;
-        REQUIRE(isSuccessResult(test.invokeTx(tx, &txm)));
-        return txm;
+        auto resMetaPair = test.invokeTxAndGetTxMeta(tx);
+
+        REQUIRE(isSuccessResult(resMetaPair.first));
+        return resMetaPair.second;
     };
 
     auto fnName = "get_protocol_version";
@@ -3912,15 +3937,17 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
             invocation.withExactNonRefundableResourceFee().createTx();
 
         auto initialBalance = test.getAccountBalance();
-        TransactionMetaFrame txm;
-        REQUIRE(test.invokeTx(autorestoreTx, &txm).result.code() ==
+
+        auto resMetaPair = test.invokeTxAndGetLCM(autorestoreTx);
+        REQUIRE(resMetaPair.first.result.code() ==
                 TransactionResultCode::txSUCCESS);
 
         // Check that the refundable fee charged matches what we expect for
         // restoration
         auto const eventSize = 4;
-        test.checkRefundableFee(initialBalance, autorestoreTx, txm,
-                                refundableRestoreCost, eventSize);
+        test.checkRefundableFee(initialBalance, autorestoreTx,
+                                resMetaPair.second, refundableRestoreCost,
+                                eventSize);
 
         // Entry should be live again
         client.get("key", ContractDataDurability::PERSISTENT, 123);
@@ -4157,13 +4184,15 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
             invocation.withExactNonRefundableResourceFee().createTx();
 
         auto initialBalance = test.getAccountBalance();
-        TransactionMetaFrame txm;
-        REQUIRE(test.invokeTx(autorestoreTx, &txm).result.code() ==
+
+        auto resMetaPair = test.invokeTxAndGetLCM(autorestoreTx);
+        REQUIRE(resMetaPair.first.result.code() ==
                 TransactionResultCode::txSUCCESS);
 
         // Check that the refundable fee charged matches what we expect
         // for restoration
-        test.checkRefundableFee(initialBalance, autorestoreTx, txm,
+        test.checkRefundableFee(initialBalance, autorestoreTx,
+                                resMetaPair.second,
                                 expectedRefundableFeeCharged, eventSize);
         REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
 

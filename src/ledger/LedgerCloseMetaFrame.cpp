@@ -304,6 +304,15 @@ LedgerCloseMetaFrame::getTransactionMeta(size_t index) const
     }
 }
 
+LedgerEntryChanges const&
+LedgerCloseMetaFrame::getPostTxApplyFeeProcessing(size_t index) const
+{
+    releaseAssert(mVersion == 2);
+    return mLedgerCloseMeta.v2()
+        .txProcessing.at(index)
+        .postTxApplyFeeProcessing;
+}
+
 #endif
 
 }
