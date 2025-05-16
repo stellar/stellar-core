@@ -1634,6 +1634,7 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
     }
 }
 
+#ifdef BUILD_TESTS
 bool
 TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         MutableTransactionResultBase& txResult,
@@ -1643,6 +1644,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                               ltx.loadHeader().current().ledgerVersion, app);
     return apply(app, ltx, tm, txResult, sorobanBasePrngSeed);
 }
+#endif
 
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
