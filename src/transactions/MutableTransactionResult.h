@@ -118,9 +118,12 @@ class MutableTransactionResultBase
     // Returns `true` if the result represents success.
     virtual bool isSuccess() const = 0;
 
-#ifdef BUILD_TESTS
+    // Returns the fee charged for the transaction up to the point of this call.
+    // Whether or not the refund is accounted for depends on if this is called
+    // before or after the refund has been applied.
     int64_t getFeeCharged() const;
 
+#ifdef BUILD_TESTS
     virtual std::unique_ptr<MutableTransactionResultBase> clone() const = 0;
 
     void overrideFeeCharged(int64_t feeCharged);

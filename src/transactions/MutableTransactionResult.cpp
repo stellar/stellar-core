@@ -162,11 +162,19 @@ MutableTransactionResultBase::setError(TransactionResultCode code)
     }
 }
 
-#ifdef BUILD_TESTS
 int64_t
 MutableTransactionResultBase::getFeeCharged() const
 {
     return mTxResult.feeCharged;
+}
+
+#ifdef BUILD_TESTS
+
+std::unique_ptr<MutableTransactionResultBase>
+MutableTransactionResult::clone() const
+{
+    return std::unique_ptr<MutableTransactionResultBase>(
+        new MutableTransactionResult(*this));
 }
 
 void
@@ -283,13 +291,6 @@ MutableTransactionResult::isSuccess() const
     return mTxResult.result.code() == txSUCCESS;
 }
 
-std::unique_ptr<MutableTransactionResultBase>
-MutableTransactionResult::clone() const
-{
-    return std::unique_ptr<MutableTransactionResultBase>(
-        new MutableTransactionResult(*this));
-}
-
 FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
     TransactionResultCode txErrorCode)
     : MutableTransactionResultBase(txErrorCode)
@@ -399,12 +400,12 @@ FeeBumpMutableTransactionResult::finalizeFeeRefund(uint32_t protocolVersion)
     }
 }
 
+#ifdef BUILD_TESTS
 std::unique_ptr<MutableTransactionResultBase>
 FeeBumpMutableTransactionResult::clone() const
 {
     return std::unique_ptr<MutableTransactionResultBase>(
         new FeeBumpMutableTransactionResult(*this));
 }
-
-// BUILD_TESTS
+#endif
 }
