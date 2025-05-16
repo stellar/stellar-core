@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/ProtocolVersion.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
 #include <limits>
@@ -399,7 +400,8 @@ modifySorobanNetworkConfig(Application& app,
 }
 
 void
-setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
+setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
+                               std::optional<uint32_t> ledgerVersion)
 {
     cfg.mMaxContractSizeBytes = 64 * 1024;
     cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
@@ -427,12 +429,22 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
     cfg.mLedgerMaxTxCount = 100;
 
     cfg.mTxMaxContractEventsSizeBytes = 10'000;
+
+    if (!ledgerVersion ||
+        protocolVersionStartsFrom(*ledgerVersion, ProtocolVersion::V_23))
+    {
+        cfg.mTxMaxInMemoryReadEntries = cfg.mTxMaxDiskReadEntries;
+    }
 }
 
 void
 overrideSorobanNetworkConfigForTest(Application& app)
 {
-    modifySorobanNetworkConfig(app, setSorobanNetworkConfigForTest);
+    modifySorobanNetworkConfig(app, [&app](SorobanNetworkConfig& cfg) {
+        setSorobanNetworkConfigForTest(cfg, app.getLedgerManager()
+                                                .getLastClosedLedgerHeader()
+                                                .header.ledgerVersion);
+    });
 }
 
 bool

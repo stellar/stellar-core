@@ -221,7 +221,8 @@ TransactionFrame::getOperationFrames() const
 }
 
 Resource
-TransactionFrame::getResources(bool useByteLimitInClassic) const
+TransactionFrame::getResources(bool useByteLimitInClassic,
+                               uint32_t ledgerVersion) const
 {
     auto txSize = static_cast<int64_t>(this->getSize());
     if (isSoroban())
@@ -234,10 +235,20 @@ TransactionFrame::getResources(bool useByteLimitInClassic) const
         // is used for constructing TX sets before invoking the host, so we need
         // to sum readOnly size and readWrite size for correct resource limits
         // here.
+        int64_t diskReadEntries;
+        if (protocolVersionStartsFrom(ledgerVersion,
+                                      AUTO_RESTORE_PROTOCOL_VERSION))
+        {
+            diskReadEntries = getNumDiskReadEntries(r, getResourcesExt());
+        }
+        else
+        {
+            diskReadEntries =
+                r.footprint.readOnly.size() + r.footprint.readWrite.size();
+        }
+
         return Resource({opCount, r.instructions, txSize, r.diskReadBytes,
-                         r.writeBytes,
-                         static_cast<int64_t>(r.footprint.readOnly.size() +
-                                              r.footprint.readWrite.size()),
+                         r.writeBytes, diskReadEntries,
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
     else if (useByteLimitInClassic)
@@ -639,9 +650,9 @@ TransactionFrame::checkSorobanResources(
         auto totalReads = resources.footprint.readOnly.size() +
                           resources.footprint.readWrite.size();
         if (totalReads > config.txMaxInMemoryReadEntries())
-    {
-        diagnosticEvents.pushError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+        {
+            diagnosticEvents.pushError(
+                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction total-entry-read resources exceed network config "
                 "limit",
                 {makeU64SCVal(totalReads),
@@ -915,8 +926,8 @@ TransactionFrame::computePreApplySorobanResourceFee(
     // doesn't involve modifying any transaction fees.
     return computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        static_cast<uint32>(
-            getResources(false).getVal(Resource::Type::TX_BYTE_SIZE)),
+        static_cast<uint32>(getResources(false, protocolVersion)
+                                .getVal(Resource::Type::TX_BYTE_SIZE)),
         0, sorobanConfig, cfg);
 }
 

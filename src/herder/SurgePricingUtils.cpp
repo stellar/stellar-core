@@ -150,7 +150,7 @@ std::vector<TransactionFrameBasePtr>
 SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     std::vector<TransactionFrameBasePtr> const& txs,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
 
@@ -159,7 +159,7 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
     for (auto const& tx : txs)
     {
-        queue.add(tx);
+        queue.add(tx, ledgerVersion);
     }
     std::vector<TransactionFrameBasePtr> outTxs;
     auto visitor = [&outTxs](TransactionFrameBasePtr const& tx) {
@@ -168,7 +168,7 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     };
     std::vector<Resource> laneLeftUntilLimit;
     queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimit,
-                    hadTxNotFittingLane);
+                    hadTxNotFittingLane, ledgerVersion);
     return outTxs;
 }
 
@@ -176,55 +176,59 @@ void
 SurgePricingPriorityQueue::visitTopTxs(
     std::vector<TransactionFrameBasePtr> const& txs,
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
-    std::vector<Resource>& laneLeftUntilLimit)
+    std::vector<Resource>& laneLeftUntilLimit, uint32_t ledgerVersion)
 {
     ZoneScoped;
 
     for (auto const& tx : txs)
     {
-        add(tx);
+        add(tx, ledgerVersion);
     }
     std::vector<bool> hadTxNotFittingLane;
     popTopTxs(/* allowGaps */ false, visitor, laneLeftUntilLimit,
-              hadTxNotFittingLane);
+              hadTxNotFittingLane, ledgerVersion);
 }
 
 void
-SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx)
+SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx,
+                               uint32_t ledgerVersion)
 {
     releaseAssert(tx != nullptr);
     auto lane = mLaneConfig->getLane(*tx);
     bool inserted = mTxSortedSets[lane].insert(tx).second;
     if (inserted)
     {
-        mLaneCurrentCount[lane] += mLaneConfig->getTxResources(*tx);
+        mLaneCurrentCount[lane] +=
+            mLaneConfig->getTxResources(*tx, ledgerVersion);
     }
 }
 
 void
-SurgePricingPriorityQueue::erase(TransactionFrameBasePtr tx)
+SurgePricingPriorityQueue::erase(TransactionFrameBasePtr tx,
+                                 uint32_t ledgerVersion)
 {
     releaseAssert(tx != nullptr);
     auto lane = mLaneConfig->getLane(*tx);
     auto it = mTxSortedSets[lane].find(tx);
     if (it != mTxSortedSets[lane].end())
     {
-        erase(lane, it);
+        erase(lane, it, ledgerVersion);
     }
 }
 
 void
-SurgePricingPriorityQueue::erase(Iterator const& it)
+SurgePricingPriorityQueue::erase(Iterator const& it, uint32_t ledgerVersion)
 {
     auto innerIt = it.getInnerIter();
-    erase(innerIt.first, innerIt.second);
+    erase(innerIt.first, innerIt.second, ledgerVersion);
 }
 
 void
 SurgePricingPriorityQueue::erase(
-    size_t lane, SurgePricingPriorityQueue::TxSortedSet::iterator iter)
+    size_t lane, SurgePricingPriorityQueue::TxSortedSet::iterator iter,
+    uint32_t ledgerVersion)
 {
-    auto res = mLaneConfig->getTxResources(*(*iter));
+    auto res = mLaneConfig->getTxResources(*(*iter), ledgerVersion);
     releaseAssert(res <= mLaneCurrentCount[lane]);
     mLaneCurrentCount[lane] -= res;
     mTxSortedSets[lane].erase(iter);
@@ -235,7 +239,7 @@ SurgePricingPriorityQueue::popTopTxs(
     bool allowGaps,
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
     std::vector<Resource>& laneLeftUntilLimit,
-    std::vector<bool>& hadTxNotFittingLane)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
 
@@ -251,7 +255,7 @@ SurgePricingPriorityQueue::popTopTxs(
         while (!currIt.isEnd())
         {
             auto const& currTx = *(*currIt);
-            auto curr = mLaneConfig->getTxResources(currTx);
+            auto curr = mLaneConfig->getTxResources(currTx, ledgerVersion);
             auto lane = mLaneConfig->getLane(currTx);
             if (anyGreater(curr, laneLeftUntilLimit[lane]) ||
                 anyGreater(curr, laneLeftUntilLimit[GENERIC_LANE]))
@@ -261,7 +265,7 @@ SurgePricingPriorityQueue::popTopTxs(
                     // If gaps are allowed we just erase the iterator and
                     // continue in the main loop.
                     gapSkipped = true;
-                    erase(currIt);
+                    erase(currIt, ledgerVersion);
                     if (anyGreater(curr, laneLeftUntilLimit[lane]))
                     {
                         hadTxNotFittingLane[lane] = true;
@@ -311,7 +315,7 @@ SurgePricingPriorityQueue::popTopTxs(
         // we can visit it and remove it from the queue.
         auto const& tx = *currIt;
         auto visitRes = visitor(tx);
-        auto res = mLaneConfig->getTxResources(*tx);
+        auto res = mLaneConfig->getTxResources(*tx, ledgerVersion);
         auto lane = mLaneConfig->getLane(*tx);
         // Only account for resource counts when transaction was actually
         // processed by the visitor.
@@ -333,14 +337,15 @@ SurgePricingPriorityQueue::popTopTxs(
             hadTxNotFittingLane[GENERIC_LANE] = true;
             hadTxNotFittingLane[lane] = true;
         }
-        erase(currIt);
+        erase(currIt, ledgerVersion);
     }
 }
 
 std::pair<bool, int64_t>
 SurgePricingPriorityQueue::canFitWithEviction(
     TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
-    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict) const
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+    uint32_t ledgerVersion) const
 {
     ZoneScoped;
 
@@ -348,7 +353,7 @@ SurgePricingPriorityQueue::canFitWithEviction(
     releaseAssert(!mComparator.isGreater());
 
     auto lane = mLaneConfig->getLane(tx);
-    auto txNewResources = mLaneConfig->getTxResources(tx);
+    auto txNewResources = mLaneConfig->getTxResources(tx, ledgerVersion);
     if (txDiscount)
     {
         txNewResources = subtractNonNegative(txNewResources, *txDiscount);
@@ -442,7 +447,7 @@ SurgePricingPriorityQueue::canFitWithEviction(
         // the transaction by evicting some transactions.
         releaseAssert(!iter.isEnd());
         auto const& evictTx = *(*iter);
-        auto evict = mLaneConfig->getTxResources(evictTx);
+        auto evict = mLaneConfig->getTxResources(evictTx, ledgerVersion);
         auto evictLane = mLaneConfig->getLane(evictTx);
 
         // Evicted tx must have a strictly lower fee than the new tx.
@@ -596,10 +601,11 @@ DexLimitingLaneConfig::updateGenericLaneLimit(Resource const& limit)
 }
 
 Resource
-DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx)
+DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx,
+                                      uint32_t ledgerVersion)
 {
     releaseAssert(!tx.isSoroban());
-    return tx.getResources(mUseByteLimit);
+    return tx.getResources(mUseByteLimit, ledgerVersion);
 }
 
 size_t
@@ -645,9 +651,10 @@ SorobanGenericLaneConfig::updateGenericLaneLimit(Resource const& limit)
 }
 
 Resource
-SorobanGenericLaneConfig::getTxResources(TransactionFrameBase const& tx)
+SorobanGenericLaneConfig::getTxResources(TransactionFrameBase const& tx,
+                                         uint32_t ledgerVersion)
 {
     releaseAssert(tx.isSoroban());
-    return tx.getResources(/* useByteLimitInClassic */ false);
+    return tx.getResources(/* useByteLimitInClassic */ false, ledgerVersion);
 }
 } // namespace stellar

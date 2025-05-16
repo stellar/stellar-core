@@ -746,7 +746,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     // this will succeed as `canAdd` ensures that this is the case
     mTxQueueLimiter->evictTransactions(
         txsToEvict, *tx,
-        [&](TransactionFrameBasePtr const& txToEvict) { ban({txToEvict}); });
+        [this](TransactionFrameBasePtr const& txToEvict) { ban({txToEvict}); });
     mTxQueueLimiter->addTransaction(tx);
     mKnownTxHashes[tx->getFullHash()] = tx;
 
@@ -1166,6 +1166,9 @@ SorobanTransactionQueue::broadcastSome()
     auto totalResToFlood = Resource::makeEmptySoroban();
     std::vector<TransactionFrameBasePtr> txsToBroadcast;
     std::unordered_map<TransactionFrameBasePtr, AccountState*> txToAccountState;
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
     for (auto& [_, accountState] : mAccountStates)
     {
         if (accountState.mTransaction &&
@@ -1174,12 +1177,12 @@ SorobanTransactionQueue::broadcastSome()
             auto tx = accountState.mTransaction->mTx;
             txsToBroadcast.emplace_back(tx);
             totalResToFlood += tx->getResources(
-                /* useByteLimitInClassic */ false);
+                /* useByteLimitInClassic */ false, ledgerVersion);
             txToAccountState[tx] = &accountState;
         }
     }
 
-    auto visitor = [this, &totalResToFlood,
+    auto visitor = [this, &totalResToFlood, ledgerVersion,
                     &txToAccountState](TransactionFrameBasePtr const& tx) {
         auto& accState = *txToAccountState.at(tx);
         // look at the next candidate transaction for that account
@@ -1191,8 +1194,8 @@ SorobanTransactionQueue::broadcastSome()
         releaseAssert(bStatus != BroadcastStatus::BROADCAST_STATUS_SKIPPED);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
-            totalResToFlood -=
-                tx->getResources(/* useByteLimitInClassic */ false);
+            totalResToFlood -= tx->getResources(
+                /* useByteLimitInClassic */ false, ledgerVersion);
             return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
         }
         else
@@ -1206,7 +1209,8 @@ SorobanTransactionQueue::broadcastSome()
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true,
         std::make_shared<SorobanGenericLaneConfig>(resToFlood), mBroadcastSeed);
-    queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover);
+    queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover,
+                      ledgerVersion);
 
     Resource maxPerTx =
         mApp.getLedgerManager().maxSorobanTransactionResources();
@@ -1267,8 +1271,11 @@ ClassicTransactionQueue::broadcastSome()
     }
 
     std::vector<TransactionFrameBasePtr> banningTxs;
-    auto visitor = [this, &totalToFlood, &banningTxs,
-                    &txToAccountState](TransactionFrameBasePtr const& tx) {
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    auto visitor = [this, &totalToFlood, &banningTxs, &txToAccountState,
+                    ledgerVersion](TransactionFrameBasePtr const& tx) {
         auto const& curTracker = txToAccountState.at(tx);
         // look at the next candidate transaction for that account
         auto& cur = *curTracker->mTransaction;
@@ -1277,7 +1284,8 @@ ClassicTransactionQueue::broadcastSome()
         auto bStatus = broadcastTx(cur);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
-            totalToFlood -= tx->getResources(/* useByteLimitInClassic */ false);
+            totalToFlood -= tx->getResources(/* useByteLimitInClassic */ false,
+                                             ledgerVersion);
             return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
         }
         else if (bStatus == BroadcastStatus::BROADCAST_STATUS_SKIPPED)
@@ -1298,7 +1306,8 @@ ClassicTransactionQueue::broadcastSome()
         /* isHighestPriority */ true,
         std::make_shared<DexLimitingLaneConfig>(opsToFlood, dexOpsToFlood),
         mBroadcastSeed);
-    queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover);
+    queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover,
+                      ledgerVersion);
     ban(banningTxs);
     // carry over remainder, up to MAX_OPS_PER_TX ops
     // reason is that if we add 1 next round, we can flood a "worst case fee
@@ -1336,7 +1345,7 @@ TransactionQueue::broadcast(bool fromCallback)
         mWaiting = true;
         mBroadcastTimer.expires_from_now(
             std::chrono::milliseconds(getFloodPeriod()));
-        mBroadcastTimer.async_wait([&]() { broadcast(true); },
+        mBroadcastTimer.async_wait([this]() { broadcast(true); },
                                    &VirtualTimer::onFailureNoop);
     }
 }
