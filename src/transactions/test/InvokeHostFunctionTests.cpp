@@ -587,8 +587,32 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
             ltx.commit();
         }
 
+        // This is a little weird. This test does not call into ledger manager
+        // for transaction application, so all we get in terms of meta is
+        // TransactionMeta, which is passed into TransactionFrame::apply. To
+        // make sure we can test the refund, we create a LedgerCloseMetaFrame
+        // here and force the refund to be set on it (post v23). This LCM will
+        // only contain the refund, and nothing else.
+        LedgerCloseMetaFrame lcm(test.getLedgerVersion());
+        if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+        {
+            LedgerTxn ltx(rootLtx);
+            tx->processPostTxSetApply(test.getApp().getAppConnector(), ltx,
+                                      *result, txmBuilder.getTxEventManager());
+
+            lcm.pushTxProcessingEntry();
+            lcm.setPostTxApplyFeeProcessing(ltx.getChanges(), 0);
+
+            ltx.commit();
+        }
+
         TransactionMetaFrame txm(txmBuilder.finalize(success));
-        auto changesAfter = txm.getChangesAfter();
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : lcm.getPostTxApplyFeeProcessing(0);
 
         // In case of failure we simply refund the whole refundable fee portion.
         if (!expectedRefund)
@@ -603,9 +627,9 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
         }
 
         // Verify refund meta
-        REQUIRE(changesAfter.size() == 2);
-        REQUIRE(changesAfter[1].updated().data.account().balance -
-                    changesAfter[0].state().data.account().balance ==
+        REQUIRE(refundChanges.size() == 2);
+        REQUIRE(refundChanges[1].updated().data.account().balance -
+                    refundChanges[0].state().data.account().balance ==
                 *expectedRefund);
 
         // Make sure account receives expected refund
@@ -858,9 +882,10 @@ TEST_CASE("version test", "[tx][soroban]")
 
         REQUIRE(test.isTxValid(tx));
 
-        TransactionMetaFrame txm;
-        REQUIRE(isSuccessResult(test.invokeTx(tx, &txm)));
-        return txm;
+        auto resMetaPair = test.invokeTxAndGetTxMeta(tx);
+
+        REQUIRE(isSuccessResult(resMetaPair.first));
+        return resMetaPair.second;
     };
 
     auto fnName = "get_protocol_version";
@@ -3133,11 +3158,11 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             bool evicted = false;
             while (in.readOne(lcm))
             {
-                REQUIRE(lcm.v() == 1);
-                if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
+                LedgerCloseMetaFrame lcmFrame(lcm);
+                if (lcmFrame.getLedgerHeader().ledgerSeq == evictionLedger)
                 {
-                    REQUIRE(lcm.v1().evictedKeys.size() == 2);
-                    auto sortedKeys = lcm.v1().evictedKeys;
+                    REQUIRE(lcmFrame.getEvictedKeys().size() == 2);
+                    auto sortedKeys = lcmFrame.getEvictedKeys();
                     std::sort(sortedKeys.begin(), sortedKeys.end());
                     REQUIRE(sortedKeys[0] == temporaryLk);
                     REQUIRE(sortedKeys[1] == getTTLKey(temporaryLk));
@@ -3145,7 +3170,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 }
                 else
                 {
-                    REQUIRE(lcm.v1().evictedKeys.empty());
+                    REQUIRE(lcmFrame.getEvictedKeys().empty());
                 }
             }
 
@@ -3190,17 +3215,16 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
                 while (in.readOne(lcm))
                 {
-                    REQUIRE(lcm.v() == 1);
-                    if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                    LedgerCloseMetaFrame lcmFrame(lcm);
+
+                    if (lcmFrame.getLedgerHeader().ledgerSeq ==
                         targetRestorationLedger)
                     {
-                        REQUIRE(lcm.v1().evictedKeys.empty());
-                        REQUIRE(lcm.v1().unused.empty());
+                        REQUIRE(lcmFrame.getEvictedKeys().empty());
 
-                        REQUIRE(lcm.v1().txProcessing.size() == 1);
-                        auto txMeta = lcm.v1().txProcessing.front();
-                        auto txApplyProcessing =
-                            TransactionMetaFrame(txMeta.txApplyProcessing);
+                        REQUIRE(lcmFrame.getTransactionResultMetaCount() == 1);
+                        auto txMeta = lcmFrame.getTransactionMeta(0);
+                        auto txApplyProcessing = TransactionMetaFrame(txMeta);
                         REQUIRE(txApplyProcessing.getNumOperations() == 1);
 
                         auto const& changes =
@@ -3358,8 +3382,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                                 getTTLKey(persistentKey)};
                     while (in.readOne(lcm))
                     {
-                        REQUIRE(lcm.v() == 1);
-                        if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                        LedgerCloseMetaFrame lcmFrame(lcm);
+                        if (lcmFrame.getLedgerHeader().ledgerSeq ==
                             evictionLedger)
                         {
                             // Only support persistent eviction meta >= p23
@@ -3368,24 +3392,20 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                     LiveBucket::
                                         FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                             {
-                                REQUIRE(lcm.v1().evictedKeys.size() == 2);
-                                for (auto const& key : lcm.v1().evictedKeys)
+                                REQUIRE(lcmFrame.getEvictedKeys().size() == 2);
+                                for (auto const& key :
+                                     lcmFrame.getEvictedKeys())
                                 {
                                     REQUIRE(keysToEvict.find(key) !=
                                             keysToEvict.end());
                                     keysToEvict.erase(key);
                                 }
 
-                                // This field should always be empty and never
-                                // used. The field only exists for legacy
-                                // reasons.
-                                REQUIRE(lcm.v1().unused.empty());
                                 evicted = true;
                             }
                             else
                             {
-                                REQUIRE(lcm.v1().evictedKeys.empty());
-                                REQUIRE(lcm.v1().unused.empty());
+                                REQUIRE(lcmFrame.getEvictedKeys().empty());
                                 evicted = false;
                             }
 
@@ -3473,7 +3493,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             LedgerCloseMeta lcm;
             while (in.readOne(lcm))
             {
-                REQUIRE(lcm.v1().evictedKeys.empty());
+                LedgerCloseMetaFrame lcmFrame(lcm);
+                REQUIRE(lcmFrame.getEvictedKeys().empty());
             }
         }
     };
@@ -3916,15 +3937,17 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
             invocation.withExactNonRefundableResourceFee().createTx();
 
         auto initialBalance = test.getAccountBalance();
-        TransactionMetaFrame txm;
-        REQUIRE(test.invokeTx(autorestoreTx, &txm).result.code() ==
+
+        auto resMetaPair = test.invokeTxAndGetLCM(autorestoreTx);
+        REQUIRE(resMetaPair.first.result.code() ==
                 TransactionResultCode::txSUCCESS);
 
         // Check that the refundable fee charged matches what we expect for
         // restoration
         auto const eventSize = 4;
-        test.checkRefundableFee(initialBalance, autorestoreTx, txm,
-                                refundableRestoreCost, eventSize);
+        test.checkRefundableFee(initialBalance, autorestoreTx,
+                                resMetaPair.second, refundableRestoreCost,
+                                eventSize);
 
         // Entry should be live again
         client.get("key", ContractDataDurability::PERSISTENT, 123);
@@ -4161,13 +4184,15 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
             invocation.withExactNonRefundableResourceFee().createTx();
 
         auto initialBalance = test.getAccountBalance();
-        TransactionMetaFrame txm;
-        REQUIRE(test.invokeTx(autorestoreTx, &txm).result.code() ==
+
+        auto resMetaPair = test.invokeTxAndGetLCM(autorestoreTx);
+        REQUIRE(resMetaPair.first.result.code() ==
                 TransactionResultCode::txSUCCESS);
 
         // Check that the refundable fee charged matches what we expect
         // for restoration
-        test.checkRefundableFee(initialBalance, autorestoreTx, txm,
+        test.checkRefundableFee(initialBalance, autorestoreTx,
+                                resMetaPair.second,
                                 expectedRefundableFeeCharged, eventSize);
         REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
 
@@ -4235,7 +4260,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod = 1;
         // These are required to allow for an upgrade of all settings at once.
-        cfg.mMaxContractDataEntrySizeBytes = 3200;
+        cfg.mMaxContractDataEntrySizeBytes = 5000;
+        cfg.mledgerMaxDiskReadBytes = 5000;
+        cfg.mLedgerMaxWriteBytes = 5000;
+        cfg.mTxMaxDiskReadBytes = 5000;
+        cfg.mTxMaxWriteBytes = 5000;
     });
 
     const int64_t startingBalance =

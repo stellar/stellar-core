@@ -869,8 +869,10 @@ TestContract::Invocation::invoke(TestAccount* source)
 {
     auto tx = createTx(source);
     CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
-    mTxMeta.emplace();
-    auto result = mTest.invokeTx(tx, &mTxMeta.value());
+    auto resMetaPair = mTest.invokeTxAndGetTxMeta(tx);
+    auto const& result = resMetaPair.first;
+    mTxMeta = resMetaPair.second;
+
     mFeeCharged = result.feeCharged;
     if (result.result.code() == txFAILED || result.result.code() == txSUCCESS)
     {
@@ -964,7 +966,7 @@ SorobanTest::getAccountBalance(TestAccount* source)
 void
 SorobanTest::checkRefundableFee(int64_t initialBalance,
                                 TransactionFrameBaseConstPtr tx,
-                                TransactionMetaFrame const& txm,
+                                LedgerCloseMetaFrame const& lcm,
                                 int64_t expectedRefundableFeeCharged,
                                 size_t eventsSize)
 {
@@ -983,8 +985,18 @@ SorobanTest::checkRefundableFee(int64_t initialBalance,
     }
 
     int64_t baseFee = 100;
-    auto changesAfter = txm.getChangesAfter();
-    REQUIRE(changesAfter.size() == 2);
+    LedgerEntryChanges refundChanges;
+    if (protocolVersionStartsFrom(getLedgerVersion(),
+                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+    {
+        refundChanges = lcm.getPostTxApplyFeeProcessing(0);
+    }
+    else
+    {
+        refundChanges =
+            TransactionMetaFrame{lcm.getTransactionMeta(0)}.getChangesAfter();
+    }
+    REQUIRE(refundChanges.size() == 2);
     int64_t nonRefundableResourceFee =
         sorobanResourceFee(getApp(), tx->sorobanResources(),
                            xdr::xdr_size(tx->getEnvelope()), eventsSize);
@@ -996,8 +1008,8 @@ SorobanTest::checkRefundableFee(int64_t initialBalance,
     // Meta should contain the refund in `changesAfter`.
     int64_t chargedBeforeRefund =
         (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
-    REQUIRE(changesAfter[1].updated().data.account().balance -
-                changesAfter[0].state().data.account().balance ==
+    REQUIRE(refundChanges[1].updated().data.account().balance -
+                refundChanges[0].state().data.account().balance ==
             chargedBeforeRefund - expectedFeeCharged);
 }
 
@@ -1020,10 +1032,11 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
         (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
     REQUIRE(result->getFeeCharged() == chargedBeforeRefund);
 
-    TransactionMetaFrame txm;
-    REQUIRE(isSuccessResult(invokeTx(tx, &txm)));
+    auto resMetaPair = invokeTxAndGetLCM(tx);
+    REQUIRE(isSuccessResult(resMetaPair.first));
 
-    checkRefundableFee(initBalance, tx, txm, expectedRefundableFeeCharged);
+    checkRefundableFee(initBalance, tx, resMetaPair.second,
+                       expectedRefundableFeeCharged);
 }
 
 Hash
@@ -1300,8 +1313,7 @@ SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 }
 
 TransactionResult
-SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx,
-                      TransactionMetaFrame* txMeta)
+SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
@@ -1313,14 +1325,32 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx,
 
     auto resultSet = closeLedger(*mApp, {tx});
     REQUIRE(resultSet.results.size() == 1);
-    if (txMeta != nullptr)
-    {
-        auto const& lclMeta =
-            getApp().getLedgerManager().getLastClosedLedgerTxMeta();
-        REQUIRE(lclMeta.size() == 1);
-        *txMeta = lclMeta[0];
-    }
+
     return resultSet.results[0].result;
+}
+
+std::pair<TransactionResult, TransactionMetaFrame>
+SorobanTest::invokeTxAndGetTxMeta(TransactionFrameBaseConstPtr tx)
+{
+    auto res = invokeTx(tx);
+    auto const& lcm =
+        getApp().getLedgerManager().getLastClosedLedgerCloseMeta();
+    REQUIRE(lcm.has_value());
+    REQUIRE(lcm->getTransactionResultMetaCount() == 1);
+
+    return {res, TransactionMetaFrame(lcm->getTransactionMeta(0))};
+}
+
+std::pair<TransactionResult, LedgerCloseMetaFrame>
+SorobanTest::invokeTxAndGetLCM(TransactionFrameBaseConstPtr tx)
+{
+    auto res = invokeTx(tx);
+    auto const& lcm =
+        getApp().getLedgerManager().getLastClosedLedgerCloseMeta();
+    REQUIRE(lcm.has_value());
+    REQUIRE(lcm->getTransactionResultMetaCount() == 1);
+
+    return {res, *lcm};
 }
 
 uint32_t
@@ -1625,7 +1655,6 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
             {
                 expectedBalance -= invocation.getFeeCharged();
             }
-
             REQUIRE(postTransferFromBalance == expectedBalance);
         }
         if (!toIsIssuer)

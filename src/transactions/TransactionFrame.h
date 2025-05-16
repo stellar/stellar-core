@@ -264,9 +264,16 @@ class TransactionFrame : public TransactionFrameBase
                      TransactionMetaBuilder& meta,
                      MutableTransactionResultBase& txResult) const override;
 
+    // After all transactions have been applied. Currently only used
+    // for refunds in Soroban.
+    void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                               MutableTransactionResultBase& txResult,
+                               TxEventManager& txEventManager) const override;
+
     void processRefund(AppConnector& app, AbstractLedgerTxn& ltx,
-                       TransactionMetaBuilder& meta, AccountID const& feeSource,
-                       MutableTransactionResultBase& txResult) const;
+                       AccountID const& feeSource,
+                       MutableTransactionResultBase& txResult,
+                       TxEventManager& txEventManager) const;
 
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 

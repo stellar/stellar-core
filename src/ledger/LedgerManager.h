@@ -6,6 +6,7 @@
 
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/NetworkConfig.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionMeta.h"
@@ -259,6 +260,8 @@ class LedgerManager
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
+    virtual std::optional<LedgerCloseMetaFrame> const&
+    getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
 #endif
 

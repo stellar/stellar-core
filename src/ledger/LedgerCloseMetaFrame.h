@@ -25,6 +25,7 @@ class LedgerCloseMetaFrame
     void setTxProcessingMetaAndResultPair(TransactionMeta&& tm,
                                           TransactionResultPair&& rp,
                                           int index);
+    void setPostTxApplyFeeProcessing(LedgerEntryChanges&& changes, int index);
 
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();
 
@@ -37,6 +38,16 @@ class LedgerCloseMetaFrame
                                  bool emitExtV1);
 
     LedgerCloseMeta const& getXDR() const;
+
+#ifdef BUILD_TESTS
+    LedgerCloseMetaFrame(LedgerCloseMeta const& lm);
+    LedgerHeader const& getLedgerHeader() const;
+    xdr::xvector<LedgerKey> const& getEvictedKeys() const;
+    size_t getTransactionResultMetaCount() const;
+    TransactionMeta const& getTransactionMeta(size_t index) const;
+    LedgerEntryChanges const& getPostTxApplyFeeProcessing(size_t index) const;
+
+#endif
 
   private:
     LedgerCloseMeta mLedgerCloseMeta;
