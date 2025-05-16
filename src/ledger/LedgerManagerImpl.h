@@ -197,6 +197,7 @@ class LedgerManagerImpl : public LedgerManager
 
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
+    std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
 #endif
 
     void setState(State s);
@@ -265,6 +266,8 @@ class LedgerManagerImpl : public LedgerManager
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
+    std::optional<LedgerCloseMetaFrame> const&
+    getLastClosedLedgerCloseMeta() override;
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
 #endif

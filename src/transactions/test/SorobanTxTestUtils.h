@@ -325,8 +325,11 @@ class SorobanTest
 
     bool isTxValid(TransactionFrameBaseConstPtr tx);
 
-    TransactionResult invokeTx(TransactionFrameBaseConstPtr tx,
-                               TransactionMetaFrame* txMeta = nullptr);
+    TransactionResult invokeTx(TransactionFrameBaseConstPtr tx);
+    std::pair<TransactionResult, TransactionMetaFrame>
+    invokeTxAndGetTxMeta(TransactionFrameBaseConstPtr tx);
+    std::pair<TransactionResult, LedgerCloseMetaFrame>
+    invokeTxAndGetLCM(TransactionFrameBaseConstPtr tx);
 
     uint32_t getTTL(LedgerKey const& k);
     bool isEntryLive(LedgerKey const& k, uint32_t ledgerSeq);
@@ -344,7 +347,7 @@ class SorobanTest
 
     void checkRefundableFee(int64_t initialBalance,
                             TransactionFrameBaseConstPtr tx,
-                            TransactionMetaFrame const& txm,
+                            LedgerCloseMetaFrame const& lcm,
                             int64_t expectedRefundableFeeCharged,
                             size_t eventsSize = 0);
 
