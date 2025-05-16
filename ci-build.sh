@@ -95,7 +95,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
 export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
 export CXXFLAGS="-w $CFLAGS"
 
@@ -176,6 +176,8 @@ fi
 export ALL_VERSIONS=1
 export NUM_PARTITIONS=$((NPROCS*2))
 export RUN_PARTITIONS
+export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
+echo "Using RND_SEED: $RND_SEED"
 ulimit -n 256
 time make check
 
