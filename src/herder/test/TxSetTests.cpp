@@ -1280,7 +1280,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         sorobanCfg.mledgerMaxDiskReadEntries -= 1;
                     });
                 bool useClassic = protocolVersionStartsFrom(
-                    protocolVersion, AUTO_RESTORE_PROTOCOL_VERSION);
+                    protocolVersion, ProtocolVersion::V_23);
                 REQUIRE(!buildAndValidate(useClassic));
             }
             SECTION("write entries limit exceeded")

@@ -790,10 +790,9 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
     SECTION("insufficient read bytes after p23")
     {
         // Only run this test for protocol version >= 23
-        // (AUTO_RESTORE_PROTOCOL_VERSION)
         if (protocolVersionStartsFrom(
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                AUTO_RESTORE_PROTOCOL_VERSION))
+                ProtocolVersion::V_23))
         {
             // We fail while reading the footprint, before the host
             // function is called. Only classic entries are metered, and
@@ -812,7 +811,7 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
     SECTION("insufficient read bytes before p23")
     {
         if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    AUTO_RESTORE_PROTOCOL_VERSION))
+                                    ProtocolVersion::V_23))
         {
             // We fail while reading the footprint, before the host
             // function is called.
@@ -920,7 +919,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
     auto appCfg = getTestConfig();
     if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                AUTO_RESTORE_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -1284,7 +1283,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 
     if (protocolVersionStartsFrom(
             appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-            AUTO_RESTORE_PROTOCOL_VERSION))
+            ProtocolVersion::V_23))
     {
 
         auto const maxDiskReads = cfg.mTxMaxDiskReadEntries;
@@ -2569,7 +2568,7 @@ TEST_CASE_VERSIONS("contract storage", "[tx][soroban][archival]")
 {
     auto appCfg = getTestConfig();
     if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                AUTO_RESTORE_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2627,7 +2626,7 @@ TEST_CASE_VERSIONS("contract storage", "[tx][soroban][archival]")
 
         if (protocolVersionStartsFrom(
                 appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                AUTO_RESTORE_PROTOCOL_VERSION))
+                ProtocolVersion::V_23))
         {
             auto readSpec =
                 client.readKeySpec("key", ContractDataDurability::PERSISTENT)
