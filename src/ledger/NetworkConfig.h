@@ -152,7 +152,8 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Ledger cost extension settings
-    static constexpr uint32_t TX_MAX_IN_MEMORY_READ_ENTRIES = 100;
+    static constexpr uint32_t TX_MAX_IN_MEMORY_READ_ENTRIES =
+        TX_MAX_READ_LEDGER_ENTRIES;
     static constexpr int64_t FEE_LEDGER_WRITE_1KB = 1'000;
 };
 
@@ -394,6 +395,7 @@ class SorobanNetworkConfig
     void loadliveSorobanStateSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
+    void loadLedgerCostExtConfig(AbstractLedgerTxn& ltx);
     void computeRentWriteFee(uint32_t configMaxProtocol,
                              uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,

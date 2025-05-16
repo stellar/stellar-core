@@ -3190,6 +3190,9 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         };
         test(tweakSorobanConfig, tweakAppConfig);
     }
+    /*
+    // Loadgen currently doesn't support generating soroban load with disk based
+    resources in p23
     SECTION("read entries")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
@@ -3202,6 +3205,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         };
         test(tweakSorobanConfig, tweakAppConfig);
     }
+    */
     SECTION("write entries")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
@@ -4462,7 +4466,7 @@ TEST_CASE("do not flood too many soroban transactions",
     uint32_t const baseInclusionFee = 100'000;
     SorobanResources resources;
     resources.instructions = 800'000;
-    resources.diskReadBytes = 2000;
+    resources.diskReadBytes = 3000;
     resources.writeBytes = 1000;
 
     auto genTx = [&](TestAccount& source, bool highFee) {

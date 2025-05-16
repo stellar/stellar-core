@@ -230,9 +230,11 @@ TransactionTestFrame::getOperationFrames() const
 }
 
 Resource
-TransactionTestFrame::getResources(bool useByteLimitInClassic) const
+TransactionTestFrame::getResources(bool useByteLimitInClassic,
+                                   uint32_t ledgerVersion) const
 {
-    return mTransactionFrame->getResources(useByteLimitInClassic);
+    return mTransactionFrame->getResources(useByteLimitInClassic,
+                                           ledgerVersion);
 }
 
 std::vector<Operation> const&
