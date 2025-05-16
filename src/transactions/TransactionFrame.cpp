@@ -61,11 +61,18 @@ int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
 uint32_t
 getNumDiskReadEntries(SorobanResources const& resources,
-                      SorobanTransactionData::_ext_t const& ext)
+                      SorobanTransactionData::_ext_t const& ext,
+                      Operation const& op)
 {
+    // All restoreOp entries require disk reads
+    if (op.body.type() == RESTORE_FOOTPRINT)
+    {
+        return resources.footprint.readWrite.size();
+    }
+
     // First count classic entry reads
     uint32_t count = 0;
-    auto countClassic = [&count](auto keys) {
+    auto countClassic = [&count](auto const& keys) {
         for (auto const& key : keys)
         {
             if (!isSorobanEntry(key))
@@ -236,10 +243,10 @@ TransactionFrame::getResources(bool useByteLimitInClassic,
         // to sum readOnly size and readWrite size for correct resource limits
         // here.
         int64_t diskReadEntries;
-        if (protocolVersionStartsFrom(ledgerVersion,
-                                      AUTO_RESTORE_PROTOCOL_VERSION))
+        auto const& op = mOperations.front()->getOperation();
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
         {
-            diskReadEntries = getNumDiskReadEntries(r, getResourcesExt());
+            diskReadEntries = getNumDiskReadEntries(r, getResourcesExt(), op);
         }
         else
         {
@@ -643,9 +650,10 @@ TransactionFrame::checkSorobanResources(
     }
 
     uint32_t numDiskReads;
-    if (protocolVersionStartsFrom(ledgerVersion, AUTO_RESTORE_PROTOCOL_VERSION))
+    auto const& op = mOperations.front()->getOperation();
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
     {
-        numDiskReads = getNumDiskReadEntries(resources, getResourcesExt());
+        numDiskReads = getNumDiskReadEntries(resources, getResourcesExt(), op);
 
         auto totalReads = resources.footprint.readOnly.size() +
                           resources.footprint.readWrite.size();
@@ -653,8 +661,8 @@ TransactionFrame::checkSorobanResources(
         {
             diagnosticEvents.pushError(
                 SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
-                "transaction total-entry-read resources exceed network config "
-                "limit",
+                "the number of entries in transaction footprint exceeds the "
+                "network config limit",
                 {makeU64SCVal(totalReads),
                  makeU64SCVal(config.txMaxInMemoryReadEntries())});
             return false;
@@ -667,9 +675,19 @@ TransactionFrame::checkSorobanResources(
 
     if (numDiskReads > config.txMaxDiskReadEntries())
     {
+        std::string errorMessage;
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
+        {
+            errorMessage = "transaction entry-disk-read resources exceed "
+                           "network config limit";
+        }
+        else
+        {
+            errorMessage = "transaction entry-read resources exceed network "
+                           "config limit";
+        }
         diagnosticEvents.pushError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
-            "transaction entry-disk-read resources exceed network config limit",
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT, errorMessage.c_str(),
             {makeU64SCVal(numDiskReads),
              makeU64SCVal(config.txMaxDiskReadEntries())});
         return false;

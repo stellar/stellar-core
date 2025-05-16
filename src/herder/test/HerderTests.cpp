@@ -3190,22 +3190,19 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         };
         test(tweakSorobanConfig, tweakAppConfig);
     }
-    /*
-    // Loadgen currently doesn't support generating soroban load with disk based
-    resources in p23
-    SECTION("read entries")
-    {
-        auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mledgerMaxDiskReadEntries = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxDiskReadEntries);
-        };
-        auto tweakAppConfig = [](Config& cfg) {
-            cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
-        };
-        test(tweakSorobanConfig, tweakAppConfig);
-    }
-    */
+    // TODO: https://github.com/stellar/stellar-core/issues/4736
+    // SECTION("read entries")
+    // {
+    //     auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
+    //         cfg.mledgerMaxDiskReadEntries = static_cast<uint32>(
+    //             baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
+    //             cfg.mTxMaxDiskReadEntries);
+    //     };
+    //     auto tweakAppConfig = [](Config& cfg) {
+    //         cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
+    //     };
+    //     test(tweakSorobanConfig, tweakAppConfig);
+    // }
     SECTION("write entries")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
