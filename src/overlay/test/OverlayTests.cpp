@@ -2124,7 +2124,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
         },
         50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    REQUIRE(!outOfSyncNode->getLedgerManager().isSynced());
+    REQUIRE(!outOfSyncNode->getLedgerApplyManager().isSynced());
     simulation->addConnection(vNode2NodeID, vNode1NodeID);
 
     // Generate transactions traffic, which the out of sync node will drop
@@ -2437,9 +2437,9 @@ TEST_CASE("disconnected topology recovery", "[overlay][simulation]")
         REQUIRE(!nodes[6]->getHerder().isTracking());
 
         // LM is "synced" from the LCL perspective
-        REQUIRE(nodes[4]->getLedgerManager().isSynced());
-        REQUIRE(nodes[5]->getLedgerManager().isSynced());
-        REQUIRE(nodes[6]->getLedgerManager().isSynced());
+        REQUIRE(nodes[4]->getLedgerApplyManager().isSynced());
+        REQUIRE(nodes[5]->getLedgerApplyManager().isSynced());
+        REQUIRE(nodes[6]->getLedgerApplyManager().isSynced());
 
         // Crank long enough for overlay recovery to kick in
         simulation->crankForAtLeast(std::chrono::seconds(180), false);
@@ -2454,9 +2454,9 @@ TEST_CASE("disconnected topology recovery", "[overlay][simulation]")
         // If regular peers: because we received a newer ledger, LM is now
         // "catching up" If preferred peers: no new ledgers heard, still
         // "synced"
-        REQUIRE(nodes[4]->getLedgerManager().isSynced() == usePreferred);
-        REQUIRE(nodes[5]->getLedgerManager().isSynced() == usePreferred);
-        REQUIRE(nodes[6]->getLedgerManager().isSynced() == usePreferred);
+        REQUIRE(nodes[4]->getLedgerApplyManager().isSynced() == usePreferred);
+        REQUIRE(nodes[5]->getLedgerApplyManager().isSynced() == usePreferred);
+        REQUIRE(nodes[6]->getLedgerApplyManager().isSynced() == usePreferred);
     };
 
     SECTION("regular peers")

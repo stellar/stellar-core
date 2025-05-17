@@ -32,6 +32,13 @@ AppConnector::getLedgerManager()
     return mApp.getLedgerManager();
 }
 
+LedgerApplyManager&
+AppConnector::getLedgerApplyManager()
+{
+    releaseAssert(threadIsMain());
+    return mApp.getLedgerApplyManager();
+}
+
 OverlayManager&
 AppConnector::getOverlayManager()
 {

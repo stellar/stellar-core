@@ -27,7 +27,9 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     // core stops scheduling new ledgers to apply, and goes into catchup mode.
     static uint32_t const MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
 
+    Config const& mConfig;
     Application& mApp;
+
     std::shared_ptr<CatchupWork> mCatchupWork;
 
     // key is ledgerSeq
@@ -55,6 +57,9 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     // flow of ledgers between LedgerApplyManager and LedgerManager.
     std::optional<uint32_t> mLastQueuedToApply;
     uint32_t mLargestLedgerSeqHeard;
+    // Use in the context of parallel ledger apply to indicate background thread
+    // is currently closing a ledger or has ledgers queued to apply.
+    bool mCurrentlyApplyingLedger{false};
 
     void updateLastQueuedToApply();
     void startOnlineCatchup();
@@ -67,11 +72,16 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     // or state corruption. Once this flag is set, core won't attempt catchup as
     // it will never succeed.
     bool mCatchupFatalFailure{false};
+    State mState;
+    void setState(State s);
+    LedgerManager& mLedgerManager;
 
   public:
     LedgerApplyManagerImpl(Application& app);
     ~LedgerApplyManagerImpl() override;
 
+    void valueExternalized(LedgerCloseData const& ledgerData,
+                           bool isLatestSlot) override;
     ProcessLedgerResult processLedger(LedgerCloseData const& ledgerData,
                                       bool isLatestSlot) override;
     void startCatchup(CatchupConfiguration configuration,
@@ -134,5 +144,19 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
                                           : MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
     }
 #endif
+
+    void moveToSynced() override;
+    State getState() const override;
+    std::string getStateHuman() const override;
+
+    void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
+                             LedgerCloseData const& ledgerData) override;
+
+    virtual bool
+    isApplying() const override
+    {
+        releaseAssert(threadIsMain());
+        return mCurrentlyApplyingLedger;
+    }
 };
 }

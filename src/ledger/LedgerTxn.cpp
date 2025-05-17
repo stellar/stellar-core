@@ -393,6 +393,7 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mShouldUpdateLastModified(shouldUpdateLastModified)
     , mIsSealed(false)
     , mConsistency(LedgerTxnConsistency::EXACT)
+    , mActiveThreadId(std::this_thread::get_id())
 {
     mParent.addChild(self, mode);
 }
@@ -424,6 +425,7 @@ LedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 void
 LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -472,6 +474,15 @@ LedgerTxn::Impl::throwIfSealed() const
 }
 
 void
+LedgerTxn::Impl::throwIfWrongThread() const
+{
+    if (mActiveThreadId != std::this_thread::get_id())
+    {
+        throw std::runtime_error("LedgerTxn is accessed from wrong thread");
+    }
+}
+
+void
 LedgerTxn::Impl::throwIfNotExactConsistency() const
 {
     if (mConsistency != LedgerTxnConsistency::EXACT)
@@ -483,6 +494,7 @@ LedgerTxn::Impl::throwIfNotExactConsistency() const
 void
 LedgerTxn::Impl::throwIfErasingConfig(InternalLedgerKey const& key) const
 {
+    throwIfWrongThread();
     if (key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
         key.ledgerKey().type() == CONFIG_SETTING)
     {
@@ -500,6 +512,7 @@ LedgerTxn::commit() noexcept
 void
 LedgerTxn::Impl::commit() noexcept
 {
+    throwIfWrongThread();
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
         // commitChild has the strong exception safety guarantee
@@ -534,6 +547,7 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
                              RestoredKeys const& restoredKeys,
                              LedgerTxnConsistency cons) noexcept
 {
+    throwIfWrongThread();
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
@@ -669,6 +683,7 @@ LedgerTxn::create(InternalLedgerEntry const& entry)
 LedgerTxnEntry
 LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -708,6 +723,7 @@ LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 void
 LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -737,6 +753,7 @@ LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 void
 LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -800,6 +817,7 @@ LedgerTxn::erase(InternalLedgerKey const& key)
 void
 LedgerTxn::Impl::erase(InternalLedgerKey const& key)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -835,6 +853,7 @@ LedgerTxnEntry
 LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
                                        LedgerEntry const& entry, uint32_t ttl)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -879,6 +898,7 @@ LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
                                            LedgerEntry const& entry,
                                            uint32_t ttl)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -925,6 +945,7 @@ LedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
 void
 LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
     throwIfErasingConfig(key);
@@ -986,6 +1007,7 @@ LedgerTxn::bestOfferDebuggingEnabled() const
 bool
 LedgerTxn::Impl::bestOfferDebuggingEnabled() const
 {
+    throwIfWrongThread();
     return mParent.bestOfferDebuggingEnabled();
 }
 
@@ -1002,6 +1024,7 @@ LedgerTxn::Impl::getBestOfferSlow(Asset const& buying, Asset const& selling,
                                   OfferDescriptor const* worseThan,
                                   std::unordered_set<int64_t>& exclude)
 {
+    throwIfWrongThread();
     std::shared_ptr<InternalLedgerEntry const> selfBest;
     for (auto const& kv : mEntry)
     {
@@ -1067,6 +1090,7 @@ LedgerTxn::Impl::checkBestOffer(Asset const& buying, Asset const& selling,
                                 OfferDescriptor const* worseThan,
                                 std::shared_ptr<LedgerEntry const> best)
 {
+    throwIfWrongThread();
     if (!bestOfferDebuggingEnabled())
     {
         return best;
@@ -1333,6 +1357,7 @@ LedgerTxn::getDelta()
 LedgerTxnDelta
 LedgerTxn::Impl::getDelta()
 {
+    throwIfWrongThread();
     throwIfNotExactConsistency();
     LedgerTxnDelta delta;
     delta.entry.reserve(mEntry.size());
@@ -1360,6 +1385,7 @@ LedgerTxn::Impl::getDelta()
 EntryIterator
 LedgerTxn::Impl::getEntryIterator(EntryMap const& entries) const
 {
+    throwIfWrongThread();
     auto iterImpl =
         std::make_unique<EntryIteratorImpl>(entries.cbegin(), entries.cend());
     return EntryIterator(std::move(iterImpl));
@@ -1374,6 +1400,7 @@ LedgerTxn::getHeader() const
 LedgerHeader const&
 LedgerTxn::Impl::getHeader() const
 {
+    throwIfWrongThread();
     return *mHeader;
 }
 
@@ -1386,6 +1413,7 @@ LedgerTxn::getInflationWinners(size_t maxWinners, int64_t minVotes)
 std::map<AccountID, int64_t>
 LedgerTxn::Impl::getDeltaVotes() const
 {
+    throwIfWrongThread();
     int64_t const MIN_VOTES_TO_INCLUDE = 1000000000;
     std::map<AccountID, int64_t> deltaVotes;
     for (auto const& kv : mEntry)
@@ -1425,6 +1453,7 @@ LedgerTxn::Impl::getTotalVotes(
     std::vector<InflationWinner> const& parentWinners,
     std::map<AccountID, int64_t> const& deltaVotes, int64_t minVotes) const
 {
+    throwIfWrongThread();
     std::map<AccountID, int64_t> totalVotes;
     for (auto const& winner : parentWinners)
     {
@@ -1448,6 +1477,7 @@ LedgerTxn::Impl::enumerateInflationWinners(
     std::map<AccountID, int64_t> const& totalVotes, size_t maxWinners,
     int64_t minVotes) const
 {
+    throwIfWrongThread();
     std::vector<InflationWinner> winners;
     for (auto const& total : totalVotes)
     {
@@ -1528,6 +1558,7 @@ LedgerTxn::queryInflationWinners(size_t maxWinners, int64_t minVotes)
 std::vector<InflationWinner>
 LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
     return getInflationWinners(maxWinners, minVotes);
@@ -1546,6 +1577,7 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries)
 {
+    throwIfWrongThread();
     std::vector<LedgerEntry> resInit, resLive;
     std::vector<LedgerKey> resDead;
     resInit.reserve(mEntry.size());
@@ -1593,6 +1625,7 @@ LedgerTxn::getRestoredHotArchiveKeys() const
 UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::Impl::getRestoredHotArchiveKeys() const
 {
+    throwIfWrongThread();
     return mRestoredKeys.hotArchive;
 }
 
@@ -1605,6 +1638,7 @@ LedgerTxn::getRestoredLiveBucketListKeys() const
 UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
 {
+    throwIfWrongThread();
     return mRestoredKeys.liveBucketList;
 }
 
@@ -1617,6 +1651,7 @@ LedgerTxn::getAllTTLKeysWithoutSealing() const
 LedgerKeySet
 LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
 {
+    throwIfWrongThread();
     throwIfNotExactConsistency();
     LedgerKeySet result;
     for (auto const& [k, v] : mEntry)
@@ -1652,6 +1687,7 @@ std::pair<std::shared_ptr<InternalLedgerEntry const>,
           LedgerTxn::Impl::EntryMap::iterator>
 LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key)
 {
+    throwIfWrongThread();
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
@@ -1774,6 +1810,7 @@ LedgerTxn::load(InternalLedgerKey const& key)
 LedgerTxnEntry
 LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
     if (mActive.find(key) != mActive.end())
@@ -1825,6 +1862,7 @@ LedgerTxn::loadAllOffers()
 std::map<AccountID, std::vector<LedgerTxnEntry>>
 LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -1863,6 +1901,7 @@ LedgerTxnEntry
 LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
                                Asset const& selling)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -1944,6 +1983,7 @@ LedgerTxn::loadHeader()
 LedgerTxnHeader
 LedgerTxn::Impl::loadHeader(LedgerTxn& self)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
     if (mActiveHeader)
@@ -1971,6 +2011,7 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
                                              AccountID const& accountID,
                                              Asset const& asset)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -2011,6 +2052,7 @@ std::vector<LedgerTxnEntry>
 LedgerTxn::Impl::loadPoolShareTrustLinesByAccountAndAsset(
     LedgerTxn& self, AccountID const& account, Asset const& asset)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -2047,6 +2089,7 @@ ConstLedgerTxnEntry
 LedgerTxn::Impl::loadWithoutRecord(LedgerTxn& self,
                                    InternalLedgerKey const& key)
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
     if (mActive.find(key) != mActive.end())
@@ -2177,6 +2220,7 @@ LedgerTxn::resetForFuzzer()
 double
 LedgerTxn::Impl::getPrefetchHitRate() const
 {
+    throwIfWrongThread();
     return mParent.getPrefetchHitRate();
 }
 
@@ -2208,6 +2252,7 @@ LedgerTxn::Impl::prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
 void
 LedgerTxn::Impl::maybeUpdateLastModified() noexcept
 {
+    throwIfWrongThread();
     throwIfSealed();
     throwIfChild();
 
@@ -2249,6 +2294,7 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
 void
 LedgerTxn::Impl::removeFromOrderBookIfExists(LedgerEntry const& le)
 {
+    throwIfWrongThread();
     auto const& oe = le.data.offer();
     auto mobIterBuying = mMultiOrderBook.find(oe.buying);
     if (mobIterBuying != mMultiOrderBook.end())
@@ -2279,6 +2325,7 @@ LedgerTxn::Impl::removeFromOrderBookIfExists(LedgerEntry const& le)
 LedgerTxn::Impl::OrderBook*
 LedgerTxn::Impl::findOrderBook(Asset const& buying, Asset const& selling)
 {
+    throwIfWrongThread();
     auto mobIterBuying = mMultiOrderBook.find(buying);
     if (mobIterBuying != mMultiOrderBook.end())
     {
@@ -2297,6 +2344,7 @@ void
 LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
                                        bool effectiveActive)
 {
+    throwIfWrongThread();
     // This early return is just an optimization. updateEntryIfRecorded does not
     // end up modifying mEntry because it loads the entry here, and then
     // attempts to update that same entry in updateEntry using the identical one
@@ -2326,6 +2374,7 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              LedgerEntryPtr lePtr,
                              bool effectiveActive) noexcept
 {
+    throwIfWrongThread();
     auto recordEntry = [&]() {
         // First, try to insert the entry. If the entry doesn't already exist,
         // then mEntry just accepts the state of this new entry and there's
@@ -2407,6 +2456,7 @@ void
 LedgerTxn::Impl::updateWorstBestOffer(
     AssetPair const& assets, std::shared_ptr<OfferDescriptor const> offerDesc)
 {
+    throwIfWrongThread();
     // Update mWorstBestOffer if
     // - assets is currently not in mWorstBestOffer
     // - offerDesc is worse than mWorstBestOffer[assets]
@@ -2429,6 +2479,7 @@ LedgerTxn::forAllWorstBestOffers(WorstOfferProcessor proc)
 void
 LedgerTxn::Impl::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
+    throwIfWrongThread();
     for (auto& wo : mWorstBestOffer)
     {
         auto& ap = wo.first;
@@ -2445,6 +2496,7 @@ LedgerTxn::hasSponsorshipEntry() const
 bool
 LedgerTxn::Impl::hasSponsorshipEntry() const
 {
+    throwIfWrongThread();
     throwIfNotExactConsistency();
     throwIfChild();
 
@@ -2480,6 +2532,7 @@ LedgerTxn::prepareNewObjects(size_t s)
 void
 LedgerTxn::Impl::prepareNewObjects(size_t s)
 {
+    throwIfWrongThread();
     size_t newSize = mEntry.size();
     auto constexpr m = std::numeric_limits<size_t>::max();
     if (newSize >= m - s)
@@ -2507,6 +2560,7 @@ UnorderedMap<AssetPair,
              AssetPairHash>
 LedgerTxn::Impl::getOrderBook() const
 {
+    throwIfWrongThread();
     UnorderedMap<AssetPair,
                  std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
                  AssetPairHash>
@@ -2572,6 +2626,39 @@ LedgerTxn::Impl::EntryIteratorImpl::clone() const
     return std::make_unique<EntryIteratorImpl>(mIter, mEnd);
 }
 
+// Implementation of ThreadInvariant --------------------------
+ThreadInvariant::ThreadInvariant()
+    : mThreadID(std::this_thread::get_id()), mActiveThreadIdSet(false)
+{
+}
+
+void
+ThreadInvariant::throwIfWrongThread() const
+{
+    std::lock_guard<std::recursive_mutex> guard(mThreadInvariantMutex);
+    if (mActiveThreadIdSet && mThreadID != std::this_thread::get_id())
+    {
+        throw std::runtime_error("ThreadInvariant called from wrong thread");
+    }
+}
+
+void
+ThreadInvariant::setActiveThread()
+{
+    std::lock_guard<std::recursive_mutex> guard(mThreadInvariantMutex);
+    throwIfWrongThread();
+    mThreadID = std::this_thread::get_id();
+    mActiveThreadIdSet = true;
+}
+
+void
+ThreadInvariant::clearActiveThread()
+{
+    std::lock_guard<std::recursive_mutex> guard(mThreadInvariantMutex);
+    throwIfWrongThread();
+    mActiveThreadIdSet = false;
+}
+
 // Implementation of LedgerTxnRoot ------------------------------------------
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
@@ -2609,6 +2696,7 @@ LedgerTxnRoot::Impl::Impl(Application& app, size_t entryCacheSize,
 #ifdef BEST_OFFER_DEBUGGING
     , mBestOfferDebuggingEnabled(bestOfferDebuggingEnabled)
 #endif
+    , mThreadInvariant()
 {
 }
 
@@ -2664,10 +2752,9 @@ LedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 void
 LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
-    if (mChild)
-    {
-        throw std::runtime_error("LedgerTxnRoot already has child");
-    }
+    // Will call throwIfWrongThread
+    mThreadInvariant.setActiveThread();
+    throwIfChild();
 
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
@@ -2696,6 +2783,12 @@ LedgerTxnRoot::Impl::throwIfChild() const
     {
         throw std::runtime_error("LedgerTxnRoot has child");
     }
+}
+
+void
+LedgerTxnRoot::Impl::throwIfWrongThread() const
+{
+    mThreadInvariant.throwIfWrongThread();
 }
 
 void
@@ -2763,6 +2856,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
                                  LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
+    throwIfWrongThread();
 
     // In this mode, where we do not start a SQL transaction, so we crash if
     // there's an attempt to commit, since the expected behavior is load and
@@ -2833,6 +2927,8 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
 
     // std::shared_ptr<...>::reset does not throw
     mSearchableBucketListSnapshot.reset();
+
+    mThreadInvariant.clearActiveThread();
 }
 
 uint64_t
@@ -3522,6 +3618,7 @@ LedgerTxnRoot::rollbackChild() noexcept
 void
 LedgerTxnRoot::Impl::rollbackChild() noexcept
 {
+    throwIfWrongThread();
     if (mTransaction)
     {
         try
@@ -3547,6 +3644,7 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
     mPrefetchHits = 0;
     mPrefetchMisses = 0;
     mSearchableBucketListSnapshot.reset();
+    mThreadInvariant.clearActiveThread();
 }
 
 std::shared_ptr<InternalLedgerEntry const>

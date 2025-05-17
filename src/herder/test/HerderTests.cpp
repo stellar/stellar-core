@@ -3522,7 +3522,7 @@ TEST_CASE("soroban txs accepted by the network",
 static void
 checkSynced(Application& app)
 {
-    REQUIRE(app.getLedgerManager().isSynced());
+    REQUIRE(app.getLedgerApplyManager().isSynced());
     REQUIRE(!app.getLedgerApplyManager().maybeGetNextBufferedLedgerToApply());
 }
 
@@ -3786,13 +3786,13 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         }
 
         // Wait until C goes out of sync, and processes future slots
-        simulation->crankUntil([&]() { return !lmC.isSynced(); },
-                               2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
-                               false);
+        simulation->crankUntil(
+            [&]() { return !getC()->getLedgerApplyManager().isSynced(); },
+            2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
 
         // Ensure LM is out of sync, and Herder tracks ledger seq from latest
         // envelope
-        REQUIRE(!lmC.isSynced());
+        REQUIRE(!getC()->getLedgerApplyManager().isSynced());
         checkHerder(*(getC()), herderC,
                     Herder::State::HERDER_TRACKING_NETWORK_STATE, fourth);
         REQUIRE(herderC.getTriggerTimer().seq() == 0);
@@ -3830,7 +3830,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             }
             else
             {
-                REQUIRE(!lmC.isSynced());
+                REQUIRE(!getC()->getLedgerApplyManager().isSynced());
                 // As we're not in sync yet, ensure next ledger is not triggered
                 REQUIRE(herderC.getTriggerTimer().seq() == 0);
                 REQUIRE(herderC.mTriggerNextLedgerSeq == currentLedger + 1);

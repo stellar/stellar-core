@@ -271,7 +271,7 @@ setAuthenticatedLedgerHashPair(Application::pointer app,
         }
     }
 
-    if (lm.isSynced())
+    if (app->getLedgerApplyManager().isSynced())
     {
         auto const& lhe = lm.getLastClosedLedgerHeader();
         tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
@@ -950,7 +950,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, archive);
+        app->getLedgerApplyManager().startCatchup(cc, archive);
     }
     catch (std::invalid_argument const&)
     {
