@@ -152,8 +152,7 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Ledger cost extension settings
-    static constexpr uint32_t TX_MAX_IN_MEMORY_READ_ENTRIES = 100;
-    static constexpr int64_t FEE_LEDGER_WRITE_1KB = 1'000;
+    static constexpr int64_t FEE_LEDGER_WRITE_1KB = 3'500;
 };
 
 // Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for

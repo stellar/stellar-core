@@ -2694,7 +2694,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     resources.writeBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
     auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
-        InitialSorobanNetworkConfig::TX_MAX_IN_MEMORY_READ_ENTRIES);
+        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
 
     resources.footprint.readWrite.assign(
         keys.begin(),

@@ -924,11 +924,15 @@ initialParallelComputeEntry()
 }
 
 ConfigSettingEntry
-initialLedgerCostExtEntry()
+initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
+    // Initialize `txMaxInMemoryReadEntries` with the value of the older
+    // `txMaxDiskReadEntries` setting that used to apply to the whole
+    // transaction footprint, so that we ensure that no transactions
+    // will become invalid due to this limit.
     entry.contractLedgerCostExt().txMaxInMemoryReadEntries =
-        InitialSorobanNetworkConfig::TX_MAX_IN_MEMORY_READ_ENTRIES;
+        txMaxDiskReadEntries;
     entry.contractLedgerCostExt().feeWrite1KB =
         InitialSorobanNetworkConfig::FEE_LEDGER_WRITE_1KB;
     return entry;
@@ -1218,10 +1222,20 @@ SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     ZoneScoped;
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
-    createConfigSettingEntry(initialLedgerCostExtEntry(), ltx,
-                             static_cast<uint32_t>(ProtocolVersion::V_23));
     createConfigSettingEntry(initialScpTimingEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
+
+    // We expect CONFIG_SETTING_CONTRACT_LEDGER_COST_V0 to exist when upgrading
+    // to protocol 23 as it must be created during the protocol 20 upgrade.
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+    auto le = ltx.loadWithoutRecord(key).current();
+    auto const& ledgerCostSetting =
+        le.data.configSetting().contractLedgerCost();
+    createConfigSettingEntry(
+        initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
+        static_cast<uint32_t>(ProtocolVersion::V_23));
 }
 
 void
