@@ -790,10 +790,9 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
     SECTION("insufficient read bytes after p23")
     {
         // Only run this test for protocol version >= 23
-        // (AUTO_RESTORE_PROTOCOL_VERSION)
         if (protocolVersionStartsFrom(
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                AUTO_RESTORE_PROTOCOL_VERSION))
+                ProtocolVersion::V_23))
         {
             // We fail while reading the footprint, before the host
             // function is called. Only classic entries are metered, and
@@ -812,7 +811,7 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
     SECTION("insufficient read bytes before p23")
     {
         if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    AUTO_RESTORE_PROTOCOL_VERSION))
+                                    ProtocolVersion::V_23))
         {
             // We fail while reading the footprint, before the host
             // function is called.
@@ -918,7 +917,17 @@ TEST_CASE("version test", "[tx][soroban]")
 
 TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
-    SorobanTest test;
+    auto appCfg = getTestConfig();
+    if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return;
+    }
+
+    SorobanTest test(appCfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxDiskReadEntries;
+        cfg.mTxMaxFootprintEntries = (cfg.mTxMaxDiskReadEntries * 2) + 10;
+    });
     auto const& cfg = test.getNetworkCfg();
 
     auto& addContract =
@@ -1230,6 +1239,205 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
             resources.footprint.readWrite.emplace_back(persistentKey2);
             resources.footprint.readWrite.emplace_back(persistentKey3);
             testValidInvoke(false, {{0, 2, 3}});
+        }
+    }
+
+    auto testReadWritesLimits = [&](bool readOnly, bool addArchivedEntries,
+                                    std::unordered_set<LedgerEntryType> types,
+                                    auto count, bool shouldBeValid) {
+        UnorderedSet<LedgerKey> seenKeys;
+        auto entries = LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+            types, count, seenKeys);
+        std::optional<std::vector<uint32_t>> archivedIndexes;
+
+        for (size_t i = 0; i < entries.size(); ++i)
+        {
+            auto const& entry = entries[i];
+            if (readOnly)
+            {
+                resources.footprint.readOnly.emplace_back(entry);
+            }
+            else if (addArchivedEntries)
+            {
+                resources.footprint.readWrite.emplace_back(entry);
+                if (!archivedIndexes)
+                {
+                    archivedIndexes = std::vector<uint32_t>();
+                }
+                archivedIndexes->push_back(i);
+            }
+            else
+            {
+                if (rand_flip())
+                {
+                    resources.footprint.readWrite.emplace_back(entry);
+                }
+                else
+                {
+                    resources.footprint.readOnly.emplace_back(entry);
+                }
+            }
+        }
+        testValidInvoke(shouldBeValid, archivedIndexes);
+    };
+
+    if (protocolVersionStartsFrom(
+            appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+            ProtocolVersion::V_23))
+    {
+
+        auto const maxDiskReads = cfg.mTxMaxDiskReadEntries;
+
+        // contract instance and WASM entry are already in the fooprint
+        auto const maxTotalReads = cfg.mTxMaxFootprintEntries - 2;
+
+        SECTION("classic entries counted as disk")
+        {
+            SECTION("read only")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+
+            SECTION("read write")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT}, maxDiskReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+        }
+
+        SECTION("soroban entries")
+        {
+            SECTION("in-memory")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxTotalReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxTotalReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+
+            SECTION("archived entries")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/true,
+                                         {CONTRACT_CODE}, maxDiskReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/true,
+                                         {CONTRACT_CODE}, maxDiskReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+        }
+    }
+    else
+    {
+        auto const maxReads = cfg.mTxMaxDiskReadEntries;
+
+        SECTION("soroban only")
+        {
+            SECTION("max + 1")
+            {
+                SECTION("read only")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("read and write")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+            }
+        }
+
+        SECTION("soroban classic mixed")
+        {
+            SECTION("read only")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/true,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
+
+            SECTION("read and write")
+            {
+                SECTION("max + 1")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads + 1,
+                                         /*shouldBeValid=*/false);
+                }
+
+                SECTION("max")
+                {
+                    testReadWritesLimits(/*readOnly=*/false,
+                                         /*addArchivedEntries=*/false,
+                                         {ACCOUNT, CONTRACT_CODE}, maxReads,
+                                         /*shouldBeValid=*/true);
+                }
+            }
         }
     }
 }
@@ -1635,7 +1843,7 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
                                       ProtocolVersion::V_23)
-                ? 981'525
+                ? 981'407
                 : 981'527;
         int64_t initialFee = tx->getEnvelope().v1().tx.fee;
         REQUIRE(a1.getBalance() ==
@@ -1710,7 +1918,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
                                       ProtocolVersion::V_23)
-                ? 981'525
+                ? 981'407
                 : 981'527;
 
         // Use the inner transactions fee, which already includes the minimum
@@ -2360,7 +2568,7 @@ TEST_CASE_VERSIONS("contract storage", "[tx][soroban][archival]")
 {
     auto appCfg = getTestConfig();
     if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                AUTO_RESTORE_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2418,7 +2626,7 @@ TEST_CASE_VERSIONS("contract storage", "[tx][soroban][archival]")
 
         if (protocolVersionStartsFrom(
                 appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                AUTO_RESTORE_PROTOCOL_VERSION))
+                ProtocolVersion::V_23))
         {
             auto readSpec =
                 client.readKeySpec("key", ContractDataDurability::PERSISTENT)
@@ -2581,7 +2789,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             // reason for that is that due to the way the test is set up, the
             // rent bump fee has been dominated by the TTL write fee (because
             // the write fee itself is high). After protocol 23 the write fee
-            // is just 1000, and the rent fee itself is small in both cases due
+            // is just 3500, and the rent fee itself is small in both cases due
             // to large denominator.
             // We should eventually update this test to use the small
             // denominators instead of large write fees in order to get more
@@ -2590,17 +2798,17 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             int const rentBumpForWasm =
                 protocolVersionStartsFrom(test.getLedgerVersion(),
                                           ProtocolVersion::V_23)
-                    ? 167
+                    ? 285
                     : 943;
             int const rentBumpForInstance =
                 protocolVersionStartsFrom(test.getLedgerVersion(),
                                           ProtocolVersion::V_23)
-                    ? 48
+                    ? 166
                     : 939;
             int const rentBumpForInstanceAndWasm =
                 protocolVersionStartsFrom(test.getLedgerVersion(),
                                           ProtocolVersion::V_23)
-                    ? 215
+                    ? 450
                     : 1881;
 
             SECTION("restore contract instance and wasm")
@@ -2851,7 +3059,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                     {lk, lk2}, /*charge for one entry*/
                     protocolVersionStartsFrom(test.getLedgerVersion(),
                                               ProtocolVersion::V_23)
-                        ? 20'048
+                        ? 20'166
                         : 20'939);
 
                 // Live entry TTL should be unchanged
@@ -2937,7 +3145,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                 int64_t const expectedRefund =
                     protocolVersionStartsFrom(test.getLedgerVersion(),
                                               ProtocolVersion::V_23)
-                        ? 40'096
+                        ? 40'331
                         : 41'877;
                 test.invokeExtendOp(keysToExtend, 10'100, expectedRefund);
                 REQUIRE(
@@ -3082,7 +3290,7 @@ TEST_CASE("charge rent fees for storage resize", "[tx][soroban]")
 
     SECTION("resize and extend")
     {
-        uint32_t const expectedRefundableFee = 55'989;
+        uint32_t const expectedRefundableFee = 56107;
         REQUIRE(client.resizeStorageAndExtend(
                     "key", 5, 2'000'000, 2'000'000,
                     spec.setRefundableResourceFee(expectedRefundableFee - 1)) ==
@@ -3102,6 +3310,12 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         std::string metaPath = td.getName() + "/stream.xdr";
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
+        auto restoreCost = 20'166;
+        if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                    ProtocolVersion::V_23))
+        {
+            restoreCost -= 118;
+        }
 
         SorobanTest test(cfg);
         ContractStorageTestClient client(test);
@@ -3313,7 +3527,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             {
                 SECTION("manual restore")
                 {
-                    test.invokeRestoreOp({persistentKey}, 20'048);
+                    test.invokeRestoreOp({persistentKey}, restoreCost);
                     testRestore();
                 }
 
@@ -3429,7 +3643,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
                 SECTION("manual restore")
                 {
-                    test.invokeRestoreOp({persistentKey}, 20'048);
+                    test.invokeRestoreOp({persistentKey}, restoreCost);
                     testRestore();
                 }
 
@@ -3542,12 +3756,15 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
         restoreResources.diskReadBytes = 9'000;
         restoreResources.writeBytes = 9'000;
 
-        auto const resourceFee = 300'000 + 40'000 * dataKeys.size();
+        auto const nonRefundableResourceFee =
+            sorobanResourceFee(test.getApp(), restoreResources, 400, 0);
+        auto const rentFee = 100'000;
+        auto const resourceFee = nonRefundableResourceFee + rentFee;
 
         SECTION("insufficient refundable fee")
         {
             auto tx = test.createRestoreTx(restoreResources, 1'000,
-                                           40'000 * dataKeys.size());
+                                           nonRefundableResourceFee);
             auto result = test.invokeTx(tx);
             REQUIRE(!isSuccessResult(result));
             REQUIRE(result.result.results()[0]
@@ -3761,7 +3978,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                     .at(0);
 
             // Restore should skip nonexistent key and charge same fees
-            test.invokeRestoreOp({lk, randomKey}, 20'048);
+            test.invokeRestoreOp({lk, randomKey}, 20'166);
         }
 
         SECTION("key accessible after restore")
@@ -3788,7 +4005,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
             SECTION("restore op")
             {
-                test.invokeRestoreOp({lk}, 20'048);
+                test.invokeRestoreOp({lk}, 20'166);
                 check();
             }
 
@@ -3906,7 +4123,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
         makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
     // We need to restore instance, wasm, and data entry
-    auto const refundableRestoreCost = 60'146;
+    auto const refundableRestoreCost = 60'498;
     auto keysToRestore = client.getContract().getKeys();
     keysToRestore.push_back(lk);
     REQUIRE(client.get("key", ContractDataDurability::PERSISTENT,
@@ -4015,7 +4232,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
             auto const expectedSize = 80;
 
             // Restore wasm and instance so we just restore data later
-            test.invokeRestoreOp(contractKeys, 40'098);
+            test.invokeRestoreOp(contractKeys, 40'333);
 
             SECTION("insufficient read bytes")
             {
@@ -4125,9 +4342,9 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 
     REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
 
-    auto const costToRestore1KB = 20'048;
-    auto const costToBump = 105'141;
-    auto const costToBumpAfterResize = 263'570;
+    auto const costToRestore1KB = 20'166;
+    auto const costToBump = 105'259;
+    auto const costToBumpAfterResize = 263'688;
 
     auto getExpectedRestoredLedger = [&]() {
         return test.getLCLSeq() +
@@ -6162,7 +6379,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
     SECTION("scenario A: restore in one ledger, invoke in next")
     {
         // Restore contract in ledger N+1
-        test.invokeRestoreOp(contractKeys, 40098);
+        test.invokeRestoreOp(contractKeys, 40333);
 
         // Invoke in ledger N+2
         // Because we have a gap between restore and invoke, the module cache

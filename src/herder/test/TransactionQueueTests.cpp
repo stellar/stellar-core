@@ -1108,10 +1108,11 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
         mLaneOpsLimits[0] = limit;
     }
     virtual Resource
-    getTxResources(TransactionFrameBase const& tx) override
+    getTxResources(TransactionFrameBase const& tx,
+                   uint32_t ledgerVersion) override
     {
         releaseAssert(tx.isSoroban());
-        return tx.getResources(false);
+        return tx.getResources(false, ledgerVersion);
     }
 
   private:
@@ -1260,6 +1261,9 @@ TEST_CASE("Soroban TransactionQueue limits",
 
     SorobanNetworkConfig conf =
         app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto ledgerVersion = app->getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
@@ -1578,8 +1582,10 @@ TEST_CASE("Soroban TransactionQueue limits",
 
         SECTION("generic fits")
         {
-            REQUIRE(
-                queue->canFitWithEviction(*tx, std::nullopt, toEvict).first);
+            REQUIRE(queue
+                        ->canFitWithEviction(*tx, std::nullopt, toEvict,
+                                             ledgerVersion)
+                        .first);
             REQUIRE(toEvict.empty());
         }
         SECTION("limited too big")
@@ -1594,8 +1600,10 @@ TEST_CASE("Soroban TransactionQueue limits",
             REQUIRE(config->getLane(*tx2) ==
                     SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
 
-            REQUIRE(
-                !queue->canFitWithEviction(*tx2, std::nullopt, toEvict).first);
+            REQUIRE(!queue
+                         ->canFitWithEviction(*tx2, std::nullopt, toEvict,
+                                              ledgerVersion)
+                         .first);
             REQUIRE(toEvict.empty());
         }
         SECTION("limited fits")
@@ -1610,14 +1618,16 @@ TEST_CASE("Soroban TransactionQueue limits",
             REQUIRE(config->getLane(*txNew) ==
                     SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
 
-            REQUIRE(
-                queue->canFitWithEviction(*txNew, std::nullopt, toEvict).first);
+            REQUIRE(queue
+                        ->canFitWithEviction(*txNew, std::nullopt, toEvict,
+                                             ledgerVersion)
+                        .first);
             REQUIRE(toEvict.empty());
 
             SECTION("limited evicts")
             {
                 // Add 2 generic transactions to reach generic limit
-                queue->add(tx);
+                queue->add(tx, ledgerVersion);
                 resources.instructions =
                     static_cast<uint32>(conf.ledgerMaxInstructions() / 2);
                 // The fee is slightly higher so this transactions is more
@@ -1628,17 +1638,18 @@ TEST_CASE("Soroban TransactionQueue limits",
 
                 REQUIRE(queue
                             ->canFitWithEviction(*secondGeneric, std::nullopt,
-                                                 toEvict)
+                                                 toEvict, ledgerVersion)
                             .first);
                 REQUIRE(toEvict.empty());
-                queue->add(secondGeneric);
+                queue->add(secondGeneric, ledgerVersion);
 
                 SECTION("limited evicts generic")
                 {
                     // Fit within limited lane
-                    REQUIRE(
-                        queue->canFitWithEviction(*txNew, std::nullopt, toEvict)
-                            .first);
+                    REQUIRE(queue
+                                ->canFitWithEviction(*txNew, std::nullopt,
+                                                     toEvict, ledgerVersion)
+                                .first);
                     REQUIRE(toEvict.size() == 1);
                     REQUIRE(toEvict[0].first == tx);
                 }
@@ -1652,10 +1663,11 @@ TEST_CASE("Soroban TransactionQueue limits",
                         *app, account1, initialInclusionFee * 2, resourceFee,
                         resources, std::make_optional<std::string>("limit"));
 
-                    REQUIRE(
-                        queue->canFitWithEviction(*tx2, std::nullopt, toEvict)
-                            .first);
-                    queue->add(tx2);
+                    REQUIRE(queue
+                                ->canFitWithEviction(*tx2, std::nullopt,
+                                                     toEvict, ledgerVersion)
+                                .first);
+                    queue->add(tx2, ledgerVersion);
 
                     // Add, new tx with max limited lane resources, set a high
                     // fee
@@ -1667,9 +1679,10 @@ TEST_CASE("Soroban TransactionQueue limits",
                         *app, account2, initialInclusionFee * 3, resourceFee,
                         resources, std::make_optional<std::string>("limit"));
 
-                    REQUIRE(
-                        queue->canFitWithEviction(*tx3, std::nullopt, toEvict)
-                            .first);
+                    REQUIRE(queue
+                                ->canFitWithEviction(*tx3, std::nullopt,
+                                                     toEvict, ledgerVersion)
+                                .first);
 
                     // Should evict generic _and_ limited tx
                     REQUIRE(toEvict.size() == 2);

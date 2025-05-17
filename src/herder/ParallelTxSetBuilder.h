@@ -24,6 +24,6 @@ TxStageFrameList buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane);
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
 
 } // namespace stellar

@@ -292,7 +292,7 @@ class TxSetPhaseFrame
     // transactions in the same lane)
     InclusionFeeMap const& getInclusionFeeMap() const;
 
-    std::optional<Resource> getTotalResources() const;
+    std::optional<Resource> getTotalResources(uint32_t ledgerVersion) const;
 
   private:
     friend class TxSetXDRFrame;

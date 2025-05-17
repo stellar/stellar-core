@@ -348,7 +348,7 @@ buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
     // Simplify the transactions to the minimum necessary amount of data.
@@ -431,7 +431,7 @@ buildSurgePricedParallelSorobanPhase(
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
     for (auto const& tx : txFrames)
     {
-        queue.add(tx);
+        queue.add(tx, ledgerVersion);
     }
 
     ParallelPartitionConfig partitionCfg(cfg, sorobanCfg);
@@ -466,7 +466,7 @@ buildSurgePricedParallelSorobanPhase(
 
     std::vector<Resource> laneLeftUntilLimitUnused;
     queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
-                    hadTxNotFittingLane);
+                    hadTxNotFittingLane, ledgerVersion);
     // There is only a single fee lane for Soroban, so there is only a single
     // flag that indicates whether there was a transaction that didn't fit into
     // lane (and thus all transactions are surge priced at once).

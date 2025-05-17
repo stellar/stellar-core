@@ -43,6 +43,8 @@ getUpgradeConfig(Config const& cfg)
     upgradeConfig.ledgerMaxTxCount = cfg.APPLY_LOAD_MAX_TX_COUNT;
     upgradeConfig.txMaxDiskReadEntries =
         cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
+    upgradeConfig.txMaxFootprintEntries =
+        cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
     upgradeConfig.txMaxDiskReadBytes = cfg.APPLY_LOAD_TX_MAX_READ_BYTES;
     upgradeConfig.txMaxWriteLedgerEntries =
         cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES;
@@ -411,16 +413,20 @@ ApplyLoad::benchmark()
             releaseAssert((res && res->isSuccess()));
         }
 
-        if (!anyGreater(tx.second->getResources(false), resources))
+        uint32_t ledgerVersion = mApp.getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header.ledgerVersion;
+        if (!anyGreater(tx.second->getResources(false, ledgerVersion),
+                        resources))
         {
-            resources -= tx.second->getResources(false);
+            resources -= tx.second->getResources(false, ledgerVersion);
         }
         else
         {
             for (size_t i = 0; i < resources.size(); ++i)
             {
                 auto type = static_cast<Resource::Type>(i);
-                if (tx.second->getResources(false).getVal(type) >
+                if (tx.second->getResources(false, ledgerVersion).getVal(type) >
                     resources.getVal(type))
                 {
                     CLOG_INFO(Perf, "Ledger {} limit hit during tx generation",

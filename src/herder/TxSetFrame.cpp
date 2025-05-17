@@ -538,11 +538,11 @@ TxFrameList
 buildSurgePricedSequentialPhase(
     TxFrameList const& txs,
     std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig,
-    std::vector<bool>& hadTxNotFittingLane)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
     return SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
-        txs, surgePricingLaneConfig, hadTxNotFittingLane);
+        txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
 }
 
 std::pair<std::variant<TxFrameList, TxStageFrameList>,
@@ -552,11 +552,11 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
     ZoneScoped;
     auto surgePricingLaneConfig = createSurgePricingLangeConfig(phase, app);
     std::vector<bool> hadTxNotFittingLane;
+    uint32_t ledgerVersion =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
     bool isParallelSoroban =
         phase == TxSetPhase::SOROBAN &&
-        protocolVersionStartsFrom(app.getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.ledgerVersion,
+        protocolVersionStartsFrom(ledgerVersion,
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
     std::variant<TxFrameList, TxStageFrameList> includedTxs;
     if (isParallelSoroban)
@@ -564,12 +564,12 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
         includedTxs = buildSurgePricedParallelSorobanPhase(
             txs, app.getConfig(),
             app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-            surgePricingLaneConfig, hadTxNotFittingLane);
+            surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
     }
     else
     {
         includedTxs = buildSurgePricedSequentialPhase(
-            txs, surgePricingLaneConfig, hadTxNotFittingLane);
+            txs, surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
     }
 
     auto visitIncludedTxs =
@@ -1728,7 +1728,7 @@ TxSetPhaseFrame::checkValidSoroban(
         return false;
     }
     // Ensure the total resources are not over ledger limit.
-    auto totalResources = getTotalResources();
+    auto totalResources = getTotalResources(lclHeader.ledgerVersion);
     if (!totalResources)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: total Soroban resources overflow");
@@ -1913,15 +1913,17 @@ TxSetPhaseFrame::txsAreValid(Application& app,
 }
 
 std::optional<Resource>
-TxSetPhaseFrame::getTotalResources() const
+TxSetPhaseFrame::getTotalResources(uint32_t ledgerVersion) const
 {
     auto total = mPhase == TxSetPhase::SOROBAN ? Resource::makeEmptySoroban()
                                                : Resource::makeEmpty(1);
     for (auto const& tx : *this)
     {
-        if (total.canAdd(tx->getResources(/* useByteLimitInClassic */ false)))
+        if (total.canAdd(tx->getResources(/* useByteLimitInClassic */ false,
+                                          ledgerVersion)))
         {
-            total += tx->getResources(/* useByteLimitInClassic */ false);
+            total += tx->getResources(/* useByteLimitInClassic */ false,
+                                      ledgerVersion);
         }
         else
         {

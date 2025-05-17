@@ -1747,7 +1747,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 
-    uint32_t const rentFee = 20'050;
+    uint32_t const rentFee = 20'168;
     resourceFee += rentFee;
     resources.footprint.readWrite.pop_back();
     auto addSorobanTx = [&](uint32_t inclusionFee) {
@@ -3190,18 +3190,19 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         };
         test(tweakSorobanConfig, tweakAppConfig);
     }
-    SECTION("read entries")
-    {
-        auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mledgerMaxDiskReadEntries = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxDiskReadEntries);
-        };
-        auto tweakAppConfig = [](Config& cfg) {
-            cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
-        };
-        test(tweakSorobanConfig, tweakAppConfig);
-    }
+    // TODO: https://github.com/stellar/stellar-core/issues/4736
+    // SECTION("read entries")
+    // {
+    //     auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
+    //         cfg.mledgerMaxDiskReadEntries = static_cast<uint32>(
+    //             baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
+    //             cfg.mTxMaxDiskReadEntries);
+    //     };
+    //     auto tweakAppConfig = [](Config& cfg) {
+    //         cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
+    //     };
+    //     test(tweakSorobanConfig, tweakAppConfig);
+    // }
     SECTION("write entries")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
@@ -4449,7 +4450,7 @@ TEST_CASE("do not flood too many soroban transactions",
     uint32_t const baseInclusionFee = 100'000;
     SorobanResources resources;
     resources.instructions = 800'000;
-    resources.diskReadBytes = 2000;
+    resources.diskReadBytes = 3000;
     resources.writeBytes = 1000;
 
     auto genTx = [&](TestAccount& source, bool highFee) {

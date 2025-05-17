@@ -109,7 +109,9 @@ VirtualClock::system_time_point genesis(int minute, int second);
 
 // Assigns values to the SorobanNetworkConfig fields that are suitable for
 // most of the unit tests.
-void setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg);
+void setSorobanNetworkConfigForTest(
+    SorobanNetworkConfig& cfg,
+    std::optional<uint32_t> ledgerVersion = std::nullopt);
 
 // Override Soroban network config defaults with generous settings suitable
 // for most of the unit tests (unless the test is meant to exercise the

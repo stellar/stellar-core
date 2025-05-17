@@ -118,8 +118,7 @@ ExtendFootprintTTLOpFrame::doApply(
             return false;
         }
 
-        if (protocolVersionIsBefore(ledgerVersion,
-                                    AUTO_RESTORE_PROTOCOL_VERSION))
+        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
         {
             metrics.mLedgerReadByte += entrySize;
             if (resources.diskReadBytes < metrics.mLedgerReadByte)

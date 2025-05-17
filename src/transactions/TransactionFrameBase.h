@@ -87,7 +87,8 @@ class TransactionFrameBase
     virtual uint32_t getNumOperations() const = 0;
     virtual std::vector<std::shared_ptr<OperationFrame const>> const&
     getOperationFrames() const = 0;
-    virtual Resource getResources(bool useByteLimitInClassic) const = 0;
+    virtual Resource getResources(bool useByteLimitInClassic,
+                                  uint32_t ledgerVersion) const = 0;
 
     virtual std::vector<Operation> const& getRawOperations() const = 0;
 
