@@ -1280,26 +1280,29 @@ SorobanTest::getLCLSeq() const
 
 TransactionFrameBaseConstPtr
 SorobanTest::createExtendOpTx(SorobanResources const& resources,
-                              uint32_t extendTo, uint32_t fee,
-                              int64_t refundableFee, TestAccount* source)
+                              uint32_t extendTo, uint32_t inclusionFee,
+                              int64_t resourceFee, TestAccount* source)
 {
     Operation op;
     op.body.type(EXTEND_FOOTPRINT_TTL);
     op.body.extendFootprintTTLOp().extendTo = extendTo;
     auto& acc = source ? *source : getRoot();
     return sorobanTransactionFrameFromOps(getApp().getNetworkID(), acc, {op},
-                                          {}, resources, fee, refundableFee);
+                                          {}, resources, inclusionFee,
+                                          resourceFee);
 }
 
 TransactionFrameBaseConstPtr
-SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
-                             int64_t refundableFee, TestAccount* source)
+SorobanTest::createRestoreTx(SorobanResources const& resources,
+                             uint32_t inclusionFee, int64_t resourceFee,
+                             TestAccount* source)
 {
     Operation op;
     op.body.type(RESTORE_FOOTPRINT);
     auto& acc = source ? *source : getRoot();
     return sorobanTransactionFrameFromOps(getApp().getNetworkID(), acc, {op},
-                                          {}, resources, fee, refundableFee);
+                                          {}, resources, inclusionFee,
+                                          resourceFee);
 }
 
 bool
