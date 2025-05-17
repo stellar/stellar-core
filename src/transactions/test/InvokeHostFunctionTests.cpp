@@ -926,7 +926,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 
     SorobanTest test(appCfg, true, [](SorobanNetworkConfig& cfg) {
         cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxDiskReadEntries;
-        cfg.mTxMaxInMemoryReadEntries = (cfg.mTxMaxDiskReadEntries * 2) + 10;
+        cfg.mTxMaxFootprintEntries = (cfg.mTxMaxDiskReadEntries * 2) + 10;
     });
     auto const& cfg = test.getNetworkCfg();
 
@@ -1289,7 +1289,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         auto const maxDiskReads = cfg.mTxMaxDiskReadEntries;
 
         // contract instance and WASM entry are already in the fooprint
-        auto const maxTotalReads = cfg.mTxMaxInMemoryReadEntries - 2;
+        auto const maxTotalReads = cfg.mTxMaxFootprintEntries - 2;
 
         SECTION("classic entries counted as disk")
         {

@@ -72,7 +72,7 @@ struct SorobanUpgradeConfig
     std::optional<uint32_t> ledgerMaxDependentTxClusters{};
 
     // Ledger cost extension settings
-    std::optional<uint32_t> txMaxInMemoryReadEntries{};
+    std::optional<uint32_t> txMaxFootprintEntries{};
     std::optional<int64_t> feeFlatRateWrite1KB{};
 };
 
