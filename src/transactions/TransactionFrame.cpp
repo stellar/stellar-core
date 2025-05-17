@@ -657,14 +657,14 @@ TransactionFrame::checkSorobanResources(
 
         auto totalReads = resources.footprint.readOnly.size() +
                           resources.footprint.readWrite.size();
-        if (totalReads > config.txMaxInMemoryReadEntries())
+        if (totalReads > config.txMaxFootprintEntries())
         {
             diagnosticEvents.pushError(
                 SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "the number of entries in transaction footprint exceeds the "
                 "network config limit",
                 {makeU64SCVal(totalReads),
-                 makeU64SCVal(config.txMaxInMemoryReadEntries())});
+                 makeU64SCVal(config.txMaxFootprintEntries())});
             return false;
         }
     }

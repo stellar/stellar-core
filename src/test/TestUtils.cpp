@@ -433,7 +433,7 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
     if (!ledgerVersion ||
         protocolVersionStartsFrom(*ledgerVersion, ProtocolVersion::V_23))
     {
-        cfg.mTxMaxInMemoryReadEntries = cfg.mTxMaxDiskReadEntries;
+        cfg.mTxMaxFootprintEntries = cfg.mTxMaxDiskReadEntries;
     }
 }
 

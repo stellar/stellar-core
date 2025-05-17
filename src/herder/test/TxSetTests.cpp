@@ -1824,9 +1824,8 @@ TEST_CASE("txset nomination", "[txset]")
                         protocolVersion,
                         PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
                 {
-                    cfg.mTxMaxInMemoryReadEntries =
-                        cfg.mTxMaxDiskReadEntries +
-                        cfg.mTxMaxWriteLedgerEntries;
+                    cfg.mTxMaxFootprintEntries = cfg.mTxMaxDiskReadEntries +
+                                                 cfg.mTxMaxWriteLedgerEntries;
                 }
             });
 
@@ -2128,7 +2127,7 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
         sorobanCfg.mTxMaxInstructions = 100'000'000;
         sorobanCfg.mLedgerMaxInstructions = 400'000'000;
         sorobanCfg.mTxMaxDiskReadEntries = 3000;
-        sorobanCfg.mTxMaxInMemoryReadEntries = sorobanCfg.mTxMaxDiskReadEntries;
+        sorobanCfg.mTxMaxFootprintEntries = sorobanCfg.mTxMaxDiskReadEntries;
         sorobanCfg.mledgerMaxDiskReadEntries = 3000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;

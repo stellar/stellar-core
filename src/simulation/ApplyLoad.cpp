@@ -43,7 +43,7 @@ getUpgradeConfig(Config const& cfg)
     upgradeConfig.ledgerMaxTxCount = cfg.APPLY_LOAD_MAX_TX_COUNT;
     upgradeConfig.txMaxDiskReadEntries =
         cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
-    upgradeConfig.txMaxInMemoryReadEntries =
+    upgradeConfig.txMaxFootprintEntries =
         cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
     upgradeConfig.txMaxDiskReadBytes = cfg.APPLY_LOAD_TX_MAX_READ_BYTES;
     upgradeConfig.txMaxWriteLedgerEntries =
