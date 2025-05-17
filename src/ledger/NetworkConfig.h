@@ -276,8 +276,9 @@ class SorobanNetworkConfig
     uint32_t ledgerMaxWriteBytes() const;
     // Maximum number of ledger entry read operations per transaction
     uint32_t txMaxDiskReadEntries() const;
-    // Maximum number of in-memory ledger entries accessed by a transaction
-    uint32_t txMaxInMemoryReadEntries() const;
+    // Maximum number of ledger entries allowed across readOnly and readWrite
+    // footprints
+    uint32_t txMaxFootprintEntries() const;
     // Maximum number of bytes that can be read per transaction
     uint32_t txMaxDiskReadBytes() const;
     // Maximum number of ledger entry write operations per transaction
@@ -473,7 +474,7 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxDependentTxClusters{};
 
     // Ledger cost extension settings
-    uint32_t mTxMaxInMemoryReadEntries{};
+    uint32_t mTxMaxFootprintEntries{};
 
     // Flat rate fee for writing 1KB applies only post protocol 23
     int64_t mFeeFlatRateWrite1KB{};

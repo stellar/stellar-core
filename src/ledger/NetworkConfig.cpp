@@ -927,12 +927,11 @@ ConfigSettingEntry
 initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
-    // Initialize `txMaxInMemoryReadEntries` with the value of the older
+    // Initialize `txMaxFootprintEntries` with the value of the older
     // `txMaxDiskReadEntries` setting that used to apply to the whole
     // transaction footprint, so that we ensure that no transactions
     // will become invalid due to this limit.
-    entry.contractLedgerCostExt().txMaxInMemoryReadEntries =
-        txMaxDiskReadEntries;
+    entry.contractLedgerCostExt().txMaxFootprintEntries = txMaxDiskReadEntries;
     entry.contractLedgerCostExt().feeWrite1KB =
         InitialSorobanNetworkConfig::FEE_LEDGER_WRITE_1KB;
     return entry;
@@ -1112,7 +1111,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
         valid =
             protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
-            cfg.contractLedgerCostExt().txMaxInMemoryReadEntries >=
+            cfg.contractLedgerCostExt().txMaxFootprintEntries >=
                 MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
@@ -1403,7 +1402,7 @@ SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
         auto le = ltx.loadWithoutRecord(key).current();
         auto const& configSetting =
             le.data.configSetting().contractLedgerCostExt();
-        mTxMaxInMemoryReadEntries = configSetting.txMaxInMemoryReadEntries;
+        mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
         mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
     }
 }
@@ -1545,7 +1544,7 @@ SorobanNetworkConfig::loadLedgerCostExtConfig(AbstractLedgerTxn& ltx)
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
     auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractLedgerCostExt();
-    mTxMaxInMemoryReadEntries = configSetting.txMaxInMemoryReadEntries;
+    mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
     mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
 }
 
@@ -1918,9 +1917,9 @@ SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
 }
 
 uint32_t
-SorobanNetworkConfig::txMaxInMemoryReadEntries() const
+SorobanNetworkConfig::txMaxFootprintEntries() const
 {
-    return mTxMaxInMemoryReadEntries;
+    return mTxMaxFootprintEntries;
 }
 
 int64_t
@@ -2190,7 +2189,7 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
            mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
 
            mTxMaxDiskReadEntries == other.txMaxDiskReadEntries() &&
-           mTxMaxInMemoryReadEntries == other.txMaxInMemoryReadEntries() &&
+           mTxMaxFootprintEntries == other.txMaxFootprintEntries() &&
            mTxMaxDiskReadBytes == other.txMaxDiskReadBytes() &&
            mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
            mTxMaxWriteBytes == other.txMaxWriteBytes() &&

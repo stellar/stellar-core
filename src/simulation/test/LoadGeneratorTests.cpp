@@ -361,7 +361,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                                   ProtocolVersion::V_23))
     {
         upgradeCfg.ledgerMaxDependentTxClusters = rand_uniform<uint32_t>(2, 10);
-        upgradeCfg.txMaxInMemoryReadEntries =
+        upgradeCfg.txMaxFootprintEntries =
             rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
         upgradeCfg.feeFlatRateWrite1KB =
             rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
@@ -495,8 +495,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                     upgradeCfg.ledgerMaxDependentTxClusters);
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
-            REQUIRE(setting.contractLedgerCostExt().txMaxInMemoryReadEntries ==
-                    upgradeCfg.txMaxInMemoryReadEntries);
+            REQUIRE(setting.contractLedgerCostExt().txMaxFootprintEntries ==
+                    upgradeCfg.txMaxFootprintEntries);
             REQUIRE(setting.contractLedgerCostExt().feeWrite1KB ==
                     upgradeCfg.feeFlatRateWrite1KB);
             break;

@@ -996,10 +996,10 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             }
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
-            if (upgradeCfg.txMaxInMemoryReadEntries.has_value())
+            if (upgradeCfg.txMaxFootprintEntries.has_value())
             {
-                setting.contractLedgerCostExt().txMaxInMemoryReadEntries =
-                    *upgradeCfg.txMaxInMemoryReadEntries;
+                setting.contractLedgerCostExt().txMaxFootprintEntries =
+                    *upgradeCfg.txMaxFootprintEntries;
             }
 
             if (upgradeCfg.feeFlatRateWrite1KB.has_value())
