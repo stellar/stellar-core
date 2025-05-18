@@ -50,7 +50,7 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (mApp.getConfig().HTTP_PORT)
+    if (mApp.getConfig().HTTP_PORT || mApp.getConfig().HTTP_QUERY_PORT)
     {
         std::string ipStr;
         if (mApp.getConfig().PUBLIC_HTTP_PORT)
@@ -66,9 +66,12 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
         int httpMaxClient = mApp.getConfig().HTTP_MAX_CLIENT;
 
-        mServer = std::make_unique<http::server::server>(
-            app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
-            httpMaxClient);
+        if (mApp.getConfig().HTTP_PORT)
+        {
+            mServer = std::make_unique<http::server::server>(
+                app.getClock().getIOContext(), ipStr,
+                mApp.getConfig().HTTP_PORT, httpMaxClient);
+        }
 
         if (mApp.getConfig().HTTP_QUERY_PORT)
         {
@@ -78,7 +81,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                 mApp.getBucketManager().getBucketSnapshotManager());
         }
     }
-    else
+
+    if (!mApp.getConfig().HTTP_PORT)
     {
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOContext());

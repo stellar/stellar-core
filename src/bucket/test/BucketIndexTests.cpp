@@ -1060,8 +1060,8 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         };
 
         auto archivedEntries =
-            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                {CONTRACT_DATA, CONTRACT_CODE}, 10);
+            LedgerTestUtils::generateUniquePersistentLedgerEntries(
+                10, keysToSearch);
         for (auto const& e : archivedEntries)
         {
             auto k = LedgerEntryKey(e);
@@ -1071,8 +1071,8 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
         // Note: keys to search automatically populated by these functions
         auto restoredEntries =
-            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
-                {CONTRACT_DATA, CONTRACT_CODE}, 10, keysToSearch);
+            LedgerTestUtils::generateUniquePersistentLedgerKeys(10,
+                                                                keysToSearch);
         for (auto const& k : restoredEntries)
         {
             expectedRestoredEntries.emplace(k);

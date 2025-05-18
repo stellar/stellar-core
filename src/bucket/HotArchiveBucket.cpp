@@ -6,6 +6,8 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
+#include "ledger/LedgerTypeUtils.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -51,6 +53,7 @@ HotArchiveBucket::convertToBucketEntry(
         HotArchiveBucketEntry be;
         be.type(HOT_ARCHIVE_ARCHIVED);
         be.archivedEntry() = e;
+        releaseAssertOrThrow(isPersistentEntry(e.data));
         bucket.push_back(be);
     }
     for (auto const& k : restoredEntries)
@@ -58,6 +61,7 @@ HotArchiveBucket::convertToBucketEntry(
         HotArchiveBucketEntry be;
         be.type(HOT_ARCHIVE_LIVE);
         be.key() = k;
+        releaseAssertOrThrow(isPersistentEntry(k));
         bucket.push_back(be);
     }
 

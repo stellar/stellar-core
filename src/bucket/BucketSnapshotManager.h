@@ -89,5 +89,12 @@ class BucketSnapshotManager : NonMovableOrCopyable
     maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
     void maybeCopySearchableHotArchiveBucketListSnapshot(
         SearchableHotArchiveSnapshotConstPtr& snapshot);
+
+    // This function is the same as snapshot refreshers above, but guarantees
+    // that both snapshots are consistent with the same lcl. This is required
+    // when querying both snapshot types as part of the same query.
+    void maybeCopyLiveAndHotArchiveSnapshots(
+        SearchableSnapshotConstPtr& liveSnapshot,
+        SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot);
 };
 }

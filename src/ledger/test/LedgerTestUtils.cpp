@@ -688,6 +688,38 @@ generateUniqueValidSorobanLedgerEntryKeys(size_t n)
         n);
 }
 
+std::vector<LedgerEntry>
+generateUniquePersistentLedgerEntries(size_t n,
+                                      UnorderedSet<LedgerKey>& seenKeys)
+{
+    auto res = LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+        {CONTRACT_DATA, CONTRACT_CODE}, n, seenKeys);
+    for (auto& le : res)
+    {
+        if (le.data.type() == CONTRACT_DATA)
+        {
+            seenKeys.erase(LedgerEntryKey(le));
+            le.data.contractData().durability = PERSISTENT;
+            seenKeys.insert(LedgerEntryKey(le));
+        }
+    }
+
+    return res;
+}
+
+std::vector<LedgerKey>
+generateUniquePersistentLedgerKeys(size_t n, UnorderedSet<LedgerKey>& seenKeys)
+{
+    auto entries = generateUniquePersistentLedgerEntries(n, seenKeys);
+    std::vector<LedgerKey> res;
+    for (auto const& le : entries)
+    {
+        res.push_back(LedgerEntryKey(le));
+    }
+
+    return res;
+}
+
 std::vector<LedgerKey>
 generateValidUniqueLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
