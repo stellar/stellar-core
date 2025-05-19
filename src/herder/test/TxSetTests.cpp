@@ -7,6 +7,7 @@
 #include "herder/TxSetFrame.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -19,7 +20,6 @@
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
-
 namespace stellar
 {
 namespace
@@ -1070,7 +1070,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
         };
 
         auto createTx = [&](std::vector<int> addRoFootprint = {},
-                            std::vector<int> addRwFootprint = {}) {
+                            std::vector<int> addRwFootprint = {},
+                            bool useClassic = false) {
             auto source = root->create("source" + std::to_string(accountId++),
                                        1'000'000'000);
             Operation op;
@@ -1094,25 +1095,40 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             resources.writeBytes =
                 MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
-            for (int i = 0; i < 8; ++i)
+            if (useClassic)
             {
-                resources.footprint.readOnly.push_back(
-                    ledgerKey(footprintId++));
+                UnorderedSet<LedgerKey> seenKeys;
+                auto keys =
+                    LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                        {ACCOUNT}, 10, seenKeys);
+                for (auto const& key : keys)
+                {
+                    resources.footprint.readOnly.push_back(key);
+                }
             }
-            for (int i = 0; i < 2; ++i)
+            else
             {
-                resources.footprint.readWrite.push_back(
-                    ledgerKey(footprintId++));
-            }
-            for (auto id : addRoFootprint)
-            {
-                resources.footprint.readOnly.push_back(
-                    ledgerKey(1'000'000'000 + id));
-            }
-            for (auto id : addRwFootprint)
-            {
-                resources.footprint.readWrite.push_back(
-                    ledgerKey(1'000'000'000 + id));
+
+                for (int i = 0; i < 8; ++i)
+                {
+                    resources.footprint.readOnly.push_back(
+                        ledgerKey(footprintId++));
+                }
+                for (int i = 0; i < 2; ++i)
+                {
+                    resources.footprint.readWrite.push_back(
+                        ledgerKey(footprintId++));
+                }
+                for (auto id : addRoFootprint)
+                {
+                    resources.footprint.readOnly.push_back(
+                        ledgerKey(1'000'000'000 + id));
+                }
+                for (auto id : addRwFootprint)
+                {
+                    resources.footprint.readWrite.push_back(
+                        ledgerKey(1'000'000'000 + id));
+                }
             }
 
             auto tx = sorobanTransactionFrameFromOps(
@@ -1173,11 +1189,11 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     }
                 });
 
-            auto buildAndValidate = [&]() {
+            auto buildAndValidate = [&](bool diskReadTest = false) {
                 std::vector<TransactionFrameBaseConstPtr> txs;
                 for (int i = 0; i < 20; ++i)
                 {
-                    txs.push_back(createTx());
+                    txs.push_back(createTx({}, {}, diskReadTest));
                 }
                 ApplicableTxSetFrameConstPtr txSet;
                 if (protocolVersionIsBefore(
@@ -1263,7 +1279,9 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mledgerMaxDiskReadEntries -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                bool useClassic = protocolVersionStartsFrom(
+                    protocolVersion, ProtocolVersion::V_23);
+                REQUIRE(!buildAndValidate(useClassic));
             }
             SECTION("write entries limit exceeded")
             {
@@ -1802,6 +1820,13 @@ TEST_CASE("txset nomination", "[txset]")
                 cfg.mTxMaxInstructions =
                     static_cast<int64_t>(cfg.mLedgerMaxInstructions) * 100 /
                     txToLedgerRatioPercentDistr(rng);
+                if (protocolVersionStartsFrom(
+                        protocolVersion,
+                        PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                {
+                    cfg.mTxMaxFootprintEntries = cfg.mTxMaxDiskReadEntries +
+                                                 cfg.mTxMaxWriteLedgerEntries;
+                }
             });
 
             auto const& sorobanConfig =
@@ -1947,8 +1972,16 @@ TEST_CASE("txset nomination", "[txset]")
                 totalInsns += resources.instructions;
                 totalReadBytes += resources.diskReadBytes;
                 totalWriteBytes += resources.writeBytes;
-                totalReadEntries += resources.footprint.readOnly.size() +
-                                    resources.footprint.readWrite.size();
+
+                // In protocol 23, all generated entries are in-memory.
+                if (protocolVersionIsBefore(
+                        protocolVersion,
+                        PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                {
+                    totalReadEntries += resources.footprint.readOnly.size() +
+                                        resources.footprint.readWrite.size();
+                }
+
                 totalWriteEntries += resources.footprint.readWrite.size();
                 totalTxSizeBytes += xdr::xdr_size(tx->getEnvelope());
             }
@@ -2094,6 +2127,7 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
         sorobanCfg.mTxMaxInstructions = 100'000'000;
         sorobanCfg.mLedgerMaxInstructions = 400'000'000;
         sorobanCfg.mTxMaxDiskReadEntries = 3000;
+        sorobanCfg.mTxMaxFootprintEntries = sorobanCfg.mTxMaxDiskReadEntries;
         sorobanCfg.mledgerMaxDiskReadEntries = 3000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
@@ -2816,6 +2850,7 @@ TEST_CASE("parallel tx set building benchmark",
         return txs;
     };
 
+    uint32_t ledgerVersion = cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
     auto runBenchmark = [&](double mean_conflicts_per_tx,
                             double mean_ro_txs_per_conflict,
                             double mean_rw_txs_per_conflict) {
@@ -2840,7 +2875,7 @@ TEST_CASE("parallel tx set building benchmark",
                 auto start = std::chrono::steady_clock::now();
                 auto stages = buildSurgePricedParallelSorobanPhase(
                     allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
-                    hadTxNotFittingLane);
+                    hadTxNotFittingLane, ledgerVersion);
                 auto end = std::chrono::steady_clock::now();
                 totalDuration +=
                     std::chrono::duration_cast<std::chrono::nanoseconds>(end -

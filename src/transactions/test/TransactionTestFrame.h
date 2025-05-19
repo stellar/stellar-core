@@ -101,7 +101,8 @@ class TransactionTestFrame : public TransactionFrameBase
     uint32_t getNumOperations() const override;
     std::vector<std::shared_ptr<OperationFrame const>> const&
     getOperationFrames() const override;
-    Resource getResources(bool useByteLimitInClassic) const override;
+    Resource getResources(bool useByteLimitInClassic,
+                          uint32_t ledgerVersion) const override;
 
     std::vector<Operation> const& getRawOperations() const override;
 

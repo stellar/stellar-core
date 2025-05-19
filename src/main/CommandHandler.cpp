@@ -797,6 +797,13 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 conf.txMaxWriteLedgerEntries();
             res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
 
+            if (protocolVersionStartsFrom(
+                    lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                    ProtocolVersion::V_23))
+            {
+                res["tx"]["max_footprint_size"] = conf.txMaxFootprintEntries();
+            }
+
             // Fees
             res["fee_read_ledger_entry"] =
                 static_cast<Json::Int64>(conf.feeDiskReadLedgerEntry());
@@ -1252,6 +1259,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint64_t>(map, "evctsz");
             upgradeCfg.startingEvictionScanLevel =
                 parseOptionalParam<uint32_t>(map, "evctlvl");
+            upgradeCfg.txMaxFootprintEntries =
+                parseOptionalParam<uint32_t>(map, "txmxftprnt");
         }
 
         if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)

@@ -152,8 +152,7 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Ledger cost extension settings
-    static constexpr uint32_t TX_MAX_IN_MEMORY_READ_ENTRIES = 100;
-    static constexpr int64_t FEE_LEDGER_WRITE_1KB = 1'000;
+    static constexpr int64_t FEE_LEDGER_WRITE_1KB = 3'500;
 };
 
 // Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for
@@ -277,8 +276,9 @@ class SorobanNetworkConfig
     uint32_t ledgerMaxWriteBytes() const;
     // Maximum number of ledger entry read operations per transaction
     uint32_t txMaxDiskReadEntries() const;
-    // Maximum number of in-memory ledger entries accessed by a transaction
-    uint32_t txMaxInMemoryReadEntries() const;
+    // Maximum number of ledger entries allowed across readOnly and readWrite
+    // footprints
+    uint32_t txMaxFootprintEntries() const;
     // Maximum number of bytes that can be read per transaction
     uint32_t txMaxDiskReadBytes() const;
     // Maximum number of ledger entry write operations per transaction
@@ -394,6 +394,7 @@ class SorobanNetworkConfig
     void loadliveSorobanStateSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
+    void loadLedgerCostExtConfig(AbstractLedgerTxn& ltx);
     void computeRentWriteFee(uint32_t configMaxProtocol,
                              uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
@@ -473,7 +474,7 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxDependentTxClusters{};
 
     // Ledger cost extension settings
-    uint32_t mTxMaxInMemoryReadEntries{};
+    uint32_t mTxMaxFootprintEntries{};
 
     // Flat rate fee for writing 1KB applies only post protocol 23
     int64_t mFeeFlatRateWrite1KB{};

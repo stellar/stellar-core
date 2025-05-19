@@ -68,13 +68,19 @@ void
 TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
 {
     releaseAssert(tx->isSoroban() == mIsSoroban);
-    mTxs->add(tx);
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    mTxs->add(tx, ledgerVersion);
 }
 
 void
 TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 {
-    mTxs->erase(tx);
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    mTxs->erase(tx, ledgerVersion);
 }
 
 #ifdef BUILD_TESTS
@@ -138,14 +144,15 @@ TxQueueLimiter::canAddTx(
     std::optional<Resource> oldTxDiscount = std::nullopt;
     if (oldTx)
     {
-        oldTxDiscount = oldTx->getResources(false);
+        oldTxDiscount = oldTx->getResources(false, ledgerVersion);
     }
 
     // Update the operation limit in case upgrade happened. This is cheap
     // enough to happen unconditionally without relying on upgrade triggers.
     mSurgePricingLaneConfig->updateGenericLaneLimit(
         Resource(maxScaledLedgerResources(newTx->isSoroban())));
-    return mTxs->canFitWithEviction(*newTx, oldTxDiscount, txsToEvict);
+    return mTxs->canFitWithEviction(*newTx, oldTxDiscount, txsToEvict,
+                                    ledgerVersion);
 }
 
 void
@@ -154,8 +161,11 @@ TxQueueLimiter::evictTransactions(
     TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
 {
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
     auto resourcesToFit =
-        txToFit.getResources(/* useByteLimitInClassic */ false);
+        txToFit.getResources(/* useByteLimitInClassic */ false, ledgerVersion);
 
     auto txToFitLane = mSurgePricingLaneConfig->getLane(txToFit);
 

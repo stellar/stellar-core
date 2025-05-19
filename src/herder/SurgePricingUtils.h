@@ -55,7 +55,8 @@ class SurgePricingLaneConfig
     // configuration).
     virtual void updateGenericLaneLimit(Resource const& limit) = 0;
 
-    virtual Resource getTxResources(TransactionFrameBase const& tx) = 0;
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) = 0;
 
     virtual ~SurgePricingLaneConfig() = default;
 };
@@ -76,7 +77,8 @@ class DexLimitingLaneConfig : public SurgePricingLaneConfig
     size_t getLane(TransactionFrameBase const& tx) const override;
     std::vector<Resource> const& getLaneLimits() const override;
     virtual void updateGenericLaneLimit(Resource const& limit) override;
-    virtual Resource getTxResources(TransactionFrameBase const& tx) override;
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) override;
 
   private:
     std::vector<Resource> mLaneLimits;
@@ -91,7 +93,8 @@ class SorobanGenericLaneConfig : public SurgePricingLaneConfig
     size_t getLane(TransactionFrameBase const& tx) const override;
     std::vector<Resource> const& getLaneLimits() const override;
     virtual void updateGenericLaneLimit(Resource const& limit) override;
-    virtual Resource getTxResources(TransactionFrameBase const& tx) override;
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) override;
 
   private:
     std::vector<Resource> mLaneLimits;
@@ -117,7 +120,7 @@ class SurgePricingPriorityQueue
     static std::vector<TransactionFrameBasePtr> getMostTopTxsWithinLimits(
         std::vector<TransactionFrameBasePtr> const& txs,
         std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-        std::vector<bool>& hadTxNotFittingLane);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
 
     // Returns total amount of resources in all the transactions in this queue.
     Resource totalResources() const;
@@ -154,7 +157,8 @@ class SurgePricingPriorityQueue
         std::vector<TransactionFrameBasePtr> const& txs,
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
-        std::vector<Resource>& laneResourcesLeftUntilLimit);
+        std::vector<Resource>& laneResourcesLeftUntilLimit,
+        uint32_t ledgerVersion);
 
     // Creates a `SurgePricingPriorityQueue` for the provided lane
     // configuration.
@@ -167,9 +171,9 @@ class SurgePricingPriorityQueue
         size_t comparisonSeed);
 
     // Adds a transaction to this queue.
-    void add(TransactionFrameBasePtr tx);
+    void add(TransactionFrameBasePtr tx, uint32_t ledgerVersion);
     // Erases a transaction from this queue.
-    void erase(TransactionFrameBasePtr tx);
+    void erase(TransactionFrameBasePtr tx, uint32_t ledgerVersion);
 
     // Checks whether a provided transaction could fit into this queue without
     // violating the `laneConfig` limits while evicting some lower fee rate
@@ -184,8 +188,8 @@ class SurgePricingPriorityQueue
     // limit (as opposed to 'generic' lane's limit).
     std::pair<bool, int64_t> canFitWithEviction(
         TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
-        std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
-        const;
+        std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+        uint32_t ledgerVersion) const;
 
     // Generalized method for visiting and popping the top transactions in the
     // queue until the lane limits are reached.
@@ -196,7 +200,7 @@ class SurgePricingPriorityQueue
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit,
-        std::vector<bool>& hadTxNotFittingLane);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
 
   private:
     class TxComparator
@@ -250,9 +254,10 @@ class SurgePricingPriorityQueue
         std::vector<LaneIter> mutable mIters;
     };
 
-    void erase(Iterator const& it);
+    void erase(Iterator const& it, uint32_t ledgerVersion);
     void erase(size_t lane,
-               SurgePricingPriorityQueue::TxSortedSet::iterator iter);
+               SurgePricingPriorityQueue::TxSortedSet::iterator iter,
+               uint32_t ledgerVersion);
 
     Iterator getTop() const;
 

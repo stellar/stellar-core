@@ -924,11 +924,14 @@ initialParallelComputeEntry()
 }
 
 ConfigSettingEntry
-initialLedgerCostExtEntry()
+initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
-    entry.contractLedgerCostExt().txMaxInMemoryReadEntries =
-        InitialSorobanNetworkConfig::TX_MAX_IN_MEMORY_READ_ENTRIES;
+    // Initialize `txMaxFootprintEntries` with the value of the older
+    // `txMaxDiskReadEntries` setting that used to apply to the whole
+    // transaction footprint, so that we ensure that no transactions
+    // will become invalid due to this limit.
+    entry.contractLedgerCostExt().txMaxFootprintEntries = txMaxDiskReadEntries;
     entry.contractLedgerCostExt().feeWrite1KB =
         InitialSorobanNetworkConfig::FEE_LEDGER_WRITE_1KB;
     return entry;
@@ -1108,7 +1111,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
         valid =
             protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
-            cfg.contractLedgerCostExt().txMaxInMemoryReadEntries >
+            cfg.contractLedgerCostExt().txMaxFootprintEntries >=
                 MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
@@ -1218,10 +1221,20 @@ SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     ZoneScoped;
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
-    createConfigSettingEntry(initialLedgerCostExtEntry(), ltx,
-                             static_cast<uint32_t>(ProtocolVersion::V_23));
     createConfigSettingEntry(initialScpTimingEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
+
+    // We expect CONFIG_SETTING_CONTRACT_LEDGER_COST_V0 to exist when upgrading
+    // to protocol 23 as it must be created during the protocol 20 upgrade.
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+    auto le = ltx.loadWithoutRecord(key).current();
+    auto const& ledgerCostSetting =
+        le.data.configSetting().contractLedgerCost();
+    createConfigSettingEntry(
+        initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
+        static_cast<uint32_t>(ProtocolVersion::V_23));
 }
 
 void
@@ -1289,6 +1302,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
     {
         loadParallelComputeConfig(ltx);
+        loadLedgerCostExtConfig(ltx);
     }
     // NB: this should follow loading/updating bucket list window
     // size and state archival settings
@@ -1388,7 +1402,7 @@ SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
         auto le = ltx.loadWithoutRecord(key).current();
         auto const& configSetting =
             le.data.configSetting().contractLedgerCostExt();
-        mTxMaxInMemoryReadEntries = configSetting.txMaxInMemoryReadEntries;
+        mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
         mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
     }
 }
@@ -1519,6 +1533,19 @@ SorobanNetworkConfig::loadParallelComputeConfig(AbstractLedgerTxn& ltx)
     auto const& configSetting =
         le.data.configSetting().contractParallelCompute();
     mLedgerMaxDependentTxClusters = configSetting.ledgerMaxDependentTxClusters;
+}
+
+void
+SorobanNetworkConfig::loadLedgerCostExtConfig(AbstractLedgerTxn& ltx)
+{
+    ZoneScoped;
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
+    auto le = ltx.loadWithoutRecord(key).current();
+    auto const& configSetting = le.data.configSetting().contractLedgerCostExt();
+    mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
+    mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
 }
 
 void
@@ -1890,9 +1917,9 @@ SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
 }
 
 uint32_t
-SorobanNetworkConfig::txMaxInMemoryReadEntries() const
+SorobanNetworkConfig::txMaxFootprintEntries() const
 {
-    return mTxMaxInMemoryReadEntries;
+    return mTxMaxFootprintEntries;
 }
 
 int64_t
@@ -2162,7 +2189,7 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
            mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
 
            mTxMaxDiskReadEntries == other.txMaxDiskReadEntries() &&
-           mTxMaxInMemoryReadEntries == other.txMaxInMemoryReadEntries() &&
+           mTxMaxFootprintEntries == other.txMaxFootprintEntries() &&
            mTxMaxDiskReadBytes == other.txMaxDiskReadBytes() &&
            mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
            mTxMaxWriteBytes == other.txMaxWriteBytes() &&

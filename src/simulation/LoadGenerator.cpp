@@ -1609,7 +1609,7 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
     upgradeCfg.feeDiskRead1KB = cfg.feeDiskRead1KB();
     upgradeCfg.feeFlatRateWrite1KB = cfg.feeFlatRateWrite1KB();
     upgradeCfg.txMaxDiskReadEntries = cfg.txMaxDiskReadEntries();
-    upgradeCfg.txMaxInMemoryReadEntries = cfg.txMaxInMemoryReadEntries();
+    upgradeCfg.txMaxFootprintEntries = cfg.txMaxFootprintEntries();
     upgradeCfg.txMaxDiskReadBytes = cfg.txMaxDiskReadBytes();
     upgradeCfg.txMaxWriteLedgerEntries = cfg.txMaxWriteLedgerEntries();
     upgradeCfg.txMaxWriteBytes = cfg.txMaxWriteBytes();

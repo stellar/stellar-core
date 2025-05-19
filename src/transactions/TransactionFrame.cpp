@@ -59,6 +59,42 @@ namespace
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
+uint32_t
+getNumDiskReadEntries(SorobanResources const& resources,
+                      SorobanTransactionData::_ext_t const& ext,
+                      Operation const& op)
+{
+    // All restoreOp entries require disk reads
+    if (op.body.type() == RESTORE_FOOTPRINT)
+    {
+        return resources.footprint.readWrite.size();
+    }
+
+    // First count classic entry reads
+    uint32_t count = 0;
+    auto countClassic = [&count](auto const& keys) {
+        for (auto const& key : keys)
+        {
+            if (!isSorobanEntry(key))
+            {
+                ++count;
+            }
+        }
+    };
+
+    countClassic(resources.footprint.readOnly);
+    countClassic(resources.footprint.readWrite);
+
+    // Next, count soroban on-disk entries. Only archived entries are on disk,
+    // and they have to be marked in the readWrite footprint, so we can just
+    // count the number of marked entries directly.
+    if (ext.v() == 1)
+    {
+        count += ext.resourceExt().archivedSorobanEntries.size();
+    }
+
+    return count;
+}
 } // namespace
 
 using namespace std;
@@ -192,7 +228,8 @@ TransactionFrame::getOperationFrames() const
 }
 
 Resource
-TransactionFrame::getResources(bool useByteLimitInClassic) const
+TransactionFrame::getResources(bool useByteLimitInClassic,
+                               uint32_t ledgerVersion) const
 {
     auto txSize = static_cast<int64_t>(this->getSize());
     if (isSoroban())
@@ -205,10 +242,20 @@ TransactionFrame::getResources(bool useByteLimitInClassic) const
         // is used for constructing TX sets before invoking the host, so we need
         // to sum readOnly size and readWrite size for correct resource limits
         // here.
+        int64_t diskReadEntries;
+        auto const& op = mOperations.front()->getOperation();
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
+        {
+            diskReadEntries = getNumDiskReadEntries(r, getResourcesExt(), op);
+        }
+        else
+        {
+            diskReadEntries =
+                r.footprint.readOnly.size() + r.footprint.readWrite.size();
+        }
+
         return Resource({opCount, r.instructions, txSize, r.diskReadBytes,
-                         r.writeBytes,
-                         static_cast<int64_t>(r.footprint.readOnly.size() +
-                                              r.footprint.readWrite.size()),
+                         r.writeBytes, diskReadEntries,
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
     else if (useByteLimitInClassic)
@@ -601,13 +648,47 @@ TransactionFrame::checkSorobanResources(
              makeU64SCVal(config.txMaxWriteBytes())});
         return false;
     }
-    if (readEntries.size() + writeEntries.size() >
-        config.txMaxDiskReadEntries())
+
+    uint32_t numDiskReads;
+    auto const& op = mOperations.front()->getOperation();
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
     {
+        numDiskReads = getNumDiskReadEntries(resources, getResourcesExt(), op);
+
+        auto totalReads = resources.footprint.readOnly.size() +
+                          resources.footprint.readWrite.size();
+        if (totalReads > config.txMaxFootprintEntries())
+        {
+            diagnosticEvents.pushError(
+                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                "the number of entries in transaction footprint exceeds the "
+                "network config limit",
+                {makeU64SCVal(totalReads),
+                 makeU64SCVal(config.txMaxFootprintEntries())});
+            return false;
+        }
+    }
+    else
+    {
+        numDiskReads = readEntries.size() + writeEntries.size();
+    }
+
+    if (numDiskReads > config.txMaxDiskReadEntries())
+    {
+        std::string errorMessage;
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
+        {
+            errorMessage = "transaction entry-disk-read resources exceed "
+                           "network config limit";
+        }
+        else
+        {
+            errorMessage = "transaction entry-read resources exceed network "
+                           "config limit";
+        }
         diagnosticEvents.pushError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
-            "transaction entry-read resources exceed network config limit",
-            {makeU64SCVal(readEntries.size() + writeEntries.size()),
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT, errorMessage.c_str(),
+            {makeU64SCVal(numDiskReads),
              makeU64SCVal(config.txMaxDiskReadEntries())});
         return false;
     }
@@ -863,8 +944,8 @@ TransactionFrame::computePreApplySorobanResourceFee(
     // doesn't involve modifying any transaction fees.
     return computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        static_cast<uint32>(
-            getResources(false).getVal(Resource::Type::TX_BYTE_SIZE)),
+        static_cast<uint32>(getResources(false, protocolVersion)
+                                .getVal(Resource::Type::TX_BYTE_SIZE)),
         0, sorobanConfig, cfg);
 }
 
