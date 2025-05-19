@@ -51,6 +51,12 @@ std::vector<LedgerKey> generateValidUniqueLedgerKeysWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n,
     UnorderedSet<LedgerKey>& seenKeys);
 
+std::vector<LedgerEntry>
+generateUniquePersistentLedgerEntries(size_t n,
+                                      UnorderedSet<LedgerKey>& seenKeys);
+std::vector<LedgerKey>
+generateUniquePersistentLedgerKeys(size_t n, UnorderedSet<LedgerKey>& seenKeys);
+
 std::vector<LedgerKey> generateUniqueValidSorobanLedgerEntryKeys(size_t n);
 
 std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
