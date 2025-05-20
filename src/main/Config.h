@@ -820,6 +820,10 @@ class Config : public std::enable_shared_from_this<Config>
     // specifications.
     bool SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING;
 
+    // Block byte limits overrides for testing
+    size_t TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
+    size_t TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
@@ -858,6 +862,9 @@ class Config : public std::enable_shared_from_this<Config>
     bool parallelLedgerClose() const;
     void setNoListen();
     void setNoPublish();
+
+    size_t getSorobanByteAllowance() const;
+    size_t getClassicByteAllowance() const;
 
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);
