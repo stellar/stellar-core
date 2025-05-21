@@ -1502,13 +1502,24 @@ ApplicationImpl::enableInvariantsFromConfig()
         std::find(invariants.begin(), invariants.end(),
                   "EventsAreConsistentWithEntryDiffs") != invariants.end();
 
-    if (eventsInvariantEnabled && (!mConfig.EMIT_CLASSIC_EVENTS ||
-                                   !mConfig.BACKFILL_STELLAR_ASSET_EVENTS))
+    if (eventsInvariantEnabled)
     {
-        throw std::invalid_argument(
-            "Invalid configuration: EventsAreConsistentWithEntryDiffs "
-            "invariant requires both EMIT_CLASSIC_EVENTS and "
-            "BACKFILL_STELLAR_ASSET_EVENTS config options to be enabled");
+        bool metadataEnabled = !mConfig.METADATA_OUTPUT_STREAM.empty();
+#ifdef BUILD_TESTS
+        // For tests we don't always output meta, but we always enable it,
+        // so we shouldn't check `METADATA_OUTPUT_STREAM` flag value.
+        metadataEnabled = true;
+#endif
+        bool eventsEnabled = mConfig.EMIT_CLASSIC_EVENTS &&
+                             mConfig.BACKFILL_STELLAR_ASSET_EVENTS;
+        if (!metadataEnabled || !eventsEnabled)
+        {
+            throw std::invalid_argument(
+                "Invalid configuration: EventsAreConsistentWithEntryDiffs "
+                "invariant requires METADATA_OUTPUT_STREAM to be set, as well "
+                "as both EMIT_CLASSIC_EVENTS and BACKFILL_STELLAR_ASSET_EVENTS "
+                "config options to be enabled");
+        }
     }
 }
 
