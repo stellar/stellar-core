@@ -229,7 +229,7 @@ FeeBumpTransactionFrame::checkSorobanResources(
                                            diagnosticEvents);
 }
 
-bool
+std::optional<LedgerEntryWrapper>
 FeeBumpTransactionFrame::commonValidPreSeqNum(
     LedgerSnapshot const& ls, MutableTransactionResultBase& txResult) const
 {
@@ -241,14 +241,14 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
                                 ProtocolVersion::V_13))
     {
         txResult.setError(txNOT_SUPPORTED);
-        return false;
+        return std::nullopt;
     }
     auto inclusionFee = getInclusionFee();
     auto minInclusionFee = getMinInclusionFee(*this, header.current());
     if (inclusionFee < minInclusionFee)
     {
         txResult.setError(txINSUFFICIENT_FEE);
-        return false;
+        return std::nullopt;
     }
     // While in theory it should be possible to bump a Soroban
     // transaction with negative inclusion fee (this is unavoidable
@@ -258,7 +258,7 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
     if (mInnerTx->getInclusionFee() < 0)
     {
         txResult.setError(txFEE_BUMP_INNER_FAILED);
-        return false;
+        return std::nullopt;
     }
     auto const& lh = header.current();
     // Make sure that fee bump is actually happening, i.e. that the
@@ -281,16 +281,17 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
         {
             txResult.setInsufficientFeeErrorWithFeeCharged(feeNeeded);
         }
-        return false;
+        return std::nullopt;
     }
 
-    if (!ls.getAccount(getFeeSourceID()))
+    auto feeSource = ls.getAccount(getFeeSourceID());
+    if (!feeSource)
     {
         txResult.setError(txNO_ACCOUNT);
-        return false;
+        return std::nullopt;
     }
 
-    return true;
+    return feeSource;
 }
 
 FeeBumpTransactionFrame::ValidationType
@@ -300,15 +301,17 @@ FeeBumpTransactionFrame::commonValid(
 {
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(ls, txResult))
+    // Get the fee source account during commonValidPreSeqNum to avoid redundant
+    // account loading
+    auto feeSource = commonValidPreSeqNum(ls, txResult);
+    if (!feeSource)
     {
         return res;
     }
 
-    auto const feeSource = ls.getAccount(getFeeSourceID());
     if (!checkSignature(
-            signatureChecker, feeSource,
-            feeSource.current().data.account().thresholds[THRESHOLD_LOW]))
+            signatureChecker, *feeSource,
+            feeSource->current().data.account().thresholds[THRESHOLD_LOW]))
     {
         txResult.setError(txBAD_AUTH);
         return res;
@@ -323,7 +326,7 @@ FeeBumpTransactionFrame::commonValid(
     int64_t feeToPay = applying ? 0 : getFullFee();
     // don't let the account go below the reserve after accounting for
     // liabilities
-    if (getAvailableBalance(header.current(), feeSource.current()) < feeToPay)
+    if (getAvailableBalance(header.current(), feeSource->current()) < feeToPay)
     {
         txResult.setError(txINSUFFICIENT_BALANCE);
         return res;

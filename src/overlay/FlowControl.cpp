@@ -15,12 +15,8 @@
 namespace stellar
 {
 
-constexpr std::chrono::seconds const OUTBOUND_QUEUE_TIMEOUT =
-    std::chrono::seconds(30);
-
 size_t
-FlowControl::getOutboundQueueByteLimit(
-    std::lock_guard<std::mutex>& lockGuard) const
+FlowControl::getOutboundQueueByteLimit(MutexLocker& lockGuard) const
 {
 #ifdef BUILD_TESTS
     if (mOutboundQueueLimit)
@@ -47,7 +43,7 @@ FlowControl::FlowControl(AppConnector& connector, bool useBackgroundThread)
 
 bool
 FlowControl::hasOutboundCapacity(StellarMessage const& msg,
-                                 std::lock_guard<std::mutex>& lockGuard) const
+                                 MutexLocker& lockGuard) const
 {
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
     return mFlowControlCapacity.hasOutboundCapacity(msg) &&
@@ -58,7 +54,7 @@ bool
 FlowControl::noOutboundCapacityTimeout(VirtualClock::time_point now,
                                        std::chrono::seconds timeout) const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     return mNoOutboundCapacity && now - *mNoOutboundCapacity >= timeout;
 }
 
@@ -66,7 +62,7 @@ void
 FlowControl::setPeerID(NodeID const& peerID)
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     mNodeID = peerID;
 }
 
@@ -75,7 +71,7 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     if (msg.type() == SEND_MORE_EXTENDED)
     {
@@ -99,49 +95,38 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
     }
 }
 
-std::vector<FlowControl::QueuedOutboundMessage>
-FlowControl::getNextBatchToSend()
+void
+FlowControl::processSentMessages(
+    FloodQueues<ConstStellarMessagePtr> const& sentMessages)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
 
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
-    std::vector<QueuedOutboundMessage> batchToSend;
-
-    int sent = 0;
-    for (int i = 0; i < mOutboundQueues.size(); i++)
+    MutexLocker guard(mFlowControlMutex);
+    for (int i = 0; i < sentMessages.size(); i++)
     {
+        auto const& sentMsgs = sentMessages[i];
         auto& queue = mOutboundQueues[i];
-        while (!queue.empty())
+
+        for (auto const& item : sentMsgs)
         {
-            auto& front = queue.front();
-            auto const& msg = *(front.mMessage);
-            // Can't send _current_ message
-            if (!hasOutboundCapacity(msg, guard))
+            if (queue.empty() || item != queue.front().mMessage)
             {
-                CLOG_DEBUG(
-                    Overlay, "{}: No outbound capacity for peer {}",
-                    mAppConnector.getConfig().toShortString(
-                        mAppConnector.getConfig().NODE_SEED.getPublicKey()),
-                    mAppConnector.getConfig().toShortString(mNodeID));
-                // Start a timeout for SEND_MORE
-                mNoOutboundCapacity =
-                    std::make_optional<VirtualClock::time_point>(
-                        mAppConnector.now());
-                break;
+                // queue got cleaned up from the front, skip this queue
+                continue;
             }
 
-            batchToSend.push_back(front);
-            ++sent;
-
-            mFlowControlCapacity.lockOutboundCapacity(msg);
-            mFlowControlBytesCapacity.lockOutboundCapacity(msg);
-
+            auto& front = queue.front();
             switch (front.mMessage->type())
             {
+#ifdef BUILD_TESTS
+            case TX_SET:
+#endif
             case TRANSACTION:
             {
-                size_t s = mFlowControlBytesCapacity.getMsgResourceCount(msg);
+                releaseAssert(OverlayManager::isFloodMessage(*front.mMessage));
+                size_t s = mFlowControlBytesCapacity.getMsgResourceCount(
+                    *front.mMessage);
                 releaseAssert(mTxQueueByteCount >= s);
                 mTxQueueByteCount -= s;
             }
@@ -168,6 +153,55 @@ FlowControl::getNextBatchToSend()
             queue.pop_front();
         }
     }
+}
+
+std::vector<FlowControl::QueuedOutboundMessage>
+FlowControl::getNextBatchToSend()
+{
+    ZoneScoped;
+    releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+
+    MutexLocker guard(mFlowControlMutex);
+    std::vector<QueuedOutboundMessage> batchToSend;
+
+    int sent = 0;
+    for (auto& queue : mOutboundQueues)
+    {
+        for (auto& outboundMsg : queue)
+        {
+            auto const& msg = *(outboundMsg.mMessage);
+            // Can't send _current_ message
+            if (!hasOutboundCapacity(msg, guard))
+            {
+                CLOG_DEBUG(
+                    Overlay, "{}: No outbound capacity for peer {}",
+                    mAppConnector.getConfig().toShortString(
+                        mAppConnector.getConfig().NODE_SEED.getPublicKey()),
+                    mAppConnector.getConfig().toShortString(mNodeID));
+                // Start a timeout for SEND_MORE
+                mNoOutboundCapacity =
+                    std::make_optional<VirtualClock::time_point>(
+                        mAppConnector.now());
+                break;
+            }
+
+            if (outboundMsg.mBeingSent)
+            {
+                // Already sent
+                continue;
+            }
+
+            batchToSend.push_back(outboundMsg);
+            outboundMsg.mBeingSent = true;
+            ++sent;
+
+            mFlowControlCapacity.lockOutboundCapacity(msg);
+            mFlowControlBytesCapacity.lockOutboundCapacity(msg);
+
+            // Do not pop messages here, cleanup after the call to async_write
+            // (its write handler invokes processSentMessages)
+        }
+    }
 
     CLOG_TRACE(Overlay, "{} Peer {}: send next flood batch of {}",
                mAppConnector.getConfig().toShortString(
@@ -182,7 +216,7 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
 {
     // The lock isn't strictly needed here, but is added for consistency and
     // future-proofing this function
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     auto diff = mAppConnector.now() - timePlaced;
 
     auto updateQueueDelay = [&](auto& queue, auto& metrics) {
@@ -194,6 +228,10 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
     switch (msg->type())
     {
     case TRANSACTION:
+#ifdef BUILD_TESTS
+    case TX_SET:
+#endif
+        releaseAssert(OverlayManager::isFloodMessage(*msg));
         updateQueueDelay(om.mOutboundQueueDelayTxs,
                          mMetrics.mOutboundQueueDelayTxs);
         break;
@@ -219,7 +257,7 @@ FlowControl::handleTxSizeIncrease(uint32_t increase)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     releaseAssert(increase > 0);
     // Bump flood capacity to accommodate the upgrade
     mFlowControlBytesCapacity.handleTxSizeIncrease(increase);
@@ -230,7 +268,7 @@ FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     return mFlowControlCapacity.lockLocalCapacity(msg) &&
            mFlowControlBytesCapacity.lockLocalCapacity(msg);
@@ -240,7 +278,7 @@ SendMoreCapacity
 FlowControl::endMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     mFloodDataProcessed += mFlowControlCapacity.releaseLocalCapacity(msg);
     mFloodDataProcessedBytes +=
@@ -279,7 +317,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
 }
 
 bool
-FlowControl::canRead(std::lock_guard<std::mutex> const& guard) const
+FlowControl::canRead(MutexLocker const& guard) const
 {
     return mFlowControlBytesCapacity.canRead() &&
            mFlowControlCapacity.canRead();
@@ -288,7 +326,7 @@ FlowControl::canRead(std::lock_guard<std::mutex> const& guard) const
 bool
 FlowControl::canRead() const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     return canRead(guard);
 }
 
@@ -299,12 +337,34 @@ FlowControl::getNumMessages(StellarMessage const& msg)
     return msg.sendMoreExtendedMessage().numMessages;
 }
 
+uint32_t
+FlowControl::getMessagePriority(StellarMessage const& msg)
+{
+    switch (msg.type())
+    {
+    case SCP_MESSAGE:
+        return 0;
+    case TRANSACTION:
+#ifdef BUILD_TESTS
+    case TX_SET:
+#endif
+        releaseAssert(OverlayManager::isFloodMessage(msg));
+        return 1;
+    case FLOOD_DEMAND:
+        return 2;
+    case FLOOD_ADVERT:
+        return 3;
+    default:
+        abort();
+    }
+}
+
 bool
 FlowControl::isSendMoreValid(StellarMessage const& msg,
                              std::string& errorMsg) const
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     if (msg.type() != SEND_MORE_EXTENDED)
     {
@@ -338,27 +398,15 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
     return true;
 }
 
-bool
-dropMessageAfterTimeout(FlowControl::QueuedOutboundMessage const& queuedMsg,
-                        VirtualClock::time_point now)
-{
-    releaseAssert(threadIsMain());
-    auto const& msg = *(queuedMsg.mMessage);
-    bool dropType = msg.type() == TRANSACTION || msg.type() == FLOOD_ADVERT ||
-                    msg.type() == FLOOD_DEMAND;
-    return dropType && (now - queuedMsg.mTimeEmplaced > OUTBOUND_QUEUE_TIMEOUT);
-}
-
 void
 FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     releaseAssert(msg);
     auto type = msg->type();
     size_t msgQInd = 0;
-    auto now = mAppConnector.now();
 
     switch (type)
     {
@@ -368,7 +416,11 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     break;
     case TRANSACTION:
+#ifdef BUILD_TESTS
+    case TX_SET:
+#endif
     {
+        releaseAssert(OverlayManager::isFloodMessage(*msg));
         msgQInd = 1;
         auto bytes = mFlowControlBytesCapacity.getMsgResourceCount(*msg);
         // Don't accept transactions that are over allowed byte limit: those
@@ -408,29 +460,20 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     auto& om = mOverlayMetrics;
     if (type == TRANSACTION)
     {
-        auto isOverLimit = [&](auto const& queue) {
-            bool overLimit =
-                queue.size() > limit ||
-                mTxQueueByteCount > getOutboundQueueByteLimit(guard);
-            // Time-based purge
-            overLimit =
-                overLimit ||
-                (!queue.empty() && dropMessageAfterTimeout(queue.front(), now));
-            return overLimit;
-        };
+        bool isOverLimit = queue.size() > limit ||
+                           mTxQueueByteCount > getOutboundQueueByteLimit(guard);
 
-        // Message/byte limit purge
-        while (isOverLimit(queue))
+        // If we are at limit, we're probably really behind, so drop the entire
+        // queue
+        if (isOverLimit)
         {
-            dropped++;
-            size_t s = mFlowControlBytesCapacity.getMsgResourceCount(
-                *(queue.front().mMessage));
-            releaseAssert(mTxQueueByteCount >= s);
-            mTxQueueByteCount -= s;
+            dropped = queue.size();
+            mTxQueueByteCount = 0;
+            queue.clear();
             om.mOutboundQueueDropTxs.Mark(dropped);
-            queue.pop_front();
         }
     }
+    // When at limit, do not drop SCP messages, critical to consensus
     else if (type == SCP_MESSAGE)
     {
         // Iterate over the message queue. If we found any messages for slots we
@@ -445,6 +488,13 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 
         for (auto it = queue.begin(); it != queue.end();)
         {
+            // Already being sent, skip
+            if (it->mBeingSent)
+            {
+                ++it;
+                continue;
+            }
+
             if (auto index = it->mMessage->envelope().statement.slotIndex;
                 index < minSlotToRemember && index != checkpointSeq)
             {
@@ -456,6 +506,8 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
                          it->mMessage->envelope().statement,
                          queue.back().mMessage->envelope().statement))
             {
+                releaseAssert(!queue.back().mBeingSent);
+                releaseAssert(!it->mBeingSent);
                 valueReplaced = true;
                 *it = std::move(queue.back());
                 queue.pop_back();
@@ -471,29 +523,23 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     else if (type == FLOOD_ADVERT)
     {
-        while (mAdvertQueueTxHashCount > limit ||
-               (!queue.empty() && dropMessageAfterTimeout(queue.front(), now)))
+        if (mAdvertQueueTxHashCount > limit)
         {
-            dropped++;
-            size_t s = queue.front().mMessage->floodAdvert().txHashes.size();
-            releaseAssert(mAdvertQueueTxHashCount >= s);
-            mAdvertQueueTxHashCount -= s;
-            queue.pop_front();
+            dropped = mAdvertQueueTxHashCount;
+            mAdvertQueueTxHashCount = 0;
+            queue.clear();
+            om.mOutboundQueueDropAdvert.Mark(dropped);
         }
-        om.mOutboundQueueDropAdvert.Mark(dropped);
     }
     else if (type == FLOOD_DEMAND)
     {
-        while (mDemandQueueTxHashCount > limit ||
-               (!queue.empty() && dropMessageAfterTimeout(queue.front(), now)))
+        if (mDemandQueueTxHashCount > limit)
         {
-            dropped++;
-            size_t s = queue.front().mMessage->floodDemand().txHashes.size();
-            releaseAssert(mDemandQueueTxHashCount >= s);
-            mDemandQueueTxHashCount -= s;
-            queue.pop_front();
+            dropped = mDemandQueueTxHashCount;
+            mDemandQueueTxHashCount = 0;
+            queue.clear();
+            om.mOutboundQueueDropDemand.Mark(dropped);
         }
-        om.mOutboundQueueDropDemand.Mark(dropped);
     }
 
     if (dropped && Logging::logTrace("Overlay"))
@@ -508,7 +554,7 @@ Json::Value
 FlowControl::getFlowControlJsonInfo(bool compact) const
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
 
     Json::Value res;
     if (mFlowControlCapacity.getCapacity().mTotalCapacity)
@@ -550,7 +596,7 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
 bool
 FlowControl::maybeThrottleRead()
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     if (!canRead(guard))
     {
         CLOG_DEBUG(Overlay, "Throttle reading from peer {}",
@@ -564,7 +610,7 @@ FlowControl::maybeThrottleRead()
 void
 FlowControl::stopThrottling()
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     releaseAssert(mLastThrottle);
     CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
                mAppConnector.getConfig().toShortString(mNodeID));
@@ -576,7 +622,7 @@ FlowControl::stopThrottling()
 bool
 FlowControl::isThrottled() const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    MutexLocker guard(mFlowControlMutex);
     return static_cast<bool>(mLastThrottle);
 }
 

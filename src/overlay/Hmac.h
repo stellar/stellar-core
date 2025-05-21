@@ -5,16 +5,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "Tracy.hpp"
+#include "util/ThreadAnnotations.h"
 #include "xdr/Stellar-overlay.h"
 #include "xdr/Stellar-types.h"
-#include <mutex>
 
 using namespace stellar;
 
 class Hmac
 {
 #ifndef USE_TRACY
-    std::mutex mMutex;
+    Mutex mMutex;
 #else
     TracyLockable(std::mutex, mMutex);
 #endif

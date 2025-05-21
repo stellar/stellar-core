@@ -69,6 +69,7 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
+    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING",
     "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING"};
 
 // Options that should only be used for testing
@@ -163,6 +164,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+    EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
@@ -254,12 +256,13 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
     FLOOD_ADVERT_PERIOD_MS = std::chrono::milliseconds(100);
     FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(500);
+    EXPERIMENTAL_TX_BATCH_MAX_SIZE = 0;
 
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
 
-    PEER_READING_CAPACITY = 200;
+    PEER_READING_CAPACITY = 201;
     PEER_FLOOD_READING_CAPACITY = 200;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 40;
 
@@ -1088,6 +1091,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EXPERIMENTAL_PARALLEL_LEDGER_APPLY = readBool(item);
                  }},
+                {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
+                 [&]() {
+                     EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION =
+                         readBool(item);
+                 }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
@@ -1282,6 +1290,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      FLOOD_DEMAND_BACKOFF_DELAY_MS =
                          std::chrono::milliseconds(readInt<int>(item, 1));
+                 }},
+                {"EXPERIMENTAL_TX_BATCH_MAX_SIZE",
+                 [&]() {
+                     EXPERIMENTAL_TX_BATCH_MAX_SIZE = readInt<size_t>(item, 0);
                  }},
                 {"FLOOD_ARB_TX_BASE_ALLOWANCE",
                  [&]() {
@@ -1763,6 +1775,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             std::string msg =
                 "Invalid configuration: FLOW_CONTROL_SEND_MORE_BATCH_SIZE "
                 "can't be greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
+        }
+
+        if (PEER_READING_CAPACITY <= PEER_FLOOD_READING_CAPACITY)
+        {
+            std::string msg =
+                "Invalid configuration: PEER_READING_CAPACITY "
+                "must be greater than PEER_FLOOD_READING_CAPACITY";
             throw std::runtime_error(msg);
         }
 
@@ -2342,6 +2362,12 @@ bool
 Config::modeDoesCatchupWithBucketList() const
 {
     return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
+}
+
+bool
+Config::allBucketsInMemory() const
+{
+    return BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT == 0;
 }
 
 bool

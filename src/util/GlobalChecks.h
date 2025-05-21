@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "util/ThreadAnnotations.h"
 #include <Tracy.hpp>
 #include <mutex>
 
@@ -46,8 +47,8 @@ void dbgAbort();
 #endif
 
 #ifndef USE_TRACY
-using RecursiveLockGuard = std::lock_guard<std::recursive_mutex>;
-using LockGuard = std::lock_guard<std::mutex>;
+using RecursiveLockGuard = RecursiveMutexLocker;
+using LockGuard = MutexLocker;
 #else
 using RecursiveLockGuard = std::lock_guard<LockableBase(std::recursive_mutex)>;
 using LockGuard = std::lock_guard<LockableBase(std::mutex)>;

@@ -130,6 +130,7 @@ class HerderImpl : public Herder
     uint32_t mTriggerNextLedgerSeq{0};
 
     std::optional<uint32_t> mMaxClassicTxSize;
+    std::optional<uint32_t> mMaxTxSizeOverride;
     void
     setMaxClassicTxSize(uint32 bytes) override
     {
@@ -138,7 +139,7 @@ class HerderImpl : public Herder
     void
     setMaxTxSize(uint32 bytes) override
     {
-        mMaxTxSize = bytes;
+        mMaxTxSizeOverride = bytes;
     }
     std::optional<uint32_t> mFlowControlExtraBuffer;
     void
@@ -164,6 +165,12 @@ class HerderImpl : public Herder
     uint32_t
     getMaxTxSize() const override
     {
+#ifdef BUILD_TESTS
+        if (mMaxTxSizeOverride)
+        {
+            return *mMaxTxSizeOverride;
+        }
+#endif
         return mMaxTxSize;
     }
 

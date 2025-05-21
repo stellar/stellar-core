@@ -25,6 +25,8 @@
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxAdverts.h"
+#include "transactions/SignatureChecker.h"
+#include "transactions/TransactionBridge.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -48,6 +50,51 @@ namespace stellar
 static std::string const AUTH_ACTION_QUEUE = "AUTH";
 using namespace std;
 using namespace soci;
+
+namespace
+{
+// Check the signature(s) in `tx`, adding the result to the signature cache in
+// the process. This function requires that background signature verification
+// is enabled and the current thread is the overlay thread.
+void
+populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
+{
+    ZoneScoped;
+    releaseAssert(app.getConfig().EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
+                  app.threadIsType(Application::ThreadType::OVERLAY));
+
+    auto const& hash = tx->getContentsHash();
+    auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
+    auto& snapshot = app.getOverlayThreadSnapshot();
+    app.maybeCopySearchableBucketListSnapshot(snapshot);
+    LedgerSnapshot ledgerSnapshot(snapshot);
+
+    SignatureChecker signatureChecker(
+        ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
+        signatures);
+
+    // NOTE: Use getFeeSourceID so that this works for both TransactionFrame and
+    // FeeBumpTransactionFrame
+    auto const sourceAccount = ledgerSnapshot.getAccount(tx->getFeeSourceID());
+
+    // Check signature, which will add the result to the signature cache. This
+    // is safe to do here (pre-validation) because:
+    // 1. The signatures themselves are fixed and cannot change, and
+    // 2. In the unlikely case that the account's signers or thresholds have
+    //    changed (and we haven't heard of it yet), the validation and apply
+    //    functions still contain `checkSignature` calls, which will cause a
+    //    cache miss in that case and force a recheck of the signatures with
+    //    up-to-date signers/thresholds.
+    //
+    // Note that we always use a threshold of HIGH for the signatures to ensure
+    // we check all signatures for any possible operation that may be in the
+    // transaction. Performance analysis has shown that the overlay thread
+    // contains significant extra capacity and can handle this extra load.
+    tx->checkSignature(
+        signatureChecker, sourceAccount,
+        sourceAccount.current().data.account().thresholds[THRESHOLD_HIGH]);
+}
+} // namespace
 
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
@@ -93,6 +140,47 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     {
         mMaybeHash = xdrBlake2(msg);
     }
+
+    auto populateTxMap = [&](StellarMessage const& msg, Hash const& hash) {
+        auto transaction = TransactionFrameBase::makeTransactionFromWire(
+            self->mAppConnector.getNetworkID(), msg.transaction());
+        // Pre-populate TransactionFrame caches hashes
+        transaction->getFullHash();
+        transaction->getContentsHash();
+        mTxsMap[hash] = transaction;
+        return transaction;
+    };
+
+    // Whether to check transaction signatures in the background, adding them to
+    // the signature cache in the process.
+    bool const checkTxSig = self->mAppConnector.getConfig()
+                                .EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
+                            self->useBackgroundThread();
+
+    if (mMsg.type() == TRANSACTION)
+    {
+        auto const txn = populateTxMap(mMsg, mMaybeHash.value());
+        if (checkTxSig)
+        {
+            populateSignatureCache(self->mAppConnector, txn);
+        }
+    }
+#ifdef BUILD_TESTS
+    else if (mMsg.type() == TX_SET && OverlayManager::isFloodMessage(mMsg))
+    {
+        for (auto const& tx : mMsg.txSet().txs)
+        {
+            StellarMessage txMsg;
+            txMsg.type(TRANSACTION);
+            txMsg.transaction() = tx;
+            auto const txn = populateTxMap(txMsg, xdrBlake2(txMsg));
+            if (checkTxSig)
+            {
+                populateSignatureCache(self->mAppConnector, txn);
+            }
+        }
+    }
+#endif
 }
 
 std::optional<Hash>
@@ -613,8 +701,6 @@ Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 std::string
 Peer::msgSummary(StellarMessage const& msg)
 {
-    releaseAssert(threadIsMain());
-
     switch (msg.type())
     {
     case ERROR_MSG:
@@ -786,6 +872,7 @@ Peer::sendAuthenticatedMessage(
     std::shared_ptr<StellarMessage const> msg,
     std::optional<VirtualClock::time_point> timePlaced)
 {
+    ZoneScoped;
     {
         // No need to hold the lock for the duration of this function:
         // simply check if peer is shutting down, and if so, avoid putting
@@ -803,6 +890,7 @@ Peer::sendAuthenticatedMessage(
         // Construct an authenticated message and place it in the queue
         // _synchronously_ This is important because we assign auth sequence to
         // each message, which must be ordered
+        ZoneNamedN(authZone, "sendAuthenticatedMessage CB", true);
         AuthenticatedMessage amsg;
         self->mHmac.setAuthenticatedMessageBody(amsg, *msg);
         xdr::msg_ptr xdrBytes;
@@ -810,7 +898,7 @@ Peer::sendAuthenticatedMessage(
             ZoneNamedN(xdrZone, "XDR serialize", true);
             xdrBytes = xdr::xdr_to_msg(amsg);
         }
-        self->sendMessage(std::move(xdrBytes));
+        self->sendMessage(std::move(xdrBytes), msg);
         if (timePlaced)
         {
             self->mFlowControl->updateMsgMetrics(msg, *timePlaced);
@@ -1173,8 +1261,18 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 
     case TX_SET:
     {
-        auto t = mOverlayMetrics.mRecvTxSetTimer.TimeScope();
-        recvTxSet(stellarMsg);
+#ifdef BUILD_TESTS
+        if (OverlayManager::isFloodMessage(stellarMsg))
+        {
+            auto t = mOverlayMetrics.mRecvTxBatchTimer.TimeScope();
+            recvTxBatch(*msgTracker);
+        }
+        else
+#endif
+        {
+            auto t = mOverlayMetrics.mRecvTxSetTimer.TimeScope();
+            recvTxSet(stellarMsg);
+        }
     }
     break;
 
@@ -1281,6 +1379,28 @@ Peer::process(QueryInfo& queryInfo)
     return queryInfo.mNumQueries < QUERIES_PER_WINDOW;
 }
 
+#ifdef BUILD_TESTS
+void
+Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(OverlayManager::isFloodMessage(msgTracker.getMessage()));
+
+    for (auto const& [blake2Hash, tx] : msgTracker.getTxMap())
+    {
+        auto start = mAppConnector.now();
+        mAppConnector.getOverlayManager().recvTransaction(
+            tx, shared_from_this(), blake2Hash);
+        mOverlayMetrics.mRecvTransactionAccumulator.inc(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                mAppConnector.now() - start)
+                .count());
+        mOverlayMetrics.mRecvTransactionCounter.inc();
+    }
+}
+#endif
+
 void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
@@ -1351,8 +1471,10 @@ Peer::recvTransaction(CapacityTrackedMessage const& msg)
     ZoneScoped;
     releaseAssert(threadIsMain());
     releaseAssert(msg.maybeGetHash());
+    releaseAssert(msg.getTxMap().size() == 1);
     mAppConnector.getOverlayManager().recvTransaction(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        msg.getTxMap().begin()->second, shared_from_this(),
+        msg.maybeGetHash().value());
 }
 
 Hash
@@ -1490,7 +1612,7 @@ Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
     // add it to the floodmap so that this peer gets credit for it
     releaseAssert(msg.maybeGetHash());
     mAppConnector.getOverlayManager().recvFloodedMsgID(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        shared_from_this(), msg.maybeGetHash().value());
 
     auto res = mAppConnector.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)
@@ -1984,6 +2106,7 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
 bool
 Peer::sendAdvert(Hash const& hash)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain());
     if (!mTxAdverts)
     {
