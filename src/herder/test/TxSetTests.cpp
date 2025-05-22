@@ -1736,6 +1736,8 @@ TEST_CASE("txset nomination", "[txset]")
             "entries,tx_size_bytes");
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+        cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
+        cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = 1;
 
         cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(54321);
         VirtualClock clock;
@@ -2105,7 +2107,8 @@ TEST_CASE("txset nomination", "[txset]")
 #endif
 }
 
-TEST_CASE("parallel tx set building", "[txset][soroban]")
+void
+runParallelTxSetBuildingTest(bool variableStageCount)
 {
     int const STAGE_COUNT = 4;
     int const CLUSTER_COUNT = 8;
@@ -2116,7 +2119,8 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
         static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.SOROBAN_PHASE_STAGE_COUNT = STAGE_COUNT;
+    cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = variableStageCount ? 1 : STAGE_COUNT;
+    cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = STAGE_COUNT;
     // Temporary set the limits override very high in order for the upgrades
     // to pass (with 4 stages we have not enough insns for an upgrade tx to go
     // through).
@@ -2225,7 +2229,20 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-            validateShape(*txSet, 1, CLUSTER_COUNT, 1);
+            // We have a single stage with both variable and fixed stage count,
+            // but in the former case this case will be large (full
+            // instructions limit), and in the latter case it will be
+            // STAGE_COUNT times smaller and thus have more clusters.
+            if (variableStageCount)
+            {
+                validateShape(*txSet, 1, CLUSTER_COUNT / STAGE_COUNT,
+                              STAGE_COUNT);
+            }
+            else
+            {
+                validateShape(*txSet, 1, CLUSTER_COUNT, 1);
+            }
+
             validateBaseFee(*txSet, 100);
         }
         SECTION("all stages")
@@ -2238,8 +2255,15 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+            if (variableStageCount)
+            {
+                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
+            }
+            else
+            {
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            }
 
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
             validateBaseFee(*txSet, 100);
         }
         SECTION("all stages, smaller txs")
@@ -2252,8 +2276,14 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 5);
+            if (variableStageCount)
+            {
+                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT * 5);
+            }
+            else
+            {
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 5);
+            }
             validateBaseFee(*txSet, 100);
         }
 
@@ -2268,8 +2298,14 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 5);
+            if (variableStageCount)
+            {
+                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT * 5);
+            }
+            else
+            {
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 5);
+            }
             validateBaseFee(
                 *txSet, 10LL * STAGE_COUNT * CLUSTER_COUNT * 1000 / 2 + 1000);
         }
@@ -2291,7 +2327,15 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            if (variableStageCount)
+            {
+                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
+            }
+            else
+            {
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            }
+
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT * 4 -
                                         STAGE_COUNT * CLUSTER_COUNT);
         }
@@ -2307,7 +2351,6 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
@@ -2429,7 +2472,15 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-            validateShape(*txSet, STAGE_COUNT, 1, 1);
+            if (variableStageCount)
+            {
+                validateShape(*txSet, 1, 1, STAGE_COUNT);
+            }
+            else
+            {
+                validateShape(*txSet, STAGE_COUNT, 1, 1);
+            }
+
             validateBaseFee(*txSet,
                             100 + CLUSTER_COUNT * STAGE_COUNT - STAGE_COUNT);
         }
@@ -2444,11 +2495,13 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
             // It's easy to 'break' the chain by allocating transactions to
-            // different stages (technically, 2 stages would be sufficient).
+            // different stages (technically, 2 stages would be sufficient,
+            // but the nomination algorithm isn't clever enough to figure that
+            // out).
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
             validateBaseFee(*txSet, 100);
         }
-        SECTION("small conflict clusters")
+        SECTION("conflict clusters not exceeding max ledger insns")
         {
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
@@ -2463,9 +2516,18 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-            // Conflicting transactions can be distributed into separate
-            // stages.
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            if (variableStageCount)
+            {
+                // With variable stage count, we can fit all transactions into
+                // a single stage.
+                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
+            }
+            else
+            {
+                // With fixed stage count, we can fit all transactions into
+                // separate clusters in each stage.
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            }
             validateBaseFee(*txSet, 100);
         }
         SECTION("small conflict clusters with excluded txs")
@@ -2482,12 +2544,23 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-            // Conflicting transactions can be distributed into separate stages
-            // and lower fee txs in every cluster will be excluded.
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
-            // 1 cluster worth of txs will be excluded, however, the lowest fee
-            // transaction in the set has a fee of 101 (generated in cluster 0,
-            // stage 1).
+            if (variableStageCount)
+            {
+                // With variable stage count, we can fit all transactions into
+                // a single stage and lower fee txs in every cluster will be
+                // excluded.
+                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
+            }
+            else
+            {
+                // Conflicting transactions can be distributed into separate
+                // stages and lower fee txs in every cluster will be excluded.
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            }
+
+            // 1 cluster worth of txs will be excluded, however, the lowest
+            // fee transaction in the set has a fee of 101 (generated in
+            // cluster 0, stage 1).
             validateBaseFee(*txSet, 101);
         }
         SECTION("one sparse conflict cluster")
@@ -2516,8 +2589,8 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             // This is the assumption under which this test operates.
             releaseAssert(CLUSTER_COUNT > STAGE_COUNT);
-            // Add some cheap transactions that conflict with the dense cluster
-            // that shouldn't be included.
+            // Add some cheap transactions that conflict with the dense
+            // cluster that shouldn't be included.
             for (int i = 0; i < CLUSTER_COUNT - STAGE_COUNT; ++i)
             {
                 sorobanTxs.push_back(createTx(100'000'000, {i % STAGE_COUNT},
@@ -2526,10 +2599,20 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             }
             PerPhaseTransactionList phases = {{}, sorobanTxs};
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+
+            if (variableStageCount)
+            {
+                // We can actually fit all transactions into two stages.
+                validateShape(*txSet, 2, CLUSTER_COUNT, STAGE_COUNT / 2);
+            }
+            else
+            {
+                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            }
+
             // All transactions can be distributed across stages, but 4
-            // transactions simply don't fit into instruction limits (hence 103
-            // base fee).
-            validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+            // transactions simply don't fit into instruction limits (hence
+            // 1000 base fee).
             validateBaseFee(*txSet, 1000);
         }
         SECTION("many clusters with small transactions")
@@ -2593,6 +2676,7 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             validateBaseFee(*txSet, 100 + CLUSTER_COUNT * 5);
         }
     }
+
     SECTION("smoke test")
     {
         auto runTest = [&]() {
@@ -2645,9 +2729,18 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
             auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
             auto const& phase =
                 txSet->getPhase(TxSetPhase::SOROBAN).getParallelStages();
-            // The only thing we can really be sure about is that all the
-            // stages are utilized, as we have enough transactions.
-            REQUIRE(phase.size() == STAGE_COUNT);
+            if (variableStageCount)
+            {
+                // The setup involves a large number of conflicts, so we
+                // expect at least more than 1 stage.
+                REQUIRE(phase.size() > 1);
+            }
+            else
+            {
+                // With the fixed number of stages all the stages should be
+                // populated.
+                REQUIRE(phase.size() == STAGE_COUNT);
+            }
         };
         for (int iter = 0; iter < 10; ++iter)
         {
@@ -2656,10 +2749,23 @@ TEST_CASE("parallel tx set building", "[txset][soroban]")
     }
 }
 
+TEST_CASE("parallel tx set building", "[txset][soroban]")
+{
+    SECTION("variable stage count")
+    {
+        runParallelTxSetBuildingTest(true);
+    }
+    SECTION("fixed stage count")
+    {
+        runParallelTxSetBuildingTest(false);
+    }
+}
+
 TEST_CASE("parallel tx set building benchmark",
           "[txset][soroban][bench][!hide]")
 {
-    int const STAGE_COUNT = 4;
+    int const MIN_STAGE_COUNT = 1;
+    int const MAX_STAGE_COUNT = 4;
     int const CLUSTER_COUNT = MAX_LEDGER_DEPENDENT_TX_CLUSTERS;
     int const MEAN_INCLUDED_TX_COUNT = 5000;
     int const TX_COUNT_MEMPOOL_MULTIPLIER = 2;
@@ -2670,7 +2776,7 @@ TEST_CASE("parallel tx set building benchmark",
     int const MAX_READS_PER_TX = 60;
     int const MEAN_WRITES_PER_TX = 10;
     int const MAX_WRITES_PER_TX = 30;
-    int const MEAN_TX_SIZE = 800;
+    int const MEAN_TX_SIZE = 5000;
     int const MAX_TX_SIZE = 5000;
     // The exact values for r/w bytes aren't meaningful for the performance,
     // just give them high enough value to create some spread.
@@ -2680,24 +2786,25 @@ TEST_CASE("parallel tx set building benchmark",
     int const MAX_WRITE_BYTES_PER_TX = 2000;
 
     auto cfg = getTestConfig();
-    cfg.SOROBAN_PHASE_STAGE_COUNT = STAGE_COUNT;
+    cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = MIN_STAGE_COUNT;
+    cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = MAX_STAGE_COUNT;
 
     // Only per-ledger limits matter for tx set building, as we don't perform
     // any validation.
     SorobanNetworkConfig sorobanCfg;
     sorobanCfg.mLedgerMaxTransactionsSizeBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE * 2;
+        MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE;
     sorobanCfg.mLedgerMaxInstructions =
         static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
         MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
     sorobanCfg.mledgerMaxDiskReadEntries =
-        MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX) * 2;
+        MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX);
     sorobanCfg.mledgerMaxDiskReadBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX * 2;
+        MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX;
     sorobanCfg.mLedgerMaxWriteLedgerEntries =
-        MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX * 2;
+        MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX;
     sorobanCfg.mLedgerMaxWriteBytes =
-        MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX * 2;
+        MEAN_INCLUDED_TX_COUNT * MEAN_WRITE_BYTES_PER_TX;
     // This doesn't need to be a real limit for this test.
     sorobanCfg.mLedgerMaxTxCount = MEAN_INCLUDED_TX_COUNT * 10;
     sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
@@ -2752,16 +2859,16 @@ TEST_CASE("parallel tx set building benchmark",
                                                              txEnvelope);
     };
     std::normal_distribution<> insnsDistr(MEAN_INSTRUCTIONS_PER_TX,
-                                          0.2 * MEAN_INSTRUCTIONS_PER_TX);
+                                          0.5 * MEAN_INSTRUCTIONS_PER_TX);
     std::normal_distribution<> txSizeDistr(MEAN_TX_SIZE, 0.1 * MEAN_TX_SIZE);
     std::normal_distribution<> readBytesDistr(MEAN_READ_BYTES_PER_TX,
-                                              0.3 * MEAN_READ_BYTES_PER_TX);
+                                              0.2 * MEAN_READ_BYTES_PER_TX);
     std::normal_distribution<> writeBytesDistr(MEAN_WRITE_BYTES_PER_TX,
-                                               0.05 * MEAN_WRITE_BYTES_PER_TX);
+                                               0.1 * MEAN_WRITE_BYTES_PER_TX);
     std::normal_distribution<> readCountDistr(MEAN_READS_PER_TX,
-                                              0.2 * MEAN_READS_PER_TX);
+                                              0.15 * MEAN_READS_PER_TX);
     std::normal_distribution<> writeCountDistr(MEAN_WRITES_PER_TX,
-                                               0.1 * MEAN_WRITES_PER_TX);
+                                               0.2 * MEAN_WRITES_PER_TX);
     stellar::uniform_int_distribution<> feeDistr(100, 100'000);
 
     auto genValue = [](auto& distribution, int maxValue) {
@@ -2863,57 +2970,55 @@ TEST_CASE("parallel tx set building benchmark",
                                                     mean_rw_txs_per_conflict));
         }
 
-        for (int stageCount = 1; stageCount <= 4; ++stageCount)
+        int64_t totalDuration = 0;
+        int txsIncluded = 0;
+        int64_t insnsIncluded = 0;
+        for (int iter = 0; iter < 5; ++iter)
         {
-            int64_t totalDuration = 0;
-            int txsIncluded = 0;
-            int64_t insnsIncluded = 0;
-            for (int iter = 0; iter < 5; ++iter)
+            std::vector<bool> hadTxNotFittingLane;
+            auto start = std::chrono::steady_clock::now();
+            auto stages = buildSurgePricedParallelSorobanPhase(
+                allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
+                hadTxNotFittingLane, ledgerVersion);
+            auto end = std::chrono::steady_clock::now();
+            totalDuration +=
+                std::chrono::duration_cast<std::chrono::nanoseconds>(end -
+                                                                     start)
+                    .count();
+            int currTxsIncluded = 0;
+            for (auto const& stage : stages)
             {
-                cfg.SOROBAN_PHASE_STAGE_COUNT = stageCount;
-                std::vector<bool> hadTxNotFittingLane;
-                auto start = std::chrono::steady_clock::now();
-                auto stages = buildSurgePricedParallelSorobanPhase(
-                    allTxs[iter], cfg, sorobanCfg, surgePricingLaneConfig,
-                    hadTxNotFittingLane, ledgerVersion);
-                auto end = std::chrono::steady_clock::now();
-                totalDuration +=
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(end -
-                                                                         start)
-                        .count();
-                for (auto const& stage : stages)
+                for (auto const& cluster : stage)
                 {
-                    for (auto const& cluster : stage)
+                    txsIncluded += cluster.size();
+                    currTxsIncluded += cluster.size();
+                    for (auto const& tx : cluster)
                     {
-                        txsIncluded += cluster.size();
-                        for (auto const& tx : cluster)
-                        {
-                            insnsIncluded +=
-                                tx->sorobanResources().instructions;
-                        }
+                        insnsIncluded += tx->sorobanResources().instructions;
                     }
                 }
             }
-            std::cout << "Stage count: " << stageCount
-                      << ", mean conflicts per tx: " << mean_conflicts_per_tx
-                      << ", mean RO txs per conflict: "
-                      << mean_ro_txs_per_conflict
-                      << ", mean RW txs per conflict: "
-                      << mean_rw_txs_per_conflict
-                      << ", mean txs included: " << txsIncluded / iterCount
-                      << ", insns included %: "
-                      << static_cast<double>(insnsIncluded) / iterCount *
-                             100.0 /
-                             (sorobanCfg.ledgerMaxInstructions() *
-                              sorobanCfg.ledgerMaxDependentTxClusters())
-                      << ", mean duration: " << 1e-6 * totalDuration / iterCount
-                      << " ms" << std::endl;
+            std::cout << "input tx count: " << allTxs[iter].size()
+                      << ", included tx count: " << currTxsIncluded
+                      << ", stages created: " << stages.size() << std::endl;
         }
+        std::cout << "Mean conflicts per tx: " << mean_conflicts_per_tx
+                  << ", mean RO txs per conflict: " << mean_ro_txs_per_conflict
+                  << ", mean RW txs per conflict: " << mean_rw_txs_per_conflict
+                  << ", mean txs included: " << txsIncluded / iterCount
+                  << ", insns included %: "
+                  << static_cast<double>(insnsIncluded) / iterCount * 100.0 /
+                         (sorobanCfg.ledgerMaxInstructions() *
+                          sorobanCfg.ledgerMaxDependentTxClusters())
+                  << ", mean duration: " << 1e-6 * totalDuration / iterCount
+                  << " ms" << std::endl;
     };
     runBenchmark(0, 0, 0);
+    runBenchmark(1, 1000, 1);
     runBenchmark(10, 40, 1);
     runBenchmark(20, 40, 1);
     runBenchmark(10, 10, 10);
+    runBenchmark(50, 50, 5);
 }
 } // namespace
 } // namespace stellar

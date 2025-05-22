@@ -1630,7 +1630,7 @@ exit /b 0
     <None Include="..\..\src\ledger\readme.md" />
     <None Include="..\..\src\overlay\readme.md" />
     <None Include="..\..\src\rust\Cargo.toml" />
-    <CustomBuild Include="..\..\src\rust\src\lib.rs">
+    <CustomBuild Include="..\..\src\rust\src\bridge.rs">
       <FileType>Document</FileType>
       <Command>$(MSBuildProjectDirectory)\generate_rust_bridge.bat $(OutDir)\..\bin\cxxbridge.exe</Command>
       <AdditionalInputs>$(OutDir)\..\bin\cxxbridge.exe;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-internal.h;src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-types.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
@@ -1638,15 +1638,17 @@ exit /b 0
       <Outputs>src\generated\rust\RustBridge.h;src\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
-      <FileType>Document</FileType>
-      <Command>cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
-      <Message>cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Message>
-      <Outputs>$(OutDir)\..\bin\cxxbridge.exe</Outputs>
-    </CustomBuild>
     <None Include="..\..\src\rust\src\b64.rs" />
-    <None Include="..\..\src\rust\src\contract.rs" />
+    <None Include="..\..\src\rust\src\common.rs" />
+    <None Include="..\..\src\rust\src\i128.rs" />
+    <None Include="..\..\src\rust\src\lib.rs" />
     <None Include="..\..\src\rust\src\log.rs" />
+    <None Include="..\..\src\rust\src\soroban_invoke.rs" />
+    <None Include="..\..\src\rust\src\soroban_module_cache.rs" />
+    <None Include="..\..\src\rust\src\soroban_proto_all.rs" />
+    <None Include="..\..\src\rust\src\soroban_proto_any.rs" />
+    <None Include="..\..\src\rust\src\soroban_test_extra_protocol.rs" />
+    <None Include="..\..\src\rust\src\soroban_test_wasm.rs" />
     <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\test\check-nondet" />
     <None Include="..\..\src\test\run-selftest-nopg" />
