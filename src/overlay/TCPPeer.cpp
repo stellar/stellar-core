@@ -223,13 +223,15 @@ TCPPeer::~TCPPeer()
 }
 
 void
-TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
+TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes,
+                     std::shared_ptr<StellarMessage const> msgPtr)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
     TimestampedMessage msg;
     msg.mEnqueuedTime = mAppConnector.now();
     msg.mMessage = std::move(xdrBytes);
+    msg.mMsgPtr = msgPtr;
     mThreadVars.getWriteQueue().emplace_back(std::move(msg));
 
     if (!mThreadVars.isWriting())
@@ -359,10 +361,17 @@ TCPPeer::messageSender()
             // queue.
             auto now = self->mAppConnector.now();
             auto i = self->mThreadVars.getWriteQueue().begin();
+            FloodQueues<ConstStellarMessagePtr> sentMessages{};
             while (!self->mThreadVars.getWriteBuffers().empty())
             {
                 i->mCompletedTime = now;
                 i->recordWriteTiming(self->mOverlayMetrics, self->mPeerMetrics);
+                auto const& msg = *(i->mMsgPtr);
+                if (OverlayManager::isFloodMessage(msg))
+                {
+                    sentMessages[FlowControl::getMessagePriority(msg)]
+                        .emplace_back(i->mMsgPtr);
+                }
                 ++i;
                 self->mThreadVars.getWriteBuffers().pop_back();
             }
@@ -371,6 +380,9 @@ TCPPeer::messageSender()
             // just forgot about the buffers for.
             self->mThreadVars.getWriteQueue().erase(
                 self->mThreadVars.getWriteQueue().begin(), i);
+
+            // cleanup outbound queues
+            self->mFlowControl->processSentMessages(sentMessages);
 
             // continue processing the queue
             if (!ec)
@@ -492,7 +504,13 @@ TCPPeer::scheduleRead()
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-
+#ifdef BUILD_TESTS
+    if (mStopReadingForTesting)
+    {
+        CLOG_INFO(Overlay, "TCPPeer::scheduleRead: stop reading for testing");
+        return;
+    }
+#endif
     if (mFlowControl->isThrottled())
     {
         return;
@@ -527,6 +545,13 @@ TCPPeer::startRead()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
+#ifdef BUILD_TESTS
+    if (mStopReadingForTesting)
+    {
+        CLOG_INFO(Overlay, "TCPPeer::startRead: stop reading for testing");
+        return;
+    }
+#endif
     releaseAssert(canRead());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (shouldAbort(guard))

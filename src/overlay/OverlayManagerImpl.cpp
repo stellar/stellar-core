@@ -1093,11 +1093,38 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
     return false;
 }
 
+static const xdr::opaque_array<32> TX_BATCH_HASH = [] {
+    xdr::opaque_array<32> bytes{};
+    for (auto& b : bytes)
+    {
+        b = 0x1;
+    }
+    return bytes;
+}();
+
+std::shared_ptr<StellarMessage>
+OverlayManager::createTxBatch()
+{
+    // In testing, allow legacy TX_SET messages to represent a "batch" of
+    // transactions to flood by hard-coding a special previousLedgerHash.
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(TX_SET);
+    msg->txSet().previousLedgerHash = TX_BATCH_HASH;
+    return msg;
+}
+
 bool
 OverlayManager::isFloodMessage(StellarMessage const& msg)
 {
-    return msg.type() == SCP_MESSAGE || msg.type() == TRANSACTION ||
-           msg.type() == FLOOD_DEMAND || msg.type() == FLOOD_ADVERT;
+    bool isFlood = msg.type() == SCP_MESSAGE || msg.type() == TRANSACTION ||
+                   msg.type() == FLOOD_DEMAND || msg.type() == FLOOD_ADVERT;
+#ifdef BUILD_TESTS
+    isFlood = isFlood || (msg.type() == TX_SET &&
+                          msg.txSet().previousLedgerHash ==
+                              createTxBatch()->txSet().previousLedgerHash);
+#endif
+
+    return isFlood;
 }
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomAuthenticatedPeers()
@@ -1150,11 +1177,10 @@ OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 }
 
 bool
-OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
-                                     Peer::pointer peer, Hash const& msgID)
+OverlayManagerImpl::recvFloodedMsgID(Peer::pointer peer, Hash const& msgID)
 {
     ZoneScoped;
-    return mFloodGate.addRecord(msg, peer, msgID);
+    return mFloodGate.addRecord(peer, msgID);
 }
 
 bool
@@ -1183,18 +1209,16 @@ OverlayManagerImpl::checkScheduledAndCache(
 }
 
 void
-OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
+OverlayManagerImpl::recvTransaction(TransactionFrameBasePtr transaction,
                                     Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
-    auto transaction = TransactionFrameBase::makeTransactionFromWire(
-        mApp.getNetworkID(), msg.transaction());
+    releaseAssert(threadIsMain());
     if (transaction)
     {
         // record that this peer sent us this transaction
         // add it to the floodmap so that this peer gets credit for it
-        recvFloodedMsgID(msg, peer, index);
-
+        recvFloodedMsgID(peer, index);
         mTxDemandsManager.recordTxPullLatency(transaction->getFullHash(), peer);
 
         // add it to our current set
@@ -1329,6 +1353,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
                                         Peer::pointer peer)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto logMessage = [&](bool unique, std::string const& msgType) {
         CLOG_TRACE(Overlay, "recv: {} {} ({}) of size: {} from: {}",
                    (unique ? "unique" : "duplicate"),
@@ -1402,6 +1427,20 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
             logMessage(true, "fetch");
         }
     }
+}
+
+SearchableSnapshotConstPtr&
+OverlayManagerImpl::getOverlayThreadSnapshot()
+{
+    releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
+    if (!mOverlayThreadSnapshot)
+    {
+        // Create a new snapshot
+        mOverlayThreadSnapshot = mApp.getBucketManager()
+                                     .getBucketSnapshotManager()
+                                     .copySearchableLiveBucketListSnapshot();
+    }
+    return mOverlayThreadSnapshot;
 }
 
 }

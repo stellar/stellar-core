@@ -11,7 +11,9 @@
 #include "medida/timer.h"
 #include "overlay/Hmac.h"
 #include "overlay/PeerBareAddress.h"
+#include "transactions/TransactionFrameBase.h"
 #include "util/NonCopyable.h"
+#include "util/ThreadAnnotations.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
 #include <medida/counter.h>
@@ -166,6 +168,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         void recordWriteTiming(OverlayMetrics& metrics,
                                PeerMetrics& peerMetrics);
         xdr::msg_ptr mMessage;
+        std::shared_ptr<StellarMessage const> mMsgPtr;
     };
 
     // NB: all Peer's protected state should have some synchronization
@@ -185,12 +188,16 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     PeerRole const mRole;
     OverlayMetrics& mOverlayMetrics;
+    // No need for GUARDED_BY, PeerMettrics is thread-safe
     PeerMetrics mPeerMetrics;
+#ifdef BUILD_TESTS
+    std::string mDropReason GUARDED_BY(mStateMutex);
+#endif
 
     // Mutex to protect PeerState, which can be accessed and modified from
     // multiple threads
 #ifndef USE_TRACY
-    std::recursive_mutex mutable mStateMutex;
+    RecursiveMutex mutable mStateMutex;
 #else
     mutable TracyLockable(std::recursive_mutex, mStateMutex);
 #endif
@@ -214,10 +221,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // they all take a LockGuard that should be holding mStateMutex,
     // but do not lock that mutex themselves (to allow atomic
     // read-modify-write cycles or similar patterns in callers).
-    bool shouldAbort(RecursiveLockGuard const& stateGuard) const;
-    void setState(RecursiveLockGuard const& stateGuard, PeerState newState);
+    bool shouldAbort(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex);
+    void setState(RecursiveLockGuard const& stateGuard, PeerState newState)
+        REQUIRES(mStateMutex);
     PeerState
-    getState(RecursiveLockGuard const& stateGuard) const
+    getState(RecursiveLockGuard const& stateGuard) const REQUIRES(mStateMutex)
     {
         return mState;
     }
@@ -245,7 +254,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // IOW, all methods using these private variables and functions below must
     // synchronize access manually
   private:
-    PeerState mState;
+    PeerState mState GUARDED_BY(mStateMutex);
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
@@ -289,6 +298,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
     void recvTransaction(CapacityTrackedMessage const& msgTracker);
+#ifdef BUILD_TESTS
+    void recvTxBatch(CapacityTrackedMessage const& msgTracker);
+#endif
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);
     void recvSCPMessage(CapacityTrackedMessage const& msgTracker);
@@ -313,7 +325,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // put in a reused/non-owned buffer without having to buffer/queue
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
-    virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
+    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+                             std::shared_ptr<StellarMessage const> msg) = 0;
     virtual void scheduleRead() = 0;
     virtual void
     connected()
@@ -417,8 +430,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     /* The following functions can be called from background thread, so they
      * must be thread-safe */
-    bool isConnected(RecursiveLockGuard const& stateGuard) const;
-    bool isAuthenticated(RecursiveLockGuard const& stateGuard) const;
+    bool isConnected(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex);
+    bool isAuthenticated(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex);
 
     PeerMetrics&
     getPeerMetrics()
@@ -455,21 +470,21 @@ class Peer : public std::enable_shared_from_this<Peer>,
         sendAuthenticatedMessage(std::move(msg));
     }
     void
-    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes)
+    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
+                             std::shared_ptr<StellarMessage const> msg)
     {
-        sendMessage(std::move(xdrBytes));
+        sendMessage(std::move(xdrBytes), msg);
     }
-    std::string mDropReason;
+
+    std::string
+    getDropReason() const
+    {
+        RecursiveLockGuard guard(mStateMutex);
+        return mDropReason;
+    }
 #endif
 
     // Public thread-safe methods that access Peer's state
-    void
-    assertAuthenticated() const
-    {
-        RecursiveLockGuard guard(mStateMutex);
-        releaseAssert(isAuthenticated(guard));
-    }
-
     void
     assertShuttingDown() const
     {
@@ -511,11 +526,18 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
     std::weak_ptr<Peer> const mWeakPeer;
     StellarMessage const mMsg;
     std::optional<Hash> mMaybeHash;
+    // xdrBlake2 -> txFrame (with pre-populated hashes)
+    std::unordered_map<Hash, TransactionFrameBasePtr> mTxsMap;
 
   public:
     CapacityTrackedMessage(std::weak_ptr<Peer> peer, StellarMessage const& msg);
     StellarMessage const& getMessage() const;
     ~CapacityTrackedMessage();
     std::optional<Hash> maybeGetHash() const;
+    std::unordered_map<Hash, TransactionFrameBasePtr> const&
+    getTxMap() const
+    {
+        return mTxsMap;
+    }
 };
 }

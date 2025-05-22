@@ -93,14 +93,14 @@ class TransactionFrame : public TransactionFrameBase
                               LedgerEntryWrapper const& sourceAccount,
                               uint64_t lowerBoundCloseTimeOffset) const;
 
-    bool commonValidPreSeqNum(AppConnector& app,
-                              std::optional<SorobanNetworkConfig> const& cfg,
-                              LedgerSnapshot const& ls, bool chargeFee,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              std::optional<FeePair> sorobanResourceFee,
-                              MutableTransactionResultBase& txResult,
-                              DiagnosticEventManager& diagnosticEvents) const;
+    // If check passes, returns the source account. Otherwise returns nullopt.
+    std::optional<LedgerEntryWrapper> commonValidPreSeqNum(
+        AppConnector& app, std::optional<SorobanNetworkConfig> const& cfg,
+        LedgerSnapshot const& ls, bool chargeFee,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        std::optional<FeePair> sorobanResourceFee,
+        MutableTransactionResultBase& txResult,
+        DiagnosticEventManager& diagnosticEvents) const;
 
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
@@ -209,7 +209,7 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerEntryWrapper const& account,
-                        int32_t neededWeight) const;
+                        int32_t neededWeight) const override;
 
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID) const;

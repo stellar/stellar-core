@@ -488,7 +488,18 @@ TEST_CASE("getledgerentry", "[queryserver]")
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions({TTL},
                                                                         1)
                 .front();
-        auto liveKey = liveEntryMap.begin()->first;
+        LedgerKey liveKey;
+        for (auto const& [lk, le] : liveEntryMap)
+        {
+            if (isSorobanEntry(lk))
+            {
+                if (liveTTLEntryMap.at(lk) > lm.getLastClosedLedgerNum())
+                {
+                    liveKey = lk;
+                    break;
+                }
+            }
+        }
 
         auto testKeyOrder = [&](std::vector<LedgerKey> const& keyOrder,
                                 bool liveFirst) {

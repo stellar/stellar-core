@@ -97,7 +97,7 @@ LoopbackPeer::scheduleRead()
 }
 
 void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
+LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, ConstStellarMessagePtr msgPtr)
 {
     if (mRemote.expired())
     {
@@ -114,6 +114,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     TimestampedMessage tsm;
     tsm.mMessage = std::move(msg);
     tsm.mEnqueuedTime = mAppConnector.now();
+    tsm.mMsgPtr = msgPtr;
     mOutQueue.emplace_back(std::move(tsm));
     // Possibly flush some queued messages if queue's full.
     while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
@@ -346,6 +347,16 @@ LoopbackPeer::deliverOne()
         {
             // move msg to remote's in queue
             remote->mInQueue.emplace(std::move(msg.mMessage));
+
+            FloodQueues<ConstStellarMessagePtr> sentMessages{};
+            auto const& sm = *(msg.mMsgPtr);
+            if (OverlayManager::isFloodMessage(sm))
+            {
+                sentMessages[FlowControl::getMessagePriority(sm)].emplace_back(
+                    msg.mMsgPtr);
+            }
+            mFlowControl->processSentMessages(sentMessages);
+
             remote->mAppConnector.postOnMainThread(
                 [remW = mRemote]() {
                     auto remS = remW.lock();

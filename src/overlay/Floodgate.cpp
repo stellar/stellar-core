@@ -56,8 +56,7 @@ Floodgate::clearBelow(uint32_t maxLedger)
 }
 
 bool
-Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer,
-                     Hash const& index)
+Floodgate::addRecord(Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
     if (mShuttingDown)
@@ -86,6 +85,7 @@ bool
 Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
                      std::optional<Hash> const& hash)
 {
+    releaseAssert(threadIsMain());
     ZoneScoped;
     if (mShuttingDown)
     {
@@ -120,10 +120,6 @@ Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
     bool broadcasted = false;
     for (auto peer : peers)
     {
-        // Assert must hold since only main thread is allowed to modify
-        // authenticated peers and peer state during drop
-        peer.second->assertAuthenticated();
-
         bool pullMode = msg->type() == TRANSACTION;
 
         if (peersTold.insert(peer.second->toString()).second)

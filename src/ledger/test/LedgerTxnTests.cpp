@@ -8,7 +8,6 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTypeUtils.h"
-#include "ledger/NonSociRelatedException.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
@@ -635,7 +634,6 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
     auto app = createTestApplication(clock, getTestConfig());
 
     auto& root = app->getLedgerTxnRoot();
-    auto lh = root.getHeader();
 
     LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
         {CONFIG_SETTING});

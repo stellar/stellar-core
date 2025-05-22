@@ -18,6 +18,24 @@
 namespace stellar
 {
 
+namespace
+{
+template <class BucketT>
+std::map<uint32_t, SnapshotPtrT<BucketT>>
+copyHistoricalSnapshots(
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const& snapshots)
+{
+    std::map<uint32_t, SnapshotPtrT<BucketT>> copiedSnapshots;
+    for (auto const& [ledgerSeq, snap] : snapshots)
+    {
+        copiedSnapshots.emplace(
+            ledgerSeq,
+            std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
+    }
+    return copiedSnapshots;
+}
+}
+
 BucketSnapshotManager::BucketSnapshotManager(
     Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
     SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
@@ -34,23 +52,26 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(mCurrHotArchiveSnapshot);
 }
 
-template <class BucketT>
-std::map<uint32_t, SnapshotPtrT<BucketT>>
-copyHistoricalSnapshots(
-    std::map<uint32_t, SnapshotPtrT<BucketT>> const& snapshots)
+SearchableSnapshotConstPtr
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 {
-    std::map<uint32_t, SnapshotPtrT<BucketT>> copiedSnapshots;
-    for (auto const& [ledgerSeq, snap] : snapshots)
-    {
-        copiedSnapshots.emplace(
-            ledgerSeq,
-            std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
-    }
-    return copiedSnapshots;
+    SharedLockShared guard(mSnapshotMutex);
+    // Can't use std::make_shared due to private constructor
+    return copySearchableLiveBucketListSnapshot(guard);
+}
+
+SearchableHotArchiveSnapshotConstPtr
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+{
+    SharedLockShared guard(mSnapshotMutex);
+    releaseAssert(mCurrHotArchiveSnapshot);
+    // Can't use std::make_shared due to private constructor
+    return copySearchableHotArchiveBucketListSnapshot(guard);
 }
 
 SearchableSnapshotConstPtr
-BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+    SharedLockShared const& guard) const
 {
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
@@ -62,7 +83,8 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
 }
 
 SearchableHotArchiveSnapshotConstPtr
-BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+    SharedLockShared const& guard) const
 {
     releaseAssert(mCurrHotArchiveSnapshot);
     // Can't use std::make_shared due to private constructor
@@ -92,10 +114,10 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
     if (needsUpdate(snapshot, mCurrLiveSnapshot))
     {
-        snapshot = copySearchableLiveBucketListSnapshot();
+        snapshot = copySearchableLiveBucketListSnapshot(guard);
     }
 }
 
@@ -106,10 +128,10 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
     if (needsUpdate(snapshot, mCurrHotArchiveSnapshot))
     {
-        snapshot = copySearchableHotArchiveBucketListSnapshot();
+        snapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
 }
 
@@ -122,7 +144,7 @@ BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock. For consistency we hold the lock while
     // updating both snapshots.
-    std::shared_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockShared guard(mSnapshotMutex);
     if (needsUpdate(liveSnapshot, mCurrLiveSnapshot))
     {
         liveSnapshot = copySearchableLiveBucketListSnapshot();
@@ -165,7 +187,7 @@ BucketSnapshotManager::updateCurrentSnapshot(
 
     // Updating the BucketSnapshotManager canonical snapshot, must lock
     // exclusively for write access.
-    std::unique_lock<std::shared_mutex> lock(mSnapshotMutex);
+    SharedLockExclusive guard(mSnapshotMutex);
     updateSnapshot(mCurrLiveSnapshot, mLiveHistoricalSnapshots, liveSnapshot);
     updateSnapshot(mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots,
                    hotArchiveSnapshot);
