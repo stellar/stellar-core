@@ -141,7 +141,7 @@ class SimulationHelper
             [&]() {
                 bool loadDone = loadGenDone.count() > currLoadGenCount;
                 return loadDone && mSimulation->getNode(mTestNodeID)
-                                       ->getLedgerManager()
+                                       ->getLedgerApplyManager()
                                        .isSynced();
             },
             10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
