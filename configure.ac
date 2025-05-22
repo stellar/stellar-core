@@ -132,7 +132,9 @@ AC_ARG_ENABLE([threadsafety],
         [build with thread safety static analysis instrumentation (Clang only)]))
 AS_IF([test "x$enable_threadsafety" = "xyes"], [
   AC_MSG_NOTICE([enabling thread safety static analysis, see https://clang.llvm.org/docs/ThreadSafetyAnalysis.html])
-  CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety"
+  AS_CASE(["$CXX"],
+          [clang*], [CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety"],
+          [AC_MSG_WARN([Thread safety analysis is only supported with Clang compiler, skipping])])
 ])
 
 AC_ARG_ENABLE([memcheck],
