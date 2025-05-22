@@ -160,4 +160,19 @@ AppConnector::copySearchableHotArchiveBucketListSnapshot()
         .getBucketSnapshotManager()
         .copySearchableHotArchiveBucketListSnapshot();
 }
+
+void
+AppConnector::maybeCopySearchableBucketListSnapshot(
+    SearchableSnapshotConstPtr& snapshot)
+{
+    mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .maybeCopySearchableBucketListSnapshot(snapshot);
+}
+
+SearchableSnapshotConstPtr&
+AppConnector::getOverlayThreadSnapshot()
+{
+    return mApp.getOverlayManager().getOverlayThreadSnapshot();
+}
 }

@@ -92,7 +92,7 @@ RestoreFootprintOpFrame::doApply(
             {
                 // Next check the hot archive if protocol >= 23
                 if (protocolVersionStartsFrom(
-                        ltx.getHeader().ledgerVersion,
+                        ltx.loadHeader().current().ledgerVersion,
                         HotArchiveBucket::
                             FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {

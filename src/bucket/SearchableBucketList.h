@@ -39,7 +39,8 @@ class SearchableLiveBucketListSnapshot
     scanForContractCode(std::function<Loop(BucketEntry const&)> callback) const;
 
     friend SearchableSnapshotConstPtr
-    BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;
+    BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+        SharedLockShared const& guard) const;
 };
 
 class SearchableHotArchiveBucketListSnapshot
@@ -57,6 +58,7 @@ class SearchableHotArchiveBucketListSnapshot
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
     friend SearchableHotArchiveSnapshotConstPtr
-    BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const;
+    BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+        SharedLockShared const& guard) const;
 };
 }

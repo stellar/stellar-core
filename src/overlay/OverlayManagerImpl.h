@@ -112,10 +112,9 @@ class OverlayManagerImpl : public OverlayManager
     ~OverlayManagerImpl();
 
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) override;
-    bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                          Hash const& msgID) override;
-    void recvTransaction(StellarMessage const& msg, Peer::pointer peer,
-                         Hash const& index) override;
+    bool recvFloodedMsgID(Peer::pointer peer, Hash const& msgID) override;
+    void recvTransaction(TransactionFrameBasePtr transaction,
+                         Peer::pointer peer, Hash const& index) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     void recvTxDemand(FloodDemand const& dmd, Peer::pointer peer) override;
     bool
@@ -169,6 +168,8 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
+    SearchableSnapshotConstPtr& getOverlayThreadSnapshot() override;
+
   private:
     struct ResolvedPeers
     {
@@ -183,6 +184,9 @@ class OverlayManagerImpl : public OverlayManager
     int mResolvingPeersRetryCount;
     RandomEvictionCache<Hash, std::weak_ptr<CapacityTrackedMessage>>
         mScheduledMessages;
+
+    // Snapshot of ledger state for use ONLY by the overlay thread
+    SearchableSnapshotConstPtr mOverlayThreadSnapshot;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

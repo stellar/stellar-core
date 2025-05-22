@@ -263,7 +263,14 @@ OperationFrame::checkValid(AppConnector& app,
         {
             // for ledger versions >= 10 we need to load account here, as for
             // previous versions it is done in checkSignature call
-            if (!ls.getAccount(ls.getLedgerHeader(), mParentTx, getSourceID()))
+            // If we get to operation checkvalid, we know the tx source account
+            // has already been checked for existence. If we're not applying,
+            // it's guaranteed that the tx source account exists, since ledger
+            // state hasn't changed, so we can skip this redundant check.
+            // If we're applying, it's possible an earlier op modified the TX
+            // source, so we need to check again.
+            if ((mOperation.sourceAccount || forApply) &&
+                !ls.getAccount(ls.getLedgerHeader(), mParentTx, getSourceID()))
             {
                 res.code(opNO_ACCOUNT);
                 validationResult = false;
