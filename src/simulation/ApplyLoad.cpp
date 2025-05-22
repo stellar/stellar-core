@@ -90,9 +90,10 @@ ApplyLoad::ApplyLoad(Application& app)
     : mTxGenerator(app)
     , mApp(app)
     , mRoot(app.getRoot())
-    , mNumAccounts(mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
-                       SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
-                   1)
+    , mNumAccounts(
+          mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
+              mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+          1)
     , mTxCountUtilization(
           mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-count"}))
     , mInstructionUtilization(
@@ -384,7 +385,8 @@ ApplyLoad::benchmark()
     std::vector<TransactionFrameBasePtr> txs;
 
     auto resources = multiplyByDouble(
-        lm.maxLedgerResources(true), SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
+        lm.maxLedgerResources(true),
+        mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
 
     // Save a snapshot so we can calculate what % we used up.
     auto const resourcesSnapshot = resources;

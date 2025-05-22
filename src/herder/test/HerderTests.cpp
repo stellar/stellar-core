@@ -1062,8 +1062,8 @@ TEST_CASE("tx set hits overlay byte limit during construction",
                             });
 
         auto byteAllowance = phase == TxSetPhase::SOROBAN
-                                 ? MAX_SOROBAN_BYTE_ALLOWANCE
-                                 : MAX_CLASSIC_BYTE_ALLOWANCE;
+                                 ? app->getConfig().getSorobanByteAllowance()
+                                 : app->getConfig().getClassicByteAllowance();
         REQUIRE(trimmedSize > byteAllowance - conf.txMaxSizeBytes());
         REQUIRE(trimmedSize <= byteAllowance);
     };

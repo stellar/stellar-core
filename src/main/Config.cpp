@@ -69,8 +69,9 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
-    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING",
-    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING"};
+    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING",
+    "TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+    "SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -148,6 +149,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
         std::chrono::microseconds::zero();
 
+#ifdef BUILD_TESTS
+    TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
+    TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
+#endif
+
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
@@ -202,6 +208,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
+    TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+    SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+
     // Configure MAXIMUM_LEDGER_CLOSETIME_DRIFT based on MAX_SLOTS_TO_REMEMBER
     // (plus a small buffer) to make sure we don't reject SCP state sent to us
     // by default. Limit allowed drift to 90 seconds as to not overwhelm the
@@ -1066,6 +1075,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
                  }},
+#ifdef BUILD_TESTS
+                {"TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+                 [&]() {
+                     TRANSACTION_QUEUE_SIZE_MULTIPLIER =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+                 [&]() {
+                     SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER =
+                         readInt<uint32_t>(item, 1);
+                 }},
+#endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
                 {"HTTP_PORT",
@@ -1141,6 +1162,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING =
                          readBool(item);
+                 }},
+                {"TESTING_MAX_SOROBAN_BYTE_ALLOWANCE",
+                 [&]() {
+                     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE =
+                         readInt<size_t>(item, 0);
+                 }},
+                {"TESTING_MAX_CLASSIC_BYTE_ALLOWANCE",
+                 [&]() {
+                     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE =
+                         readInt<size_t>(item, 0);
                  }},
 #endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
@@ -1785,6 +1816,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "must be greater than PEER_FLOOD_READING_CAPACITY";
             throw std::runtime_error(msg);
         }
+
+#ifdef BUILD_TESTS
+        if (getSorobanByteAllowance() + getClassicByteAllowance() >
+            MAX_TX_SET_ALLOWANCE)
+        {
+            std::string msg = "Invalid configuration: "
+                              "TESTING_MAX_CLASSIC_BYTE_ALLOWANCE + "
+                              "TESTING_MAX_SOROBAN_BYTE_ALLOWANCE "
+                              "can't be greater than MAX_TX_SET_ALLOWANCE";
+            throw std::runtime_error(msg);
+        }
+#endif
 
         if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >
             PEER_FLOOD_READING_CAPACITY_BYTES)
@@ -2496,6 +2539,30 @@ Config::toString(SCPQuorumSet const& qset)
         qset, [&](PublicKey const& k) { return toShortString(k); });
     Json::StyledWriter fw;
     return fw.write(json);
+}
+
+size_t
+Config::getSorobanByteAllowance() const
+{
+#ifdef BUILD_TESTS
+    if (TESTING_MAX_SOROBAN_BYTE_ALLOWANCE > 0)
+    {
+        return TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
+    }
+#endif
+    return MAX_SOROBAN_BYTE_ALLOWANCE;
+}
+
+size_t
+Config::getClassicByteAllowance() const
+{
+#ifdef BUILD_TESTS
+    if (TESTING_MAX_CLASSIC_BYTE_ALLOWANCE > 0)
+    {
+        return TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;
+    }
+#endif
+    return MAX_CLASSIC_BYTE_ALLOWANCE;
 }
 
 void
