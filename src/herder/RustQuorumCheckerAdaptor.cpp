@@ -234,10 +234,13 @@ updateResourceLimits(QuorumCheckerResource& limits,
 
 namespace stellar
 {
-RustQuorumCheckerAdaptor::QuorumCheckerStats RustQuorumCheckerAdaptor::mStats;
+namespace quorum_checker
+{
+
+QuorumCheckerStats stats;
 
 QuorumCheckerStatus
-RustQuorumCheckerAdaptor::checkQuorumIntersectionInner(
+checkQuorumIntersectionInner(
     QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
     QuorumCheckerResource const& limits, QuorumCheckerResource& usage)
 {
@@ -268,32 +271,32 @@ RustQuorumCheckerAdaptor::checkQuorumIntersectionInner(
                    "Quorum intersection checker used {} milliseconds and {} "
                    "bytes, returns status {}",
                    usage.time_ms, usage.mem_bytes, (uint8_t)status);
-        mStats.cumulativeTimeMs += usage.time_ms;
-        mStats.cumulativeMemBytes += usage.mem_bytes;
-        ++mStats.successfulCallCount;
+        stats.cumulativeTimeMs += usage.time_ms;
+        stats.cumulativeMemBytes += usage.mem_bytes;
+        ++stats.successfulCallCount;
     }
     catch (const std::exception& e)
     {
-        ++mStats.failedCallCount;
+        ++stats.failedCallCount;
         throw RustQuorumCheckerError(e.what());
     }
 
     if (status == QuorumCheckerStatus::UNKNOWN)
     {
-        ++mStats.interruptedCallCount;
+        ++stats.interruptedCallCount;
     }
     else if (status == QuorumCheckerStatus::SAT)
     {
-        ++mStats.potentialSplitCount;
+        ++stats.potentialSplitCount;
     }
     return status;
 }
 
 QuorumCheckerStatus
-RustQuorumCheckerAdaptor::networkEnjoysQuorumIntersection(
-    std::string const& inJsonPath, uint64_t timeLimitMs,
-    size_t memoryLimitBytes, bool analyzeCriticalGroups,
-    std::string const& outResultJsonPath)
+networkEnjoysQuorumIntersection(std::string const& inJsonPath,
+                                uint64_t timeLimitMs, size_t memoryLimitBytes,
+                                bool analyzeCriticalGroups,
+                                std::string const& outResultJsonPath)
 {
     QuorumCheckerStatus status{QuorumCheckerStatus::UNKNOWN};
     QuorumIntersectionChecker::QuorumSetMap qmap =
@@ -357,7 +360,7 @@ RustQuorumCheckerAdaptor::networkEnjoysQuorumIntersection(
 }
 
 void
-RustQuorumCheckerAdaptor::runQuorumIntersectionCheckAsync(
+runQuorumIntersectionCheckAsync(
     Hash const curr, uint32 ledger, std::string const& tmpDirName,
     QuorumTracker::QuorumMap const& qmap,
     std::weak_ptr<QuorumMapIntersectionState> hState, ProcessManager& pm,
@@ -463,4 +466,5 @@ RustQuorumCheckerAdaptor::runQuorumIntersectionCheckAsync(
     });
 }
 
-} // namespace stellar {
+} // namespace quorum_checker
+} // namespace stellar
