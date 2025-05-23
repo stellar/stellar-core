@@ -37,7 +37,7 @@ quorumIntersectionCheckerV2Wrapper(
 {
     Hash curr{};
     uint32_t testLedgerNo = 100;
-    RustQuorumCheckerAdaptor::runQuorumIntersectionCheckAsync(
+    quorum_checker::runQuorumIntersectionCheckAsync(
         curr, testLedgerNo, state->mTmpDir->getName(), qmap, state, pm,
         timeLimit, memoryLimit, analyzeCriticalGroups);
     while (state->mRecalculating && !clock.getIOContext().stopped())

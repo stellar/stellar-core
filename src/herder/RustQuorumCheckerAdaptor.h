@@ -10,42 +10,38 @@
 #include "process/ProcessManager.h"
 #include "rust/RustBridge.h"
 #include <optional>
+
 namespace stellar
 {
-
-// static adaptor class over rust QuorumChecker that exposes its functionalities
-class RustQuorumCheckerAdaptor
+namespace quorum_checker
 {
-    struct QuorumCheckerStats
-    {
-        uint32_t successfulCallCount{0};
-        uint32_t failedCallCount{0};
-        uint32_t interruptedCallCount{0};
-        uint32_t potentialSplitCount{0};
-        uint64_t cumulativeTimeMs{0};
-        uint64_t cumulativeMemBytes{0};
-    };
+struct QuorumCheckerStats
+{
+    uint32_t successfulCallCount{0};
+    uint32_t failedCallCount{0};
+    uint32_t interruptedCallCount{0};
+    uint32_t potentialSplitCount{0};
+    uint64_t cumulativeTimeMs{0};
+    uint64_t cumulativeMemBytes{0};
+};
 
-    static QuorumCheckerStats mStats;
+extern QuorumCheckerStats stats;
 
-    static QuorumCheckerStatus checkQuorumIntersectionInner(
-        QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
-        QuorumCheckerResource const& limits, QuorumCheckerResource& usage);
+QuorumCheckerStatus checkQuorumIntersectionInner(
+    QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
+    QuorumCheckerResource const& limits, QuorumCheckerResource& usage);
 
-  public:
-    static QuorumCheckerStatus networkEnjoysQuorumIntersection(
-        std::string const& jsonPath, uint64_t timeLimitMs,
-        size_t memoryLimitBytes, bool analyzeCriticalGroups,
-        std::string const& outJsonPath);
+QuorumCheckerStatus networkEnjoysQuorumIntersection(
+    std::string const& jsonPath, uint64_t timeLimitMs, size_t memoryLimitBytes,
+    bool analyzeCriticalGroups, std::string const& outJsonPath);
 
-    static void runQuorumIntersectionCheckAsync(
-        Hash const curr, uint32 ledger, std::string const& tmpDirName,
-        QuorumTracker::QuorumMap const& qmap,
-        std::weak_ptr<QuorumMapIntersectionState> hState, ProcessManager& pm,
-        uint64_t timeLimitMs, size_t memoryLimitBytes,
-        bool analyzeCriticalGroups);
+void runQuorumIntersectionCheckAsync(
+    Hash const curr, uint32 ledger, std::string const& tmpDirName,
+    QuorumTracker::QuorumMap const& qmap,
+    std::weak_ptr<QuorumMapIntersectionState> hState, ProcessManager& pm,
+    uint64_t timeLimitMs, size_t memoryLimitBytes, bool analyzeCriticalGroups);
 
-}; // class RustQuorumCheckerAdaptor {
+} // namespace quorum_checker
 
 class RustQuorumCheckerError : public std::runtime_error
 {
@@ -55,4 +51,4 @@ class RustQuorumCheckerError : public std::runtime_error
     }
 };
 
-} // namespace stellar {
+} // namespace stellar

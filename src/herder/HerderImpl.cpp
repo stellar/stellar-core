@@ -1915,12 +1915,13 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
               "Transitive closure of quorum has changed, re-analyzing.");
     mLastQuorumMapIntersectionState->mRecalculating = true;
     mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
-    RustQuorumCheckerAdaptor::runQuorumIntersectionCheckAsync(
+    quorum_checker::runQuorumIntersectionCheckAsync(
         curr, trackingConsensusLedgerIndex(),
         mLastQuorumMapIntersectionState->mTmpDir->getName(), qmap,
-        mLastQuorumMapIntersectionState, mApp.getProcessManager(), true,
+        mLastQuorumMapIntersectionState, mApp.getProcessManager(),
         mApp.getConfig().QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
-        mApp.getConfig().QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
+        mApp.getConfig().QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES,
+        true /*analyzeCriticalGroups*/ );
     // TODO: parse the metrics and send to medida
 }
 
