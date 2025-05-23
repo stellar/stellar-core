@@ -1389,7 +1389,7 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
         try
         {
             QuorumCheckerStatus status =
-                RustQuorumCheckerAdaptor::networkEnjoysQuorumIntersection(
+                quorum_checker::networkEnjoysQuorumIntersection(
                     jsonPath, timeLimitMs, memoryLimitBytes,
                     analyzeCriticalGroups, resultJson);
 
