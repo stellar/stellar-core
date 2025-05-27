@@ -6,6 +6,9 @@
 #include "crypto/KeyUtils.h"
 #include "herder/HerderImpl.h"
 #include "herder/HerderUtils.h"
+#include "herder/QuorumIntersectionChecker.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
 #include "process/ProcessManager.h"
 #include "rust/RustBridge.h"
 #include "scp/LocalNode.h"
@@ -186,63 +189,112 @@ validateResultJson(Json::Value const& res)
             "Result missing 'intersection_critical_groups' field");
     }
 }
-
-Json::Value
-toResourceUsageJson(QuorumCheckerResource const& usage)
-{
-    Json::Value ret;
-    ret["time_ms"] = Json::UInt64(usage.time_ms);
-    ret["memory_bytes"] = Json::UInt64(static_cast<uint64_t>(usage.mem_bytes));
-    return ret;
-}
-
-void
-fromResourceUsageJson(QuorumCheckerResource& usage, Json::Value const& value)
-{
-    if (!value.isObject())
-    {
-        throw RustQuorumCheckerError("Resource usage JSON must be an object");
-    }
-
-    if (!value.isMember("time_ms") || !value["time_ms"].isUInt64())
-    {
-        throw RustQuorumCheckerError(
-            "Resource usage missing or invalid 'time_ms' field");
-    }
-
-    if (!value.isMember("memory_bytes") || !value["memory_bytes"].isUInt64())
-    {
-        throw RustQuorumCheckerError(
-            "Resource usage missing or invalid 'memory_bytes' field");
-    }
-
-    usage.time_ms = value["time_ms"].asUInt64();
-    usage.mem_bytes = static_cast<size_t>(value["memory_bytes"].asUInt64());
-}
-
-void
-updateResourceLimits(QuorumCheckerResource& limits,
-                     QuorumCheckerResource const& usage)
-{
-    // only the time limit carries through. memory is a transient resource that
-    // we reclaim back after each run so we don't need to deduct the actual
-    // usage
-    limits.time_ms -= usage.time_ms;
-}
-
-}
+} // namespace
 
 namespace stellar
 {
 namespace quorum_checker
 {
 
-QuorumCheckerStats stats;
+QuorumCheckerMetrics::QuorumCheckerMetrics()
+    : mSuccessfulCalls(0)
+    , mFailedCalls(0)
+    , mInterruptedCalls(0)
+    , mPotentialSplits(0)
+    , mCumulativeTimeMs(0)
+    , mCumulativeMemBytes(0)
+{
+}
+
+QuorumCheckerMetrics::QuorumCheckerMetrics(Json::Value const& value)
+{
+    if (!value.isObject())
+    {
+        throw RustQuorumCheckerError("Metrics JSON must be an object");
+    }
+    if (!value.isMember("successful_call_count") ||
+        !value["successful_call_count"].isUInt())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'successful_call_count' field");
+    }
+    if (!value.isMember("failed_call_count") ||
+        !value["failed_call_count"].isUInt())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'failed_call_count' field");
+    }
+    if (!value.isMember("interrupted_call_count") ||
+        !value["interrupted_call_count"].isUInt())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'interrupted_call_count' field");
+    }
+    if (!value.isMember("potential_split_count") ||
+        !value["potential_split_count"].isUInt())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'potential_split_count' field");
+    }
+    if (!value.isMember("cumulative_time_ms") ||
+        !value["cumulative_time_ms"].isUInt64())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'cumulative_time_ms' field");
+    }
+    if (!value.isMember("cumulative_memory_bytes") ||
+        !value["cumulative_memory_bytes"].isUInt64())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'cumulative_memory_bytes' field");
+    }
+    mSuccessfulCalls = value["successful_call_count"].asUInt64();
+    mFailedCalls = value["failed_call_count"].asUInt64();
+    mInterruptedCalls = value["interrupted_call_count"].asUInt64();
+    mPotentialSplits = value["potential_split_count"].asUInt64();
+    mCumulativeTimeMs = value["cumulative_time_ms"].asUInt64();
+    mCumulativeMemBytes = value["cumulative_memory_bytes"].asUInt64();
+}
+
+Json::Value
+QuorumCheckerMetrics::toJson()
+{
+    Json::Value ret;
+    ret["successful_call_count"] = Json::UInt64(mSuccessfulCalls);
+    ret["failed_call_count"] = Json::UInt64(mFailedCalls);
+    ret["interrupted_call_count"] = Json::UInt64(mInterruptedCalls);
+    ret["potential_split_count"] = Json::UInt64(mPotentialSplits);
+    ret["cumulative_time_ms"] = Json::UInt64(mCumulativeTimeMs);
+    ret["cumulative_memory_bytes"] = Json::UInt64(mCumulativeMemBytes);
+    return ret;
+}
+
+void
+QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
+{
+    metrics.NewCounter({"scp", "qic", "successful-calls"})
+        .inc(mSuccessfulCalls);
+    metrics.NewCounter({"scp", "qic", "failed-calls"}).inc(mFailedCalls);
+    metrics.NewCounter({"scp", "qic", "interrupted-calls"})
+        .inc(mInterruptedCalls);
+    metrics.NewCounter({"scp", "qic", "potential-splits"})
+        .inc(mPotentialSplits);
+    metrics.NewMeter({"scp", "qic", "cumulative-time-ms"}, "milli-second")
+        .Mark(mCumulativeTimeMs);
+    metrics.NewMeter({"scp", "qic", "cumulative-memory-bytes"}, "byte")
+        .Mark(mCumulativeMemBytes);
+    mSuccessfulCalls = 0;
+    mFailedCalls = 0;
+    mInterruptedCalls = 0;
+    mPotentialSplits = 0;
+    mCumulativeTimeMs = 0;
+    mCumulativeMemBytes = 0;
+}
 
 QuorumCheckerStatus
 checkQuorumIntersectionInner(
     QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
-    QuorumCheckerResource const& limits, QuorumCheckerResource& usage)
+    QuorumCheckerResource& available, QuorumCheckerMetrics& metrics)
 {
     rust::Vec<CxxBuf> nodesBuf;
     rust::Vec<CxxBuf> quorumSetsBuf;
@@ -262,34 +314,48 @@ checkQuorumIntersectionInner(
         }
     }
 
-    QuorumCheckerStatus status;
     try
     {
+        QuorumCheckerStatus status;
+        QuorumCheckerResource usage;
         status = rust_bridge::network_enjoys_quorum_intersection(
-            nodesBuf, quorumSetsBuf, split, limits, usage);
+            nodesBuf, quorumSetsBuf, split, available, usage);
         CLOG_DEBUG(SCP,
                    "Quorum intersection checker used {} milliseconds and {} "
                    "bytes, returns status {}",
                    usage.time_ms, usage.mem_bytes, (uint8_t)status);
-        stats.cumulativeTimeMs += usage.time_ms;
-        stats.cumulativeMemBytes += usage.mem_bytes;
-        ++stats.successfulCallCount;
+
+        // update the cumulative metrics, this will be reported metrics
+        metrics.mCumulativeTimeMs += usage.time_ms;
+        metrics.mCumulativeMemBytes += usage.mem_bytes;
+        metrics.mSuccessfulCalls += 1;
+        if (status == QuorumCheckerStatus::UNKNOWN)
+        {
+            metrics.mInterruptedCalls += 1;
+        }
+        else if (status == QuorumCheckerStatus::SAT)
+        {
+            metrics.mPotentialSplits += 1;
+        }
+
+        // Update time limit. Memory is a transient resource that gets reclaimed
+        // back.
+        if (available.time_ms < usage.time_ms)
+        {
+            available.time_ms = 0;
+        }
+        else
+        {
+            available.time_ms -= usage.time_ms;
+        }
+        return status;
     }
     catch (const std::exception& e)
     {
-        ++stats.failedCallCount;
+        // internal rust solver error, or it has panicked
+        metrics.mFailedCalls += 1;
         throw RustQuorumCheckerError(e.what());
     }
-
-    if (status == QuorumCheckerStatus::UNKNOWN)
-    {
-        ++stats.interruptedCallCount;
-    }
-    else if (status == QuorumCheckerStatus::SAT)
-    {
-        ++stats.potentialSplitCount;
-    }
-    return status;
 }
 
 QuorumCheckerStatus
@@ -308,9 +374,8 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
         QuorumSplit split;
         std::set<std::set<NodeID>> criticalGroups;
         QuorumCheckerResource limits{timeLimitMs, memoryLimitBytes};
-        QuorumCheckerResource usage;
-        status = checkQuorumIntersectionInner(qmap, split, limits, usage);
-        updateResourceLimits(limits, usage);
+        QuorumCheckerMetrics metrics;
+        status = checkQuorumIntersectionInner(qmap, split, limits, metrics);
 
         // only run critical analysis if quorum enjoys intersection (`UNSAT`).
         // otherwise we want to return as soon as possible.
@@ -320,8 +385,7 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
                           std::optional<stellar::Config> const& _cfg) -> bool {
                 QuorumSplit _potentialSplit;
                 QuorumCheckerStatus status = checkQuorumIntersectionInner(
-                    qmap, _potentialSplit, limits, usage);
-                updateResourceLimits(limits, usage);
+                    qmap, _potentialSplit, limits, metrics);
                 return status == QuorumCheckerStatus::UNSAT;
             };
             auto criticalGroups =
@@ -340,7 +404,7 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
         ret["quorum_split"] = toQuorumSplitJson(split);
         ret["intersection_critical_groups"] =
             toCriticalGroupsJson(criticalGroups);
-        ret["resource_usage"] = toResourceUsageJson(usage);
+        ret["metrics"] = metrics.toJson();
 
         out << ret;
         if (out.fail())
@@ -438,8 +502,8 @@ runQuorumIntersectionCheckAsync(
                 hStateSP->mLastCheckQuorumMapHash = curr;
                 hStateSP->mCheckingQuorumMapHash = Hash{};
                 hStateSP->mStatus = fromQuorumCheckerStatusJson(res["status"]);
-                fromResourceUsageJson(hStateSP->mResourceUsage,
-                                      res["resource_usage"]);
+                QuorumCheckerMetrics metrics(res["metrics"]);
+                metrics.flush(hStateSP->mMetrics);
                 fromQuorumSplitJson(hStateSP->mPotentialSplit,
                                     res["quorum_split"]);
                 fromCriticalGroupsJson(hStateSP->mIntersectionCriticalNodes,
