@@ -4,6 +4,7 @@
 
 #include "bucket/InMemoryIndex.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRStream.h"
@@ -13,11 +14,17 @@
 namespace stellar
 {
 
+namespace
+{
 // Helper function to process a single bucket entry for InMemoryIndex
 // construction
-static void
+void
 processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
-             AssetPoolIDMap& assetPoolIDMap, BucketEntryCounters& counters)
+             AssetPoolIDMap& assetPoolIDMap, BucketEntryCounters& counters,
+             std::streamoff& lastOffset,
+             std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
+             std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
+             std::optional<LedgerEntryType>& lastTypeSeen)
 {
     counters.template count<LiveBucket>(be);
 
@@ -39,48 +46,9 @@ processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
     }
 
     inMemoryState.insert(be);
+    updateTypeBoundaries(lk.type(), lastOffset, typeStartOffsets,
+                         typeEndOffsets, lastTypeSeen);
 }
-
-// Helper function to update offset ranges
-static void
-updateRanges(LedgerKey const& lk, std::streamoff offset,
-             std::optional<std::streamoff>& firstOffer,
-             std::optional<std::streamoff>& lastOffer,
-             std::optional<std::streamoff>& firstContractCode,
-             std::optional<std::streamoff>& lastContractCode)
-{
-    if (!firstOffer && lk.type() == OFFER)
-    {
-        firstOffer = offset;
-    }
-    if (!lastOffer && lk.type() > OFFER)
-    {
-        lastOffer = offset;
-    }
-
-    if (!firstContractCode && lk.type() == CONTRACT_CODE)
-    {
-        firstContractCode = offset;
-    }
-    if (!lastContractCode && lk.type() > CONTRACT_CODE)
-    {
-        lastContractCode = offset;
-    }
-}
-
-// Returns final range that will be stored in the index, accounting for ranges
-// where no entry exists and eof.
-static std::optional<std::pair<std::streamoff, std::streamoff>>
-getFinalRange(std::optional<std::streamoff> const& first,
-              std::optional<std::streamoff> const& last)
-{
-    if (!first)
-    {
-        return std::nullopt;
-    }
-
-    auto endOffset = last.value_or(std::numeric_limits<std::streamoff>::max());
-    return std::make_pair(*first, endOffset);
 }
 
 void
@@ -121,26 +89,23 @@ InMemoryIndex::InMemoryIndex(BucketManager& bm,
     std::streamoff lastOffset = xdr::xdr_size(metadata) +
                                 xdrOverheadForMetaEntry +
                                 xdrOverheadBetweenEntries;
-    std::optional<std::streamoff> firstOffer;
-    std::optional<std::streamoff> lastOffer;
-    std::optional<std::streamoff> firstContractCode;
-    std::optional<std::streamoff> lastContractCode;
+
+    std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
+    std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
+    std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
 
     for (auto const& be : inMemoryState)
     {
         releaseAssertOrThrow(be.type() != METAENTRY);
 
-        processEntry(be, mInMemoryState, mAssetPoolIDMap, mCounters);
-
-        LedgerKey lk = getBucketLedgerKey(be);
-        updateRanges(lk, lastOffset, firstOffer, lastOffer, firstContractCode,
-                     lastContractCode);
+        processEntry(be, mInMemoryState, mAssetPoolIDMap, mCounters, lastOffset,
+                     typeStartOffsets, typeEndOffsets, lastTypeSeen);
 
         lastOffset += xdr::xdr_size(be) + xdrOverheadBetweenEntries;
     }
 
-    mOfferRange = getFinalRange(firstOffer, lastOffer);
-    mContractCodeRange = getFinalRange(firstContractCode, lastContractCode);
+    // Build the final type ranges map
+    mTypeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
 }
 
 InMemoryIndex::InMemoryIndex(BucketManager const& bm,
@@ -153,10 +118,9 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     BucketEntry be;
     size_t iter = 0;
     std::streamoff lastOffset = 0;
-    std::optional<std::streamoff> firstOffer;
-    std::optional<std::streamoff> lastOffer;
-    std::optional<std::streamoff> firstContractCode;
-    std::optional<std::streamoff> lastContractCode;
+    std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
+    std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
+    std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
 
     while (in && in.readOne(be, hasher))
     {
@@ -176,18 +140,19 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
             continue;
         }
 
-        processEntry(be, mInMemoryState, mAssetPoolIDMap, mCounters);
-
-        LedgerKey lk = getBucketLedgerKey(be);
-        updateRanges(lk, lastOffset, firstOffer, lastOffer, firstContractCode,
-                     lastContractCode);
-
+        processEntry(be, mInMemoryState, mAssetPoolIDMap, mCounters, lastOffset,
+                     typeStartOffsets, typeEndOffsets, lastTypeSeen);
         lastOffset = in.pos();
     }
 
-    // Set ranges
-    mOfferRange = getFinalRange(firstOffer, lastOffer);
-    mContractCodeRange = getFinalRange(firstContractCode, lastContractCode);
+    // Build the final type ranges map
+    mTypeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
+}
+
+std::optional<std::pair<std::streamoff, std::streamoff>>
+InMemoryIndex::getRangeForTypes(std::set<LedgerEntryType> const& types) const
+{
+    return getRangeForTypesHelper(types, mTypeRanges);
 }
 
 #ifdef BUILD_TESTS
@@ -196,7 +161,7 @@ InMemoryIndex::operator==(InMemoryIndex const& in) const
 {
     return mInMemoryState == in.mInMemoryState &&
            mAssetPoolIDMap == in.mAssetPoolIDMap &&
-           mOfferRange == in.mOfferRange && mCounters == in.mCounters;
+           mTypeRanges == in.mTypeRanges && mCounters == in.mCounters;
 }
 #endif
 }

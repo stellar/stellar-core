@@ -117,6 +117,14 @@ DiskIndex<BucketT>::getOffsetBounds(LedgerKey const& lowerBound,
 }
 
 template <class BucketT>
+std::optional<std::pair<std::streamoff, std::streamoff>>
+DiskIndex<BucketT>::getRangeForTypes(
+    std::set<LedgerEntryType> const& types) const
+{
+    return getRangeForTypesHelper(types, mData.typeRanges);
+}
+
+template <class BucketT>
 DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                               std::filesystem::path const& filename,
                               std::streamoff pageSize, Hash const& hash,
@@ -148,6 +156,11 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     std::vector<uint64_t> keyHashes;
     auto seed = shortHash::getShortHashInitKey();
 
+    // Track first and last offsets for each type
+    std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
+    std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
+    std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
+
     while (in && in.readOne(be, hasher))
     {
         // periodically check if bucket manager is exiting to stop indexing
@@ -166,6 +179,11 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
         {
             ++count;
             LedgerKey key = getBucketLedgerKey(be);
+
+            // Track type boundaries
+            LedgerEntryType currentType = key.type();
+            updateTypeBoundaries(currentType, pos, typeStartOffsets,
+                                 typeEndOffsets, lastTypeSeen);
 
             if constexpr (std::is_same_v<BucketT, LiveBucket>)
             {
@@ -225,6 +243,9 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
         pos = in.pos();
     }
+
+    // Build the final type ranges map
+    mData.typeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
 
     // Binary Fuse filter requires at least 2 elements
     if (keyHashes.size() > 1)
@@ -405,7 +426,7 @@ DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
         return false;
     }
 
-    return true;
+    return mData.typeRanges == in.mData.typeRanges;
 }
 #endif
 

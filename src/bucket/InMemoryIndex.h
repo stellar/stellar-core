@@ -189,8 +189,8 @@ class InMemoryIndex
     InMemoryBucketState mInMemoryState;
     AssetPoolIDMap mAssetPoolIDMap;
     BucketEntryCounters mCounters{};
-    std::optional<std::pair<std::streamoff, std::streamoff>> mOfferRange;
-    std::optional<std::pair<std::streamoff, std::streamoff>> mContractCodeRange;
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+        mTypeRanges;
 
   public:
     using IterT = InMemoryBucketState::IterT;
@@ -232,16 +232,7 @@ class InMemoryIndex
     }
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getOfferRange() const
-    {
-        return mOfferRange;
-    }
-
-    std::optional<std::pair<std::streamoff, std::streamoff>>
-    getContractCodeRange() const
-    {
-        return mContractCodeRange;
-    }
+    getRangeForTypes(std::set<LedgerEntryType> const& types) const;
 
 #ifdef BUILD_TESTS
     bool operator==(InMemoryIndex const& in) const;

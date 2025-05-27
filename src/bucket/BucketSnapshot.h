@@ -88,9 +88,10 @@ class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
                          SearchableLiveBucketListSnapshot const& bl,
                          uint32_t ledgerVers) const;
 
-    // Scans contract code entries in the bucket.
-    Loop
-    scanForContractCode(std::function<Loop(BucketEntry const&)> callback) const;
+    // Scans entries of the specified types in the bucket.
+    Loop scanForEntriesOfType(
+        std::set<LedgerEntryType> const& types,
+        std::function<Loop(BucketEntry const&)> callback) const;
 };
 
 class HotArchiveBucketSnapshot : public BucketSnapshotBase<HotArchiveBucket>

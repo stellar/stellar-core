@@ -380,4 +380,91 @@ template void
 BucketEntryCounters::count<LiveBucket>(LiveBucket::EntryT const& be);
 template void BucketEntryCounters::count<HotArchiveBucket>(
     HotArchiveBucket::EntryT const& be);
+
+void
+updateTypeBoundaries(
+    LedgerEntryType currentType, std::streamoff position,
+    std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
+    std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
+    std::optional<LedgerEntryType>& lastTypeSeen)
+{
+    // Record first entry in the Bucket
+    if (!lastTypeSeen)
+    {
+        typeStartOffsets[currentType] = position;
+    }
+    // If we see a new type, we're at a boundary. Update end of last
+    // type and start of new type
+    else if (currentType != *lastTypeSeen)
+    {
+        typeEndOffsets[*lastTypeSeen] = position;
+        typeStartOffsets[currentType] = position;
+    }
+
+    lastTypeSeen = currentType;
+}
+
+std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+buildTypeRangesMap(
+    std::map<LedgerEntryType, std::streamoff> const& typeStartOffsets,
+    std::map<LedgerEntryType, std::streamoff> const& typeEndOffsets)
+{
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+        typeRanges;
+
+    for (auto const& [type, startOffset] : typeStartOffsets)
+    {
+        std::streamoff endOffset;
+        auto endIt = typeEndOffsets.find(type);
+        if (endIt != typeEndOffsets.end())
+        {
+            endOffset = endIt->second;
+        }
+        else
+        {
+            // If we didn't see any entries after this type, then the upper
+            // bound is EOF
+            endOffset = std::numeric_limits<std::streamoff>::max();
+        }
+
+        typeRanges[type] = {startOffset, endOffset};
+    }
+
+    return typeRanges;
+}
+
+std::optional<std::pair<std::streamoff, std::streamoff>>
+getRangeForTypesHelper(
+    std::set<LedgerEntryType> const& types,
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>> const&
+        typeRanges)
+{
+    std::optional<std::streamoff> start = std::nullopt;
+    std::streamoff end = 0;
+
+    // Iterate types in the same order they are sorted in the BucketList
+    for (auto type : types)
+    {
+        auto it = typeRanges.find(type);
+        if (it != typeRanges.end())
+        {
+            // If start is null, this is the first and smallest type in the
+            // range we've found, so set start.
+            if (!start)
+            {
+                start = it->second.first;
+            }
+
+            // The last type we find in the loop will be our upper bound
+            end = it->second.second;
+        }
+    }
+
+    if (start)
+    {
+        return std::make_optional(std::make_pair(*start, end));
+    }
+
+    return std::nullopt;
+}
 }

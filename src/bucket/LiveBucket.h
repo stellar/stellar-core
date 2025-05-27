@@ -94,15 +94,11 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     size_t getMaxCacheSize() const;
 #endif
 
-    // Returns [lowerBound, upperBound) of file offsets for all offers in the
-    // bucket, or std::nullopt if no offers exist
+    // Returns [lowerBound, upperBound) of file offsets for all entries of the
+    // given types in the bucket, or std::nullopt if no entries of these types
+    // exist
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getOfferRange() const;
-
-    // Returns [lowerBound, upperBound) of file offsets for all contract code
-    // entries in the bucket, or std::nullopt if no contract code exists
-    std::optional<std::pair<std::streamoff, std::streamoff>>
-    getContractCodeRange() const;
+    getRangeForTypes(std::set<LedgerEntryType> const& types) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will

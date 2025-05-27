@@ -1239,4 +1239,237 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
     testAllIndexTypes(f);
 }
+
+TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto clock = VirtualClock();
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+
+        auto verifyIndexBounds = [](std::shared_ptr<LiveBucket const> bucket) {
+            XDRInputFileStream in;
+            in.open(bucket->getFilename().string());
+            BucketEntry be;
+            std::optional<std::streamoff> pos;
+
+            std::optional<LedgerEntryType> lastSeenType;
+            std::set<LedgerEntryType> seenTypes;
+
+            while (in && in.readOne(be))
+            {
+                if (be.type() != METAENTRY)
+                {
+                    LedgerKey key = getBucketLedgerKey(be);
+                    LedgerEntryType currentType = key.type();
+                    seenTypes.insert(currentType);
+
+                    // Check if we've transitioned to a new type
+                    if (!lastSeenType || *lastSeenType != currentType)
+                    {
+                        // If we had a previous type, verify its upper bound
+                        if (lastSeenType)
+                        {
+                            auto prevRange =
+                                bucket->getRangeForTypes({*lastSeenType});
+                            REQUIRE(prevRange.has_value());
+                            REQUIRE(prevRange->second == pos);
+                        }
+
+                        // Verify the lower bound of the new type
+                        auto currentRange =
+                            bucket->getRangeForTypes({currentType});
+                        REQUIRE(currentRange.has_value());
+                        REQUIRE(currentRange->first == pos);
+
+                        lastSeenType = currentType;
+                    }
+                }
+                pos = in.pos();
+            }
+
+            // Verify the last type has correct upper bound (EOF)
+            REQUIRE(lastSeenType);
+            auto lastRange = bucket->getRangeForTypes({*lastSeenType});
+            REQUIRE(lastRange.has_value());
+            REQUIRE(lastRange->second ==
+                    std::numeric_limits<std::streamoff>::max());
+
+            // Verify that entry types not seen in the bucket return
+            // std::nullopt
+            for (auto type : xdr::xdr_traits<LedgerEntryType>::enum_values())
+            {
+                if (seenTypes.find(static_cast<LedgerEntryType>(type)) ==
+                    seenTypes.end())
+                {
+                    auto unseenRange = bucket->getRangeForTypes(
+                        {static_cast<LedgerEntryType>(type)});
+                    REQUIRE(!unseenRange.has_value());
+                }
+            }
+        };
+
+        SECTION("Bucket contains some types")
+        {
+            auto entries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {ACCOUNT, TRUSTLINE, CONTRACT_DATA}, 40);
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
+            closeLedger(*app);
+
+            auto& bm = app->getBucketManager();
+            auto bucket = bm.getLiveBucketList().getLevel(0).getCurr();
+            verifyIndexBounds(bucket);
+
+            // Test multiple type ranges, both adjacent and non-adjacent
+            auto adjacentRange = bucket->getRangeForTypes({ACCOUNT, TRUSTLINE});
+            REQUIRE(adjacentRange.has_value());
+            auto accountRange = bucket->getRangeForTypes({ACCOUNT});
+            REQUIRE(accountRange.has_value());
+            auto trustlineRange = bucket->getRangeForTypes({TRUSTLINE});
+            REQUIRE(trustlineRange.has_value());
+            REQUIRE(adjacentRange->first == accountRange->first);
+            REQUIRE(adjacentRange->second == trustlineRange->second);
+
+            auto nonAdjacentRange =
+                bucket->getRangeForTypes({ACCOUNT, CONTRACT_DATA});
+            REQUIRE(nonAdjacentRange.has_value());
+
+            auto contractDataRange = bucket->getRangeForTypes({CONTRACT_DATA});
+            REQUIRE(accountRange.has_value());
+            REQUIRE(contractDataRange.has_value());
+            REQUIRE(nonAdjacentRange->first == accountRange->first);
+            REQUIRE(nonAdjacentRange->second == contractDataRange->second);
+
+            // Non-existent types only
+            std::set<LedgerEntryType> nonExistentTypes{CLAIMABLE_BALANCE,
+                                                       CONTRACT_CODE};
+            auto nonExistentRange = bucket->getRangeForTypes(nonExistentTypes);
+            REQUIRE(!nonExistentRange.has_value());
+
+            // Mix of existent and non-existent types, should just return range
+            // of existing type
+            auto accountAndTTLRange = bucket->getRangeForTypes({ACCOUNT, TTL});
+            REQUIRE(accountAndTTLRange.has_value());
+            REQUIRE(accountAndTTLRange->first == accountRange->first);
+            REQUIRE(accountAndTTLRange->second == accountRange->second);
+        }
+
+        SECTION("Bucket contains 1 of all types")
+        {
+            std::vector<LedgerEntry> allTypeEntries;
+            for (auto type : xdr::xdr_traits<LedgerEntryType>::enum_values())
+            {
+                allTypeEntries.push_back(
+                    LedgerTestUtils::generateValidLedgerEntryOfType(
+                        static_cast<LedgerEntryType>(type)));
+            }
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, allTypeEntries, {});
+            closeLedger(*app);
+
+            auto bucket = app->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr();
+            verifyIndexBounds(bucket);
+        }
+
+        SECTION("Bucket contains only one type, mix of live and dead")
+        {
+            std::vector<LedgerKey> deadKeys;
+            std::vector<LedgerEntry> liveEntries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {CONTRACT_CODE}, 10);
+            for (auto iter = liveEntries.begin(); iter != liveEntries.end();)
+            {
+                if (rand_flip())
+                {
+                    deadKeys.push_back(LedgerEntryKey(*iter));
+                    iter = liveEntries.erase(iter);
+                }
+                else
+                {
+                    ++iter;
+                }
+            }
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, liveEntries, deadKeys);
+            closeLedger(*app);
+
+            auto bucket = app->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr();
+
+            verifyIndexBounds(bucket);
+            auto singleRange = bucket->getRangeForTypes({CONTRACT_CODE});
+            REQUIRE(singleRange.has_value());
+
+            // For a single type, upper bound should be EOF
+            REQUIRE(singleRange->second ==
+                    std::numeric_limits<std::streamoff>::max());
+        }
+
+        SECTION("Scan for entries by type")
+        {
+            std::vector<LedgerEntry> entries;
+            entries.push_back(
+                LedgerTestUtils::generateValidLedgerEntryOfType(OFFER));
+            entries.push_back(
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE));
+            entries.push_back(
+                LedgerTestUtils::generateValidLedgerEntryOfType(ACCOUNT));
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
+            closeLedger(*app);
+
+            auto bucket = app->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr();
+            verifyIndexBounds(bucket);
+
+            auto searchableBL = app->getBucketManager()
+                                    .getBucketSnapshotManager()
+                                    .copySearchableLiveBucketListSnapshot();
+
+            std::set<LedgerEntryType> targetTypes{OFFER, CONTRACT_CODE};
+            std::vector<BucketEntry> foundEntries;
+
+            searchableBL->scanForEntriesOfType(targetTypes,
+                                               [&](BucketEntry const& be) {
+                                                   foundEntries.push_back(be);
+                                                   return Loop::INCOMPLETE;
+                                               });
+
+            REQUIRE(foundEntries.size() == 2);
+
+            bool foundOffer = false;
+            bool foundContractCode = false;
+            for (auto const& be : foundEntries)
+            {
+                if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+                {
+                    if (be.liveEntry().data.type() == OFFER)
+                    {
+                        foundOffer = true;
+                    }
+                    else if (be.liveEntry().data.type() == CONTRACT_CODE)
+                    {
+                        foundContractCode = true;
+                    }
+                }
+            }
+            REQUIRE(foundOffer);
+            REQUIRE(foundContractCode);
+        }
+    };
+
+    testAllIndexTypes(f);
+}
 }

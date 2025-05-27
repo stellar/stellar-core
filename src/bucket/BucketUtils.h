@@ -6,11 +6,14 @@
 
 #include "util/NonCopyable.h"
 #include "xdr/Stellar-ledger-entries.h"
+
 #include <cstdint>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <set>
 
 namespace medida
 {
@@ -224,4 +227,24 @@ template <class BucketT>
 LedgerEntryTypeAndDurability
 bucketEntryToLedgerEntryAndDurabilityType(typename BucketT::EntryT const& be);
 std::string toString(LedgerEntryTypeAndDurability let);
+
+// Utility functions for tracking type boundaries during bucket index
+// construction
+void updateTypeBoundaries(
+    LedgerEntryType currentType, std::streamoff position,
+    std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
+    std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
+    std::optional<LedgerEntryType>& lastTypeSeen);
+
+std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+buildTypeRangesMap(
+    std::map<LedgerEntryType, std::streamoff> const& typeStartOffsets,
+    std::map<LedgerEntryType, std::streamoff> const& typeEndOffsets);
+
+// Helper function to compute range for multiple types from a BucketIndex type
+// ranges map
+std::optional<std::pair<std::streamoff, std::streamoff>> getRangeForTypesHelper(
+    std::set<LedgerEntryType> const& types,
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>> const&
+        typeRanges);
 }
