@@ -57,9 +57,8 @@ networkEnjoysQuorumIntersectionV2Wrapper(QuorumTracker::QuorumMap const& qmap,
 {
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-
     auto state = std::make_shared<QuorumMapIntersectionState>(
-        app->getTmpDirManager().tmpDir("qic-test"));
+        app->getTmpDirManager().tmpDir("qic-test"), app->getMetrics());
     state->mRecalculating = true;
     quorumIntersectionCheckerV2Wrapper(
         state, qmap, app->getProcessManager(), clock, false,
@@ -74,9 +73,8 @@ runIntersectionCriticalGroupsCheckV2(QuorumTracker::QuorumMap const& qmap,
 {
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-
     auto state = std::make_shared<QuorumMapIntersectionState>(
-        app->getTmpDirManager().tmpDir("qic-test"));
+        app->getTmpDirManager().tmpDir("qic-test"), app->getMetrics());
     state->mRecalculating = true;
     quorumIntersectionCheckerV2Wrapper(
         state, qmap, app->getProcessManager(), clock, true,

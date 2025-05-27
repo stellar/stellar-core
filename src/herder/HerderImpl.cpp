@@ -100,7 +100,7 @@ HerderImpl::HerderImpl(Application& app)
     , mSCPMetrics(app)
     , mLastQuorumMapIntersectionState(
           std::make_shared<QuorumMapIntersectionState>(
-              app.getTmpDirManager().tmpDir("herder-qic")))
+              app.getTmpDirManager().tmpDir("herder-qic"), app.getMetrics()))
     , mState(Herder::HERDER_BOOTING_STATE)
 {
     auto ln = getSCP().getLocalNode();
@@ -1921,8 +1921,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
         mLastQuorumMapIntersectionState, mApp.getProcessManager(),
         mApp.getConfig().QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
         mApp.getConfig().QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES,
-        true /*analyzeCriticalGroups*/ );
-    // TODO: parse the metrics and send to medida
+        true /*analyzeCriticalGroups*/);
 }
 
 void

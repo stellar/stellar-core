@@ -5,11 +5,17 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/QuorumTracker.h"
+#include "herder/RustQuorumCheckerAdaptor.h"
 #include "rust/RustBridge.h"
 #include "util/TmpDir.h"
 #include <atomic>
 #include <memory>
 #include <optional>
+
+namespace medida
+{
+class MetricsRegistry;
+}
 
 namespace stellar
 {
@@ -33,7 +39,7 @@ struct QuorumMapIntersectionState
     std::unique_ptr<TmpDir> mTmpDir;
 
     QuorumCheckerStatus mStatus{QuorumCheckerStatus::UNKNOWN};
-    QuorumCheckerResource mResourceUsage{0, 0};
+    medida::MetricsRegistry& mMetrics;
     std::pair<std::vector<PublicKey>, std::vector<PublicKey>> mPotentialSplit{};
     std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
 
@@ -49,8 +55,10 @@ struct QuorumMapIntersectionState
         return mLastCheckLedger == mLastGoodLedger;
     }
 
-    QuorumMapIntersectionState(TmpDir&& tmpDir)
+    QuorumMapIntersectionState(TmpDir&& tmpDir,
+                               medida::MetricsRegistry& metrics)
         : mTmpDir(std::make_unique<TmpDir>(std::move(tmpDir)))
+        , mMetrics(metrics)
     {
     }
 };
