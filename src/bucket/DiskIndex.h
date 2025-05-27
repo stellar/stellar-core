@@ -82,14 +82,16 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
         // Note: mAssetToPoolID is null for HotArchive Bucket types
         std::unique_ptr<AssetPoolIDMap> assetToPoolID{};
         BucketEntryCounters counters{};
+        std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+            typeRanges;
 
         template <class Archive>
         void
         save(Archive& ar) const
         {
             auto version = BucketT::IndexT::BUCKET_INDEX_VERSION;
-            ar(version, pageSize, keysToOffset, filter, assetToPoolID,
-               counters);
+            ar(version, pageSize, keysToOffset, filter, assetToPoolID, counters,
+               typeRanges);
         }
 
         // Note: version and pageSize must be loaded before this
@@ -102,7 +104,7 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
         void
         load(Archive& ar)
         {
-            ar(keysToOffset, filter, assetToPoolID, counters);
+            ar(keysToOffset, filter, assetToPoolID, counters, typeRanges);
         }
 
     } mData;
@@ -139,6 +141,9 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     std::optional<std::pair<std::streamoff, std::streamoff>>
     getOffsetBounds(LedgerKey const& lowerBound,
                     LedgerKey const& upperBound) const;
+
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getRangeForTypes(std::set<LedgerEntryType> const& types) const;
 
     // Returns page size for index
     std::streamoff
