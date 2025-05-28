@@ -44,9 +44,20 @@ struct QuorumCheckerMetrics
 // In-process quorum intersection checker that directly calls the Rust
 // implementation. Takes a JSON file containing the quorum map as input and
 // writes results to an output JSON file. If analyzeCriticalGroups is true,
-// performs additional analysis to identify critical node groups, with the time
-// limit applying to the total analysis time across all runs. Resource limits
-// (time and memory) are enforced by the Rust implementation.
+// performs additional analysis to identify critical node groups. Resource
+// limits (time and memory) are enforced by the Rust implementation. Time limit
+// applies across all runs while memory limit is refreshed after each run.
+//
+// Return values:
+// - `UNSAT` if the quorum intersection check finds no non-intersecting quorums
+// - `SAT` if the quorum intersection check finds quorum splits
+// - `UNKNOWN` if the quorum intersection check does not complete, likely due to
+//   exceeding resource limits. Note: if the quorum intersection check
+//   completes, but the criticality analysis (analyzeCriticalGroups == true) is
+//   interrupted, the returned status will still be either `UNSAT` or `SAT`.
+//
+// The result JSON file contains additional information including the error
+// message (if any), resource usage metrics, and other analysis results.
 QuorumCheckerStatus networkEnjoysQuorumIntersection(
     std::string const& jsonPath, uint64_t timeLimitMs, size_t memoryLimitBytes,
     bool analyzeCriticalGroups, std::string const& outJsonPath);

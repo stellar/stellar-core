@@ -37,6 +37,9 @@ quorumIntersectionCheckerV2Wrapper(
 {
     Hash curr{};
     uint32_t testLedgerNo = 100;
+    auto& interruptCounter =
+        state->mMetrics.NewCounter({"scp", "qic", "interrupted-calls"});
+    auto interruptCountBefore = interruptCounter.count();
     quorum_checker::runQuorumIntersectionCheckAsync(
         curr, testLedgerNo, state->mTmpDir->getName(), qmap, state, pm,
         timeLimit, memoryLimit, analyzeCriticalGroups);
@@ -44,8 +47,13 @@ quorumIntersectionCheckerV2Wrapper(
     {
         clock.crank(true);
     }
-    if (state->mStatus == QuorumCheckerStatus::UNKNOWN)
+    if (interruptCounter.count() > interruptCountBefore)
     {
+        REQUIRE(interruptCounter.count() == interruptCountBefore + 1);
+        if (!analyzeCriticalGroups)
+        {
+            REQUIRE(state->mStatus == QuorumCheckerStatus::UNKNOWN);
+        }
         throw QuorumIntersectionChecker::InterruptedException();
     }
     REQUIRE(state->mLastCheckLedger == testLedgerNo);
@@ -996,7 +1004,7 @@ TEST_CASE("quorum intersection scaling test v2",
           "[herder][quorumintersectionbench][!hide]")
 {
     // Same as above but with more organizations, 3-or-5-own-node orgs
-    auto orgs = generateOrgs(14);
+    auto orgs = generateOrgs(10);
     auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
@@ -1047,6 +1055,26 @@ TEST_CASE("quorum intersection interruption v2", "[herder][quorumintersection]")
     cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = UINT64_MAX;
     cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = 100'000'000;
     REQUIRE_THROWS_AS(networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg),
+                      QuorumIntersectionChecker::InterruptedException);
+}
+
+TEST_CASE("quorum criticality check interruption v2",
+          "[herder][quorumintersection]")
+{
+    auto orgs = generateOrgs(12);
+    auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
+    Config cfg(getTestConfig());
+    cfg = configureShortNames(cfg, orgs);
+    // exceeding time limit
+    cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 100;
+    cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = UINT64_MAX;
+    REQUIRE_THROWS_AS(runIntersectionCriticalGroupsCheckV2(qm, cfg),
+                      QuorumIntersectionChecker::InterruptedException);
+
+    // exceeding memory limit
+    cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = UINT64_MAX;
+    cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = 100'000'000;
+    REQUIRE_THROWS_AS(runIntersectionCriticalGroupsCheckV2(qm, cfg),
                       QuorumIntersectionChecker::InterruptedException);
 }
 
