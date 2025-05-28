@@ -824,6 +824,38 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     }
 }
 
+void
+LedgerTxn::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                     LedgerEntry const& ttlEntry)
+{
+    getImpl()->addRestoredFromHotArchive(ledgerEntry, ttlEntry);
+}
+
+void
+LedgerTxn::Impl::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                           LedgerEntry const& ttlEntry)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(ledgerEntry.data))
+    {
+        throw std::runtime_error("Key type not supported in Hot Archive");
+    }
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerEntry const& entry) {
+        auto [_, inserted] =
+            mRestoredKeys.hotArchive.emplace(LedgerEntryKey(entry), entry);
+        if (!inserted)
+        {
+            throw std::runtime_error("Key already removed from hot archive");
+        }
+    };
+    addKey(ledgerEntry);
+    addKey(ttlEntry);
+}
+
 LedgerTxnEntry
 LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
@@ -1592,6 +1624,8 @@ LedgerTxn::getRestoredHotArchiveKeys() const
 UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::Impl::getRestoredHotArchiveKeys() const
 {
+    throwIfChild();
+
     return mRestoredKeys.hotArchive;
 }
 
@@ -1604,6 +1638,8 @@ LedgerTxn::getRestoredLiveBucketListKeys() const
 UnorderedMap<LedgerKey, LedgerEntry> const&
 LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
 {
+    throwIfChild();
+
     return mRestoredKeys.liveBucketList;
 }
 

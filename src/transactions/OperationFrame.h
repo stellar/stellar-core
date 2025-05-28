@@ -52,6 +52,20 @@ class OperationFrame
             std::optional<RefundableFeeTracker>& refundableFeeTracker,
             OperationMetaBuilder& opMeta) const = 0;
 
+    // returns false if preloading failed.
+    virtual bool doPreloadEntriesForParallelApply(
+        AppConnector& app, SorobanMetrics& sorobanMetrics,
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap, OperationResult& res,
+        DiagnosticEventManager& diagnosticEvents) const;
+
+    virtual ParallelTxReturnVal doParallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig, Hash const& txPrngSeed,
+        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+        OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta) const;
+
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
 
@@ -61,6 +75,11 @@ class OperationFrame
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header) const;
+
+    bool preloadEntryHelper(
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap,
+        std::function<bool(LedgerKey const&, uint32_t /*entrySize*/)>
+            readEntryCallback) const;
 
   public:
     static std::shared_ptr<OperationFrame>
@@ -89,6 +108,20 @@ class OperationFrame
                OperationResult& res,
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
                OperationMetaBuilder& opMeta) const;
+
+    bool preloadEntriesForParallelApply(
+        AppConnector& app, SorobanMetrics& sorobanMetrics,
+        AbstractLedgerTxn& ltx, ThreadEntryMap& entryMap, OperationResult& res,
+        DiagnosticEventManager& diagnosticEvents) const;
+
+    ParallelTxReturnVal applyParallel(
+        AppConnector& app,
+        ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+        OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, Hash const& sorobanBasePrngSeed) const;
 
     Operation const&
     getOperation() const

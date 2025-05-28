@@ -20,7 +20,13 @@ class OperationMetaBuilder
   public:
     // Sets all the ledger changes caused by this operation from the provided
     // ledger transaction used for this operation.
-    void setLedgerChanges(AbstractLedgerTxn& opLtx);
+    void setLedgerChanges(
+        LedgerEntryChanges const& initialChanges,
+        stellar::UnorderedMap<stellar::LedgerKey, stellar::LedgerEntry> const&
+            hotArchiveRestores,
+        stellar::UnorderedMap<stellar::LedgerKey, stellar::LedgerEntry> const&
+            liveRestores,
+        uint32_t ledgerSeq);
     // Sets the return value for a Soroban operation.
     void setSorobanReturnValue(SCVal const& val);
     // Returns the event manager for this operation.

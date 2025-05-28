@@ -13,6 +13,7 @@
 #include "ledger/SorobanMetrics.h"
 #include "main/PersistentState.h"
 #include "rust/RustBridge.h"
+#include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
@@ -40,6 +41,7 @@ class Application;
 class Database;
 class LedgerTxnHeader;
 class BasicWork;
+class ParallelLedgerInfo;
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -174,6 +176,22 @@ class LedgerManagerImpl : public LedgerManager
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
+
+    std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>
+    applyThread(AppConnector& app,
+                std::unique_ptr<ThreadEntryMap> entryMapByCluster,
+                Cluster const& cluster, Config const& config,
+                SorobanNetworkConfig const& sorobanConfig,
+                std::shared_ptr<ParallelLedgerInfo const> ledgerInfo,
+                Hash sorobanBasePrngSeed);
+
+    void applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
+                           ApplyStage const& stage,
+                           Hash const& sorobanBasePrngSeed);
+
+    void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
+                            std::vector<ApplyStage> const& stages,
+                            Hash const& sorobanBasePrngSeed);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
