@@ -170,24 +170,75 @@ fromQuorumCheckerStatusJson(Json::Value const& value)
 }
 
 void
-validateResultJson(Json::Value const& res)
+writeResults(std::string const& outPath, QuorumCheckerStatus status,
+             QuorumSplit const& split,
+             std::set<std::set<NodeID>> const& criticalGroups,
+             quorum_checker::QuorumCheckerMetrics metrics,
+             std::string const& errorMsg)
 {
+    Json::Value results;
+    results["status"] = static_cast<Json::UInt>(status);
+    results["quorum_split"] = toQuorumSplitJson(split);
+    results["intersection_critical_groups"] =
+        toCriticalGroupsJson(criticalGroups);
+    results["error"] = errorMsg;
+    results["metrics"] = metrics.toJson();
+
+    std::ofstream out(outPath, std::ios::out | std::ios::trunc);
+    if (!out.is_open())
+    {
+        throw RustQuorumCheckerError("Failed to open output file: " + outPath);
+    }
+    out << results;
+    if (out.fail())
+    {
+        throw RustQuorumCheckerError("Failed to write to output file: " +
+                                     outPath);
+    }
+    out.flush();
+    out.close();
+}
+
+Json::Value
+parseResultsJson(std::string const& resultsJson)
+{
+    std::ifstream in(resultsJson);
+    if (!in)
+    {
+        throw RustQuorumCheckerError("Could not open result file '" +
+                                     resultsJson + "'");
+    }
+    Json::Reader reader;
+    Json::Value res;
+    if (!reader.parse(in, res) || !res.isObject())
+    {
+        throw RustQuorumCheckerError("Failed to parse result file '" +
+                                     resultsJson + "' as a JSON object");
+    }
+    // Validate all required fields that correspond to writeResults
     if (!res.isMember("status") || !res["status"].isUInt())
     {
         throw RustQuorumCheckerError(
             "Result missing or invalid 'status' field");
     }
-
     if (!res.isMember("quorum_split"))
     {
         throw RustQuorumCheckerError("Result missing 'quorum_split' field");
     }
-
     if (!res.isMember("intersection_critical_groups"))
     {
         throw RustQuorumCheckerError(
             "Result missing 'intersection_critical_groups' field");
     }
+    if (!res.isMember("error"))
+    {
+        throw RustQuorumCheckerError("Result missing 'error' field");
+    }
+    if (!res.isMember("metrics"))
+    {
+        throw RustQuorumCheckerError("Result missing 'metrics' field");
+    }
+    return res;
 }
 } // namespace
 
@@ -294,7 +345,7 @@ QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
 QuorumCheckerStatus
 checkQuorumIntersectionInner(
     QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
-    QuorumCheckerResource& available, QuorumCheckerMetrics& metrics)
+    QuorumCheckerResource& limits, QuorumCheckerMetrics& metrics)
 {
     rust::Vec<CxxBuf> nodesBuf;
     rust::Vec<CxxBuf> quorumSetsBuf;
@@ -314,12 +365,12 @@ checkQuorumIntersectionInner(
         }
     }
 
+    QuorumCheckerResource usage;
     try
     {
         QuorumCheckerStatus status;
-        QuorumCheckerResource usage;
         status = rust_bridge::network_enjoys_quorum_intersection(
-            nodesBuf, quorumSetsBuf, split, available, usage);
+            nodesBuf, quorumSetsBuf, split, limits, usage);
         CLOG_DEBUG(SCP,
                    "Quorum intersection checker used {} milliseconds and {} "
                    "bytes, returns status {}",
@@ -340,20 +391,36 @@ checkQuorumIntersectionInner(
 
         // Update time limit. Memory is a transient resource that gets reclaimed
         // back.
-        if (available.time_ms < usage.time_ms)
+        if (limits.time_ms < usage.time_ms)
         {
-            available.time_ms = 0;
+            limits.time_ms = 0;
         }
         else
         {
-            available.time_ms -= usage.time_ms;
+            limits.time_ms -= usage.time_ms;
         }
         return status;
     }
     catch (const std::exception& e)
     {
-        // internal rust solver error, or it has panicked
-        metrics.mFailedCalls += 1;
+        metrics.mCumulativeTimeMs += usage.time_ms;
+        metrics.mCumulativeMemBytes += usage.mem_bytes;
+        std::string msg = e.what();
+        CLOG_ERROR(SCP, "Quorum intersection checker error: {}  \
+                \n cumulative resource used {} ms, {} bytes",
+                   msg, metrics.mCumulativeTimeMs, metrics.mCumulativeMemBytes);
+        // We match the error string to get the interruption error, since
+        // RustBridge treats all Error as Exception without preserving the error
+        // type. This is just used for metrics logging but can be improved.
+        if (msg.find("Resource limits exceeded") != std::string::npos)
+        {
+            metrics.mInterruptedCalls += 1;
+        }
+        else
+        {
+            // internal rust solver error, or panic
+            metrics.mFailedCalls += 1;
+        }
         throw RustQuorumCheckerError(e.what());
     }
 }
@@ -364,17 +431,16 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
                                 bool analyzeCriticalGroups,
                                 std::string const& outResultJsonPath)
 {
-    QuorumCheckerStatus status{QuorumCheckerStatus::UNKNOWN};
     QuorumIntersectionChecker::QuorumSetMap qmap =
         parseQuorumMapFromJson(inJsonPath);
 
-    Json::Value ret;
+    QuorumCheckerStatus status = QuorumCheckerStatus::UNKNOWN;
+    QuorumSplit split;
+    std::set<std::set<NodeID>> criticalGroups;
+    QuorumCheckerMetrics metrics;
     try
     {
-        QuorumSplit split;
-        std::set<std::set<NodeID>> criticalGroups;
         QuorumCheckerResource limits{timeLimitMs, memoryLimitBytes};
-        QuorumCheckerMetrics metrics;
         status = checkQuorumIntersectionInner(qmap, split, limits, metrics);
 
         // only run critical analysis if quorum enjoys intersection (`UNSAT`).
@@ -384,41 +450,22 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
             auto cb = [&](QuorumIntersectionChecker::QuorumSetMap const& qmap,
                           std::optional<stellar::Config> const& _cfg) -> bool {
                 QuorumSplit _potentialSplit;
-                QuorumCheckerStatus status = checkQuorumIntersectionInner(
-                    qmap, _potentialSplit, limits, metrics);
-                return status == QuorumCheckerStatus::UNSAT;
+                return checkQuorumIntersectionInner(qmap, _potentialSplit,
+                                                    limits, metrics) ==
+                       QuorumCheckerStatus::UNSAT;
             };
-            auto criticalGroups =
+            criticalGroups =
                 QuorumIntersectionChecker::getIntersectionCriticalGroups(
                     qmap, std::nullopt, cb);
         }
-
-        // write results to output json file
-        std::ofstream out(outResultJsonPath, std::ios::out | std::ios::trunc);
-        if (!out.is_open())
-        {
-            throw RustQuorumCheckerError("Failed to open output file: " +
-                                         outResultJsonPath);
-        }
-        ret["status"] = static_cast<Json::UInt>(status);
-        ret["quorum_split"] = toQuorumSplitJson(split);
-        ret["intersection_critical_groups"] =
-            toCriticalGroupsJson(criticalGroups);
-        ret["metrics"] = metrics.toJson();
-
-        out << ret;
-        if (out.fail())
-        {
-            throw RustQuorumCheckerError("Failed to write to output file: " +
-                                         outResultJsonPath);
-        }
-        out.flush();
-        out.close();
+        writeResults(outResultJsonPath, status, split, criticalGroups, metrics,
+                     "");
     }
     catch (const std::exception& e)
     {
-        ret["error"] = e.what();
-        throw RustQuorumCheckerError(e.what());
+        std::string msg = e.what();
+        writeResults(outResultJsonPath, status, split, criticalGroups, metrics,
+                     e.what());
     }
     return status;
 }
@@ -475,42 +522,30 @@ runQuorumIntersectionCheckAsync(
                    ecode);
 
         if (ecode == static_cast<int>(QuorumCheckerStatus::UNSAT) ||
-            ecode == static_cast<int>(QuorumCheckerStatus::SAT))
+            ecode == static_cast<int>(QuorumCheckerStatus::SAT) ||
+            ecode == static_cast<int>(QuorumCheckerStatus::UNKNOWN))
         {
-            std::ifstream in(qicResultJson);
-            if (!in)
-            {
-                throw RustQuorumCheckerError("Could not open result file '" +
-                                             qicResultJson + "'");
-            }
-            Json::Reader reader;
-            Json::Value res;
-            if (!reader.parse(in, res) || !res.isObject())
-            {
-                throw RustQuorumCheckerError("Failed to parse result file '" +
-                                             qicResultJson +
-                                             "' as a JSON object");
-            }
-
             try
             {
-                validateResultJson(res);
-
-                hStateSP->mRecalculating = false;
-                hStateSP->mNumNodes = numNodes;
-                hStateSP->mLastCheckLedger = ledger;
-                hStateSP->mLastCheckQuorumMapHash = curr;
-                hStateSP->mCheckingQuorumMapHash = Hash{};
+                auto res = parseResultsJson(qicResultJson);
                 hStateSP->mStatus = fromQuorumCheckerStatusJson(res["status"]);
                 QuorumCheckerMetrics metrics(res["metrics"]);
                 metrics.flush(hStateSP->mMetrics);
-                fromQuorumSplitJson(hStateSP->mPotentialSplit,
-                                    res["quorum_split"]);
-                fromCriticalGroupsJson(hStateSP->mIntersectionCriticalNodes,
-                                       res["intersection_critical_groups"]);
-                if (hStateSP->mStatus == QuorumCheckerStatus::UNSAT)
+                // only update the following info if we had a complete run
+                if (ecode == static_cast<int>(QuorumCheckerStatus::UNSAT) ||
+                    ecode == static_cast<int>(QuorumCheckerStatus::SAT))
                 {
-                    hStateSP->mLastGoodLedger = ledger;
+                    hStateSP->mNumNodes = numNodes;
+                    hStateSP->mLastCheckLedger = ledger;
+                    hStateSP->mLastCheckQuorumMapHash = curr;
+                    fromQuorumSplitJson(hStateSP->mPotentialSplit,
+                                        res["quorum_split"]);
+                    fromCriticalGroupsJson(hStateSP->mIntersectionCriticalNodes,
+                                           res["intersection_critical_groups"]);
+                    if (hStateSP->mStatus == QuorumCheckerStatus::UNSAT)
+                    {
+                        hStateSP->mLastGoodLedger = ledger;
+                    }
                 }
             }
             catch (const RustQuorumCheckerError& e)
@@ -518,15 +553,15 @@ runQuorumIntersectionCheckAsync(
                 CLOG_ERROR(SCP,
                            "Error processing quorum intersection result: {}",
                            e.what());
-                hStateSP->mCheckingQuorumMapHash = Hash{};
             }
         }
         else
         {
-            // interrupted or other errors
-            hStateSP->mRecalculating = false;
-            hStateSP->mCheckingQuorumMapHash = Hash{};
+            CLOG_ERROR(SCP, "quorum intersection command failed, rc = {}",
+                       ecode);
         }
+        hStateSP->mRecalculating = false;
+        hStateSP->mCheckingQuorumMapHash = Hash{};
     });
 }
 
