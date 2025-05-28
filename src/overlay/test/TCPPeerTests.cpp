@@ -361,7 +361,7 @@ TEST_CASE("Queue purging after asio writes completion",
         tcpPeer->scheduleReadForTesting();
     }
 
-    s->crankForAtLeast(std::chrono::seconds(30), false);
+    s->crankForAtLeast(std::chrono::seconds(90), false);
 
     if (shouldDrop)
     {

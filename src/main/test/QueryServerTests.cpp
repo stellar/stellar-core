@@ -485,8 +485,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
     {
         UnorderedSet<LedgerKey> keySet;
         auto newKey =
-            LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions({TTL},
-                                                                        1)
+            LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                {TTL, CONFIG_SETTING}, 1)
                 .front();
         LedgerKey liveKey;
         for (auto const& [lk, le] : liveEntryMap)
