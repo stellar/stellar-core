@@ -4,6 +4,7 @@
 
 #include "bucket/InMemoryIndex.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRStream.h"
@@ -45,10 +46,9 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
     BucketEntry be;
     size_t iter = 0;
     std::streamoff lastOffset = 0;
-    std::optional<std::streamoff> firstOffer;
-    std::optional<std::streamoff> lastOffer;
-    std::optional<std::streamoff> firstContractCode;
-    std::optional<std::streamoff> lastContractCode;
+    std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
+    std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
+    std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
 
     while (in && in.readOne(be, hasher))
     {
@@ -90,65 +90,21 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
         // Populate inMemoryState
         mInMemoryState.insert(be);
 
-        // Populate offerRange
-        if (!firstOffer && lk.type() == OFFER)
-        {
-            firstOffer = lastOffset;
-        }
-        if (!lastOffer && lk.type() > OFFER)
-        {
-            lastOffer = lastOffset;
-        }
-
-        // Populate contractCodeRange
-        if (!firstContractCode && lk.type() == CONTRACT_CODE)
-        {
-            firstContractCode = lastOffset;
-        }
-        if (!lastContractCode && lk.type() > CONTRACT_CODE)
-        {
-            lastContractCode = lastOffset;
-        }
+        // Track type boundaries
+        LedgerEntryType currentType = lk.type();
+        updateTypeBoundaries(currentType, lastOffset, typeStartOffsets,
+                             typeEndOffsets, lastTypeSeen);
 
         lastOffset = in.pos();
     }
 
-    if (firstOffer)
-    {
-        if (lastOffer)
-        {
-            mOfferRange = {*firstOffer, *lastOffer};
-        }
-        // If we didn't see any entries after offers, then the upper bound is
-        // EOF
-        else
-        {
-            mOfferRange = {*firstOffer,
-                           std::numeric_limits<std::streamoff>::max()};
-        }
-    }
-    else
-    {
-        mOfferRange = std::nullopt;
-    }
+    // Build the final type ranges map
+    mTypeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
+}
 
-    if (firstContractCode)
-    {
-        if (lastContractCode)
-        {
-            mContractCodeRange = {*firstContractCode, *lastContractCode};
-        }
-        // If we didn't see any entries after contract code, then the upper
-        // bound is EOF
-        else
-        {
-            mContractCodeRange = {*firstContractCode,
-                                  std::numeric_limits<std::streamoff>::max()};
-        }
-    }
-    else
-    {
-        mContractCodeRange = std::nullopt;
-    }
+std::optional<std::pair<std::streamoff, std::streamoff>>
+InMemoryIndex::getRangeForTypes(std::set<LedgerEntryType> const& types) const
+{
+    return getRangeForTypesHelper(types, mTypeRanges);
 }
 }
