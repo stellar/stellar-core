@@ -750,45 +750,61 @@ generateUniquePersistentLedgerKeys(size_t n, UnorderedSet<LedgerKey>& seenKeys)
 
 std::vector<LedgerKey>
 generateValidUniqueLedgerEntryKeysWithExclusions(
-    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
 {
-    UnorderedSet<LedgerKey> keys;
     std::vector<LedgerKey> res;
-    keys.reserve(n);
     res.reserve(n);
-    while (keys.size() < n)
+    while (seenKeys.size() < n)
     {
         auto entry = generateValidLedgerEntryWithExclusions(excludedTypes, n);
         auto key = LedgerEntryKey(entry);
-        if (keys.find(key) != keys.end())
+        if (seenKeys.find(key) != seenKeys.end())
         {
             continue;
         }
 
-        keys.insert(key);
+        seenKeys.insert(key);
         res.emplace_back(key);
     }
     return res;
+}
+
+std::vector<LedgerKey>
+generateValidUniqueLedgerEntryKeysWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+{
+    UnorderedSet<LedgerKey> seenKeys;
+    return generateValidUniqueLedgerEntryKeysWithExclusions(excludedTypes, n,
+                                                            seenKeys);
 }
 
 std::vector<LedgerEntry>
 generateValidUniqueLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
-    UnorderedSet<LedgerKey> keys;
+    UnorderedSet<LedgerKey> seenKeys;
+    return generateValidUniqueLedgerEntriesWithExclusions(excludedTypes, n,
+                                                          seenKeys);
+}
+
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
+{
     std::vector<LedgerEntry> res;
-    keys.reserve(n);
     res.reserve(n);
-    while (keys.size() < n)
+    while (res.size() < n)
     {
         auto entry = generateValidLedgerEntryWithExclusions(excludedTypes, n);
         auto key = LedgerEntryKey(entry);
-        if (keys.find(key) != keys.end())
+        if (seenKeys.find(key) != seenKeys.end())
         {
             continue;
         }
 
-        keys.insert(key);
+        seenKeys.insert(key);
         res.emplace_back(entry);
     }
     return res;

@@ -383,6 +383,7 @@ ApplyLoad::setupBucketList()
         ltx.commit();
     }
     mApp.getLedgerManager().storeCurrentLedgerForTest(lh);
+    mApp.getLedgerManager().rebuildInMemorySorobanStateForTesting();
     mApp.getHerder().forceSCPStateIntoSyncWithLastClosedLedger();
     closeLedger({}, {});
 }

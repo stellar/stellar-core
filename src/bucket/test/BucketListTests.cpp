@@ -155,31 +155,25 @@ basicBucketListTest()
                 {
                     bl.addBatch(
                         *app, i, getAppLedgerVersion(app), {},
-                        LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                        LedgerTestUtils::
+                            generateValidUniqueLedgerEntriesWithExclusions(
+                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE,
+                                 TTL},
+                                8),
                         LedgerTestUtils::
                             generateValidLedgerEntryKeysWithExclusions(
-                                {CONFIG_SETTING}, 5));
+                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE,
+                                 TTL},
+                                5));
                 }
                 else
                 {
-                    if constexpr (std::is_same_v<BucketListT, LiveBucketList>)
-                    {
-                        bl.addBatch(
-                            *app, i, getAppLedgerVersion(app), {},
-                            LedgerTestUtils::
-                                generateValidLedgerEntryKeysWithExclusions(
-                                    {CONFIG_SETTING}, 5));
-                    }
-                    else
-                    {
-                        bl.addBatch(
-                            *app, i, getAppLedgerVersion(app),
-                            LedgerTestUtils::
-                                generateUniquePersistentLedgerEntries(8,
-                                                                      seenKeys),
-                            LedgerTestUtils::generateUniquePersistentLedgerKeys(
-                                5, seenKeys));
-                    }
+                    bl.addBatch(
+                        *app, i, getAppLedgerVersion(app),
+                        LedgerTestUtils::generateUniquePersistentLedgerEntries(
+                            8, seenKeys),
+                        LedgerTestUtils::generateUniquePersistentLedgerKeys(
+                            5, seenKeys));
                 }
 
                 if (i % 10 == 0)
@@ -324,7 +318,8 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
         {
             app->getClock().crank(false);
             auto liveBatch =
-                LedgerTestUtils::generateValidUniqueLedgerEntries(5);
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 5);
 
             BucketEntry BucketEntryAlice, BucketEntryBob;
             alice.balance++;
@@ -341,8 +336,10 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
 
             bl.addBatch(
                 *app, i, getAppLedgerVersion(app), {}, liveBatch,
-                LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {CONFIG_SETTING}, 5));
+                LedgerTestUtils::
+                    generateValidUniqueLedgerEntryKeysWithExclusions(
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                        5));
             if (i % 100 == 0)
             {
                 CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
@@ -483,16 +480,20 @@ TEST_CASE_VERSIONS("live bucket tombstones expire at bottom level",
             auto& level = bl.getLevel(i);
             level.setCurr(LiveBucket::fresh(
                 bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(8),
-                LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {CONFIG_SETTING}, 5),
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 8),
+                LedgerTestUtils::
+                    generateValidUniqueLedgerEntryKeysWithExclusions(
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
             level.setSnap(LiveBucket::fresh(
                 bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(8),
-                LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {CONFIG_SETTING}, 5),
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 8),
+                LedgerTestUtils::
+                    generateValidUniqueLedgerEntryKeysWithExclusions(
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
         }
@@ -506,9 +507,14 @@ TEST_CASE_VERSIONS("live bucket tombstones expire at bottom level",
                 auto n = mergeTimer.count();
                 bl.addBatch(
                     *app, j, getAppLedgerVersion(app), {},
-                    LedgerTestUtils::generateValidUniqueLedgerEntries(8),
-                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {CONFIG_SETTING}, 5));
+                    LedgerTestUtils::
+                        generateValidUniqueLedgerEntriesWithExclusions(
+                            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                            8),
+                    LedgerTestUtils::
+                        generateValidUniqueLedgerEntryKeysWithExclusions(
+                            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                            5));
                 app->getClock().crank(false);
                 for (uint32_t k = 0u; k < LiveBucketList::kNumLevels; ++k)
                 {
@@ -552,7 +558,7 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
         {
             std::vector<LedgerEntry> initEntries =
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 8);
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 8);
             std::vector<LedgerEntry> liveEntries;
             std::vector<LedgerKey> deadEntries;
             for (auto const& e : initEntries)
@@ -626,9 +632,11 @@ TEST_CASE_VERSIONS("single entry bubbling up",
             std::vector<stellar::LedgerEntry> emptySetEntry;
 
             CLOG_DEBUG(Bucket, "Adding single entry in lowest level");
-            bl.addBatch(*app, 1, getAppLedgerVersion(app), {},
-                        LedgerTestUtils::generateValidLedgerEntries(1),
-                        emptySet);
+            bl.addBatch(
+                *app, 1, getAppLedgerVersion(app), {},
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 1),
+                emptySet);
 
             CLOG_DEBUG(Bucket, "Adding empty batches to bucket list");
             for (uint32_t i = 2;
@@ -849,7 +857,7 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
     std::vector<LedgerKey> emptySet;
     auto ledgers =
         LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-            {CONFIG_SETTING}, 256);
+            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 256);
     for (uint32_t ledgerSeq = 1; ledgerSeq <= 256; ++ledgerSeq)
     {
         if (ledgerSeq >= 2)
@@ -936,6 +944,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                                    .stateArchivalSettings()
                                    .liveSorobanStateSizeWindowSamplePeriod;
         auto lclSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
+        UnorderedSet<LedgerKey> generatedKeys;
         for (uint32_t ledger = lclSeq; ledger < ledgersToGenerate; ++ledger)
         {
             // Note: BucketList size in the sliding window is snapshotted before
@@ -952,11 +961,12 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                     app->getBucketManager().getLiveBucketList().getSize());
             }
 
+            // Exclude soroban types to avoid TTL invariants
             lm.setNextLedgerEntryBatchForBucketTesting(
-                {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10),
-                {});
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 10,
+                    generatedKeys),
+                {}, {});
             closeLedger(*app);
             if ((ledger + 1) % networkConfig()
                                    .stateArchivalSettings()
@@ -1368,7 +1378,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
                 lm.setNextLedgerEntryBatchForBucketTesting(
                     {},
                     LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE}, 10),
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                        10),
                     {});
                 closeLedger(*app);
             }
@@ -1412,7 +1423,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
                         {},
                         LedgerTestUtils::
                             generateValidLedgerEntriesWithExclusions(
-                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE},
+                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE,
+                                 TTL},
                                 10),
                         {});
                     closeLedger(*app);

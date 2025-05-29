@@ -292,8 +292,20 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
         }
 
         // Use the testing values.
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                                 mTestInitEntries);
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                                 mTestLiveEntries);
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
+
+        // Update Soroban state cache
+        if (protocolVersionStartsFrom(initialLedgerVers,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            mApplyState.mInMemorySorobanState->updateState(
+                mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
+        }
 
         mUseTestEntries = false;
         mTestInitEntries.clear();

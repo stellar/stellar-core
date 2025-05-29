@@ -1502,11 +1502,12 @@ TEST_CASE_VERSIONS(
             {
                 auto lcl = lm.getLastClosedLedgerHeader();
                 lcl.header.ledgerSeq += 1;
+                // Generate entries excluding soroban types to avoid worrying
+                // about TTL invariants
                 lm.setNextLedgerEntryBatchForBucketTesting(
-                    {},
                     LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {LedgerEntryType::CONFIG_SETTING}, 8),
-                    {});
+                        {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 8),
+                    {}, {});
                 clock.crank(true);
             }
 

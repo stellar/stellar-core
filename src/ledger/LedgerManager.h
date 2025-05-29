@@ -18,6 +18,7 @@ namespace stellar
 class LedgerCloseData;
 class Database;
 class SorobanMetrics;
+class InMemorySorobanState;
 
 // This diagram provides a schematic of the flow of (logical) ledgers coming in
 // from the SCP-and-Herder consensus complex, passing through the
@@ -265,6 +266,8 @@ class LedgerManager
     virtual std::optional<LedgerCloseMetaFrame> const&
     getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
+    virtual InMemorySorobanState& getInMemorySorobanStateForTesting() = 0;
+    virtual void rebuildInMemorySorobanStateForTesting() = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
