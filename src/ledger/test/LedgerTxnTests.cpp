@@ -264,7 +264,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
             REQUIRE(keySet.find(getTTLKey(dataKey)) != keySet.end());
         };
 
-        SECTION("commited to parent")
+        SECTION("committed to parent")
         {
             SECTION("hot archive")
             {
