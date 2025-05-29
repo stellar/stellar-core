@@ -186,7 +186,7 @@ part of staging-tests", here are some directions I think we should take fuzzing:
 
   - Make startup-modes at different points in the process: instantiate an
     application and feed it transactions to run directly, not full
-    `StellarMessage`s. Let the fuzzer generte bucket ledger entries, and try to
+    `StellarMessage`s. Let the fuzzer generate bucket ledger entries, and try to
     apply them to the database as one would during catchup. This sort of thing.
 
   - Make a "postprocessor" using the AFL_POST_LIBRARY facility. This permits

@@ -2843,7 +2843,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& lam = static_cast<LedgerApplyManagerImpl&>(
             outOfSync->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
@@ -2870,7 +2870,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
             outOfSync2->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil(
             [&]() {

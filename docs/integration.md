@@ -19,7 +19,7 @@ stellar-core generates several types of data that can be used by applications, d
 
 Full [Ledger](ledger.md) snapshots are available via both:
   * [history archives](history.md) (checkpoints, every 64 ledgers, updated every 5 minutes)
-* a stellar-core instance, where the ledger is maintained within the stellar-core process and ledger-state need to be tracked as it changes via "meta" updates.
+* a stellar-core instance, where the ledger is maintained within the stellar-core process and ledger-state needs to be tracked as it changes via "meta" updates.
 
 ## Ledger State transition information (transactions, etc)
 
@@ -66,7 +66,7 @@ Your application is limited to:
 
 #### Maintaining a low resolution view
 
-In a low resolution view, the bootstrap logic (what to do when starting from an empty state) is roughly the same than the one used when processing a checkpoint as the unit of work is a bucket.
+In a low resolution view, the bootstrap logic (what to do when starting from an empty state) is roughly the same as the one used when processing a checkpoint as the unit of work is a bucket.
 
 The difference is in how many buckets need to be processed for each as to take advantage of the fact that the bucket list is organized in temporal fashion.
 
@@ -133,7 +133,7 @@ Keeping a high resolution view involves two separate steps:
 
 When starting fresh, before being able to use ledger changes, the processor (Horizon) needs to initialize its initial state.
 
-Easiest here is to follow the same procedure than for [low resolution custom view](#low-resolution-custom-view) and construct the application specific data set using buckets.
+Easiest here is to follow the same procedure as for [low resolution custom view](#low-resolution-custom-view) and construct the application specific data set using buckets.
 
 #### Applying changes in the high resolution custom view
 
