@@ -25,6 +25,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -44,6 +45,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
@@ -478,8 +480,10 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // Prime module cache with LCL state, not apply-state. This is acceptable
     // here because we just started and there is no apply-state yet and no apply
     // thread to hold such state.
-    mApplyState.compileAllContractsInLedger(getLCLState().snapshot,
+    auto const& snapshot = getLCLState().snapshot;
+    mApplyState.compileAllContractsInLedger(snapshot,
                                             latestLedgerHeader->ledgerVersion);
+    mApplyState.populateSorobanStateCache(snapshot);
 }
 
 Database&
@@ -634,6 +638,20 @@ LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
     storePersistentStateAndLedgerHeaderInDB(header, true);
 }
+
+LedgerStateCache&
+LedgerManagerImpl::getLedgerStateCacheForTesting()
+{
+    releaseAssert(mApplyState.mLedgerStateCache);
+    return *mApplyState.mLedgerStateCache;
+}
+
+void
+LedgerManagerImpl::rebuildLedgerStateCacheForTesting()
+{
+    mApplyState.mLedgerStateCache.reset();
+    mApplyState.populateSorobanStateCache(getLCLState().snapshot);
+}
 #endif
 
 SorobanMetrics&
@@ -673,6 +691,50 @@ LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
 {
     startCompilingAllContracts(snap, minLedgerVersion);
     finishPendingCompilation();
+}
+
+void
+LedgerManagerImpl::ApplyState::populateSorobanStateCache(
+    SearchableSnapshotConstPtr snap)
+{
+    mLedgerStateCache = std::make_unique<LedgerStateCache>();
+
+    std::unordered_set<LedgerKey> deletedKeys;
+    auto f = [&cache = *mLedgerStateCache,
+              &deletedKeys](BucketEntry const& be) {
+        if (be.type() == DEADENTRY)
+        {
+            deletedKeys.insert(be.deadEntry());
+            return Loop::INCOMPLETE;
+        }
+
+        releaseAssertOrThrow(be.type() == LIVEENTRY || be.type() == INITENTRY);
+
+        auto lk = LedgerEntryKey(be.liveEntry());
+        releaseAssertOrThrow(lk.type() == CONTRACT_DATA || lk.type() == TTL);
+
+        // Skip if we've seen a DEADENTRY for this key already.
+        if (deletedKeys.find(lk) != deletedKeys.end())
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        // Skip if we've already cached this key.
+        if (lk.type() == TTL && !cache.hasTTL(lk))
+        {
+            cache.createTTL(be.liveEntry());
+        }
+        else if (lk.type() == CONTRACT_DATA && !cache.getContractDataEntry(lk))
+        {
+            cache.createContractDataEntry(be.liveEntry());
+        }
+
+        return Loop::INCOMPLETE;
+    };
+
+    // Only scan for TTL and data entries since we only have to store the TTL
+    // for code entries
+    snap->scanForEntriesOfType({CONTRACT_DATA, TTL}, f);
 }
 
 void
@@ -1361,7 +1423,9 @@ LedgerManagerImpl::setLastClosedLedger(
     // bucket state, there's no tx-apply state to snapshot, in this one
     // case we will prime the tx-apply-state's soroban module cache using
     // a snapshot _from_ the LCL state.
-    mApplyState.compileAllContractsInLedger(getLCLState().snapshot, lv);
+    auto const& snapshot = getLCLState().snapshot;
+    mApplyState.compileAllContractsInLedger(snapshot, lv);
+    mApplyState.populateSorobanStateCache(snapshot);
 }
 
 void
@@ -2095,6 +2159,46 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
         mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
         mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                              deadEntries);
+    }
+
+    // Update Soroban state cache
+    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
+    {
+        for (auto const& entry : initEntries)
+        {
+            if (entry.data.type() == CONTRACT_DATA)
+            {
+                mApplyState.mLedgerStateCache->createContractDataEntry(entry);
+            }
+            else if (entry.data.type() == TTL)
+            {
+                mApplyState.mLedgerStateCache->createTTL(entry);
+            }
+        }
+
+        for (auto const& entry : liveEntries)
+        {
+            if (entry.data.type() == CONTRACT_DATA)
+            {
+                mApplyState.mLedgerStateCache->updateContractData(entry);
+            }
+            else if (entry.data.type() == TTL)
+            {
+                mApplyState.mLedgerStateCache->updateTTL(entry);
+            }
+        }
+
+        for (auto const& key : deadEntries)
+        {
+            if (key.type() == CONTRACT_DATA)
+            {
+                mApplyState.mLedgerStateCache->evictContractData(key);
+            }
+            else if (key.type() == TTL)
+            {
+                mApplyState.mLedgerStateCache->evictTTL(key);
+            }
+        }
     }
 }
 

@@ -103,7 +103,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
             archivedEntryMap[LedgerEntryKey(le)] = le;
         }
 
-        lm.setNextLedgerEntryBatchForBucketTesting({}, liveEntriesToInsert, {});
+        lm.setNextLedgerEntryBatchForBucketTesting(liveEntriesToInsert, {}, {});
         lm.setNextArchiveBatchForBucketTesting(archivedEntries, {});
         closeLedger(*app);
     }
@@ -353,7 +353,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         entryToArchiveTTL.data.ttl().liveUntilLedgerSeq = oldLedger - 1;
 
         lm.setNextLedgerEntryBatchForBucketTesting(
-            {}, {newEntry, entryToArchiveTTL, entryToRestoreTTL, modifiedEntry},
+            {newEntry}, {entryToArchiveTTL, entryToRestoreTTL, modifiedEntry},
             {LedgerEntryKey(*entryToDelete)});
         closeLedger(*app);
 
