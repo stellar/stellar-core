@@ -42,6 +42,9 @@ class LoopbackPeer : public Peer
     std::bernoulli_distribution mDamageProb{0.0};
     std::bernoulli_distribution mDropProb{0.0};
 
+    std::function<bool(StellarMessage const& msg)> mOutgoingMessageFilter =
+        [](StellarMessage const& msg) { return true; };
+
     struct Stats
     {
         size_t messagesDuplicated{0};
@@ -114,6 +117,10 @@ class LoopbackPeer : public Peer
     double getReorderProbability() const;
     void setReorderProbability(double d);
 
+    // TODO: Docs
+    void
+    setOutgoingMessageFilter(std::function<bool(StellarMessage const& msg)> f);
+
     void clearInAndOutQueues();
 
     virtual bool
@@ -155,6 +162,9 @@ class LoopbackPeer : public Peer
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;
     using Peer::sendPeers;
+
+    void sendMessage(std::shared_ptr<StellarMessage const> msg,
+                     bool log = true) override;
 
     friend class LoopbackPeerConnection;
 };

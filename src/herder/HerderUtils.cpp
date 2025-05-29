@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderUtils.h"
+#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "lib/json/json.h"
 #include "main/Config.h"
@@ -29,6 +30,20 @@ toStellarValue(Value const& v, StellarValue& sv)
     }
     return true;
 }
+
+StellarValue
+toStellarValueOrThrow(Value const& v)
+{
+    StellarValue sv;
+    if (!toStellarValue(v, sv))
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Failed to convert Value '{}' to StellarValue"),
+            binToHex(v)));
+    }
+    return sv;
+}
+
 
 std::optional<std::vector<Hash>>
 getTxSetHashes(SCPEnvelope const& envelope)

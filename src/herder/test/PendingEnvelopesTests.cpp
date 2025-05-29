@@ -137,7 +137,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
 
-            REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+            REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
             // -> processes saneEnvelope
             REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                p.second));
@@ -410,8 +410,99 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(malformedEnvelope) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
         REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
-        REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+        REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
         REQUIRE(pendingEnvelopes.recvTxSet(p2.second->getContentsHash(),
                                            p2.second));
+    }
+
+    SECTION("value wrapper keeps tx set alive via onTxSetReceived")
+    {
+        // The tx set exists but is NOT in the herder's known tx set cache.
+        // When wrapStellarValue/wrapValue is called, the wrapper won't find
+        // the tx set and will register in mPendingTxSetWrappers for later
+        // update via onTxSetReceived().
+        auto& scpDriver = herder.getHerderSCPDriver();
+        auto txSetHash = txSet->getContentsHash();
+
+        StellarValue sv =
+            herder.makeStellarValue(txSetHash, 10, emptyUpgradeSteps, s);
+
+        SECTION("wrapStellarValue registers and receives tx set")
+        {
+            // "txSet" and "p.second" hold the only references
+            REQUIRE(txSet.use_count() == 2);
+
+            // Wrap the value - tx set is not in herder's cache, so the
+            // wrapper registers in mPendingTxSetWrappers
+            auto wrapper = scpDriver.wrapStellarValue(sv);
+
+            // Wrapper doesn't have the tx set yet, ref count unchanged
+            REQUIRE(txSet.use_count() == 2);
+
+            // Deliver the tx set via onTxSetReceived
+            scpDriver.onTxSetReceived(txSetHash, txSet);
+
+            // Now the wrapper holds a reference to the tx set
+            REQUIRE(txSet.use_count() == 3);
+
+            // Dropping the wrapper releases its reference
+            wrapper.reset();
+            REQUIRE(txSet.use_count() == 2);
+        }
+
+        SECTION("wrapValue registers and receives tx set")
+        {
+            REQUIRE(txSet.use_count() == 2);
+
+            auto wrapper = scpDriver.wrapValue(p.first);
+
+            REQUIRE(txSet.use_count() == 2);
+
+            scpDriver.onTxSetReceived(txSetHash, txSet);
+
+            REQUIRE(txSet.use_count() == 3);
+
+            wrapper.reset();
+            REQUIRE(txSet.use_count() == 2);
+        }
+
+        SECTION("multiple wrappers all receive tx set")
+        {
+            REQUIRE(txSet.use_count() == 2);
+
+            auto wrapper1 = scpDriver.wrapStellarValue(sv);
+            auto wrapper2 = scpDriver.wrapStellarValue(sv);
+
+            // Neither wrapper has the tx set yet
+            REQUIRE(txSet.use_count() == 2);
+
+            scpDriver.onTxSetReceived(txSetHash, txSet);
+
+            // Both wrappers now hold a reference
+            REQUIRE(txSet.use_count() == 4);
+
+            wrapper1.reset();
+            REQUIRE(txSet.use_count() == 3);
+
+            wrapper2.reset();
+            REQUIRE(txSet.use_count() == 2);
+        }
+
+        SECTION("expired wrapper does not leak tx set")
+        {
+            REQUIRE(txSet.use_count() == 2);
+
+            auto wrapper = scpDriver.wrapStellarValue(sv);
+            // Drop the wrapper before the tx set arrives
+            wrapper.reset();
+
+            REQUIRE(txSet.use_count() == 2);
+
+            // The weak_ptr in the registry has expired, so no update occurs
+            scpDriver.onTxSetReceived(txSetHash, txSet);
+
+            // No leak - ref count unchanged
+            REQUIRE(txSet.use_count() == 2);
+        }
     }
 }

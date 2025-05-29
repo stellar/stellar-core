@@ -21,6 +21,7 @@
 #include "history/test/HistoryTestsUtils.h"
 
 #include "catchup/LedgerApplyManagerImpl.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/HerderUtils.h"
@@ -2878,6 +2879,41 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 testInvalidValue(/* isNomination */ false);
             }
         }
+
+        SECTION("skip hash/type mismatch")
+        {
+            auto checkInvalidMismatch = [&](StellarValue const& sv) {
+                auto v = xdr::xdr_to_opaque(sv);
+
+                REQUIRE(scp.validateValue(seq, v, true) ==
+                        SCPDriver::kInvalidValue);
+                REQUIRE(scp.validateValue(seq, v, false) ==
+                        SCPDriver::kInvalidValue);
+
+                ValueWrapperPtr extracted;
+                REQUIRE_NOTHROW(extracted = scp.extractValidValue(seq, v));
+                REQUIRE(extracted == nullptr);
+            };
+
+            SECTION("signed value with skip hash")
+            {
+                auto p = makeTxPair(herder, txSet0, ct);
+                StellarValue sv;
+                xdr::xdr_from_opaque(p.first, sv);
+                sv.txSetHash = Herder::SKIP_LEDGER_HASH;
+                checkInvalidMismatch(sv);
+            }
+
+            SECTION("skip value without skip hash")
+            {
+                auto p = makeTxPair(herder, txSet0, ct);
+                auto skipValue = scp.makeSkipLedgerValueFromValue(p.first);
+                StellarValue sv;
+                xdr::xdr_from_opaque(skipValue, sv);
+                sv.txSetHash = txSet0->getContentsHash();
+                checkInvalidMismatch(sv);
+            }
+        }
     }
 
     SECTION("validateValue closeTimes")
@@ -3265,7 +3301,8 @@ TEST_CASE("SCP State", "[herder]")
                 {
                     for (auto const& h : getValidatedTxSetHashes(msg))
                     {
-                        REQUIRE(herder.getPendingEnvelopes().getTxSet(h));
+                        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                            herder.getPendingEnvelopes().getTxSet(h)));
                         REQUIRE(app->getPersistentState().hasTxSet(h));
                         hashes.insert(h);
                     }
@@ -3837,8 +3874,9 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                                                 ->getLedgerManager()
                                                 .getLastClosedLedgerHeader()
                                                 .header;
-                    auto txSet = nodes[0]->getHerder().getTxSet(
-                        lclHeader.scpValue.txSetHash);
+                    auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                        nodes[0]->getHerder().getTxSet(
+                            lclHeader.scpValue.txSetHash));
                     GeneralizedTransactionSet xdrTxSet;
                     txSet->toXDR(xdrTxSet);
                     auto const& phase = xdrTxSet.v1TxSet().phases.at(
@@ -4300,13 +4338,13 @@ TEST_CASE("soroban txs accepted by the network",
             bool upgradeApplied = false;
             simulation->crankUntil(
                 [&]() {
-                    auto txSetSize =
+                    auto txSetResult = nodes[0]->getHerder().getTxSet(
                         nodes[0]
-                            ->getHerder()
-                            .getTxSet(nodes[0]
-                                          ->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header.scpValue.txSetHash)
+                            ->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.scpValue.txSetHash);
+                    auto txSetSize =
+                        std::get<TxSetXDRFrameConstPtr>(txSetResult)
                             ->sizeOpTotalForLogging();
                     upgradeApplied =
                         upgradeApplied || txSetSize > ledgerWideLimit;
@@ -4425,7 +4463,8 @@ getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
                 auto& pe = herder.getPendingEnvelopes();
                 toStellarValue(env.statement.pledges.externalize().commit.value,
                                sv);
-                auto txset = pe.getTxSet(sv.txSetHash);
+                auto txset =
+                    std::get<TxSetXDRFrameConstPtr>(pe.getTxSet(sv.txSetHash));
                 REQUIRE(txset);
                 validatorSCPMessages[seq] =
                     std::make_pair(env, txset->toStellarMessage());
@@ -6885,6 +6924,587 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     // check ensures that C does not double count messages from ledger 2 when
     // closing ledger 3.
     REQUIRE(checkSCPHistoryEntries(C, 2, expectedTypes));
+}
+
+// Helper function to feed a transaction set from source node to target node
+// based on a HistoricalStatement
+static bool
+feedTxSetFromStatement(Application& sourceNode, Application& targetNode,
+                       SCPStatement const& statement)
+{
+    auto stellarValues = getStellarValues(statement).value();
+    auto& sourceHerder = dynamic_cast<HerderImpl&>(sourceNode.getHerder());
+    auto& targetHerder = dynamic_cast<HerderImpl&>(targetNode.getHerder());
+    bool fedNonEmptySet = false;
+
+    for (auto const& sv : stellarValues)
+    {
+        // target should *not* already have the tx set
+        // REQUIRE(!targetHerder.getTxSet(sv.txSetHash));
+
+        auto txSet = std::get<TxSetXDRFrameConstPtr>(
+            sourceHerder.getTxSet(sv.txSetHash));
+        REQUIRE(txSet);
+        fedNonEmptySet |= txSet->sizeTxTotal() > 0;
+        targetHerder.recvTxSet(txSet->getContentsHash(), txSet);
+        CLOG_ERROR(Herder, "Fed value {}", hexAbbrev(txSet->getContentsHash()));
+    }
+    return fedNonEmptySet;
+}
+
+static bool
+feedTxSetsFromSlot(Application& sourceNode, Application& targetNode,
+                   uint64 slotIndex)
+{
+    // Get the herder and SCP from the source node
+    auto& sourceHerder = dynamic_cast<HerderImpl&>(sourceNode.getHerder());
+    auto& sourceSCP = sourceHerder.getSCP();
+
+    // Get the slot from the source node
+    auto sourceSlot = sourceSCP.getSlotForTesting(slotIndex);
+    REQUIRE(sourceSlot != nullptr);
+
+    // Get the historical statements from the source slot
+    auto const& historicalStatements =
+        sourceSlot->getHistoricalStatementsForTesting();
+    REQUIRE(!historicalStatements.empty());
+
+    // Get the target herder
+    auto& targetHerder = dynamic_cast<HerderImpl&>(targetNode.getHerder());
+
+    // Feed each tx set to the target node
+    bool fedNonEmptySet = false;
+    for (auto const& histStmt : historicalStatements)
+    {
+        fedNonEmptySet |=
+            feedTxSetFromStatement(sourceNode, targetNode, histStmt.mStatement);
+    }
+    return fedNonEmptySet;
+}
+
+// Helper function to feed SCP messages from one node to another for a specific
+// slot
+static bool
+feedSCPMessagesForSlot(Application& sourceNode, Application& targetNode,
+                       uint64 slotIndex, size_t injectionPoint)
+{
+    REQUIRE(slotIndex ==
+            targetNode.getLedgerManager().getLastClosedLedgerNum() + 1);
+    // Get the herder and SCP from the source node
+    auto& sourceHerder = dynamic_cast<HerderImpl&>(sourceNode.getHerder());
+    auto& sourceSCP = sourceHerder.getSCP();
+
+    // Get the slot from the source node
+    auto sourceSlot = sourceSCP.getSlotForTesting(slotIndex);
+    REQUIRE(sourceSlot != nullptr);
+
+    // Get the historical statements from the source slot
+    auto const& historicalStatements =
+        sourceSlot->getHistoricalStatementsForTesting();
+    REQUIRE(!historicalStatements.empty());
+
+    // Get the target herder
+    auto& targetHerder = dynamic_cast<HerderImpl&>(targetNode.getHerder());
+
+    CLOG_ERROR(Herder, "Injection point {}", injectionPoint);
+    bool doTest = false;
+    for (size_t i = 0; i < historicalStatements.size(); ++i)
+    {
+        auto const& histStmt = historicalStatements.at(i);
+        // Node must be synced for background tx set downloading to
+        // activate
+        // TODO: This might change ^^. Remove the assert below if it
+        // does.
+        REQUIRE(targetNode.getState() == Application::State::APP_SYNCED_STATE);
+
+        // Create an envelope from the statement
+        SCPEnvelope envelope = sourceSlot->createEnvelope(histStmt.mStatement);
+
+        // Feed the envelope to the target node
+        auto status = targetHerder.recvSCPEnvelope(envelope);
+
+        // Log for debugging
+        CLOG_ERROR(Herder,
+                   "Fed historical SCP message to target node for slot {}, "
+                   "status: {}",
+                   slotIndex, static_cast<int>(status));
+
+        // TODO: I figure either of these statuses is OK, but does this
+        // prototype ever report PROCESSED for messages where it doesn't
+        // have the tx set? Should it?
+        // TODO: I think technically it's possible that with the FIRST time
+        // around, there's a nonempty tx set that node0 already has, so this
+        // *could* return READY here in that case. Should probably have a more
+        // clever check here.
+        REQUIRE((!doTest || i > injectionPoint ||
+                 status == Herder::EnvelopeStatus::ENVELOPE_STATUS_FETCHING ||
+                 status == Herder::EnvelopeStatus::ENVELOPE_STATUS_PROCESSED));
+
+        // TODO: This spams the tx sets at the injection point and beyond
+        // because if a later vote changes the tx set, the target will have
+        // ignored the earlier tx sets (as it never requested them). This is a
+        // hack to ensure the target always gets the tx set immediately after
+        // requesting it, but it would be better to only send each tx set once
+        // (rather than spamming it), and also support tx sets that come in
+        // *after* the injection point.
+        if (i >= injectionPoint)
+        {
+            // Inject tx sets
+            doTest |= feedTxSetsFromSlot(sourceNode, targetNode, slotIndex);
+        }
+    }
+    return doTest;
+}
+
+// Helper function to get the number of injection points for a slot
+static size_t
+getInjectionPointsForSlot(Application& sourceNode, uint64 slotIndex)
+{
+    auto& sourceHerder = dynamic_cast<HerderImpl&>(sourceNode.getHerder());
+    auto& sourceSCP = sourceHerder.getSCP();
+    auto sourceSlot = sourceSCP.getSlotForTesting(slotIndex);
+    REQUIRE(sourceSlot != nullptr);
+    auto const& historicalStatements =
+        sourceSlot->getHistoricalStatementsForTesting();
+    REQUIRE(!historicalStatements.empty());
+    return historicalStatements.size() - 1;
+}
+
+// TODO: Does this belong in SCP tests instead?
+// TODO: I marked this as `.skip` because I think it was always only used to
+// examine output (but isn't necessarily expected to pass). But I don't
+// remember. Also, it hasn't been updated since adding skip ledger support and
+// fails suspiciously around where the disconnected node would vote to skip.
+TEST_CASE("Parallel tx set downloading", "[herder][.skip]")
+{
+    int constexpr simSize = 3;
+    int constexpr threshold = 2;
+    auto const networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    std::array<Config, simSize> configs;
+    std::array<PublicKey, simSize> pubkeys;
+    SCPQuorumSet qset;
+    qset.threshold = threshold;
+    for (int i = 0; i < simSize; ++i)
+    {
+        auto& cfg = configs.at(i) = simulation->newConfig();
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
+        cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(100);
+        auto const& pubkey = cfg.NODE_SEED.getPublicKey();
+        pubkeys.at(i) = pubkey;
+        qset.validators.push_back(pubkey);
+    }
+
+    // Add nodes to simulation
+    for (int i = 0; i < simSize; ++i)
+    {
+        auto const& cfg = configs.at(i);
+        simulation->addNode(cfg.NODE_SEED, qset, &cfg);
+    }
+
+    // Connect nodes and start simulation
+    simulation->addPendingConnection(pubkeys.at(0), pubkeys.at(1));
+    simulation->addPendingConnection(pubkeys.at(1), pubkeys.at(2));
+    simulation->startAllNodes();
+
+    // TODO: Is this necessary? vv
+    // wait for ledgers to close so nodes get the updated transitive quorum
+    simulation->crankUntil(
+        [&simulation]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // Disconnect node 0
+    auto& node0 = *simulation->getNode(pubkeys.at(0));
+    REQUIRE(node0.getOverlayManager().getAuthenticatedPeersCount() == 1);
+    simulation->dropConnection(pubkeys.at(0), pubkeys.at(1));
+    REQUIRE(node0.getOverlayManager().getAuthenticatedPeersCount() == 0);
+
+    // Generate payment load from node 1 that will last for at least 5
+    // ledgers
+    auto& node1LoadGen = simulation->getNode(pubkeys.at(1))->getLoadGenerator();
+    auto loadConfig =
+        GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 100, 500, 10);
+    node1LoadGen.generateLoad(loadConfig);
+
+    // // Run for a few more ledgers
+    // simulation->crankUntil(
+    //     [&simulation]() { return simulation->haveAllExternalized(6, 1); },
+    //     10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto& node1 = *simulation->getNode(pubkeys.at(1));
+    auto lclNum = node1.getLedgerManager().getLastClosedLedgerNum();
+
+    // Let remaining nodes externalize a couple blocks
+    REQUIRE(node0.getOverlayManager().getAuthenticatedPeersCount() == 0);
+    simulation->crankUntil(
+        [&simulation, &pubkeys, lclNum]() {
+            for (int i = 1; i < simSize; ++i)
+            {
+                auto const& node = simulation->getNode(pubkeys.at(i));
+                if (node->getLedgerManager().getLastClosedLedgerNum() <
+                    lclNum + 2)
+                {
+                    return false;
+                }
+            }
+            return true;
+        },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(node0.getOverlayManager().getAuthenticatedPeersCount() == 0);
+
+    // Node 0 should be behind by at least a couple ledgers
+    lclNum = node1.getLedgerManager().getLastClosedLedgerNum();
+    REQUIRE(node0.getLedgerManager().getLastClosedLedgerNum() <= lclNum - 2);
+
+    // Store initial LCL for node0 to verify progress
+    auto node0InitialLcl = node0.getLedgerManager().getLastClosedLedgerNum();
+
+    // Calculate slot indices
+    uint64 firstMissedSlot = node0InitialLcl + 1;
+    uint64 secondMissedSlot = node0InitialLcl + 2;
+
+    // Get the number of injection points for the second slot to test all
+    // possible interleavings
+    size_t numInjectionPoints =
+        getInjectionPointsForSlot(node1, secondMissedSlot);
+
+    // Test all possible interleavings where tx set downloads complete at
+    // different points relative to SCP statements
+    for (size_t injectionPoint = 0; injectionPoint < numInjectionPoints;
+         ++injectionPoint)
+    {
+        DYNAMIC_SECTION("Injection point " << injectionPoint)
+        {
+            // Feed SCP messages for the first missed slot. Due to disconnect
+            // timing, `node0` might already have the txset for this one, so
+            // we'll skip checking.
+            bool ranTest = feedSCPMessagesForSlot(node1, node0, firstMissedSlot,
+                                                  injectionPoint);
+
+            // Verify node0 advanced by one ledger.
+            REQUIRE(node0.getLedgerManager().getLastClosedLedgerNum() ==
+                    node0InitialLcl + 1);
+
+            if (!ranTest)
+            {
+                // Due to disconnect timing, `node0` might already have had the
+                // txset for the first slot (or it may have been empty), so do
+                // another slot.
+
+                // Trigger next ledger
+                // node0.getHerder().triggerNextLedger(node0InitialLcl + 2,
+                // false);
+                REQUIRE(
+                    node0.getOverlayManager().getAuthenticatedPeersCount() ==
+                    0);
+                simulation->crankForAtLeast(std::chrono::seconds(10), false);
+                REQUIRE(
+                    node0.getOverlayManager().getAuthenticatedPeersCount() ==
+                    0);
+
+                // Feed SCP messages for the second missed slot, testing the
+                // specific injection point for this iteration
+                ranTest = feedSCPMessagesForSlot(node1, node0, secondMissedSlot,
+                                                 injectionPoint);
+                REQUIRE(ranTest);
+
+                // Verify node0 has now caught up by 2 ledgers total
+                REQUIRE(node0.getLedgerManager().getLastClosedLedgerNum() ==
+                        node0InitialLcl + 2);
+            }
+        }
+    }
+
+    // TODO: I don't think it's necessary to crank here. This should have all
+    // happened synchronously (for now).
+    // // Give node 0 some time to process the messages
+    // simulation->crankForAtMost(std::chrono::seconds(5), false);
+
+    // // Check if node 0 caught up
+    // auto node0LCL = node0.getLedgerManager().getLastClosedLedgerNum();
+    // CLOG_INFO(Herder, "Node 0 LCL after feeding messages: {}, Node 1 LCL:
+    // {}",
+    //           node0LCL, lclNum);
+
+    // // Node 0 might not fully catch up just from SCP messages alone
+    // // but it should have made progress
+    // REQUIRE(node0LCL >= node0.getLedgerManager().getLastClosedLedgerNum());
+}
+
+// TODO: Does this belong in SCP tests instead?
+// TODO: Better test name
+TEST_CASE("Skip ledger", "[herder]")
+{
+    int constexpr simSize = 3;
+    int constexpr threshold = 2;
+    auto const networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    std::array<Config, simSize> configs;
+    std::array<PublicKey, simSize> pubkeys;
+    SCPQuorumSet qset;
+    qset.threshold = threshold;
+    constexpr int numAccounts = 30000;
+    for (int i = 0; i < simSize; ++i)
+    {
+        auto& cfg = configs.at(i) = simulation->newConfig();
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = numAccounts;
+        cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(100);
+        auto const& pubkey = cfg.NODE_SEED.getPublicKey();
+        pubkeys.at(i) = pubkey;
+        qset.validators.push_back(pubkey);
+    }
+
+    // Add nodes to simulation
+    for (int i = 0; i < simSize; ++i)
+    {
+        auto const& cfg = configs.at(i);
+        simulation->addNode(cfg.NODE_SEED, qset, &cfg);
+    }
+
+    // Connect nodes and start simulation
+    simulation->addPendingConnection(pubkeys.at(0), pubkeys.at(1));
+    simulation->addPendingConnection(pubkeys.at(1), pubkeys.at(2));
+    simulation->startAllNodes();
+
+    auto& skipExternalizedCounter =
+        simulation->getNode(pubkeys.at(0))
+            ->getMetrics()
+            .NewCounter({"scp", "skip", "externalized"});
+    auto const initialSkipCount = skipExternalizedCounter.count();
+
+    // TODO: Is this necessary? vv
+    // wait for ledgers to close so nodes get the updated transitive quorum
+    simulation->crankUntil(
+        [&simulation]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // Generate payment load from node 1 that will last for at least 5
+    // ledgers
+    auto& node1LoadGen = simulation->getNode(pubkeys.at(1))->getLoadGenerator();
+    auto loadConfig =
+        GeneratedLoadConfig::txLoad(LoadGenMode::PAY, numAccounts, 5000, 5);
+    node1LoadGen.generateLoad(loadConfig);
+
+    // Set up message filters to drop TX set related messages
+    for (size_t i = 0; i < pubkeys.size(); ++i)
+    {
+        for (size_t j = 0; j < pubkeys.size(); ++j)
+        {
+            if (i != j)
+            {
+                auto conn =
+                    simulation->getLoopbackConnection(pubkeys[i], pubkeys[j]);
+                if (conn)
+                {
+                    auto filter = [](StellarMessage const& msg) {
+                        auto msgType = msg.type();
+                        return msgType != GET_TX_SET && msgType != TX_SET &&
+                               msgType != GENERALIZED_TX_SET;
+                        return true;
+                    };
+
+                    conn->getInitiator()->setOutgoingMessageFilter(filter);
+                    conn->getAcceptor()->setOutgoingMessageFilter(filter);
+                }
+            }
+        }
+    }
+
+    CLOG_ERROR(Herder, "There's a disconnect here");
+
+    // Run simulation until all nodes externalize a skip value (timeout: 5
+    // minutes)
+    simulation->crankForAtLeast(std::chrono::minutes(5), false);
+
+    // Should have externalized skip
+    REQUIRE(skipExternalizedCounter.count() > initialSkipCount);
+}
+
+// TODO: I think this needs to put the load generating validator (A?) as HIGH
+// and the rest as LOW. Otherwise, there's no reason at A would have the tx set
+// (if, for example, A did not win nomination). Also, I may have broken this
+// test with ctrl-z, which interacts poorly with copilot
+TEST_CASE("Skip ledger vote reversal", "[herder]")
+{
+    int constexpr simSize = 3;
+    auto const networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    std::array<Config, simSize> configs;
+    std::array<PublicKey, simSize> pubkeys;
+    std::vector<ValidatorEntry> validators;
+    validators.reserve(simSize);
+    constexpr int numAccounts = 30000;
+    for (int i = 0; i < simSize; ++i)
+    {
+        auto& cfg = configs.at(i) = simulation->newConfig();
+        cfg.SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = true;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = numAccounts;
+        cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(100);
+        auto const& pubkey = cfg.NODE_SEED.getPublicKey();
+        pubkeys.at(i) = pubkey;
+
+        ValidatorEntry entry;
+        std::string label(1, static_cast<char>('A' + i));
+        entry.mName = "validator-" + label;
+        entry.mHomeDomain = "domain-" + label;
+        entry.mQuality = (i == 0) ? ValidatorQuality::VALIDATOR_HIGH_QUALITY
+                                  : ValidatorQuality::VALIDATOR_LOW_QUALITY;
+        entry.mKey = pubkey;
+        entry.mHasHistory = false;
+        validators.emplace_back(std::move(entry));
+    }
+
+    for (int i = 0; i < simSize; ++i)
+    {
+        auto& cfg = configs.at(i);
+        cfg.generateQuorumSetForTesting(validators);
+        simulation->addNode(cfg.NODE_SEED, cfg.QUORUM_SET, &cfg);
+    }
+
+    simulation->addPendingConnection(pubkeys.at(0), pubkeys.at(1));
+    simulation->addPendingConnection(pubkeys.at(0), pubkeys.at(2));
+    simulation->addPendingConnection(pubkeys.at(1), pubkeys.at(2));
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&simulation]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto& nodeA = *simulation->getNode(pubkeys.at(0));
+    auto& nodeB = *simulation->getNode(pubkeys.at(1));
+    auto& nodeC = *simulation->getNode(pubkeys.at(2));
+
+    auto& skipValueReplacedB =
+        nodeB.getMetrics().NewCounter({"scp", "skip", "value-replaced"});
+    auto& skipValueReplacedC =
+        nodeC.getMetrics().NewCounter({"scp", "skip", "value-replaced"});
+    auto& skipExternalizedB =
+        nodeB.getMetrics().NewCounter({"scp", "skip", "externalized"});
+    auto& skipExternalizedC =
+        nodeC.getMetrics().NewCounter({"scp", "skip", "externalized"});
+
+    auto const valueReplacedInitialB = skipValueReplacedB.count();
+    auto const valueReplacedInitialC = skipValueReplacedC.count();
+    auto const externalizedInitialB = skipExternalizedB.count();
+    auto const externalizedInitialC = skipExternalizedC.count();
+
+    auto& loadGen = nodeA.getLoadGenerator();
+    auto loadConfig =
+        GeneratedLoadConfig::txLoad(LoadGenMode::PAY, numAccounts, 5000, 5);
+    loadGen.generateLoad(loadConfig);
+
+    auto dropTxSetFilter = [](StellarMessage const& msg) {
+        auto const msgType = msg.type();
+        return msgType != GET_TX_SET && msgType != TX_SET &&
+               msgType != GENERALIZED_TX_SET;
+    };
+    auto allowAllFilter = [](StellarMessage const&) { return true; };
+    auto const applyFilterToAllConnections =
+        [&](std::function<bool(StellarMessage const&)> const& filter) {
+            for (int i = 0; i < simSize; ++i)
+            {
+                for (int j = i + 1; j < simSize; ++j)
+                {
+                    auto conn = simulation->getLoopbackConnection(
+                        pubkeys.at(i), pubkeys.at(j));
+                    if (conn)
+                    {
+                        conn->getInitiator()->setOutgoingMessageFilter(filter);
+                        conn->getAcceptor()->setOutgoingMessageFilter(filter);
+                    }
+                }
+            }
+        };
+
+    applyFilterToAllConnections(dropTxSetFilter);
+
+    simulation->crankUntil(
+        [&]() {
+            return skipValueReplacedB.count() > valueReplacedInitialB &&
+                   skipValueReplacedC.count() > valueReplacedInitialC;
+        },
+        60 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // TODO: It's cool that this works (for some seeds?), but this test is
+    // flawed. `crankUntil` only checks periodically (not every crank), so it's
+    // possible that this accidentally cranks "too far" and allows the nodes to
+    // externalize skip. This needs to be reworked to stop cranking as soon as
+    // the condition is met, either by modifying SCP in some way, or by manually
+    // cranking and checking the condition after every crank, or by manually
+    // executing SCP.
+
+    auto const replacedCountB = skipValueReplacedB.count();
+    auto const replacedCountC = skipValueReplacedC.count();
+
+    auto& herderA = dynamic_cast<HerderImpl&>(nodeA.getHerder());
+    auto& herderB = dynamic_cast<HerderImpl&>(nodeB.getHerder());
+    auto& herderC = dynamic_cast<HerderImpl&>(nodeC.getHerder());
+
+    auto const slotIndex = herderB.nextConsensusLedgerIndex();
+    REQUIRE(slotIndex == herderA.nextConsensusLedgerIndex());
+    REQUIRE(slotIndex == herderC.nextConsensusLedgerIndex());
+
+    REQUIRE(feedTxSetsFromSlot(nodeA, nodeB, slotIndex));
+    REQUIRE(feedTxSetsFromSlot(nodeA, nodeC, slotIndex));
+
+    applyFilterToAllConnections(allowAllFilter);
+
+    simulation->crankUntil(
+        [&]() {
+            return nodeA.getLedgerManager().getLastClosedLedgerNum() >=
+                       slotIndex &&
+                   nodeB.getLedgerManager().getLastClosedLedgerNum() >=
+                       slotIndex &&
+                   nodeC.getLedgerManager().getLastClosedLedgerNum() >=
+                       slotIndex;
+        },
+        30 * simulation->getExpectedLedgerCloseTime(), false);
+
+    REQUIRE(skipExternalizedB.count() == externalizedInitialB);
+    REQUIRE(skipExternalizedC.count() == externalizedInitialC);
+    REQUIRE(skipValueReplacedB.count() == replacedCountB);
+    REQUIRE(skipValueReplacedC.count() == replacedCountC);
+
+    // auto const finalLedgerA =
+    //     nodeA.getLedgerManager().getLastClosedLedgerNum();
+    // REQUIRE(nodeB.getLedgerManager().getLastClosedLedgerNum() ==
+    // finalLedgerA); REQUIRE(nodeC.getLedgerManager().getLastClosedLedgerNum()
+    // == finalLedgerA);
+
+    auto const verifyNonSkipExternalize = [&](Application& node,
+                                              HerderImpl& herder) {
+        auto slot = herder.getSCP().getSlotForTesting(slotIndex);
+        REQUIRE(slot != nullptr);
+        bool foundLocalExternalize = false;
+        for (auto const& histStmt : slot->getHistoricalStatementsForTesting())
+        {
+            auto const& st = histStmt.mStatement;
+            if (st.nodeID == node.getConfig().NODE_SEED.getPublicKey() &&
+                st.pledges.type() == SCPStatementType::SCP_ST_EXTERNALIZE)
+            {
+                auto const& value = st.pledges.externalize().commit.value;
+                REQUIRE(!slot->getSCPDriver().isSkipLedgerValue(value));
+                StellarValue sv;
+                REQUIRE(toStellarValue(value, sv));
+                auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                    herder.getTxSet(sv.txSetHash));
+                REQUIRE(txSet);
+                REQUIRE(txSet->sizeTxTotal() > 0);
+                foundLocalExternalize = true;
+                break;
+            }
+        }
+        REQUIRE(foundLocalExternalize);
+    };
+
+    verifyNonSkipExternalize(nodeB, herderB);
+    verifyNonSkipExternalize(nodeC, herderC);
 }
 
 using Topology = std::pair<std::vector<SecretKey>, std::vector<ValidatorEntry>>;
