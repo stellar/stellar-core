@@ -155,7 +155,7 @@ class HerderImpl : public Herder
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
-    TxSetXDRFrameConstPtr getTxSet(Hash const& hash) override;
+    TxSetResult getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();
@@ -231,7 +231,7 @@ class HerderImpl : public Herder
     // helper function to sign envelopes
     void signEnvelope(SecretKey const& s, SCPEnvelope& envelope);
 
-    // helper function to verify SCPValues are signed
+    // helper function to verify SCPValues signatures
     bool verifyStellarValueSignature(StellarValue const& sv);
 
     size_t getMaxQueueSizeOps() const override;

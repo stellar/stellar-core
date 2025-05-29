@@ -18,6 +18,9 @@
 #include <numeric>
 #include <sstream>
 
+// TODO: Should make sure that any subsequent stages to vote-to-commit also
+// require the tx set. Do not externalize without the tx set. Test these cases
+// too.
 namespace stellar
 {
 using namespace std::placeholders;
@@ -154,6 +157,8 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 {
     ZoneScoped;
     dbgAssert(envelope->getStatement().slotIndex == mSlot.getSlotIndex());
+    CLOG_DEBUG(Proto, "processing {} envelope: {}", self ? "self" : "other",
+               mSlot.getSCP().envToStr(envelope->getEnvelope()));
 
     SCPStatement const& statement = envelope->getStatement();
     NodeID const& nodeID = statement.nodeID;
@@ -186,6 +191,14 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
     }
 
     auto validationRes = validateValues(statement);
+
+    // Log validation results
+    CLOG_TRACE(Proto,
+               "BallotProtocol::processEnvelope slot:{} "
+               "received statement with {} value from node:{}",
+               mSlot.getSlotIndex(),
+               SCPDriver::validationLevelToString(validationRes),
+               mSlot.getSCP().getDriver().toShortString(statement.nodeID));
 
     // If the value is not valid, we just ignore it.
     if (validationRes == SCPDriver::kInvalidValue)
@@ -325,16 +338,67 @@ BallotProtocol::abandonBallot(uint32 n)
     }
     if (v && !v->getValue().empty())
     {
+        // NOTE: This is handling v_3.
+        Value value = v->getValue();
         if (n == 0)
         {
-            res = bumpState(v->getValue(), true);
+            res = bumpState(value, true);
         }
         else
         {
-            res = bumpState(v->getValue(), n);
+            res = bumpState(value, n);
         }
     }
     return res;
+}
+
+bool
+BallotProtocol::maybeReplaceValueWithSkip(Value& v) const
+{
+    // Check validation value
+    auto validationLevel =
+        mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v, false);
+
+    switch (validationLevel)
+    {
+    case SCPDriver::kInvalidValue:
+        // Value has been definitively determined to be invalid (e.g., a
+        // tx set that was downloaded and found to be unusable). Replace
+        // immediately with skip -- no timeout check needed.
+        CLOG_DEBUG(Proto, "Replacing invalid value with skip for slot {}",
+                   mSlot.getSlotIndex());
+        break;
+    case SCPDriver::kAwaitingDownload:
+    {
+        // Check how long we've been waiting
+        auto waitingTime = mSlot.getSCPDriver().getTxSetDownloadWaitTime(v);
+
+        // `waitingTime` cannot be nullopt if `validateValue` returns
+        // `kAwaitingDownload`.
+        releaseAssert(waitingTime.has_value());
+
+        CLOG_DEBUG(Proto, "Waiting time for {}: {}", hexAbbrev(v),
+                   waitingTime.value().count());
+
+        auto timeout = mSlot.getSCPDriver().getTxSetDownloadTimeout();
+        if (waitingTime.value() < timeout)
+        {
+            // Haven't timed out yet waiting for the tx set
+            return false;
+        }
+    }
+    break;
+    default:
+        // Value is valid or maybe valid, so we shouldn't replace it with skip
+        return false;
+    }
+
+    // Choose highest seen skip value, or create one if no such values exist.
+    v = mSlot.getSCPDriver().makeSkipLedgerValueFromValue(v);
+    CLOG_DEBUG(Proto, "Voting to skip slot {}", mSlot.getSlotIndex());
+    mSlot.getSCPDriver().noteSkipValueReplaced(mSlot.getSlotIndex());
+
+    return true;
 }
 
 bool
@@ -355,6 +419,7 @@ bool
 BallotProtocol::bumpState(Value const& value, uint32 n)
 {
     ZoneScoped;
+    CLOG_DEBUG(Proto, "Bump state!");
     if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
         return false;
@@ -378,6 +443,7 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
     CLOG_TRACE(SCP, "BallotProtocol::bumpState i: {} v: {}",
                mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(newb));
 
+    maybeReplaceValueWithSkip(newb.value);
     bool updated = updateCurrentValue(newb);
 
     if (updated)
@@ -507,6 +573,8 @@ BallotProtocol::startBallotProtocolTimer()
 void
 BallotProtocol::stopBallotProtocolTimer()
 {
+    CLOG_DEBUG(Proto, "Stopping ballot protocol timer for slot {}",
+               mSlot.getSlotIndex());
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(mSlot.getSlotIndex(),
                                     Slot::BALLOT_PROTOCOL_TIMER,
@@ -813,6 +881,8 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
     for (auto cur = candidates.rbegin(); cur != candidates.rend(); cur++)
     {
         SCPBallot ballot = *cur;
+        CLOG_DEBUG(Proto, "BallotProtocol::attemptAcceptPrepared i: {} b: {}",
+                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(ballot));
 
         if (mPhase == SCP_PHASE_CONFIRM)
         {
@@ -831,6 +901,7 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
         if (mPreparedPrime &&
             compareBallots(ballot, mPreparedPrime->getBallot()) <= 0)
         {
+            CLOG_DEBUG(Proto, "ballot <= p'");
             continue;
         }
 
@@ -839,6 +910,7 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
             // if ballot is already covered by p, skip
             if (areBallotsLessAndCompatible(ballot, mPrepared->getBallot()))
             {
+                CLOG_DEBUG(Proto, "ballot already covered by p");
                 continue;
             }
             // otherwise, there is a chance it increases p'
@@ -846,7 +918,7 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
 
         bool accepted = federatedAccept(
             // checks if any node is voting for this ballot
-            [&ballot](SCPStatement const& st) {
+            [this, &ballot](SCPStatement const& st) {
                 bool res;
 
                 switch (st.pledges.type())
@@ -855,6 +927,9 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
                 {
                     auto const& p = st.pledges.prepare();
                     res = areBallotsLessAndCompatible(ballot, p.ballot);
+                    CLOG_DEBUG(Proto, "{} < {}: {}",
+                               mSlot.getSCP().ballotToStr(ballot),
+                               mSlot.getSCP().ballotToStr(p.ballot), res);
                 }
                 break;
                 case SCP_ST_CONFIRM:
@@ -877,6 +952,7 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
                 return res;
             },
             std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1));
+        CLOG_DEBUG(Proto, "Accepted: {}", accepted);
         if (accepted)
         {
             return setAcceptPrepared(ballot);
@@ -890,7 +966,7 @@ bool
 BallotProtocol::setAcceptPrepared(SCPBallot const& ballot)
 {
     ZoneScoped;
-    CLOG_TRACE(SCP, "BallotProtocol::setAcceptPrepared i: {} b: {}",
+    CLOG_DEBUG(Proto, "BallotProtocol::setAcceptPrepared i: {} b: {}",
                mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(ballot));
 
     // update our state
@@ -1067,9 +1143,56 @@ BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
 
         if (newC.counter != 0)
         {
-            dbgAssert(!mCommit);
-            mCommit = makeBallot(newC);
-            didWork = true;
+            // This is step 3 from the paper - voting to commit.
+            // We must ensure the transaction set value is fully validated
+            // before we can vote to commit it.
+            auto validationLevel = mSlot.getSCPDriver().validateValue(
+                mSlot.getSlotIndex(), newC.value, false);
+
+            // Debug output to see what validation level we're getting
+            CLOG_DEBUG(
+                Proto,
+                "DEBUG: setConfirmPrepared validation level = {} for slot {}",
+                static_cast<int>(validationLevel), mSlot.getSlotIndex());
+
+            if (validationLevel == SCPDriver::kAwaitingDownload)
+            {
+                // Record the start time if this is the first time balloting
+                // becomes blocked on this txset
+                mSlot.getSCPDriver().recordBallotBlockedOnTxSet(
+                    mSlot.getSlotIndex(), newC.value);
+
+                // Check how long we've been waiting for the transaction set
+                auto waitingTime =
+                    mSlot.getSCPDriver().getTxSetDownloadWaitTime(newC.value);
+
+                // `waitingTime` cannot be nullopt if `validateValue` returns
+                // `kAwaitingDownload`.
+                releaseAssert(waitingTime.has_value());
+                CLOG_DEBUG(
+                    Proto,
+                    "BallotProtocol::setConfirmPrepared slot:{} "
+                    "attempting to vote to commit with kAwaitingDownload value "
+                    "- "
+                    "ballot counter:{} value:{} waiting_time:{}ms",
+                    mSlot.getSlotIndex(), newC.counter,
+                    mSlot.getSCP().getDriver().getValueString(newC.value),
+                    waitingTime.value().count());
+
+            }
+            else
+            {
+                releaseAssert(validationLevel != SCPDriver::kInvalidValue);
+                dbgAssert(!mCommit);
+
+                // Measure and record how long balloting was blocked on this
+                // txset
+                mSlot.getSCPDriver().measureAndRecordBallotBlockedOnTxSet(
+                    mSlot.getSlotIndex(), newC.value);
+
+                mCommit = makeBallot(newC);
+                didWork = true;
+            }
         }
 
         if (didWork)
@@ -1864,7 +1987,7 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
 {
     ZoneScoped;
     mCurrentMessageLevel++;
-    CLOG_TRACE(SCP, "BallotProtocol::advanceSlot {} {}", mCurrentMessageLevel,
+    CLOG_DEBUG(Proto, "BallotProtocol::advanceSlot {} {}", mCurrentMessageLevel,
                getLocalState());
 
     if (mCurrentMessageLevel >= MAX_ADVANCE_SLOT_RECURSION)
@@ -1883,6 +2006,11 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
     bool didWork = false;
 
     didWork = attemptAcceptPrepared(hint) || didWork;
+
+    if (didWork)
+    {
+        CLOG_DEBUG(Proto, "attemptAcceptPrepared did work");
+    }
 
     didWork = attemptConfirmPrepared(hint) || didWork;
 
@@ -1967,6 +2095,10 @@ BallotProtocol::validateValues(SCPStatement const& st)
 
     if (values.empty())
     {
+        CLOG_DEBUG(Proto,
+                   "BallotProtocol::validateValues slot:{} "
+                   "found empty value set in statement",
+                   mSlot.getSlotIndex());
         // This shouldn't happen
         return SCPDriver::kInvalidValue;
     }
@@ -1978,10 +2110,27 @@ BallotProtocol::validateValues(SCPStatement const& st)
             {
                 auto tr = mSlot.getSCPDriver().validateValue(
                     mSlot.getSlotIndex(), v, false);
+
+                if (tr == SCPDriver::kAwaitingDownload)
+                {
+                    CLOG_DEBUG(Proto,
+                               "BallotProtocol::validateValues slot:{} "
+                               "found kAwaitingDownload value in statement",
+                               mSlot.getSlotIndex());
+                }
+
                 lv = std::min(tr, lv);
             }
             return lv;
         });
+
+    if (res == SCPDriver::kInvalidValue)
+    {
+        CLOG_DEBUG(Proto,
+                   "BallotProtocol::validateValues slot:{} found "
+                   "kInvalidValue value in statement",
+                   mSlot.getSlotIndex());
+    }
 
     return res;
 }

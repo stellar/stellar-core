@@ -67,6 +67,16 @@ class TestSCP : public SCPDriver
     validateValue(uint64 slotIndex, Value const& value,
                   bool nomination) override
     {
+        if (mValidateValueOverride)
+        {
+            return mValidateValueOverride(slotIndex, value, nomination);
+        }
+        // If we're tracking download wait time for this value, it's awaiting
+        // download
+        if (mDownloadWaitTimes.find(value) != mDownloadWaitTimes.end())
+        {
+            return SCPDriver::kAwaitingDownload;
+        }
         return SCPDriver::kFullyValidatedValue;
     }
 
@@ -95,6 +105,50 @@ class TestSCP : public SCPDriver
             return mQuorumSets[qSetHash];
         }
         return SCPQuorumSetPtr();
+    }
+
+    std::optional<std::chrono::milliseconds>
+    getTxSetDownloadWaitTime(Value const& v) const override
+    {
+        auto it = mDownloadWaitTimes.find(v);
+        if (it != mDownloadWaitTimes.end())
+        {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+
+    std::chrono::milliseconds
+    getTxSetDownloadTimeout() const override
+    {
+        return mDownloadTimeout;
+    }
+
+    Value
+    makeSkipLedgerValueFromValue(Value const& value) const override
+    {
+        // Create a skip value by prefixing with "SKIP:"
+        Value skipValue;
+        skipValue.resize(5 + value.size());
+        skipValue[0] = 'S';
+        skipValue[1] = 'K';
+        skipValue[2] = 'I';
+        skipValue[3] = 'P';
+        skipValue[4] = ':';
+        std::copy(value.begin(), value.end(), skipValue.begin() + 5);
+        return skipValue;
+    }
+
+    bool
+    isSkipLedgerValue(Value const& v) const override
+    {
+        // Check if value starts with "SKIP:"
+        if (v.size() < 5)
+        {
+            return false;
+        }
+        return v[0] == 'S' && v[1] == 'K' && v[2] == 'I' && v[3] == 'P' &&
+               v[4] == ':';
     }
 
     void
@@ -198,11 +252,17 @@ class TestSCP : public SCPDriver
 
     std::function<uint64(NodeID const&)> mPriorityLookup;
     std::function<uint64(Value const&)> mHashValueCalculator;
+    std::function<SCPDriver::ValidationLevel(uint64, Value const&, bool)>
+        mValidateValueOverride;
 
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
     std::vector<SCPEnvelope> mEnvs;
     std::map<uint64, Value> mExternalizedValues;
     std::map<uint64, std::vector<SCPBallot>> mHeardFromQuorums;
+
+    // Skip ledger support
+    std::map<Value, std::chrono::milliseconds> mDownloadWaitTimes;
+    std::chrono::milliseconds mDownloadTimeout{5000};
 
     struct TimerData
     {
@@ -307,6 +367,19 @@ class TestSCP : public SCPDriver
     getNominationLeaders(uint64 slotIndex)
     {
         return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
+    }
+
+    // Helper methods for skip ledger testing
+    void
+    startDownload(Value const& v, std::chrono::milliseconds waitTime)
+    {
+        mDownloadWaitTimes[v] = waitTime;
+    }
+
+    void
+    clearDownload(Value const& v)
+    {
+        mDownloadWaitTimes.erase(v);
     }
 
     // Copied from HerderSCPDriver.cpp
@@ -3347,6 +3420,284 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         };
 
         testTimeouts(scp, test);
+    }
+}
+
+TEST_CASE("nomination can self-generate invalid prepare after awaiting value"
+          " turns invalid",
+          "[scp][nomination]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    auto const qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+    std::map<Value, SCPDriver::ValidationLevel> validationLevels;
+    validationLevels[xValue] = SCPDriver::kAwaitingDownload;
+    scp.mValidateValueOverride =
+        [&](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+        auto const it = validationLevels.find(value);
+        if (it != validationLevels.end())
+        {
+            return it->second;
+        }
+        return SCPDriver::kFullyValidatedValue;
+    };
+
+    REQUIRE(scp.nominate(0, xValue, false));
+
+    auto const followerVoteNomination =
+        makeNominate(v1SecretKey, qSetHash, 0, {xValue}, {});
+    REQUIRE_NOTHROW(scp.receiveEnvelope(followerVoteNomination));
+
+    validationLevels[xValue] = SCPDriver::kInvalidValue;
+    scp.mExpectedCandidates.emplace(xValue);
+    scp.mCompositeValue = xValue;
+
+    auto const followerAcceptedNomination =
+        makeNominate(v2SecretKey, qSetHash, 0, {xValue}, {xValue});
+    // With the fix, maybeReplaceValueWithSkip replaces the invalid value
+    // with skip in bumpState, so no throw occurs
+    REQUIRE_NOTHROW(scp.receiveEnvelope(followerAcceptedNomination));
+
+    // The emitted ballot should have a skip value, not the original xValue
+    auto const& lastEnv = scp.mEnvs.back();
+    REQUIRE(lastEnv.statement.pledges.type() == SCP_ST_PREPARE);
+    auto const& ballot = lastEnv.statement.pledges.prepare().ballot;
+    REQUIRE(scp.isSkipLedgerValue(ballot.value));
+    REQUIRE(ballot.value == scp.makeSkipLedgerValueFromValue(xValue));
+}
+
+// TODO(36): This needs to be fixed. This test demonstrates `p` being set to an
+// invalid value, which causes the node to crash.
+TEST_CASE("ballot protocol can self-generate invalid prepare after"
+          " awaiting value turns invalid",
+          "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+    // v0 enters ballot protocol with xValue while its tx set is
+    // still being downloaded (kAwaitingDownload, not yet timed out)
+    scp.startDownload(xValue, std::chrono::milliseconds(1000));
+    REQUIRE(scp.bumpState(0, xValue));
+    REQUIRE(scp.mEnvs.size() == 1);
+    REQUIRE(scp.mEnvs[0].statement.pledges.prepare().ballot ==
+            SCPBallot(1, xValue));
+
+    // xValue becomes invalid (tx set downloaded but found unusable)
+    scp.mValidateValueOverride =
+        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+        if (value == xValue)
+        {
+            return SCPDriver::kInvalidValue;
+        }
+        return SCPDriver::kFullyValidatedValue;
+    };
+
+    // v1 sends PREPARE at higher counter with a different (valid) value
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v1SecretKey, qSetHash, 0, SCPBallot(2, yValue))));
+
+    // v2 sends PREPARE at higher counter — v1+v2 now form a v-blocking
+    // set ahead of v0, triggering attemptBump -> abandonBallot ->
+    // bumpState with xValue (now invalid). With the fix,
+    // maybeReplaceValueWithSkip replaces it with skip.
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v2SecretKey, qSetHash, 0, SCPBallot(2, yValue))));
+
+    // The emitted ballot should have a skip value at counter 2
+    REQUIRE(scp.mEnvs.size() == 2);
+    auto const& ballot = scp.mEnvs[1].statement.pledges.prepare().ballot;
+    REQUIRE(ballot.counter == 2);
+    REQUIRE(scp.isSkipLedgerValue(ballot.value));
+    REQUIRE(ballot.value == scp.makeSkipLedgerValueFromValue(xValue));
+}
+
+TEST_CASE("skip ledger on download timeout", "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    // 3 node network with threshold=2 (need any 2 nodes to form quorum)
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+
+    SECTION("timeout during prepare phase")
+    {
+        // Node v0 starts ballot protocol with xValue
+        // Simulate that xValue is awaiting download with timeout exceeded
+        scp.startDownload(xValue, std::chrono::milliseconds(6000));
+
+        // Now call bumpState which should trigger maybeReplaceValueWithSkip
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        // The ballot should have a skip ledger value, not the original xValue
+        auto const& emittedBallot =
+            scp.mEnvs[0].statement.pledges.prepare().ballot;
+
+        REQUIRE(emittedBallot.counter == 1);
+        REQUIRE(scp.isSkipLedgerValue(emittedBallot.value));
+
+        // Verify it's a skip of the original xValue
+        Value expectedSkipValue = scp.makeSkipLedgerValueFromValue(xValue);
+        REQUIRE(emittedBallot.value == expectedSkipValue);
+
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                      SCPBallot(1, expectedSkipValue));
+    }
+
+    SECTION("no timeout when wait time under threshold")
+    {
+        // Node v0 starts ballot protocol with xValue
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        SCPBallot b1(1, xValue);
+
+        // Simulate that xValue is awaiting download but wait time is still low
+        scp.startDownload(xValue, std::chrono::milliseconds(1000));
+
+        // Try to bump state - should NOT replace with skip value
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 2);
+
+        // Verify ballot still has original xValue, not a skip value
+        auto const& emittedBallot =
+            scp.mEnvs[1].statement.pledges.prepare().ballot;
+        REQUIRE(emittedBallot.counter == 2);
+        REQUIRE(!scp.isSkipLedgerValue(emittedBallot.value));
+        REQUIRE(emittedBallot.value == xValue);
+    }
+
+    SECTION("skip value can be prepared and confirmed")
+    {
+        // Start with xValue and timeout to skip value
+        scp.startDownload(xValue, std::chrono::milliseconds(6000));
+
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        Value skipValue = scp.makeSkipLedgerValueFromValue(xValue);
+        SCPBallot skipB1(1, skipValue);
+
+        // Verify we emitted skip value
+        REQUIRE(scp.isSkipLedgerValue(
+            scp.mEnvs[0].statement.pledges.prepare().ballot.value));
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, skipB1);
+
+        // Other nodes also move to skip value
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, skipB1));
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, skipB1));
+
+        // Should prepare skip value (quorum reached)
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, skipB1, &skipB1);
+
+        // Quorum confirms prepared skip value
+        scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, skipB1, &skipB1));
+        scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, skipB1, &skipB1));
+
+        REQUIRE(scp.mEnvs.size() == 3);
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, skipB1, &skipB1,
+                      1, 1);
+
+        // Accept commit
+        scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, skipB1, &skipB1, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, skipB1, &skipB1, 1, 1));
+
+        REQUIRE(scp.mEnvs.size() == 4);
+        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, skipB1, 1, 1);
+
+        // Externalize skip value
+        scp.receiveEnvelope(
+            makeConfirm(v1SecretKey, qSetHash, 0, 1, skipB1, 1, 1));
+        scp.receiveEnvelope(
+            makeConfirm(v2SecretKey, qSetHash, 0, 1, skipB1, 1, 1));
+
+        REQUIRE(scp.mEnvs.size() == 5);
+        verifyExternalize(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, skipB1, 1);
+
+        // Verify the externalized value is the skip value
+        REQUIRE(scp.mExternalizedValues.size() == 1);
+        REQUIRE(scp.isSkipLedgerValue(scp.mExternalizedValues[0]));
+        REQUIRE(scp.mExternalizedValues[0] == skipValue);
+    }
+
+    SECTION("switch back to original value after download completes")
+    {
+        // Node starts with xValue that's awaiting download (timeout exceeded)
+        scp.startDownload(xValue, std::chrono::milliseconds(6000));
+
+        // First bumpState creates skip value
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        Value skipValue = scp.makeSkipLedgerValueFromValue(xValue);
+        SCPBallot skipB1(1, skipValue);
+
+        // Verify we emitted skip value
+        REQUIRE(scp.isSkipLedgerValue(
+            scp.mEnvs[0].statement.pledges.prepare().ballot.value));
+        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, skipB1);
+
+        // Simulate download completion - value is now available
+        scp.clearDownload(xValue);
+
+        // Now bumpState should switch back to original value
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 2);
+
+        // Verify we switched back to original xValue (not skip value)
+        auto const& emittedBallot =
+            scp.mEnvs[1].statement.pledges.prepare().ballot;
+        REQUIRE(emittedBallot.counter == 2);
+        REQUIRE(!scp.isSkipLedgerValue(emittedBallot.value));
+        REQUIRE(emittedBallot.value == xValue);
+
+        // Verify the ballot structure - new ballot with original value
+        SCPBallot xB2(2, xValue);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, xB2);
     }
 }
 }
