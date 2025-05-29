@@ -313,13 +313,15 @@ enum class CrossOfferResult
 };
 
 // buys wheat with sheep, crossing as many offers as necessary or using a
-// liquidity pool
+// liquidity pool. `maxOffersToCross` is in/out: the caller passes the
+// remaining work budget for the operation and the function decrements it by
+// the work consumed by this call.
 ConvertResult convertWithOffersAndPools(
     AbstractLedgerTxn& ltx, Asset const& sheep, int64_t maxSheepSent,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
-    std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross);
+    std::vector<ClaimAtom>& offerTrail, int64_t& maxOffersToCross);
 
 // Compute a PoolID as needed for offer exchange. Determines the correct order
 // for x and y.

@@ -522,6 +522,9 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool PARALLEL_LEDGER_APPLY;
 
+    // Allow downloading of transaction sets in parallel with SCP (experimental)
+    bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
+
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 
@@ -688,6 +691,11 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
     unsigned short PEER_STRAGGLER_TIMEOUT;
+
+    // Time in milliseconds before a node gives up waiting on a transaction set
+    // and votes to drop the tx set. Does nothing without
+    // `EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD` enabled.
+    std::chrono::milliseconds TX_SET_DOWNLOAD_TIMEOUT;
     int MAX_BATCH_WRITE_COUNT;
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;
@@ -894,6 +902,11 @@ class Config : public std::enable_shared_from_this<Config>
     // When set, disables validation of the ledger target close time
     // bounds on config upgrades (for testing only).
     bool TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS;
+
+    // When set, this node will nominate random values when it is the round
+    // leader. This is useful for testing CAP-0083 behavior. This is a testing
+    // only flag.
+    bool TESTING_NOMINATE_RANDOM_VALUES;
 
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.

@@ -16,7 +16,7 @@ class PathPaymentOpFrameBase : public OperationFrame
   protected:
     bool convert(AppConnector& app,
                  std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-                 AbstractLedgerTxn& ltx, int64_t maxOffersToCross,
+                 AbstractLedgerTxn& ltx, int64_t& maxOffersToCross,
                  Asset const& sendAsset, int64_t maxSend, int64_t& amountSend,
                  Asset const& recvAsset, int64_t maxRecv, int64_t& amountRecv,
                  RoundingType round, std::vector<ClaimAtom>& offerTrail,

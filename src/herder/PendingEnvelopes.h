@@ -112,8 +112,7 @@ class PendingEnvelopes
 
     // tries to find a txset in memory, setting touch also touches the LRU,
     // extending the lifetime of the result
-    TxSetXDRFrameConstPtr getKnownTxSet(Hash const& hash, uint64 slot,
-                                        bool touch);
+    TxSetResult getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
 
     void cleanKnownData();
 
@@ -186,6 +185,16 @@ class PendingEnvelopes
      */
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset);
 
+    // Returns true if the tx set is available locally (either in cache or
+    // is an empty-tx-set hash which doesn't need fetching).
+    bool hasTxSet(Hash const& hash) const;
+
+    // Returns true if the qset referenced by `envelope` is available locally
+    bool isQsetFetched(SCPEnvelope const& envelope);
+
+    // Returns true if every tx set referenced by `env` is available locally
+    bool areTxSetsFetched(SCPEnvelope const& env) const;
+
     void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
@@ -203,8 +212,16 @@ class PendingEnvelopes
 
     Json::Value getJsonInfo(size_t limit);
 
-    TxSetXDRFrameConstPtr getTxSet(Hash const& hash);
+    TxSetResult getTxSet(Hash const& hash);
     SCPQuorumSetPtr getQSet(Hash const& hash);
+
+    /**
+     * Return how long the transaction set fetcher has been waiting for the
+     * transaction set identified by @p hash. Returns nullopt if the transaction
+     * set is not being fetched.
+     */
+    std::optional<std::chrono::milliseconds>
+    getTxSetWaitingTime(Hash const& hash) const;
 
     // returns true if we think that the node is in the transitive quorum for
     // sure

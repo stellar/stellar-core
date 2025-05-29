@@ -70,6 +70,13 @@ class ItemFetcher : private NonMovableOrCopyable
     std::vector<SCPEnvelope> fetchingFor(Hash const& itemHash) const;
 
     /**
+     * Returns the time since the fetch was started for the item identified by
+     * @p hash. Returns nullopt if the item is not being fetched.
+     */
+    std::optional<std::chrono::milliseconds>
+    getWaitingTime(Hash const& itemHash) const;
+
+    /**
      * Called periodically to remove envelopes from list that fall outside
      * the range [minSlot, maxSlot]. Either bound may be nullopt to skip
      * that direction. Can also remove @see Tracker instances when not
