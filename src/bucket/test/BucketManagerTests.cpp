@@ -304,11 +304,11 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
         do
         {
             ++ledger;
+            // Exclude soroban types to avoid worrying about TTL invariants
             lm.setNextLedgerEntryBatchForBucketTesting(
-                {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10),
-                {});
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 10),
+                {}, {});
             closeLedger(*app);
         } while (!LiveBucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
@@ -642,9 +642,10 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     // subsequent merges touch them, producing empty buckets.
     for (size_t i = 0; i < 128; ++i)
     {
+        // Exclude soroban types to avoid worrying about TTL invariants
         auto entries =
             LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                {CONFIG_SETTING}, 8);
+                {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 8);
         REQUIRE(entries.size() == 8);
         for (auto const& e : entries)
         {
@@ -730,12 +731,15 @@ TEST_CASE_VERSIONS(
             if (lm.getLastClosedLedgerNum() != lastLcl)
             {
                 lastLcl = lm.getLastClosedLedgerNum();
+
+                // Exclude soroban types from live BL to avoid worrying about
+                // TTL invariants
                 lm.setNextLedgerEntryBatchForBucketTesting(
-                    {},
                     LedgerTestUtils::
                         generateValidUniqueLedgerEntriesWithExclusions(
-                            {CONFIG_SETTING}, 100),
-                    {});
+                            {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE},
+                            100),
+                    {}, {});
                 if (hasHotArchive)
                 {
                     lm.setNextArchiveBatchForBucketTesting(
@@ -1509,9 +1513,12 @@ class StopAndRestartBucketMergesTest
             }
             auto nInits =
                 nEntriesInBatch - (liveEntries.size() + deadEntries.size());
+            // Exclude soroban types to avoid TTL complexity since we generate
+            // hot archive entries manually
             auto newRandom =
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, nInits);
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE},
+                    nInits);
             for (auto const& e : newRandom)
             {
                 auto k = LedgerEntryKey(e);

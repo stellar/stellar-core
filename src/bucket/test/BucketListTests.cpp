@@ -936,6 +936,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                                    .stateArchivalSettings()
                                    .liveSorobanStateSizeWindowSamplePeriod;
         auto lclSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
+        UnorderedSet<LedgerKey> generatedKeys;
         for (uint32_t ledger = lclSeq; ledger < ledgersToGenerate; ++ledger)
         {
             // Note: BucketList size in the sliding window is snapshotted before
@@ -952,11 +953,12 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                     app->getBucketManager().getLiveBucketList().getSize());
             }
 
+            // Exclude soroban types to avoid TTL invariants
             lm.setNextLedgerEntryBatchForBucketTesting(
-                {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10),
-                {});
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 10,
+                    generatedKeys),
+                {}, {});
             closeLedger(*app);
             if ((ledger + 1) % networkConfig()
                                    .stateArchivalSettings()
@@ -1368,7 +1370,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
                 lm.setNextLedgerEntryBatchForBucketTesting(
                     {},
                     LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE}, 10),
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                        10),
                     {});
                 closeLedger(*app);
             }
@@ -1412,7 +1415,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
                         {},
                         LedgerTestUtils::
                             generateValidLedgerEntriesWithExclusions(
-                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE},
+                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE,
+                                 TTL},
                                 10),
                         {});
                     closeLedger(*app);
