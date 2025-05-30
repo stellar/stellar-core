@@ -130,22 +130,19 @@ class BucketBase : public NonMovableOrCopyable
           bool keepTombstoneEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
-    // Returns whether shadowed lifecycle entries should be kept
-    static bool updateMergeCountersForProtocolVersion(
-        MergeCounters& mc, uint32_t protocolVersion,
-        std::vector<BucketInputIterator<BucketT>> const& shadowIterators);
-
     // Helper function that implements the core merge algorithm logic for both
     // iterator based and in-memory merges.
     // PutFunc will be called to write entries that are the result of the merge.
-    // We have to use a template here to break a dependency on the BucketT type,
-    // but PutFuncT == std::function<void(typename BucketT::EntryT const&)>
-    template <typename InputSource, typename PutFuncT>
-    static void
-    mergeInternal(BucketManager& bucketManager, InputSource& inputSource,
-                  PutFuncT putFunc, uint32_t protocolVersion,
-                  std::vector<BucketInputIterator<BucketT>>& shadowIterators,
-                  bool keepShadowedLifecycleEntries, MergeCounters& mc);
+    // Parameter pack is empty for HotArchiveBucket, since they do not support
+    // shadows.
+    // For Livebucket, parameter pack is
+    // std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+    //    bool keepShadowedLifecycleEntries
+    template <typename InputSource, typename PutFuncT, typename... ShadowParams>
+    static void mergeInternal(BucketManager& bucketManager,
+                              InputSource& inputSource, PutFuncT putFunc,
+                              uint32_t protocolVersion, MergeCounters& mc,
+                              ShadowParams&&... shadowParams);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);

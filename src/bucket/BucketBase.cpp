@@ -147,49 +147,6 @@ BucketBase<BucketT, IndexT>::randomBucketIndexName(std::string const& tmpDir)
     return randomFileName(tmpDir, ".index");
 }
 
-template <class BucketT, class IndexT>
-bool
-BucketBase<BucketT, IndexT>::updateMergeCountersForProtocolVersion(
-    MergeCounters& mc, uint32_t protocolVersion,
-    std::vector<BucketInputIterator<BucketT>> const& shadowIterators)
-{
-    // Don't count shadow metrics for Hot Archive BucketList
-    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
-    {
-        return true;
-    }
-
-    bool keepShadowedLifecycleEntries = true;
-
-    if (protocolVersionIsBefore(
-            protocolVersion,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
-    {
-        ++mc.mPreInitEntryProtocolMerges;
-        keepShadowedLifecycleEntries = false;
-    }
-    else
-    {
-        ++mc.mPostInitEntryProtocolMerges;
-    }
-
-    if (protocolVersionIsBefore(protocolVersion,
-                                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
-    {
-        ++mc.mPreShadowRemovalProtocolMerges;
-    }
-    else
-    {
-        if (!shadowIterators.empty())
-        {
-            throw std::runtime_error("Shadows are not supported");
-        }
-        ++mc.mPostShadowRemovalProtocolMerges;
-    }
-
-    return keepShadowedLifecycleEntries;
-}
-
 // The protocol used in a merge is the maximum of any of the protocols used in
 // its input buckets, _including_ any of its shadows. We need to be strict about
 // this for the same reason we change shadow algorithms along with merge
@@ -265,23 +222,27 @@ calculateMergeProtocolVersion(
     // we switch shadowing-behaviour to a more conservative mode, in order to
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
-    keepShadowedLifecycleEntries =
-        BucketBase<BucketT, IndexT>::updateMergeCountersForProtocolVersion(
-            mc, protocolVersion, shadowIterators);
+    // Shadows are only supported for LiveBucket
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        keepShadowedLifecycleEntries =
+            LiveBucket::updateMergeCountersForProtocolVersion(
+                mc, protocolVersion, shadowIterators);
+    }
 }
 
 // There are 4 "easy" cases for merging: exhausted iterators on either
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
-template <class BucketT, class IndexT, typename InputSource>
+template <class BucketT, class IndexT, typename InputSource,
+          typename... ShadowParams>
 static bool
 mergeCasesWithDefaultAcceptance(
     BucketEntryIdCmp<BucketT> const& cmp, MergeCounters& mc,
     InputSource& inputSource,
     std::function<void(typename BucketT::EntryT const&)> putFunc,
-    std::vector<BucketInputIterator<BucketT>>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+    uint32_t protocolVersion, ShadowParams&&... shadowParams)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -298,8 +259,7 @@ mergeCasesWithDefaultAcceptance(
         ++mc.mOldEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countOldEntryType(mc, entry);
-        BucketT::maybePut(putFunc, entry, shadowIterators,
-                          keepShadowedLifecycleEntries, mc);
+        BucketT::maybePut(putFunc, entry, mc, shadowParams...);
         inputSource.advanceOld();
         return true;
     }
@@ -315,8 +275,7 @@ mergeCasesWithDefaultAcceptance(
         ++mc.mNewEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countNewEntryType(mc, entry);
-        BucketT::maybePut(putFunc, entry, shadowIterators,
-                          keepShadowedLifecycleEntries, mc);
+        BucketT::maybePut(putFunc, entry, mc, shadowParams...);
         inputSource.advanceNew();
         return true;
     }
@@ -324,13 +283,11 @@ mergeCasesWithDefaultAcceptance(
 }
 
 template <class BucketT, class IndexT>
-template <typename InputSource, typename PutFuncT>
+template <typename InputSource, typename PutFuncT, typename... ShadowParams>
 void
 BucketBase<BucketT, IndexT>::mergeInternal(
     BucketManager& bucketManager, InputSource& inputSource, PutFuncT putFunc,
-    uint32_t protocolVersion,
-    std::vector<BucketInputIterator<BucketT>>& shadowIterators,
-    bool keepShadowedLifecycleEntries, MergeCounters& mc)
+    uint32_t protocolVersion, MergeCounters& mc, ShadowParams&&... shadowParams)
 {
     BucketEntryIdCmp<BucketT> cmp;
     size_t iter = 0;
@@ -350,12 +307,11 @@ BucketBase<BucketT, IndexT>::mergeInternal(
         }
 
         if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT, InputSource>(
-                cmp, mc, inputSource, putFunc, shadowIterators, protocolVersion,
-                keepShadowedLifecycleEntries))
+                cmp, mc, inputSource, putFunc, protocolVersion,
+                shadowParams...))
         {
             BucketT::template mergeCasesWithEqualKeys<InputSource>(
-                mc, inputSource, putFunc, shadowIterators, protocolVersion,
-                keepShadowedLifecycleEntries);
+                mc, inputSource, putFunc, protocolVersion, shadowParams...);
         }
     }
 }
@@ -387,7 +343,7 @@ BucketBase<BucketT, IndexT>::merge(
                                                               shadows.end());
 
     uint32_t protocolVersion;
-    bool keepShadowedLifecycleEntries;
+    bool keepShadowedLifecycleEntries = true;
     calculateMergeProtocolVersion<BucketT, IndexT>(
         mc, maxProtocolVersion, oi, ni, shadowIterators, protocolVersion,
         keepShadowedLifecycleEntries);
@@ -423,19 +379,26 @@ BucketBase<BucketT, IndexT>::merge(
     };
 
     // Perform the merge
-    mergeInternal(bucketManager, inputSource, putFunc, protocolVersion,
-                  shadowIterators, keepShadowedLifecycleEntries, mc);
+    std::vector<Hash> shadowHashes;
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        mergeInternal(bucketManager, inputSource, putFunc, protocolVersion, mc,
+                      shadowIterators, keepShadowedLifecycleEntries);
+        shadowHashes.reserve(shadows.size());
+        for (auto const& s : shadows)
+        {
+            shadowHashes.push_back(s->getHash());
+        }
+    }
+    else
+    {
+        // HotArchive BucketList does not support shadows
+        mergeInternal(bucketManager, inputSource, putFunc, protocolVersion, mc);
+    }
 
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters<BucketT>(mc);
-    }
-
-    std::vector<Hash> shadowHashes;
-    shadowHashes.reserve(shadows.size());
-    for (auto const& s : shadows)
-    {
-        shadowHashes.push_back(s->getHash());
     }
 
     MergeKey mk{keepTombstoneEntries, oldBucket->getHash(),
@@ -444,10 +407,11 @@ BucketBase<BucketT, IndexT>::merge(
 }
 
 template void BucketBase<LiveBucket, LiveBucket::IndexT>::mergeInternal<
-    MemoryMergeInput<LiveBucket>, std::function<void(BucketEntry const&)>>(
+    MemoryMergeInput<LiveBucket>, std::function<void(BucketEntry const&)>,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool&>(
     BucketManager&, MemoryMergeInput<LiveBucket>&,
-    std::function<void(BucketEntry const&)>, uint32_t,
-    std::vector<BucketInputIterator<LiveBucket>>&, bool, MergeCounters&);
+    std::function<void(BucketEntry const&)>, uint32_t, MergeCounters&,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool&);
 
 template void
 BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>::mergeInternal<
@@ -455,7 +419,7 @@ BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>::mergeInternal<
     std::function<void(HotArchiveBucketEntry const&)>>(
     BucketManager&, MemoryMergeInput<HotArchiveBucket>&,
     std::function<void(HotArchiveBucketEntry const&)>, uint32_t,
-    std::vector<BucketInputIterator<HotArchiveBucket>>&, bool, MergeCounters&);
+    MergeCounters&);
 
 template class BucketBase<LiveBucket, LiveBucket::IndexT>;
 template class BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>;
