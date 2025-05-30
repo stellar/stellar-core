@@ -2939,7 +2939,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         };
         for (auto const& n : simulation->getNodes())
         {
-            HerderImpl& herder = *static_cast<HerderImpl*>(&n->getHerder());
+            HerderImpl& herder = static_cast<HerderImpl&>(n->getHerder());
             herder.getHerderSCPDriver().setPriorityLookup(lookup);
         }
     };
@@ -3563,6 +3563,34 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
     REQUIRE(herder.trackingConsensusLedgerIndex() == ledger);
 }
 
+std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
+getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
+{
+    std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
+        validatorSCPMessages;
+    HerderImpl& herder = static_cast<HerderImpl&>(app.getHerder());
+
+    for (auto seq = start; seq <= end; ++seq)
+    {
+        for (auto const& env : herder.getSCP().getLatestMessagesSend(seq))
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                StellarValue sv;
+                auto& pe = herder.getPendingEnvelopes();
+                herder.getHerderSCPDriver().toStellarValue(
+                    env.statement.pledges.externalize().commit.value, sv);
+                auto txset = pe.getTxSet(sv.txSetHash);
+                REQUIRE(txset);
+                validatorSCPMessages[seq] =
+                    std::make_pair(env, txset->toStellarMessage());
+            }
+        }
+    }
+
+    return validatorSCPMessages;
+}
+
 // The main purpose of this test is to ensure the externalize path works
 // correctly. This entails properly updating tracking in Herder, forwarding
 // externalize information to LM, and Herder appropriately reacting to ledger
@@ -3668,9 +3696,9 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         return waitForLedgers(numLedgers);
     };
 
-    HerderImpl& herderA = *static_cast<HerderImpl*>(&A->getHerder());
-    HerderImpl& herderB = *static_cast<HerderImpl*>(&B->getHerder());
-    HerderImpl& herderC = *static_cast<HerderImpl*>(&getC()->getHerder());
+    HerderImpl& herderA = static_cast<HerderImpl&>(A->getHerder());
+    HerderImpl& herderB = static_cast<HerderImpl&>(B->getHerder());
+    HerderImpl& herderC = static_cast<HerderImpl&>(getC()->getHerder());
     auto const& lmC = getC()->getLedgerManager();
 
     auto waitForAB = [&](int nLedgers, bool waitForB) {
@@ -3724,44 +3752,11 @@ herderExternalizesValuesWithProtocol(uint32_t version,
     currentLedger = currentALedger();
 
     // Advance A and B a bit further, and collect externalize messages
-    std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
-        validatorSCPMessagesA;
-    std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
-        validatorSCPMessagesB;
-
     auto destinationLedger = waitForAB(4, true);
-    for (auto start = currentLedger + 1; start <= destinationLedger; start++)
-    {
-        for (auto const& env : herderA.getSCP().getLatestMessagesSend(start))
-        {
-            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
-            {
-                StellarValue sv;
-                auto& pe = herderA.getPendingEnvelopes();
-                herderA.getHerderSCPDriver().toStellarValue(
-                    env.statement.pledges.externalize().commit.value, sv);
-                auto txset = pe.getTxSet(sv.txSetHash);
-                REQUIRE(txset);
-                validatorSCPMessagesA[start] =
-                    std::make_pair(env, txset->toStellarMessage());
-            }
-        }
-
-        for (auto const& env : herderB.getSCP().getLatestMessagesSend(start))
-        {
-            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
-            {
-                StellarValue sv;
-                auto& pe = herderB.getPendingEnvelopes();
-                herderB.getHerderSCPDriver().toStellarValue(
-                    env.statement.pledges.externalize().commit.value, sv);
-                auto txset = pe.getTxSet(sv.txSetHash);
-                REQUIRE(txset);
-                validatorSCPMessagesB[start] =
-                    std::make_pair(env, txset->toStellarMessage());
-            }
-        }
-    }
+    auto validatorSCPMessagesA = getValidatorExternalizeMessages(
+        *A, currentLedger + 1, destinationLedger);
+    auto validatorSCPMessagesB = getValidatorExternalizeMessages(
+        *B, currentLedger + 1, destinationLedger);
 
     REQUIRE(validatorSCPMessagesA.size() == validatorSCPMessagesB.size());
     checkHerder(*(getC()), herderC,
@@ -3962,7 +3957,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         configC.MAX_SLOTS_TO_REMEMBER += 5;
         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
         newC->start();
-        HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
+        HerderImpl& newHerderC = static_cast<HerderImpl&>(newC->getHerder());
 
         checkHerder(*newC, newHerderC,
                     Herder::State::HERDER_TRACKING_NETWORK_STATE,
@@ -4040,7 +4035,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             // Restarting C should trigger due to FORCE_SCP
             newC->start();
             HerderImpl& newHerderC =
-                *static_cast<HerderImpl*>(&newC->getHerder());
+                static_cast<HerderImpl&>(newC->getHerder());
 
             auto expiryTime = newHerderC.getTriggerTimer().expiry_time();
             REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
@@ -4249,7 +4244,7 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
         for (auto const& k : qSetBase.validators)
         {
             auto c = sim->getNode(k);
-            HerderImpl& herder = *static_cast<HerderImpl*>(&c->getHerder());
+            HerderImpl& herder = static_cast<HerderImpl&>(c->getHerder());
 
             auto const& lcl = c->getLedgerManager().getLastClosedLedgerHeader();
             herder.getSCP().processCurrentState(lcl.header.ledgerSeq, proc,
@@ -6406,3 +6401,80 @@ TEST_CASE("Unresponsive quorum timeouts", "[herder]")
         testUnresponsiveTimeouts(t, i, numLedgers);
     }
 }
+
+#ifdef USE_POSTGRES
+TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+            cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        std::chrono::seconds(20), false);
+
+    auto A = simulation->getNodes()[1];
+    auto B = simulation->getNodes()[2];
+    auto C = simulation->getNodes()[0];
+    auto nodeCLCL = C->getLedgerManager().getLastClosedLedgerNum();
+
+    // Drop one node completely
+    simulation->dropConnection(C->getConfig().NODE_SEED.getPublicKey(),
+                               A->getConfig().NODE_SEED.getPublicKey());
+    simulation->dropConnection(C->getConfig().NODE_SEED.getPublicKey(),
+                               B->getConfig().NODE_SEED.getPublicKey());
+    simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+    // Advance A and B a bit further, and collect externalize messages
+    simulation->crankUntil(
+        [&]() {
+            return A->getLedgerManager().getLastClosedLedgerNum() >=
+                       nodeCLCL + 3 &&
+                   B->getLedgerManager().getLastClosedLedgerNum() >=
+                       nodeCLCL + 3;
+        },
+        std::chrono::seconds(60), false);
+
+    auto validatorSCPMessagesA =
+        getValidatorExternalizeMessages(*A, nodeCLCL + 1, nodeCLCL + 3);
+    auto validatorSCPMessagesB =
+        getValidatorExternalizeMessages(*B, nodeCLCL + 1, nodeCLCL + 3);
+
+    // First, externalize one ledger such that C schedules triggerNextLedger
+    auto& herder = static_cast<HerderImpl&>(C->getHerder());
+    auto nextSeq = herder.nextConsensusLedgerIndex();
+    auto newMsgB = validatorSCPMessagesB.at(nextSeq);
+    auto newMsgA = validatorSCPMessagesA.at(nextSeq);
+
+    auto qset = A->getConfig().QUORUM_SET;
+    REQUIRE(herder.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+    REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+
+    // Feed messages for nextSeq+1. At the same time, triggerNextLedger is
+    // scheduled after externalizing nextSeq
+    newMsgB = validatorSCPMessagesB.at(nextSeq + 1);
+    newMsgA = validatorSCPMessagesA.at(nextSeq + 1);
+
+    REQUIRE(herder.recvSCPEnvelope(newMsgA.first) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(herder.recvSCPEnvelope(newMsgB.first) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+
+    // Crank a bit. triggerNextLedger should get scheduled, inside that call
+    // it will externalize nextSeq + 1 (since we have all the right SCP
+    // messages. Ensure triggerNextLedger handles side effects correctly
+    simulation->crankForAtLeast(std::chrono::seconds(10), false);
+
+    // Final state: C is tracking nextSeq + 1, and has scheduled next
+    // trigger ledger
+    REQUIRE(herder.getTriggerTimer().seq() > 0);
+    REQUIRE(herder.mTriggerNextLedgerSeq == nextSeq + 2);
+}
+#endif // USE_POSTGRES

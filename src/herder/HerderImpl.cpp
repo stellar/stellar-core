@@ -1505,7 +1505,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger
-    if (ledgerSeqToTrigger != slotIndex)
+    // Also skip trigger if side effects from `addTxSet` caused us to start
+    // applying
+    if (ledgerSeqToTrigger != slotIndex || mLedgerManager.isApplying())
     {
         return;
     }
