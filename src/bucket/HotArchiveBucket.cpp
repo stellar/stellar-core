@@ -4,6 +4,7 @@
 
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketMergeAdapter.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -77,26 +78,24 @@ HotArchiveBucket::convertToBucketEntry(
 
 void
 HotArchiveBucket::maybePut(
-    HotArchiveBucketOutputIterator& out, HotArchiveBucketEntry const& entry,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    bool keepShadowedLifecycleEntries, MergeCounters& mc)
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    HotArchiveBucketEntry const& entry, MergeCounters& mc)
 {
-    // Archived BucketList is only present after protocol 21, so shadows are
-    // never supported
-    out.put(entry);
+    putFunc(entry);
 }
 
+template <typename InputSource>
 void
 HotArchiveBucket::mergeCasesWithEqualKeys(
-    MergeCounters& mc, HotArchiveBucketInputIterator& oi,
-    HotArchiveBucketInputIterator& ni, HotArchiveBucketOutputIterator& out,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+    MergeCounters& mc, InputSource& inputSource,
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    uint32_t protocolVersion)
 {
+    auto const& oldEntry = inputSource.getOldEntry();
+    auto const& newEntry = inputSource.getNewEntry();
+
     // If two identical keys have the same type, throw an error. Otherwise,
     // take the newer key.
-    HotArchiveBucketEntry const& oldEntry = *oi;
-    HotArchiveBucketEntry const& newEntry = *ni;
     if (oldEntry.type() == newEntry.type())
     {
         throw std::runtime_error(
@@ -104,9 +103,9 @@ HotArchiveBucket::mergeCasesWithEqualKeys(
             "the same type.");
     }
 
-    out.put(newEntry);
-    ++ni;
-    ++oi;
+    putFunc(newEntry);
+    inputSource.advanceNew();
+    inputSource.advanceOld();
 }
 
 uint32_t
@@ -140,4 +139,15 @@ HotArchiveBucket::bucketEntryToLoadResult(
     return isTombstoneEntry(*be) ? nullptr : be;
 }
 
+template void
+HotArchiveBucket::mergeCasesWithEqualKeys<FileMergeInput<HotArchiveBucket>>(
+    MergeCounters& mc, FileMergeInput<HotArchiveBucket>& inputSource,
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    uint32_t protocolVersion);
+
+template void
+HotArchiveBucket::mergeCasesWithEqualKeys<MemoryMergeInput<HotArchiveBucket>>(
+    MergeCounters& mc, MemoryMergeInput<HotArchiveBucket>& inputSource,
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    uint32_t protocolVersion);
 }
