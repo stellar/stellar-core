@@ -6,6 +6,7 @@
 
 #include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
+#include <variant>
 
 namespace medida
 {
@@ -360,10 +361,18 @@ template <class BucketT> class BucketLevel
     BUCKET_TYPE_ASSERT(BucketT);
 
     uint32_t mLevel;
-    FutureBucket<BucketT> mNextCurr;
+    // Variant to hold either a FutureBucket (for async merges) or a
+    // shared_ptr<BucketT> (for in-memory merges)
+    std::variant<FutureBucket<BucketT>, std::shared_ptr<BucketT>> mNextCurr;
     std::shared_ptr<BucketT> mCurr;
     std::shared_ptr<BucketT> mSnap;
-    std::shared_ptr<BucketT> mNextCurrInMemory;
+
+    void setNextInMemory(std::shared_ptr<BucketT>&& b);
+
+    bool hasInMemoryMerge() const;
+    bool hasFutureBucketMerge() const;
+    bool hasInProgressMerge() const;
+    void clearNext();
 
   public:
     BucketLevel(uint32_t i);
