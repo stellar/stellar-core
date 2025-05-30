@@ -365,6 +365,11 @@ ApplyLoad::setupBucketList()
         CLOG_INFO(Bucket, "Level {}: {} = {} + {}", i, currSz + snapSz, currSz,
                   snapSz);
     }
+    HistoryArchiveState has;
+    has.currentLedger = lh.ledgerSeq;
+    mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
+                                       has.toString(),
+                                       mApp.getDatabase().getSession());
     mApp.getBucketManager().snapshotLedger(lh);
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
