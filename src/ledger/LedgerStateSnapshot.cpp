@@ -268,4 +268,62 @@ LedgerSnapshot::executeWithMaybeInnerSnapshot(
 {
     return mGetter->executeWithMaybeInnerSnapshot(f);
 }
+
+void
+CompleteConstLedgerState::checkInvariant() const
+{
+    releaseAssert(mBucketSnapshot);
+    releaseAssert(mLastClosedHistoryArchiveState.currentLedger ==
+                  mLastClosedLedgerHeader.header.ledgerSeq);
+    releaseAssert(mBucketSnapshot->getLedgerHeader() ==
+                  mLastClosedLedgerHeader.header);
+}
+
+CompleteConstLedgerState::CompleteConstLedgerState(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    std::optional<SorobanNetworkConfig> const& sorobanConfig,
+    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+    HistoryArchiveState const& lastClosedHistoryArchiveState)
+    : mBucketSnapshot(searchableSnapshot)
+    , mSorobanConfig(sorobanConfig)
+    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
+    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+}
+
+SearchableSnapshotConstPtr
+CompleteConstLedgerState::getBucketSnapshot() const
+{
+    checkInvariant();
+    return mBucketSnapshot;
+}
+
+SorobanNetworkConfig const&
+CompleteConstLedgerState::getSorobanConfig() const
+{
+    checkInvariant();
+    return *mSorobanConfig;
+}
+
+bool
+CompleteConstLedgerState::hasSorobanConfig() const
+{
+    checkInvariant();
+    return mSorobanConfig.has_value();
+}
+
+LedgerHeaderHistoryEntry const&
+CompleteConstLedgerState::getLastClosedLedgerHeader() const
+{
+    checkInvariant();
+    return mLastClosedLedgerHeader;
+}
+
+HistoryArchiveState const&
+CompleteConstLedgerState::getLastClosedHistoryArchiveState() const
+{
+    checkInvariant();
+    return mLastClosedHistoryArchiveState;
+}
 }
