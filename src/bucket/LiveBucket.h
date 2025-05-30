@@ -81,8 +81,9 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     static void mergeCasesWithEqualKeys(
         MergeCounters& mc, InputSource& inputSource,
         std::function<void(BucketEntry const&)> putFunc,
+        uint32_t protocolVersion,
         std::vector<LiveBucketInputIterator>& shadowIterators,
-        uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+        bool keepShadowedLifecycleEntries);
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
@@ -127,9 +128,9 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // iterator if the entry is not shadowed.
     // putFunc will be called to actually write the result of maybePut.
     static void maybePut(std::function<void(BucketEntry const&)> putFunc,
-                         BucketEntry const& entry,
+                         BucketEntry const& entry, MergeCounters& mc,
                          std::vector<LiveBucketInputIterator>& shadowIterators,
-                         bool keepShadowedLifecycleEntries, MergeCounters& mc);
+                         bool keepShadowedLifecycleEntries);
 
     // Merge two buckets in memory without using FutureBucket.
     // This is used only for level 0 merges. Note that the resulting Bucket is
@@ -142,6 +143,11 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
 
     static void countOldEntryType(MergeCounters& mc, BucketEntry const& e);
     static void countNewEntryType(MergeCounters& mc, BucketEntry const& e);
+
+    // Returns whether shadowed lifecycle entries should be kept
+    static bool updateMergeCountersForProtocolVersion(
+        MergeCounters& mc, uint32_t protocolVersion,
+        std::vector<LiveBucketInputIterator> const& shadowIterators);
 
     uint32_t getBucketVersion() const;
 

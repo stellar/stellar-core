@@ -350,7 +350,6 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
 
     std::shared_ptr<BucketT> curr = mInputCurrBucket;
     std::shared_ptr<BucketT> snap = mInputSnapBucket;
-    std::vector<std::shared_ptr<BucketT>> shadows = mInputShadowBuckets;
 
     releaseAssert(curr);
     releaseAssert(snap);
@@ -365,10 +364,17 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
         {"bucket", "merge-time", "level-" + std::to_string(level)});
 
     std::vector<Hash> shadowHashes;
-    shadowHashes.reserve(shadows.size());
-    for (auto const& b : shadows)
+    std::vector<std::shared_ptr<BucketT>> shadows;
+
+    // Shadows are only supported for LiveBucket
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
     {
-        shadowHashes.emplace_back(b->getHash());
+        shadows = mInputShadowBuckets;
+        shadowHashes.reserve(shadows.size());
+        for (auto const& b : shadows)
+        {
+            shadowHashes.emplace_back(b->getHash());
+        }
     }
 
     // It's possible we're running a merge that's already running, for example

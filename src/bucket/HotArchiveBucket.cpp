@@ -79,12 +79,8 @@ HotArchiveBucket::convertToBucketEntry(
 void
 HotArchiveBucket::maybePut(
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
-    HotArchiveBucketEntry const& entry,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    bool keepShadowedLifecycleEntries, MergeCounters& mc)
+    HotArchiveBucketEntry const& entry, MergeCounters& mc)
 {
-    // Archived BucketList is only present after protocol 21, so shadows are
-    // never supported
     putFunc(entry);
 }
 
@@ -93,8 +89,7 @@ void
 HotArchiveBucket::mergeCasesWithEqualKeys(
     MergeCounters& mc, InputSource& inputSource,
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+    uint32_t protocolVersion)
 {
     auto const& oldEntry = inputSource.getOldEntry();
     auto const& newEntry = inputSource.getNewEntry();
@@ -148,13 +143,11 @@ template void
 HotArchiveBucket::mergeCasesWithEqualKeys<FileMergeInput<HotArchiveBucket>>(
     MergeCounters& mc, FileMergeInput<HotArchiveBucket>& inputSource,
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+    uint32_t protocolVersion);
 
 template void
 HotArchiveBucket::mergeCasesWithEqualKeys<MemoryMergeInput<HotArchiveBucket>>(
     MergeCounters& mc, MemoryMergeInput<HotArchiveBucket>& inputSource,
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+    uint32_t protocolVersion);
 }

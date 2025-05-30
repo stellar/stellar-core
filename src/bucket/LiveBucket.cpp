@@ -76,11 +76,47 @@ LiveBucket::countOldEntryType(MergeCounters& mc, BucketEntry const& e)
     }
 }
 
+bool
+LiveBucket::updateMergeCountersForProtocolVersion(
+    MergeCounters& mc, uint32_t protocolVersion,
+    std::vector<LiveBucketInputIterator> const& shadowIterators)
+{
+    bool keepShadowedLifecycleEntries = true;
+
+    if (protocolVersionIsBefore(
+            protocolVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+    {
+        ++mc.mPreInitEntryProtocolMerges;
+        keepShadowedLifecycleEntries = false;
+    }
+    else
+    {
+        ++mc.mPostInitEntryProtocolMerges;
+    }
+
+    if (protocolVersionIsBefore(protocolVersion,
+                                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+    {
+        ++mc.mPreShadowRemovalProtocolMerges;
+    }
+    else
+    {
+        if (!shadowIterators.empty())
+        {
+            throw std::runtime_error("Shadows are not supported");
+        }
+        ++mc.mPostShadowRemovalProtocolMerges;
+    }
+
+    return keepShadowedLifecycleEntries;
+}
+
 void
 LiveBucket::maybePut(std::function<void(BucketEntry const&)> putFunc,
-                     BucketEntry const& entry,
+                     BucketEntry const& entry, MergeCounters& mc,
                      std::vector<LiveBucketInputIterator>& shadowIterators,
-                     bool keepShadowedLifecycleEntries, MergeCounters& mc)
+                     bool keepShadowedLifecycleEntries)
 {
     // In ledgers before protocol 11, keepShadowedLifecycleEntries will be
     // `false` and we will drop all shadowed entries here.
@@ -155,9 +191,9 @@ template <typename InputSource>
 void
 LiveBucket::mergeCasesWithEqualKeys(
     MergeCounters& mc, InputSource& inputSource,
-    std::function<void(BucketEntry const&)> putFunc,
+    std::function<void(BucketEntry const&)> putFunc, uint32_t protocolVersion,
     std::vector<LiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+    bool keepShadowedLifecycleEntries)
 {
     // Old and new are for the same key and neither is INIT, take the new
     // key. If either key is INIT, we have to make some adjustments:
@@ -242,8 +278,8 @@ LiveBucket::mergeCasesWithEqualKeys(
         newLive.type(LIVEENTRY);
         newLive.liveEntry() = newEntry.liveEntry();
         ++mc.mNewInitEntriesMergedWithOldDead;
-        maybePut(putFunc, newLive, shadowIterators,
-                 keepShadowedLifecycleEntries, mc);
+        maybePut(putFunc, newLive, mc, shadowIterators,
+                 keepShadowedLifecycleEntries);
     }
     else if (oldEntry.type() == INITENTRY)
     {
@@ -255,8 +291,8 @@ LiveBucket::mergeCasesWithEqualKeys(
             newInit.type(INITENTRY);
             newInit.liveEntry() = newEntry.liveEntry();
             ++mc.mOldInitEntriesMergedWithNewLive;
-            maybePut(putFunc, newInit, shadowIterators,
-                     keepShadowedLifecycleEntries, mc);
+            maybePut(putFunc, newInit, mc, shadowIterators,
+                     keepShadowedLifecycleEntries);
         }
         else
         {
@@ -268,8 +304,8 @@ LiveBucket::mergeCasesWithEqualKeys(
     {
         // Neither is in INIT state, take the newer one.
         ++mc.mNewEntriesMergedWithOldNeitherInit;
-        maybePut(putFunc, newEntry, shadowIterators,
-                 keepShadowedLifecycleEntries, mc);
+        maybePut(putFunc, newEntry, mc, shadowIterators,
+                 keepShadowedLifecycleEntries);
     }
     inputSource.advanceOld();
     inputSource.advanceNew();
@@ -498,10 +534,10 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
     }
 
     // First level never has shadows
-    std::vector<BucketInputIterator<LiveBucket>> shadowIterators{};
+    std::vector<LiveBucketInputIterator> shadowIterators{};
     MergeCounters mc;
-    updateMergeCountersForProtocolVersion(mc, maxProtocolVersion,
-                                          shadowIterators);
+    bool keepShadowedLifecycleEntries = updateMergeCountersForProtocolVersion(
+        mc, maxProtocolVersion, shadowIterators);
 
     MemoryMergeInput<LiveBucket> inputSource(oldEntries, newEntries);
     std::function<void(BucketEntry const&)> putFunc =
@@ -509,8 +545,8 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
             mergedEntries.emplace_back(entry);
         };
 
-    mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion,
-                  shadowIterators, true, mc);
+    mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion, mc,
+                  shadowIterators, keepShadowedLifecycleEntries);
 
     if (countMergeEvents)
     {
@@ -527,7 +563,7 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
         out.put(e);
     }
 
-    // Store the merged entries in memory in the new bucket in case this is
+    // Store the merged entries in memory in the new bucket in case this
     // bucket sees another incoming merge as level 0 curr.
     return out.getBucket(bucketManager, nullptr, std::move(mergedEntries));
 }
@@ -555,13 +591,13 @@ LiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be)
 
 template void LiveBucket::mergeCasesWithEqualKeys<FileMergeInput<LiveBucket>>(
     MergeCounters& mc, FileMergeInput<LiveBucket>& inputSource,
-    std::function<void(BucketEntry const&)> putFunc,
+    std::function<void(BucketEntry const&)> putFunc, uint32_t protocolVersion,
     std::vector<LiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+    bool keepShadowedLifecycleEntries);
 
 template void LiveBucket::mergeCasesWithEqualKeys<MemoryMergeInput<LiveBucket>>(
     MergeCounters& mc, MemoryMergeInput<LiveBucket>& inputSource,
-    std::function<void(BucketEntry const&)> putFunc,
+    std::function<void(BucketEntry const&)> putFunc, uint32_t protocolVersion,
     std::vector<LiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+    bool keepShadowedLifecycleEntries);
 }

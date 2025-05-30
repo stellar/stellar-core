@@ -62,9 +62,7 @@ class HotArchiveBucket
     // iterator using putFunc.
     static void
     maybePut(std::function<void(HotArchiveBucketEntry const&)> putFunc,
-             HotArchiveBucketEntry const& entry,
-             std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-             bool keepShadowedLifecycleEntries, MergeCounters& mc);
+             HotArchiveBucketEntry const& entry, MergeCounters& mc);
 
     // For now, we only count LiveBucket merge events
     static void
@@ -87,8 +85,7 @@ class HotArchiveBucket
     static void mergeCasesWithEqualKeys(
         MergeCounters& mc, InputSource& inputSource,
         std::function<void(HotArchiveBucketEntry const&)> putFunc,
-        std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-        uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+        uint32_t protocolVersion);
 
     static std::shared_ptr<LoadT const>
     bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be);
