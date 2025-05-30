@@ -1001,10 +1001,12 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         cfg.mLedgerMaxInstructions = max;
     });
 
-    auto const& conf =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto conf = [&app]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
+
     uint32_t maxContractSize = 0;
-    maxContractSize = conf.maxContractSizeBytes();
+    maxContractSize = conf().maxContractSizeBytes();
 
     auto makeTx = [&](TestAccount& acc, TxSetPhase const& phase) {
         if (phase == TxSetPhase::SOROBAN)
@@ -1064,7 +1066,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         auto byteAllowance = phase == TxSetPhase::SOROBAN
                                  ? app->getConfig().getSorobanByteAllowance()
                                  : app->getConfig().getClassicByteAllowance();
-        REQUIRE(trimmedSize > byteAllowance - conf.txMaxSizeBytes());
+        REQUIRE(trimmedSize > byteAllowance - conf().txMaxSizeBytes());
         REQUIRE(trimmedSize <= byteAllowance);
     };
 
@@ -1876,8 +1878,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
     Application::pointer app = createTestApplication(clock, cfg);
 
-    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-
     auto root = app->getRoot();
     std::vector<TestAccount> accounts;
     for (int i = 0; i < 1000; ++i)
@@ -1886,6 +1886,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         accounts.push_back(root->create(accountName.c_str(), 500000000));
     }
 
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
     auto makeTxUpgradePair =
         [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
@@ -3237,7 +3238,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     }
 }
 
-TEST_CASE("overlay parallel processing")
+TEST_CASE("overlay parallel processing", "[herder][parallel]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
@@ -4192,6 +4193,111 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
 
     simulation->stopAllNodes();
 }
+
+#ifdef USE_POSTGRES
+TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
+{
+    auto mode = Simulation::OVER_TCP;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto sim = Topologies::core(4, 1.0, mode, networkID, [](int i) {
+        auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+        cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+        return cfg;
+    });
+
+    sim->startAllNodes();
+    sim->crankUntil([&]() { return sim->haveAllExternalized(2, 1); },
+                    std::chrono::seconds(20), false);
+
+    auto configBeforeUpgrade = sim->getNodes()[0]
+                                   ->getLedgerManager()
+                                   .getLastClosedSorobanNetworkConfig();
+
+    // Start a network upgrade, such that on the next ledger, network settings
+    // will be updated
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+                1;
+        },
+        sim, /*applyUpgrade=*/false);
+
+    std::vector<uint32_t> ledgers;
+    for (auto const& node : sim->getNodes())
+    {
+        ledgers.push_back(node->getLedgerManager().getLastClosedLedgerNum());
+    }
+    auto lcl = *std::max_element(ledgers.begin(), ledgers.end());
+
+    SECTION("read-only state stays immutable during apply")
+    {
+        for (auto const& node : sim->getNodes())
+        {
+            auto& lm =
+                static_cast<LedgerManagerImpl&>(node->getLedgerManager());
+            REQUIRE(lm.getLastClosedLedgerNum() <= lcl);
+
+            // No-op, so we don't update read-only state after apply
+            lm.mAdvanceLedgerStateAndPublishOverride = [&] { return true; };
+        }
+
+        // Crank until one more ledger is externalized
+        sim->crankForAtLeast(std::chrono::seconds(10), false);
+
+        for (auto const& node : sim->getNodes())
+        {
+            auto& lm = node->getLedgerManager();
+            auto applyConfig = lm.getSorobanNetworkConfigForApply();
+            auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
+            REQUIRE(!(applyConfig == prevConfig));
+            REQUIRE(prevConfig == configBeforeUpgrade);
+
+            // LCL still reports previous ledger
+            auto lastHeader = lm.getLastClosedLedgerHeader().header;
+            REQUIRE(lastHeader.ledgerSeq == lcl);
+            REQUIRE(lm.getLastClosedLedgerNum() == lcl);
+            REQUIRE(lm.getLastClosedLedgerHAS().currentLedger ==
+                    lastHeader.ledgerSeq);
+            REQUIRE(lm.getLastClosedSnaphot()->getLedgerHeader() == lastHeader);
+
+            // Apply state got committed, but has not yet been propagated to
+            // read-only state
+            LedgerTxn ltx(node->getLedgerTxnRoot());
+            REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 1);
+        }
+    }
+    SECTION("read-only state gets updated post apply")
+    {
+        // Crank until one more ledger is externalized
+        sim->crankUntil([&]() { return sim->haveAllExternalized(lcl + 1, 1); },
+                        std::chrono::seconds(10), false);
+
+        for (auto const& node : sim->getNodes())
+        {
+            auto& lm = node->getLedgerManager();
+            auto applyConfig = lm.getSorobanNetworkConfigForApply();
+            auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
+            REQUIRE(applyConfig == prevConfig);
+            REQUIRE(!(prevConfig == configBeforeUpgrade));
+
+            // LCL reports the new ledger
+            auto readOnly = lm.getLastClosedLedgerHeader();
+            REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
+            REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
+            REQUIRE(lm.getLastClosedSnaphot()->getLedgerHeader() ==
+                    readOnly.header);
+            auto has = lm.getLastClosedLedgerHAS();
+            REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
+
+            // Apply state got committed, and has been propagated to read-only
+            // state
+            LedgerTxn ltx(node->getLedgerTxnRoot());
+            REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 1);
+        }
+    }
+}
+#endif // USE_POSTGRES
 
 TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
 {

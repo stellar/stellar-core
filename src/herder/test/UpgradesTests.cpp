@@ -1162,17 +1162,18 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
-    auto const& sorobanConfig =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto getSorobanConfig = [&]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 123);
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(0));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 0);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 0);
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(321));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 321);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 321);
 }
 
 TEST_CASE("upgrade to version 10", "[upgrades]")
