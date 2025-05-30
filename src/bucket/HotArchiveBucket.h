@@ -58,7 +58,7 @@ class HotArchiveBucket
     static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
 
     // Note: this functions is called maybePut for interoperability with
-    // LiveBucket. This function always writes te given entry to the output
+    // LiveBucket. This function always writes the given entry to the output
     // iterator using putFunc.
     static void
     maybePut(std::function<void(HotArchiveBucketEntry const&)> putFunc,

@@ -514,7 +514,7 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
 
     if (countMergeEvents)
     {
-        bucketManager.incrMergeCounters(mc);
+        bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
     // Write merge output to a bucket and save to disk
