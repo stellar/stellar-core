@@ -131,8 +131,10 @@ BucketLevel<BucketT>::commit()
 {
     if (mNextCurrInMemory)
     {
-        // If we have an in-memory merged result, use that
+        // If we have an in-memory merged result, use that. Should only be valid
+        // on top level buckets.
         setCurr(mNextCurrInMemory);
+        releaseAssertOrThrow(mLevel == 0);
     }
     else if (mNextCurr.isLive())
     {
