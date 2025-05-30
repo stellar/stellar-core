@@ -20,8 +20,7 @@ class TransactionFrame;
 class LedgerSnapshot;
 class CompleteConstLedgerState;
 
-using CompleteConstLedgerStatePtr =
-    std::shared_ptr<CompleteConstLedgerState const>;
+using CompleteConstLedgerStatePtr = std::shared_ptr<CompleteConstLedgerState>;
 
 // A unified ledger entry interface that supports LedgerEntry representations
 // for both legacy SQL and BucketList snapshots. When working with LedgerTxn,
@@ -194,7 +193,11 @@ class CompleteConstLedgerState
   public:
     CompleteConstLedgerState(
         SearchableSnapshotConstPtr searchableSnapshot,
-        std::optional<SorobanNetworkConfig> const& sorobanConfig,
+        SorobanNetworkConfig const& sorobanConfig,
+        LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+        HistoryArchiveState const& lastClosedHistoryArchiveState);
+    CompleteConstLedgerState(
+        SearchableSnapshotConstPtr searchableSnapshot,
         LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
         HistoryArchiveState const& lastClosedHistoryArchiveState);
 
@@ -203,6 +206,14 @@ class CompleteConstLedgerState
     bool hasSorobanConfig() const;
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
     HistoryArchiveState const& getLastClosedHistoryArchiveState() const;
+
+    void update(SearchableSnapshotConstPtr searchableSnapshot,
+                SorobanNetworkConfig sorobanConfig,
+                LedgerHeaderHistoryEntry lastClosedLedgerHeader,
+                HistoryArchiveState lastClosedHistoryArchiveState);
+    void update(SearchableSnapshotConstPtr searchableSnapshot,
+                LedgerHeaderHistoryEntry lastClosedLedgerHeader,
+                HistoryArchiveState lastClosedHistoryArchiveState);
 };
 
 }

@@ -281,11 +281,22 @@ CompleteConstLedgerState::checkInvariant() const
 
 CompleteConstLedgerState::CompleteConstLedgerState(
     SearchableSnapshotConstPtr searchableSnapshot,
-    std::optional<SorobanNetworkConfig> const& sorobanConfig,
+    SorobanNetworkConfig const& sorobanConfig,
     LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
     HistoryArchiveState const& lastClosedHistoryArchiveState)
     : mBucketSnapshot(searchableSnapshot)
     , mSorobanConfig(sorobanConfig)
+    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
+    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+}
+
+CompleteConstLedgerState::CompleteConstLedgerState(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+    HistoryArchiveState const& lastClosedHistoryArchiveState)
+    : mBucketSnapshot(searchableSnapshot)
     , mLastClosedLedgerHeader(lastClosedLedgerHeader)
     , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
 {
@@ -325,5 +336,36 @@ CompleteConstLedgerState::getLastClosedHistoryArchiveState() const
 {
     checkInvariant();
     return mLastClosedHistoryArchiveState;
+}
+
+void
+CompleteConstLedgerState::update(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    SorobanNetworkConfig sorobanConfig,
+    LedgerHeaderHistoryEntry lastClosedLedgerHeader,
+    HistoryArchiveState lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+    mBucketSnapshot = searchableSnapshot;
+    // For soroban config and LCL, move into the existing values to ensure any
+    // help references remain valid.
+    mSorobanConfig.emplace(std::move(sorobanConfig));
+    mLastClosedLedgerHeader = std::move(lastClosedLedgerHeader);
+    mLastClosedHistoryArchiveState = std::move(lastClosedHistoryArchiveState);
+}
+
+void
+CompleteConstLedgerState::update(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    LedgerHeaderHistoryEntry lastClosedLedgerHeader,
+    HistoryArchiveState lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+    releaseAssert(!mSorobanConfig);
+    mBucketSnapshot = searchableSnapshot;
+    // For LCL, move into the existing values to ensure any help references
+    // remain valid.
+    mLastClosedLedgerHeader = std::move(lastClosedLedgerHeader);
+    mLastClosedHistoryArchiveState = std::move(lastClosedHistoryArchiveState);
 }
 }

@@ -458,10 +458,15 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         // configs right away
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         updateSorobanNetworkConfigForApply(ltx);
-        auto const& lm = mApp.getLedgerManager();
-        mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
-            lm.getLastClosedSnaphot(), *mApplyState.mSorobanNetworkConfig,
-            lm.getLastClosedLedgerHeader(), lm.getLastClosedLedgerHAS());
+        releaseAssert(mApplyState.mSorobanNetworkConfig);
+        releaseAssert(mLastClosedLedgerState);
+
+        mLastClosedLedgerState->update(
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot(),
+            *mApplyState.mSorobanNetworkConfig, getLastClosedLedgerHeader(),
+            getLastClosedLedgerHAS());
     }
 
     // Prime module cache with LCL state, not apply-state. This is acceptable
@@ -1542,15 +1547,28 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
             ledgerAbbrev(
                 mLastClosedLedgerState->getLastClosedLedgerHeader().header),
             ledgerAbbrev(output->getLastClosedLedgerHeader().header));
+        // Update existing state to preserve caller references
+        if (output->hasSorobanConfig())
+        {
+            mLastClosedLedgerState->update(
+                output->getBucketSnapshot(), output->getSorobanConfig(),
+                output->getLastClosedLedgerHeader(),
+                output->getLastClosedHistoryArchiveState());
+        }
+        else
+        {
+            mLastClosedLedgerState->update(
+                output->getBucketSnapshot(),
+                output->getLastClosedLedgerHeader(),
+                output->getLastClosedHistoryArchiveState());
+        }
     }
     else
     {
         CLOG_DEBUG(Ledger, "Initializing LCL: {}",
                    ledgerAbbrev(output->getLastClosedLedgerHeader().header));
+        mLastClosedLedgerState = output;
     }
-
-    // Update ledger state as seen by the main thread
-    mLastClosedLedgerState = output;
 }
 
 CompleteConstLedgerStatePtr
@@ -1563,13 +1581,6 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     lcl.header = header;
     lcl.hash = ledgerHash;
 
-    std::optional<SorobanNetworkConfig> sorobanConfig;
-    if (mApplyState.mSorobanNetworkConfig)
-    {
-        sorobanConfig = std::make_optional<SorobanNetworkConfig>(
-            *mApplyState.mSorobanNetworkConfig);
-    }
-
     auto& bm = mApp.getBucketManager();
     auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
         bm.getLiveBucketList(), header);
@@ -1580,10 +1591,22 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 
-    auto ledgerState = std::make_shared<CompleteConstLedgerState>(
-        bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(),
-        sorobanConfig, lcl, has);
-    return ledgerState;
+    CompleteConstLedgerStatePtr state;
+    if (mApplyState.mSorobanNetworkConfig)
+    {
+        state = std::make_shared<CompleteConstLedgerState>(
+            bm.getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot(),
+            *mApplyState.mSorobanNetworkConfig, lcl, has);
+    }
+    else
+    {
+        state = std::make_shared<CompleteConstLedgerState>(
+            bm.getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot(),
+            lcl, has);
+    }
+    return state;
 }
 
 void
