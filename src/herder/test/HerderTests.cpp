@@ -6401,3 +6401,109 @@ TEST_CASE("Unresponsive quorum timeouts", "[herder]")
         testUnresponsiveTimeouts(t, i, numLedgers);
     }
 }
+
+std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
+getValidatorSCPMessages(Application& app, uint32_t start, uint32_t end)
+{
+    std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
+        validatorSCPMessages;
+    HerderImpl& herder = *static_cast<HerderImpl*>(&app.getHerder());
+
+    for (auto seq = start; seq <= end; ++seq)
+    {
+        for (auto const& env : herder.getSCP().getLatestMessagesSend(seq))
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                StellarValue sv;
+                auto& pe = herder.getPendingEnvelopes();
+                herder.getHerderSCPDriver().toStellarValue(
+                    env.statement.pledges.externalize().commit.value, sv);
+                auto txset = pe.getTxSet(sv.txSetHash);
+                REQUIRE(txset);
+                validatorSCPMessages[seq] =
+                    std::make_pair(env, txset->toStellarMessage());
+            }
+        }
+    }
+
+    return validatorSCPMessages;
+}
+
+#ifdef USE_POSTGRES
+TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+            cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        std::chrono::seconds(20), false);
+
+    auto node0LCL =
+        simulation->getNodes()[0]->getLedgerManager().getLastClosedLedgerNum();
+    auto A = simulation->getNodes()[1];
+    auto B = simulation->getNodes()[2];
+    auto C = simulation->getNodes()[0];
+
+    // Drop one node completely
+    simulation->dropConnection(C->getConfig().NODE_SEED.getPublicKey(),
+                               A->getConfig().NODE_SEED.getPublicKey());
+    simulation->dropConnection(C->getConfig().NODE_SEED.getPublicKey(),
+                               B->getConfig().NODE_SEED.getPublicKey());
+    simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+    // Advance A and B a bit further, and collect externalize messages
+    simulation->crankUntil(
+        [&]() {
+            return A->getLedgerManager().getLastClosedLedgerNum() >=
+                       node0LCL + 3 &&
+                   B->getLedgerManager().getLastClosedLedgerNum() >=
+                       node0LCL + 3;
+        },
+        std::chrono::seconds(60), false);
+
+    auto validatorSCPMessagesA =
+        getValidatorSCPMessages(*A, node0LCL + 1, node0LCL + 3);
+    auto validatorSCPMessagesB =
+        getValidatorSCPMessages(*B, node0LCL + 1, node0LCL + 3);
+
+    // First, externalize one ledger such that C schedules triggerNextLedger
+    auto& herder = static_cast<HerderImpl&>(C->getHerder());
+    auto nextSeq = herder.nextConsensusLedgerIndex();
+    auto newMsgB = validatorSCPMessagesB.at(nextSeq);
+    auto newMsgA = validatorSCPMessagesA.at(nextSeq);
+
+    auto qset = A->getConfig().QUORUM_SET;
+    REQUIRE(herder.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+    REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+
+    // Feed messages for nextSeq+1; at the same time, triggerNextLedger is
+    // scheduled after externalizing nextSeq
+    newMsgB = validatorSCPMessagesB.at(nextSeq + 1);
+    newMsgA = validatorSCPMessagesA.at(nextSeq + 1);
+
+    REQUIRE(herder.recvSCPEnvelope(newMsgA.first) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(herder.recvSCPEnvelope(newMsgB.first) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+
+    // Crank a bit; triggerNextLedger should get scheduled, inside that call
+    // it will externalize nextSeq + 1 (since we have all the right SCP
+    // messages. Ensure triggerNextLedger handles side effects correctly
+    simulation->crankForAtLeast(std::chrono::seconds(10), false);
+
+    // Final state: C is tracking nextSeq + 1, and has scheduled next
+    // trigger ledger
+    REQUIRE(herder.getTriggerTimer().seq() > 0);
+    REQUIRE(herder.mTriggerNextLedgerSeq == nextSeq + 2);
+}
+#endif // USE_POSTGRES
