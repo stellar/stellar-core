@@ -134,5 +134,9 @@ class TransactionFrameBase
     virtual SorobanTransactionData::_ext_t const& getResourcesExt() const = 0;
     virtual int64 declaredSorobanResourceFee() const = 0;
     virtual bool XDRProvidesValidFee() const = 0;
+
+    // Returns true if this TX is a soroban transaction with a
+    // RestoreFootprintOp.
+    virtual bool isRestoreFootprintTx() const = 0;
 };
 }

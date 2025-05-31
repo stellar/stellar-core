@@ -295,9 +295,11 @@ class TransactionFrame : public TransactionFrameBase
     static FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanResources const& txResources,
         uint32_t txSize, uint32_t eventsSize,
-        SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
+        SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
+        SorobanTransactionData::_ext_t const& ext, bool isRestoreFootprintOp);
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+    virtual bool isRestoreFootprintTx() const override;
 
     Memo const& getMemo() const;
 

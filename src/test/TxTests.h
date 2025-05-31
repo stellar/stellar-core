@@ -208,8 +208,11 @@ TransactionTestFramePtr createUploadWasmTx(
     std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0,
     std::optional<uint32_t> wasmSize = std::nullopt,
     std::optional<SequenceNumber> seq = std::nullopt);
-int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
-                           size_t txSize, uint32_t eventsSize);
+int64_t sorobanResourceFee(
+    Application& app, SorobanResources const& resources, size_t txSize,
+    uint32_t eventsSize,
+    std::optional<std::vector<uint32_t>> archivedIndexes = std::nullopt,
+    bool isRestoreFootprintOp = false);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
