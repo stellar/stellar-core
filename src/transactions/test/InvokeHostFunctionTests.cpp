@@ -665,7 +665,12 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
                               .setReadBytes(2000)
                               .setInclusionFee(12345);
 
-    uint32_t const expectedResourceFee = 32'702;
+    // After p23, in-memory reads are not charged fees
+    uint32_t const expectedResourceFee =
+        protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                ProtocolVersion::V_23)
+            ? 32'702
+            : 22'702;
     SECTION("correct invocation")
     {
         // NB: We use a hard-coded fees to smoke-test the fee
@@ -1558,8 +1563,14 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
                     resources.footprint.readOnly.push_back(lk);
                 }
 
-                checkFees(resources,
-                          2000 * 6 + baseTxFee + additionalTxSizeFee);
+                // In-memory reads are not charged fees after protocol 23.
+                int64_t expectedFee = baseTxFee + additionalTxSizeFee;
+                if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                            ProtocolVersion::V_23))
+                {
+                    expectedFee += 2000 * 6;
+                }
+                checkFees(resources, expectedFee);
             }
             SECTION("RW only")
             {
@@ -1571,9 +1582,15 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
                     resources.footprint.readWrite.push_back(lk);
                 }
 
-                // RW entries are also counted towards reads.
-                checkFees(resources, 2000 * 6 + 3000 * 6 + baseTxFee +
-                                         additionalTxSizeFee);
+                // In-memory reads are not charged fees after protocol 23.
+                int64_t expectedFee =
+                    baseTxFee + additionalTxSizeFee + 3000 * 6;
+                if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                            ProtocolVersion::V_23))
+                {
+                    expectedFee += 2000 * 6;
+                }
+                checkFees(resources, expectedFee);
             }
             SECTION("RW and RO")
             {
@@ -1589,9 +1606,17 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
                     lk.contractCode().hash[0] = i;
                     resources.footprint.readWrite.push_back(lk);
                 }
-                // RW entries are also counted towards reads.
-                checkFees(resources, 2000 * (3 + 3) + 3000 * 3 + baseTxFee +
-                                         additionalTxSizeFee);
+
+                // In-memory reads are not charged fees after protocol 23.
+                int64_t expectedFee =
+                    baseTxFee + additionalTxSizeFee + 3000 * 3;
+                if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                            ProtocolVersion::V_23))
+                {
+                    expectedFee += 2000 * (3 + 3);
+                }
+
+                checkFees(resources, expectedFee);
             }
         }
 
@@ -3757,7 +3782,8 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
         restoreResources.writeBytes = 9'000;
 
         auto const nonRefundableResourceFee =
-            sorobanResourceFee(test.getApp(), restoreResources, 400, 0);
+            sorobanResourceFee(test.getApp(), restoreResources, 400, 0,
+                               std::nullopt, /*isRestoreFootprintOp=*/true);
         auto const rentFee = 100'000;
         auto const resourceFee = nonRefundableResourceFee + rentFee;
 
