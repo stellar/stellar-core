@@ -1743,7 +1743,8 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto dummyAccount = root->create("dummy", startingBalance);
     auto dummyUploadTx =
         createUploadWasmTx(*app, dummyAccount, 100, 1000, resources);
-    resources.footprint.readWrite.emplace_back();
+    resources.footprint.readWrite.push_back(
+        LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(1).front());
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 

@@ -1,4 +1,4 @@
-soroban-env-host v23.0.0-rc.1 (src/rust/soroban/p23/soroban-env-host)
+soroban-env-host v23.0.0-rc.1.1 (src/rust/soroban/p23/soroban-env-host)
 ├── ark-bls12-381 v0.4.0
 │   ├── ark-ec v0.4.2
 │   │   ├── ark-ff v0.4.2
@@ -224,17 +224,17 @@ soroban-env-host v23.0.0-rc.1 (src/rust/soroban/p23/soroban-env-host)
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
 │       └── cpufeatures v0.2.8 (*)
-├── soroban-builtin-sdk-macros v23.0.0-rc.1 (proc-macro) (src/rust/soroban/p23/soroban-builtin-sdk-macros)
+├── soroban-builtin-sdk-macros v23.0.0-rc.1.1 (proc-macro) (src/rust/soroban/p23/soroban-builtin-sdk-macros)
 │   ├── itertools v0.10.5
 │   │   └── either v1.8.1
 │   ├── proc-macro2 v1.0.69 (*)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
-├── soroban-env-common v23.0.0-rc.1 (src/rust/soroban/p23/soroban-env-common)
+├── soroban-env-common v23.0.0-rc.1.1 (src/rust/soroban/p23/soroban-env-common)
 │   ├── ethnum v1.5.0
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
-│   ├── soroban-env-macros v23.0.0-rc.1 (proc-macro) (src/rust/soroban/p23/soroban-env-macros)
+│   ├── soroban-env-macros v23.0.0-rc.1.1 (proc-macro) (src/rust/soroban/p23/soroban-env-macros)
 │   │   ├── itertools v0.10.5 (*)
 │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   ├── quote v1.0.33 (*)

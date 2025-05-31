@@ -147,5 +147,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     SorobanTransactionData::_ext_t const& getResourcesExt() const override;
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+    virtual bool isRestoreFootprintTx() const override;
 };
 }

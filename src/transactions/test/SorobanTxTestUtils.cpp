@@ -857,8 +857,8 @@ TestContract::Invocation::withExactNonRefundableResourceFee()
                                                   mTest.getDummyAccount(),
                                                   {mOp}, {}, mSpec);
     auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
-    auto fee =
-        sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize, 0);
+    auto fee = sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize,
+                                  0, mSpec.getArchivedIndexes());
     releaseAssert(fee <= UINT32_MAX);
     mSpec = mSpec.setNonRefundableResourceFee(static_cast<uint32_t>(fee));
     return *this;
@@ -997,9 +997,17 @@ SorobanTest::checkRefundableFee(int64_t initialBalance,
             TransactionMetaFrame{lcm.getTransactionMeta(0)}.getChangesAfter();
     }
     REQUIRE(refundChanges.size() == 2);
-    int64_t nonRefundableResourceFee =
-        sorobanResourceFee(getApp(), tx->sorobanResources(),
-                           xdr::xdr_size(tx->getEnvelope()), eventsSize);
+
+    std::optional<std::vector<uint32_t>> archivedIndexes;
+    auto ext = tx->getResourcesExt();
+    if (ext.v() == 1)
+    {
+        archivedIndexes = ext.resourceExt().archivedSorobanEntries;
+    }
+
+    int64_t nonRefundableResourceFee = sorobanResourceFee(
+        getApp(), tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()),
+        eventsSize, archivedIndexes, tx->isRestoreFootprintTx());
     int64_t expectedFeeCharged =
         nonRefundableResourceFee + expectedRefundableFeeCharged + baseFee;
     int64_t actualFeeCharged = initialBalance - balanceAfterFeeCharged;

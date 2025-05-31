@@ -61,7 +61,8 @@ RefundableFeeTracker::consumeRefundableSorobanResources(
         protocolVersion, tx.sorobanResources(),
         static_cast<uint32>(tx.getResources(false, protocolVersion)
                                 .getVal(Resource::Type::TX_BYTE_SIZE)),
-        mConsumedContractEventsSizeBytes, sorobanConfig, cfg);
+        mConsumedContractEventsSizeBytes, sorobanConfig, cfg,
+        tx.getResourcesExt(), tx.isRestoreFootprintTx());
     mConsumedRefundableFee = mConsumedRentFee + consumedFee.refundable_fee;
 
     if (mMaximumRefundableFee < mConsumedRefundableFee)

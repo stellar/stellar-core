@@ -390,6 +390,12 @@ FeeBumpTransactionFrame::XDRProvidesValidFee() const
     return mInnerTx->XDRProvidesValidFee();
 }
 
+bool
+FeeBumpTransactionFrame::isRestoreFootprintTx() const
+{
+    return mInnerTx->isRestoreFootprintTx();
+}
+
 int64_t
 FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
                                 std::optional<int64_t> baseFee,
