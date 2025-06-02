@@ -83,7 +83,7 @@ the data contained in a ledger.
 
 ## Ledger state entries
 Ledger entries are specified in
-[`src/xdr/Stellar-ledger-entries.x`](../protocol-curr/xdr/Stellar-ledger-entries.x)
+[`src/protocol-curr/xdr/Stellar-ledger-entries.x`](../protocol-curr/xdr/Stellar-ledger-entries.x)
 
 ### AccountEntry
 This entry represents an account. In Stellar, everything is centered around
