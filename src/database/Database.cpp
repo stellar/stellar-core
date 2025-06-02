@@ -546,42 +546,6 @@ Database::getPool()
     return *mPool;
 }
 
-class SQLLogContext : NonCopyable
-{
-    std::string mName;
-    soci::session& mSess;
-    std::ostringstream mCapture;
-
-  public:
-    SQLLogContext(std::string const& name, soci::session& sess)
-        : mName(name), mSess(sess)
-    {
-        mSess.set_log_stream(&mCapture);
-    }
-    ~SQLLogContext()
-    {
-        mSess.set_log_stream(nullptr);
-        std::string captured = mCapture.str();
-        std::istringstream rd(captured);
-        std::string buf;
-        CLOG_INFO(Database, "");
-        CLOG_INFO(Database, "");
-        CLOG_INFO(Database, "[SQL] -----------------------");
-        CLOG_INFO(Database, "[SQL] begin capture: {}", mName);
-        CLOG_INFO(Database, "[SQL] -----------------------");
-        while (std::getline(rd, buf))
-        {
-            CLOG_INFO(Database, "[SQL:{}] {}", mName, buf);
-            buf.clear();
-        }
-        CLOG_INFO(Database, "[SQL] -----------------------");
-        CLOG_INFO(Database, "[SQL] end capture: {}", mName);
-        CLOG_INFO(Database, "[SQL] -----------------------");
-        CLOG_INFO(Database, "");
-        CLOG_INFO(Database, "");
-    }
-};
-
 StatementContext
 Database::getPreparedStatement(std::string const& query,
                                SessionWrapper& session)
@@ -605,11 +569,5 @@ Database::getPreparedStatement(std::string const& query,
     }
     StatementContext sc(p);
     return sc;
-}
-
-std::shared_ptr<SQLLogContext>
-Database::captureAndLogSQL(std::string contextName)
-{
-    return make_shared<SQLLogContext>(contextName, mSession.session());
 }
 }

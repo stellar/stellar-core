@@ -26,7 +26,6 @@ class Counter;
 namespace stellar
 {
 class Application;
-class SQLLogContext;
 using PreparedStatementCache =
     std::map<std::string, std::shared_ptr<soci::statement>>;
 
@@ -153,11 +152,6 @@ class Database : NonMovableOrCopyable
     virtual ~Database()
     {
     }
-
-    // Return a logging helper that will capture all SQL statements made
-    // on the main connection while active, and will log those statements
-    // to the process' log for diagnostics. For testing and perf tuning.
-    std::shared_ptr<SQLLogContext> captureAndLogSQL(std::string contextName);
 
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
