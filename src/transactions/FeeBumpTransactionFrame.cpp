@@ -159,9 +159,8 @@ FeeBumpTransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset) const
 {
-    if (!isTransactionXDRValidForProtocol(
-            ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
-            mEnvelope) ||
+    if (!checkVNext(ls.getLedgerHeader().current().ledgerVersion,
+                    app.getConfig(), mEnvelope) ||
         !XDRProvidesValidFee())
     {
         auto txResult = createSuccessResult();

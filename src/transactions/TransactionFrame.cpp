@@ -1608,9 +1608,8 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use
     // `checkValidWithOptionallyChargedFee` for the inner tx).
-    if (!isTransactionXDRValidForProtocol(
-            ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
-            mEnvelope))
+    if (!checkVNext(ls.getLedgerHeader().current().ledgerVersion,
+                    app.getConfig(), mEnvelope))
     {
         auto txResult = createSuccessResult();
         txResult->setResultCode(txMALFORMED);

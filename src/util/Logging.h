@@ -207,7 +207,12 @@ template <typename T>
 inline typename std::enable_if<xdr::xdr_traits<T>::is_enum, std::string>::type
 format_as(T const& u)
 {
-    return std::string(xdr::xdr_traits<T>::enum_name(u));
+    auto res = xdr::xdr_traits<T>::enum_name(u);
+    if (res == nullptr)
+    {
+        return std::string("unknown_enum_value");
+    }
+    return std::string(res);
 }
 }
 
