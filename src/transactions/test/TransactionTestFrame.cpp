@@ -374,6 +374,12 @@ TransactionTestFrame::XDRProvidesValidFee() const
     return mTransactionFrame->XDRProvidesValidFee();
 }
 
+bool
+TransactionTestFrame::isRestoreFootprintTx() const
+{
+    return mTransactionFrame->isRestoreFootprintTx();
+}
+
 void
 TransactionTestFrame::overrideResult(MutableTxResultPtr result)
 {

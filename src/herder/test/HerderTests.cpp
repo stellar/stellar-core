@@ -2,11 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketIndexUtils.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
@@ -1743,7 +1745,10 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto dummyAccount = root->create("dummy", startingBalance);
     auto dummyUploadTx =
         createUploadWasmTx(*app, dummyAccount, 100, 1000, resources);
-    resources.footprint.readWrite.emplace_back();
+    UnorderedSet<LedgerKey> seenKeys;
+    auto keys = LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+        {CONTRACT_DATA}, 1, seenKeys);
+    resources.footprint.readWrite.push_back(keys.front());
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 

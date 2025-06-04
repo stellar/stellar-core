@@ -62,10 +62,10 @@ int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 uint32_t
 getNumDiskReadEntries(SorobanResources const& resources,
                       SorobanTransactionData::_ext_t const& ext,
-                      Operation const& op)
+                      bool isRestoreFootprintOp)
 {
     // All restoreOp entries require disk reads
-    if (op.body.type() == RESTORE_FOOTPRINT)
+    if (isRestoreFootprintOp)
     {
         return resources.footprint.readWrite.size();
     }
@@ -243,10 +243,10 @@ TransactionFrame::getResources(bool useByteLimitInClassic,
         // to sum readOnly size and readWrite size for correct resource limits
         // here.
         int64_t diskReadEntries;
-        auto const& op = mOperations.front()->getOperation();
         if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
         {
-            diskReadEntries = getNumDiskReadEntries(r, getResourcesExt(), op);
+            diskReadEntries = getNumDiskReadEntries(r, getResourcesExt(),
+                                                    isRestoreFootprintTx());
         }
         else
         {
@@ -650,10 +650,10 @@ TransactionFrame::checkSorobanResources(
     }
 
     uint32_t numDiskReads;
-    auto const& op = mOperations.front()->getOperation();
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
     {
-        numDiskReads = getNumDiskReadEntries(resources, getResourcesExt(), op);
+        numDiskReads = getNumDiskReadEntries(resources, getResourcesExt(),
+                                             isRestoreFootprintTx());
 
         auto totalReads = resources.footprint.readOnly.size() +
                           resources.footprint.readWrite.size();
@@ -898,7 +898,8 @@ FeePair
 TransactionFrame::computeSorobanResourceFee(
     uint32_t protocolVersion, SorobanResources const& txResources,
     uint32_t txSize, uint32_t eventsSize,
-    SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
+    SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
+    SorobanTransactionData::_ext_t const& ext, bool isRestoreFootprintOp)
 {
     ZoneScoped;
     releaseAssertOrThrow(
@@ -906,10 +907,17 @@ TransactionFrame::computeSorobanResourceFee(
     CxxTransactionResources cxxResources{};
     cxxResources.instructions = txResources.instructions;
 
-    // This is going to be changed in protocol 23 to only account for the
-    // actual disk reads.
-    cxxResources.disk_read_entries =
-        static_cast<uint32>(txResources.footprint.readOnly.size());
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
+    {
+        cxxResources.disk_read_entries =
+            getNumDiskReadEntries(txResources, ext, isRestoreFootprintOp);
+    }
+    else
+    {
+        cxxResources.disk_read_entries =
+            static_cast<uint32>(txResources.footprint.readOnly.size());
+    }
+
     cxxResources.write_entries =
         static_cast<uint32>(txResources.footprint.readWrite.size());
 
@@ -946,7 +954,7 @@ TransactionFrame::computePreApplySorobanResourceFee(
         protocolVersion, sorobanResources(),
         static_cast<uint32>(getResources(false, protocolVersion)
                                 .getVal(Resource::Type::TX_BYTE_SIZE)),
-        0, sorobanConfig, cfg);
+        0, sorobanConfig, cfg, getResourcesExt(), isRestoreFootprintTx());
 }
 
 bool
@@ -1535,6 +1543,13 @@ TransactionFrame::XDRProvidesValidFee() const
         }
     }
     return true;
+}
+
+bool
+TransactionFrame::isRestoreFootprintTx() const
+{
+    return isSoroban() &&
+           mOperations.front()->getOperation().body.type() == RESTORE_FOOTPRINT;
 }
 
 void
