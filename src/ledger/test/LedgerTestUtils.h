@@ -64,6 +64,9 @@ std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
 
 std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys);
 
 LedgerEntry generateValidLedgerEntryWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b = 3);

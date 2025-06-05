@@ -709,14 +709,16 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
                     .copySearchableLiveBucketListSnapshot();
     if (hash == "ALL")
     {
-        snap->scanForContractCode([&](const BucketEntry& entry) {
-            if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
-            {
-                auto const& codeEntry = entry.liveEntry().data.contractCode();
-                writeBlob(codeEntry);
-            }
-            return Loop::INCOMPLETE;
-        });
+        snap->scanForEntriesOfType(
+            {CONTRACT_CODE}, [&](const BucketEntry& entry) {
+                if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
+                {
+                    auto const& codeEntry =
+                        entry.liveEntry().data.contractCode();
+                    writeBlob(codeEntry);
+                }
+                return Loop::INCOMPLETE;
+            });
     }
     else
     {

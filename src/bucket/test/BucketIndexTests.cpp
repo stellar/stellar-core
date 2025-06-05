@@ -19,6 +19,7 @@
 #include "main/Config.h"
 #include "test/test.h"
 
+#include "util/GlobalChecks.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDRCereal.h"
@@ -40,6 +41,9 @@ class BucketIndexTest
     UnorderedMap<LedgerKey, LedgerEntry> mTestEntries;
     UnorderedSet<LedgerKey> mGeneratedKeys;
 
+    UnorderedMap<LedgerKey, LedgerEntry> mContractCodeEntries;
+    UnorderedMap<LedgerKey, LedgerEntry> mContractDataEntries;
+
     // Set of keys to query BucketList for
     LedgerKeySet mKeysToSearch;
     stellar::uniform_int_distribution<uint8_t> mDist;
@@ -59,28 +63,73 @@ class BucketIndexTest
     }
 
     void
-    insertEntries(std::vector<LedgerEntry> const& entries)
-    {
-        mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-            {}, entries, {});
-        closeLedger(*mApp);
-    }
-
-    void
     buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f,
-                    bool isCacheTest = false)
+                    bool isCacheTest = false, bool sorobanOnly = false)
     {
+        releaseAssertOrThrow(!(isCacheTest && sorobanOnly));
+
         uint32_t ledger = 0;
         do
         {
             ++ledger;
-            std::vector<LedgerEntry> entries =
-                isCacheTest
-                    ? LedgerTestUtils::
-                          generateValidUniqueLedgerEntriesWithTypes(
-                              {ACCOUNT}, 10, mGeneratedKeys)
-                    : LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                          {CONFIG_SETTING}, 10);
+            std::vector<LedgerEntry> entries;
+            if (!isCacheTest && !sorobanOnly)
+            {
+                entries = LedgerTestUtils::
+                    generateValidUniqueLedgerEntriesWithExclusions(
+                        {CONFIG_SETTING, TTL}, 10, mGeneratedKeys);
+            }
+            else if (isCacheTest)
+            {
+                entries =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {ACCOUNT}, 10, mGeneratedKeys);
+            }
+            else if (sorobanOnly)
+            {
+
+                entries =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_DATA, CONTRACT_CODE}, 10, mGeneratedKeys);
+
+                // Insert TTL for each entry
+                for (auto& e : entries)
+                {
+                    if (e.data.type() == CONTRACT_CODE)
+                    {
+                        mContractCodeEntries.emplace(LedgerEntryKey(e), e);
+                    }
+                    else if (e.data.type() == CONTRACT_DATA)
+                    {
+                        mContractDataEntries.emplace(LedgerEntryKey(e), e);
+                    }
+                }
+            }
+
+            auto entriesSize = entries.size();
+            for (size_t i = 0; i < entriesSize; ++i)
+            {
+                auto const& e = entries.at(i);
+                releaseAssertOrThrow(e.data.type() != TTL);
+
+                // Insert TTL for Soroban entries to maintain invariant
+                if (isSorobanEntry(e.data))
+                {
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
+
+                    // Entry should never expire
+                    ttl.data.ttl().liveUntilLedgerSeq = ledger + 10'000;
+
+                    // Add TTL key to mGeneratedKeys to maintain uniqueness
+                    auto ttlKey = LedgerEntryKey(ttl);
+                    mGeneratedKeys.insert(ttlKey);
+
+                    entries.push_back(ttl);
+                }
+            }
+
             f(entries);
             closeLedger(*mApp);
         } while (!LiveBucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
@@ -100,6 +149,24 @@ class BucketIndexTest
         return mApp->getBucketManager();
     }
 
+    Application&
+    getApp() const
+    {
+        return *mApp;
+    }
+
+    UnorderedMap<LedgerKey, LedgerEntry> const&
+    getContractCodeEntries() const
+    {
+        return mContractCodeEntries;
+    }
+
+    UnorderedMap<LedgerKey, LedgerEntry> const&
+    getContractDataEntries() const
+    {
+        return mContractDataEntries;
+    }
+
     virtual void
     buildGeneralTest(bool isCacheTest = false)
     {
@@ -117,7 +184,7 @@ class BucketIndexTest
                 }
             }
             mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-                {}, entries, {});
+                entries, {}, {});
         };
 
         buildBucketList(f, isCacheTest);
@@ -127,9 +194,11 @@ class BucketIndexTest
     runHistoricalSnapshotTest()
     {
         uint32_t ledger = 0;
+
+        // Exclude soroban types so we don't have to insert TTLs
         auto canonicalEntry =
             LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {LedgerEntryType::CONFIG_SETTING});
+                {CONFIG_SETTING, TTL, CONTRACT_CODE, CONTRACT_DATA});
         canonicalEntry.lastModifiedLedgerSeq = 0;
 
         do
@@ -176,7 +245,7 @@ class BucketIndexTest
     }
 
     virtual void
-    buildMultiVersionTest()
+    buildMultiVersionTest(bool sorobanOnly = false)
     {
         std::vector<LedgerKey> toDestroy;
         std::vector<LedgerEntry> toUpdate;
@@ -186,18 +255,41 @@ class BucketIndexTest
             {
                 for (auto& e : toUpdate)
                 {
-                    e.data.account().balance += 1;
+                    e.lastModifiedLedgerSeq++;
                     auto iter = mTestEntries.find(LedgerEntryKey(e));
                     iter->second = e;
+
+                    if (sorobanOnly)
+                    {
+                        if (e.data.type() == CONTRACT_CODE)
+                        {
+                            mContractCodeEntries.emplace(LedgerEntryKey(e), e);
+                        }
+                        else if (e.data.type() == CONTRACT_DATA)
+                        {
+                            mContractDataEntries.emplace(LedgerEntryKey(e), e);
+                        }
+                    }
                 }
 
                 for (auto const& k : toDestroy)
                 {
                     mTestEntries.erase(k);
+                    if (sorobanOnly)
+                    {
+                        if (k.type() == CONTRACT_CODE)
+                        {
+                            mContractCodeEntries.erase(k);
+                        }
+                        else if (k.type() == CONTRACT_DATA)
+                        {
+                            mContractDataEntries.erase(k);
+                        }
+                    }
                 }
 
                 mApp->getLedgerManager()
-                    .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
+                    .setNextLedgerEntryBatchForBucketTesting(entries, toUpdate,
                                                              toDestroy);
                 toDestroy.clear();
                 toUpdate.clear();
@@ -211,30 +303,66 @@ class BucketIndexTest
                     {
                         mTestEntries.emplace(LedgerEntryKey(e), e);
                         mKeysToSearch.emplace(LedgerEntryKey(e));
-                        if (e.data.type() == ACCOUNT)
+                        if (rand_flip())
                         {
+                            if (e.data.type() == TTL)
+                            {
+                                // Make sure we don't try to update the same
+                                // entry we want to destroy
+                                auto ttlKey = LedgerEntryKey(e);
+                                auto iter = std::find(toDestroy.begin(),
+                                                      toDestroy.end(), ttlKey);
+                                if (iter != toDestroy.end())
+                                {
+                                    continue;
+                                }
+                            }
+
                             toUpdate.emplace_back(e);
                         }
-                        else
+                        // Never destroy just a TTL key to preserve invariant
+                        else if (e.data.type() != TTL)
                         {
                             toDestroy.emplace_back(LedgerEntryKey(e));
+
+                            // If we destroy a soroban entry, we also destroy
+                            // the corresponding TTL entry
+                            if (isSorobanEntry(e.data))
+                            {
+                                auto ttlKey = getTTLKey(e);
+                                toDestroy.emplace_back(ttlKey);
+
+                                // Make sure we don't try to destroy the same
+                                // entry we want to update
+                                for (auto iter = toUpdate.begin();
+                                     iter != toUpdate.end(); ++iter)
+                                {
+                                    if (LedgerEntryKey(*iter) == ttlKey)
+                                    {
+                                        toUpdate.erase(iter);
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
                 mApp->getLedgerManager()
-                    .setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+                    .setNextLedgerEntryBatchForBucketTesting(entries, {}, {});
             }
         };
 
-        buildBucketList(f);
+        buildBucketList(f, /*isCacheTest=*/false, sorobanOnly);
     }
 
     void
     insertSimilarContractDataKeys()
     {
         auto templateEntry =
-            LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {CONTRACT_DATA}, 1, mGeneratedKeys)
+                .front();
 
         auto generateEntry = [&](ContractDataDurability t) {
             auto le = templateEntry;
@@ -246,6 +374,24 @@ class BucketIndexTest
             generateEntry(ContractDataDurability::TEMPORARY),
             generateEntry(ContractDataDurability::PERSISTENT),
         };
+
+        auto entriesSize = entries.size();
+        for (size_t i = 0; i < entriesSize; ++i)
+        {
+            auto const& e = entries.at(i);
+            LedgerEntry ttl;
+            ttl.data.type(TTL);
+            ttl.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
+            ttl.data.ttl().liveUntilLedgerSeq =
+                e.lastModifiedLedgerSeq + 10'000;
+
+            // Add TTL key to mGeneratedKeys to maintain uniqueness
+            auto ttlKey = LedgerEntryKey(ttl);
+            mGeneratedKeys.insert(ttlKey);
+
+            entries.push_back(ttl);
+        }
+
         for (auto const& e : entries)
         {
             auto k = LedgerEntryKey(e);
@@ -256,7 +402,9 @@ class BucketIndexTest
             mKeysToSearch.emplace(k);
         }
 
-        insertEntries(entries);
+        mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+            entries, {}, {});
+        closeLedger(*mApp);
     }
 
     virtual void
@@ -394,10 +542,12 @@ class BucketIndexTest
 
             if (rand_flip())
             {
-                // Add keys not in bucket list as well
+                // Add keys not in bucket list as well. Don't add soroban keys
+                // to avoid state cache
                 auto addKeys =
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {CONFIG_SETTING}, 10);
+                        {CONFIG_SETTING, TTL, CONTRACT_CODE, CONTRACT_DATA},
+                        10);
 
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
@@ -417,8 +567,9 @@ class BucketIndexTest
 
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
-            LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                {CONFIG_SETTING}, 10);
+            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                {ACCOUNT, TRUSTLINE, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL},
+                10, mGeneratedKeys);
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
@@ -473,31 +624,22 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     {
         auto f = [&](std::vector<LedgerEntry>& entries) {
             std::vector<LedgerEntry> poolEntries;
-            std::vector<LedgerKey> toWriteNewVersion;
+            std::vector<LedgerKey> toDelete;
+            std::vector<LedgerEntry> toUpdate;
             if (mDist(gRandomEngine) < 30)
             {
-                // Make sure we generate a unique poolID for each entry
-                LiquidityPoolEntry pool;
-                for (;;)
-                {
-                    pool = LedgerTestUtils::generateValidLiquidityPoolEntry();
-                    for (auto e : poolEntries)
-                    {
-                        if (e.data.liquidityPool().liquidityPoolID ==
-                            pool.liquidityPoolID)
-                        {
-                            continue;
-                        }
-                    }
+                auto pool =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {LIQUIDITY_POOL}, 1, mGeneratedKeys)
+                        .front();
 
-                    break;
-                }
+                auto& params =
+                    pool.data.liquidityPool().body.constantProduct().params;
 
-                auto& params = pool.body.constantProduct().params;
-
-                auto trustlineToSearch =
-                    generateTrustline(mAccountToSearch, pool);
-                auto trustline2 = generateTrustline(mAccount2, pool);
+                auto trustlineToSearch = generateTrustline(
+                    mAccountToSearch, pool.data.liquidityPool());
+                auto trustline2 =
+                    generateTrustline(mAccount2, pool.data.liquidityPool());
 
                 // Include target asset
                 if (rand_flip())
@@ -523,10 +665,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                     params.assetB = mAsset3;
                 }
 
-                LedgerEntry poolEntry;
-                poolEntry.data.type(LIQUIDITY_POOL);
-                poolEntry.data.liquidityPool() = pool;
-                poolEntries.emplace_back(poolEntry);
+                entries.emplace_back(pool);
                 entries.emplace_back(trustlineToSearch);
                 entries.emplace_back(trustline2);
             }
@@ -534,9 +673,9 @@ class BucketIndexPoolShareTest : public BucketIndexTest
             else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
                      !mTestEntries.empty())
             {
-                // Arbitrarily pcik first entry of map
+                // Arbitrarily pick first entry of map
                 auto iter = mTestEntries.begin();
-                toWriteNewVersion.emplace_back(iter->first);
+                toDelete.emplace_back(iter->first);
                 mTestEntries.erase(iter);
             }
             // Write new version via modify
@@ -546,13 +685,17 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 // Arbitrarily pick first entry of map
                 auto iter = mTestEntries.begin();
                 iter->second.data.trustLine().balance += 10;
-                entries.emplace_back(iter->second);
+                toUpdate.emplace_back(iter->second);
             }
 
-            // We only index liquidity pool INITENTRY, so they must be inserted
-            // as INITENTRY
+            std::vector<LedgerEntry> initEntries;
+            initEntries.insert(initEntries.end(), poolEntries.begin(),
+                               poolEntries.end());
+            initEntries.insert(initEntries.end(), entries.begin(),
+                               entries.end());
+
             mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-                poolEntries, entries, toWriteNewVersion);
+                initEntries, toUpdate, toDelete);
         };
 
         BucketIndexTest::buildBucketList(f);
@@ -580,7 +723,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    buildMultiVersionTest() override
+    buildMultiVersionTest(bool ignored = false) override
     {
         buildTest(true);
     }
@@ -860,6 +1003,67 @@ TEST_CASE("bucket entry counters", "[bucket][bucketindex]")
             test.getBM().getLiveBucketList().sumBucketEntryCounters();
         REQUIRE(summedCounters.entryTypeCounts == totalEntryTypeCounts);
         REQUIRE(summedCounters.entryTypeSizes == totalEntryTypeSizes);
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("soroban cache population", "[soroban][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg);
+        test.buildMultiVersionTest(/*sorobanOnly=*/true);
+        test.run();
+
+        auto& lm = test.getApp().getLedgerManager();
+        auto codeEntries = test.getContractCodeEntries();
+        auto dataEntries = test.getContractDataEntries();
+
+        auto testCache = [&]() {
+            auto& cache = lm.getLedgerStateCacheForTesting();
+
+            auto snapshot = test.getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableLiveBucketListSnapshot();
+
+            // First, test that the cache is maintained correctly via `addBatch`
+            REQUIRE(codeEntries.size() == cache.mTTLs.size());
+            for (auto const& [k, v] : codeEntries)
+            {
+                auto ttl = cache.getContractCodeTTL(k);
+                REQUIRE(ttl);
+
+                auto ttlEntry = snapshot->load(getTTLKey(k));
+                REQUIRE(ttlEntry);
+                REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq == ttl);
+            }
+
+            REQUIRE(dataEntries.size() == cache.mContractDataEntries.size());
+            for (auto const& [k, v] : dataEntries)
+            {
+                auto cacheEntry = cache.getContractDataEntry(k);
+                REQUIRE(cacheEntry);
+
+                auto liveEntry = snapshot->load(k);
+                REQUIRE(liveEntry);
+                REQUIRE(*liveEntry == *cacheEntry->ledgerEntry);
+
+                auto ttlEntry = snapshot->load(getTTLKey(k));
+                REQUIRE(ttlEntry);
+                REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq ==
+                        cacheEntry->liveUntilLedgerSeq);
+            }
+        };
+
+        // Test that we maintain the cache properly. We initialized an empty
+        // cache on the genesis ledger and updated it with each call to close
+        // ledger.
+        testCache();
+
+        // Now wipe cache and repopulate from scratch to test initialization on
+        // a non-empty bucketlist.
+        lm.rebuildLedgerStateCacheForTesting();
+        testCache();
     };
 
     testAllIndexTypes(f);
@@ -1146,6 +1350,238 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         REQUIRE(bulkLoadResult2.size() == 1);
         REQUIRE(bulkLoadResult2[0].type() == HOT_ARCHIVE_ARCHIVED);
         REQUIRE(bulkLoadResult2[0].archivedEntry() == archivedShadow);
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto clock = VirtualClock();
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+
+        auto verifyIndexBounds = [](std::shared_ptr<LiveBucket const> bucket) {
+            XDRInputFileStream in;
+            in.open(bucket->getFilename().string());
+            BucketEntry be;
+            std::optional<std::streamoff> pos;
+
+            std::optional<LedgerEntryType> lastSeenType;
+            std::set<LedgerEntryType> seenTypes;
+
+            while (in && in.readOne(be))
+            {
+                if (be.type() != METAENTRY)
+                {
+                    LedgerKey key = getBucketLedgerKey(be);
+                    LedgerEntryType currentType = key.type();
+                    seenTypes.insert(currentType);
+
+                    // Check if we've transitioned to a new type
+                    if (!lastSeenType || *lastSeenType != currentType)
+                    {
+                        // If we had a previous type, verify its upper bound
+                        if (lastSeenType)
+                        {
+                            auto prevRange =
+                                bucket->getRangeForTypes({*lastSeenType});
+                            REQUIRE(prevRange.has_value());
+                            REQUIRE(prevRange->second == pos);
+                        }
+
+                        // Verify the lower bound of the new type
+                        auto currentRange =
+                            bucket->getRangeForTypes({currentType});
+                        REQUIRE(currentRange.has_value());
+                        REQUIRE(currentRange->first == pos);
+
+                        lastSeenType = currentType;
+                    }
+                }
+                pos = in.pos();
+            }
+
+            // Verify the last type has correct upper bound (EOF)
+            REQUIRE(lastSeenType);
+            auto lastRange = bucket->getRangeForTypes({*lastSeenType});
+            REQUIRE(lastRange.has_value());
+            REQUIRE(lastRange->second ==
+                    std::numeric_limits<std::streamoff>::max());
+
+            // Verify that entry types not seen in the bucket return
+            // std::nullopt
+            for (auto type : xdr::xdr_traits<LedgerEntryType>::enum_values())
+            {
+                if (seenTypes.find(static_cast<LedgerEntryType>(type)) ==
+                    seenTypes.end())
+                {
+                    auto unseenRange = bucket->getRangeForTypes(
+                        {static_cast<LedgerEntryType>(type)});
+                    REQUIRE(!unseenRange.has_value());
+                }
+            }
+        };
+
+        SECTION("Bucket contains multiple entries of some types")
+        {
+            auto entries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {ACCOUNT, TRUSTLINE, DATA}, 40);
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
+            closeLedger(*app);
+
+            auto& bm = app->getBucketManager();
+            auto bucket = bm.getLiveBucketList().getLevel(0).getCurr();
+            verifyIndexBounds(bucket);
+
+            // Test multiple type ranges, both adjacent and non-adjacent
+            auto adjacentRange = bucket->getRangeForTypes({ACCOUNT, TRUSTLINE});
+            REQUIRE(adjacentRange.has_value());
+            auto accountRange = bucket->getRangeForTypes({ACCOUNT});
+            REQUIRE(accountRange.has_value());
+            auto trustlineRange = bucket->getRangeForTypes({TRUSTLINE});
+            REQUIRE(trustlineRange.has_value());
+            REQUIRE(adjacentRange->first == accountRange->first);
+            REQUIRE(adjacentRange->second == trustlineRange->second);
+
+            auto nonAdjacentRange = bucket->getRangeForTypes({ACCOUNT, DATA});
+            REQUIRE(nonAdjacentRange.has_value());
+
+            auto dataRange = bucket->getRangeForTypes({DATA});
+            REQUIRE(accountRange.has_value());
+            REQUIRE(dataRange.has_value());
+            REQUIRE(nonAdjacentRange->first == accountRange->first);
+            REQUIRE(nonAdjacentRange->second == dataRange->second);
+
+            // Non-existent types only
+            std::set<LedgerEntryType> nonExistentTypes{CLAIMABLE_BALANCE,
+                                                       CONTRACT_CODE};
+            auto nonExistentRange = bucket->getRangeForTypes(nonExistentTypes);
+            REQUIRE(!nonExistentRange.has_value());
+
+            // Mix of existent and non-existent types, should just return range
+            // of existing type
+            auto accountAndTTLRange = bucket->getRangeForTypes({ACCOUNT, TTL});
+            REQUIRE(accountAndTTLRange.has_value());
+            REQUIRE(accountAndTTLRange->first == accountRange->first);
+            REQUIRE(accountAndTTLRange->second == accountRange->second);
+        }
+
+        SECTION("Bucket contains 1 of some types")
+        {
+            std::vector<LedgerEntry> entries;
+            for (auto type : {ACCOUNT, TRUSTLINE, DATA})
+            {
+                entries.push_back(
+                    LedgerTestUtils::generateValidLedgerEntryOfType(
+                        static_cast<LedgerEntryType>(type)));
+            }
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
+            closeLedger(*app);
+
+            auto bucket = app->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr();
+            verifyIndexBounds(bucket);
+        }
+
+        SECTION("Bucket contains only one type, mix of live and dead")
+        {
+            std::vector<LedgerKey> deadKeys;
+            std::vector<LedgerEntry> liveEntries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {ACCOUNT}, 10);
+            for (auto iter = liveEntries.begin(); iter != liveEntries.end();)
+            {
+                if (rand_flip())
+                {
+                    deadKeys.push_back(LedgerEntryKey(*iter));
+                    iter = liveEntries.erase(iter);
+                }
+                else
+                {
+                    ++iter;
+                }
+            }
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, liveEntries, deadKeys);
+            closeLedger(*app);
+
+            auto bucket = app->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr();
+
+            verifyIndexBounds(bucket);
+            auto singleRange = bucket->getRangeForTypes({ACCOUNT});
+            REQUIRE(singleRange.has_value());
+
+            // For a single type, upper bound should be EOF
+            REQUIRE(singleRange->second ==
+                    std::numeric_limits<std::streamoff>::max());
+        }
+
+        SECTION("Scan for entries by type")
+        {
+            std::vector<LedgerEntry> entries;
+            entries.push_back(
+                LedgerTestUtils::generateValidLedgerEntryOfType(OFFER));
+            entries.push_back(
+                LedgerTestUtils::generateValidLedgerEntryOfType(DATA));
+            entries.push_back(
+                LedgerTestUtils::generateValidLedgerEntryOfType(ACCOUNT));
+
+            app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
+            closeLedger(*app);
+
+            auto bucket = app->getBucketManager()
+                              .getLiveBucketList()
+                              .getLevel(0)
+                              .getCurr();
+            verifyIndexBounds(bucket);
+
+            auto searchableBL = app->getBucketManager()
+                                    .getBucketSnapshotManager()
+                                    .copySearchableLiveBucketListSnapshot();
+
+            std::set<LedgerEntryType> targetTypes{OFFER, DATA};
+            std::vector<BucketEntry> foundEntries;
+
+            searchableBL->scanForEntriesOfType(targetTypes,
+                                               [&](BucketEntry const& be) {
+                                                   foundEntries.push_back(be);
+                                                   return Loop::INCOMPLETE;
+                                               });
+
+            REQUIRE(foundEntries.size() == 2);
+
+            bool foundOffer = false;
+            bool foundData = false;
+            for (auto const& be : foundEntries)
+            {
+                if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+                {
+                    if (be.liveEntry().data.type() == OFFER)
+                    {
+                        foundOffer = true;
+                    }
+                    else if (be.liveEntry().data.type() == DATA)
+                    {
+                        foundData = true;
+                    }
+                }
+            }
+            REQUIRE(foundOffer);
+            REQUIRE(foundData);
+        }
     };
 
     testAllIndexTypes(f);
