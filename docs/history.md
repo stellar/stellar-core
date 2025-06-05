@@ -284,7 +284,7 @@ In total, each checkpoint number `0xwwxxyyzz` consists of the following files:
     [`TransactionHistoryResultEntry`](/src/xdr/Stellar-ledger.x), with zero-or-more structures per
     ledger. The file is similar to the transactions file, in that there is one entry per transaction
     applied to a ledger in the checkpoint; but this file stores the _results_ of applying each
-    transaction. These files allows to get a very close approximation of the history of changes
+    transaction. These files allow to get a very close approximation of the history of changes
     to the ledger without actually running the `stellar-core` transaction-apply logic.
     If full fidelity of ledger entry history is needed, see the section on the subject in the [integration document](./integration.md#ledger-state-transition-information-transactions-etc).
 
