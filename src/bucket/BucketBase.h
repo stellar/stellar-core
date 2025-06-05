@@ -4,12 +4,12 @@
 // under the apache license, version 2.0. see the copying file at the root
 // of this distribution or at http://www.apache.org/licenses/license-2.0
 
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
 #include <filesystem>
-#include <optional>
 #include <string>
 
 namespace asio
@@ -129,6 +129,20 @@ class BucketBase : public NonMovableOrCopyable
           std::vector<std::shared_ptr<BucketT>> const& shadows,
           bool keepTombstoneEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+
+    // Helper function that implements the core merge algorithm logic for both
+    // iterator based and in-memory merges.
+    // PutFunc will be called to write entries that are the result of the merge.
+    // Parameter pack is empty for HotArchiveBucket, since they do not support
+    // shadows.
+    // For Livebucket, parameter pack is
+    // std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+    //    bool keepShadowedLifecycleEntries
+    template <typename InputSource, typename PutFuncT, typename... ShadowParams>
+    static void mergeInternal(BucketManager& bucketManager,
+                              InputSource& inputSource, PutFuncT putFunc,
+                              uint32_t protocolVersion, MergeCounters& mc,
+                              ShadowParams&&... shadowParams);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
