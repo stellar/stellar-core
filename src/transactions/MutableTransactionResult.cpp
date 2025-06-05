@@ -210,6 +210,10 @@ MutableTransactionResultBase::adoptFailedReplayResult()
         return false;
     }
     mTxResult = *mReplayTransactionResult;
+    if (mRefundableFeeTracker)
+    {
+        mRefundableFeeTracker->resetConsumedFee();
+    }
     return true;
 }
 bool
