@@ -51,15 +51,6 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
-    // Output of the apply process, also what gets held as "LCL".
-    struct LedgerState
-    {
-        LedgerHeaderHistoryEntry ledgerHeader;
-        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
-        HistoryArchiveState has;
-        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
-    };
-
     struct LedgerApplyMetrics
     {
         SorobanMetrics mSorobanMetrics;
@@ -157,12 +148,8 @@ class LedgerManagerImpl : public LedgerManager
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
-    // Use in the context of parallel ledger apply to indicate background thread
-    // is currently closing a ledger or has ledgers queued to apply.
-    bool mCurrentlyApplyingLedger{false};
-
     LedgerState& getLCLState();
-    LedgerState const& getLCLState() const;
+    LedgerState const& getLCLState() const override;
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
@@ -193,14 +180,10 @@ class LedgerManagerImpl : public LedgerManager
                                     ApplicableTxSetFrame const& txSet,
                                     Config const& config);
 
-    State mState;
-
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
     std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
 #endif
-
-    void setState(State s);
 
     void emitNextMeta();
 
@@ -210,6 +193,9 @@ class LedgerManagerImpl : public LedgerManager
 
     // Update cached last closed ledger state values managed by this class.
     void advanceLastClosedLedgerState(LedgerState const& output);
+
+    void setupLedgerCloseMetaStream();
+    void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -241,13 +227,6 @@ class LedgerManagerImpl : public LedgerManager
     // This needs to be called every time a ledger is closed.
     // This call is read-only and hence `ltx` can be read-only.
     void updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx) override;
-    void moveToSynced() override;
-    void beginApply() override;
-    State getState() const override;
-    std::string getStateHuman() const override;
-
-    void valueExternalized(LedgerCloseData const& ledgerData,
-                           bool isLatestSlot) override;
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
@@ -285,28 +264,16 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchup(CatchupConfiguration configuration,
-                      std::shared_ptr<HistoryArchive> archive) override;
-
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
-    void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
-                             LedgerCloseData const& ledgerData);
     void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 
-    void setupLedgerCloseMetaStream();
-    void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
-
     SorobanMetrics& getSorobanMetrics() override;
     SearchableSnapshotConstPtr getLastClosedSnaphot() override;
-    virtual bool
-    isApplying() const override
-    {
-        return mCurrentlyApplyingLedger;
-    }
+
     ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
 };
 }

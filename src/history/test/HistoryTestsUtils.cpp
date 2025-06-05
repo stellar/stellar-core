@@ -825,7 +825,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
                                 : CatchupConfiguration::Mode::OFFLINE_BASIC;
     auto catchupConfiguration =
         CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT, mode};
-    lm.startCatchup(catchupConfiguration, nullptr);
+    app->getLedgerApplyManager().startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
     auto& lam = app->getLedgerApplyManager();
@@ -881,7 +881,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT,
                              CatchupConfiguration::Mode::ONLINE};
 
-    auto caughtUp = [&]() { return lm.isSynced(); };
+    auto caughtUp = [&]() { return app->getLedgerApplyManager().isSynced(); };
 
     auto externalize = [&](uint32 n) {
         if (numGapLedgers > 0 && n == gapLedger)
