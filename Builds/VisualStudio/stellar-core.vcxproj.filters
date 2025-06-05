@@ -1321,7 +1321,6 @@
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp" />
-    <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
     <ClCompile Include="..\..\src\main\AppConnector.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1399,6 +1398,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\SharedModuleCacheCompiler.cpp">
       <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\TxGenerator.cpp">
+      <Filter>simulation</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2398,7 +2400,6 @@
     <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\simulation\TxGenerator.h" />
     <ClInclude Include="..\..\src\main\AppConnector.h">
       <Filter>main</Filter>
     </ClInclude>
@@ -2479,6 +2480,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\SharedModuleCacheCompiler.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\TxGenerator.h">
+      <Filter>simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -2738,7 +2742,12 @@
       <Filter>util\xdrquery</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\hash-xdrs.sh" />
-    <CustomBuild Include="..\..\src\rust\src\bridge.rs" />
+    <CustomBuild Include="..\..\src\rust\src\bridge.rs">
+      <Filter>rust</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
+      <Filter>rust</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\INSTALL-Windows.md" />
