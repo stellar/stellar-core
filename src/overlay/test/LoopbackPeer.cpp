@@ -160,12 +160,11 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction)
     }
     else if (direction == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
-        CLOG_DEBUG(Overlay, "Dropping peer {}, reason {}", toString(), reason);
+        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
     }
     else
     {
-        CLOG_DEBUG(Overlay, "peer {} dropped us, reason {}", toString(),
-                   reason);
+        CLOG_INFO(Overlay, "peer {} dropped us, reason {}", toString(), reason);
     }
 
     mDropReason = reason;
