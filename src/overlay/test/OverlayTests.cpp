@@ -2977,4 +2977,109 @@ TEST_CASE("overlay pull mode with many peers",
 
     REQUIRE(getSentDemandCount(apps[0]) == maxRetry);
 }
+
+TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
+            if (i == 2)
+            {
+                cfg.PEER_FLOOD_READING_CAPACITY = 1'000'000;
+            }
+            else if (i == 1)
+            {
+                cfg.OUTBOUND_TX_QUEUE_BYTE_LIMIT = 2000;
+            }
+            // Disable SCP voting to avoid noise
+            cfg.NODE_IS_VALIDATOR = false;
+            cfg.FORCE_SCP = false;
+            return cfg;
+        });
+
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet n0_qset;
+    n0_qset.threshold = 1;
+    n0_qset.validators.push_back(v10SecretKey.getPublicKey());
+    auto n0 = s->addNode(v10SecretKey, n0_qset);
+    auto n1 = s->addNode(v11SecretKey, n0_qset);
+
+    s->addPendingConnection(v10SecretKey.getPublicKey(),
+                            v11SecretKey.getPublicKey());
+    s->startAllNodes();
+    for (auto const& n : s->getNodes())
+    {
+        n->getLedgerManager().moveToSynced();
+    }
+    s->crankForAtLeast(std::chrono::seconds(1), false);
+
+    auto p0 = n0->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+
+    auto p1 = n1->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+
+    REQUIRE(p0);
+    REQUIRE(p1);
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+
+    int const NUM_MESSAGES = 1000;
+    auto initialTxCount =
+        n0->getMetrics()
+            .NewCounter({"overlay", "recv-transaction", "count"})
+            .count();
+
+    SECTION("p1 never reads")
+    {
+        auto peer = std::static_pointer_cast<LoopbackPeer>(p0);
+        peer->setCorked(true);
+        auto initialQueueDrops =
+            n0->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count();
+        for (int i = 0; i < NUM_MESSAGES; i++)
+        {
+            p0->sendMessage(makeStellarMessage(1));
+        }
+        s->crankForAtLeast(std::chrono::seconds(5), false);
+
+        auto finalQueueSize =
+            p0->getFlowControl()->getQueuesForTesting()[1].size();
+        auto finalQueueDrops =
+            n0->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count();
+
+        // Because receiver is corked, drop the whole queue
+        REQUIRE(finalQueueDrops > initialQueueDrops);
+        REQUIRE(finalQueueSize < NUM_MESSAGES);
+        REQUIRE(n1->getMetrics()
+                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .count() == initialTxCount);
+    }
+    SECTION("p1 received all txs")
+    {
+        for (int i = 0; i < NUM_MESSAGES; i++)
+        {
+            p0->sendMessage(makeStellarMessage(1));
+            s->crankForAtLeast(std::chrono::milliseconds(1), false);
+        }
+        s->crankForAtLeast(std::chrono::seconds(1), false);
+
+        REQUIRE(n1->getMetrics()
+                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .count() == initialTxCount + NUM_MESSAGES);
+        REQUIRE(p0->getFlowControl()->getQueuesForTesting()[1].size() == 0);
+        // No new messages were dropped
+        REQUIRE(
+            n0->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count() == 0);
+    }
+}
 }

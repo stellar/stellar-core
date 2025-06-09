@@ -157,15 +157,5 @@ class TCPPeer : public Peer
 
     virtual void drop(std::string const& reason,
                       DropDirection dropDirection) override;
-
-#ifdef BUILD_TESTS
-    std::atomic<bool> mStopReadingForTesting{false};
-    void
-    scheduleReadForTesting()
-    {
-        releaseAssert(threadIsMain());
-        scheduleRead();
-    }
-#endif
 };
 }

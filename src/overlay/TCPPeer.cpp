@@ -504,13 +504,6 @@ TCPPeer::scheduleRead()
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-#ifdef BUILD_TESTS
-    if (mStopReadingForTesting)
-    {
-        CLOG_INFO(Overlay, "TCPPeer::scheduleRead: stop reading for testing");
-        return;
-    }
-#endif
     if (mFlowControl->isThrottled())
     {
         return;
@@ -545,13 +538,6 @@ TCPPeer::startRead()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
-#ifdef BUILD_TESTS
-    if (mStopReadingForTesting)
-    {
-        CLOG_INFO(Overlay, "TCPPeer::startRead: stop reading for testing");
-        return;
-    }
-#endif
     releaseAssert(canRead());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (shouldAbort(guard))
