@@ -29,6 +29,24 @@ cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
     case stellar::SC_ADDRESS_TYPE_ACCOUNT:
         xdr::archive(ar, stellar::KeyUtils::toStrKey(addr.accountId()), field);
         return;
+    case stellar::SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+        xdr::archive(ar,
+                     std::make_tuple(
+                         cereal::make_nvp("id", addr.muxedAccount().id),
+                         cereal::make_nvp(
+                             "accountID",
+                             stellar::strKey::toStrKey(
+                                 stellar::strKey::STRKEY_MUXED_ACCOUNT_ED25519,
+                                 addr.muxedAccount().ed25519)
+                                 .value)),
+                     field);
+        break;
+    case stellar::SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+        xdr::archive(ar, addr.claimableBalanceId(), field);
+        return;
+    case stellar::SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+        xdr::archive(ar, addr.liquidityPoolId(), field);
+        return;
     default:
         // this would be a bug
         abort();
