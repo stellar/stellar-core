@@ -1349,6 +1349,18 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract-config-setting.x">
       <FileType>Document</FileType>
@@ -1364,6 +1376,21 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-internal.x">
       <FileType>Document</FileType>
@@ -1379,6 +1406,18 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-internal.h</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
@@ -1394,6 +1433,21 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-transaction.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-transaction.x">
       <FileType>Document</FileType>
@@ -1409,6 +1463,21 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-transaction.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-types.x">
       <FileType>Document</FileType>
@@ -1425,6 +1494,14 @@ exit /b 0
       <AdditionalInputs>
       </AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-overlay.x">
       <FileType>Document</FileType>
@@ -1440,6 +1517,18 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger-entries.x">
       <FileType>Document</FileType>
@@ -1456,6 +1545,21 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-SCP.x">
       <FileType>Document</FileType>
@@ -1471,6 +1575,18 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-SCP.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
+      </AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-internal.x">
       <FileType>Document</FileType>
@@ -1485,6 +1601,30 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-internal.h</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
@@ -1499,6 +1639,32 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-transaction.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-transaction.x">
       <FileType>Document</FileType>
@@ -1513,6 +1679,32 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-transaction.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-types.x">
       <FileType>Document</FileType>
@@ -1528,6 +1720,24 @@ exit /b 0
       <AdditionalInputs>
       </AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-overlay.x">
       <FileType>Document</FileType>
@@ -1542,6 +1752,30 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-ledger-entries.x">
       <FileType>Document</FileType>
@@ -1556,6 +1790,32 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h;src/$(Configuration)/generated/xdr/Stellar-contract.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-SCP.x">
       <FileType>Document</FileType>
@@ -1570,6 +1830,30 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-SCP.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract.x">
       <FileType>Document</FileType>
@@ -1584,6 +1868,34 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</VerifyInputsAndOutputsExist>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</VerifyInputsAndOutputsExist>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x">
       <FileType>Document</FileType>
@@ -1598,6 +1910,34 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </Message>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </Message>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </VerifyInputsAndOutputsExist>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </Message>
+      <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
+      </VerifyInputsAndOutputsExist>
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <FileType>Document</FileType>
@@ -1637,6 +1977,19 @@ exit /b 0
       <Message>running cxxbridge to generate RustBridge.h and RustBridge.cpp</Message>
       <Outputs>src\generated\rust\RustBridge.h;src\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">cargo install --root $(OutDir)\.. cxxbridge-cmd --version 1.0.68</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(OutDir)\..\bin\cxxbridge.exe</Outputs>
     </CustomBuild>
     <None Include="..\..\src\rust\src\b64.rs" />
     <None Include="..\..\src\rust\src\common.rs" />
@@ -1723,4 +2076,8 @@ exit /b 0
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="CustomCleanScript" BeforeTargets="Clean">
+     <Message Text="Cleaning folder: $(OutDir)\rust" Importance="high" />
+     <Exec Command="cmd.exe /c &quot;rmdir /S /Q $(OutDir)\rust &quot;" />
+    </Target>
 </Project>
