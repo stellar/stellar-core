@@ -1045,10 +1045,10 @@ ClassicTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 
     auto opsToFlood =
         mBroadcastOpCarryover[SurgePricingPriorityQueue::GENERIC_LANE] +
-        Resource(
-            bigDivideOrThrow(opsToFloodLedger, getFloodPeriod(),
-                             cfg.getExpectedLedgerCloseTime().count() * 1000,
-                             Rounding::ROUND_UP));
+        Resource(bigDivideOrThrow(
+            opsToFloodLedger, getFloodPeriod(),
+            mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count(),
+            Rounding::ROUND_UP));
     releaseAssertOrThrow(Resource(0) <= opsToFlood &&
                          opsToFlood <=
                              Resource(std::numeric_limits<uint32_t>::max()));
@@ -1068,7 +1068,7 @@ ClassicTransactionQueue::getMaxResourcesToFloodThisPeriod() const
             dexOpsCarryover +
             static_cast<uint32>(bigDivideOrThrow(
                 dexOpsToFloodLedger, getFloodPeriod(),
-                cfg.getExpectedLedgerCloseTime().count() * 1000ll,
+                mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count(),
                 Rounding::ROUND_UP));
         dexOpsToFlood = dexOpsToFloodUint;
     }
@@ -1152,9 +1152,10 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 
     Resource resToFlood =
         mBroadcastOpCarryover[SurgePricingPriorityQueue::GENERIC_LANE] +
-        bigDivideOrThrow(totalFloodPerLedger, getFloodPeriod(),
-                         cfg.getExpectedLedgerCloseTime().count() * 1000,
-                         Rounding::ROUND_UP);
+        bigDivideOrThrow(
+            totalFloodPerLedger, getFloodPeriod(),
+            mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count(),
+            Rounding::ROUND_UP);
     return std::make_pair(resToFlood, std::nullopt);
 }
 

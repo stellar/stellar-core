@@ -556,8 +556,8 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     mRoundNumber++;
     updateRoundLeaders();
 
-    std::chrono::milliseconds timeout =
-        mSlot.getSCPDriver().computeTimeout(mRoundNumber);
+    std::chrono::milliseconds timeout = mSlot.getSCPDriver().computeTimeout(
+        mRoundNumber, /*isNomination=*/true);
 
     // add a few more values from other leaders
     for (auto const& leader : mRoundLeaders)

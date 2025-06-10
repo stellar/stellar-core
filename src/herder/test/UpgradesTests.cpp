@@ -9,6 +9,7 @@
 #include "crypto/Random.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
+#include "herder/HerderSCPDriver.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryArchiveManager.h"
@@ -20,7 +21,9 @@
 #include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
+#include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
+#include "simulation/Topologies.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
@@ -30,6 +33,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
+#include <chrono>
 #include <fmt/format.h>
 #include <optional>
 #include <xdrpp/autocheck.h>
@@ -896,6 +900,131 @@ TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
         REQUIRE(runTest(static_cast<uint32_t>(
                             PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
                         0) == Upgrades::UpgradeValidity::INVALID);
+    }
+}
+
+TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];
+    auto& herder = static_cast<HerderImpl&>(app.getHerder());
+    auto& scpDriver = herder.getHerderSCPDriver();
+
+    SECTION("ledger close time changes after config upgrade")
+    {
+
+        // Verify initial ledger close time
+        auto initialCloseTime = simulation->getExpectedLedgerCloseTime();
+        REQUIRE(initialCloseTime ==
+                Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS);
+
+        auto const timeToTest = std::chrono::seconds(200);
+
+        auto testExpectedLedgers = [&]() {
+            auto initialLedgerSeq =
+                app.getLedgerManager().getLastClosedLedgerNum();
+            long long expectedLedgers =
+                timeToTest / simulation->getExpectedLedgerCloseTime();
+
+            simulation->crankForAtLeast(timeToTest, false);
+            long long actualLedgerCount =
+                app.getLedgerManager().getLastClosedLedgerNum() -
+                initialLedgerSeq;
+
+            // Allow 1 ledger of error due to simulation timing
+            REQUIRE(abs(actualLedgerCount - expectedLedgers) <= 1);
+        };
+
+        testExpectedLedgers();
+
+        // Upgrade to 4 second ledger close time
+        upgradeSorobanNetworkConfig(
+            [](SorobanNetworkConfig& cfg) {
+                cfg.mLedgerTargetCloseTimeMilliseconds = 4000;
+            },
+            simulation);
+
+        REQUIRE(simulation->getExpectedLedgerCloseTime().count() == 4000);
+        testExpectedLedgers();
+    }
+
+    SECTION("SCP timeouts")
+    {
+        // Verify initial timeout values
+        auto const& initialConfig =
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+
+        REQUIRE(initialConfig.nominationTimeoutInitialMilliseconds() == 1000);
+        REQUIRE(initialConfig.nominationTimeoutIncrementMilliseconds() == 1000);
+        REQUIRE(initialConfig.ballotTimeoutInitialMilliseconds() == 1000);
+        REQUIRE(initialConfig.ballotTimeoutIncrementMilliseconds() == 1000);
+
+        // Test default timeout calculation
+        // Round 1 should be initial timeout
+        auto timeout1 = scpDriver.computeTimeout(1, /*isNomination=*/false);
+        REQUIRE(timeout1 == std::chrono::milliseconds(1000));
+
+        // Round 5 should be initial + 4*increment
+        auto timeout5 = scpDriver.computeTimeout(5, /*isNomination=*/false);
+        REQUIRE(timeout5 == std::chrono::milliseconds(5000));
+
+        auto nomTimeout1 = scpDriver.computeTimeout(1, /*isNomination=*/true);
+        REQUIRE(nomTimeout1 == std::chrono::milliseconds(1000));
+        auto nomTimeout5 = scpDriver.computeTimeout(5, /*isNomination=*/true);
+        REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000));
+
+        uint32_t const nominationTimeoutInitialMilliseconds = 2000;
+        uint32_t const nominationTimeoutIncrementMilliseconds = 500;
+        uint32_t const ballotTimeoutInitialMilliseconds = 1500;
+        uint32_t const ballotTimeoutIncrementMilliseconds = 750;
+
+        // Upgrade SCP timing parameters
+        upgradeSorobanNetworkConfig(
+            [](SorobanNetworkConfig& cfg) {
+                cfg.mNominationTimeoutInitialMilliseconds =
+                    nominationTimeoutInitialMilliseconds;
+                cfg.mNominationTimeoutIncrementMilliseconds =
+                    nominationTimeoutIncrementMilliseconds;
+                cfg.mBallotTimeoutInitialMilliseconds =
+                    ballotTimeoutInitialMilliseconds;
+                cfg.mBallotTimeoutIncrementMilliseconds =
+                    ballotTimeoutIncrementMilliseconds;
+            },
+            simulation);
+
+        // Verify config was updated
+        auto const& updatedConfig =
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        REQUIRE(updatedConfig.nominationTimeoutInitialMilliseconds() ==
+                nominationTimeoutInitialMilliseconds);
+        REQUIRE(updatedConfig.nominationTimeoutIncrementMilliseconds() ==
+                nominationTimeoutIncrementMilliseconds);
+        REQUIRE(updatedConfig.ballotTimeoutInitialMilliseconds() ==
+                ballotTimeoutInitialMilliseconds);
+        REQUIRE(updatedConfig.ballotTimeoutIncrementMilliseconds() ==
+                ballotTimeoutIncrementMilliseconds);
+
+        // Test timeout calculation with new values
+        timeout1 = scpDriver.computeTimeout(1, /*isNomination=*/false);
+        REQUIRE(timeout1 == std::chrono::milliseconds(1500));
+
+        timeout5 = scpDriver.computeTimeout(5, /*isNomination=*/false);
+        REQUIRE(timeout5 == std::chrono::milliseconds(4500)); // 1500 + 4*750
+
+        nomTimeout1 = scpDriver.computeTimeout(1, /*isNomination=*/true);
+        REQUIRE(nomTimeout1 == std::chrono::milliseconds(2000));
+
+        nomTimeout5 = scpDriver.computeTimeout(5, /*isNomination=*/true);
+        REQUIRE(nomTimeout5 == std::chrono::milliseconds(4000)); // 2000 + 4*500
     }
 }
 
@@ -3305,4 +3434,59 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
         REQUIRE_THROWS_AS(root->pay(a1, cur1, 2, native, 1, {}),
                           ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
     });
+}
+
+TEST_CASE("protocol 23 upgrade sets default SCP timing values", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
+
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& scpDriver = herder.getHerderSCPDriver();
+
+    // Verify pre-protocol 23 behavior
+    auto lcl = lm.getLastClosedLedgerHeader();
+    REQUIRE(lcl.header.ledgerVersion == 22);
+
+    // Test that SCP timeouts use the old hardcoded values
+    auto ballotTimeout1 = scpDriver.computeTimeout(1, false);
+    REQUIRE(ballotTimeout1 == std::chrono::milliseconds(1000));
+
+    auto ballotTimeout5 = scpDriver.computeTimeout(5, false);
+    REQUIRE(ballotTimeout5 == std::chrono::milliseconds(5000));
+
+    auto nomTimeout1 = scpDriver.computeTimeout(1, true);
+    REQUIRE(nomTimeout1 == std::chrono::milliseconds(1000));
+
+    auto nomTimeout5 = scpDriver.computeTimeout(5, true);
+    REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000));
+
+    // Upgrade to protocol 23
+    executeUpgrade(*app, makeProtocolVersionUpgrade(23));
+    lcl = lm.getLastClosedLedgerHeader();
+    REQUIRE(lcl.header.ledgerVersion == 23);
+
+    // Verify SCP timing config was initialized with correct defaults
+    auto const& config = lm.getLastClosedSorobanNetworkConfig();
+    REQUIRE(config.ledgerTargetCloseTimeMilliseconds() ==
+            InitialSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS);
+    REQUIRE(
+        config.nominationTimeoutInitialMilliseconds() ==
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INITIAL_MILLISECONDS);
+    REQUIRE(
+        config.nominationTimeoutIncrementMilliseconds() ==
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS);
+    REQUIRE(config.ballotTimeoutInitialMilliseconds() ==
+            InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS);
+    REQUIRE(config.ballotTimeoutIncrementMilliseconds() ==
+            InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS);
+
+    // Verify timeouts are the same as before
+    REQUIRE(scpDriver.computeTimeout(1, false) == ballotTimeout1);
+    REQUIRE(scpDriver.computeTimeout(5, false) == ballotTimeout5);
+    REQUIRE(scpDriver.computeTimeout(1, true) == nomTimeout1);
+    REQUIRE(scpDriver.computeTimeout(5, true) == nomTimeout5);
 }

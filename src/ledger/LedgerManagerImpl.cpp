@@ -622,7 +622,7 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 }
 
 SorobanNetworkConfig const&
-LedgerManagerImpl::getLastClosedSorobanNetworkConfig()
+LedgerManagerImpl::getLastClosedSorobanNetworkConfig() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(hasLastClosedSorobanNetworkConfig());
@@ -642,6 +642,34 @@ LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->hasSorobanConfig();
+}
+
+std::chrono::milliseconds
+LedgerManagerImpl::getExpectedLedgerCloseTime(Config const& config) const
+{
+#ifdef BUILD_TESTS
+    // Always check for testing override first
+    if (config.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
+    {
+        return std::chrono::milliseconds{
+            config.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING * 1000};
+    }
+    if (config.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+        return std::chrono::milliseconds{1000};
+    }
+#endif
+
+    auto const& lcl = getLastClosedLedgerHeader();
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  ProtocolVersion::V_23))
+    {
+        auto const& networkConfig = getLastClosedSorobanNetworkConfig();
+        return std::chrono::milliseconds(
+            networkConfig.ledgerTargetCloseTimeMilliseconds());
+    }
+
+    return Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
 }
 
 #ifdef BUILD_TESTS
@@ -1470,6 +1498,15 @@ LedgerManagerImpl::setLastClosedLedger(
     if (protocolVersionStartsFrom(lv, SOROBAN_PROTOCOL_VERSION))
     {
         mApp.getLedgerManager().updateSorobanNetworkConfigForApply(ltx2);
+        releaseAssert(mApplyState.mSorobanNetworkConfig);
+        releaseAssert(mLastClosedLedgerState);
+
+        mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot(),
+            *mApplyState.mSorobanNetworkConfig, getLastClosedLedgerHeader(),
+            getLastClosedLedgerHAS());
     }
     // This should not be additionally conditionalized on lv >= anything,
     // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.

@@ -322,10 +322,13 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() override;
+    SorobanNetworkConfig const&
+    getLastClosedSorobanNetworkConfig() const override;
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
 
     bool hasLastClosedSorobanNetworkConfig() const override;
+    std::chrono::milliseconds
+    getExpectedLedgerCloseTime(Config const& config) const override;
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;

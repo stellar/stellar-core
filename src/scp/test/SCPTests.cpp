@@ -308,6 +308,13 @@ class TestSCP : public SCPDriver
     {
         return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
     }
+
+    std::chrono::milliseconds
+    computeTimeout(uint32 roundNumber, bool isNomination) override
+    {
+        // For testing, just return default timeout values
+        return std::chrono::milliseconds(roundNumber * 1000);
+    }
 };
 
 static SCPEnvelope

@@ -9,7 +9,6 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchive.h"
-#include "ledger/LedgerManager.h"
 #include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -213,12 +212,15 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // Configure MAXIMUM_LEDGER_CLOSETIME_DRIFT based on MAX_SLOTS_TO_REMEMBER
     // (plus a small buffer) to make sure we don't reject SCP state sent to us
     // by default. Limit allowed drift to 90 seconds as to not overwhelm the
-    // node too much.
+    // node too much. Given that this is a Network Config setting, but we can't
+    // set config settings based on network config, we'll be conservative and
+    // allow the maximum drift.
     uint32_t CLOSETIME_DRIFT_LIMIT = 90;
-    MAXIMUM_LEDGER_CLOSETIME_DRIFT =
-        std::min<uint32_t>((MAX_SLOTS_TO_REMEMBER + 2) *
-                               Herder::EXP_LEDGER_TIMESPAN_SECONDS.count(),
-                           CLOSETIME_DRIFT_LIMIT);
+    MAXIMUM_LEDGER_CLOSETIME_DRIFT = std::min<uint32_t>(
+        (MAX_SLOTS_TO_REMEMBER + 2) *
+            MaximumSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS /
+            1000,
+        CLOSETIME_DRIFT_LIMIT);
     METADATA_OUTPUT_STREAM = "";
 
     // Store at least 1 checkpoint plus a buffer worth of debug meta
@@ -2416,20 +2418,6 @@ Config::expandNodeID(const std::string& s) const
     {
         return {};
     }
-}
-
-std::chrono::seconds
-Config::getExpectedLedgerCloseTime() const
-{
-    if (ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
-    {
-        return std::chrono::seconds{ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING};
-    }
-    if (ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-    {
-        return std::chrono::seconds{1};
-    }
-    return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
 }
 
 bool

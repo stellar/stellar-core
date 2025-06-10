@@ -187,9 +187,7 @@ TxAdverts::getMaxAdvertSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            cfg.getExpectedLedgerCloseTime())
-            .count();
+        mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count();
 
     int64_t opsToFloodPerLedger =
         getOpsFloodLedger(mApp.getLedgerManager().getLastMaxTxSetSizeOps(),

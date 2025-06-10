@@ -252,10 +252,13 @@ class LedgerManager
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
     // used most of the time.
-    virtual SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() = 0;
+    virtual SorobanNetworkConfig const&
+    getLastClosedSorobanNetworkConfig() const = 0;
     virtual SorobanNetworkConfig const& getSorobanNetworkConfigForApply() = 0;
 
     virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
+    virtual std::chrono::milliseconds
+    getExpectedLedgerCloseTime(Config const& config) const = 0;
 
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;

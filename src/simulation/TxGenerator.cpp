@@ -741,16 +741,11 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             continue;
         }
 
-        // TODO: Remove this when SCP timing work is implemented
-        if (t == CONFIG_SETTING_SCP_TIMING)
-        {
-            continue;
-        }
-
         auto entryPtr = lsg.load(configSettingKey(type));
         // This could happen if we have not yet upgraded
         if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
-             t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0) &&
+             t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0 ||
+             t == CONFIG_SETTING_SCP_TIMING) &&
             !entryPtr)
         {
             continue;
@@ -1009,8 +1004,38 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             }
             break;
         case CONFIG_SETTING_SCP_TIMING:
-            // TODO: Implement
-            continue;
+            if (upgradeCfg.ledgerTargetCloseTimeMilliseconds.has_value())
+            {
+                setting.contractSCPTiming().ledgerTargetCloseTimeMilliseconds =
+                    *upgradeCfg.ledgerTargetCloseTimeMilliseconds;
+            }
+
+            if (upgradeCfg.nominationTimeoutInitialMilliseconds.has_value())
+            {
+                setting.contractSCPTiming()
+                    .nominationTimeoutInitialMilliseconds =
+                    *upgradeCfg.nominationTimeoutInitialMilliseconds;
+            }
+
+            if (upgradeCfg.nominationTimeoutIncrementMilliseconds.has_value())
+            {
+                setting.contractSCPTiming()
+                    .nominationTimeoutIncrementMilliseconds =
+                    *upgradeCfg.nominationTimeoutIncrementMilliseconds;
+            }
+
+            if (upgradeCfg.ballotTimeoutInitialMilliseconds.has_value())
+            {
+                setting.contractSCPTiming().ballotTimeoutInitialMilliseconds =
+                    *upgradeCfg.ballotTimeoutInitialMilliseconds;
+            }
+
+            if (upgradeCfg.ballotTimeoutIncrementMilliseconds.has_value())
+            {
+                setting.contractSCPTiming().ballotTimeoutIncrementMilliseconds =
+                    *upgradeCfg.ballotTimeoutIncrementMilliseconds;
+            }
+            break;
         default:
             releaseAssert(false);
             break;
