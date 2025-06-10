@@ -35,6 +35,7 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "xdrpp/marshal.h"
+#include <chrono>
 #include <fmt/format.h>
 
 #include <Tracy.hpp>
@@ -1368,7 +1369,9 @@ Peer::process(QueryInfo& queryInfo)
 {
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
-        cfg.getExpectedLedgerCloseTime() * cfg.MAX_SLOTS_TO_REMEMBER;
+        std::chrono::duration_cast<std::chrono::seconds>(
+            mAppConnector.getLedgerManager().getExpectedLedgerCloseTime(cfg) *
+            cfg.MAX_SLOTS_TO_REMEMBER);
     uint32_t const QUERIES_PER_WINDOW =
         QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER;
     if (mAppConnector.now() - queryInfo.mLastTimeStamp >= QUERY_WINDOW)

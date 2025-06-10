@@ -1008,7 +1008,7 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfLiveSorobanState": 1368,
+            "totalByteSizeOfLiveSorobanState": 1380,
             "evictedKeys": []
         }
     }

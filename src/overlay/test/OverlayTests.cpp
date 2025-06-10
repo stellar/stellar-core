@@ -864,7 +864,7 @@ TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
     auto ledgers = node->getConfig().MAX_SLOTS_TO_REMEMBER + 1;
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(ledgers, 1); },
-        2 * ledgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * ledgers * simulation->getExpectedLedgerCloseTime(), false);
 
     auto conn = simulation->getLoopbackConnection(validatorAKey.getPublicKey(),
                                                   validatorCKey.getPublicKey());
@@ -918,7 +918,8 @@ TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
             [&]() {
                 return simulation->haveAllExternalized(nextCheckpoint, 1);
             },
-            2 * (nextCheckpoint - lcl) * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+            2 * (nextCheckpoint - lcl) *
+                simulation->getExpectedLedgerCloseTime(),
             false);
 
         envs = herder.getSCP().getLatestMessagesSend(nextCheckpoint);
@@ -2104,7 +2105,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
         [&]() {
             return node->getLedgerManager().getLastClosedLedgerNum() >= 15;
         },
-        50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        50 * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(!outOfSyncNode->getLedgerManager().isSynced());
     simulation->addConnection(vNode2NodeID, vNode1NodeID);
@@ -2121,7 +2122,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
 
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        200 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Confirm Node2 is still connected to Node1 and did not get dropped
     auto conn = simulation->getLoopbackConnection(vNode2NodeID, vNode1NodeID);
@@ -2221,7 +2222,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        15 * simulation->getExpectedLedgerCloseTime(), false);
 
     currLoadGenCount = loadGenDone.count();
 
@@ -2231,7 +2232,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        30 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        30 * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(node->getMetrics()
                 .NewMeter({"overlay", "demand", "timeout"}, "timeout")
@@ -2276,6 +2277,11 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     peerManager.store(localhost(4), record(121), false);
     peerManager.store(localhost(5), record(122), false);
 
+    // Herder depends on LM state for close time, so initialize it manually
+    // since we aren't actually starting app.
+    LedgerManagerImpl& lm =
+        static_cast<LedgerManagerImpl&>(app->getLedgerManager());
+    lm.loadLastKnownLedger(false);
     om.start();
 
     // Must wait 2 seconds as `OverlayManagerImpl::start()`
@@ -2865,7 +2871,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
 
     simulation->crankUntil(
         [&] { return simulation->haveAllExternalized(2, 1); },
-        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        3 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto& loadGen = node1->getLoadGenerator();
     if (txSizeLimit > 0)
@@ -2887,7 +2893,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     auto crank = [&]() {
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(5, 1); },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * simulation->getExpectedLedgerCloseTime(), false);
     };
 
     if (txSizeLimit == INVALID_LIMIT)

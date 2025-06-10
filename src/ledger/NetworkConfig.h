@@ -47,6 +47,23 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
 
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
+
+    // SCP timing minimums
+    static constexpr uint32_t LEDGER_TARGET_CLOSE_TIME_MILLISECONDS = 4000;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INITIAL_MILLISECONDS = 750;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS = 500;
+    static constexpr uint32_t BALLOT_TIMEOUT_INITIAL_MILLISECONDS = 750;
+    static constexpr uint32_t BALLOT_TIMEOUT_INCREMENT_MILLISECONDS = 500;
+};
+
+// Maximum values for SCP timing configuration
+struct MaximumSorobanNetworkConfig
+{
+    static constexpr uint32_t LEDGER_TARGET_CLOSE_TIME_MILLISECONDS = 5000;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INITIAL_MILLISECONDS = 2500;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS = 2000;
+    static constexpr uint32_t BALLOT_TIMEOUT_INITIAL_MILLISECONDS = 2500;
+    static constexpr uint32_t BALLOT_TIMEOUT_INCREMENT_MILLISECONDS = 2000;
 };
 
 // This is a protocol-level limit for the maximum number of dependent
@@ -153,6 +170,13 @@ struct InitialSorobanNetworkConfig
 
     // Ledger cost extension settings
     static constexpr int64_t FEE_LEDGER_WRITE_1KB = 3'500;
+
+    // SCP timing settings
+    static constexpr uint32_t LEDGER_TARGET_CLOSE_TIME_MILLISECONDS = 5000;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INITIAL_MILLISECONDS = 1000;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS = 1000;
+    static constexpr uint32_t BALLOT_TIMEOUT_INITIAL_MILLISECONDS = 1000;
+    static constexpr uint32_t BALLOT_TIMEOUT_INCREMENT_MILLISECONDS = 1000;
 };
 
 // The setting values that have to be updated during the protocol 23 upgrade.
@@ -382,6 +406,13 @@ class SorobanNetworkConfig
 
     Resource maxLedgerResources() const;
 
+    // SCP timing settings
+    uint32_t ledgerTargetCloseTimeMilliseconds() const;
+    uint32_t nominationTimeoutInitialMilliseconds() const;
+    uint32_t nominationTimeoutIncrementMilliseconds() const;
+    uint32_t ballotTimeoutInitialMilliseconds() const;
+    uint32_t ballotTimeoutIncrementMilliseconds() const;
+
 #ifdef BUILD_TESTS
     StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
@@ -414,6 +445,7 @@ class SorobanNetworkConfig
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
     void loadLedgerCostExtConfig(AbstractLedgerTxn& ltx);
+    void loadSCPTimingConfig(AbstractLedgerTxn& ltx);
     void computeRentWriteFee(uint32_t configMaxProtocol,
                              uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
@@ -497,6 +529,13 @@ class SorobanNetworkConfig
 
     // Flat rate fee for writing 1KB applies only post protocol 23
     int64_t mFeeFlatRateWrite1KB{};
+
+    // SCP timing settings
+    uint32_t mLedgerTargetCloseTimeMilliseconds{};
+    uint32_t mNominationTimeoutInitialMilliseconds{};
+    uint32_t mNominationTimeoutIncrementMilliseconds{};
+    uint32_t mBallotTimeoutInitialMilliseconds{};
+    uint32_t mBallotTimeoutIncrementMilliseconds{};
 };
 
 }
