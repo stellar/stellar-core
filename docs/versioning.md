@@ -131,7 +131,7 @@ The object's schema has to be cloned and its parent object has to be updated to 
 ## Supported implementations lifetime considerations
 
 In order to keep the code base in a maintainable state, implementations may not preserve the ability to playback from genesis and instead opt to support a limited range, for example only preserve the capability to replay the previous 3 months of transactions (assuming that the network's minProtocolVersion is more recent than this).
-This does not change the ability for the node to (re)join or participate in the network; it only effects the ability for a node to do historical validation.
+This does not change the ability for the node to (re)join or participate in the network; it only affects the ability for a node to do historical validation.
 
 # Overlay versioning
 
