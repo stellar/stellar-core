@@ -81,7 +81,7 @@ the upgrade from protocol 22 to 23:
      `WIP_SOROBAN_PROTOCOL` too if it previously contained `p23`.
 
   6. We wire that new protocol into `src/rust/src/lib.rs` by copying the
-     existing highest-numbered protocol-pecific module, say `mod p22 { ... }`
+     existing highest-numbered protocol-specific module, say `mod p22 { ... }`
      that exists inline in that file, to a new copy say `mod p23 { ... }`.
 
   7. We also update the module alias `soroban_curr`, by changing a line like
@@ -154,7 +154,7 @@ detail there.
 
 ## Rust, Cargo, versions, submodules, rlibs, and dep-tree files
 
-This seciton is optional details about implementation technique for anyone
+This section is optional details about implementation technique for anyone
 surprised by the build infrastructure, or the fact that the lib.rs file doesn't
 seem to work in their IDE quite right, or surprised by the dep-tree files in the
 steps above.
@@ -163,7 +163,7 @@ We are leveraging Rust's support for linking together multiple copies of "the
 same" library (soroban) with different versions, but we are doing so somewhat
 against the grain of how cargo normally wants to do it.
 
-Do do this "the normal way", we would just list the different versions of the
+To do this "the normal way", we would just list the different versions of the
 soroban crate in `Cargo.toml`, and then when we built it cargo would attempt to
 resolve all the dependencies and transitive-dependencies of all those soroban
 versions into a hopefully-minimal set of crates and download, compile and link
@@ -189,7 +189,7 @@ This has one minor and one major problem:
      p22 module on foo 0.1, cargo will bump _both_ to foo 0.2, which _changes_
      the semantics of the p22 module.
 
-       - We initially though a way out of this is to add redundant exact-version
+       - We initially thought a way out of this is to add redundant exact-version
          dependencies (like `foo = "=0.2"`) to `Cargo.toml` for
          `soroban-env-host` but there turn out to be both a minor and a major
          problem with that too.
