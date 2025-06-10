@@ -99,6 +99,13 @@ class TestNominationSCP : public SCPDriver
         }
         return hasher.finish();
     }
+
+    std::chrono::milliseconds
+    computeTimeout(uint32 roundNumber, bool isNomination) override
+    {
+        // For testing, just return default timeout values
+        return std::chrono::milliseconds(roundNumber * 1000);
+    }
 };
 
 TEST_CASE("nomination weight", "[scp]")

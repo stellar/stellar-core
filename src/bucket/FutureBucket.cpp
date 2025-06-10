@@ -14,6 +14,7 @@
 #include "bucket/LiveBucket.h"
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/GlobalChecks.h"
@@ -328,7 +329,13 @@ template <class BucketT>
 static std::chrono::seconds
 getAvailableTimeForMerge(Application& app, uint32_t level)
 {
-    auto closeTime = app.getConfig().getExpectedLedgerCloseTime();
+    // FutureBucket is managed by a background thread that is not related to the
+    // rest of the core state machine such that getting the current value of a
+    // network config is non-trivial. This isn't super important, so we use a
+    // conservative hardcoded lower bound instead.
+    auto closeTime = std::chrono::seconds(
+        MinimumSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS /
+        1000);
     if (level >= 1)
     {
         return closeTime * BucketListBase<BucketT>::levelHalf(level - 1);

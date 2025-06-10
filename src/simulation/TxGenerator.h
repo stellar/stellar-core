@@ -74,6 +74,13 @@ struct SorobanUpgradeConfig
     // Ledger cost extension settings
     std::optional<uint32_t> txMaxFootprintEntries{};
     std::optional<int64_t> feeFlatRateWrite1KB{};
+
+    // SCP timing settings
+    std::optional<uint32_t> ledgerTargetCloseTimeMilliseconds{};
+    std::optional<uint32_t> nominationTimeoutInitialMilliseconds{};
+    std::optional<uint32_t> nominationTimeoutIncrementMilliseconds{};
+    std::optional<uint32_t> ballotTimeoutInitialMilliseconds{};
+    std::optional<uint32_t> ballotTimeoutIncrementMilliseconds{};
 };
 
 class TxGenerator
