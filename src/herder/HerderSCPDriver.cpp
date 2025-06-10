@@ -568,6 +568,46 @@ HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
     }
 }
 
+static const int MAX_TIMEOUT_MS = (30 * 60) * 1000;
+
+std::chrono::milliseconds
+HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
+{
+    releaseAssertOrThrow(roundNumber > 0);
+
+    // Before p23, straight linear timeout
+    // starting at 1 second and capping at MAX_TIMEOUT_MS
+    int initialTimeoutMS = 1000;
+    int incrementMS = 1000;
+
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  ProtocolVersion::V_23))
+    {
+        auto const& networkConfig =
+            mLedgerManager.getLastClosedSorobanNetworkConfig();
+        if (isNomination)
+        {
+            initialTimeoutMS =
+                networkConfig.nominationTimeoutInitialMilliseconds();
+            incrementMS =
+                networkConfig.nominationTimeoutIncrementMilliseconds();
+        }
+        else
+        {
+            initialTimeoutMS = networkConfig.ballotTimeoutInitialMilliseconds();
+            incrementMS = networkConfig.ballotTimeoutIncrementMilliseconds();
+        }
+    }
+
+    int timeoutMS = initialTimeoutMS + (roundNumber - 1) * incrementMS;
+    if (timeoutMS > MAX_TIMEOUT_MS)
+    {
+        timeoutMS = MAX_TIMEOUT_MS;
+    }
+    return std::chrono::milliseconds(timeoutMS);
+}
+
 // returns true if l < r
 // lh, rh are the hashes of l,h
 static bool

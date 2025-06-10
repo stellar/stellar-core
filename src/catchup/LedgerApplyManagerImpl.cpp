@@ -247,11 +247,12 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
         // waiting for out of order ledgers, which should arrive quickly
         else if (catchupTriggerLedger > lastLedgerInBuffer)
         {
-            auto eta = (catchupTriggerLedger - lastLedgerInBuffer) *
-                       mApp.getConfig().getExpectedLedgerCloseTime();
+            auto etaMS = (catchupTriggerLedger - lastLedgerInBuffer) *
+                         mApp.getLedgerManager().getExpectedLedgerCloseTime(
+                             mApp.getConfig());
             message = fmt::format(
                 FMT_STRING("Waiting for trigger ledger: {:d}/{:d}, ETA: {:d}s"),
-                lastLedgerInBuffer, catchupTriggerLedger, eta.count());
+                lastLedgerInBuffer, catchupTriggerLedger, etaMS.count() / 1000);
         }
         else
         {

@@ -5,6 +5,7 @@
 #include "overlay/TxDemandsManager.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "medida/meter.h"
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
@@ -45,9 +46,7 @@ TxDemandsManager::getMaxDemandSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            cfg.getExpectedLedgerCloseTime())
-            .count();
+        mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count();
     int64_t queueSizeInOps = TxAdverts::getOpsFloodLedger(
         mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
