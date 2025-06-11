@@ -165,8 +165,7 @@ class LedgerManagerImpl : public LedgerManager
         uint32_t txIndex, TransactionMetaBuilder& txMetaBuilder,
         TransactionFrameBase const& tx,
         MutableTransactionResultBase const& result,
-        TransactionResultSet& txResultSet, uint64_t& sorobanTxSucceeded,
-        uint64_t& sorobanTxFailed, uint64_t& txSucceeded, uint64_t& txFailed);
+        TransactionResultSet& txResultSet);
 
     TransactionResultSet applyTransactions(
         ApplicableTxSetFrame const& txSet,
@@ -187,15 +186,13 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx, bool enableTxMeta,
         Hash const& sorobanBasePrngSeed,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        TransactionResultSet& txResultSet, uint64_t& sorobanTxSucceeded,
-        uint64_t& sorobanTxFailed, uint64_t& txSucceeded, uint64_t& txFailed);
+        TransactionResultSet& txResultSet);
 
     void processPostTxSetApply(
         std::vector<TxSetPhaseFrame> const& phases,
         std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        TransactionResultSet& txResultSet, uint64_t& sorobanTxSucceeded,
-        uint64_t& sorobanTxFailed, uint64_t& txSucceeded, uint64_t& txFailed);
+        TransactionResultSet& txResultSet);
 
     std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>
     applyThread(AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
