@@ -1629,10 +1629,8 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
             // window, we
             // must explicitly override the in-memory cached value after
             // initializing the test.
-            test.getApp()
-                .getLedgerManager()
-                .getMutableSorobanNetworkConfigForApply()
-                .mFeeRent1KB = 5000;
+            test.getApp().getLedgerManager().mutateSorobanNetworkConfigForApply(
+                [&](SorobanNetworkConfig& cfg) { cfg.mFeeRent1KB = 5000; });
         }
 
         SECTION("readBytes fee")

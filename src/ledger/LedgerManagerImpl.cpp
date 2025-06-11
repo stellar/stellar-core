@@ -614,6 +614,19 @@ LedgerManagerImpl::getMutableSorobanNetworkConfigForApply()
     releaseAssert(threadIsMain());
     return *mApplyState.mSorobanNetworkConfig;
 }
+void
+LedgerManagerImpl::mutateSorobanNetworkConfigForApply(
+    std::function<void(SorobanNetworkConfig&)> const& f)
+{
+    releaseAssert(threadIsMain());
+    f(*mApplyState.mSorobanNetworkConfig);
+    mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
+        mApp.getBucketManager()
+            .getBucketSnapshotManager()
+            .copySearchableLiveBucketListSnapshot(),
+        *mApplyState.mSorobanNetworkConfig, getLastClosedLedgerHeader(),
+        getLastClosedLedgerHAS());
+}
 
 std::vector<TransactionMetaFrame> const&
 LedgerManagerImpl::getLastClosedLedgerTxMeta()

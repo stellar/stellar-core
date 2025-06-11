@@ -1403,7 +1403,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // during last few ledger closes
     // Since we are not currently applying, it is safe to use read-only LCL, as
     // it's guaranteed to be up-to-date
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto lcl = mLedgerManager.getLastClosedLedgerHeader();
     PerPhaseTransactionList txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
@@ -1494,14 +1494,16 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     auto txSetHash = proposedSet->getContentsHash();
 
-    // use the slot index from ledger manager here as our vote is based off
-    // the last closed ledger stored in ledger manager
-    uint32_t slotIndex = lcl.header.ledgerSeq + 1;
-
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
-    mPendingEnvelopes.addTxSet(txSetHash, slotIndex, proposedSet);
+    mPendingEnvelopes.addTxSet(txSetHash, lcl.header.ledgerSeq + 1,
+                               proposedSet);
+
+    lcl = mLedgerManager.getLastClosedLedgerHeader();
+    // use the slot index from ledger manager here as our vote is based off
+    // the last closed ledger stored in ledger manager
+    uint32_t slotIndex = lcl.header.ledgerSeq + 1;
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger

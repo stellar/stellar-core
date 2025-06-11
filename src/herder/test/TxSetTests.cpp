@@ -729,10 +729,12 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     SECTION("built from transactions")
     {
-        auto const& lclHeader =
-            app->getLedgerManager().getLastClosedLedgerHeader();
+        auto getLclHeader = [&]() -> auto const&
+        {
+            return app->getLedgerManager().getLastClosedLedgerHeader();
+        };
         std::vector<TransactionFrameBasePtr> txs =
-            createTxs(5, lclHeader.header.baseFee, /* isSoroban */ false);
+            createTxs(5, getLclHeader().header.baseFee, /* isSoroban */ false);
         std::vector<TransactionFrameBasePtr> sorobanTxs =
             createTxs(5, 10'000'000, /* isSoroban */ true);
 
@@ -747,7 +749,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                          .phases[0]
                          .v0Components()[0]
                          .txsMaybeDiscountedFee()
-                         .baseFee == lclHeader.header.baseFee);
+                         .baseFee == getLclHeader().header.baseFee);
             REQUIRE(txSetXdr.v1TxSet()
                         .phases[0]
                         .v0Components()[0]
@@ -778,7 +780,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                         {
                             REQUIRE(phase.v() == 1);
                             REQUIRE(*phase.parallelTxsComponent().baseFee ==
-                                    lclHeader.header.baseFee);
+                                    getLclHeader().header.baseFee);
                             REQUIRE(phase.parallelTxsComponent()
                                         .executionStages.size() == 1);
                             REQUIRE(phase.parallelTxsComponent()
@@ -794,7 +796,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             REQUIRE(phase.v0Components().size() == 1);
                             REQUIRE(*phase.v0Components()[0]
                                          .txsMaybeDiscountedFee()
-                                         .baseFee == lclHeader.header.baseFee);
+                                         .baseFee ==
+                                    getLclHeader().header.baseFee);
                             REQUIRE(phase.v0Components()[0]
                                         .txsMaybeDiscountedFee()
                                         .txs.size() == 5);
@@ -821,7 +824,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     {
                         auto const& phase = txSetXdr.v1TxSet().phases[i];
                         auto expectedBaseFee =
-                            i == 0 ? lclHeader.header.baseFee
+                            i == 0 ? getLclHeader().header.baseFee
                                    : higherFeeSorobanTxs[0]->getInclusionFee();
                         if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
                             isParallelSoroban)

@@ -258,6 +258,8 @@ class LedgerManager
 
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
+    virtual void mutateSorobanNetworkConfigForApply(
+        std::function<void(SorobanNetworkConfig&)> const& f) = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
     virtual std::optional<LedgerCloseMetaFrame> const&

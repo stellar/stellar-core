@@ -254,6 +254,8 @@ class LedgerManagerImpl : public LedgerManager
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
+    void mutateSorobanNetworkConfigForApply(
+        std::function<void(SorobanNetworkConfig&)> const& f) override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     std::optional<LedgerCloseMetaFrame> const&
