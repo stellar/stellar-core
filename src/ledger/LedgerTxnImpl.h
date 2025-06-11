@@ -452,10 +452,8 @@ class LedgerTxn::Impl
                        std::vector<LedgerKey>& deadEntries);
     // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys
     // have the strong exception safety guarantee
-    UnorderedMap<LedgerKey, LedgerEntry> const&
-    getRestoredHotArchiveKeys() const;
-    UnorderedMap<LedgerKey, LedgerEntry> const&
-    getRestoredLiveBucketListKeys() const;
+    UnorderedMap<LedgerKey, LedgerEntry> getRestoredHotArchiveKeys() const;
+    UnorderedMap<LedgerKey, LedgerEntry> getRestoredLiveBucketListKeys() const;
 
     LedgerKeySet getAllTTLKeysWithoutSealing() const;
 
@@ -800,6 +798,11 @@ class LedgerTxnRoot::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const;
+
+    // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys
+    // have the strong exception safety guarantee
+    UnorderedMap<LedgerKey, LedgerEntry> getRestoredHotArchiveKeys() const;
+    UnorderedMap<LedgerKey, LedgerEntry> getRestoredLiveBucketListKeys() const;
 
     void rollbackChild() noexcept;
 
