@@ -542,10 +542,12 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     SECTION("one discounted component set")
     {
+        auto txs = createTxs(5, 1234);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
-                {{std::make_pair(1234LL, createTxs(5, 1234))}, {}}, *app,
-                app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                {{std::make_pair(1234LL, txs)}, {}}, *app, ledgerHash);
 
         GeneralizedTransactionSet txSetXdr;
         applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
@@ -564,10 +566,12 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     SECTION("one non-discounted component set")
     {
+        auto txs = createTxs(5, 4321);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
-                {{std::make_pair(std::nullopt, createTxs(5, 4321))}, {}}, *app,
-                app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                {{std::make_pair(std::nullopt, txs)}, {}}, *app, ledgerHash);
 
         GeneralizedTransactionSet txSetXdr;
         applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
@@ -586,14 +590,19 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     SECTION("multiple component sets")
     {
+        auto txs1 = createTxs(3, 12345);
+        auto txs2 = createTxs(1, 123);
+        auto txs3 = createTxs(2, 1234);
+        auto txs4 = createTxs(4, 4321);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
-                {{std::make_pair(12345LL, createTxs(3, 12345)),
-                  std::make_pair(123LL, createTxs(1, 123)),
-                  std::make_pair(1234LL, createTxs(2, 1234)),
-                  std::make_pair(std::nullopt, createTxs(4, 4321))},
+                {{std::make_pair(12345LL, txs1), std::make_pair(123LL, txs2),
+                  std::make_pair(1234LL, txs3),
+                  std::make_pair(std::nullopt, txs4)},
                  {}},
-                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                *app, ledgerHash);
 
         GeneralizedTransactionSet txSetXdr;
         applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
@@ -619,18 +628,21 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     sorobanCfg.mLedgerMaxTxCount = 100;
                     sorobanCfg.mLedgerMaxDependentTxClusters = 5;
                 });
+            auto classicTxs1 = createTxs(3, 1000, false);
+            auto classicTxs2 = createTxs(3, 1200, false);
+            auto classicTxs3 = createTxs(3, 1500, false);
             testtxset::PhaseComponents classicPhase = {
-                {std::nullopt, createTxs(3, 1000, false)},
-                {500, createTxs(3, 1200, false)},
-                {1500, createTxs(3, 1500, false)}};
+                {std::nullopt, classicTxs1},
+                {500, classicTxs2},
+                {1500, classicTxs3}};
             SECTION("single stage, single cluster")
             {
+                auto sorobanTxs = createTxs(10, 1234, true);
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
                     testtxset::makeNonValidatedGeneralizedTxSet(
-                        classicPhase, 1234, {{createTxs(10, 1234, true)}}, *app,
-                        app->getLedgerManager()
-                            .getLastClosedLedgerHeader()
-                            .hash);
+                        classicPhase, 1234, {{sorobanTxs}}, *app, ledgerHash);
 
                 GeneralizedTransactionSet txSetXdr;
                 applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
@@ -668,15 +680,15 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 
             SECTION("single stage, multiple clusters")
             {
+                auto sorobanTxs1 = createTxs(10, 1234, true);
+                auto sorobanTxs2 = createTxs(5, 2000, true);
+                auto sorobanTxs3 = createTxs(3, 1500, true);
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
                     testtxset::makeNonValidatedGeneralizedTxSet(
-                        {}, 1234,
-                        {{createTxs(10, 1234, true), createTxs(5, 2000, true),
-                          createTxs(3, 1500, true)}},
-                        *app,
-                        app->getLedgerManager()
-                            .getLastClosedLedgerHeader()
-                            .hash);
+                        {}, 1234, {{sorobanTxs1, sorobanTxs2, sorobanTxs3}},
+                        *app, ledgerHash);
 
                 GeneralizedTransactionSet txSetXdr;
                 applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
@@ -699,18 +711,24 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 
             SECTION("multiple stages, multiple clusters")
             {
+                auto stage1Txs1 = createTxs(1, 1234, true);
+                auto stage1Txs2 = createTxs(3, 2000, true);
+                auto stage1Txs3 = createTxs(5, 1500, true);
+                auto stage1Txs4 = createTxs(2, 1000, true);
+                auto stage1Txs5 = createTxs(7, 3000, true);
+                auto stage2Txs1 = createTxs(3, 1234, true);
+                auto stage2Txs2 = createTxs(5, 1300, true);
+                auto stage3Txs1 = createTxs(2, 4321, true);
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
                     testtxset::makeNonValidatedGeneralizedTxSet(
                         classicPhase, std::nullopt,
-                        {{createTxs(1, 1234, true), createTxs(3, 2000, true),
-                          createTxs(5, 1500, true), createTxs(2, 1000, true),
-                          createTxs(7, 3000, true)},
-                         {createTxs(3, 1234, true), createTxs(5, 1300, true)},
-                         {createTxs(2, 4321, true)}},
-                        *app,
-                        app->getLedgerManager()
-                            .getLastClosedLedgerHeader()
-                            .hash);
+                        {{stage1Txs1, stage1Txs2, stage1Txs3, stage1Txs4,
+                          stage1Txs5},
+                         {stage2Txs1, stage2Txs2},
+                         {stage3Txs1}},
+                        *app, ledgerHash);
 
                 GeneralizedTransactionSet txSetXdr;
                 applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
@@ -1000,11 +1018,10 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                 {
                     phases[1].emplace_back(100, phaseTxs[1]);
                 }
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-                                 phases, *app,
-                                 app->getLedgerManager()
-                                     .getLastClosedLedgerHeader()
-                                     .hash)
+                                 phases, *app, ledgerHash)
                                  .second;
                 REQUIRE(txSet);
                 return txSet->checkValid(*app, 0, 0);
@@ -1199,15 +1216,14 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     txs.push_back(createTx({}, {}, diskReadTest));
                 }
                 ApplicableTxSetFrameConstPtr txSet;
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 if (protocolVersionIsBefore(
                         protocolVersion,
                         PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
                 {
                     txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-                                {{}, {{1000, txs}}}, *app,
-                                app->getLedgerManager()
-                                    .getLastClosedLedgerHeader()
-                                    .hash)
+                                {{}, {{1000, txs}}}, *app, ledgerHash)
                                 .second;
                 }
                 else
@@ -1240,10 +1256,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         // half of ledger max instructions.
                     };
                     txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-                                {}, 1234, txsPerStage, *app,
-                                app->getLedgerManager()
-                                    .getLastClosedLedgerHeader()
-                                    .hash)
+                                {}, 1234, txsPerStage, *app, ledgerHash)
                                 .second;
                 }
                 return txSet->checkValid(*app, 0, 0);
@@ -1330,11 +1343,11 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             {
 
                 auto buildAndValidate = [&](TxStageFrameList txsPerStage) {
+                    auto ledgerHash = app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .hash;
                     auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-                                     {}, 1234, txsPerStage, *app,
-                                     app->getLedgerManager()
-                                         .getLastClosedLedgerHeader()
-                                         .hash)
+                                     {}, 1234, txsPerStage, *app, ledgerHash)
                                      .second;
                     return txSet->checkValid(*app, 0, 0);
                 };
@@ -1475,28 +1488,32 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
     SECTION("invalid")
     {
+        auto tx1 = createTx(1, 1000, false);
+        auto tx2 = createTx(3, 1500, false);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(
-                     500,
-                     std::vector<TransactionFrameBasePtr>{
-                         createTx(1, 1000, false), createTx(3, 1500, false)})},
+                     500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
                  {}},
-                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                *app, ledgerHash)
                 .second;
 
         REQUIRE(!txSet->checkValid(*app, 0, 0));
     }
     SECTION("valid")
     {
+        auto tx1 = createTx(1, 1000, true);
+        auto tx2 = createTx(3, 1500, true);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(
-                     500,
-                     std::vector<TransactionFrameBasePtr>{
-                         createTx(1, 1000, true), createTx(3, 1500, true)})},
+                     500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
                  {}},
-                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                *app, ledgerHash)
                 .second;
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
@@ -1514,15 +1531,17 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         // Make sure fees got computed correctly
         REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
 
+        auto tx1 = createTx(1, 1000, false);
+        auto tx2 = createTx(3, 1500, false);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(
-                     500,
-                     std::vector<TransactionFrameBasePtr>{
-                         createTx(1, 1000, false), createTx(3, 1500, false)})},
+                     500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
                  {std::make_pair(
                      500, std::vector<TransactionFrameBasePtr>{sorobanTx})}},
-                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                *app, ledgerHash)
                 .second;
 
         REQUIRE(!txSet->checkValid(*app, 0, 0));
@@ -1615,20 +1634,33 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                                    createTx(1, 5000, /* isSoroban */ true),
                                    createTx(1, 20000, /* isSoroban */ true)})};
         }
+
+        // Create all transactions first to avoid order of evaluation issues
+        auto tx1_1000 = createTx(1, 1000);
+        auto tx3_1500 = createTx(3, 1500);
+        auto tx4_5000 = createTx(4, 5000);
+        auto tx1_1000_dup = createTx(1, 1000);
+        auto tx5_6000 = createTx(5, 6000);
+        auto tx2_10000 = createTx(2, 10000);
+        auto tx5_100000 = createTx(5, 100000);
+
+        // Get the ledger header hash after all transactions are created
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
+
         auto txSet =
             testtxset::makeNonValidatedGeneralizedTxSet(
-                {{std::make_pair(500,
-                                 std::vector<TransactionFrameBasePtr>{
-                                     createTx(1, 1000), createTx(3, 1500)}),
+                {{std::make_pair(
+                      500,
+                      std::vector<TransactionFrameBasePtr>{tx1_1000, tx3_1500}),
                   std::make_pair(1000,
                                  std::vector<TransactionFrameBasePtr>{
-                                     createTx(4, 5000), createTx(1, 1000),
-                                     createTx(5, 6000)}),
+                                     tx4_5000, tx1_1000_dup, tx5_6000}),
                   std::make_pair(std::nullopt,
                                  std::vector<TransactionFrameBasePtr>{
-                                     createTx(2, 10000), createTx(5, 100000)})},
+                                     tx2_10000, tx5_100000})},
                  sorobanTxs},
-                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                *app, ledgerHash)
                 .second;
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
@@ -1658,28 +1690,30 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
     {
         SECTION("classic")
         {
+            auto tx = createTx(2, 999);
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
             auto txSet =
                 testtxset::makeNonValidatedGeneralizedTxSet(
                     {{std::make_pair(500,
-                                     std::vector<TransactionFrameBasePtr>{
-                                         createTx(2, 999)})},
+                                     std::vector<TransactionFrameBasePtr>{tx})},
                      {}},
-                    *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                    *app, ledgerHash)
                     .second;
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
         SECTION("soroban")
         {
+            auto tx = createTx(1, 499, /* isSoroban */ true);
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
             auto txSet =
                 testtxset::makeNonValidatedGeneralizedTxSet(
                     {{},
                      {std::make_pair(
-                         500, std::vector<TransactionFrameBasePtr>{createTx(
-                                  1, 499, /* isSoroban */ true)})}},
-                    *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                         500, std::vector<TransactionFrameBasePtr>{tx})}},
+                    *app, ledgerHash)
                     .second;
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
@@ -1690,29 +1724,31 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
     {
         SECTION("classic")
         {
+            auto tx = createTx(2, 199);
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
             auto txSet =
                 testtxset::makeNonValidatedGeneralizedTxSet(
                     {{std::make_pair(std::nullopt,
-                                     std::vector<TransactionFrameBasePtr>{
-                                         createTx(2, 199)})},
+                                     std::vector<TransactionFrameBasePtr>{tx})},
                      {}},
-                    *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash)
+                    *app, ledgerHash)
                     .second;
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
         SECTION("soroban")
         {
-            auto txSet =
-                testtxset::makeNonValidatedGeneralizedTxSet(
-                    {{},
-                     {std::make_pair(std::nullopt,
-                                     std::vector<TransactionFrameBasePtr>{
-                                         createTx(1, 99, true, false)})}},
-                    *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash)
-                    .second;
+            auto tx = createTx(1, 99, true, false);
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{},
+                              {std::make_pair(
+                                  std::nullopt,
+                                  std::vector<TransactionFrameBasePtr>{tx})}},
+                             *app, ledgerHash)
+                             .second;
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }

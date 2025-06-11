@@ -1390,11 +1390,11 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         SECTION("tx sets over limits are invalid")
         {
             TxFrameList txs = generateTxs(accounts, conf);
-            auto txSet =
-                testtxset::makeNonValidatedGeneralizedTxSet(
-                    {{}, {std::make_pair(500, txs)}}, *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash)
-                    .second;
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{}, {std::make_pair(500, txs)}}, *app, ledgerHash)
+                             .second;
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
@@ -1798,59 +1798,74 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
 
     SECTION("single discounted component")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {{std::make_pair(
-                 1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-                                                            addTx(2, 5000)})},
+            {{std::make_pair(1000,
+                             std::vector<TransactionFrameBasePtr>{tx1, tx2})},
              {}},
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, ledgerHash);
         checkFees(txSet, {3000, 2000});
     }
     SECTION("single non-discounted component")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
             {{std::make_pair(std::nullopt,
-                             std::vector<TransactionFrameBasePtr>{
-                                 addTx(3, 3500), addTx(2, 5000)})},
+                             std::vector<TransactionFrameBasePtr>{tx1, tx2})},
              {}},
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, ledgerHash);
         checkFees(txSet, {3500, 5000});
     }
     SECTION("multiple components")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto tx3 = addTx(1, 501);
+        auto tx4 = addTx(5, 10000);
+        auto tx5 = addTx(4, 15000);
+        auto tx6 = addTx(5, 35000);
+        auto tx7 = addTx(1, 10000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
+
         std::vector<std::pair<std::optional<int64_t>,
                               std::vector<TransactionFrameBasePtr>>>
             components = {
-                std::make_pair(
-                    1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-                                                               addTx(2, 5000)}),
-                std::make_pair(
-                    500, std::vector<TransactionFrameBasePtr>{addTx(1, 501),
-                                                              addTx(5, 10000)}),
-                std::make_pair(2000,
-                               std::vector<TransactionFrameBasePtr>{
-                                   addTx(4, 15000),
-                               }),
+                std::make_pair(1000,
+                               std::vector<TransactionFrameBasePtr>{tx1, tx2}),
+                std::make_pair(500,
+                               std::vector<TransactionFrameBasePtr>{tx3, tx4}),
+                std::make_pair(2000, std::vector<TransactionFrameBasePtr>{tx5}),
                 std::make_pair(std::nullopt,
-                               std::vector<TransactionFrameBasePtr>{
-                                   addTx(5, 35000), addTx(1, 10000)})};
+                               std::vector<TransactionFrameBasePtr>{tx6, tx7})};
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {components, {}}, *app,
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            {components, {}}, *app, ledgerHash);
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
     SECTION("soroban")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto sorobanTx1 = addSorobanTx(5000);
+        auto sorobanTx2 = addSorobanTx(10000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
+
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
             {
-                {std::make_pair(1000,
-                                std::vector<TransactionFrameBasePtr>{
-                                    addTx(3, 3500), addTx(2, 5000)})},
-                {std::make_pair(2000,
-                                std::vector<TransactionFrameBasePtr>{
-                                    addSorobanTx(5000), addSorobanTx(10000)})},
+                {std::make_pair(
+                    1000, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
+                {std::make_pair(
+                    2000, std::vector<TransactionFrameBasePtr>{sorobanTx1,
+                                                               sorobanTx2})},
             },
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, ledgerHash);
         SECTION("with validation")
         {
             checkFees(txSet,
