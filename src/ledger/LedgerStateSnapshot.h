@@ -20,6 +20,9 @@ class TransactionFrame;
 class LedgerSnapshot;
 class CompleteConstLedgerState;
 
+// NB: we can't use unique_ptr here, because this object gets passed to a
+// lambda, and std::function requires its callable to be copyable (C++23 fixes
+// this with std::move_only_function, but we're not there yet).
 using CompleteConstLedgerStatePtr =
     std::shared_ptr<CompleteConstLedgerState const>;
 
@@ -174,9 +177,9 @@ class LedgerSnapshot : public NonMovableOrCopyable
 };
 
 // Immutable wrapper for a complete ledger state snapshot.
-// This object provides read-only access to all components of a full ledger state
-// at a specific ledger sequence. All components are instantiated together and
-// cannot be modified after construction.
+// This object provides read-only access to all components of a full ledger
+// state at a specific ledger sequence. All components are instantiated together
+// and cannot be modified after construction.
 //
 // The four components included are:
 // 1. BucketList snapshot – a read-only view of the database at ledger N
