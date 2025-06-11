@@ -6,7 +6,9 @@
 
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/SearchableBucketList.h"
+#include "history/HistoryArchive.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/NetworkConfig.h"
 #include "util/NonCopyable.h"
 #include <variant>
 
@@ -16,6 +18,10 @@ namespace stellar
 class Application;
 class TransactionFrame;
 class LedgerSnapshot;
+class CompleteConstLedgerState;
+
+using CompleteConstLedgerStatePtr =
+    std::shared_ptr<CompleteConstLedgerState const>;
 
 // A unified ledger entry interface that supports LedgerEntry representations
 // for both legacy SQL and BucketList snapshots. When working with LedgerTxn,
@@ -165,6 +171,49 @@ class LedgerSnapshot : public NonMovableOrCopyable
     // `TransactionFrame::loadSourceAccount`
     void executeWithMaybeInnerSnapshot(
         std::function<void(LedgerSnapshot const&)> f) const;
+};
+
+// Immutable wrapper for a complete ledger state snapshot.
+// This object provides read-only access to all components of a full ledger state
+// at a specific ledger sequence. All components are instantiated together and
+// cannot be modified after construction.
+//
+// The four components included are:
+// 1. BucketList snapshot – a read-only view of the database at ledger N
+// 2. Soroban network configuration – the configuration at ledger N
+// 3. Last closed ledger header – the header of ledger N
+// 4. Last closed history archive state – the archive state at ledger N
+//
+// All member objects are immutable. Getters return const references;
+// however, these references should not be assumed to have long lifetimes.
+// A new ledger closure may cause LedgerManager to replace the current
+// CompleteConstLedgerState instance.
+class CompleteConstLedgerState : public NonMovableOrCopyable
+{
+  private:
+    SearchableSnapshotConstPtr const mBucketSnapshot;
+    std::optional<SorobanNetworkConfig const> const mSorobanConfig;
+    LedgerHeaderHistoryEntry const mLastClosedLedgerHeader;
+    HistoryArchiveState const mLastClosedHistoryArchiveState;
+
+    void checkInvariant() const;
+
+  public:
+    CompleteConstLedgerState(
+        SearchableSnapshotConstPtr searchableSnapshot,
+        SorobanNetworkConfig const& sorobanConfig,
+        LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+        HistoryArchiveState const& lastClosedHistoryArchiveState);
+    CompleteConstLedgerState(
+        SearchableSnapshotConstPtr searchableSnapshot,
+        LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+        HistoryArchiveState const& lastClosedHistoryArchiveState);
+
+    SearchableSnapshotConstPtr getBucketSnapshot() const;
+    SorobanNetworkConfig const& getSorobanConfig() const;
+    bool hasSorobanConfig() const;
+    LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;
+    HistoryArchiveState const& getLastClosedHistoryArchiveState() const;
 };
 
 }
