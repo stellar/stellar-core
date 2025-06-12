@@ -5,6 +5,7 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
+#include "bucket/BucketIndexUtils.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
@@ -271,6 +272,26 @@ class BucketIndexTest
         auto startingHitCount = hitMeter.count();
         auto startingMissCount = missMeter.count();
 
+        auto sumOfInMemoryEntries = 0;
+        auto& liveBL = getBM().getLiveBucketList();
+        for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+        {
+            auto level = liveBL.getLevel(i);
+            auto curr = level.getCurr();
+            auto snap = level.getSnap();
+            if (curr->hasInMemoryEntries() && !curr->isEmpty())
+            {
+                sumOfInMemoryEntries +=
+                    curr->getBucketEntryCounters().numEntries();
+            }
+
+            if (snap->hasInMemoryEntries() && !snap->isEmpty())
+            {
+                sumOfInMemoryEntries +=
+                    snap->getBucketEntryCounters().numEntries();
+            }
+        }
+
         // Checks hit rate then sets startingHitCount and startingMissCount
         // to current values
         auto checkHitRate = [&](auto expectedHitRate, auto& startingHitCount,
@@ -286,7 +307,10 @@ class BucketIndexTest
                 REQUIRE(missMeter.count() == startingMissCount);
 
                 // All point loads should be hits
-                REQUIRE(hitMeter.count() == startingHitCount + numLoads);
+                // in-memory entries do not hit the cache, so we subtract them
+                // from the total number of loads
+                REQUIRE(hitMeter.count() ==
+                        startingHitCount + numLoads - sumOfInMemoryEntries);
             }
             else
             {
@@ -294,7 +318,7 @@ class BucketIndexTest
                 auto newHits = hitMeter.count() - startingHitCount;
                 REQUIRE(newMisses > 0);
                 REQUIRE(newHits > 0);
-                REQUIRE(newMisses + newHits == numLoads);
+                REQUIRE(newMisses + newHits == numLoads - sumOfInMemoryEntries);
 
                 auto hitRate =
                     static_cast<double>(newHits) / (newMisses + newHits);
@@ -316,10 +340,11 @@ class BucketIndexTest
         if (expectedHitRate)
         {
             // We should have no cache hits since we're starting from an empty
-            // cache
+            // cache. In-memory entries are not counted in cache metrics.
             REQUIRE(hitMeter.count() == startingHitCount);
-            REQUIRE(missMeter.count() ==
-                    startingMissCount + mKeysToSearch.size());
+            REQUIRE(missMeter.count() == startingMissCount +
+                                             mKeysToSearch.size() -
+                                             sumOfInMemoryEntries);
 
             startingHitCount = hitMeter.count();
             startingMissCount = missMeter.count();
@@ -689,7 +714,7 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
     };
 
     auto checkCompleteCacheSize = [](auto b) {
-        if (!b->isEmpty())
+        if (!b->isEmpty() && !b->hasInMemoryEntries())
         {
             auto cacheSize = b->getMaxCacheSize();
             auto accountsInBucket =
@@ -708,7 +733,7 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
     auto totalAccountCount = 0;
     auto checkPartialCacheSize = [&cachedAccountEntries,
                                   &totalAccountCount](auto b) {
-        if (!b->isEmpty())
+        if (!b->isEmpty() && !b->hasInMemoryEntries())
         {
             cachedAccountEntries += b->getMaxCacheSize();
             totalAccountCount += b->getBucketEntryCounters().entryTypeCounts.at(
@@ -865,6 +890,66 @@ TEST_CASE("bucket entry counters", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
+// Test that indexes created via an in-memory merge are identical to those
+// created via a disk-based merge. Note that while both indexes are "in-memory"
+// indexes, one is constructed from a file vs. a vector of BucketEntries
+TEST_CASE("in-memory index construction", "[bucket][bucketindex]")
+{
+    auto test = [&](auto const& entries) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+
+        // in-memory index types only
+        cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        // Create a bucket with in-memory entries and manually index it, once
+        // using file IO and once with in-memory state
+        auto b = LiveBucket::fresh(
+            app->getBucketManager(), getAppLedgerVersion(app), {}, entries, {},
+            /*countMergeEvents=*/true, clock.getIOContext(),
+            /*doFsync=*/true, /*storeInMemory=*/true,
+            /*shouldIndex=*/false);
+
+        auto indexFromFile = createIndex<LiveBucket>(
+            app->getBucketManager(), b->getFilename(), b->getHash(),
+            clock.getIOContext(), nullptr);
+
+        LiveBucketInputIterator iter(b);
+        auto indexFromMemory = std::make_unique<LiveBucketIndex>(
+            app->getBucketManager(), b->getInMemoryEntries(),
+            iter.getMetadata());
+
+        REQUIRE(indexFromFile);
+        REQUIRE(indexFromMemory);
+        REQUIRE((*indexFromFile == *indexFromMemory));
+    };
+
+    SECTION("no offers")
+    {
+        std::vector<LedgerEntry> entries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                {CONFIG_SETTING, OFFER}, 100);
+        test(entries);
+    }
+
+    SECTION("with offers at end of file")
+    {
+        std::vector<LedgerEntry> entries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {ACCOUNT, OFFER}, 100);
+        test(entries);
+    }
+
+    SECTION("with offers in middle of file")
+    {
+        std::vector<LedgerEntry> entries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {ACCOUNT, OFFER, CONTRACT_DATA}, 100);
+        test(entries);
+    }
+}
+
 TEST_CASE("load from historical snapshots", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
@@ -935,7 +1020,11 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         auto level = liveBL.getLevel(i);
         for (auto const& b : {level.getCurr(), level.getSnap()})
         {
-            liveBuckets.emplace(b->getHash());
+            // In memory bucket indexes are not saved to disk
+            if (!b->hasInMemoryEntries())
+            {
+                liveBuckets.emplace(b->getHash());
+            }
         }
     }
 

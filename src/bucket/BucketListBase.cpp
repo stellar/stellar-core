@@ -14,6 +14,7 @@
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/types.h"
+#include <variant>
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -24,6 +25,7 @@ namespace stellar
 template <typename BucketT>
 BucketLevel<BucketT>::BucketLevel(uint32_t i)
     : mLevel(i)
+    , mNextCurr(FutureBucket<BucketT>())
     , mCurr(std::make_shared<BucketT>())
     , mSnap(std::make_shared<BucketT>())
 {
@@ -43,21 +45,39 @@ template <typename BucketT>
 FutureBucket<BucketT> const&
 BucketLevel<BucketT>::getNext() const
 {
-    return mNextCurr;
+    releaseAssert(!hasInMemoryMerge());
+    return std::get<FutureBucket<BucketT>>(mNextCurr);
 }
 
 template <typename BucketT>
 FutureBucket<BucketT>&
 BucketLevel<BucketT>::getNext()
 {
-    return mNextCurr;
+    releaseAssert(!hasInMemoryMerge());
+    return std::get<FutureBucket<BucketT>>(mNextCurr);
 }
 
 template <typename BucketT>
 void
 BucketLevel<BucketT>::setNext(FutureBucket<BucketT> const& fb)
 {
+    releaseAssertOrThrow(!hasInMemoryMerge());
     mNextCurr = fb;
+}
+
+template <typename BucketT>
+void
+BucketLevel<BucketT>::setNextInMemory(std::shared_ptr<BucketT>&& bucket)
+{
+    releaseAssertOrThrow(!hasInProgressMerge());
+    mNextCurr = std::move(bucket);
+}
+
+template <typename BucketT>
+void
+BucketLevel<BucketT>::clearNext()
+{
+    mNextCurr = FutureBucket<BucketT>();
 }
 
 template <typename BucketT>
@@ -78,7 +98,7 @@ template <typename BucketT>
 void
 BucketLevel<BucketT>::setCurr(std::shared_ptr<BucketT> b)
 {
-    mNextCurr.clear();
+    clearNext();
     mCurr = b;
 }
 
@@ -124,14 +144,114 @@ BucketLevel<BucketT>::setSnap(std::shared_ptr<BucketT> b)
 }
 
 template <typename BucketT>
+bool
+BucketLevel<BucketT>::hasInMemoryMerge() const
+{
+    return std::holds_alternative<std::shared_ptr<BucketT>>(mNextCurr);
+}
+
+template <typename BucketT>
+bool
+BucketLevel<BucketT>::hasFutureBucketMerge() const
+{
+    return std::holds_alternative<FutureBucket<BucketT>>(mNextCurr);
+}
+
+template <typename BucketT>
+bool
+BucketLevel<BucketT>::hasInProgressMerge() const
+{
+    return hasInMemoryMerge() || getNext().isMerging();
+}
+
+template <typename BucketT>
 void
 BucketLevel<BucketT>::commit()
 {
-    if (mNextCurr.isLive())
+    std::visit(
+        [this](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            // In-memory merge case, only valid for top level buckets
+            if constexpr (std::is_same_v<T, std::shared_ptr<BucketT>>)
+            {
+                releaseAssertOrThrow(mLevel == 0);
+                setCurr(arg);
+            }
+            // Async merge case via FutureBucket
+            else if constexpr (std::is_same_v<T, FutureBucket<BucketT>>)
+            {
+                if (arg.isLive())
+                {
+                    setCurr(arg.resolve());
+                }
+                releaseAssert(!arg.isMerging());
+            }
+        },
+        mNextCurr);
+}
+
+template <>
+template <typename... VectorT>
+void
+BucketLevel<LiveBucket>::prepareFirstLevel(Application& app,
+                                           uint32_t currLedger,
+                                           uint32_t currLedgerProtocol,
+                                           bool countMergeEvents, bool doFsync,
+                                           VectorT const&... inputVectors)
+{
+    ZoneScoped;
+
+    // This method should only be called on level 0
+    releaseAssert(mLevel == 0);
+    releaseAssert(!hasInProgressMerge());
+
+    auto curr =
+        BucketListBase<LiveBucket>::shouldMergeWithEmptyCurr(currLedger, mLevel)
+            ? std::make_shared<LiveBucket>()
+            : mCurr;
+
+    // On startup, the current bucket may not be initialized in memory, so
+    // fallback to normal prepare
+    if (!curr->hasInMemoryEntries())
     {
-        setCurr(mNextCurr.resolve());
+        auto snap = LiveBucket::fresh(
+            app.getBucketManager(), currLedgerProtocol, inputVectors...,
+            countMergeEvents, app.getClock().getIOContext(), doFsync);
+        prepare(app, currLedger, currLedgerProtocol, snap, /*shadows=*/{},
+                countMergeEvents);
+        return;
     }
-    releaseAssert(!mNextCurr.isMerging());
+
+    // This bucket is the "level -1" snap bucket, which is created and
+    // immediately merges with level 0 curr. This merge will produce a
+    // BucketIndex for the result, so there's no reason to index this Bucket
+    // before it merges.
+    auto snap = LiveBucket::fresh(
+        app.getBucketManager(), currLedgerProtocol, inputVectors...,
+        countMergeEvents, app.getClock().getIOContext(), doFsync,
+        /*storeInMemory=*/true, /*shouldIndex=*/false);
+
+    auto& bucketManager = app.getBucketManager();
+    auto& ctx = app.getClock().getIOContext();
+    setNextInMemory(LiveBucket::mergeInMemory(bucketManager, currLedgerProtocol,
+                                              curr, snap, countMergeEvents, ctx,
+                                              doFsync));
+}
+
+template <>
+template <typename... VectorT>
+void
+BucketLevel<HotArchiveBucket>::prepareFirstLevel(
+    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    bool countMergeEvents, bool doFsync, VectorT const&... inputVectors)
+{
+    // Hot Archive does not support in-memory merge, so we just use the
+    // normal prepare method
+    auto snap = HotArchiveBucket::fresh(
+        app.getBucketManager(), currLedgerProtocol, inputVectors...,
+        countMergeEvents, app.getClock().getIOContext(), doFsync);
+    prepare(app, currLedger, currLedgerProtocol, snap, /*shadows=*/{},
+            countMergeEvents);
 }
 
 // prepare builds a FutureBucket for the _next state_ of the current level,
@@ -178,7 +298,8 @@ BucketLevel<BucketT>::prepare(
     ZoneScoped;
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
-    releaseAssert(!mNextCurr.isMerging());
+    releaseAssert(!hasInProgressMerge());
+
     auto curr =
         BucketListBase<BucketT>::shouldMergeWithEmptyCurr(currLedger, mLevel)
             ? std::make_shared<BucketT>()
@@ -189,10 +310,10 @@ BucketLevel<BucketT>::prepare(
                                   LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
             ? std::vector<std::shared_ptr<BucketT>>()
             : shadows;
-    mNextCurr =
-        FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
-                              currLedgerProtocol, countMergeEvents, mLevel);
-    releaseAssert(mNextCurr.isMerging());
+    setNext(FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
+                                  currLedgerProtocol, countMergeEvents,
+                                  mLevel));
+    releaseAssert(getNext().isMerging());
 }
 
 template <typename BucketT>
@@ -657,12 +778,8 @@ BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
         !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
     bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
     releaseAssert(shadows.size() == 0);
-    mLevels[0].prepare(app, currLedger, currLedgerProtocol,
-                       BucketT::fresh(app.getBucketManager(),
-                                      currLedgerProtocol, inputVectors...,
-                                      countMergeEvents,
-                                      app.getClock().getIOContext(), doFsync),
-                       shadows, countMergeEvents);
+    mLevels[0].prepareFirstLevel(app, currLedger, currLedgerProtocol,
+                                 countMergeEvents, doFsync, inputVectors...);
     mLevels[0].commit();
 
     // We almost always want to try to resolve completed merges to single
