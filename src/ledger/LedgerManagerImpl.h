@@ -17,6 +17,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 #include <filesystem>
+#include <optional>
 #include <string>
 
 /*
@@ -51,15 +52,6 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
-    // Output of the apply process, also what gets held as "LCL".
-    struct LedgerState
-    {
-        LedgerHeaderHistoryEntry ledgerHeader;
-        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
-        HistoryArchiveState has;
-        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
-    };
-
     struct LedgerApplyMetrics
     {
         SorobanMetrics mSorobanMetrics;
@@ -146,7 +138,7 @@ class LedgerManagerImpl : public LedgerManager
     ApplyState mApplyState;
 
     // Cached LCL state output from last apply (or loaded from DB on startup).
-    LedgerState mLastClosedLedgerState;
+    CompleteConstLedgerStatePtr mLastClosedLedgerState;
 
     VirtualClock::time_point mLastClose;
 
@@ -160,9 +152,6 @@ class LedgerManagerImpl : public LedgerManager
     // Use in the context of parallel ledger apply to indicate background thread
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
-
-    LedgerState& getLCLState();
-    LedgerState const& getLCLState() const;
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
@@ -178,7 +167,7 @@ class LedgerManagerImpl : public LedgerManager
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
-    LedgerState sealLedgerTxnAndStoreInBucketsAndDB(
+    CompleteConstLedgerStatePtr sealLedgerTxnAndStoreInBucketsAndDB(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
@@ -209,7 +198,8 @@ class LedgerManagerImpl : public LedgerManager
     void publishSorobanMetrics();
 
     // Update cached last closed ledger state values managed by this class.
-    void advanceLastClosedLedgerState(LedgerState const& output);
+    void
+    advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -228,7 +218,7 @@ class LedgerManagerImpl : public LedgerManager
     // Update bucket list snapshot, and construct LedgerState return
     // value, which contains all information relevant to ledger state (HAS,
     // ledger header, network config, bucketlist snapshot).
-    LedgerState
+    CompleteConstLedgerStatePtr
     advanceBucketListSnapshotAndMakeLedgerState(LedgerHeader const& header,
                                                 HistoryArchiveState const& has);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
@@ -264,12 +254,15 @@ class LedgerManagerImpl : public LedgerManager
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
+    void mutateSorobanNetworkConfigForApply(
+        std::function<void(SorobanNetworkConfig&)> const& f) override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     std::optional<LedgerCloseMetaFrame> const&
     getLastClosedLedgerCloseMeta() override;
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
+    std::function<void()> mAdvanceLedgerStateAndPublishOverride;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -281,7 +274,7 @@ class LedgerManagerImpl : public LedgerManager
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
-    HistoryArchiveState getLastClosedLedgerHAS() override;
+    HistoryArchiveState getLastClosedLedgerHAS() const override;
 
     Database& getDatabase() override;
 
@@ -290,6 +283,10 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
+    void advanceLedgerStateAndPublish(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        CompleteConstLedgerStatePtr newLedgerState) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData);
     void
@@ -301,7 +298,7 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    SearchableSnapshotConstPtr getLastClosedSnaphot() override;
+    SearchableSnapshotConstPtr getLastClosedSnaphot() const override;
     virtual bool
     isApplying() const override
     {

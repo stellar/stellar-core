@@ -1003,10 +1003,12 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         cfg.mLedgerMaxInstructions = max;
     });
 
-    auto const& conf =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto conf = [&app]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
+
     uint32_t maxContractSize = 0;
-    maxContractSize = conf.maxContractSizeBytes();
+    maxContractSize = conf().maxContractSizeBytes();
 
     auto makeTx = [&](TestAccount& acc, TxSetPhase const& phase) {
         if (phase == TxSetPhase::SOROBAN)
@@ -1066,7 +1068,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         auto byteAllowance = phase == TxSetPhase::SOROBAN
                                  ? app->getConfig().getSorobanByteAllowance()
                                  : app->getConfig().getClassicByteAllowance();
-        REQUIRE(trimmedSize > byteAllowance - conf.txMaxSizeBytes());
+        REQUIRE(trimmedSize > byteAllowance - conf().txMaxSizeBytes());
         REQUIRE(trimmedSize <= byteAllowance);
     };
 
@@ -1388,11 +1390,11 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         SECTION("tx sets over limits are invalid")
         {
             TxFrameList txs = generateTxs(accounts, conf);
-            auto txSet =
-                testtxset::makeNonValidatedGeneralizedTxSet(
-                    {{}, {std::make_pair(500, txs)}}, *app,
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash)
-                    .second;
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{}, {std::make_pair(500, txs)}}, *app, ledgerHash)
+                             .second;
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
@@ -1796,59 +1798,74 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
 
     SECTION("single discounted component")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {{std::make_pair(
-                 1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-                                                            addTx(2, 5000)})},
+            {{std::make_pair(1000,
+                             std::vector<TransactionFrameBasePtr>{tx1, tx2})},
              {}},
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, ledgerHash);
         checkFees(txSet, {3000, 2000});
     }
     SECTION("single non-discounted component")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
             {{std::make_pair(std::nullopt,
-                             std::vector<TransactionFrameBasePtr>{
-                                 addTx(3, 3500), addTx(2, 5000)})},
+                             std::vector<TransactionFrameBasePtr>{tx1, tx2})},
              {}},
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, ledgerHash);
         checkFees(txSet, {3500, 5000});
     }
     SECTION("multiple components")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto tx3 = addTx(1, 501);
+        auto tx4 = addTx(5, 10000);
+        auto tx5 = addTx(4, 15000);
+        auto tx6 = addTx(5, 35000);
+        auto tx7 = addTx(1, 10000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
+
         std::vector<std::pair<std::optional<int64_t>,
                               std::vector<TransactionFrameBasePtr>>>
             components = {
-                std::make_pair(
-                    1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-                                                               addTx(2, 5000)}),
-                std::make_pair(
-                    500, std::vector<TransactionFrameBasePtr>{addTx(1, 501),
-                                                              addTx(5, 10000)}),
-                std::make_pair(2000,
-                               std::vector<TransactionFrameBasePtr>{
-                                   addTx(4, 15000),
-                               }),
+                std::make_pair(1000,
+                               std::vector<TransactionFrameBasePtr>{tx1, tx2}),
+                std::make_pair(500,
+                               std::vector<TransactionFrameBasePtr>{tx3, tx4}),
+                std::make_pair(2000, std::vector<TransactionFrameBasePtr>{tx5}),
                 std::make_pair(std::nullopt,
-                               std::vector<TransactionFrameBasePtr>{
-                                   addTx(5, 35000), addTx(1, 10000)})};
+                               std::vector<TransactionFrameBasePtr>{tx6, tx7})};
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {components, {}}, *app,
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            {components, {}}, *app, ledgerHash);
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
     SECTION("soroban")
     {
+        auto tx1 = addTx(3, 3500);
+        auto tx2 = addTx(2, 5000);
+        auto sorobanTx1 = addSorobanTx(5000);
+        auto sorobanTx2 = addSorobanTx(10000);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
+
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
             {
-                {std::make_pair(1000,
-                                std::vector<TransactionFrameBasePtr>{
-                                    addTx(3, 3500), addTx(2, 5000)})},
-                {std::make_pair(2000,
-                                std::vector<TransactionFrameBasePtr>{
-                                    addSorobanTx(5000), addSorobanTx(10000)})},
+                {std::make_pair(
+                    1000, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
+                {std::make_pair(
+                    2000, std::vector<TransactionFrameBasePtr>{sorobanTx1,
+                                                               sorobanTx2})},
             },
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, ledgerHash);
         SECTION("with validation")
         {
             checkFees(txSet,
@@ -1881,8 +1898,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
     Application::pointer app = createTestApplication(clock, cfg);
 
-    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-
     auto root = app->getRoot();
     std::vector<TestAccount> accounts;
     for (int i = 0; i < 1000; ++i)
@@ -1891,6 +1906,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         accounts.push_back(root->create(accountName.c_str(), 500000000));
     }
 
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
     auto makeTxUpgradePair =
         [&](HerderImpl& herder, TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
@@ -3242,7 +3258,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     }
 }
 
-TEST_CASE("overlay parallel processing")
+TEST_CASE("overlay parallel processing", "[herder][parallel]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
@@ -4081,7 +4097,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     qSet.validators.push_back(validatorKey.getPublicKey());
 
     auto cfg1 = getTestConfig(1);
-    auto cfg2 = getTestConfig(2);
+    auto cfg2 = getTestConfig(2, Config::TESTDB_BUCKET_DB_PERSISTENT);
     cfg1.MAX_SLOTS_TO_REMEMBER = 5;
     cfg2.MAX_SLOTS_TO_REMEMBER = cfg1.MAX_SLOTS_TO_REMEMBER;
 
@@ -4154,9 +4170,50 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
         // disconnected
         REQUIRE(currentListenerLedger() <= beforeGap);
 
-        // and reconnect
-        simulation->addConnection(validatorKey.getPublicKey(),
-                                  listenerKey.getPublicKey());
+        SECTION("restart")
+        {
+            auto headerBefore =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            auto configBeforeApply =
+                app->getLedgerManager().getSorobanNetworkConfigForApply();
+            auto configBefore =
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+            auto hasBefore = app->getLedgerManager().getLastClosedLedgerHAS();
+
+            // Restart listener, it should be able to catchup
+            app.reset();
+            simulation->removeNode(listenerKey.getPublicKey());
+            auto newListener =
+                simulation->addNode(listenerKey, qSet, &cfg2, false);
+            newListener->start();
+
+            // Verify state got re-loaded correctly
+            CLOG_INFO(
+                Ledger, "state {} {}",
+                LedgerManager::ledgerAbbrev(headerBefore),
+                LedgerManager::ledgerAbbrev(newListener->getLedgerManager()
+                                                .getLastClosedLedgerHeader()));
+            REQUIRE(
+                headerBefore ==
+                newListener->getLedgerManager().getLastClosedLedgerHeader());
+            REQUIRE(configBeforeApply ==
+                    newListener->getLedgerManager()
+                        .getSorobanNetworkConfigForApply());
+            REQUIRE(configBefore == newListener->getLedgerManager()
+                                        .getLastClosedSorobanNetworkConfig());
+            REQUIRE(hasBefore.toString() == newListener->getLedgerManager()
+                                                .getLastClosedLedgerHAS()
+                                                .toString());
+            // and reconnect
+            simulation->addConnection(validatorKey.getPublicKey(),
+                                      listenerKey.getPublicKey());
+        }
+        SECTION("reconnect")
+        {
+            // and reconnect
+            simulation->addConnection(validatorKey.getPublicKey(),
+                                      listenerKey.getPublicKey());
+        }
 
         // now listener should catchup to validator without remote history
         currentLedger = waitForLedgers(FEW_LEDGERS);
@@ -4191,6 +4248,134 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     }
 
     simulation->stopAllNodes();
+}
+
+TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
+{
+    auto mode = Simulation::OVER_TCP;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto setupAndRunTests = [&](bool enableParallelApply) {
+        auto sim = Topologies::core(
+            4, 1.0, mode, networkID, [enableParallelApply](int i) {
+                Config cfg;
+                if (enableParallelApply)
+                {
+                    cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+                }
+                else
+                {
+                    cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+                }
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = enableParallelApply;
+                return cfg;
+            });
+
+        sim->startAllNodes();
+        sim->crankUntil([&]() { return sim->haveAllExternalized(2, 1); },
+                        std::chrono::seconds(20), false);
+
+        auto configBeforeUpgrade = sim->getNodes()[0]
+                                       ->getLedgerManager()
+                                       .getLastClosedSorobanNetworkConfig();
+
+        // Start a network upgrade, such that on the next ledger, network
+        // settings will be updated
+        upgradeSorobanNetworkConfig(
+            [&](SorobanNetworkConfig& cfg) {
+                cfg.mStateArchivalSettings
+                    .liveSorobanStateSizeWindowSamplePeriod = 1;
+            },
+            sim, /*applyUpgrade=*/false);
+
+        std::vector<uint32_t> ledgers;
+        for (auto const& node : sim->getNodes())
+        {
+            ledgers.push_back(
+                node->getLedgerManager().getLastClosedLedgerNum());
+        }
+        auto lcl = *std::max_element(ledgers.begin(), ledgers.end());
+
+        SECTION("read-only state stays immutable during apply")
+        {
+            for (auto const& node : sim->getNodes())
+            {
+                auto& lm =
+                    static_cast<LedgerManagerImpl&>(node->getLedgerManager());
+                REQUIRE(lm.getLastClosedLedgerNum() <= lcl);
+
+                // No-op, so we don't update read-only state after apply
+                lm.mAdvanceLedgerStateAndPublishOverride = [&] { return true; };
+            }
+
+            // Crank until one more ledger is externalized
+            sim->crankForAtLeast(std::chrono::seconds(10), false);
+
+            for (auto const& node : sim->getNodes())
+            {
+                auto& lm = node->getLedgerManager();
+                auto applyConfig = lm.getSorobanNetworkConfigForApply();
+                auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
+                REQUIRE(!(applyConfig == prevConfig));
+                REQUIRE(prevConfig == configBeforeUpgrade);
+
+                // LCL still reports previous ledger
+                auto lastHeader = lm.getLastClosedLedgerHeader().header;
+                REQUIRE(lastHeader.ledgerSeq == lcl);
+                REQUIRE(lm.getLastClosedLedgerNum() == lcl);
+                REQUIRE(lm.getLastClosedLedgerHAS().currentLedger ==
+                        lastHeader.ledgerSeq);
+                REQUIRE(lm.getLastClosedSnaphot()->getLedgerHeader() ==
+                        lastHeader);
+
+                // Apply state got committed, but has not yet been propagated to
+                // read-only state
+                LedgerTxn ltx(node->getLedgerTxnRoot());
+                REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 1);
+            }
+        }
+        SECTION("read-only state gets updated post apply")
+        {
+            // Crank until one more ledger is externalized
+            sim->crankUntil(
+                [&]() { return sim->haveAllExternalized(lcl + 1, 1); },
+                std::chrono::seconds(10), false);
+
+            for (auto const& node : sim->getNodes())
+            {
+                auto& lm = node->getLedgerManager();
+                auto applyConfig = lm.getSorobanNetworkConfigForApply();
+                auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
+                REQUIRE(applyConfig == prevConfig);
+                REQUIRE(!(prevConfig == configBeforeUpgrade));
+
+                // LCL reports the new ledger
+                auto readOnly = lm.getLastClosedLedgerHeader();
+                REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
+                REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
+                REQUIRE(lm.getLastClosedSnaphot()->getLedgerHeader() ==
+                        readOnly.header);
+                auto has = lm.getLastClosedLedgerHAS();
+                REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
+
+                // Apply state got committed, and has been propagated to
+                // read-only state
+                LedgerTxn ltx(node->getLedgerTxnRoot());
+                REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 1);
+            }
+        }
+    };
+
+#ifdef USE_POSTGRES
+    SECTION("parallel ledger apply enabled")
+    {
+        setupAndRunTests(true);
+    }
+#endif
+    SECTION("parallel ledger apply disabled")
+    {
+        setupAndRunTests(false);
+    }
 }
 
 TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
@@ -6406,17 +6591,30 @@ TEST_CASE("Unresponsive quorum timeouts", "[herder]")
 TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = Topologies::core(
-        3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
-            cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
-            return cfg;
-        });
+    Simulation::pointer simulation;
+    SECTION("with parallel apply")
+    {
+        simulation = Topologies::core(
+            3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+                return cfg;
+            });
+    }
+    SECTION("without parallel apply")
+    {
+        simulation = Topologies::core(
+            3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+                return cfg;
+            });
+    }
 
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        std::chrono::seconds(20), false);
+        std::chrono::seconds(60), false);
 
     auto A = simulation->getNodes()[1];
     auto B = simulation->getNodes()[2];
@@ -6438,7 +6636,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
                    B->getLedgerManager().getLastClosedLedgerNum() >=
                        nodeCLCL + 3;
         },
-        std::chrono::seconds(60), false);
+        std::chrono::seconds(120), false);
 
     auto validatorSCPMessagesA =
         getValidatorExternalizeMessages(*A, nodeCLCL + 1, nodeCLCL + 3);
@@ -6470,7 +6668,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     // Crank a bit. triggerNextLedger should get scheduled, inside that call
     // it will externalize nextSeq + 1 (since we have all the right SCP
     // messages. Ensure triggerNextLedger handles side effects correctly
-    simulation->crankForAtLeast(std::chrono::seconds(10), false);
+    simulation->crankForAtLeast(std::chrono::seconds(60), false);
 
     // Final state: C is tracking nextSeq + 1, and has scheduled next
     // trigger ledger
