@@ -351,10 +351,7 @@ Simulation::getExpectedLedgerCloseTime() const
 
     // Pick arbitrary app
     auto const& node = mNodes.begin()->second.mApp;
-    auto const& config = node->getConfig();
-    auto const& ledgerManager = node->getLedgerManager();
-
-    return ledgerManager.getExpectedLedgerCloseTime(config);
+    return node->getLedgerManager().getExpectedLedgerCloseTime();
 }
 
 void

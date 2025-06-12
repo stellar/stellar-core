@@ -1223,7 +1223,7 @@ HerderImpl::setupTriggerNextLedger()
     // it may get cancelled if a more recent ledger externalizes
 
     std::chrono::milliseconds milliseconds =
-        mLedgerManager.getExpectedLedgerCloseTime(mApp.getConfig());
+        mLedgerManager.getExpectedLedgerCloseTime();
 
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last

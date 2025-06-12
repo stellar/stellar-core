@@ -40,7 +40,7 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
@@ -88,7 +88,7 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
                        .NewMeter({"loadgen", "run", "complete"}, "run")
                        .count() == prev + 1;
         },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        500 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
 TEST_CASE("generate load in protocol 1", "[loadgen]")

@@ -19,8 +19,8 @@
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
-#include <xdrpp/depth_checker.h>
 #include <chrono>
+#include <xdrpp/depth_checker.h>
 
 namespace stellar
 {
@@ -1279,8 +1279,7 @@ getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
         currentTime <= lastCloseTime ? 0 : currentTime - lastCloseTime;
 
     return std::chrono::duration_cast<std::chrono::seconds>(
-               app.getLedgerManager().getExpectedLedgerCloseTime(
-                   app.getConfig()))
+               app.getLedgerManager().getExpectedLedgerCloseTime())
                    .count() *
                EXPECTED_CLOSE_TIME_MULT +
            closeTimeDrift;

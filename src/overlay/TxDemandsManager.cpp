@@ -46,7 +46,7 @@ TxDemandsManager::getMaxDemandSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
-        mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count();
+        mApp.getLedgerManager().getExpectedLedgerCloseTime().count();
     int64_t queueSizeInOps = TxAdverts::getOpsFloodLedger(
         mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
