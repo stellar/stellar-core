@@ -480,7 +480,7 @@ createSurgePricingLangeConfig(TxSetPhase phase, Application& app)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    releaseAssert(!app.getLedgerManager().isApplying());
+    releaseAssert(!app.getLedgerApplyManager().isApplying());
 
     auto const& lclHeader =
         app.getLedgerManager().getLastClosedLedgerHeader().header;
@@ -780,7 +780,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
 )
 {
     releaseAssert(threadIsMain());
-    releaseAssert(!app.getLedgerManager().isApplying());
+    releaseAssert(!app.getLedgerApplyManager().isApplying());
     releaseAssert(txPhases.size() == invalidTxs.size());
     releaseAssert(txPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
@@ -955,7 +955,7 @@ makeTxSetFromTransactions(TxFrameList txs, Application& app,
                           TxFrameList& invalidTxs, bool enforceTxsApplyOrder)
 {
     releaseAssert(threadIsMain());
-    releaseAssert(!app.getLedgerManager().isApplying());
+    releaseAssert(!app.getLedgerApplyManager().isApplying());
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     PerPhaseTransactionList perPhaseTxs;
     perPhaseTxs.resize(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,

@@ -1040,6 +1040,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Retriggering catchups after trimming mSyncingLedgers"));
     auto& lm = app->getLedgerManager();
+    auto& lam = app->getLedgerApplyManager();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
@@ -1106,7 +1107,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
         // after hearing up to (dividingLedger - 1).
         // And if it has been trimmed, CatchupWork should not be able to catch
         // up without being re-triggered.
-        REQUIRE(!lm.isSynced());
+        REQUIRE(!lam.isSynced());
 
         // In order to close the gap between the LCL and mSyncingLedgers,
         // we need to run a CatchupWork again.
@@ -1133,7 +1134,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
             },
             std::chrono::seconds{60});
 
-        REQUIRE(lm.isSynced());
+        REQUIRE(lam.isSynced());
 
         REQUIRE(lm.getLastClosedLedgerNum() ==
                 triggerLedger + bufferLedgers + 1);
@@ -1835,19 +1836,19 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     catchupSimulation.externalizeLedger(herder, nextLedger + 2);
     catchupSimulation.externalizeLedger(herder, nextLedger + 3);
     catchupSimulation.externalizeLedger(herder, nextLedger + 5);
-    REQUIRE(!lm.isSynced());
+    REQUIRE(!lam.isSynced());
     REQUIRE(lam.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the first gap. There will still be buffered ledgers left because
     // of the second gap
     catchupSimulation.externalizeLedger(herder, nextLedger + 1);
-    REQUIRE(!lm.isSynced());
+    REQUIRE(!lam.isSynced());
     REQUIRE(lam.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
-    REQUIRE(lm.isSynced());
+    REQUIRE(lam.isSynced());
     REQUIRE(lam.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!lam.isCatchupInitialized());
     REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 5);
@@ -1881,7 +1882,7 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
     catchupSimulation.externalizeLedger(herder, checkpointLedger + 2);
     testutil::crankFor(app->getClock(), std::chrono::seconds(10));
 
-    REQUIRE(lm.isSynced());
+    REQUIRE(lam.isSynced());
     REQUIRE(lam.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!lam.isCatchupInitialized());
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==

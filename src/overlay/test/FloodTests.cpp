@@ -87,7 +87,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 std::chrono::seconds(1), false);
             for (auto const& n : nodes)
             {
-                REQUIRE(n->getLedgerManager().isSynced());
+                REQUIRE(n->getLedgerApplyManager().isSynced());
             }
         }
         else
