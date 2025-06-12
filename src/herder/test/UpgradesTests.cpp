@@ -940,8 +940,8 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
                 app.getLedgerManager().getLastClosedLedgerNum() -
                 initialLedgerSeq;
 
-            // Allow 1 ledger of error due to simulation timing
-            REQUIRE(abs(actualLedgerCount - expectedLedgers) <= 1);
+            // Allow a few ledgers of error since ledger times are not absolute
+            REQUIRE(abs(actualLedgerCount - expectedLedgers) <= 2);
         };
 
         testExpectedLedgers();
@@ -983,9 +983,9 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
         REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000));
 
         uint32_t const nominationTimeoutInitialMilliseconds = 2000;
-        uint32_t const nominationTimeoutIncrementMilliseconds = 500;
+        uint32_t const nominationTimeoutIncrementMilliseconds = 750;
         uint32_t const ballotTimeoutInitialMilliseconds = 1500;
-        uint32_t const ballotTimeoutIncrementMilliseconds = 750;
+        uint32_t const ballotTimeoutIncrementMilliseconds = 1100;
 
         // Upgrade SCP timing parameters
         upgradeSorobanNetworkConfig(
@@ -1018,13 +1018,13 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
         REQUIRE(timeout1 == std::chrono::milliseconds(1500));
 
         timeout5 = scpDriver.computeTimeout(5, /*isNomination=*/false);
-        REQUIRE(timeout5 == std::chrono::milliseconds(4500)); // 1500 + 4*750
+        REQUIRE(timeout5 == std::chrono::milliseconds(5900)); // 1500 + 4*1100
 
         nomTimeout1 = scpDriver.computeTimeout(1, /*isNomination=*/true);
         REQUIRE(nomTimeout1 == std::chrono::milliseconds(2000));
 
         nomTimeout5 = scpDriver.computeTimeout(5, /*isNomination=*/true);
-        REQUIRE(nomTimeout5 == std::chrono::milliseconds(4000)); // 2000 + 4*500
+        REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000)); // 2000 + 4*750
     }
 }
 

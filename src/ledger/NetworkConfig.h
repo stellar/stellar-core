@@ -51,9 +51,9 @@ struct MinimumSorobanNetworkConfig
     // SCP timing minimums
     static constexpr uint32_t LEDGER_TARGET_CLOSE_TIME_MILLISECONDS = 4000;
     static constexpr uint32_t NOMINATION_TIMEOUT_INITIAL_MILLISECONDS = 750;
-    static constexpr uint32_t NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS = 500;
+    static constexpr uint32_t NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS = 750;
     static constexpr uint32_t BALLOT_TIMEOUT_INITIAL_MILLISECONDS = 750;
-    static constexpr uint32_t BALLOT_TIMEOUT_INCREMENT_MILLISECONDS = 500;
+    static constexpr uint32_t BALLOT_TIMEOUT_INCREMENT_MILLISECONDS = 750;
 };
 
 // Maximum values for SCP timing configuration

@@ -275,8 +275,7 @@ TEST_CASE("manualclose", "[commandhandler]")
 
     auto const defaultManualCloseTimeInterval =
         std::chrono::duration_cast<std::chrono::seconds>(
-            app->getLedgerManager().getExpectedLedgerCloseTime(
-                app->getConfig()))
+            app->getLedgerManager().getExpectedLedgerCloseTime())
             .count();
 
     auto lastLedgerNum = [&]() {

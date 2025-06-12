@@ -187,7 +187,7 @@ TxAdverts::getMaxAdvertSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
-        mApp.getLedgerManager().getExpectedLedgerCloseTime(cfg).count();
+        mApp.getLedgerManager().getExpectedLedgerCloseTime().count();
 
     int64_t opsToFloodPerLedger =
         getOpsFloodLedger(mApp.getLedgerManager().getLastMaxTxSetSizeOps(),

@@ -456,7 +456,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     // During load submission, we must have enough unique source accounts (with
     // a buffer) to accommodate the desired tx rate.
     auto closeTimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(
-        mApp.getLedgerManager().getExpectedLedgerCloseTime(mApp.getConfig()));
+        mApp.getLedgerManager().getExpectedLedgerCloseTime());
     if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
         (cfg.txRate * closeTimeSeconds.count()) *
                 MIN_UNIQUE_ACCOUNT_MULTIPLIER >
@@ -1377,8 +1377,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         }
 
         mLoadTimer->expires_from_now(
-            mApp.getLedgerManager().getExpectedLedgerCloseTime(
-                mApp.getConfig()));
+            mApp.getLedgerManager().getExpectedLedgerCloseTime());
         mLoadTimer->async_wait([this, cfg]() { this->waitTillComplete(cfg); },
                                &VirtualTimer::onFailureNoop);
     }
@@ -1435,7 +1434,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
         return;
     }
     mLoadTimer->expires_from_now(
-        mApp.getLedgerManager().getExpectedLedgerCloseTime(mApp.getConfig()));
+        mApp.getLedgerManager().getExpectedLedgerCloseTime());
     mLoadTimer->async_wait([this]() { this->waitTillCompleteWithoutChecks(); },
                            &VirtualTimer::onFailureNoop);
 }

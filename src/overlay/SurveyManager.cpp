@@ -69,6 +69,26 @@ recordTimeSlicedLinkResults(Json::Value& jsonResultList,
         jsonResultList.append(peerInfo);
     }
 }
+
+// We just need a rough estimate of the close time, so use the default starting
+// values here instead of checking the actual network config.
+std::chrono::milliseconds
+getSurveyThrottleTimeoutMs(Application& app)
+{
+    auto const& cfg = app.getConfig();
+    auto estimatedCloseTime =
+        Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
+
+#ifdef BUILD_TESTS
+    if (auto overrideOp = cfg.getExpectedLedgerCloseTimeTestingOverride();
+        overrideOp.has_value())
+    {
+        estimatedCloseTime = *overrideOp;
+    }
+#endif
+
+    return estimatedCloseTime * SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT;
+}
 } // namespace
 
 SurveyManager::SurveyManager(Application& app)
@@ -79,9 +99,7 @@ SurveyManager::SurveyManager(Application& app)
     , MAX_REQUEST_LIMIT_PER_LEDGER(10)
     , mMessageLimiter(app, NUM_LEDGERS_BEFORE_IGNORE,
                       MAX_REQUEST_LIMIT_PER_LEDGER)
-    , mSurveyThrottleTimeoutMs(
-          Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS *
-          SURVEY_THROTTLE_TIMEOUT_MULT)
+    , SURVEY_THROTTLE_TIMEOUT_MS(getSurveyThrottleTimeoutMs(app))
     , mSurveyDataManager(
           [this]() { return mApp.getClock().now(); },
           mApp.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"),
@@ -111,10 +129,6 @@ SurveyManager::startSurveyReporting()
 
     mCurve25519SecretKey = curve25519RandomSecret();
     mCurve25519PublicKey = curve25519DerivePublic(mCurve25519SecretKey);
-
-    mSurveyThrottleTimeoutMs =
-        mApp.getLedgerManager().getExpectedLedgerCloseTime(mApp.getConfig()) *
-        SURVEY_THROTTLE_TIMEOUT_MULT;
 
     // starts timer
     topOffRequests();
@@ -724,7 +738,7 @@ SurveyManager::topOffRequests()
     };
 
     // schedule next top off
-    mSurveyThrottleTimer->expires_from_now(mSurveyThrottleTimeoutMs);
+    mSurveyThrottleTimer->expires_from_now(SURVEY_THROTTLE_TIMEOUT_MS);
     mSurveyThrottleTimer->async_wait(handler, &VirtualTimer::onFailureNoop);
 }
 
