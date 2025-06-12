@@ -36,7 +36,7 @@ class SearchableLiveBucketListSnapshot
         StateArchivalSettings const& sas, uint32_t ledgerVers) const;
 
     void scanForEntriesOfType(
-        std::set<LedgerEntryType> const& types,
+        LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 
     friend SearchableSnapshotConstPtr

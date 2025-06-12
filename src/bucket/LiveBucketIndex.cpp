@@ -283,15 +283,15 @@ LiveBucketIndex::getPoolIDsByAsset(Asset const& asset) const
 }
 
 std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucketIndex::getRangeForTypes(std::set<LedgerEntryType> const& types) const
+LiveBucketIndex::getRangeForType(LedgerEntryType type) const
 {
     if (mDiskIndex)
     {
-        return mDiskIndex->getRangeForTypes(types);
+        return mDiskIndex->getRangeForType(type);
     }
 
     releaseAssertOrThrow(mInMemoryIndex);
-    return mInMemoryIndex->getRangeForTypes(types);
+    return mInMemoryIndex->getRangeForType(type);
 }
 
 uint32_t

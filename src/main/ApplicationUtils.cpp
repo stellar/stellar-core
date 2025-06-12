@@ -710,7 +710,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
     if (hash == "ALL")
     {
         snap->scanForEntriesOfType(
-            {CONTRACT_CODE}, [&](const BucketEntry& entry) {
+            CONTRACT_CODE, [&](const BucketEntry& entry) {
                 if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
                 {
                     auto const& codeEntry =

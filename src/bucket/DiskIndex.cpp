@@ -118,10 +118,15 @@ DiskIndex<BucketT>::getOffsetBounds(LedgerKey const& lowerBound,
 
 template <class BucketT>
 std::optional<std::pair<std::streamoff, std::streamoff>>
-DiskIndex<BucketT>::getRangeForTypes(
-    std::set<LedgerEntryType> const& types) const
+DiskIndex<BucketT>::getRangeForType(LedgerEntryType type) const
 {
-    return getRangeForTypesHelper(types, mData.typeRanges);
+    auto it = mData.typeRanges.find(type);
+    if (it != mData.typeRanges.end())
+    {
+        return std::make_optional(it->second);
+    }
+
+    return std::nullopt;
 }
 
 template <class BucketT>

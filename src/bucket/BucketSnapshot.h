@@ -88,9 +88,9 @@ class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
                          SearchableLiveBucketListSnapshot const& bl,
                          uint32_t ledgerVers) const;
 
-    // Scans entries of the specified types in the bucket.
+    // Scans entries of the specified type in the bucket.
     Loop scanForEntriesOfType(
-        std::set<LedgerEntryType> const& types,
+        LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 };
 

@@ -150,9 +150,15 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
 }
 
 std::optional<std::pair<std::streamoff, std::streamoff>>
-InMemoryIndex::getRangeForTypes(std::set<LedgerEntryType> const& types) const
+InMemoryIndex::getRangeForType(LedgerEntryType type) const
 {
-    return getRangeForTypesHelper(types, mTypeRanges);
+    auto it = mTypeRanges.find(type);
+    if (it != mTypeRanges.end())
+    {
+        return std::make_optional(it->second);
+    }
+
+    return std::nullopt;
 }
 
 #ifdef BUILD_TESTS

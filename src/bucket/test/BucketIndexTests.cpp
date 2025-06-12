@@ -1240,7 +1240,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
+TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto clock = VirtualClock();
@@ -1270,14 +1270,14 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
                         if (lastSeenType)
                         {
                             auto prevRange =
-                                bucket->getRangeForTypes({*lastSeenType});
+                                bucket->getRangeForType(*lastSeenType);
                             REQUIRE(prevRange.has_value());
                             REQUIRE(prevRange->second == pos);
                         }
 
                         // Verify the lower bound of the new type
                         auto currentRange =
-                            bucket->getRangeForTypes({currentType});
+                            bucket->getRangeForType(currentType);
                         REQUIRE(currentRange.has_value());
                         REQUIRE(currentRange->first == pos);
 
@@ -1289,7 +1289,7 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
 
             // Verify the last type has correct upper bound (EOF)
             REQUIRE(lastSeenType);
-            auto lastRange = bucket->getRangeForTypes({*lastSeenType});
+            auto lastRange = bucket->getRangeForType(*lastSeenType);
             REQUIRE(lastRange.has_value());
             REQUIRE(lastRange->second ==
                     std::numeric_limits<std::streamoff>::max());
@@ -1301,8 +1301,8 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
                 if (seenTypes.find(static_cast<LedgerEntryType>(type)) ==
                     seenTypes.end())
                 {
-                    auto unseenRange = bucket->getRangeForTypes(
-                        {static_cast<LedgerEntryType>(type)});
+                    auto unseenRange = bucket->getRangeForType(
+                        static_cast<LedgerEntryType>(type));
                     REQUIRE(!unseenRange.has_value());
                 }
             }
@@ -1322,38 +1322,10 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
             auto bucket = bm.getLiveBucketList().getLevel(0).getCurr();
             verifyIndexBounds(bucket);
 
-            // Test multiple type ranges, both adjacent and non-adjacent
-            auto adjacentRange = bucket->getRangeForTypes({ACCOUNT, TRUSTLINE});
-            REQUIRE(adjacentRange.has_value());
-            auto accountRange = bucket->getRangeForTypes({ACCOUNT});
-            REQUIRE(accountRange.has_value());
-            auto trustlineRange = bucket->getRangeForTypes({TRUSTLINE});
-            REQUIRE(trustlineRange.has_value());
-            REQUIRE(adjacentRange->first == accountRange->first);
-            REQUIRE(adjacentRange->second == trustlineRange->second);
-
-            auto nonAdjacentRange =
-                bucket->getRangeForTypes({ACCOUNT, CONTRACT_DATA});
-            REQUIRE(nonAdjacentRange.has_value());
-
-            auto contractDataRange = bucket->getRangeForTypes({CONTRACT_DATA});
-            REQUIRE(accountRange.has_value());
-            REQUIRE(contractDataRange.has_value());
-            REQUIRE(nonAdjacentRange->first == accountRange->first);
-            REQUIRE(nonAdjacentRange->second == contractDataRange->second);
-
-            // Non-existent types only
-            std::set<LedgerEntryType> nonExistentTypes{CLAIMABLE_BALANCE,
-                                                       CONTRACT_CODE};
-            auto nonExistentRange = bucket->getRangeForTypes(nonExistentTypes);
-            REQUIRE(!nonExistentRange.has_value());
-
-            // Mix of existent and non-existent types, should just return range
-            // of existing type
-            auto accountAndTTLRange = bucket->getRangeForTypes({ACCOUNT, TTL});
-            REQUIRE(accountAndTTLRange.has_value());
-            REQUIRE(accountAndTTLRange->first == accountRange->first);
-            REQUIRE(accountAndTTLRange->second == accountRange->second);
+            // Non-existent type
+            auto claimableBalanceRange =
+                bucket->getRangeForType(CLAIMABLE_BALANCE);
+            REQUIRE(!claimableBalanceRange.has_value());
         }
 
         SECTION("Bucket contains 1 of all types")
@@ -1406,7 +1378,7 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
                               .getCurr();
 
             verifyIndexBounds(bucket);
-            auto singleRange = bucket->getRangeForTypes({CONTRACT_CODE});
+            auto singleRange = bucket->getRangeForType(CONTRACT_CODE);
             REQUIRE(singleRange.has_value());
 
             // For a single type, upper bound should be EOF
@@ -1416,13 +1388,27 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
 
         SECTION("Scan for entries by type")
         {
+            auto const numOffers = 10;
+            auto const numContractCodes = 15;
+            auto const numTrustlines = 5;
+
+            auto offerEntries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {OFFER}, numOffers);
+            auto contractCodeEntries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {CONTRACT_CODE}, numContractCodes);
+            auto trustlineEntries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {TRUSTLINE}, numTrustlines);
+
             std::vector<LedgerEntry> entries;
-            entries.push_back(
-                LedgerTestUtils::generateValidLedgerEntryOfType(OFFER));
-            entries.push_back(
-                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE));
-            entries.push_back(
-                LedgerTestUtils::generateValidLedgerEntryOfType(ACCOUNT));
+            entries.insert(entries.end(), offerEntries.begin(),
+                           offerEntries.end());
+            entries.insert(entries.end(), contractCodeEntries.begin(),
+                           contractCodeEntries.end());
+            entries.insert(entries.end(), trustlineEntries.begin(),
+                           trustlineEntries.end());
 
             app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
                 {}, entries, {});
@@ -1438,35 +1424,43 @@ TEST_CASE("getRangeForTypes bounds verification", "[bucket][bucketindex]")
                                     .getBucketSnapshotManager()
                                     .copySearchableLiveBucketListSnapshot();
 
-            std::set<LedgerEntryType> targetTypes{OFFER, CONTRACT_CODE};
-            std::vector<BucketEntry> foundEntries;
+            auto verifyScanForType =
+                [&](LedgerEntryType type,
+                    std::vector<LedgerEntry> const& entries) {
+                    // Scan through the Bucket and make sure we see all entries
+                    // of the given type, and the correct value of the entry
+                    UnorderedMap<LedgerKey, LedgerEntry> expectedEntries;
+                    for (auto const& entry : entries)
+                    {
+                        expectedEntries.emplace(LedgerEntryKey(entry), entry);
+                    }
 
-            searchableBL->scanForEntriesOfType(targetTypes,
+                    searchableBL->scanForEntriesOfType(
+                        type, [&](BucketEntry const& be) {
+                            auto lk = getBucketLedgerKey(be);
+                            REQUIRE(lk.type() == type);
+                            auto iter = expectedEntries.find(lk);
+                            REQUIRE(iter != expectedEntries.end());
+                            REQUIRE(iter->second == be.liveEntry());
+                            expectedEntries.erase(iter);
+                            return Loop::INCOMPLETE;
+                        });
+
+                    // Verify all expected entries were found
+                    REQUIRE(expectedEntries.empty());
+                };
+
+            // Verify each type
+            verifyScanForType(OFFER, offerEntries);
+            verifyScanForType(CONTRACT_CODE, contractCodeEntries);
+            verifyScanForType(TRUSTLINE, trustlineEntries);
+
+            // Verify that we don't call the callback for non-existent types
+            searchableBL->scanForEntriesOfType(CLAIMABLE_BALANCE,
                                                [&](BucketEntry const& be) {
-                                                   foundEntries.push_back(be);
+                                                   REQUIRE(false);
                                                    return Loop::INCOMPLETE;
                                                });
-
-            REQUIRE(foundEntries.size() == 2);
-
-            bool foundOffer = false;
-            bool foundContractCode = false;
-            for (auto const& be : foundEntries)
-            {
-                if (be.type() == INITENTRY || be.type() == LIVEENTRY)
-                {
-                    if (be.liveEntry().data.type() == OFFER)
-                    {
-                        foundOffer = true;
-                    }
-                    else if (be.liveEntry().data.type() == CONTRACT_CODE)
-                    {
-                        foundContractCode = true;
-                    }
-                }
-            }
-            REQUIRE(foundOffer);
-            REQUIRE(foundContractCode);
         }
     };
 

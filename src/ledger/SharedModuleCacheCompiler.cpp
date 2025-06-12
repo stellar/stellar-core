@@ -146,7 +146,7 @@ SharedModuleCacheCompiler::start()
         ZoneScopedN("load wasm contracts");
         std::unordered_set<Hash> seenContracts;
         this->mSnap->scanForEntriesOfType(
-            {CONTRACT_CODE}, [&](BucketEntry const& entry) {
+            CONTRACT_CODE, [&](BucketEntry const& entry) {
                 Hash h;
                 switch (entry.type())
                 {

@@ -432,39 +432,4 @@ buildTypeRangesMap(
 
     return typeRanges;
 }
-
-std::optional<std::pair<std::streamoff, std::streamoff>>
-getRangeForTypesHelper(
-    std::set<LedgerEntryType> const& types,
-    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>> const&
-        typeRanges)
-{
-    std::optional<std::streamoff> start = std::nullopt;
-    std::streamoff end = 0;
-
-    // Iterate types in the same order they are sorted in the BucketList
-    for (auto type : types)
-    {
-        auto it = typeRanges.find(type);
-        if (it != typeRanges.end())
-        {
-            // If start is null, this is the first and smallest type in the
-            // range we've found, so set start.
-            if (!start)
-            {
-                start = it->second.first;
-            }
-
-            // The last type we find in the loop will be our upper bound
-            end = it->second.second;
-        }
-    }
-
-    if (start)
-    {
-        return std::make_optional(std::make_pair(*start, end));
-    }
-
-    return std::nullopt;
-}
 }

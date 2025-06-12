@@ -318,10 +318,10 @@ LiveBucketSnapshot::scanForEviction(
     return Loop::INCOMPLETE;
 }
 
-// Scans entries of the specified types in the bucket.
+// Scans entries of the specified type in the bucket.
 Loop
 LiveBucketSnapshot::scanForEntriesOfType(
-    std::set<LedgerEntryType> const& types,
+    LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
     ZoneScoped;
@@ -330,7 +330,7 @@ LiveBucketSnapshot::scanForEntriesOfType(
         return Loop::INCOMPLETE;
     }
 
-    auto range = mBucket->getRangeForTypes(types);
+    auto range = mBucket->getRangeForType(type);
     if (!range)
     {
         return Loop::INCOMPLETE;
@@ -345,11 +345,11 @@ LiveBucketSnapshot::scanForEntriesOfType(
         bool matchesType = false;
         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
         {
-            matchesType = types.find(be.liveEntry().data.type()) != types.end();
+            matchesType = be.liveEntry().data.type() == type;
         }
         else if (be.type() == DEADENTRY)
         {
-            matchesType = types.find(be.deadEntry().type()) != types.end();
+            matchesType = be.deadEntry().type() == type;
         }
 
         if (matchesType)

@@ -240,11 +240,4 @@ std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
 buildTypeRangesMap(
     std::map<LedgerEntryType, std::streamoff> const& typeStartOffsets,
     std::map<LedgerEntryType, std::streamoff> const& typeEndOffsets);
-
-// Helper function to compute range for multiple types from a BucketIndex type
-// ranges map
-std::optional<std::pair<std::streamoff, std::streamoff>> getRangeForTypesHelper(
-    std::set<LedgerEntryType> const& types,
-    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>> const&
-        typeRanges);
 }

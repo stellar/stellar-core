@@ -143,7 +143,7 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
                     LedgerKey const& upperBound) const;
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getRangeForTypes(std::set<LedgerEntryType> const& types) const;
+    getRangeForType(LedgerEntryType type) const;
 
     // Returns page size for index
     std::streamoff

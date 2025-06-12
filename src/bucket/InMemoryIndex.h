@@ -232,7 +232,7 @@ class InMemoryIndex
     }
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getRangeForTypes(std::set<LedgerEntryType> const& types) const;
+    getRangeForType(LedgerEntryType type) const;
 
 #ifdef BUILD_TESTS
     bool operator==(InMemoryIndex const& in) const;
