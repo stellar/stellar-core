@@ -450,23 +450,9 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // been rolled back)
     mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader->ledgerSeq);
 
-    if (protocolVersionStartsFrom(latestLedgerHeader->ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        // Step 5. If ledger state is ready and core is in v20, load network
-        // configs right away
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        updateSorobanNetworkConfigForApply(ltx);
-        releaseAssert(mApplyState.mSorobanNetworkConfig);
-        releaseAssert(mLastClosedLedgerState);
-
-        mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
-            mApp.getBucketManager()
-                .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot(),
-            *mApplyState.mSorobanNetworkConfig, getLastClosedLedgerHeader(),
-            getLastClosedLedgerHAS());
-    }
+    // Step 5. If ledger state is ready and core is in v20, load network
+    // configs right away
+    maybeLoadSorobanNetworkConfig(latestLedgerHeader->ledgerVersion);
 
     // Prime module cache with LCL state, not apply-state. This is acceptable
     // here because we just started and there is no apply-state yet and no apply
@@ -1401,6 +1387,7 @@ LedgerManagerImpl::setLastClosedLedger(
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
+    auto lv = header.current().ledgerVersion;
     auto has = storePersistentStateAndLedgerHeaderInDB(
         header.current(), /* appendToCheckpoint */ false);
     ltx.commit();
@@ -1409,21 +1396,7 @@ LedgerManagerImpl::setLastClosedLedger(
         advanceBucketListSnapshotAndMakeLedgerState(lastClosed.header, has);
     advanceLastClosedLedgerState(output);
 
-    LedgerTxn ltx2(mApp.getLedgerTxnRoot());
-    auto lv = ltx2.loadHeader().current().ledgerVersion;
-    if (protocolVersionStartsFrom(lv, SOROBAN_PROTOCOL_VERSION))
-    {
-        mApp.getLedgerManager().updateSorobanNetworkConfigForApply(ltx2);
-        releaseAssert(mApplyState.mSorobanNetworkConfig);
-        releaseAssert(mLastClosedLedgerState);
-
-        mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
-            mApp.getBucketManager()
-                .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot(),
-            *mApplyState.mSorobanNetworkConfig, getLastClosedLedgerHeader(),
-            getLastClosedLedgerHAS());
-    }
+    maybeLoadSorobanNetworkConfig(lv);
     // This should not be additionally conditionalized on lv >= anything,
     // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
     //
@@ -1602,6 +1575,25 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
             ledgerAbbrev(newLedgerState->getLastClosedLedgerHeader().header));
     }
     mLastClosedLedgerState = newLedgerState;
+}
+
+void
+LedgerManagerImpl::maybeLoadSorobanNetworkConfig(uint32_t ledgerVersion)
+{
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        updateSorobanNetworkConfigForApply(ltx);
+        releaseAssert(mApplyState.mSorobanNetworkConfig);
+        releaseAssert(mLastClosedLedgerState);
+
+        mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot(),
+            *mApplyState.mSorobanNetworkConfig, getLastClosedLedgerHeader(),
+            getLastClosedLedgerHAS());
+    }
 }
 
 CompleteConstLedgerStatePtr
