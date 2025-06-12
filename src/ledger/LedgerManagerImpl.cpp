@@ -1666,6 +1666,8 @@ LedgerManagerImpl::processFeesSeqNums(
         auto expectedResults = ledgerData.getExpectedResults();
         if (expectedResults)
         {
+            releaseAssert(expectedResults->results.size() ==
+                          txSet.sizeTxTotal());
             expectedResultsIter =
                 std::make_optional(expectedResults->results.begin());
         }
@@ -1686,13 +1688,8 @@ LedgerManagerImpl::processFeesSeqNums(
                                   expectedResults->results.end());
                     releaseAssert((*expectedResultsIter)->transactionHash ==
                                   tx->getContentsHash());
-
-                    // https://github.com/stellar/stellar-core/issues/4741
-                    if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP)
-                    {
-                        txResults.back()->setReplayTransactionResult(
-                            (*expectedResultsIter)->result);
-                    }
+                    txResults.back()->setReplayTransactionResult(
+                        (*expectedResultsIter)->result);
 
                     ++(*expectedResultsIter);
                 }

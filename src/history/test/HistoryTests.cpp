@@ -881,92 +881,111 @@ dbModeName(Config::TestDbMode mode)
 
 TEST_CASE("History catchup", "[history][catchup][acceptance]")
 {
-    // needs REAL_TIME here, as resolve-snapshot works will fail for one of the
-    // sections again and again - as it is set to RETRY_FOREVER it can generate
-    // megabytes of unnecessary log entries
-    CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
-    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
-    auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(),
-        Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+    auto runTest = [](bool skipKnownResults) {
+        // needs REAL_TIME here, as resolve-snapshot works will fail for one of
+        // the sections again and again - as it is set to RETRY_FOREVER it can
+        // generate megabytes of unnecessary log entries
+        CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
+        auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(),
+            Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
 
-    auto offlineNonCheckpointDestinationLedger =
-        checkpointLedger -
-        HistoryManager::getCheckpointFrequency(app->getConfig()) / 2;
+        auto offlineNonCheckpointDestinationLedger =
+            checkpointLedger -
+            HistoryManager::getCheckpointFrequency(app->getConfig()) / 2;
 
-    SECTION("when not enough publishes has been performed")
-    {
-        // only 2 first checkpoints can be published in this section
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger);
-
-        SECTION("online")
+        SECTION("when not enough publishes has been performed")
         {
-            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
+            // only 2 first checkpoints can be published in this section
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger);
+
+            SECTION("online")
+            {
+                REQUIRE(
+                    !catchupSimulation.catchupOnline(app, checkpointLedger));
+            }
+
+            SECTION("offline")
+            {
+                REQUIRE(
+                    !catchupSimulation.catchupOffline(app, checkpointLedger));
+            }
+
+            SECTION("offline, in the middle of checkpoint")
+            {
+                REQUIRE(!catchupSimulation.catchupOffline(
+                    app, offlineNonCheckpointDestinationLedger));
+            }
         }
 
-        SECTION("offline")
-        {
-            REQUIRE(!catchupSimulation.catchupOffline(app, checkpointLedger));
-        }
-
-        SECTION("offline, in the middle of checkpoint")
-        {
-            REQUIRE(!catchupSimulation.catchupOffline(
-                app, offlineNonCheckpointDestinationLedger));
-        }
-    }
-
-    SECTION("when enough publishes has been performed, but no trigger ledger "
+        SECTION(
+            "when enough publishes has been performed, but no trigger ledger"
             "was externalized")
-    {
-        // 1 ledger is for publish-trigger
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
-        catchupSimulation.ensurePublishesComplete();
-
-        SECTION("online")
         {
-            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
+            // 1 ledger is for publish-trigger
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
+            catchupSimulation.ensurePublishesComplete();
+
+            SECTION("online")
+            {
+                REQUIRE(
+                    !catchupSimulation.catchupOnline(app, checkpointLedger));
+            }
+
+            SECTION("offline")
+            {
+                REQUIRE(
+                    catchupSimulation.catchupOffline(app, checkpointLedger));
+            }
+
+            SECTION("offline, in the middle of checkpoint")
+            {
+                REQUIRE(catchupSimulation.catchupOffline(
+                    app, offlineNonCheckpointDestinationLedger));
+            }
         }
 
-        SECTION("offline")
-        {
-            REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
-        }
-
-        SECTION("offline, in the middle of checkpoint")
-        {
-            REQUIRE(catchupSimulation.catchupOffline(
-                app, offlineNonCheckpointDestinationLedger));
-        }
-    }
-
-    SECTION("when enough publishes has been performed, but no closing ledger "
+        SECTION(
+            "when enough publishes has been performed, but no closing ledger "
             "was externalized")
-    {
-        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
-        catchupSimulation.ensurePublishesComplete();
-        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger));
-    }
+        {
+            // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
+            // ledger
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
+            catchupSimulation.ensurePublishesComplete();
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger));
+        }
 
-    SECTION("when enough publishes has been performed, 3 ledgers are buffered "
+        SECTION(
+            "when enough publishes has been performed, 3 ledgers are buffered "
             "and no closing ledger was externalized")
-    {
-        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
-        // 3 ledgers are buffered
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
-        catchupSimulation.ensurePublishesComplete();
-        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
-    }
+        {
+            // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
+            // ledger, 3 ledgers are buffered
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
+            catchupSimulation.ensurePublishesComplete();
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        }
 
-    SECTION("when enough publishes has been performed, 3 ledgers are buffered "
+        SECTION(
+            "when enough publishes has been performed, 3 ledgers are buffered "
             "and closing ledger was externalized")
+        {
+            // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
+            // ledger, 3 ledgers are buffered, 1 ledger is closing
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
+            catchupSimulation.ensurePublishesComplete();
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        }
+    };
+    SECTION("do not skip known results")
     {
-        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
-        // 3 ledgers are buffered, 1 ledger is closing
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
-        catchupSimulation.ensurePublishesComplete();
-        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        runTest(false);
+    }
+    SECTION("skip known results")
+    {
+        runTest(true);
     }
 }
 
