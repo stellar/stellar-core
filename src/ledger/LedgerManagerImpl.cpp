@@ -195,6 +195,8 @@ LedgerManagerImpl::ApplyState::ApplyState(Application& app)
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mApplyState(app)
+    , mLastClosedLedgerState(std::make_shared<CompleteConstLedgerState>(
+          nullptr, LedgerHeaderHistoryEntry(), HistoryArchiveState()))
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
@@ -486,6 +488,7 @@ uint32_t
 LedgerManagerImpl::getLastMaxTxSetSize() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader()
         .header.maxTxSetSize;
 }
@@ -494,6 +497,7 @@ uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     auto n =
         mLastClosedLedgerState->getLastClosedLedgerHeader().header.maxTxSetSize;
     return protocolVersionStartsFrom(
@@ -542,6 +546,7 @@ int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     auto const& lh = mLastClosedLedgerState->getLastClosedLedgerHeader().header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
@@ -553,6 +558,7 @@ uint32_t
 LedgerManagerImpl::getLastReserve() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader()
         .header.baseReserve;
 }
@@ -561,6 +567,7 @@ uint32_t
 LedgerManagerImpl::getLastTxFee() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader().header.baseFee;
 }
 
@@ -568,6 +575,7 @@ LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader();
 }
 
@@ -575,6 +583,7 @@ HistoryArchiveState
 LedgerManagerImpl::getLastClosedLedgerHAS() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedHistoryArchiveState();
 }
 
@@ -582,6 +591,7 @@ uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader().header.ledgerSeq;
 }
 
@@ -604,6 +614,7 @@ bool
 LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->hasSorobanConfig();
 }
 
@@ -1546,6 +1557,8 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 SearchableSnapshotConstPtr
 LedgerManagerImpl::getLastClosedSnaphot() const
 {
+    releaseAssert(threadIsMain());
+    releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getBucketSnapshot();
 }
 

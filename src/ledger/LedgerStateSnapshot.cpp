@@ -274,8 +274,11 @@ CompleteConstLedgerState::checkInvariant() const
 {
     releaseAssert(mLastClosedHistoryArchiveState.currentLedger ==
                   mLastClosedLedgerHeader.header.ledgerSeq);
-    releaseAssert(mBucketSnapshot->getLedgerHeader() ==
-                  mLastClosedLedgerHeader.header);
+    if (mLastClosedLedgerHeader.header.ledgerSeq > 0)
+    {
+        releaseAssert(mBucketSnapshot->getLedgerHeader() ==
+                      mLastClosedLedgerHeader.header);
+    }
 }
 
 CompleteConstLedgerState::CompleteConstLedgerState(
