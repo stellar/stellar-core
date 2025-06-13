@@ -32,8 +32,22 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     LiveBucketList::updateStartingEvictionIterator(
         evictionIter, sas.startingEvictionScanLevel, ledgerSeq);
 
+    // We need to keep track of evicted keys in two ways. First, we need to
+    // track keys in the order in which they were evicted via the
+    // result linked list. This scan is happening in the background, and
+    // depending on what happens during TX apply, some of the eviction
+    // candidates may be invalidated. We need to evict at most N keys and
+    // len(result) can be > N. We track the order so we know in the
+    // main thread the cutoff point for what is actually getting evicted from
+    // result. Second, we need to make sure we don't evict the same key twice.
+    // It's possible for an entry to be expired and for two different versions
+    // of the entry to exist in two different buckets. We will scan both
+    // versions of the entry, but we should only evict it once. keysToEvict just
+    // maps the keys in result in a hash set so we don't have to iterate over
+    // the linked list to check if an entry has already been evicted.
     std::unique_ptr<EvictionResultCandidates> result =
         std::make_unique<EvictionResultCandidates>(sas, ledgerSeq, ledgerVers);
+    UnorderedSet<LedgerKey> keysToEvict;
     auto startIter = evictionIter;
     auto scanSize = sas.evictionScanSize;
 
@@ -45,8 +59,8 @@ SearchableLiveBucketListSnapshot::scanForEviction(
 
         // If we scan scanSize before hitting bucket EOF, exit early
         if (b.scanForEviction(evictionIter, scanSize, ledgerSeq,
-                              result->eligibleEntries, *this,
-                              ledgerVers) == Loop::COMPLETE)
+                              result->eligibleEntries, *this, ledgerVers,
+                              keysToEvict) == Loop::COMPLETE)
         {
             break;
         }
