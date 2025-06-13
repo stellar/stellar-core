@@ -455,6 +455,7 @@ CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
 void
 CatchupSimulation::generateRandomLedger(uint32_t version)
 {
+    uint32_t const setupLedgers = 4;
     auto& lm = getApp().getLedgerManager();
     uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
     uint64_t minBalance = lm.getLastMinBalance(5);
@@ -463,67 +464,66 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
     auto root = getApp().getRoot();
+
     auto alice = TestAccount{getApp(), getAccount("alice")};
     auto bob = TestAccount{getApp(), getAccount("bob")};
     auto carol = TestAccount{getApp(), getAccount("carol")};
     auto eve = TestAccount{getApp(), getAccount("eve")};
     auto stroopy = TestAccount{getApp(), getAccount("stroopy")};
+    PublicKey nonExistent;
+
+    std::vector<TestAccount*> accounts = {root.get(), &alice, &bob,
+                                          &carol,     &eve,   &stroopy};
+    stellar::uniform_int_distribution<> accountDistr(0, accounts.size() - 1);
+    auto randomAccount = [&accounts, &accountDistr]() -> TestAccount& {
+        return *accounts.at(accountDistr(gRandomEngine));
+    };
 
     std::vector<TransactionFrameBasePtr> txs;
     std::vector<TransactionFrameBasePtr> sorobanTxs;
-    bool check = false;
 
-    if (ledgerSeq < 5)
+    auto maybeFailingPayment = [&nonExistent](auto& from, auto& to,
+                                              uint64_t amount) {
+        // 75% of the time make a successful payment.
+        if (rand_flip() || rand_flip())
+        {
+            return from.tx({payment(to, amount)});
+        }
+        // 25% of the time pay to a non-existent destination.
+        return from.tx({payment(nonExistent, amount)});
+    };
+
+    if (ledgerSeq <= setupLedgers)
     {
         txs.push_back(root->tx(
             {createAccount(alice, big), createAccount(bob, big),
              createAccount(carol, big), createAccount(stroopy, big * 10),
              createAccount(eve, big * 10)}));
     }
-    // Allow an occasional empty ledger (but always have some transactions in
-    // the upgrade ledger)
-    else if ((rand_flip() || rand_flip()) ||
-             lm.getLastClosedLedgerNum() + 1 == mUpgradeLedgerSeq)
+    else
     {
-        // They all randomly send a little to one another every ledger after #4
-        if (rand_flip())
-        {
-            txs.push_back(root->tx({payment(alice, big)}));
-        }
-        else
-        {
-            txs.push_back(root->tx({payment(bob, big)}));
-        }
+        // Allow occasional empty ledgers or ledgers with only classic/Soroban
+        // txs, but always generate both kinds on upgrade.
+        bool isUpgrade = lm.getLastClosedLedgerNum() + 1 == mUpgradeLedgerSeq;
 
-        if (rand_flip())
+        if (isUpgrade || rand_flip() || rand_flip())
         {
-            txs.push_back(alice.tx({payment(bob, small)}));
-        }
-        else
-        {
-            txs.push_back(alice.tx({payment(carol, small)}));
-        }
-
-        if (rand_flip())
-        {
-            txs.push_back(bob.tx({payment(alice, small)}));
-        }
-        else
-        {
-            txs.push_back(bob.tx({payment(carol, small)}));
-        }
-
-        if (rand_flip())
-        {
-            txs.push_back(carol.tx({payment(alice, small)}));
-        }
-        else
-        {
-            txs.push_back(carol.tx({payment(bob, small)}));
+            // They all randomly send a little to one another every ledger after
+            // #4
+            txs.push_back(
+                maybeFailingPayment(*root, rand_flip() ? alice : bob, big));
+            txs.push_back(
+                maybeFailingPayment(alice, rand_flip() ? bob : carol, small));
+            txs.push_back(
+                maybeFailingPayment(bob, rand_flip() ? alice : carol, small));
+            txs.push_back(
+                maybeFailingPayment(carol, rand_flip() ? alice : bob, small));
         }
 
         // Add soroban transactions
-        if (protocolVersionStartsFrom(
+        bool addSoroban = isUpgrade || rand_flip() || rand_flip();
+        if (addSoroban &&
+            protocolVersionStartsFrom(
                 lm.getLastClosedLedgerHeader().header.ledgerVersion,
                 SOROBAN_PROTOCOL_VERSION))
         {
@@ -535,14 +535,46 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                10;
             res.writeBytes = 100'000;
             uint32_t inclusion = 100;
-
+            // Use insufficient instructions to fail some of the Wasm uploads.
+            auto maybeInsufficientResources = [&res]() {
+                if (rand_flip() || rand_flip())
+                {
+                    return res;
+                }
+                auto resCopy = res;
+                resCopy.instructions = 10;
+                return resCopy;
+            };
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE, res,
-                {}, 0, rand_uniform(101, 2'000)));
+                getApp(), stroopy, inclusion,
+                DEFAULT_TEST_RESOURCE_FEE + rand_uniform(0, 1000),
+                maybeInsufficientResources(), {}, 0, rand_uniform(101, 2'000)));
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE, res,
-                {}, 0, rand_uniform(101, 2'000)));
-            check = true;
+                getApp(), eve, inclusion * 5,
+                DEFAULT_TEST_RESOURCE_FEE + rand_uniform(0, 1000),
+                maybeInsufficientResources(), {}, 0, rand_uniform(101, 2'000)));
+        }
+    }
+    auto maybeMakeFeeBump = [&](auto& tx) {
+        if (rand_flip() ||
+            protocolVersionIsBefore(
+                lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                ProtocolVersion::V_13))
+        {
+            return;
+        }
+        tx = feeBump(getApp(), randomAccount(), tx,
+                     tx->getFullFee() + rand_uniform(1, 5000), true);
+    };
+    if (ledgerSeq > setupLedgers)
+    {
+        for (auto& tx : txs)
+        {
+            maybeMakeFeeBump(tx);
+        }
+        for (auto& tx : sorobanTxs)
+        {
+            maybeMakeFeeBump(tx);
         }
     }
 
@@ -578,13 +610,6 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto lastSucceeded = txsSucceeded.count();
 
     lm.applyLedger(mLedgerCloseDatas.back());
-
-    if (check)
-    {
-        // Make sure all classic transactions and at least some Soroban
-        // transactions succeeded
-        REQUIRE(txsSucceeded.count() > lastSucceeded + phases[0].size());
-    }
 
     auto const& lclh = lm.getLastClosedLedgerHeader();
     mLedgerSeqs.push_back(lclh.header.ledgerSeq);
@@ -787,7 +812,7 @@ CatchupSimulation::getLastPublishedCheckpoint() const
 Application::pointer
 CatchupSimulation::createCatchupApplication(
     uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-    bool publish, std::optional<uint32_t> ledgerVersion)
+    bool publish, std::optional<uint32_t> ledgerVersion, bool skipKnownResults)
 {
     CLOG_INFO(History, "****");
     CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
@@ -803,6 +828,7 @@ CatchupSimulation::createCatchupApplication(
     {
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;
     }
+    mCfgs.back().CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = skipKnownResults;
 
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(

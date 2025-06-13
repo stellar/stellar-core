@@ -748,7 +748,7 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 
 TransactionTestFramePtr
 feeBump(Application& app, TestAccount& feeSource,
-        std::shared_ptr<TransactionTestFrame const> tx, int64_t fee,
+        TransactionFrameBaseConstPtr tx, int64_t fee,
         bool useInclusionAsFullFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);

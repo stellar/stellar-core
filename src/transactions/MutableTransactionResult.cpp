@@ -8,6 +8,7 @@
 #include "transactions/TransactionUtils.h"
 #include "xdr/Stellar-transaction.h"
 
+#include "MutableTransactionResult.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -209,7 +210,20 @@ MutableTransactionResultBase::adoptFailedReplayResult()
     {
         return false;
     }
-    mTxResult = *mReplayTransactionResult;
+    // The recorded replay result contains the fee that already accounts for
+    // the refund, however we still need to actually perform the refund
+    // based on the refundable fee tracker. Thus instead of hacking the
+    // refund logic to be aware of the result overrides, we copy the replay
+    // result without fee charged and reset the refundable fee tracker as for
+    // the error that occurs during the normal apply path.
+    // In other words, we only really care about the error payload when
+    // adopting the replay result, and the fee charged should be correctly
+    // tracked with the regular logic.
+    copyReplayResultWithoutFeeCharged();
+    if (mRefundableFeeTracker)
+    {
+        mRefundableFeeTracker->resetConsumedFee();
+    }
     return true;
 }
 bool
@@ -240,6 +254,17 @@ MutableTransactionResult::MutableTransactionResult(TransactionFrame const& tx,
     initializeOperationResults(tx, mTxResult);
     mTxResult.feeCharged = feeCharged;
 }
+
+#ifdef BUILD_TESTS
+void
+MutableTransactionResult::copyReplayResultWithoutFeeCharged()
+{
+    releaseAssert(mReplayTransactionResult);
+    auto feeCharged = getFeeCharged();
+    mTxResult = *mReplayTransactionResult;
+    overrideFeeCharged(feeCharged);
+}
+#endif
 
 std::unique_ptr<MutableTransactionResult>
 MutableTransactionResult::createTxError(TransactionResultCode txErrorCode)
@@ -311,6 +336,19 @@ FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
     innerResult.feeCharged = innerFeeCharged;
     initializeOperationResults(innerTx, innerResult);
 }
+
+#ifdef BUILD_TESTS
+void
+FeeBumpMutableTransactionResult::copyReplayResultWithoutFeeCharged()
+{
+    releaseAssert(mReplayTransactionResult);
+    auto feeCharged = getFeeCharged();
+    auto innerFeeCharged = mTxResult.result.innerResultPair().result.feeCharged;
+    mTxResult = *mReplayTransactionResult;
+    overrideFeeCharged(feeCharged);
+    mTxResult.result.innerResultPair().result.feeCharged = innerFeeCharged;
+}
+#endif
 
 InnerTransactionResult&
 FeeBumpMutableTransactionResult::getInnerResult()
