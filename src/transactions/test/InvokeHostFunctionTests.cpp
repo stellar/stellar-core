@@ -6368,6 +6368,67 @@ TEST_CASE("Module cache miss on immediate execution",
     }
 }
 
+TEST_CASE("multiple version of same key in a single eviction scan",
+          "[archival][soroban]")
+{
+    // This tests an edge case where an entry is expired, and multiple versions
+    // of that same entry will be scanned in the eviction scan. We want to make
+    // sure we don't "double evict" the key that gets scanned twice.
+    auto cfg = getTestConfig(0);
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+    cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+    cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+    cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 100;
+
+    SorobanTest test(cfg, false);
+    ContractStorageTestClient client(test);
+
+    // WASM and instance should not expire
+    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+    auto lk = client.getContract().getDataKey(
+        makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+    client.put("key", ContractDataDurability::PERSISTENT, 1);
+
+    // Close ledgers until entry is evicted
+    auto evictEntry = [&]() {
+        auto evictionLedger =
+            test.getLCLSeq() +
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+             ledgerSeq <= evictionLedger; ++ledgerSeq)
+        {
+            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        }
+
+        auto hotArchive = test.getApp()
+                              .getBucketManager()
+                              .getBucketSnapshotManager()
+                              .copySearchableHotArchiveBucketListSnapshot();
+        REQUIRE(hotArchive->load(lk));
+    };
+
+    evictEntry();
+
+    // Restore entry. Two versions of the entry will exist in the BucketList,
+    // the restored version and the original, evicted version. Their data is the
+    // same, but they have different lastModifiedLedgerSeq and live in different
+    // levels of the BucketList.
+    test.invokeRestoreOp({lk}, 20166);
+
+    auto bl = test.getApp()
+                  .getBucketManager()
+                  .getBucketSnapshotManager()
+                  .copySearchableLiveBucketListSnapshot();
+    auto loadRes = bl->load(lk);
+    REQUIRE(loadRes);
+
+    // Evict the entry again. If we "double evict" we'll throw during ledger
+    // close.
+    REQUIRE_NOTHROW(evictEntry());
+}
+
 TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
 {
     VirtualClock clock;

@@ -8,8 +8,10 @@
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include <type_traits>
 
 namespace stellar
@@ -212,11 +214,15 @@ LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
     return mBucket->getIndex().getPoolIDsByAsset(asset);
 }
 
+// Note: evicatbleKeys and keysInEvictableEntries both reference the same
+// entries. evictableEntries in order of eviction, keysInEvictableEntries in an
+// unordered but searchable set.
 Loop
 LiveBucketSnapshot::scanForEviction(
     EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
-    std::list<EvictionResultEntry>& evictableKeys,
-    SearchableLiveBucketListSnapshot const& bl, uint32_t ledgerVers) const
+    std::list<EvictionResultEntry>& evictableEntries,
+    SearchableLiveBucketListSnapshot const& bl, uint32_t ledgerVers,
+    UnorderedSet<LedgerKey>& keysInEvictableEntries) const
 {
     ZoneScoped;
     if (isEmpty() || protocolVersionIsBefore(mBucket->getBucketVersion(),
@@ -249,9 +255,12 @@ LiveBucketSnapshot::scanForEviction(
                 if (!isLive(*ttl, ledgerSeq))
                 {
                     // If entry is expired but not yet deleted, add it to
-                    // evictable keys
+                    // evictable entries
                     e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
-                    evictableKeys.emplace_back(e);
+                    evictableEntries.emplace_back(e);
+                    keysInEvictableEntries.insert(LedgerEntryKey(e.entry));
+                    releaseAssertOrThrow(evictableEntries.size() ==
+                                         keysInEvictableEntries.size());
                 }
             }
         }
@@ -292,7 +301,12 @@ LiveBucketSnapshot::scanForEviction(
         if (be.type() == INITENTRY || be.type() == LIVEENTRY)
         {
             auto const& le = be.liveEntry();
-            if (isEvictableType(le.data))
+
+            // Make sure we don't redundantly search for a key we've already
+            // evicted in the previous bucket.
+            if (isEvictableType(le.data) &&
+                keysInEvictableEntries.find(LedgerEntryKey(le)) ==
+                    keysInEvictableEntries.end())
             {
                 keysToSearch.emplace(getTTLKey(le));
 
