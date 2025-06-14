@@ -42,7 +42,7 @@ BucketApplicator::BucketApplicator(Application& app,
     // Only apply offers
     if (!bucket->isEmpty())
     {
-        auto offsetOp = bucket->getOfferRange();
+        auto offsetOp = bucket->getRangeForType(OFFER);
         if (offsetOp)
         {
             auto [lowOffset, highOffset] = *offsetOp;

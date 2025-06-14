@@ -283,47 +283,15 @@ LiveBucketIndex::getPoolIDsByAsset(Asset const& asset) const
 }
 
 std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucketIndex::getOfferRange() const
+LiveBucketIndex::getRangeForType(LedgerEntryType type) const
 {
     if (mDiskIndex)
     {
-        // Get the smallest and largest possible offer keys
-        LedgerKey upperBound(OFFER);
-        upperBound.offer().sellerID.ed25519().fill(
-            std::numeric_limits<uint8_t>::max());
-        upperBound.offer().offerID = std::numeric_limits<int64_t>::max();
-
-        LedgerKey lowerBound(OFFER);
-        lowerBound.offer().sellerID.ed25519().fill(
-            std::numeric_limits<uint8_t>::min());
-        lowerBound.offer().offerID = std::numeric_limits<int64_t>::min();
-
-        return mDiskIndex->getOffsetBounds(lowerBound, upperBound);
+        return mDiskIndex->getRangeForType(type);
     }
 
     releaseAssertOrThrow(mInMemoryIndex);
-    return mInMemoryIndex->getOfferRange();
-}
-
-std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucketIndex::getContractCodeRange() const
-{
-    if (mDiskIndex)
-    {
-        // Get the smallest and largest possible contract code keys
-        LedgerKey lowerBound(CONTRACT_CODE);
-        lowerBound.contractCode().hash.fill(
-            std::numeric_limits<uint8_t>::min());
-
-        LedgerKey upperBound(CONTRACT_CODE);
-        upperBound.contractCode().hash.fill(
-            std::numeric_limits<uint8_t>::max());
-
-        return mDiskIndex->getOffsetBounds(lowerBound, upperBound);
-    }
-
-    releaseAssertOrThrow(mInMemoryIndex);
-    return mInMemoryIndex->getContractCodeRange();
+    return mInMemoryIndex->getRangeForType(type);
 }
 
 uint32_t
