@@ -181,9 +181,8 @@ FeeBumpTransactionFrame::checkValid(
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents) const
 {
-    if (!isTransactionXDRValidForProtocol(
-            ls.getLedgerHeader().current().ledgerVersion, app.getConfig(),
-            mEnvelope) ||
+    if (!checkVNext(ls.getLedgerHeader().current().ledgerVersion,
+                    app.getConfig(), mEnvelope) ||
         !XDRProvidesValidFee())
     {
         return FeeBumpMutableTransactionResult::createTxError(txMALFORMED);
