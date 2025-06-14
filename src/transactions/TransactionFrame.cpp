@@ -1760,6 +1760,77 @@ maybeTriggerTestInternalError(TransactionEnvelope const& env)
 }
 #endif
 
+std::unique_ptr<SignatureChecker>
+TransactionFrame::commonPreApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                 TransactionMetaBuilder& meta,
+                                 MutableTransactionResultBase& txResult,
+                                 bool chargeFee) const
+{
+    mCachedAccountPreProtocol8.reset();
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    std::unique_ptr<SignatureChecker> signatureChecker;
+#ifdef BUILD_TESTS
+    // If the txResult has a replay result (catchup in skip mode is
+    // enabled),
+    //  we do not perform signature verification.
+    if (txResult.hasReplayTransactionResult())
+    {
+        signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
+            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+    }
+    else
+    {
+#endif // BUILD_TESTS
+        signatureChecker = std::make_unique<SignatureChecker>(
+            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+#ifdef BUILD_TESTS
+    }
+#endif // BUILD_TESTS
+
+    //  when applying, a failure during tx validation means that
+    //  we'll skip trying to apply operations but we'll still
+    //  process the sequence number if needed
+    std::optional<FeePair> sorobanResourceFee;
+    std::optional<SorobanNetworkConfig> sorobanConfig;
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
+        isSoroban())
+    {
+        sorobanConfig = app.getSorobanNetworkConfigForApply();
+        sorobanResourceFee = computePreApplySorobanResourceFee(
+            ledgerVersion, *sorobanConfig, app.getConfig());
+
+        meta.setNonRefundableResourceFee(
+            sorobanResourceFee->non_refundable_fee);
+        int64_t initialFeeRefund = declaredSorobanResourceFee() -
+                                   sorobanResourceFee->non_refundable_fee;
+        txResult.initializeRefundableFeeTracker(initialFeeRefund);
+    }
+    LedgerTxn ltxTx(ltx);
+    LedgerSnapshot lsTx(ltxTx);
+    auto cv = commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
+                          chargeFee, 0, 0, sorobanResourceFee, txResult,
+                          meta.getDiagnosticEventManager());
+    if (cv >= ValidationType::kInvalidUpdateSeqNum)
+    {
+        processSeqNum(ltxTx);
+    }
+
+    bool signaturesValid =
+        processSignatures(cv, *signatureChecker, ltxTx, txResult);
+
+    meta.pushTxChangesBefore(ltxTx);
+    ltxTx.commit();
+
+    if (signaturesValid && cv == ValidationType::kMaybeValid)
+    {
+        return signatureChecker;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 void
 TransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
@@ -1781,44 +1852,9 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
     {
         releaseAssertOrThrow(isSoroban());
 
-        mCachedAccountPreProtocol8.reset();
-        uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-        SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
-                                          getSignatures(mEnvelope)};
-        // TODO: Add code for catchup in skip mode
-
-        auto const& sorobanCfg = app.getSorobanNetworkConfigForApply();
-
-        //  when applying, a failure during tx validation means that
-        //  we'll skip trying to apply operations but we'll still
-        //  process the sequence number if needed
-
-        auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
-        auto sorobanResourceFee = computePreApplySorobanResourceFee(
-            ledgerVersion, sorobanConfig, app.getConfig());
-
-        meta.setNonRefundableResourceFee(sorobanResourceFee.non_refundable_fee);
-        int64_t initialFeeRefund = declaredSorobanResourceFee() -
-                                   sorobanResourceFee.non_refundable_fee;
-        txResult.initializeRefundableFeeTracker(initialFeeRefund);
-
-        LedgerTxn ltxTx(ltx);
-        LedgerSnapshot lsTx(ltxTx);
-        auto cv = commonValid(app, sorobanCfg, signatureChecker, lsTx, 0, true,
-                              chargeFee, 0, 0, sorobanResourceFee, txResult,
-                              meta.getDiagnosticEventManager());
-        if (cv >= ValidationType::kInvalidUpdateSeqNum)
-        {
-            processSeqNum(ltxTx);
-        }
-
-        bool signaturesValid =
-            processSignatures(cv, signatureChecker, ltxTx, txResult);
-
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
-
-        bool ok = signaturesValid && cv == ValidationType::kMaybeValid;
+        auto signatureChecker =
+            commonPreApply(app, ltx, meta, txResult, chargeFee);
+        bool ok = signatureChecker != nullptr;
         if (ok)
         {
             updateSorobanMetrics(app);
@@ -1828,8 +1864,9 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
             // Pre parallel soroban, OperationFrame::checkValid is called right
             // before OperationFrame::doApply, but we do it here instead to
             // avoid making OperationFrame::checkValid thread safe.
+            auto const& cfg = app.getSorobanNetworkConfigForApply();
             ok = mOperations.front()->checkValid(
-                app, signatureChecker, sorobanCfg, ltx, true, opResult,
+                app, *signatureChecker, cfg, ltx, true, opResult,
                 meta.getDiagnosticEventManager());
             if (!ok)
             {
@@ -2152,63 +2189,9 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
     ZoneScoped;
     try
     {
-        mCachedAccountPreProtocol8.reset();
-        uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-        std::unique_ptr<SignatureChecker> signatureChecker;
-#ifdef BUILD_TESTS
-        // If the txResult has a replay result (catchup in skip mode is
-        // enabled),
-        //  we do not perform signature verification.
-        if (txResult.hasReplayTransactionResult())
-        {
-            signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
-                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
-        }
-        else
-        {
-#endif // BUILD_TESTS
-            signatureChecker = std::make_unique<SignatureChecker>(
-                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
-#ifdef BUILD_TESTS
-        }
-#endif // BUILD_TESTS
-
-        //  when applying, a failure during tx validation means that
-        //  we'll skip trying to apply operations but we'll still
-        //  process the sequence number if needed
-        std::optional<FeePair> sorobanResourceFee;
-        std::optional<SorobanNetworkConfig> sorobanConfig;
-        if (protocolVersionStartsFrom(ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION) &&
-            isSoroban())
-        {
-            sorobanConfig = app.getSorobanNetworkConfigForApply();
-            sorobanResourceFee = computePreApplySorobanResourceFee(
-                ledgerVersion, *sorobanConfig, app.getConfig());
-
-            meta.setNonRefundableResourceFee(
-                sorobanResourceFee->non_refundable_fee);
-            int64_t initialFeeRefund = declaredSorobanResourceFee() -
-                                       sorobanResourceFee->non_refundable_fee;
-            txResult.initializeRefundableFeeTracker(initialFeeRefund);
-        }
-        LedgerTxn ltxTx(ltx);
-        LedgerSnapshot lsTx(ltxTx);
-        auto cv = commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0,
-                              true, chargeFee, 0, 0, sorobanResourceFee,
-                              txResult, meta.getDiagnosticEventManager());
-        if (cv >= ValidationType::kInvalidUpdateSeqNum)
-        {
-            processSeqNum(ltxTx);
-        }
-
-        bool signaturesValid =
-            processSignatures(cv, *signatureChecker, ltxTx, txResult);
-
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
-
-        bool ok = signaturesValid && cv == ValidationType::kMaybeValid;
+        auto signatureChecker =
+            commonPreApply(app, ltx, meta, txResult, chargeFee);
+        bool ok = signatureChecker != nullptr;
         try
         {
             // This should only throw if the logging during exception

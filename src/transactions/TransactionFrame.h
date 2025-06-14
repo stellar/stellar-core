@@ -248,6 +248,22 @@ class TransactionFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
+    // preApply runs all pre-application steps that are common between
+    // parallelApply and (sequential) apply:
+    //
+    //  - building a signature checker
+    //  - calling commonValid
+    //  - calling processSeqNum
+    //  - calling processSignatures
+    //
+    // If all of this succeeds it returns a non-nullptr pointer to the
+    // signature checker, to be used elsewhere in the txn. If anything
+    // fails it returns nullptr. It does all of its work in a sub-ltx
+    // so the passed ltx is unchanged on failure.
+    std::unique_ptr<SignatureChecker> commonPreApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult, bool chargeFee) const;
+
     void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           TransactionMetaBuilder& meta,
                           MutableTransactionResultBase& resPayload,
