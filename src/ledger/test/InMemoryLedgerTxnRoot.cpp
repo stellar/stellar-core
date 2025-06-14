@@ -97,6 +97,13 @@ InMemoryLedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
     return nullptr;
 }
 
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+InMemoryLedgerTxnRoot::getNewestVersionBelowRoot(
+    InternalLedgerKey const& key) const
+{
+    return {false, nullptr};
+}
+
 uint64_t
 InMemoryLedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {

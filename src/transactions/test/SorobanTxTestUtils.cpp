@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
@@ -833,7 +834,8 @@ TestContract::Invocation::getSpec()
 }
 
 TransactionFrameBaseConstPtr
-TestContract::Invocation::createTx(TestAccount* source)
+TestContract::Invocation::createTx(TestAccount* source,
+                                   std::optional<std::string> memo)
 {
     if (mDeduplicateFootprint)
     {
@@ -842,7 +844,7 @@ TestContract::Invocation::createTx(TestAccount* source)
     auto& acc = source ? *source : mTest.getRoot();
 
     return sorobanTransactionFrameFromOps(mTest.getApp().getNetworkID(), acc,
-                                          {mOp}, {}, mSpec);
+                                          {mOp}, {}, mSpec, memo);
 }
 
 TestContract::Invocation&
@@ -1579,6 +1581,50 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
         toMuxId ? std::optional<SCMapEntry>(SCMapEntry(
                       makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)))
                 : std::nullopt);
+}
+
+// TODO:Deduplicate
+TransactionFrameBasePtr
+AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
+                                       SCAddress const& toAddr, int64_t amount)
+{
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddr;
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
+
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAcc.getPublicKey());
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
+
+    auto spec = defaultSpec();
+
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        spec = spec.extendReadOnlyFootprint({makeIssuerKey(mAsset)});
+
+        if (!(getIssuer(mAsset) == fromAcc.getPublicKey()))
+        {
+            spec = spec.extendReadWriteFootprint({fromBalanceKey});
+        }
+
+        if (toAddr.type() != SC_ADDRESS_TYPE_ACCOUNT ||
+            !(getIssuer(mAsset) == toAddr.accountId()))
+        {
+            spec = spec.extendReadWriteFootprint({toBalanceKey});
+        }
+    }
+    else
+    {
+        spec = spec.setReadWriteFootprint({fromBalanceKey, toBalanceKey});
+    }
+
+    auto invocation =
+        mContract
+            .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
+                               spec)
+            .withAuthorizedTopCall();
+    return invocation.createTx(&fromAcc);
 }
 
 bool

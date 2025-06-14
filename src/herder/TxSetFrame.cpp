@@ -547,7 +547,12 @@ buildSurgePricedSequentialPhase(
 
 std::pair<std::variant<TxFrameList, TxStageFrameList>,
           std::shared_ptr<InclusionFeeMap>>
-applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
+applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
+#ifdef BUILD_TESTS
+                  ,
+                  bool enforceTxsApplyOrder
+#endif
+)
 {
     ZoneScoped;
     auto surgePricingLaneConfig = createSurgePricingLangeConfig(phase, app);
@@ -561,10 +566,29 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
     std::variant<TxFrameList, TxStageFrameList> includedTxs;
     if (isParallelSoroban)
     {
-        includedTxs = buildSurgePricedParallelSorobanPhase(
-            txs, app.getConfig(),
-            app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-            surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+#ifdef BUILD_TESTS
+        if (enforceTxsApplyOrder)
+        {
+            TxStageFrameList frameList;
+            if (!txs.empty())
+            {
+                frameList = {{txs}};
+            }
+            includedTxs = frameList;
+
+            // soroban only has one fee lane
+            hadTxNotFittingLane.emplace_back(false);
+        }
+        else
+        {
+#endif
+            includedTxs = buildSurgePricedParallelSorobanPhase(
+                txs, app.getConfig(),
+                app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
+                surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+#ifdef BUILD_TESTS
+        }
+#endif
     }
     else
     {
@@ -816,7 +840,12 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
 #endif
         auto phaseType = static_cast<TxSetPhase>(i);
         auto [includedTxs, inclusionFeeMapBinding] =
-            applySurgePricing(phaseType, validatedTxs, app);
+            applySurgePricing(phaseType, validatedTxs, app
+#ifdef BUILD_TESTS
+                              ,
+                              skipValidation
+#endif
+            );
         auto inclusionFeeMap = inclusionFeeMapBinding;
         std::visit(
             [&validatedPhases, phaseType, inclusionFeeMap](auto&& txs) {
@@ -981,14 +1010,25 @@ makeTxSetFromTransactions(TxFrameList txs, Application& app,
     if (enforceTxsApplyOrder)
     {
         auto const& resPhases = res.second->getPhases();
-        // This only supports sequential tx sets for now.
         std::vector<TxSetPhaseFrame> overridePhases;
         for (size_t i = 0; i < resPhases.size(); ++i)
         {
-            overridePhases.emplace_back(TxSetPhaseFrame(
-                static_cast<TxSetPhase>(i), std::move(perPhaseTxs[i]),
-                std::make_shared<InclusionFeeMap>(
-                    resPhases[i].getInclusionFeeMap())));
+            if (resPhases[i].isParallel())
+            {
+                TxStageFrameList parallelStages =
+                    resPhases[i].getParallelStages();
+                overridePhases.emplace_back(TxSetPhaseFrame(
+                    static_cast<TxSetPhase>(i), std::move(parallelStages),
+                    std::make_shared<InclusionFeeMap>(
+                        resPhases[i].getInclusionFeeMap())));
+            }
+            else
+            {
+                overridePhases.emplace_back(TxSetPhaseFrame(
+                    static_cast<TxSetPhase>(i), std::move(perPhaseTxs[i]),
+                    std::make_shared<InclusionFeeMap>(
+                        resPhases[i].getInclusionFeeMap())));
+            }
         }
         res.second->mApplyOrderPhases = overridePhases;
         res.first->mApplicableTxSetOverride = std::move(res.second);

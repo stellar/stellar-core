@@ -18,7 +18,8 @@ static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
 
 struct HostFunctionMetrics;
-class ApplyHelper;
+class PreV23ApplyHelper;
+class ParallelApplyHelper;
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
@@ -53,6 +54,15 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
+    ParallelTxReturnVal doParallelApply(
+        AppConnector& app,
+        ThreadEntryMap const& entryMap, // Must not be shared between threads!
+        Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
+        Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+        SorobanMetrics& sorobanMetrics, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta) const override;
+
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
@@ -64,6 +74,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     virtual bool isSoroban() const override;
 
-    friend class ApplyHelper;
+    friend class PreV23ApplyHelper;
+    friend class ParallelApplyHelper;
 };
 }

@@ -229,7 +229,9 @@ class TestContract
 
         SorobanInvocationSpec getSpec();
 
-        TransactionFrameBaseConstPtr createTx(TestAccount* source = nullptr);
+        TransactionFrameBaseConstPtr
+        createTx(TestAccount* source = nullptr,
+                 std::optional<std::string> memo = std::nullopt);
         bool invoke(TestAccount* source = nullptr);
 
         SCVal getReturnValue() const;
@@ -375,6 +377,8 @@ class AssetContractTestClient
     int64_t getBalance(SCAddress const& addr);
     SorobanInvocationSpec defaultSpec() const;
 
+    TransactionFrameBasePtr
+    getTransferTx(TestAccount& from, SCAddress const& toAddr, int64_t amount);
     bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount);
     bool mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount);
     bool burn(TestAccount& from, int64_t amount);
