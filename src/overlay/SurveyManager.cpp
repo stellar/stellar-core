@@ -5,6 +5,7 @@
 #include "SurveyManager.h"
 #include "crypto/Curve25519.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "medida/metrics_registry.h"
@@ -78,8 +79,8 @@ SurveyManager::SurveyManager(Application& app)
     , MAX_REQUEST_LIMIT_PER_LEDGER(10)
     , mMessageLimiter(app, NUM_LEDGERS_BEFORE_IGNORE,
                       MAX_REQUEST_LIMIT_PER_LEDGER)
-    , SURVEY_THROTTLE_TIMEOUT_SEC(
-          mApp.getConfig().getExpectedLedgerCloseTime() *
+    , mSurveyThrottleTimeoutMs(
+          Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS *
           SURVEY_THROTTLE_TIMEOUT_MULT)
     , mSurveyDataManager(
           [this]() { return mApp.getClock().now(); },
@@ -110,6 +111,10 @@ SurveyManager::startSurveyReporting()
 
     mCurve25519SecretKey = curve25519RandomSecret();
     mCurve25519PublicKey = curve25519DerivePublic(mCurve25519SecretKey);
+
+    mSurveyThrottleTimeoutMs =
+        mApp.getLedgerManager().getExpectedLedgerCloseTime(mApp.getConfig()) *
+        SURVEY_THROTTLE_TIMEOUT_MULT;
 
     // starts timer
     topOffRequests();
@@ -719,7 +724,7 @@ SurveyManager::topOffRequests()
     };
 
     // schedule next top off
-    mSurveyThrottleTimer->expires_from_now(SURVEY_THROTTLE_TIMEOUT_SEC);
+    mSurveyThrottleTimer->expires_from_now(mSurveyThrottleTimeoutMs);
     mSurveyThrottleTimer->async_wait(handler, &VirtualTimer::onFailureNoop);
 }
 

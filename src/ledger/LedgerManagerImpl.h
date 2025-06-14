@@ -201,6 +201,10 @@ class LedgerManagerImpl : public LedgerManager
     void
     advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
 
+    // Helper function to conditionally load Soroban network config based on
+    // protocol version. Populates both the apply state and the LCL state.
+    void maybeLoadSorobanNetworkConfig(uint32_t ledgerVersion);
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -247,10 +251,13 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() override;
+    SorobanNetworkConfig const&
+    getLastClosedSorobanNetworkConfig() const override;
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
 
     bool hasLastClosedSorobanNetworkConfig() const override;
+    std::chrono::milliseconds
+    getExpectedLedgerCloseTime(Config const& config) const override;
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;

@@ -300,7 +300,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                             return simulation->haveAllExternalized(numLedgers,
                                                                    1);
                         },
-                        numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                        numLedgers * simulation->getExpectedLedgerCloseTime(),
                         false);
 
                     // Ensure old transaction gets re-broadcasted
