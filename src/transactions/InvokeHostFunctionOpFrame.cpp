@@ -257,7 +257,8 @@ class ApplyHelper
     bool
     handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
                         bool isReadOnly, uint32_t restoredLiveUntilLedger,
-                        bool isHotArchiveEntry, uint32_t index)
+                        bool isHotArchiveEntry, uint32_t index,
+                        rust::Vec<uint32_t>& autoRestoredRwEntryIndices)
     {
         // autorestore support started in p23. Entry must be in the read write
         // footprint and must be marked as in the archivedSorobanEntries vector.
@@ -308,7 +309,7 @@ class ApplyHelper
             mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
             auto ttlBuf = toCxxBuf(ttlEntry.current().data.ttl());
             mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
-
+            autoRestoredRwEntryIndices.push_back(index);
             return true;
         }
 
@@ -382,7 +383,8 @@ class ApplyHelper
     // result code and diagnostic events. Returns true
     // if no failure occurred.
     bool
-    addReads(xdr::xvector<LedgerKey> const& keys, bool isReadOnly)
+    addReads(xdr::xvector<LedgerKey> const& keys, bool isReadOnly,
+             rust::Vec<uint32_t>& autoRestoredRwEntryIndices)
     {
         auto ledgerSeq = mLtx.loadHeader().current().ledgerSeq;
         auto ledgerVersion = mLtx.loadHeader().current().ledgerVersion;
@@ -427,7 +429,8 @@ class ApplyHelper
                             if (!handleArchivedEntry(
                                     lk, leLtxe.current(), isReadOnly,
                                     restoredLiveUntilLedger,
-                                    /*isHotArchiveEntry=*/false, i))
+                                    /*isHotArchiveEntry=*/false, i,
+                                    autoRestoredRwEntryIndices))
                             {
                                 return false;
                             }
@@ -459,7 +462,8 @@ class ApplyHelper
                         if (!handleArchivedEntry(
                                 lk, archiveEntry->archivedEntry(), isReadOnly,
                                 restoredLiveUntilLedger,
-                                /*isHotArchiveEntry=*/true, i))
+                                /*isHotArchiveEntry=*/true, i,
+                                autoRestoredRwEntryIndices))
                         {
                             return false;
                         }
@@ -585,14 +589,16 @@ class ApplyHelper
         ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
         auto timeScope = mMetrics.getExecTimer();
         auto const& footprint = mResources.footprint;
-
-        if (!addReads(footprint.readOnly, /*isReadOnly=*/true))
+        rust::Vec<uint32_t> autoRestoredRwEntryIndices;
+        if (!addReads(footprint.readOnly, /*isReadOnly=*/true,
+                      autoRestoredRwEntryIndices))
         {
             // Error code set in addReads
             return false;
         }
 
-        if (!addReads(footprint.readWrite, /*isReadOnly=*/false))
+        if (!addReads(footprint.readWrite, /*isReadOnly=*/false,
+                      autoRestoredRwEntryIndices))
         {
             // Error code set in addReads
             return false;
@@ -619,7 +625,7 @@ class ApplyHelper
                 mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
                 mResources.instructions,
                 toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
-                toCxxBuf(mResources), toCxxBuf(mOpFrame.getResourcesExt()),
+                toCxxBuf(mResources), autoRestoredRwEntryIndices,
                 toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
                 getLedgerInfo(mLtx, mApp, mSorobanConfig), mLedgerEntryCxxBufs,
                 mTtlEntryCxxBufs, basePrngSeedBuf,
