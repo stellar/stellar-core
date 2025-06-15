@@ -460,26 +460,26 @@ class ApplyHelperBase
         return true;
     }
 
-  public:
     bool
-    apply()
+    addFootprint()
     {
-        ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
-        auto timeScope = mMetrics.getExecTimer();
-        auto const& footprint = mResources.footprint;
-
-        if (!addReads(footprint.readOnly, /*isReadOnly=*/true))
+        if (!addReads(mResources.footprint.readOnly, /*isReadOnly=*/true))
         {
             // Error code set in addReads
             return false;
         }
 
-        if (!addReads(footprint.readWrite, /*isReadOnly=*/false))
+        if (!addReads(mResources.footprint.readWrite, /*isReadOnly=*/false))
         {
             // Error code set in addReads
             return false;
         }
+        return true;
+    }
 
+    bool
+    invokeHostFunction(InvokeHostFunctionOutput& out)
+    {
         rust::Vec<CxxBuf> authEntryCxxBufs;
         authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
         for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
@@ -487,7 +487,6 @@ class ApplyHelperBase
             authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
         }
 
-        InvokeHostFunctionOutput out{};
         out.success = false;
         try
         {
@@ -562,6 +561,12 @@ class ApplyHelperBase
             return false;
         }
 
+        return true;
+    }
+
+    bool
+    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    {
         // Create or update every entry returned.
         UnorderedSet<LedgerKey> createdAndModifiedKeys;
         UnorderedSet<LedgerKey> createdKeys;
@@ -630,7 +635,7 @@ class ApplyHelperBase
         // NB: The entries that haven't been touched are passed through
         // from host, so this should never result in removing an entry
         // that hasn't been removed by host explicitly.
-        for (auto const& lk : footprint.readWrite)
+        for (auto const& lk : mResources.footprint.readWrite)
         {
             if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
             {
@@ -644,10 +649,15 @@ class ApplyHelperBase
                 }
             }
         }
+        return true;
+    }
 
+    bool
+    collectEvents(InvokeHostFunctionOutput const& out,
+                  InvokeHostFunctionSuccessPreImage& success)
+    {
         // We collect the events into a preimage that will be hashed
         // into the ledger.
-        InvokeHostFunctionSuccessPreImage success{};
         success.events.reserve(out.contract_events.size());
         for (auto const& buf : out.contract_events)
         {
@@ -691,7 +701,12 @@ class ApplyHelperBase
                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
+        return true;
+    }
 
+    bool
+    consumeRefundableResources(InvokeHostFunctionOutput const& out)
+    {
         if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
                 mMetrics.mEmitEventByte, out.rent_fee, getLedgerVersion(),
                 mSorobanConfig, mAppConfig, mOpFrame.mParentTx,
@@ -701,7 +716,13 @@ class ApplyHelperBase
                 INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
             return false;
         }
+        return true;
+    }
 
+    void
+    finalizeSuccess(InvokeHostFunctionOutput const& out,
+                    InvokeHostFunctionSuccessPreImage& success)
+    {
         xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
         mOpFrame.innerResult(mRes).success() = xdrSha256(success);
@@ -709,6 +730,44 @@ class ApplyHelperBase
         mOpMeta.getEventManager().setEvents(std::move(success.events));
         mOpMeta.setSorobanReturnValue(success.returnValue);
         mMetrics.mSuccess = true;
+    }
+
+  public:
+    bool
+    apply()
+    {
+        ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
+        auto timeScope = mMetrics.getExecTimer();
+
+        if (!addFootprint())
+        {
+            return false;
+        }
+
+        InvokeHostFunctionOutput out;
+        if (!invokeHostFunction(out))
+        {
+            return false;
+        }
+
+        if (!recordStorageChanges(out))
+        {
+            return false;
+        }
+
+        InvokeHostFunctionSuccessPreImage success;
+        if (!collectEvents(out, success))
+        {
+            return false;
+        }
+
+        if (!consumeRefundableResources(out))
+        {
+            return false;
+        }
+
+        finalizeSuccess(out, success);
+
         return true;
     }
 };
