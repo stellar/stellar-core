@@ -232,12 +232,10 @@ struct HostFunctionMetrics
     }
 };
 
-// Helper class for handling state in doApply. Only used prio to protocol 23
-class PreV23ApplyHelper
+class ApplyHelperBase
 {
-  private:
+  protected:
     AppConnector& mApp;
-    AbstractLedgerTxn& mLtx;
     OperationResult& mRes;
     std::optional<RefundableFeeTracker>& mRefundableFeeTracker;
     OperationMetaBuilder& mOpMeta;
@@ -254,28 +252,47 @@ class PreV23ApplyHelper
     SearchableHotArchiveSnapshotConstPtr mHotArchive;
     DiagnosticEventManager& mDiagnosticEvents;
 
-    void
-    handleArchivedEntry(LedgerKey const& lk)
+    ApplyHelperBase(AppConnector& app, Hash const& sorobanBasePrngSeed,
+                    OperationResult& res,
+                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                    OperationMetaBuilder& opMeta,
+                    InvokeHostFunctionOpFrame const& opFrame)
+        : mApp(app)
+        , mRes(res)
+        , mRefundableFeeTracker(refundableFeeTracker)
+        , mOpMeta(opMeta)
+        , mOpFrame(opFrame)
+        , mSorobanBasePrngSeed(sorobanBasePrngSeed)
+        , mResources(mOpFrame.mParentTx.sorobanResources())
+        , mSorobanConfig(app.getSorobanNetworkConfigForApply())
+        , mAppConfig(app.getConfig())
+        , mMetrics(app.getSorobanMetrics())
+        , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
+        , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
-        // Before p23, archived entries are never valid
-        if (lk.type() == CONTRACT_CODE)
-        {
-            mDiagnosticEvents.pushError(
-                SCE_VALUE, SCEC_INVALID_INPUT,
-                "trying to access an archived contract code entry",
-                {makeBytesSCVal(lk.contractCode().hash)});
-        }
-        else if (lk.type() == CONTRACT_DATA)
-        {
-            mDiagnosticEvents.pushError(
-                SCE_VALUE, SCEC_INVALID_INPUT,
-                "trying to access an archived contract data entry",
-                {makeAddressSCVal(lk.contractData().contract),
-                 lk.contractData().key});
-        }
+        mMetrics.mDeclaredCpuInsn = mResources.instructions;
+        auto const& footprint = mResources.footprint;
+        auto footprintLength =
+            footprint.readOnly.size() + footprint.readWrite.size();
 
-        mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+        // Get the entries for the footprint
+        mLedgerEntryCxxBufs.reserve(footprintLength);
+        mTtlEntryCxxBufs.reserve(footprintLength);
     }
+
+    virtual std::optional<LedgerEntry>
+    getLedgerEntryOpt(LedgerKey const& key) = 0;
+    virtual uint32_t getLedgerVersion() = 0;
+    virtual uint32_t getLedgerSeq() = 0;
+
+    // Helper called on all archived keys in the footprint. Returns false if
+    // the operation should fail and populates result code and diagnostic
+    // events. Returns true if no failure occurred.
+    virtual bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                                     bool isReadOnly,
+                                     uint32_t restoredLiveUntilLedger,
+                                     bool isHotArchiveEntry,
+                                     uint32_t index) = 0;
 
     // Helper to meter disk read resources and validate
     // resource usage. Returns false if the operation
@@ -308,16 +325,17 @@ class PreV23ApplyHelper
     // result code and diagnostic events. Returns true
     // if no failure occurred.
     bool
-    addReads(xdr::xvector<LedgerKey> const& keys, bool isReadOnly)
+    addReads(xdr::xvector<LedgerKey> const& footprintKeys, bool isReadOnly)
     {
-        auto ledgerSeq = mLtx.loadHeader().current().ledgerSeq;
-        auto ledgerVersion = mLtx.loadHeader().current().ledgerVersion;
+        auto ledgerSeq = getLedgerSeq();
+        auto ledgerVersion = getLedgerVersion();
         auto restoredLiveUntilLedger =
             ledgerSeq +
             mSorobanConfig.stateArchivalSettings().minPersistentTTL - 1;
 
-        for (auto const& lk : keys)
+        for (size_t i = 0; i < footprintKeys.size(); ++i)
         {
+            auto const& lk = footprintKeys[i];
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
             uint32_t entrySize = 0u;
             std::optional<TTLEntry> ttlEntry;
@@ -329,16 +347,9 @@ class PreV23ApplyHelper
                 auto ttlKey = getTTLKey(lk);
 
                 // handleArchiveEntry may need to load the TTL key to write the
-                // restored TTL, so make sure ttlLtxe destructs before calling
-                // handleArchiveEntry
-                std::optional<LedgerEntry> ttlEntryOp;
-                {
-                    auto ttlLtxe = mLtx.loadWithoutRecord(ttlKey);
-                    if (ttlLtxe)
-                    {
-                        ttlEntryOp = ttlLtxe.current();
-                    }
-                }
+                // restored TTL, so make sure any TTL ltxe destructs before
+                // calling handleArchiveEntry
+                auto ttlEntryOp = getLedgerEntryOpt(ttlKey);
 
                 if (ttlEntryOp)
                 {
@@ -348,9 +359,16 @@ class PreV23ApplyHelper
                         // if the key did not exist
                         if (!isTemporaryEntry(lk))
                         {
-                            auto leLtxe = mLtx.loadWithoutRecord(lk);
-                            handleArchivedEntry(lk);
-                            return false;
+                            auto entryOpt = getLedgerEntryOpt(lk);
+                            releaseAssertOrThrow(entryOpt);
+                            if (!handleArchivedEntry(
+                                    lk, *entryOpt, isReadOnly,
+                                    restoredLiveUntilLedger,
+                                    /*isHotArchiveEntry=*/false, i))
+                            {
+                                return false;
+                            }
+                            continue;
                         }
                     }
                     else
@@ -359,14 +377,39 @@ class PreV23ApplyHelper
                         ttlEntry = ttlEntryOp->data.ttl();
                     }
                 }
+                // If ttlEntryOp doesn't exist, this is a new Soroban entry
+                // Starting in protocol 23, we must check the Hot Archive for
+                // new keys. If a new key is actually archived, fail the op.
+                else if (protocolVersionStartsFrom(
+                             ledgerVersion,
+                             PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
+                         isPersistentEntry(lk))
+                {
+                    auto archiveEntry = mHotArchive->load(lk);
+                    if (archiveEntry)
+                    {
+                        releaseAssertOrThrow(
+                            archiveEntry->type() ==
+                            HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+                        if (!handleArchivedEntry(
+                                lk, archiveEntry->archivedEntry(), isReadOnly,
+                                restoredLiveUntilLedger,
+                                /*isHotArchiveEntry=*/true, i))
+                        {
+                            return false;
+                        }
+
+                        continue;
+                    }
+                }
             }
 
             if (!isSorobanEntry(lk) || sorobanEntryLive)
             {
-                auto ltxe = mLtx.loadWithoutRecord(lk);
-                if (ltxe)
+                auto entryOpt = getLedgerEntryOpt(lk);
+                if (entryOpt)
                 {
-                    auto leBuf = toCxxBuf(ltxe.current());
+                    auto leBuf = toCxxBuf(*entryOpt);
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
 
                     // For entry types that don't have an ttlEntry (i.e.
@@ -396,21 +439,83 @@ class PreV23ApplyHelper
                 return false;
             }
 
-            // Prior to protocol 23,
-            // all entries are metered.
-            if (!meterDiskReadResource(lk, keySize, entrySize))
+            // Before protocol 23 we always metered disk reads. As of p23 we
+            // only do this for classic entries -- soroban entries are in memory
+            // unless read from hot archive, and the hot archive restore path
+            // above meters disk reads.
+            if (!isSorobanEntry(lk) ||
+                protocolVersionIsBefore(
+                    ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
             {
-                return false;
+                if (!meterDiskReadResource(lk, keySize, entrySize))
+                {
+                    return false;
+                }
             }
-
             // Still mark the readEntry for in-memory soroban entries for
             // diagnostic purposes
-            else if (isSorobanEntry(lk))
+            if (isSorobanEntry(lk))
             {
                 mMetrics.mReadEntry++;
             }
         }
         return true;
+    }
+};
+
+// Helper class for handling state in doApply. Only used prio to protocol 23
+class PreV23ApplyHelper : public ApplyHelperBase
+{
+  private:
+    AbstractLedgerTxn& mLtx;
+
+    bool
+    handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                        bool isReadOnly, uint32_t restoredLiveUntilLedger,
+                        bool isHotArchiveEntry, uint32_t index) override
+    {
+        // Before p23, archived entries are never valid
+        if (lk.type() == CONTRACT_CODE)
+        {
+            mDiagnosticEvents.pushError(
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "trying to access an archived contract code entry",
+                {makeBytesSCVal(lk.contractCode().hash)});
+        }
+        else if (lk.type() == CONTRACT_DATA)
+        {
+            mDiagnosticEvents.pushError(
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "trying to access an archived contract data entry",
+                {makeAddressSCVal(lk.contractData().contract),
+                 lk.contractData().key});
+        }
+
+        mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+        return false;
+    }
+
+    std::optional<LedgerEntry>
+    getLedgerEntryOpt(LedgerKey const& key) override
+    {
+        auto ltxe = mLtx.loadWithoutRecord(key);
+        if (ltxe)
+        {
+            return ltxe.current();
+        }
+        return std::nullopt;
+    }
+
+    uint32_t
+    getLedgerSeq() override
+    {
+        return mLtx.loadHeader().current().ledgerSeq;
+    }
+
+    uint32_t
+    getLedgerVersion() override
+    {
+        return mLtx.loadHeader().current().ledgerVersion;
     }
 
   public:
@@ -419,29 +524,10 @@ class PreV23ApplyHelper
                       std::optional<RefundableFeeTracker>& refundableFeeTracker,
                       OperationMetaBuilder& opMeta,
                       InvokeHostFunctionOpFrame const& opFrame)
-        : mApp(app)
+        : ApplyHelperBase(app, sorobanBasePrngSeed, res, refundableFeeTracker,
+                          opMeta, opFrame)
         , mLtx(ltx)
-        , mRes(res)
-        , mRefundableFeeTracker(refundableFeeTracker)
-        , mOpMeta(opMeta)
-        , mOpFrame(opFrame)
-        , mSorobanBasePrngSeed(sorobanBasePrngSeed)
-        , mResources(mOpFrame.mParentTx.sorobanResources())
-        , mSorobanConfig(app.getSorobanNetworkConfigForApply())
-        , mAppConfig(app.getConfig())
-        , mMetrics(app.getSorobanMetrics())
-        , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
-        , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
-        mMetrics.mDeclaredCpuInsn = mResources.instructions;
-
-        auto const& footprint = mResources.footprint;
-        auto footprintLength =
-            footprint.readOnly.size() + footprint.readWrite.size();
-
-        // Get the entries for the footprint
-        mLedgerEntryCxxBufs.reserve(footprintLength);
-        mTtlEntryCxxBufs.reserve(footprintLength);
     }
 
     bool
@@ -709,28 +795,16 @@ class PreV23ApplyHelper
     }
 };
 
-class ParallelApplyHelper
+class ParallelApplyHelper : public ApplyHelperBase
 {
   private:
-    AppConnector& mApp;
     ThreadEntryMap const& mEntryMap;
     ParallelLedgerInfo const& mLedgerInfo;
-    OperationResult& mRes;
-    std::optional<RefundableFeeTracker>& mRefundableFeeTracker;
-    OperationMetaBuilder& mOpMeta;
-    InvokeHostFunctionOpFrame const& mOpFrame;
-    Hash const& mSorobanBasePrngSeed;
 
-    SorobanResources const& mResources;
-    SorobanNetworkConfig const& mSorobanConfig;
-    Config const& mAppConfig;
-
-    rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
-    rust::Vec<CxxBuf> mTtlEntryCxxBufs;
-    HostFunctionMetrics mMetrics;
-    SearchableHotArchiveSnapshotConstPtr mHotArchive;
     SearchableSnapshotConstPtr mLiveSnapshot;
-    DiagnosticEventManager& mDiagnosticEvents;
+
+    OpModifiedEntryMap mOpEntryMap;
+    RestoredKeys mRestoredKeys;
 
     // Bitmap to track which entries in the read-write footprint are
     // marked for autorestore based on readWrite footprint ordering. If
@@ -743,10 +817,8 @@ class ParallelApplyHelper
     // events. Returns true if no failure occurred.
     bool
     handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
-                        OpModifiedEntryMap& opEntryMap,
-                        RestoredKeys& restoredKeys, bool isReadOnly,
-                        uint32_t restoredLiveUntilLedger,
-                        bool isHotArchiveEntry, uint32_t index)
+                        bool isReadOnly, uint32_t restoredLiveUntilLedger,
+                        bool isHotArchiveEntry, uint32_t index) override
     {
         // autorestore support started in p23. Entry must be in the read write
         // footprint and must be marked as in the archivedSorobanEntries vector.
@@ -781,17 +853,17 @@ class ParallelApplyHelper
             LedgerEntry ttlEntry;
             if (isHotArchiveEntry)
             {
-                opEntryMap.emplace(lk, le);
+                mOpEntryMap.emplace(lk, le);
 
                 ttlEntry.data.type(TTL);
                 ttlEntry.data.ttl().liveUntilLedgerSeq =
                     restoredLiveUntilLedger;
                 ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
 
-                opEntryMap.emplace(ttlKey, ttlEntry);
+                mOpEntryMap.emplace(ttlKey, ttlEntry);
 
-                restoredKeys.hotArchive.emplace(lk, le);
-                restoredKeys.hotArchive.emplace(ttlKey, ttlEntry);
+                mRestoredKeys.hotArchive.emplace(lk, le);
+                mRestoredKeys.hotArchive.emplace(ttlKey, ttlEntry);
             }
             else
             {
@@ -803,10 +875,10 @@ class ParallelApplyHelper
                 ttlEntry = *ttlLeOpt;
                 ttlEntry.data.ttl().liveUntilLedgerSeq =
                     restoredLiveUntilLedger;
-                opEntryMap.emplace(ttlKey, ttlEntry);
+                mOpEntryMap.emplace(ttlKey, ttlEntry);
 
-                restoredKeys.liveBucketList.emplace(lk, le);
-                restoredKeys.liveBucketList.emplace(ttlKey, ttlEntry);
+                mRestoredKeys.liveBucketList.emplace(lk, le);
+                mRestoredKeys.liveBucketList.emplace(ttlKey, ttlEntry);
             }
 
             // Finally, add the entries to the Cxx buffer as if they were live.
@@ -837,32 +909,6 @@ class ParallelApplyHelper
         return false;
     }
 
-    // Helper to meter disk read resources and validate
-    // resource usage. Returns false if the operation
-    // should fail and populates result code and
-    // diagnostic events.
-    bool
-    meterDiskReadResource(LedgerKey const& lk, uint32_t keySize,
-                          uint32_t entrySize)
-    {
-        mMetrics.noteDiskReadEntry(isContractCodeEntry(lk), keySize, entrySize);
-        if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
-        {
-            mDiagnosticEvents.pushError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                "operation byte-read resources "
-                "exceeds amount specified",
-                {makeU64SCVal(mMetrics.mLedgerReadByte),
-                 makeU64SCVal(mResources.diskReadBytes)});
-
-            mOpFrame.innerResult(mRes).code(
-                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            return false;
-        }
-
-        return true;
-    }
-
     // Returns true if the given key is marked for
     // autorestore, false otherwise. Assumes that lk is
     // a read-write key.
@@ -881,140 +927,22 @@ class ParallelApplyHelper
         return mAutorestoredEntries.at(index);
     }
 
-    // Checks and meters the given keys. Returns false
-    // if the operation should fail and populates
-    // result code and diagnostic events. Returns true
-    // if no failure occurred.
-    bool
-    addReads(xdr::xvector<LedgerKey> const& footprintKeys,
-             OpModifiedEntryMap& opEntryMap, RestoredKeys& restoredKeys,
-             bool isReadOnly)
+    std::optional<LedgerEntry>
+    getLedgerEntryOpt(LedgerKey const& key) override
     {
-        auto ledgerSeq = mLedgerInfo.getLedgerSeq();
-        auto ledgerVersion = mLedgerInfo.getLedgerVersion();
-        auto restoredLiveUntilLedger =
-            ledgerSeq +
-            mSorobanConfig.stateArchivalSettings().minPersistentTTL - 1;
+        return getLiveEntry(key, mLiveSnapshot, mEntryMap);
+    }
 
-        for (size_t i = 0; i < footprintKeys.size(); ++i)
-        {
-            auto const& lk = footprintKeys[i];
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
-            uint32_t entrySize = 0u;
-            std::optional<TTLEntry> ttlEntry;
-            bool sorobanEntryLive = false;
+    uint32_t
+    getLedgerSeq() override
+    {
+        return mLedgerInfo.getLedgerSeq();
+    }
 
-            // For soroban entries, check if the entry is expired before loading
-            if (isSorobanEntry(lk))
-            {
-                auto ttlKey = getTTLKey(lk);
-                auto ttlEntryOpt =
-                    getLiveEntry(ttlKey, mLiveSnapshot, mEntryMap);
-                if (ttlEntryOpt)
-                {
-                    if (!isLive(ttlEntryOpt.value(), ledgerSeq))
-                    {
-                        // For temporary entries, treat the expired entry as
-                        // if the key did not exist
-                        if (!isTemporaryEntry(lk))
-                        {
-                            auto entryOpt =
-                                getLiveEntry(lk, mLiveSnapshot, mEntryMap);
-                            releaseAssertOrThrow(entryOpt);
-                            if (!handleArchivedEntry(
-                                    lk, *entryOpt, opEntryMap, restoredKeys,
-                                    isReadOnly, restoredLiveUntilLedger,
-                                    /*isHotArchiveEntry=*/false, i))
-                            {
-                                return false;
-                            }
-
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        sorobanEntryLive = true;
-                        ttlEntry = ttlEntryOpt->data.ttl();
-                    }
-                }
-                // If ttlLtxe doesn't exist, this is a new Soroban entry
-                // Starting in protocol 23, we must check the Hot Archive for
-                // new keys. If a new key is actually archived, fail the op.
-                else if (isPersistentEntry(lk))
-                {
-                    auto archiveEntry = mHotArchive->load(lk);
-                    if (archiveEntry)
-                    {
-                        releaseAssertOrThrow(
-                            archiveEntry->type() ==
-                            HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
-                        if (!handleArchivedEntry(
-                                lk, archiveEntry->archivedEntry(), opEntryMap,
-                                restoredKeys, isReadOnly,
-                                restoredLiveUntilLedger,
-                                /*isHotArchiveEntry=*/true, i))
-                        {
-                            return false;
-                        }
-
-                        continue;
-                    }
-                }
-            }
-
-            if (!isSorobanEntry(lk) || sorobanEntryLive)
-            {
-                auto entryOpt = getLiveEntry(lk, mLiveSnapshot, mEntryMap);
-                if (entryOpt)
-                {
-                    auto leBuf = toCxxBuf(*entryOpt);
-                    entrySize = static_cast<uint32_t>(leBuf.data->size());
-
-                    // For entry types that don't have an ttlEntry (i.e.
-                    // Accounts), the rust host expects an "empty" CxxBuf such
-                    // that the buffer has a non-null pointer that points to an
-                    // empty byte vector
-                    auto ttlBuf =
-                        ttlEntry
-                            ? toCxxBuf(*ttlEntry)
-                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
-
-                    mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
-                    mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
-                }
-                else if (isSorobanEntry(lk))
-                {
-                    releaseAssertOrThrow(!ttlEntry);
-                }
-            }
-
-            if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
-                                             mAppConfig, mOpFrame.mParentTx,
-                                             mDiagnosticEvents))
-            {
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            // Archived entries are metered already via handleArchivedEntry.
-            // Here, we only need to meter classic reads.
-            if (!isSorobanEntry(lk))
-            {
-                if (!meterDiskReadResource(lk, keySize, entrySize))
-                {
-                    return false;
-                }
-            }
-            // Still mark the readEntry for in-memory soroban entries for
-            // diagnostic purposes
-            else if (isSorobanEntry(lk))
-            {
-                mMetrics.mReadEntry++;
-            }
-        }
-        return true;
+    uint32_t
+    getLedgerVersion() override
+    {
+        return mLedgerInfo.getLedgerVersion();
     }
 
   public:
@@ -1024,32 +952,12 @@ class ParallelApplyHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
-        : mApp(app)
+        : ApplyHelperBase(app, sorobanBasePrngSeed, res, refundableFeeTracker,
+                          opMeta, opFrame)
         , mEntryMap(entryMap)
         , mLedgerInfo(ledgerInfo)
-        , mRes(res)
-        , mRefundableFeeTracker(refundableFeeTracker)
-        , mOpMeta(opMeta)
-        , mOpFrame(opFrame)
-        , mSorobanBasePrngSeed(sorobanBasePrngSeed)
-        , mResources(mOpFrame.mParentTx.sorobanResources())
-        , mSorobanConfig(app.getSorobanNetworkConfigForApply())
-        , mAppConfig(app.getConfig())
-        , mMetrics(app.getSorobanMetrics())
-        , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
         , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
-        , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
-        mMetrics.mDeclaredCpuInsn = mResources.instructions;
-
-        auto const& footprint = mResources.footprint;
-        auto footprintLength =
-            footprint.readOnly.size() + footprint.readWrite.size();
-
-        // Get the entries for the footprint
-        mLedgerEntryCxxBufs.reserve(footprintLength);
-        mTtlEntryCxxBufs.reserve(footprintLength);
-
         // Initialize the autorestore lookup vector
         auto const& resourceExt = mOpFrame.getResourcesExt();
         auto const& rwFootprint = mResources.footprint.readWrite;
@@ -1080,18 +988,14 @@ class ParallelApplyHelper
         auto timeScope = mMetrics.getExecTimer();
         auto const& footprint = mResources.footprint;
 
-        // Keep track of LedgerEntry updates we need to make
-        OpModifiedEntryMap opEntryMap;
-        RestoredKeys restoredKeys;
-
-        if (!addReads(footprint.readOnly, opEntryMap, restoredKeys,
+        if (!addReads(footprint.readOnly,
                       /*isReadOnly=*/true))
         {
             // Error code set in addReads
             return {false, {}};
         }
 
-        if (!addReads(footprint.readWrite, opEntryMap, restoredKeys,
+        if (!addReads(footprint.readWrite,
                       /*isReadOnly=*/false))
         {
             // Error code set in addReads
@@ -1220,7 +1124,7 @@ class ParallelApplyHelper
                 }
             }
 
-            auto opEntryIter = opEntryMap.emplace(lk, le);
+            auto opEntryIter = mOpEntryMap.emplace(lk, le);
             // addReads can add restored entries to opEntryMap, so check if
             // we need to update the entry.
             if (opEntryIter.second == false)
@@ -1261,14 +1165,14 @@ class ParallelApplyHelper
                 if (getLiveEntry(lk, mLiveSnapshot, mEntryMap))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));
-                    opEntryMap.emplace(lk, std::nullopt);
+                    mOpEntryMap.emplace(lk, std::nullopt);
 
                     // Also delete associated ttlEntry
                     auto ttlLK = getTTLKey(lk);
 
                     releaseAssertOrThrow(
                         getLiveEntry(ttlLK, mLiveSnapshot, mEntryMap));
-                    opEntryMap.emplace(ttlLK, std::nullopt);
+                    mOpEntryMap.emplace(ttlLK, std::nullopt);
                 }
             }
         }
@@ -1338,7 +1242,7 @@ class ParallelApplyHelper
         mOpMeta.setSorobanReturnValue(success.returnValue);
         mMetrics.mSuccess = true;
 
-        return {true, std::move(opEntryMap), std::move(restoredKeys)};
+        return {true, std::move(mOpEntryMap), std::move(mRestoredKeys)};
     }
 };
 

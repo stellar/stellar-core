@@ -18,6 +18,7 @@ static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
 
 struct HostFunctionMetrics;
+class ApplyHelperBase;
 class PreV23ApplyHelper;
 class ParallelApplyHelper;
 
@@ -74,6 +75,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     virtual bool isSoroban() const override;
 
+    friend class ApplyHelperBase;
     friend class PreV23ApplyHelper;
     friend class ParallelApplyHelper;
 };
