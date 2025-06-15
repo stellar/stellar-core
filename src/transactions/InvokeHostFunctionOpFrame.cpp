@@ -68,16 +68,6 @@ getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
     return info;
 }
 
-CxxLedgerInfo
-getLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
-              ParallelLedgerInfo const& parallelLedgerInfo)
-{
-    return getLedgerInfo(
-        sorobanConfig, parallelLedgerInfo.getLedgerVersion(),
-        parallelLedgerInfo.getLedgerSeq(), parallelLedgerInfo.getBaseReserve(),
-        parallelLedgerInfo.getCloseTime(), parallelLedgerInfo.getNetworkID());
-}
-
 DiagnosticEvent
 metricsEvent(bool success, std::string&& topic, uint64_t value)
 {
@@ -284,6 +274,14 @@ class ApplyHelperBase
     getLedgerEntryOpt(LedgerKey const& key) = 0;
     virtual uint32_t getLedgerVersion() = 0;
     virtual uint32_t getLedgerSeq() = 0;
+    virtual CxxLedgerInfo getLedgerInfo() = 0;
+
+    // upsert returns true if the entry was created, false if it was updated.
+    virtual bool upsertLedgerEntry(LedgerKey const& key,
+                                   LedgerEntry const& entry) = 0;
+
+    // erase returns true if the entry was erased, false if it wasn't present.
+    virtual bool eraseLedgerEntry(LedgerKey const& key) = 0;
 
     // Helper called on all archived keys in the footprint. Returns false if
     // the operation should fail and populates result code and diagnostic
@@ -461,75 +459,8 @@ class ApplyHelperBase
         }
         return true;
     }
-};
-
-// Helper class for handling state in doApply. Only used prio to protocol 23
-class PreV23ApplyHelper : public ApplyHelperBase
-{
-  private:
-    AbstractLedgerTxn& mLtx;
-
-    bool
-    handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
-                        bool isReadOnly, uint32_t restoredLiveUntilLedger,
-                        bool isHotArchiveEntry, uint32_t index) override
-    {
-        // Before p23, archived entries are never valid
-        if (lk.type() == CONTRACT_CODE)
-        {
-            mDiagnosticEvents.pushError(
-                SCE_VALUE, SCEC_INVALID_INPUT,
-                "trying to access an archived contract code entry",
-                {makeBytesSCVal(lk.contractCode().hash)});
-        }
-        else if (lk.type() == CONTRACT_DATA)
-        {
-            mDiagnosticEvents.pushError(
-                SCE_VALUE, SCEC_INVALID_INPUT,
-                "trying to access an archived contract data entry",
-                {makeAddressSCVal(lk.contractData().contract),
-                 lk.contractData().key});
-        }
-
-        mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
-        return false;
-    }
-
-    std::optional<LedgerEntry>
-    getLedgerEntryOpt(LedgerKey const& key) override
-    {
-        auto ltxe = mLtx.loadWithoutRecord(key);
-        if (ltxe)
-        {
-            return ltxe.current();
-        }
-        return std::nullopt;
-    }
-
-    uint32_t
-    getLedgerSeq() override
-    {
-        return mLtx.loadHeader().current().ledgerSeq;
-    }
-
-    uint32_t
-    getLedgerVersion() override
-    {
-        return mLtx.loadHeader().current().ledgerVersion;
-    }
 
   public:
-    PreV23ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,
-                      Hash const& sorobanBasePrngSeed, OperationResult& res,
-                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta,
-                      InvokeHostFunctionOpFrame const& opFrame)
-        : ApplyHelperBase(app, sorobanBasePrngSeed, res, refundableFeeTracker,
-                          opMeta, opFrame)
-        , mLtx(ltx)
-    {
-    }
-
     bool
     apply()
     {
@@ -566,7 +497,6 @@ class PreV23ApplyHelper : public ApplyHelperBase
                                          mSorobanBasePrngSeed.end());
             auto moduleCache = mApp.getModuleCache();
 
-            auto const& lh = mLtx.loadHeader().current();
             out = rust_bridge::invoke_host_function(
                 mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
                 mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
@@ -574,10 +504,8 @@ class PreV23ApplyHelper : public ApplyHelperBase
                 toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
                 toCxxBuf(mResources), toCxxBuf(mOpFrame.getResourcesExt()),
                 toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
-                getLedgerInfo(mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq,
-                              lh.baseReserve, lh.scpValue.closeTime,
-                              mApp.getNetworkID()),
-                mLedgerEntryCxxBufs, mTtlEntryCxxBufs, basePrngSeedBuf,
+                getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
+                basePrngSeedBuf,
                 mSorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
             mMetrics.mCpuInsn = out.cpu_insns;
             mMetrics.mMemByte = out.mem_bytes;
@@ -676,14 +604,8 @@ class PreV23ApplyHelper : public ApplyHelperBase
                 }
             }
 
-            auto ltxe = mLtx.load(lk);
-            if (ltxe)
+            if (upsertLedgerEntry(lk, le))
             {
-                ltxe.current() = le;
-            }
-            else
-            {
-                mLtx.create(le);
                 createdKeys.insert(lk);
             }
         }
@@ -712,17 +634,13 @@ class PreV23ApplyHelper : public ApplyHelperBase
         {
             if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
             {
-                auto ltxe = mLtx.load(lk);
-                if (ltxe)
+                if (eraseLedgerEntry(lk))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));
-                    mLtx.erase(lk);
 
                     // Also delete associated ttlEntry
                     auto ttlLK = getTTLKey(lk);
-                    auto ttlLtxe = mLtx.load(ttlLK);
-                    releaseAssertOrThrow(ttlLtxe);
-                    mLtx.erase(ttlLK);
+                    releaseAssertOrThrow(eraseLedgerEntry(ttlLK));
                 }
             }
         }
@@ -775,9 +693,9 @@ class PreV23ApplyHelper : public ApplyHelperBase
         }
 
         if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
-                mMetrics.mEmitEventByte, out.rent_fee,
-                mLtx.loadHeader().current().ledgerVersion, mSorobanConfig,
-                mAppConfig, mOpFrame.mParentTx, mDiagnosticEvents))
+                mMetrics.mEmitEventByte, out.rent_fee, getLedgerVersion(),
+                mSorobanConfig, mAppConfig, mOpFrame.mParentTx,
+                mDiagnosticEvents))
         {
             mOpFrame.innerResult(mRes).code(
                 INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
@@ -792,6 +710,112 @@ class PreV23ApplyHelper : public ApplyHelperBase
         mOpMeta.setSorobanReturnValue(success.returnValue);
         mMetrics.mSuccess = true;
         return true;
+    }
+};
+
+// Helper class for handling state in doApply. Only used prio to protocol 23
+class PreV23ApplyHelper : public ApplyHelperBase
+{
+  private:
+    AbstractLedgerTxn& mLtx;
+
+    bool
+    handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                        bool isReadOnly, uint32_t restoredLiveUntilLedger,
+                        bool isHotArchiveEntry, uint32_t index) override
+    {
+        // Before p23, archived entries are never valid
+        if (lk.type() == CONTRACT_CODE)
+        {
+            mDiagnosticEvents.pushError(
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "trying to access an archived contract code entry",
+                {makeBytesSCVal(lk.contractCode().hash)});
+        }
+        else if (lk.type() == CONTRACT_DATA)
+        {
+            mDiagnosticEvents.pushError(
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "trying to access an archived contract data entry",
+                {makeAddressSCVal(lk.contractData().contract),
+                 lk.contractData().key});
+        }
+
+        mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+        return false;
+    }
+
+    std::optional<LedgerEntry>
+    getLedgerEntryOpt(LedgerKey const& key) override
+    {
+        auto ltxe = mLtx.loadWithoutRecord(key);
+        if (ltxe)
+        {
+            return ltxe.current();
+        }
+        return std::nullopt;
+    }
+
+    uint32_t
+    getLedgerVersion() override
+    {
+        return mLtx.loadHeader().current().ledgerVersion;
+    }
+
+    uint32_t
+    getLedgerSeq() override
+    {
+        return mLtx.loadHeader().current().ledgerSeq;
+    }
+
+    CxxLedgerInfo
+    getLedgerInfo() override
+    {
+        auto hdr = mLtx.loadHeader();
+        auto const& lh = hdr.current();
+        return stellar::getLedgerInfo(
+            mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
+            lh.scpValue.closeTime, mApp.getNetworkID());
+    }
+
+    bool
+    upsertLedgerEntry(LedgerKey const& key, LedgerEntry const& entry) override
+    {
+        auto ltxe = mLtx.load(key);
+        if (ltxe)
+        {
+            ltxe.current() = entry;
+            return false;
+        }
+        else
+        {
+            mLtx.create(entry);
+            return true;
+        }
+    }
+
+    bool
+    eraseLedgerEntry(LedgerKey const& key) override
+    {
+        auto ltxe = mLtx.load(key);
+        if (ltxe)
+        {
+            mLtx.erase(key);
+            return true;
+        }
+        return false;
+    }
+
+  public:
+    PreV23ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,
+                      Hash const& sorobanBasePrngSeed, OperationResult& res,
+                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                      OperationMetaBuilder& opMeta,
+                      InvokeHostFunctionOpFrame const& opFrame)
+        : ApplyHelperBase(app, sorobanBasePrngSeed, res, refundableFeeTracker,
+                          opMeta, opFrame)
+        , mLtx(ltx)
+    {
     }
 };
 
@@ -945,6 +969,41 @@ class ParallelApplyHelper : public ApplyHelperBase
         return mLedgerInfo.getLedgerVersion();
     }
 
+    CxxLedgerInfo
+    getLedgerInfo() override
+    {
+        return stellar::getLedgerInfo(
+            mSorobanConfig, mLedgerInfo.getLedgerVersion(),
+            mLedgerInfo.getLedgerSeq(), mLedgerInfo.getBaseReserve(),
+            mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());
+    }
+
+    bool
+    upsertLedgerEntry(LedgerKey const& key, LedgerEntry const& entry) override
+    {
+        auto opEntryIter = mOpEntryMap.emplace(key, entry);
+        // addReads can add restored entries to opEntryMap, so check if
+        // we need to update the entry.
+        if (opEntryIter.second == false)
+        {
+            opEntryIter.first->second = entry;
+        }
+
+        // Return true iff this key was created during this op.
+        return !getLiveEntry(key, mLiveSnapshot, mEntryMap);
+    }
+
+    bool
+    eraseLedgerEntry(LedgerKey const& key) override
+    {
+        if (getLiveEntry(key, mLiveSnapshot, mEntryMap))
+        {
+            mOpEntryMap.emplace(key, std::nullopt);
+            return true;
+        }
+        return false;
+    }
+
   public:
     ParallelApplyHelper(
         AppConnector& app, ThreadEntryMap const& entryMap,
@@ -982,267 +1041,16 @@ class ParallelApplyHelper : public ApplyHelperBase
     }
 
     ParallelTxReturnVal
-    parallelApply()
+    takeResults(bool applySucceeded)
     {
-        ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
-        auto timeScope = mMetrics.getExecTimer();
-        auto const& footprint = mResources.footprint;
-
-        if (!addReads(footprint.readOnly,
-                      /*isReadOnly=*/true))
+        if (applySucceeded)
         {
-            // Error code set in addReads
-            return {false, {}};
+            return {true, std::move(mOpEntryMap), std::move(mRestoredKeys)};
         }
-
-        if (!addReads(footprint.readWrite,
-                      /*isReadOnly=*/false))
+        else
         {
-            // Error code set in addReads
-            return {false, {}};
+            return {false, {}, {}};
         }
-
-        rust::Vec<CxxBuf> authEntryCxxBufs;
-        authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
-        for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
-        {
-            authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
-        }
-
-        InvokeHostFunctionOutput out{};
-        out.success = false;
-        try
-        {
-            CxxBuf basePrngSeedBuf{};
-            basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
-            basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
-                                         mSorobanBasePrngSeed.end());
-            auto moduleCache = mApp.getModuleCache();
-            out = rust_bridge::invoke_host_function(
-                mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
-                mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
-                mResources.instructions,
-                toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
-                toCxxBuf(mResources), toCxxBuf(mOpFrame.getResourcesExt()),
-                toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
-                getLedgerInfo(mSorobanConfig, mLedgerInfo), mLedgerEntryCxxBufs,
-                mTtlEntryCxxBufs, basePrngSeedBuf,
-                mSorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
-            mMetrics.mCpuInsn = out.cpu_insns;
-            mMetrics.mMemByte = out.mem_bytes;
-            mMetrics.mInvokeTimeNsecs = out.time_nsecs;
-            mMetrics.mCpuInsnExclVm = out.cpu_insns_excluding_vm_instantiation;
-            mMetrics.mInvokeTimeNsecsExclVm =
-                out.time_nsecs_excluding_vm_instantiation;
-            if (!out.success)
-            {
-                mOpFrame.maybePopulateDiagnosticEvents(
-                    mAppConfig, out, mMetrics, mDiagnosticEvents);
-            }
-        }
-        catch (std::exception& e)
-        {
-            // Host invocations should never throw an exception, so encountering
-            // one would be an internal error.
-            out.is_internal_error = true;
-            CLOG_DEBUG(Tx, "Exception caught while invoking host fn: {}",
-                       e.what());
-        }
-
-        if (!out.success)
-        {
-            if (out.is_internal_error)
-            {
-                throw std::runtime_error(
-                    "Got internal error during Soroban host invocation.");
-            }
-            if (mResources.instructions < out.cpu_insns)
-            {
-                mDiagnosticEvents.pushError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation instructions exceeds amount specified",
-                    {makeU64SCVal(out.cpu_insns),
-                     makeU64SCVal(mResources.instructions)});
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            }
-            else if (mSorobanConfig.txMemoryLimit() < out.mem_bytes)
-            {
-                mDiagnosticEvents.pushError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation memory usage exceeds network config limit",
-                    {makeU64SCVal(out.mem_bytes),
-                     makeU64SCVal(mSorobanConfig.txMemoryLimit())});
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            }
-            else
-            {
-                mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_TRAPPED);
-            }
-            return {false, {}};
-        }
-
-        // Create or update every entry returned.
-        UnorderedSet<LedgerKey> createdAndModifiedKeys;
-        UnorderedSet<LedgerKey> createdKeys;
-        for (auto const& buf : out.modified_ledger_entries)
-        {
-            LedgerEntry le;
-            xdr::xdr_from_opaque(buf.data, le);
-            if (!validateContractLedgerEntry(
-                    LedgerEntryKey(le), buf.data.size(), mSorobanConfig,
-                    mAppConfig, mOpFrame.mParentTx, mDiagnosticEvents))
-            {
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                return {false, {}};
-            }
-            auto lk = LedgerEntryKey(le);
-            createdAndModifiedKeys.insert(lk);
-
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
-            uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
-
-            // ttlEntry write fees come out of refundableFee, already
-            // accounted for by the host
-            if (lk.type() != TTL)
-            {
-                mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
-                                        entrySize);
-                if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
-                {
-                    mDiagnosticEvents.pushError(
-                        SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                        "operation byte-write resources exceeds amount "
-                        "specified",
-                        {makeU64SCVal(mMetrics.mLedgerWriteByte),
-                         makeU64SCVal(mResources.writeBytes)});
-                    mOpFrame.innerResult(mRes).code(
-                        INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                    return {false, {}};
-                }
-            }
-
-            auto opEntryIter = mOpEntryMap.emplace(lk, le);
-            // addReads can add restored entries to opEntryMap, so check if
-            // we need to update the entry.
-            if (opEntryIter.second == false)
-            {
-                opEntryIter.first->second = le;
-            }
-
-            if (!getLiveEntry(lk, mLiveSnapshot, mEntryMap))
-            {
-                createdKeys.insert(lk);
-            }
-        }
-
-        // Check that each newly created ContractCode or ContractData entry also
-        // creates an ttlEntry
-        for (auto const& key : createdKeys)
-        {
-            if (isSorobanEntry(key))
-            {
-                auto ttlKey = getTTLKey(key);
-                releaseAssertOrThrow(createdKeys.find(ttlKey) !=
-                                     createdKeys.end());
-            }
-            else
-            {
-                releaseAssertOrThrow(key.type() == TTL);
-            }
-        }
-
-        // Erase every entry not returned.
-        // NB: The entries that haven't been touched are passed through
-        // from host, so this should never result in removing an entry
-        // that hasn't been removed by host explicitly.
-        for (auto const& lk : footprint.readWrite)
-        {
-            if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
-            {
-                if (getLiveEntry(lk, mLiveSnapshot, mEntryMap))
-                {
-                    releaseAssertOrThrow(isSorobanEntry(lk));
-                    mOpEntryMap.emplace(lk, std::nullopt);
-
-                    // Also delete associated ttlEntry
-                    auto ttlLK = getTTLKey(lk);
-
-                    releaseAssertOrThrow(
-                        getLiveEntry(ttlLK, mLiveSnapshot, mEntryMap));
-                    mOpEntryMap.emplace(ttlLK, std::nullopt);
-                }
-            }
-        }
-
-        // We collect the events into a preimage that will be hashed
-        // into the ledger.
-        InvokeHostFunctionSuccessPreImage success{};
-        success.events.reserve(out.contract_events.size());
-        for (auto const& buf : out.contract_events)
-        {
-            mMetrics.mEmitEvent++;
-            uint32_t eventSize = static_cast<uint32_t>(buf.data.size());
-            mMetrics.mEmitEventByte += eventSize;
-            mMetrics.mMaxEmitEventByte =
-                std::max(mMetrics.mMaxEmitEventByte, eventSize);
-            if (mSorobanConfig.txMaxContractEventsSizeBytes() <
-                mMetrics.mEmitEventByte)
-            {
-                mDiagnosticEvents.pushError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "total events size exceeds network config maximum",
-                    {makeU64SCVal(mMetrics.mEmitEventByte),
-                     makeU64SCVal(
-                         mSorobanConfig.txMaxContractEventsSizeBytes())});
-                mOpFrame.innerResult(mRes).code(
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-                return {false, {}};
-            }
-            ContractEvent evt;
-            xdr::xdr_from_opaque(buf.data, evt);
-            success.events.emplace_back(evt);
-        }
-
-        mOpFrame.maybePopulateDiagnosticEvents(mAppConfig, out, mMetrics,
-                                               mDiagnosticEvents);
-
-        mMetrics.mEmitEventByte +=
-            static_cast<uint32>(out.result_value.data.size());
-        if (mSorobanConfig.txMaxContractEventsSizeBytes() <
-            mMetrics.mEmitEventByte)
-        {
-            mDiagnosticEvents.pushError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                "return value pushes events size above network config maximum",
-                {makeU64SCVal(mMetrics.mEmitEventByte),
-                 makeU64SCVal(mSorobanConfig.txMaxContractEventsSizeBytes())});
-            mOpFrame.innerResult(mRes).code(
-                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            return {false, {}};
-        }
-
-        if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
-                mMetrics.mEmitEventByte, out.rent_fee,
-                mLedgerInfo.getLedgerVersion(), mSorobanConfig, mAppConfig,
-                mOpFrame.mParentTx, mDiagnosticEvents))
-        {
-            mOpFrame.innerResult(mRes).code(
-                INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
-            return {false, {}};
-        }
-
-        xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
-        mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
-        mOpFrame.innerResult(mRes).success() = xdrSha256(success);
-
-        mOpMeta.getEventManager().setEvents(std::move(success.events));
-        mOpMeta.setSorobanReturnValue(success.returnValue);
-        mMetrics.mSuccess = true;
-
-        return {true, std::move(mOpEntryMap), std::move(mRestoredKeys)};
     }
 };
 
@@ -1358,7 +1166,8 @@ InvokeHostFunctionOpFrame::doParallelApply(
     ParallelApplyHelper helper(app, entryMap, ledgerInfo, txPrngSeed, res,
                                refundableFeeTracker, opMeta, *this);
 
-    return helper.parallelApply();
+    bool success = helper.apply();
+    return helper.takeResults(success);
 }
 
 bool
