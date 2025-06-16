@@ -828,6 +828,38 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     }
 }
 
+void
+LedgerTxn::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                     LedgerEntry const& ttlEntry)
+{
+    getImpl()->addRestoredFromHotArchive(ledgerEntry, ttlEntry);
+}
+
+void
+LedgerTxn::Impl::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                           LedgerEntry const& ttlEntry)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(ledgerEntry.data))
+    {
+        throw std::runtime_error("Key type not supported in Hot Archive");
+    }
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerEntry const& entry) {
+        auto [_, inserted] =
+            mRestoredKeys.hotArchive.emplace(LedgerEntryKey(entry), entry);
+        if (!inserted)
+        {
+            throw std::runtime_error("Key already removed from hot archive");
+        }
+    };
+    addKey(ledgerEntry);
+    addKey(ttlEntry);
+}
+
 LedgerTxnEntry
 LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
@@ -1663,6 +1695,23 @@ LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key)
         return std::make_pair(iter->second.get(), iter);
     }
     return std::make_pair(mParent.getNewestVersion(key), iter);
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+LedgerTxn::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
+{
+    return getImpl()->getNewestVersionBelowRoot(key);
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+LedgerTxn::Impl::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
+{
+    auto iter = mEntry.find(key);
+    if (iter != mEntry.end())
+    {
+        return std::make_pair(true, iter->second.get());
+    }
+    return mParent.getNewestVersionBelowRoot(key);
 }
 
 UnorderedMap<LedgerKey, LedgerEntry>
@@ -3576,6 +3625,12 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             return nullptr;
         }
     }
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+LedgerTxnRoot::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
+{
+    return {false, nullptr};
 }
 
 void

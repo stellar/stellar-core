@@ -25,6 +25,7 @@
 #include "transactions/EventManager.h"
 #include "transactions/LumenEventReconciler.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
@@ -1745,6 +1746,215 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
 }
 #endif
 
+#ifdef BUILD_TESTS
+void
+maybeTriggerTestInternalError(TransactionEnvelope const& env)
+{
+    auto memo =
+        env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.memo : env.v1().tx.memo;
+    if (memo.type() == MEMO_TEXT && memo.text() == "txINTERNAL_ERROR")
+    {
+        throw std::runtime_error(
+            "Intentionally triggered INTERNAL_ERROR in test");
+    }
+}
+#endif
+
+void
+TransactionFrame::preParallelApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& resPayload) const
+{
+    preParallelApply(app, ltx, meta, resPayload, true);
+}
+
+void
+TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                   TransactionMetaBuilder& meta,
+                                   MutableTransactionResultBase& txResult,
+                                   bool chargeFee) const
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain() ||
+                  app.threadIsType(Application::ThreadType::APPLY));
+    try
+    {
+        releaseAssertOrThrow(isSoroban());
+
+        mCachedAccountPreProtocol8.reset();
+        uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+        SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
+                                          getSignatures(mEnvelope)};
+        // TODO: Add code for catchup in skip mode
+
+        auto const& sorobanCfg = app.getSorobanNetworkConfigForApply();
+
+        //  when applying, a failure during tx validation means that
+        //  we'll skip trying to apply operations but we'll still
+        //  process the sequence number if needed
+
+        auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
+        auto sorobanResourceFee = computePreApplySorobanResourceFee(
+            ledgerVersion, sorobanConfig, app.getConfig());
+
+        meta.setNonRefundableResourceFee(sorobanResourceFee.non_refundable_fee);
+        int64_t initialFeeRefund = declaredSorobanResourceFee() -
+                                   sorobanResourceFee.non_refundable_fee;
+        txResult.initializeRefundableFeeTracker(initialFeeRefund);
+
+        LedgerTxn ltxTx(ltx);
+        LedgerSnapshot lsTx(ltxTx);
+        auto cv = commonValid(app, sorobanCfg, signatureChecker, lsTx, 0, true,
+                              chargeFee, 0, 0, sorobanResourceFee, txResult,
+                              meta.getDiagnosticEventManager());
+        if (cv >= ValidationType::kInvalidUpdateSeqNum)
+        {
+            processSeqNum(ltxTx);
+        }
+
+        bool signaturesValid =
+            processSignatures(cv, signatureChecker, ltxTx, txResult);
+
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
+
+        bool ok = signaturesValid && cv == ValidationType::kMaybeValid;
+        if (ok)
+        {
+            updateSorobanMetrics(app);
+
+            auto& opResult = txResult.getOpResultAt(0);
+
+            // Pre parallel soroban, OperationFrame::checkValid is called right
+            // before OperationFrame::doApply, but we do it here instead to
+            // avoid making OperationFrame::checkValid thread safe.
+            ok = mOperations.front()->checkValid(
+                app, signatureChecker, sorobanCfg, ltx, true, opResult,
+                meta.getDiagnosticEventManager());
+            if (!ok)
+            {
+                txResult.setInnermostError(txFAILED);
+            }
+        }
+
+        // If validation fails, we check the result code in the parallel step to
+        // make sure we don't apply the transaction.
+        releaseAssertOrThrow(ok == txResult.isSuccess());
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception after processing fees but before "
+                           "processing sequence number: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception after processing fees but before "
+                           "processing sequence number");
+    }
+}
+
+ParallelTxReturnVal
+TransactionFrame::parallelApply(
+    AppConnector& app,
+    ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+    Config const& config, SorobanNetworkConfig const& sorobanConfig,
+    ParallelLedgerInfo const& ledgerInfo,
+    MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
+    Hash const& txPrngSeed, TxEffects& effects) const
+{
+    ZoneScoped;
+    // This tx failed validation earlier, do not apply it
+    if (!txResult.isSuccess())
+    {
+        return {false, {}};
+    }
+
+    if (!maybeAdoptFailedReplayResult(txResult))
+    {
+        return {false, {}};
+    }
+
+    bool reportInternalErrOnException = true;
+    try
+    {
+        auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
+        // We do not want to increase the internal-error metric count for
+        // older ledger versions. The minimum ledger version for which we
+        // start internal-error counting is defined in the app config.
+        reportInternalErrOnException =
+            ledgerInfo.getLedgerVersion() >=
+            config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
+
+        auto& opTimer =
+            app.getMetrics().NewTimer({"ledger", "operation", "apply"});
+
+        releaseAssertOrThrow(mOperations.size() == 1);
+
+        auto op = mOperations.front();
+        auto& opResult = txResult.getOpResultAt(0);
+        auto& opMeta = effects.getMeta().getOperationMetaBuilderAt(0);
+
+        auto res = op->applyParallel(
+            app, entryMap, config, sorobanConfig, ledgerInfo, sorobanMetrics,
+            opResult, txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
+
+#ifdef BUILD_TESTS
+        maybeTriggerTestInternalError(mEnvelope);
+#endif
+
+        if (res.getSuccess())
+        {
+            setDelta(liveSnapshot, entryMap, res.getModifiedEntryMap(),
+                     ledgerInfo, effects);
+
+            opMeta.setLedgerChangesFromEntryMaps(
+                liveSnapshot, entryMap, res.getModifiedEntryMap(),
+                res.getRestoredKeys().hotArchive,
+                res.getRestoredKeys().liveBucketList,
+                ledgerInfo.getLedgerSeq());
+        }
+        else
+        {
+            txResult.setInnermostError(txFAILED);
+        }
+
+        return res;
+    }
+    catch (std::bad_alloc& e)
+    {
+        printErrorAndAbort("Exception while applying operations: ", e.what());
+    }
+    catch (std::exception& e)
+    {
+        if (reportInternalErrOnException)
+        {
+            CLOG_ERROR(Tx, "Exception while applying operations ({}, {}): {}",
+                       xdr_to_string(getFullHash(), "fullHash"),
+                       xdr_to_string(getContentsHash(), "contentsHash"),
+                       e.what());
+        }
+        else
+        {
+            CLOG_INFO(Tx,
+                      "Exception occurred on outdated protocol version "
+                      "while applying operations ({}, {}): {}",
+                      xdr_to_string(getFullHash(), "fullHash"),
+                      xdr_to_string(getContentsHash(), "contentsHash"),
+                      e.what());
+        }
+    }
+    if (config.HALT_ON_INTERNAL_TRANSACTION_ERROR)
+    {
+        printErrorAndAbort("Encountered an exception while applying "
+                           "operations, see logs for details.");
+    }
+
+    // This is only reachable if an exception is thrown
+    txResult.setInnermostError(txINTERNAL_ERROR);
+    return {false, {}};
+}
+
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   AppConnector& app, AbstractLedgerTxn& ltx,
@@ -1753,16 +1963,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Hash const& sorobanBasePrngSeed) const
 {
     ZoneScoped;
-#ifdef BUILD_TESTS
-    if (txResult.adoptFailedReplayResult())
-    {
-        // Sub-zone for skips
-        ZoneScopedN("skipped failed");
-        CLOG_DEBUG(Tx, "Skipping replay of failed transaction: tx {}",
-                   binToHex(getContentsHash()));
-        return false;
-    }
-#endif
+    maybeAdoptFailedReplayResult(txResult);
 
     auto& internalErrorCounter = app.getMetrics().NewCounter(
         {"ledger", "transaction", "internal-error"});
@@ -1805,6 +2006,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             bool txRes =
                 op->apply(app, signatureChecker, ltxOp, subSeed, opResult,
                           txResult.getRefundableFeeTracker(), opMeta);
+#ifdef BUILD_TESTS
+            maybeTriggerTestInternalError(mEnvelope);
+#endif
 
             if (!txRes)
             {
@@ -1816,6 +2020,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // case
             if (success)
             {
+                auto ledgerSeq = ltxOp.loadHeader().current().ledgerSeq;
                 auto delta = ltxOp.getDelta();
                 auto& opEventManager = opMeta.getEventManager();
                 if (protocolVersionIsBefore(ledgerVersion,
@@ -1829,7 +2034,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
                 app.checkOnOperationApply(op->getOperation(), opResult, delta,
                                           opEventManager.getEvents());
-                opMeta.setLedgerChanges(ltxOp);
+                opMeta.setLedgerChanges(ltxOp, ledgerSeq);
             }
 
             if (txRes ||
@@ -2069,7 +2274,6 @@ TransactionFrame::processPostApply(AppConnector& app,
         meta.pushTxChangesAfter(ltx);
         ltx.commit();
     }
-    meta.maybeSetRefundableFeeMeta(txResult.getRefundableFeeTracker());
 }
 
 void
@@ -2124,4 +2328,22 @@ TransactionFrame::getSize() const
     ZoneScoped;
     return static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
 }
+
+bool
+TransactionFrame::maybeAdoptFailedReplayResult(
+    MutableTransactionResultBase& txResult) const
+{
+#ifdef BUILD_TESTS
+    if (txResult.adoptFailedReplayResult())
+    {
+        // Sub-zone for skips
+        ZoneScopedN("skipped failed");
+        CLOG_DEBUG(Tx, "Skipping replay of failed transaction: tx {}",
+                   binToHex(getContentsHash()));
+        return false;
+    }
+#endif
+    return true;
+}
+
 } // namespace stellar

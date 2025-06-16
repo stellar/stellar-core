@@ -205,11 +205,13 @@ SorobanMetrics::publishAndResetLedgerWideMetrics()
     mLedgerReadLedgerByte.Update(mCounterLedgerReadByte);
     mLedgerWriteEntry.Update(mCounterLedgerWriteEntry);
     mLedgerWriteLedgerByte.Update(mCounterLedgerWriteByte);
-    mLedgerHostFnCpuInsnsRatio.Update(mLedgerHostFnExecTimeNsecs * 1000000 /
-                                      std::max(mLedgerInsnsCount, uint64_t(1)));
+    mLedgerHostFnCpuInsnsRatio.Update(
+        mLedgerHostFnExecTimeNsecs * 1000000 /
+        std::max(mLedgerInsnsCount.load(), uint64_t(1)));
+
     mLedgerHostFnCpuInsnsRatioExclVm.Update(
         mLedgerHostFnExecTimeNsecs * 1000000 /
-        std::max(mLedgerInsnsExclVmCount, uint64_t(1)));
+        std::max(mLedgerInsnsExclVmCount.load(), uint64_t(1)));
 
     mCounterLedgerTxCount = 0;
     mCounterLedgerCpuInsn = 0;

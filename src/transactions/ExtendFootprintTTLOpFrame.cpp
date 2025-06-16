@@ -9,6 +9,7 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
@@ -50,6 +51,126 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
     return header.ledgerVersion >= 20;
 }
 
+ParallelTxReturnVal
+ExtendFootprintTTLOpFrame::doParallelApply(
+    AppConnector& app,
+    ThreadEntryMap const& entryMap, // Must not be shared between threads
+    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
+    Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
+{
+    ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame doParallelApply", true);
+    releaseAssertOrThrow(
+        protocolVersionStartsFrom(ledgerInfo.getLedgerVersion(),
+                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
+    releaseAssertOrThrow(refundableFeeTracker);
+
+    ExtendFootprintTTLMetrics metrics(sorobanMetrics);
+    auto timeScope = metrics.getExecTimer();
+
+    auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
+
+    auto const& resources = mParentTx.sorobanResources();
+    auto const& footprint = resources.footprint;
+
+    // Keep track of LedgerEntry updates we need to make
+    OpModifiedEntryMap opEntryMap;
+
+    rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
+    rustEntryRentChanges.reserve(footprint.readOnly.size());
+    // Extend for `extendTo` more ledgers since the current
+    // ledger. Current ledger has to be payed for in order for entry
+    // to be extendable, hence don't include it.
+    uint32_t newLiveUntilLedgerSeq =
+        ledgerInfo.getLedgerSeq() + mExtendFootprintTTLOp.extendTo;
+    auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
+    for (auto const& lk : footprint.readOnly)
+    {
+        auto ttlKey = getTTLKey(lk);
+
+        auto ttlLeOpt = getLiveEntry(ttlKey, liveSnapshot, entryMap);
+
+        if (!ttlLeOpt || !isLive(*ttlLeOpt, ledgerInfo.getLedgerSeq()))
+        {
+            // Skip archived entries, as those must be restored.
+            //
+            // Also skip the missing entries. Since this happens at apply
+            // time and we refund the unspent fees, it is more beneficial
+            // to extend as many entries as possible.
+            continue;
+        }
+
+        auto currLiveUntilLedgerSeq = ttlLeOpt->data.ttl().liveUntilLedgerSeq;
+        if (currLiveUntilLedgerSeq >= newLiveUntilLedgerSeq)
+        {
+            continue;
+        }
+
+        auto entryOpt = getLiveEntry(lk, liveSnapshot, entryMap);
+        // We checked for TTLEntry existence above
+        releaseAssertOrThrow(entryOpt);
+
+        // Load the ContractCode/ContractData entry for fee calculation.
+
+        auto const& entryLe = *entryOpt;
+
+        uint32_t entrySize = static_cast<uint32_t>(xdr::xdr_size(entryLe));
+
+        if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
+                                         appConfig, mParentTx,
+                                         diagnosticEvents))
+        {
+            innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            return {false, {}};
+        }
+
+        auto ttlLe = *ttlLeOpt;
+
+        rustEntryRentChanges.emplace_back();
+        auto& rustChange = rustEntryRentChanges.back();
+        rustChange.is_persistent = !isTemporaryEntry(lk);
+
+        uint32_t entrySizeForRent = entrySize;
+
+        if (isContractCodeEntry(lk))
+        {
+            entrySizeForRent = rust_bridge::contract_code_memory_size_for_rent(
+                app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+                ledgerInfo.getLedgerVersion(),
+                toCxxBuf(entryLe.data.contractCode()),
+                toCxxBuf(sorobanConfig.cpuCostParams()),
+                toCxxBuf(sorobanConfig.memCostParams()));
+        }
+
+        rustChange.old_size_bytes = entrySizeForRent;
+
+        rustChange.new_size_bytes = rustChange.old_size_bytes;
+        rustChange.old_live_until_ledger = ttlLe.data.ttl().liveUntilLedgerSeq;
+        rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
+        ttlLe.data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+
+        opEntryMap.emplace(ttlKey, ttlLe);
+    }
+
+    // This may throw, but only in case of the Core version misconfiguration.
+    int64_t rentFee = rust_bridge::compute_rent_fee(
+        appConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+        ledgerInfo.getLedgerVersion(), rustEntryRentChanges,
+        sorobanConfig.rustBridgeRentFeeConfiguration(),
+        ledgerInfo.getLedgerSeq());
+    if (!refundableFeeTracker->consumeRefundableSorobanResources(
+            0, rentFee, ledgerInfo.getLedgerVersion(), sorobanConfig, appConfig,
+            mParentTx, diagnosticEvents))
+    {
+        innerResult(res).code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
+        return {false, {}};
+    }
+    innerResult(res).code(EXTEND_FOOTPRINT_TTL_SUCCESS);
+    return {true, std::move(opEntryMap)};
+}
+
 bool
 ExtendFootprintTTLOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
@@ -57,8 +178,11 @@ ExtendFootprintTTLOpFrame::doApply(
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {
-    releaseAssertOrThrow(refundableFeeTracker);
     ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
+    releaseAssertOrThrow(refundableFeeTracker);
+    releaseAssertOrThrow(
+        protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
 
     ExtendFootprintTTLMetrics metrics(app.getSorobanMetrics());
     auto timeScope = metrics.getExecTimer();
@@ -118,21 +242,17 @@ ExtendFootprintTTLOpFrame::doApply(
             return false;
         }
 
-        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
+        metrics.mLedgerReadByte += entrySize;
+        if (resources.diskReadBytes < metrics.mLedgerReadByte)
         {
-            metrics.mLedgerReadByte += entrySize;
-            if (resources.diskReadBytes < metrics.mLedgerReadByte)
-            {
-                diagnosticEvents.pushError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation byte-read resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.diskReadBytes)});
+            diagnosticEvents.pushError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-read resources exceeds amount specified",
+                {makeU64SCVal(metrics.mLedgerReadByte),
+                 makeU64SCVal(resources.diskReadBytes)});
 
-                innerResult(res).code(
-                    EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
+            innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            return false;
         }
 
         // We already checked that the TTLEntry exists in the logic above
@@ -143,19 +263,6 @@ ExtendFootprintTTLOpFrame::doApply(
         rustChange.is_persistent = !isTemporaryEntry(lk);
 
         uint32_t entrySizeForRent = entrySize;
-        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
-        {
-            if (isContractCodeEntry(lk))
-            {
-                entrySizeForRent =
-                    rust_bridge::contract_code_memory_size_for_rent(
-                        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                        ledgerVersion,
-                        toCxxBuf(entryLtxe.current().data.contractCode()),
-                        toCxxBuf(sorobanConfig.cpuCostParams()),
-                        toCxxBuf(sorobanConfig.memCostParams()));
-            }
-        }
 
         rustChange.old_size_bytes = entrySizeForRent;
         rustChange.new_size_bytes = rustChange.old_size_bytes;
