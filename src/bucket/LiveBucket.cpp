@@ -361,15 +361,9 @@ LiveBucket::getMaxCacheSize() const
 #endif // BUILD_TESTS
 
 std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucket::getOfferRange() const
+LiveBucket::getRangeForType(LedgerEntryType type) const
 {
-    return getIndex().getOfferRange();
-}
-
-std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucket::getContractCodeRange() const
-{
-    return getIndex().getContractCodeRange();
+    return getIndex().getRangeForType(type);
 }
 
 std::vector<BucketEntry>

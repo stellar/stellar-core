@@ -332,9 +332,10 @@ LiveBucketSnapshot::scanForEviction(
     return Loop::INCOMPLETE;
 }
 
-// Scans contract code entries in the bucket.
+// Scans entries of the specified type in the bucket.
 Loop
-LiveBucketSnapshot::scanForContractCode(
+LiveBucketSnapshot::scanForEntriesOfType(
+    LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
     ZoneScoped;
@@ -343,7 +344,7 @@ LiveBucketSnapshot::scanForContractCode(
         return Loop::INCOMPLETE;
     }
 
-    auto range = mBucket->getContractCodeRange();
+    auto range = mBucket->getRangeForType(type);
     if (!range)
     {
         return Loop::INCOMPLETE;
@@ -355,10 +356,17 @@ LiveBucketSnapshot::scanForContractCode(
     BucketEntry be;
     while (stream.pos() < range->second && stream.readOne(be))
     {
+        bool matchesType = false;
+        if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+        {
+            matchesType = be.liveEntry().data.type() == type;
+        }
+        else if (be.type() == DEADENTRY)
+        {
+            matchesType = be.deadEntry().type() == type;
+        }
 
-        if (((be.type() == LIVEENTRY || be.type() == INITENTRY) &&
-             be.liveEntry().data.type() == CONTRACT_CODE) ||
-            (be.type() == DEADENTRY && be.deadEntry().type() == CONTRACT_CODE))
+        if (matchesType)
         {
             if (callback(be) == Loop::COMPLETE)
             {

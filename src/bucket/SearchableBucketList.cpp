@@ -79,13 +79,14 @@ SearchableLiveBucketListSnapshot::scanForEviction(
 }
 
 void
-SearchableLiveBucketListSnapshot::scanForContractCode(
+SearchableLiveBucketListSnapshot::scanForEntriesOfType(
+    LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
     ZoneScoped;
     releaseAssert(mSnapshot);
-    auto f = [&callback](auto const& b) {
-        return b.scanForContractCode(callback);
+    auto f = [type, &callback](auto const& b) {
+        return b.scanForEntriesOfType(type, callback);
     };
     loopAllBuckets(f, *mSnapshot);
 }

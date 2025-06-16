@@ -90,9 +90,10 @@ class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
                          uint32_t ledgerVers,
                          UnorderedSet<LedgerKey>& keysInEvictableEntries) const;
 
-    // Scans contract code entries in the bucket.
-    Loop
-    scanForContractCode(std::function<Loop(BucketEntry const&)> callback) const;
+    // Scans entries of the specified type in the bucket.
+    Loop scanForEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const;
 };
 
 class HotArchiveBucketSnapshot : public BucketSnapshotBase<HotArchiveBucket>
