@@ -508,7 +508,7 @@ TransactionQueue::canAdd(
     // Loadgen transactions are given unlimited funds, and therefore do no need
     // to be checked for fees
 #ifdef BUILD_TESTS
-    if (!isLoadgenTx)
+    if (!isLoadgenTx && !mApp.getRunInOverlayOnlyMode())
 #endif
     {
         auto const feeSource = ls.getAccount(tx->getFeeSourceID());

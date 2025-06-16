@@ -843,6 +843,11 @@ class LedgerTxn : public AbstractLedgerTxn
     getOrderBook() const;
 
     void resetForFuzzer() override;
+    void
+    deactivateHeaderTestOnly()
+    {
+        deactivateHeader();
+    }
 #endif // BUILD_TESTS
 
 #ifdef BEST_OFFER_DEBUGGING
