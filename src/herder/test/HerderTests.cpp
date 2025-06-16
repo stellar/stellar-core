@@ -1143,8 +1143,6 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
     SECTION("soroban txs")
     {
         Config cfg(getTestConfig());
-        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
         // Max 1 classic op
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
 
@@ -1301,15 +1299,19 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
                                 [](auto const& txs) { return txs.empty(); }));
             REQUIRE(txSet->sizeTxTotal() == 2);
-            auto const& classicTxs =
-                txSet->getPhase(TxSetPhase::CLASSIC).getSequentialTxs();
-            REQUIRE(classicTxs.size() == 1);
-            REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
-            auto const& sorobanTxs =
-                txSet->getPhase(TxSetPhase::SOROBAN).getSequentialTxs();
-            REQUIRE(sorobanTxs.size() == 1);
-            REQUIRE(sorobanTxs[0]->getFullHash() ==
-                    sorobanTxHighFee->getFullHash());
+            auto const& classicPhase = txSet->getPhase(TxSetPhase::CLASSIC);
+            REQUIRE(classicPhase.sizeTx() == 1);
+            for (auto it = classicPhase.begin(); it != classicPhase.end(); ++it)
+            {
+                REQUIRE((*it)->getFullHash() == tx->getFullHash());
+            }
+            auto const& sorobanPhase = txSet->getPhase(TxSetPhase::SOROBAN);
+            REQUIRE(sorobanPhase.sizeTx() == 1);
+            for (auto it = sorobanPhase.begin(); it != sorobanPhase.end(); ++it)
+            {
+                REQUIRE((*it)->getFullHash() ==
+                        sorobanTxHighFee->getFullHash());
+            }
         }
         SECTION("soroban surge pricing with gap")
         {
@@ -1373,16 +1375,21 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     REQUIRE(std::all_of(
                         invalidPhases.begin(), invalidPhases.end(),
                         [](auto const& txs) { return txs.empty(); }));
-                    auto const& classicTxs =
-                        txSet->getPhase(TxSetPhase::CLASSIC).getSequentialTxs();
-                    auto const& sorobanTxs =
-                        txSet->getPhase(TxSetPhase::SOROBAN).getSequentialTxs();
-                    REQUIRE(classicTxs.size() == 1);
-                    REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
+                    int count = 0;
+                    for (auto it = txSet->getPhase(TxSetPhase::CLASSIC).begin();
+                         it != txSet->getPhase(TxSetPhase::CLASSIC).end(); ++it)
+                    {
+                        REQUIRE((*it)->getFullHash() == tx->getFullHash());
+                        ++count;
+                    }
+                    REQUIRE(count == 1);
+
+                    auto sorobanSize =
+                        txSet->getPhase(TxSetPhase::SOROBAN).sizeTx();
                     // Depending on resources generated for each tx, can only
                     // fit 1 or 2 transactions
                     bool expectedSorobanTxs =
-                        sorobanTxs.size() == 1 || sorobanTxs.size() == 2;
+                        sorobanSize == 1 || sorobanSize == 2;
                     REQUIRE(expectedSorobanTxs);
                 }
             }
