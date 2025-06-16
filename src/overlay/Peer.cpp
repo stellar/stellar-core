@@ -1370,7 +1370,7 @@ Peer::process(QueryInfo& queryInfo)
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
         std::chrono::duration_cast<std::chrono::seconds>(
-            mAppConnector.getLedgerManager().getExpectedLedgerCloseTime(cfg) *
+            mAppConnector.getLedgerManager().getExpectedLedgerCloseTime() *
             cfg.MAX_SLOTS_TO_REMEMBER);
     uint32_t const QUERIES_PER_WINDOW =
         QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER;

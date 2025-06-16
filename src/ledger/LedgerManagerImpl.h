@@ -256,8 +256,7 @@ class LedgerManagerImpl : public LedgerManager
     SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
 
     bool hasLastClosedSorobanNetworkConfig() const override;
-    std::chrono::milliseconds
-    getExpectedLedgerCloseTime(Config const& config) const override;
+    std::chrono::milliseconds getExpectedLedgerCloseTime() const override;
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;

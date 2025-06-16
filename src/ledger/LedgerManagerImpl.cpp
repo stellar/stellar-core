@@ -605,16 +605,17 @@ LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
 }
 
 std::chrono::milliseconds
-LedgerManagerImpl::getExpectedLedgerCloseTime(Config const& config) const
+LedgerManagerImpl::getExpectedLedgerCloseTime() const
 {
 #ifdef BUILD_TESTS
+    auto const& cfg = mApp.getConfig();
     // Always check for testing override first
-    if (config.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
+    if (cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
     {
         return std::chrono::milliseconds{
-            config.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING * 1000};
+            cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING * 1000};
     }
-    if (config.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
         return std::chrono::milliseconds{1000};
     }

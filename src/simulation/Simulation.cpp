@@ -354,7 +354,7 @@ Simulation::getExpectedLedgerCloseTime() const
     auto const& config = node->getConfig();
     auto const& ledgerManager = node->getLedgerManager();
 
-    return ledgerManager.getExpectedLedgerCloseTime(config);
+    return ledgerManager.getExpectedLedgerCloseTime();
 }
 
 void

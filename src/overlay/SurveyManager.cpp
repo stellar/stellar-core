@@ -113,7 +113,7 @@ SurveyManager::startSurveyReporting()
     mCurve25519PublicKey = curve25519DerivePublic(mCurve25519SecretKey);
 
     mSurveyThrottleTimeoutMs =
-        mApp.getLedgerManager().getExpectedLedgerCloseTime(mApp.getConfig()) *
+        mApp.getLedgerManager().getExpectedLedgerCloseTime() *
         SURVEY_THROTTLE_TIMEOUT_MULT;
 
     // starts timer
