@@ -53,7 +53,7 @@ GetRemoteFileWork::getCommand()
 void
 GetRemoteFileWork::onReset()
 {
-    std::remove(mLocal.c_str());
+    fs::removeWithLog(mLocal);
     RunCommandWork::onReset();
 }
 

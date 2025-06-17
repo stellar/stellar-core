@@ -10,6 +10,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -94,7 +95,7 @@ void
 GetHistoryArchiveStateWork::doReset()
 {
     mGetRemoteFile.reset();
-    std::remove(mLocalFilename.c_str());
+    fs::removeWithLog(mLocalFilename);
     mState = {};
 }
 
