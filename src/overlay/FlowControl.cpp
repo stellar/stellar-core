@@ -5,6 +5,7 @@
 #include "overlay/FlowControl.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
@@ -148,7 +149,10 @@ FlowControl::processSentMessages(
             }
             break;
             default:
-                abort();
+            {
+                throw std::runtime_error(
+                    "Unknown message type in processSentMessages");
+            }
             }
             queue.pop_front();
         }
@@ -248,7 +252,18 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
                          mMetrics.mOutboundQueueDelayAdvert);
         break;
     default:
-        abort();
+    {
+#ifdef BUILD_TESTS
+        throw std::runtime_error("Unknown message type in updateMsgMetrics");
+#else
+        // This function only updates metrics, so fail gracefully
+        CLOG_ERROR(Overlay, "Unknown message type {} in updateMsgMetrics",
+                   static_cast<int>(msg->type()));
+        CLOG_ERROR(Overlay, "FlowControl::updateMsgMetrics: {}",
+                   REPORT_INTERNAL_BUG);
+        return;
+#endif
+    }
     }
 }
 
@@ -355,7 +370,9 @@ FlowControl::getMessagePriority(StellarMessage const& msg)
     case FLOOD_ADVERT:
         return 3;
     default:
-        abort();
+    {
+        throw std::runtime_error("Unknown message type in getMessagePriority");
+    }
     }
 }
 
@@ -447,7 +464,10 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     break;
     default:
-        abort();
+    {
+        throw std::runtime_error(
+            "Unknown message type in addMsgAndMaybeTrimQueue");
+    }
     }
     auto& queue = mOutboundQueues[msgQInd];
 

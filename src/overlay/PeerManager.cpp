@@ -352,7 +352,9 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            fmt::format("PeerManager::update: unsupported TypeUpdate: {}",
+                        static_cast<int>(type)));
     }
     }
 }
@@ -400,7 +402,9 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            fmt::format("PeerManager::update: unsupported BackOffUpdate: {}",
+                        static_cast<int>(backOff)));
     }
     }
 }
@@ -454,7 +458,9 @@ getTypeUpdate(PeerRecord const& peer, PeerType observedType,
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            fmt::format("PeerManager::getTypeUpdate: unsupported PeerType: {}",
+                        static_cast<int>(observedType)));
     }
     }
 
