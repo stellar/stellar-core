@@ -912,8 +912,9 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     // entries initialized.
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
-    auto const& sorobanConfig =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto sorobanConfig = [&]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
     SECTION("unknown config upgrade set is ignored")
     {
         auto contractID = autocheck::generator<Hash>()(5);
@@ -924,7 +925,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         executeUpgrade(*app, ledgerUpgrade);
 
         // upgrade was ignored
-        REQUIRE(sorobanConfig.maxContractSizeBytes() ==
+        REQUIRE(sorobanConfig().maxContractSizeBytes() ==
                 InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
     }
 
@@ -945,7 +946,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ltx2.load(getMaxContractSizeKey()).current().data.configSetting();
         REQUIRE(maxContractSizeEntry.configSettingID() ==
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-        REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
+        REQUIRE(sorobanConfig().maxContractSizeBytes() == 32768);
     }
 
     SECTION("modify liveSorobanStateSizeWindowSampleSize")
@@ -1073,15 +1074,15 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     {
         // Verify values pre-upgrade
         REQUIRE(
-            sorobanConfig.feeRatePerInstructionsIncrement() ==
+            sorobanConfig().feeRatePerInstructionsIncrement() ==
             InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
-        REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
+        REQUIRE(sorobanConfig().ledgerMaxInstructions() ==
                 InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.txMemoryLimit() ==
+        REQUIRE(sorobanConfig().txMemoryLimit() ==
                 InitialSorobanNetworkConfig::MEMORY_LIMIT);
-        REQUIRE(sorobanConfig.txMaxInstructions() ==
+        REQUIRE(sorobanConfig().txMaxInstructions() ==
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.feeHistorical1KB() ==
+        REQUIRE(sorobanConfig().feeHistorical1KB() ==
                 InitialSorobanNetworkConfig::FEE_HISTORICAL_1KB);
         ConfigUpgradeSetFrameConstPtr configUpgradeSet;
         {
@@ -1105,14 +1106,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ltx2.commit();
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
-        REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
-        REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
+        REQUIRE(sorobanConfig().feeRatePerInstructionsIncrement() == 111);
+        REQUIRE(sorobanConfig().ledgerMaxInstructions() ==
                 MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.txMemoryLimit() ==
+        REQUIRE(sorobanConfig().txMemoryLimit() ==
                 MinimumSorobanNetworkConfig::MEMORY_LIMIT);
-        REQUIRE(sorobanConfig.txMaxInstructions() ==
+        REQUIRE(sorobanConfig().txMaxInstructions() ==
                 MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.feeHistorical1KB() == 555);
+        REQUIRE(sorobanConfig().feeHistorical1KB() == 555);
     }
     SECTION("upgrade rejected due to value below minimum")
     {
@@ -1134,7 +1135,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ltx2.commit();
 
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
-            REQUIRE(sorobanConfig.txMaxWriteBytes() == min);
+            REQUIRE(sorobanConfig().txMaxWriteBytes() == min);
         };
 
         // First set to minimum
@@ -1162,17 +1163,18 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
-    auto const& sorobanConfig =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto getSorobanConfig = [&]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 123);
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(0));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 0);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 0);
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(321));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 321);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 321);
 }
 
 TEST_CASE("upgrade to version 10", "[upgrades]")
@@ -2099,13 +2101,12 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             // Check several subtle characteristics of the post-upgrade
             // environment:
             //   - Old-protocol merges stop happening (there should have
-            //     been 6 before the upgrade, but we re-use a merge we did
-            //     at ledger 1 for ledger 2 spill, so the counter is at 5)
+            //     been 6 before the upgrade)
             //   - New-protocol merges start happening.
             //   - At the upgrade (5), we find 1 INITENTRY in lev[0].curr
             //   - The next two (6, 7), propagate INITENTRYs to lev[0].snap
             //   - From 8 on, the INITENTRYs propagate to lev[1].curr
-            REQUIRE(mc.mPreInitEntryProtocolMerges == 5);
+            REQUIRE(mc.mPreInitEntryProtocolMerges == 6);
             REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
             auto& lev0 = bm.getLiveBucketList().getLevel(0);
             auto& lev1 = bm.getLiveBucketList().getLevel(1);
@@ -2215,25 +2216,25 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                 // One more old-style merge despite the upgrade
                 // At ledger 8, level 2 spills, and starts an old-style
                 // merge, as level 1 snap is still of old version
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 7);
                 break;
             case 7:
                 REQUIRE(getVers(lev0Snap) == newProto);
                 REQUIRE(getVers(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 4);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 6:
                 REQUIRE(getVers(lev0Snap) == newProto);
                 REQUIRE(getVers(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 3);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 5:
                 REQUIRE(getVers(lev0Curr) == newProto);
                 REQUIRE(getVers(lev0Snap) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 1);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             default:
                 break;

@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketIndex.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
@@ -165,8 +166,10 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 
 template <typename BucketT>
 std::shared_ptr<BucketT>
-BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
-                                         MergeKey* mergeKey)
+BucketOutputIterator<BucketT>::getBucket(
+    BucketManager& bucketManager, MergeKey* mergeKey,
+    std::optional<std::vector<typename BucketT::EntryT>> inMemoryState,
+    bool shouldIndex)
 {
     ZoneScoped;
     if (mBuf)
@@ -196,14 +199,37 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     // either it's a new bucket or we just reconstructed a bucket
     // we already have, in any case ensure we have an index
     if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
-        !b || !b->isIndexed())
+        ((!b || !b->isIndexed()) && shouldIndex))
     {
-        index =
-            createIndex<BucketT>(bucketManager, mFilename, hash, mCtx, nullptr);
+        // Create index using in-memory state instead of file IO if available
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            if (inMemoryState)
+            {
+                index = std::make_unique<LiveBucketIndex>(
+                    bucketManager, *inMemoryState, mMeta);
+            }
+        }
+
+        if (!index)
+        {
+            index = createIndex<BucketT>(bucketManager, mFilename, hash, mCtx,
+                                         nullptr);
+        }
     }
 
-    return bucketManager.adoptFileAsBucket<BucketT>(mFilename.string(), hash,
-                                                    mergeKey, std::move(index));
+    auto b = bucketManager.adoptFileAsBucket<BucketT>(
+        mFilename.string(), hash, mergeKey, std::move(index));
+
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        if (inMemoryState)
+        {
+            b->setInMemoryEntries(std::move(*inMemoryState));
+        }
+    }
+
+    return b;
 }
 
 template class BucketOutputIterator<LiveBucket>;

@@ -6,6 +6,7 @@
 
 #include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
+#include <variant>
 
 namespace medida
 {
@@ -360,9 +361,18 @@ template <class BucketT> class BucketLevel
     BUCKET_TYPE_ASSERT(BucketT);
 
     uint32_t mLevel;
-    FutureBucket<BucketT> mNextCurr;
+    // Variant to hold either a FutureBucket (for async merges) or a
+    // shared_ptr<BucketT> (for in-memory merges)
+    std::variant<FutureBucket<BucketT>, std::shared_ptr<BucketT>> mNextCurr;
     std::shared_ptr<BucketT> mCurr;
     std::shared_ptr<BucketT> mSnap;
+
+    void setNextInMemory(std::shared_ptr<BucketT>&& b);
+
+    bool hasInMemoryMerge() const;
+    bool hasFutureBucketMerge() const;
+    bool hasInProgressMerge() const;
+    void clearNext();
 
   public:
     BucketLevel(uint32_t i);
@@ -379,6 +389,16 @@ template <class BucketT> class BucketLevel
                  uint32_t currLedgerProtocol, std::shared_ptr<BucketT> snap,
                  std::vector<std::shared_ptr<BucketT>> const& shadows,
                  bool countMergeEvents);
+
+    // Special version of prepare for level 0 that does an in-memory merge if
+    // possible. Falls back to regular prepare if in-memory merge is not
+    // possible., such as for the HotArchiveBucketList, or in some edge cases
+    // on startup.
+    template <typename... VectorT>
+    void prepareFirstLevel(Application& app, uint32_t currLedger,
+                           uint32_t currLedgerProtocol, bool countMergeEvents,
+                           bool doFsync, VectorT const&... inputVectors);
+
     std::shared_ptr<BucketT> snap();
 };
 

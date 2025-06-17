@@ -25,6 +25,7 @@ class SignatureChecker
     virtual bool checkSignature(std::vector<Signer> const& signersV,
                                 int32_t neededWeight);
     virtual bool checkAllSignaturesUsed() const;
+    virtual ~SignatureChecker() = default;
 #else
     bool checkSignature(std::vector<Signer> const& signersV,
                         int32_t neededWeight);
@@ -59,6 +60,8 @@ class AlwaysValidSignatureChecker : public SignatureChecker
     {
         return true;
     }
+
+    ~AlwaysValidSignatureChecker() override = default;
 };
 #endif // BUILD_TESTS
 }

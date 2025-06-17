@@ -287,9 +287,11 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         // Wait for upgrade to be applied
         simulation->crankUntil(
             [&]() {
-                auto netCfg =
-                    app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-                return netCfg == cfg;
+                return std::all_of(
+                    nodes.begin(), nodes.end(), [&](auto const& node) {
+                        return node->getLedgerManager()
+                                   .getLastClosedSorobanNetworkConfig() == cfg;
+                    });
             },
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
