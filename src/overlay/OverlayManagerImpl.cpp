@@ -442,7 +442,8 @@ OverlayManagerImpl::getPeersList(Peer* peer)
     case Peer::REMOTE_CALLED_US:
         return mInboundPeers;
     default:
-        abort();
+        throw std::runtime_error(fmt::format(
+            "Unknown peer role: {}", static_cast<int>(peer->getRole())));
     }
 }
 

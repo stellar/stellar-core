@@ -192,9 +192,19 @@ CapacityTrackedMessage::maybeGetHash() const
 CapacityTrackedMessage::~CapacityTrackedMessage()
 {
     auto self = mWeakPeer.lock();
-    if (self)
+    try
     {
-        self->endMessageProcessing(mMsg);
+        if (self)
+        {
+            self->endMessageProcessing(mMsg);
+        }
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_ERROR(Overlay, "Exception in ~CapacityTrackedMessage: {}",
+                   e.what());
+        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        throw;
     }
 }
 
