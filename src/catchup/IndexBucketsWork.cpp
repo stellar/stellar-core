@@ -79,7 +79,7 @@ IndexBucketsWork<BucketT>::IndexWork::postWork()
                 {
                     CLOG_WARNING(Bucket, "Outdated index file: {}",
                                  indexFilename);
-                    std::remove(indexFilename.c_str());
+                    fs::removeWithLog(indexFilename, /*ignoreEnoent=*/true);
                 }
                 else
                 {

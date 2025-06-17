@@ -11,6 +11,7 @@
 #include "historywork/PutFilesWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
+#include "util/Fs.h"
 #include "work/WorkSequence.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -24,7 +25,7 @@ PutSnapshotFilesWork::cleanup()
     // Delete `gz` files produced by this work
     for (auto const& f : mFilesToUpload)
     {
-        std::remove(f.second.localPath_gz().c_str());
+        fs::removeWithLog(f.second.localPath_gz());
     }
 }
 

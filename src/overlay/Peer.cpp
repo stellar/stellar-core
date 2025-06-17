@@ -17,6 +17,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
