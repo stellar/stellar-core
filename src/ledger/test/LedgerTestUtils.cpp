@@ -362,19 +362,47 @@ makeValid(ContractDataEntry& cde)
         val.bytes().assign(small_bytes.begin(), small_bytes.end());
         cde.key = val;
     }
-    // Fix the error values.
-    // NB: The internal SCErrors in maps/vecs still may be invalid.
-    // We might want to fix that eventually, but in general a significant
-    // (~80-90%) fraction of generated entries will be valid XDR.
-    if (cde.key.type() == SCV_ERROR)
-    {
-        if (cde.key.error().type() != SCErrorType::SCE_CONTRACT)
-        {
-            cde.key.error().code() = static_cast<SCErrorCode>(
-                std::abs(cde.key.error().code()) %
-                xdr::xdr_traits<SCErrorCode>::enum_values().size());
-        }
-    }
+    // Fix the error values recursively in maps/vecs.
+    auto fixSCErrors = [](SCVal& val) -> void {
+        std::function<void(SCVal&)> fixRecursive = [&](SCVal& v) {
+            if (v.type() == SCV_ERROR)
+            {
+                if (v.error().type() != SCErrorType::SCE_CONTRACT)
+                {
+                    v.error().code() = static_cast<SCErrorCode>(
+                        std::abs(v.error().code()) %
+                        xdr::xdr_traits<SCErrorCode>::enum_values().size());
+                }
+            }
+            else if (v.type() == SCV_VEC && v.vec())
+            {
+                for (auto& elem : *v.vec())
+                {
+                    fixRecursive(elem);
+                }
+            }
+            else if (v.type() == SCV_MAP && v.map())
+            {
+                for (auto& entry : *v.map())
+                {
+                    fixRecursive(entry.key);
+                    fixRecursive(entry.val);
+                }
+            }
+            else if (v.type() == SCV_CONTRACT_INSTANCE && v.instance().storage)
+            {
+                for (auto& entry : *v.instance().storage)
+                {
+                    fixRecursive(entry.key);
+                    fixRecursive(entry.val);
+                }
+            }
+        };
+        fixRecursive(val);
+    };
+
+    fixSCErrors(cde.key);
+    fixSCErrors(cde.val);
 }
 
 void

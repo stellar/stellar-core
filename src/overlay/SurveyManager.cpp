@@ -768,7 +768,12 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
 std::string
 SurveyManager::commandTypeName(SurveyMessageCommandType type)
 {
-    return xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
+    auto res = xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
+    if (res == nullptr)
+    {
+        return "UNKNOWN_SURVEY_MESSAGE_COMMAND_TYPE";
+    }
+    return std::string(res);
 }
 
 bool

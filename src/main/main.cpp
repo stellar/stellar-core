@@ -338,7 +338,7 @@ main(int argc, char* const* argv)
         return 1;
     }
     initializeAllGlobalState();
-    xdr::marshaling_stack_limit = 1000;
+    xdr::marshaling_stack_limit = 1500;
 
     try
     {
