@@ -528,7 +528,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                        createResources, inclusionFee, {});
 }
 
-TransactionFrameBaseConstPtr
+TransactionTestFramePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
@@ -833,7 +833,14 @@ TestContract::Invocation::getSpec()
     return mSpec;
 }
 
-TransactionFrameBaseConstPtr
+TestContract::Invocation&
+TestContract::Invocation::withOpSourceAccount(AccountID const& source)
+{
+    mOp.sourceAccount.activate() = toMuxedAccount(source);
+    return *this;
+}
+
+TransactionTestFramePtr
 TestContract::Invocation::createTx(TestAccount* source,
                                    std::optional<std::string> memo)
 {
@@ -1583,10 +1590,10 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
                 : std::nullopt);
 }
 
-// TODO:Deduplicate
-TransactionFrameBasePtr
+TransactionTestFramePtr
 AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
-                                       SCAddress const& toAddr, int64_t amount)
+                                       SCAddress const& toAddr, int64_t amount,
+                                       bool sourceIsRoot)
 {
     SCVal toVal(SCV_ADDRESS);
     toVal.address() = toAddr;
@@ -1624,7 +1631,13 @@ AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
             .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
                                spec)
             .withAuthorizedTopCall();
-    return invocation.createTx(&fromAcc);
+    if (!sourceIsRoot)
+    {
+        return invocation.createTx(&fromAcc);
+    }
+    auto tx = invocation.withOpSourceAccount(fromAcc.getPublicKey()).createTx();
+    tx->addSignature(fromAcc.getSecretKey());
+    return tx;
 }
 
 bool

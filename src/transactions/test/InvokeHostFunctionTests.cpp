@@ -7494,3 +7494,84 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
     REQUIRE(client.get("key", ContractDataDurability::PERSISTENT, 3) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
+
+TEST_CASE_VERSIONS(
+    "refund to source in tx1 and SAC transfer from same account in tx2",
+    "[tx][soroban][parallelapply]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        AssetContractTestClient assetClient(test, txtest::makeNativeAsset());
+
+        auto ledgerVersion = getLclProtocolVersion(test.getApp());
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        auto a1 = test.getRoot().create("A", startingBalance);
+        auto b1 = test.getRoot().create("B", startingBalance);
+
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto tx =
+            makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 1000);
+
+        auto lclHeader =
+            app->getLedgerManager().getLastClosedLedgerHeader().header;
+
+        auto a1PreRefundFeeCharged =
+            tx->getFee(lclHeader, lclHeader.baseFee, true);
+
+        // Pre v23, refunds are done after each tx. From v23, refunds are done
+        // after all txs are applied.
+        SECTION("success")
+        {
+            auto a1MaxSend = a1.getAvailableBalance() - a1PreRefundFeeCharged;
+
+            auto b1Addr = makeAccountAddress(b1.getPublicKey());
+            auto sacTx = assetClient.getTransferTx(a1, b1Addr, a1MaxSend, true);
+
+            auto r = closeLedger(test.getApp(), {tx, sacTx}, true);
+            REQUIRE(r.results.size() == 2);
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txSUCCESS);
+
+            REQUIRE(a1.getAvailableBalance() ==
+                    a1PreRefundFeeCharged - r.results.at(0).result.feeCharged);
+        }
+
+        SECTION("failure")
+        {
+            auto preTxA1Balance = a1.getAvailableBalance();
+            auto a1OverMax =
+                a1.getAvailableBalance() - a1PreRefundFeeCharged + 1;
+
+            if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                        ProtocolVersion::V_23))
+            {
+                // Pre v23 the refund is done after each tx, so just set this
+                // to a value that will cause the transfer to fail.
+                a1OverMax = a1.getAvailableBalance() + 1;
+            }
+
+            auto b1Addr = makeAccountAddress(b1.getPublicKey());
+            auto sacTx = assetClient.getTransferTx(a1, b1Addr, a1OverMax, true);
+
+            auto r = closeLedger(test.getApp(), {tx, sacTx}, true);
+            REQUIRE(r.results.size() == 2);
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txFAILED);
+
+            REQUIRE(a1.getAvailableBalance() ==
+                    preTxA1Balance - r.results.at(0).result.feeCharged);
+        }
+    });
+}
