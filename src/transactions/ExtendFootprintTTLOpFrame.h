@@ -14,11 +14,6 @@ class MutableTransactionResultBase;
 
 class ExtendFootprintTTLOpFrame : public OperationFrame
 {
-    ExtendFootprintTTLResult&
-    innerResult(OperationResult& res) const
-    {
-        return res.tr().extendFootprintTTLResult();
-    }
 
     ExtendFootprintTTLOp const& mExtendFootprintTTLOp;
 
@@ -60,5 +55,9 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
     virtual bool isSoroban() const override;
 
     ThresholdLevel getThresholdLevel() const override;
+
+    friend class ExtendFootprintTTLApplyHelper;
+    friend class ExtendFootprintTTLPreV23ApplyHelper;
+    friend class ExtendFootprintTTLParallelApplyHelper;
 };
 }

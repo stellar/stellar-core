@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/ParallelApplyUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "transactions/MutableTransactionResult.h"
 
 namespace stellar
@@ -173,4 +174,115 @@ getLiveEntry(LedgerKey const& lk, SearchableSnapshotConstPtr liveSnapshot,
         return res ? std::make_optional(*res) : std::nullopt;
     }
 }
+
+PreV23LedgerAccessHelper::PreV23LedgerAccessHelper(AbstractLedgerTxn& ltx)
+    : mLtx(ltx)
+{
+}
+
+std::optional<LedgerEntry>
+PreV23LedgerAccessHelper::getLedgerEntryOpt(LedgerKey const& key)
+{
+    auto ltxe = mLtx.loadWithoutRecord(key);
+    if (ltxe)
+    {
+        return ltxe.current();
+    }
+    return std::nullopt;
+}
+
+uint32_t
+PreV23LedgerAccessHelper::getLedgerVersion()
+{
+    return mLtx.loadHeader().current().ledgerVersion;
+}
+
+uint32_t
+PreV23LedgerAccessHelper::getLedgerSeq()
+{
+    return mLtx.loadHeader().current().ledgerSeq;
+}
+
+bool
+PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
+                                            LedgerEntry const& entry)
+{
+    auto ltxe = mLtx.load(key);
+    if (ltxe)
+    {
+        ltxe.current() = entry;
+        return false;
+    }
+    else
+    {
+        mLtx.create(entry);
+        return true;
+    }
+}
+
+bool
+PreV23LedgerAccessHelper::eraseLedgerEntry(LedgerKey const& key)
+{
+    auto ltxe = mLtx.load(key);
+    if (ltxe)
+    {
+        mLtx.erase(key);
+        return true;
+    }
+    return false;
+}
+
+ParallelLedgerAccessHelper::ParallelLedgerAccessHelper(
+    ThreadEntryMap const& entryMap, ParallelLedgerInfo const& ledgerInfo,
+    SearchableSnapshotConstPtr liveSnapshot)
+    : mEntryMap(entryMap), mLedgerInfo(ledgerInfo), mLiveSnapshot(liveSnapshot)
+
+{
+}
+
+std::optional<LedgerEntry>
+ParallelLedgerAccessHelper::getLedgerEntryOpt(LedgerKey const& key)
+{
+    return getLiveEntry(key, mLiveSnapshot, mEntryMap);
+}
+
+uint32_t
+ParallelLedgerAccessHelper::getLedgerSeq()
+{
+    return mLedgerInfo.getLedgerSeq();
+}
+
+uint32_t
+ParallelLedgerAccessHelper::getLedgerVersion()
+{
+    return mLedgerInfo.getLedgerVersion();
+}
+
+bool
+ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
+                                              LedgerEntry const& entry)
+{
+    auto opEntryIter = mOpEntryMap.emplace(key, entry);
+    // other methods can add restored entries to opEntryMap, so check if
+    // we need to update the entry.
+    if (opEntryIter.second == false)
+    {
+        opEntryIter.first->second = entry;
+    }
+
+    // Return true iff this key was created during this op.
+    return !getLiveEntry(key, mLiveSnapshot, mEntryMap);
+}
+
+bool
+ParallelLedgerAccessHelper::eraseLedgerEntry(LedgerKey const& key)
+{
+    if (getLiveEntry(key, mLiveSnapshot, mEntryMap))
+    {
+        mOpEntryMap.emplace(key, std::nullopt);
+        return true;
+    }
+    return false;
+}
+
 }

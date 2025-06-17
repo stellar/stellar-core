@@ -222,7 +222,7 @@ struct HostFunctionMetrics
     }
 };
 
-class ApplyHelperBase
+class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 {
   protected:
     AppConnector& mApp;
@@ -242,11 +242,11 @@ class ApplyHelperBase
     SearchableHotArchiveSnapshotConstPtr mHotArchive;
     DiagnosticEventManager& mDiagnosticEvents;
 
-    ApplyHelperBase(AppConnector& app, Hash const& sorobanBasePrngSeed,
-                    OperationResult& res,
-                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                    OperationMetaBuilder& opMeta,
-                    InvokeHostFunctionOpFrame const& opFrame)
+    InvokeHostFunctionApplyHelper(
+        AppConnector& app, Hash const& sorobanBasePrngSeed,
+        OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -270,18 +270,7 @@ class ApplyHelperBase
         mTtlEntryCxxBufs.reserve(footprintLength);
     }
 
-    virtual std::optional<LedgerEntry>
-    getLedgerEntryOpt(LedgerKey const& key) = 0;
-    virtual uint32_t getLedgerVersion() = 0;
-    virtual uint32_t getLedgerSeq() = 0;
     virtual CxxLedgerInfo getLedgerInfo() = 0;
-
-    // upsert returns true if the entry was created, false if it was updated.
-    virtual bool upsertLedgerEntry(LedgerKey const& key,
-                                   LedgerEntry const& entry) = 0;
-
-    // erase returns true if the entry was erased, false if it wasn't present.
-    virtual bool eraseLedgerEntry(LedgerKey const& key) = 0;
 
     // Helper called on all archived keys in the footprint. Returns false if
     // the operation should fail and populates result code and diagnostic
@@ -773,11 +762,11 @@ class ApplyHelperBase
 };
 
 // Helper class for handling state in doApply. Only used prio to protocol 23
-class PreV23ApplyHelper : public ApplyHelperBase
+class InvokeHostFunctionPreV23ApplyHelper
+    : virtual public InvokeHostFunctionApplyHelper,
+      virtual public PreV23LedgerAccessHelper
 {
   private:
-    AbstractLedgerTxn& mLtx;
-
     bool
     handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
                         bool isReadOnly, uint32_t restoredLiveUntilLedger,
@@ -804,29 +793,6 @@ class PreV23ApplyHelper : public ApplyHelperBase
         return false;
     }
 
-    std::optional<LedgerEntry>
-    getLedgerEntryOpt(LedgerKey const& key) override
-    {
-        auto ltxe = mLtx.loadWithoutRecord(key);
-        if (ltxe)
-        {
-            return ltxe.current();
-        }
-        return std::nullopt;
-    }
-
-    uint32_t
-    getLedgerVersion() override
-    {
-        return mLtx.loadHeader().current().ledgerVersion;
-    }
-
-    uint32_t
-    getLedgerSeq() override
-    {
-        return mLtx.loadHeader().current().ledgerSeq;
-    }
-
     CxxLedgerInfo
     getLedgerInfo() override
     {
@@ -837,56 +803,24 @@ class PreV23ApplyHelper : public ApplyHelperBase
             lh.scpValue.closeTime, mApp.getNetworkID());
     }
 
-    bool
-    upsertLedgerEntry(LedgerKey const& key, LedgerEntry const& entry) override
-    {
-        auto ltxe = mLtx.load(key);
-        if (ltxe)
-        {
-            ltxe.current() = entry;
-            return false;
-        }
-        else
-        {
-            mLtx.create(entry);
-            return true;
-        }
-    }
-
-    bool
-    eraseLedgerEntry(LedgerKey const& key) override
-    {
-        auto ltxe = mLtx.load(key);
-        if (ltxe)
-        {
-            mLtx.erase(key);
-            return true;
-        }
-        return false;
-    }
-
   public:
-    PreV23ApplyHelper(AppConnector& app, AbstractLedgerTxn& ltx,
-                      Hash const& sorobanBasePrngSeed, OperationResult& res,
-                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta,
-                      InvokeHostFunctionOpFrame const& opFrame)
-        : ApplyHelperBase(app, sorobanBasePrngSeed, res, refundableFeeTracker,
-                          opMeta, opFrame)
-        , mLtx(ltx)
+    InvokeHostFunctionPreV23ApplyHelper(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        Hash const& sorobanBasePrngSeed, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
+        : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
+                                        refundableFeeTracker, opMeta, opFrame)
+        , PreV23LedgerAccessHelper(ltx)
     {
     }
 };
 
-class ParallelApplyHelper : public ApplyHelperBase
+class InvokeHostFunctionParallelApplyHelper
+    : virtual public InvokeHostFunctionApplyHelper,
+      virtual public ParallelLedgerAccessHelper
 {
   private:
-    ThreadEntryMap const& mEntryMap;
-    ParallelLedgerInfo const& mLedgerInfo;
-
-    SearchableSnapshotConstPtr mLiveSnapshot;
-
-    OpModifiedEntryMap mOpEntryMap;
     RestoredKeys mRestoredKeys;
 
     // Bitmap to track which entries in the read-write footprint are
@@ -1010,24 +944,6 @@ class ParallelApplyHelper : public ApplyHelperBase
         return mAutorestoredEntries.at(index);
     }
 
-    std::optional<LedgerEntry>
-    getLedgerEntryOpt(LedgerKey const& key) override
-    {
-        return getLiveEntry(key, mLiveSnapshot, mEntryMap);
-    }
-
-    uint32_t
-    getLedgerSeq() override
-    {
-        return mLedgerInfo.getLedgerSeq();
-    }
-
-    uint32_t
-    getLedgerVersion() override
-    {
-        return mLedgerInfo.getLedgerVersion();
-    }
-
     CxxLedgerInfo
     getLedgerInfo() override
     {
@@ -1037,44 +953,17 @@ class ParallelApplyHelper : public ApplyHelperBase
             mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());
     }
 
-    bool
-    upsertLedgerEntry(LedgerKey const& key, LedgerEntry const& entry) override
-    {
-        auto opEntryIter = mOpEntryMap.emplace(key, entry);
-        // addReads can add restored entries to opEntryMap, so check if
-        // we need to update the entry.
-        if (opEntryIter.second == false)
-        {
-            opEntryIter.first->second = entry;
-        }
-
-        // Return true iff this key was created during this op.
-        return !getLiveEntry(key, mLiveSnapshot, mEntryMap);
-    }
-
-    bool
-    eraseLedgerEntry(LedgerKey const& key) override
-    {
-        if (getLiveEntry(key, mLiveSnapshot, mEntryMap))
-        {
-            mOpEntryMap.emplace(key, std::nullopt);
-            return true;
-        }
-        return false;
-    }
-
   public:
-    ParallelApplyHelper(
+    InvokeHostFunctionParallelApplyHelper(
         AppConnector& app, ThreadEntryMap const& entryMap,
         ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
-        : ApplyHelperBase(app, sorobanBasePrngSeed, res, refundableFeeTracker,
-                          opMeta, opFrame)
-        , mEntryMap(entryMap)
-        , mLedgerInfo(ledgerInfo)
-        , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+        : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
+                                        refundableFeeTracker, opMeta, opFrame)
+        , ParallelLedgerAccessHelper(entryMap, ledgerInfo,
+                                     app.copySearchableLiveBucketListSnapshot())
     {
         // Initialize the autorestore lookup vector
         auto const& resourceExt = mOpFrame.getResourcesExt();
@@ -1201,8 +1090,9 @@ InvokeHostFunctionOpFrame::doApply(
                                 PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
 
     // Create ApplyHelper and delegate processing to it
-    PreV23ApplyHelper helper(app, ltx, sorobanBasePrngSeed, res,
-                             refundableFeeTracker, opMeta, *this);
+    InvokeHostFunctionPreV23ApplyHelper helper(app, ltx, sorobanBasePrngSeed,
+                                               res, refundableFeeTracker,
+                                               opMeta, *this);
     return helper.apply();
 }
 
@@ -1222,8 +1112,9 @@ InvokeHostFunctionOpFrame::doParallelApply(
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
     releaseAssertOrThrow(refundableFeeTracker);
 
-    ParallelApplyHelper helper(app, entryMap, ledgerInfo, txPrngSeed, res,
-                               refundableFeeTracker, opMeta, *this);
+    InvokeHostFunctionParallelApplyHelper helper(
+        app, entryMap, ledgerInfo, txPrngSeed, res, refundableFeeTracker,
+        opMeta, *this);
 
     bool success = helper.apply();
     return helper.takeResults(success);
