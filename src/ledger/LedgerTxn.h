@@ -511,6 +511,13 @@ class AbstractLedgerTxnParent
 
     virtual SessionWrapper& getSession() const = 0;
 
+    // Returns map of TTL and corresponding contract/data keys that have been
+    // restored from the Hot Archive/Live Bucket List.
+    virtual UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredHotArchiveKeys() const = 0;
+    virtual UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredLiveBucketListKeys() const = 0;
+
 #ifdef BUILD_TESTS
     virtual void resetForFuzzer() = 0;
 #endif // BUILD_TESTS
@@ -639,12 +646,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
-    // Returns map of TTL and corresponding contract/data keys that have been
-    // restored from the Hot Archive/Live Bucket List.
-    virtual UnorderedMap<LedgerKey, LedgerEntry> const&
-    getRestoredHotArchiveKeys() const = 0;
-    virtual UnorderedMap<LedgerKey, LedgerEntry> const&
-    getRestoredLiveBucketListKeys() const = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
@@ -784,9 +785,9 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerKey>& deadEntries) override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
 
-    UnorderedMap<LedgerKey, LedgerEntry> const&
+    UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const override;
-    UnorderedMap<LedgerKey, LedgerEntry> const&
+    UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredLiveBucketListKeys() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
@@ -911,6 +912,11 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
+
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredHotArchiveKeys() const override;
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredLiveBucketListKeys() const override;
 
     void rollbackChild() noexcept override;
 
