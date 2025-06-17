@@ -1187,7 +1187,9 @@ ApplicationImpl::getState() const
             s = APP_SYNCED_STATE;
             break;
         default:
-            abort();
+            throw std::runtime_error(
+                fmt::format("Unknown LedgerManager state: {}",
+                            static_cast<int>(mLedgerManager->getState())));
         }
     }
     return s;
