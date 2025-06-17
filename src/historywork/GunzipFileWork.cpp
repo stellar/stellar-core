@@ -35,6 +35,6 @@ void
 GunzipFileWork::onReset()
 {
     std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
-    std::remove(filenameNoGz.c_str());
+    fs::removeWithLog(filenameNoGz);
 }
 }

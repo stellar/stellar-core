@@ -7,6 +7,7 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "historywork/GunzipFileWork.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
@@ -44,9 +45,9 @@ GetAndUnzipRemoteFileWork::getStatus() const
 void
 GetAndUnzipRemoteFileWork::doReset()
 {
-    std::remove(mFt.localPath_nogz().c_str());
-    std::remove(mFt.localPath_gz().c_str());
-    std::remove(mFt.localPath_gz_tmp().c_str());
+    fs::removeWithLog(mFt.localPath_nogz());
+    fs::removeWithLog(mFt.localPath_gz());
+    fs::removeWithLog(mFt.localPath_gz_tmp());
     mGetRemoteFileWork.reset();
     mGunzipFileWork.reset();
 }

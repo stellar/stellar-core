@@ -1571,6 +1571,8 @@ TxSetPhaseFrame::size(LedgerHeader const& lclHeader) const
                    : sizeTx();
     case TxSetPhase::SOROBAN:
         return sizeOp();
+    default:
+        throw std::runtime_error("Unknown phase");
     }
 }
 
