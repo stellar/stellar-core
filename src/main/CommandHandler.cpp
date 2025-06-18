@@ -872,6 +872,10 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             {
                 auto entry =
                     lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                if (!entry)
+                {
+                    continue;
+                }
                 entries.emplace_back(entry.current().data.configSetting());
             }
 
@@ -891,6 +895,10 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                     continue;
                 }
                 auto entry = lsg.load(configSettingKey(configSettingID));
+                if (!entry)
+                {
+                    continue;
+                }
                 upgradeSet.updatedEntry.emplace_back(
                     entry.current().data.configSetting());
             }

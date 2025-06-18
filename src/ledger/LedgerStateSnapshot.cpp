@@ -40,7 +40,11 @@ LedgerEntryWrapper::current() const
     case 1:
         return std::get<1>(mEntry).current();
     case 2:
-        return *std::get<2>(mEntry);
+    {
+        auto res = std::get<2>(mEntry);
+        releaseAssertOrThrow(res);
+        return *res;
+    }
     default:
         throw std::runtime_error("Invalid LedgerEntryWrapper index");
     }
