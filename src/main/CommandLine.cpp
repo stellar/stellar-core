@@ -1403,7 +1403,8 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
             }
             else
             {
-                CLOG_WARNING(SCP, "Quorum check was interrupted");
+                CLOG_WARNING(SCP, "UNKNOWN result -- quorum intersection "
+                                  "checker did not finish, check logs");
             }
             return static_cast<int>(status);
         }

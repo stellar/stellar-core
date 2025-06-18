@@ -49,6 +49,14 @@ pub(crate) fn network_enjoys_quorum_intersection(
     resource_limit: &QuorumCheckerResource,
     resource_usage: &mut QuorumCheckerResource,
 ) -> Result<QuorumCheckerStatus, Box<dyn std::error::Error>> {
+    // The panic handler catches any unwind-able panics, and convert it to an
+    // error (which will be converted to a C++ exception). It **cannot** catch
+    // an abort, which can happen if the `FbasAnalyzer` program exceeds the
+    // memory limit.
+    //
+    // Making the memory limit a hard limit is a design choice, because we want
+    // the memory usage of the process running quorum checker to be isolated
+    // from the main stellar-core running process.
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let resource_limiter =
             ResourceLimiter::new(resource_limit.time_ms, resource_limit.mem_bytes);
