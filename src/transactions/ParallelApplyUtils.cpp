@@ -30,31 +30,39 @@ getReadWriteKeysForStage(ApplyStage const& stage)
 }
 
 std::unique_ptr<ThreadEntryMap>
-collectEntries(ThreadEntryMap const& globalEntryMap, Cluster const& cluster)
+collectEntries(SearchableSnapshotConstPtr liveSnapshot,
+               ThreadEntryMap const& globalEntryMap, Cluster const& cluster)
 {
     auto entryMap = std::make_unique<ThreadEntryMap>();
+
+    auto processKeys = [&](xdr::xvector<LedgerKey> const& keys) {
+        for (auto const& lk : keys)
+        {
+            auto it = globalEntryMap.find(lk);
+            if (it != globalEntryMap.end())
+            {
+                // If the entry exists, we take it
+                entryMap->emplace(lk, it->second);
+                if (isSorobanEntry(lk))
+                {
+                    // If it's a Soroban entry, we also add the TTL key
+                    auto ttlKey = getTTLKey(lk);
+                    auto ttlIt = globalEntryMap.find(ttlKey);
+                    if (ttlIt != globalEntryMap.end())
+                    {
+                        // If the TTL entry exists, we take it
+                        entryMap->emplace(ttlKey, ttlIt->second);
+                    }
+                }
+            }
+        }
+    };
+
     for (auto const& txBundle : cluster)
     {
         auto const& footprint = txBundle.getTx()->sorobanResources().footprint;
-        for (auto const& lk : footprint.readWrite)
-        {
-            auto it = globalEntryMap.find(lk);
-            if (it != globalEntryMap.end())
-            {
-                // If the entry exists, we take it
-                entryMap->emplace(lk, it->second);
-            }
-        }
-
-        for (auto const& lk : footprint.readOnly)
-        {
-            auto it = globalEntryMap.find(lk);
-            if (it != globalEntryMap.end())
-            {
-                // If the entry exists, we take it
-                entryMap->emplace(lk, it->second);
-            }
-        }
+        processKeys(footprint.readWrite);
+        processKeys(footprint.readOnly);
     }
 
     return entryMap;

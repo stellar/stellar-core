@@ -7244,6 +7244,62 @@ TEST_CASE("delete non existent entry with parallel apply",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
+TEST_CASE("create in first stage delete in second stage",
+          "[tx][soroban][parallelapply]")
+{
+    auto cfg = getTestConfig();
+    cfg.LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+
+    // This is required because we're setting the min stage count above one,
+    // which will reduce the per-stage instruction count too low to run the
+    // settings upgrade transactions.
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 2;
+
+    SorobanTest test(cfg);
+    ContractStorageTestClient client(test);
+
+    auto& app = test.getApp();
+    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxInstructions = 10'000'000;
+        cfg.mTxMaxInstructions = 10'000'000;
+        cfg.mLedgerMaxTxCount = 500;
+        cfg.mLedgerMaxDependentTxClusters = 1;
+    });
+
+    auto& lm = app.getLedgerManager();
+    const int64_t startingBalance = lm.getLastMinBalance(50);
+
+    auto& root = test.getRoot();
+    auto a1 = root.create("a1", startingBalance);
+    auto b1 = root.create("b", startingBalance);
+
+    auto i1Spec =
+        client.writeKeySpec("key1", ContractDataDurability::PERSISTENT);
+    auto i1 = client.getContract().prepareInvocation(
+        "put_persistent", {makeSymbolSCVal("key1"), makeU64SCVal(1)},
+        i1Spec.setInclusionFee(i1Spec.getInclusionFee() + 1));
+    auto tx = i1.withExactNonRefundableResourceFee().createTx(&a1);
+
+    auto i2Spec =
+        client.writeKeySpec("key1", ContractDataDurability::PERSISTENT);
+    auto i2 = client.getContract().prepareInvocation(
+        "del_persistent", {makeSymbolSCVal("key1")},
+        i2Spec.setInclusionFee(i2Spec.getInclusionFee() + 2));
+    auto tx2 = i2.withExactNonRefundableResourceFee().createTx(&b1);
+
+    auto r = closeLedger(test.getApp(), {tx, tx2});
+    REQUIRE(r.results.size() == 2);
+    checkTx(0, r, txSUCCESS);
+    checkTx(1, r, txSUCCESS);
+
+    REQUIRE(client.has("key1", ContractDataDurability::PERSISTENT, false) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+}
+
 TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
@@ -7252,6 +7308,12 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+
+    // This is required because we're setting the min stage count above one,
+    // which will reduce the per-stage instruction count too low to run the
+    // settings upgrade transactions.
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 3;
 
     std::vector<std::string> keys = {"key1", "key2", "key3", "key4",
                                      "key5", "key6", "key7"};
@@ -7265,13 +7327,9 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
     auto& app = test.getApp();
 
     modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
-        cfg.mLedgerMaxInstructions *= 5;
-        cfg.mledgerMaxDiskReadEntries *= 5;
-        cfg.mledgerMaxDiskReadBytes *= 5;
-        cfg.mLedgerMaxWriteLedgerEntries *= 5;
-        cfg.mLedgerMaxWriteBytes *= 5;
-        cfg.mLedgerMaxTxCount *= 5;
-        cfg.mLedgerMaxDependentTxClusters = 5;
+        cfg.mLedgerMaxInstructions = 400'000'000;
+        cfg.mLedgerMaxTxCount = 500;
+        cfg.mLedgerMaxDependentTxClusters = 2;
     });
 
     test.invokeExtendOp(client.getContract().getKeys(), 10'000);

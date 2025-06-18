@@ -2148,11 +2148,14 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
         std::future<std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>>>
         threadFutures;
 
+    auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
+
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         auto const& cluster = stage.getCluster(i);
 
-        auto entryMapPtr = collectEntries(globalEntryMap, cluster);
+        auto entryMapPtr =
+            collectEntries(liveSnapshot, globalEntryMap, cluster);
 
         threadFutures.emplace_back(std::async(
             std::launch::async, &LedgerManagerImpl::applyThread, this,
@@ -2276,7 +2279,7 @@ LedgerManagerImpl::writeDirtyMapEntriesToGlobalEntryMap(
                 auto it = globalEntryMap.find(entry.first);
                 if (it != globalEntryMap.end() && it->second.mLedgerEntry)
                 {
-                    auto& currentEntry = *it->second.mLedgerEntry;
+                    auto const& currentEntry = *it->second.mLedgerEntry;
                     if (currentEntry.data.type() == TTL)
                     {
                         auto currLiveUntil =
@@ -2301,7 +2304,7 @@ LedgerManagerImpl::writeDirtyMapEntriesToGlobalEntryMap(
                 {
                     if (it != globalEntryMap.end())
                     {
-                        it->second.mLedgerEntry = updatedEntry;
+                        it->second = entry.second;
                     }
                     else
                     {

@@ -64,7 +64,8 @@ class ParallelLedgerInfo
 std::unordered_set<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage);
 
 std::unique_ptr<ThreadEntryMap>
-collectEntries(ThreadEntryMap const& globalEntryMap, Cluster const& cluster);
+collectEntries(SearchableSnapshotConstPtr liveSnapshot,
+               ThreadEntryMap const& globalEntryMap, Cluster const& cluster);
 
 // sets LedgerTxnDelta within effects
 void setDelta(SearchableSnapshotConstPtr liveSnapshot,
