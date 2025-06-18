@@ -248,12 +248,13 @@ namespace quorum_checker
 {
 
 QuorumCheckerMetrics::QuorumCheckerMetrics()
-    : mSuccessfulCalls(0)
-    , mFailedCalls(0)
-    , mInterruptedCalls(0)
-    , mPotentialSplits(0)
+    : mSuccessfulRun(0)
+    , mFailedRun(0)
+    , mAbortedRun(0)
+    , mResultPotentialSplit(0)
+    , mResultUnknown(0)
     , mCumulativeTimeMs(0)
-    , mCumulativeMemBytes(0)
+    , mCumulativeMemByte(0)
 {
 }
 
@@ -263,29 +264,35 @@ QuorumCheckerMetrics::QuorumCheckerMetrics(Json::Value const& value)
     {
         throw RustQuorumCheckerError("Metrics JSON must be an object");
     }
-    if (!value.isMember("successful_call_count") ||
-        !value["successful_call_count"].isUInt())
+    if (!value.isMember("successful_run_count") ||
+        !value["successful_run_count"].isUInt())
     {
         throw RustQuorumCheckerError(
-            "Metrics missing or invalid 'successful_call_count' field");
+            "Metrics missing or invalid 'successful_run_count' field");
     }
-    if (!value.isMember("failed_call_count") ||
-        !value["failed_call_count"].isUInt())
+    if (!value.isMember("failed_run_count") ||
+        !value["failed_run_count"].isUInt())
     {
         throw RustQuorumCheckerError(
-            "Metrics missing or invalid 'failed_call_count' field");
+            "Metrics missing or invalid 'failed_run_count' field");
     }
-    if (!value.isMember("interrupted_call_count") ||
-        !value["interrupted_call_count"].isUInt())
+    if (!value.isMember("aborted_run_count") ||
+        !value["aborted_run_count"].isUInt())
     {
         throw RustQuorumCheckerError(
-            "Metrics missing or invalid 'interrupted_call_count' field");
+            "Metrics missing or invalid 'aborted_run_count' field");
     }
-    if (!value.isMember("potential_split_count") ||
-        !value["potential_split_count"].isUInt())
+    if (!value.isMember("result_potential_split_count") ||
+        !value["result_potential_split_count"].isUInt())
     {
         throw RustQuorumCheckerError(
-            "Metrics missing or invalid 'potential_split_count' field");
+            "Metrics missing or invalid 'result_potential_split_count' field");
+    }
+    if (!value.isMember("result_unknown_count") ||
+        !value["result_unknown_count"].isUInt())
+    {
+        throw RustQuorumCheckerError(
+            "Metrics missing or invalid 'result_unknown_count' field");
     }
     if (!value.isMember("cumulative_time_ms") ||
         !value["cumulative_time_ms"].isUInt64())
@@ -293,53 +300,55 @@ QuorumCheckerMetrics::QuorumCheckerMetrics(Json::Value const& value)
         throw RustQuorumCheckerError(
             "Metrics missing or invalid 'cumulative_time_ms' field");
     }
-    if (!value.isMember("cumulative_memory_bytes") ||
-        !value["cumulative_memory_bytes"].isUInt64())
+    if (!value.isMember("cumulative_mem_byte") ||
+        !value["cumulative_mem_byte"].isUInt64())
     {
         throw RustQuorumCheckerError(
-            "Metrics missing or invalid 'cumulative_memory_bytes' field");
+            "Metrics missing or invalid 'cumulative_mem_byte' field");
     }
-    mSuccessfulCalls = value["successful_call_count"].asUInt64();
-    mFailedCalls = value["failed_call_count"].asUInt64();
-    mInterruptedCalls = value["interrupted_call_count"].asUInt64();
-    mPotentialSplits = value["potential_split_count"].asUInt64();
+    mSuccessfulRun = value["successful_run_count"].asUInt64();
+    mFailedRun = value["failed_run_count"].asUInt64();
+    mAbortedRun = value["aborted_run_count"].asUInt64();
+    mResultPotentialSplit = value["result_potential_split_count"].asUInt64();
+    mResultUnknown = value["result_unknown_count"].asUInt64();
     mCumulativeTimeMs = value["cumulative_time_ms"].asUInt64();
-    mCumulativeMemBytes = value["cumulative_memory_bytes"].asUInt64();
+    mCumulativeMemByte = value["cumulative_mem_byte"].asUInt64();
 }
 
 Json::Value
 QuorumCheckerMetrics::toJson()
 {
     Json::Value ret;
-    ret["successful_call_count"] = Json::UInt64(mSuccessfulCalls);
-    ret["failed_call_count"] = Json::UInt64(mFailedCalls);
-    ret["interrupted_call_count"] = Json::UInt64(mInterruptedCalls);
-    ret["potential_split_count"] = Json::UInt64(mPotentialSplits);
+    ret["successful_run_count"] = Json::UInt64(mSuccessfulRun);
+    ret["failed_run_count"] = Json::UInt64(mFailedRun);
+    ret["aborted_run_count"] = Json::UInt64(mAbortedRun);
+    ret["result_potential_split_count"] = Json::UInt64(mResultPotentialSplit);
+    ret["result_unknown_count"] = Json::UInt64(mResultUnknown);
     ret["cumulative_time_ms"] = Json::UInt64(mCumulativeTimeMs);
-    ret["cumulative_memory_bytes"] = Json::UInt64(mCumulativeMemBytes);
+    ret["cumulative_mem_byte"] = Json::UInt64(mCumulativeMemByte);
     return ret;
 }
 
 void
 QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
 {
-    metrics.NewCounter({"scp", "qic", "successful-calls"})
-        .inc(mSuccessfulCalls);
-    metrics.NewCounter({"scp", "qic", "failed-calls"}).inc(mFailedCalls);
-    metrics.NewCounter({"scp", "qic", "interrupted-calls"})
-        .inc(mInterruptedCalls);
-    metrics.NewCounter({"scp", "qic", "potential-splits"})
-        .inc(mPotentialSplits);
+    metrics.NewCounter({"scp", "qic", "successful-run"}).inc(mSuccessfulRun);
+    metrics.NewCounter({"scp", "qic", "failed-run"}).inc(mFailedRun);
+    metrics.NewCounter({"scp", "qic", "aborted-run"}).inc(mAbortedRun);
+    metrics.NewCounter({"scp", "qic", "result-potential-split"})
+        .inc(mResultPotentialSplit);
+    metrics.NewCounter({"scp", "qic", "result-unknown"}).inc(mResultUnknown);
     metrics.NewMeter({"scp", "qic", "cumulative-time-ms"}, "milli-second")
         .Mark(mCumulativeTimeMs);
-    metrics.NewMeter({"scp", "qic", "cumulative-memory-bytes"}, "byte")
-        .Mark(mCumulativeMemBytes);
-    mSuccessfulCalls = 0;
-    mFailedCalls = 0;
-    mInterruptedCalls = 0;
-    mPotentialSplits = 0;
+    metrics.NewMeter({"scp", "qic", "cumulative-mem-byte"}, "byte")
+        .Mark(mCumulativeMemByte);
+    mSuccessfulRun = 0;
+    mFailedRun = 0;
+    mAbortedRun = 0;
+    mResultPotentialSplit = 0;
+    mResultUnknown = 0;
     mCumulativeTimeMs = 0;
-    mCumulativeMemBytes = 0;
+    mCumulativeMemByte = 0;
 }
 
 QuorumCheckerStatus
@@ -378,15 +387,15 @@ checkQuorumIntersectionInner(
 
         // update the cumulative metrics, this will be reported metrics
         metrics.mCumulativeTimeMs += usage.time_ms;
-        metrics.mCumulativeMemBytes += usage.mem_bytes;
-        metrics.mSuccessfulCalls += 1;
+        metrics.mCumulativeMemByte += usage.mem_bytes;
+        metrics.mSuccessfulRun += 1;
         if (status == QuorumCheckerStatus::UNKNOWN)
         {
-            metrics.mInterruptedCalls += 1;
+            metrics.mResultUnknown += 1;
         }
         else if (status == QuorumCheckerStatus::SAT)
         {
-            metrics.mPotentialSplits += 1;
+            metrics.mResultPotentialSplit += 1;
         }
 
         // Update time limit. Memory is a transient resource that gets reclaimed
@@ -403,24 +412,13 @@ checkQuorumIntersectionInner(
     }
     catch (const std::exception& e)
     {
+        metrics.mFailedRun += 1;
         metrics.mCumulativeTimeMs += usage.time_ms;
-        metrics.mCumulativeMemBytes += usage.mem_bytes;
+        metrics.mCumulativeMemByte += usage.mem_bytes;
         std::string msg = e.what();
         CLOG_ERROR(SCP, "Quorum intersection checker error: {}  \
                 \n cumulative resource used {} ms, {} bytes",
-                   msg, metrics.mCumulativeTimeMs, metrics.mCumulativeMemBytes);
-        // We match the error string to get the interruption error, since
-        // RustBridge treats all Error as Exception without preserving the error
-        // type. This is just used for metrics logging but can be improved.
-        if (msg.find("Resource limits exceeded") != std::string::npos)
-        {
-            metrics.mInterruptedCalls += 1;
-        }
-        else
-        {
-            // internal rust solver error, or panic
-            metrics.mFailedCalls += 1;
-        }
+                   msg, metrics.mCumulativeTimeMs, metrics.mCumulativeMemByte);
         throw RustQuorumCheckerError(e.what());
     }
 }
@@ -513,6 +511,12 @@ runQuorumIntersectionCheckAsync(
             return;
         }
 
+        // Note: the ecode should match the return code from the command
+        // line-running process which is just `QuorumCheckerStatus` as integer
+        // on success. However, if the command fails due to abort (if exceeding
+        // the memory limit), the ecode=1 will be returned because of the
+        // simplfication of collapsing all non-WIFEXITED exits to error code 1
+        // (see `mapExitStatusToErrorCode` in ProcessManagerImpl.cpp).
         int ecode = ec.value();
         CLOG_DEBUG(SCP,
                    "Processing quorum intersection check result: numNodes={}, "
@@ -557,6 +561,7 @@ runQuorumIntersectionCheckAsync(
         }
         else
         {
+            hStateSP->mMetrics.NewCounter({"scp", "qic", "aborted-run"}).inc();
             CLOG_ERROR(SCP, "quorum intersection command failed, rc = {}",
                        ecode);
         }

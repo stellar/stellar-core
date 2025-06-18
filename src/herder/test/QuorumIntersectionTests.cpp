@@ -37,26 +37,62 @@ quorumIntersectionCheckerV2Wrapper(
 {
     Hash curr{};
     uint32_t testLedgerNo = 100;
-    auto& interruptCounter =
-        state->mMetrics.NewCounter({"scp", "qic", "interrupted-calls"});
-    auto interruptCountBefore = interruptCounter.count();
+    auto& failedCounter =
+        state->mMetrics.NewCounter({"scp", "qic", "failed-run"});
+    auto& abortedCounter =
+        state->mMetrics.NewCounter({"scp", "qic", "aborted-run"});
+    auto& resultPotentialSplitCounter =
+        state->mMetrics.NewCounter({"scp", "qic", "result-potential-split"});
+
+    // metrics before
+    auto failedCountBefore = failedCounter.count();
+    auto abortedCountBefore = abortedCounter.count();
+    auto resultPotentialSplitCountBefore = resultPotentialSplitCounter.count();
+
     quorum_checker::runQuorumIntersectionCheckAsync(
         curr, testLedgerNo, state->mTmpDir->getName(), qmap, state, pm,
         timeLimit, memoryLimit, analyzeCriticalGroups);
+
     while (state->mRecalculating && !clock.getIOContext().stopped())
     {
         clock.crank(true);
     }
-    if (interruptCounter.count() > interruptCountBefore)
+
+    // metrics after
+    auto failedCountAfter = failedCounter.count();
+    auto abortedCountAfter = abortedCounter.count();
+    auto resultPotentialSplitCountAfter = resultPotentialSplitCounter.count();
+
+    if (abortedCountAfter > abortedCountBefore)
     {
-        REQUIRE(interruptCounter.count() == interruptCountBefore + 1);
-        if (!analyzeCriticalGroups)
-        {
-            REQUIRE(state->mStatus == QuorumCheckerStatus::UNKNOWN);
-        }
+        REQUIRE(abortedCountAfter == abortedCountBefore + 1);
         throw QuorumIntersectionChecker::InterruptedException();
     }
-    REQUIRE(state->mLastCheckLedger == testLedgerNo);
+    else
+    {
+        if (failedCountAfter > failedCountBefore)
+        {
+            REQUIRE(failedCountAfter == failedCountBefore + 1);
+            if (!analyzeCriticalGroups)
+            {
+                // because the run fails, the status was never updated
+                REQUIRE(state->mStatus == QuorumCheckerStatus::UNKNOWN);
+            }
+            throw QuorumIntersectionChecker::InterruptedException();
+        }
+        else
+        {
+            // success
+            REQUIRE(state->mLastCheckLedger == testLedgerNo);
+            if (state->mStatus == QuorumCheckerStatus::SAT)
+            {
+                REQUIRE(resultPotentialSplitCountAfter ==
+                        resultPotentialSplitCountBefore + 1);
+                REQUIRE((!state->mPotentialSplit.first.empty() &&
+                         !state->mPotentialSplit.second.empty()));
+            }
+        }
+    }
 }
 
 bool
@@ -1046,14 +1082,14 @@ TEST_CASE("quorum intersection interruption v2", "[herder][quorumintersection]")
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
     // exceeding time limit
-    cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 100;
+    cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 1000;
     cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = UINT64_MAX;
     REQUIRE_THROWS_AS(networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg),
                       QuorumIntersectionChecker::InterruptedException);
 
     // exceeding memory limit
     cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = UINT64_MAX;
-    cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = 100'000'000;
+    cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = 50'000'000;
     REQUIRE_THROWS_AS(networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg),
                       QuorumIntersectionChecker::InterruptedException);
 }
@@ -1066,14 +1102,14 @@ TEST_CASE("quorum criticality check interruption v2",
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
     // exceeding time limit
-    cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 100;
+    cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 1000;
     cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = UINT64_MAX;
     REQUIRE_THROWS_AS(runIntersectionCriticalGroupsCheckV2(qm, cfg),
                       QuorumIntersectionChecker::InterruptedException);
 
     // exceeding memory limit
     cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = UINT64_MAX;
-    cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = 100'000'000;
+    cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES = 10'000'000;
     REQUIRE_THROWS_AS(runIntersectionCriticalGroupsCheckV2(qm, cfg),
                       QuorumIntersectionChecker::InterruptedException);
 }
