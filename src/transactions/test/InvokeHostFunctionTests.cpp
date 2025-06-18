@@ -4015,16 +4015,26 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         {
             auto extendSrcAccount = test.getRoot().create("src", 500000000);
 
-            SorobanResources restoreResources;
-            restoreResources.footprint.readOnly = {lk};
-            restoreResources.instructions = 0;
-            restoreResources.diskReadBytes = 10'000;
+            SorobanResources extendResources;
+            extendResources.footprint.readOnly = {lk};
+            extendResources.instructions = 0;
+            extendResources.diskReadBytes = 10'000;
 
             auto bumpLedgers = 10'000;
             auto resourceFee = 300'000 + 40'000;
             auto extendTx =
-                test.createExtendOpTx(restoreResources, bumpLedgers, 1'000,
+                test.createExtendOpTx(extendResources, bumpLedgers, 1'000,
                                       resourceFee, &extendSrcAccount);
+
+            // A delete that autorestores
+            auto delSrcAccount = test.getRoot().create("del", 500000000);
+            auto delSpec =
+                client.writeKeySpec("key", ContractDataDurability::PERSISTENT)
+                    .setArchivedIndexes({0});
+            auto inv = client.getContract().prepareInvocation(
+                "del_persistent", {makeSymbolSCVal("key")}, delSpec);
+            auto delTx = inv.withExactNonRefundableResourceFee().createTx(
+                &delSrcAccount);
 
             SECTION("manual restore")
             {
@@ -4065,6 +4075,71 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                 // Require that the write TX restored the entry which could be
                 // bumped in the subsequent TX
                 REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+            }
+            SECTION("autorestore then delete")
+            {
+                auto r = closeLedger(test.getApp(), {delTx});
+                REQUIRE(r.results.size() == 1);
+
+                checkTx(0, r, txSUCCESS);
+
+                REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                                   false) == INVOKE_HOST_FUNCTION_SUCCESS);
+            }
+
+            SECTION("autorestore, delete, then create")
+            {
+                auto writeInvocation = client.getContract().prepareInvocation(
+                    "put_persistent",
+                    {makeSymbolSCVal("key"), makeU64SCVal(200)},
+                    client.writeKeySpec("key",
+                                        ContractDataDurability::PERSISTENT));
+
+                auto writeTx =
+                    writeInvocation.withExactNonRefundableResourceFee()
+                        .createTx();
+
+                auto r = closeLedger(test.getApp(), {delTx, writeTx},
+                                     /*strictOrder=*/true);
+                REQUIRE(r.results.size() == 2);
+
+                checkTx(0, r, txSUCCESS);
+                checkTx(1, r, txSUCCESS);
+
+                REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                                   true) == INVOKE_HOST_FUNCTION_SUCCESS);
+            }
+
+            SECTION("restore, delete, restore")
+            {
+                auto restore1SrcAccount =
+                    test.getRoot().create("restore1", 500000000);
+                auto restore2SrcAccount =
+                    test.getRoot().create("restore2", 500000000);
+
+                SorobanResources restoreResources;
+                restoreResources.footprint.readWrite = {lk};
+                restoreResources.instructions = 0;
+                restoreResources.diskReadBytes = 10'000;
+                restoreResources.writeBytes = 10'000;
+
+                auto restoreTx1 = test.createRestoreTx(
+                    restoreResources, 1'000, 400'000, &restore1SrcAccount);
+
+                auto restoreTx2 = test.createRestoreTx(
+                    restoreResources, 1'000, 400'000, &restore1SrcAccount);
+
+                auto r =
+                    closeLedger(test.getApp(), {restoreTx1, delTx, restoreTx2},
+                                /*strictOrder=*/true);
+                REQUIRE(r.results.size() == 3);
+
+                checkTx(0, r, txSUCCESS);
+                checkTx(1, r, txSUCCESS);
+                checkTx(2, r, txSUCCESS);
+
+                REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                                   false) == INVOKE_HOST_FUNCTION_SUCCESS);
             }
         }
     };

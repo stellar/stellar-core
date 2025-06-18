@@ -53,10 +53,12 @@ class OperationFrame
             OperationMetaBuilder& opMeta) const = 0;
 
     virtual ParallelTxReturnVal doParallelApply(
-        AppConnector& app, ThreadEntryMap const& entryMap, Config const& config,
-        SorobanNetworkConfig const& sorobanConfig, Hash const& txPrngSeed,
-        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
-        OperationResult& res,
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+        SorobanMetrics& sorobanMetrics, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta) const;
 
@@ -98,9 +100,10 @@ class OperationFrame
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
                OperationMetaBuilder& opMeta) const;
 
-    ParallelTxReturnVal applyParallel(
-        AppConnector& app,
-        ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
         OperationResult& res,

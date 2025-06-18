@@ -134,16 +134,13 @@ void
 setDelta(SearchableSnapshotConstPtr liveSnapshot,
          ThreadEntryMap const& entryMap,
          OpModifiedEntryMap const& opModifiedEntryMap,
+         UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
          ParallelLedgerInfo const& ledgerInfo, TxEffects& effects)
 {
     for (auto const& newUpdates : opModifiedEntryMap)
     {
         auto const& lk = newUpdates.first;
         auto const& le = newUpdates.second;
-
-        // Any key the op updates should also be in entryMap because the
-        // keys were taken from the footprint (the ttl keys were added
-        // as well)
 
         auto prevLe = getLiveEntry(lk, liveSnapshot, entryMap);
 
@@ -153,6 +150,18 @@ setDelta(SearchableSnapshotConstPtr liveSnapshot,
             entryDelta.previous =
                 std::make_shared<InternalLedgerEntry>(*prevLe);
         }
+        else
+        {
+            // If the entry was not found in the live snapshot, we check if it
+            // was restored from the hot archive instead.
+            auto it = hotArchiveRestores.find(lk);
+            if (it != hotArchiveRestores.end())
+            {
+                entryDelta.previous =
+                    std::make_shared<InternalLedgerEntry>(it->second);
+            }
+        }
+
         if (le)
         {
             auto deltaLe = *le;
@@ -161,7 +170,7 @@ setDelta(SearchableSnapshotConstPtr liveSnapshot,
 
             entryDelta.current = std::make_shared<InternalLedgerEntry>(deltaLe);
         }
-
+        releaseAssertOrThrow(entryDelta.current || entryDelta.previous);
         effects.setDeltaEntry(lk, entryDelta);
     }
 }
@@ -285,6 +294,16 @@ ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
 bool
 ParallelLedgerAccessHelper::eraseLedgerEntry(LedgerKey const& key)
 {
+    // It's possible that the entry was restored, and put into
+    // mOpEntryMap, so we need to check if it exists there first.
+
+    auto it = mOpEntryMap.find(key);
+    if (it != mOpEntryMap.end())
+    {
+        // If it exists, we mark it as a delete.
+        it->second = std::nullopt;
+        return true;
+    }
     if (getLiveEntry(key, mLiveSnapshot, mEntryMap))
     {
         mOpEntryMap.emplace(key, std::nullopt);

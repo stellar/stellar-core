@@ -194,18 +194,23 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
 
-    std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>
-    applyThread(AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
-                Cluster const& cluster, Config const& config,
-                SorobanNetworkConfig const& sorobanConfig,
-                ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
+    std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>> applyThread(
+        AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
+
+        UnorderedMap<LedgerKey, LedgerEntry> previouslyRestoredHotEntries,
+        Cluster const& cluster, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
 
     std::pair<std::vector<RestoredKeys>,
               std::vector<std::unique_ptr<ThreadEntryMap>>>
     applySorobanStageClustersInParallel(
         AppConnector& app, ApplyStage const& stage,
-        ThreadEntryMap const& entryMap, Hash const& sorobanBasePrngSeed,
-        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Hash const& sorobanBasePrngSeed, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo);
 
     void addAllRestoredKeysToLedgerTxn(

@@ -71,6 +71,7 @@ collectEntries(SearchableSnapshotConstPtr liveSnapshot,
 void setDelta(SearchableSnapshotConstPtr liveSnapshot,
               ThreadEntryMap const& entryMap,
               OpModifiedEntryMap const& opModifiedEntryMap,
+              UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
               ParallelLedgerInfo const& ledgerInfo, TxEffects& effects);
 
 void preParallelApplyAndCollectModifiedClassicEntries(

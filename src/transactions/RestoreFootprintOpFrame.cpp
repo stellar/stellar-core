@@ -55,8 +55,8 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 
 ParallelTxReturnVal
 RestoreFootprintOpFrame::doParallelApply(
-    AppConnector& app,
-    ThreadEntryMap const& entryMap, // Must not be shared between threads
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
     SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -101,6 +101,11 @@ RestoreFootprintOpFrame::doParallelApply(
             auto ttlLeOpt = getLiveEntry(ttlKey, liveSnapshot, entryMap);
             if (!ttlLeOpt)
             {
+                // this entry has already been restored and then deleted
+                if (previouslyRestoredHotEntries.count(lk) > 0)
+                {
+                    continue;
+                }
                 hotArchiveEntry = hotArchive->load(lk);
                 if (!hotArchiveEntry)
                 {

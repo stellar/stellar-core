@@ -163,9 +163,10 @@ OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
 }
 
 ParallelTxReturnVal
-OperationFrame::applyParallel(
-    AppConnector& app, ThreadEntryMap const& entryMap, Config const& config,
-    SorobanNetworkConfig const& sorobanConfig,
+OperationFrame::parallelApply(
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
@@ -175,17 +176,18 @@ OperationFrame::applyParallel(
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
     // checkValid is called earlier in preParallelApply
 
-    return doParallelApply(app, entryMap, config, sorobanConfig, txPrngSeed,
-                           ledgerInfo, sorobanMetrics, res,
-                           refundableFeeTracker, opMeta);
+    return doParallelApply(app, entryMap, previouslyRestoredHotEntries, config,
+                           sorobanConfig, txPrngSeed, ledgerInfo,
+                           sorobanMetrics, res, refundableFeeTracker, opMeta);
 }
 
 ParallelTxReturnVal
 OperationFrame::doParallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap, Config const& appConfig,
-    SorobanNetworkConfig const& sorobanConfig, Hash const& txPrngSeed,
-    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
-    OperationResult& res,
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
+    Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+    SorobanMetrics& sorobanMetrics, OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {

@@ -822,6 +822,9 @@ class InvokeHostFunctionParallelApplyHelper
 {
   private:
     RestoredKeys mRestoredKeys;
+    // Map of entries that were restored from the hot archive prior to this
+    // transaction
+    UnorderedMap<LedgerKey, LedgerEntry> const& mPreviouslyRestoredHotEntries;
 
     // Bitmap to track which entries in the read-write footprint are
     // marked for autorestore based on readWrite footprint ordering. If
@@ -837,6 +840,17 @@ class InvokeHostFunctionParallelApplyHelper
                         bool isReadOnly, uint32_t restoredLiveUntilLedger,
                         bool isHotArchiveEntry, uint32_t index) override
     {
+        if (isHotArchiveEntry)
+        {
+            // If the entry is in the hot archive, we need to check if it was
+            // previously restored by a previous transaction. If it was return
+            // without adding the entry so we treat the entry as if it
+            // does not exist.
+            if (mPreviouslyRestoredHotEntries.count(lk) > 0)
+            {
+                return true;
+            }
+        }
         // autorestore support started in p23. Entry must be in the read write
         // footprint and must be marked as in the archivedSorobanEntries vector.
         if (!isReadOnly &&
@@ -956,6 +970,8 @@ class InvokeHostFunctionParallelApplyHelper
   public:
     InvokeHostFunctionParallelApplyHelper(
         AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
         ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
@@ -964,6 +980,7 @@ class InvokeHostFunctionParallelApplyHelper
                                         refundableFeeTracker, opMeta, opFrame)
         , ParallelLedgerAccessHelper(entryMap, ledgerInfo,
                                      app.copySearchableLiveBucketListSnapshot())
+        , mPreviouslyRestoredHotEntries(previouslyRestoredHotEntries)
     {
         // Initialize the autorestore lookup vector
         auto const& resourceExt = mOpFrame.getResourcesExt();
@@ -1098,8 +1115,8 @@ InvokeHostFunctionOpFrame::doApply(
 
 ParallelTxReturnVal
 InvokeHostFunctionOpFrame::doParallelApply(
-    AppConnector& app,
-    ThreadEntryMap const& entryMap, // Must not be shared between threads!
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
     SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -1113,8 +1130,8 @@ InvokeHostFunctionOpFrame::doParallelApply(
     releaseAssertOrThrow(refundableFeeTracker);
 
     InvokeHostFunctionParallelApplyHelper helper(
-        app, entryMap, ledgerInfo, txPrngSeed, res, refundableFeeTracker,
-        opMeta, *this);
+        app, entryMap, previouslyRestoredHotEntries, ledgerInfo, txPrngSeed,
+        res, refundableFeeTracker, opMeta, *this);
 
     bool success = helper.apply();
     return helper.takeResults(success);

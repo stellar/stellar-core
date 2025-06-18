@@ -1893,8 +1893,8 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
 ParallelTxReturnVal
 TransactionFrame::parallelApply(
-    AppConnector& app,
-    ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
@@ -1932,9 +1932,10 @@ TransactionFrame::parallelApply(
         auto& opResult = txResult.getOpResultAt(0);
         auto& opMeta = effects.getMeta().getOperationMetaBuilderAt(0);
 
-        auto res = op->applyParallel(
-            app, entryMap, config, sorobanConfig, ledgerInfo, sorobanMetrics,
-            opResult, txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
+        auto res = op->parallelApply(
+            app, entryMap, previouslyRestoredHotEntries, config, sorobanConfig,
+            ledgerInfo, sorobanMetrics, opResult,
+            txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
 
 #ifdef BUILD_TESTS
         maybeTriggerTestInternalError(mEnvelope);
@@ -1942,12 +1943,12 @@ TransactionFrame::parallelApply(
 
         if (res.getSuccess())
         {
+            auto hotArchive = res.getRestoredKeys().hotArchive;
             setDelta(liveSnapshot, entryMap, res.getModifiedEntryMap(),
-                     ledgerInfo, effects);
+                     hotArchive, ledgerInfo, effects);
 
             opMeta.setLedgerChangesFromEntryMaps(
-                liveSnapshot, entryMap, res.getModifiedEntryMap(),
-                res.getRestoredKeys().hotArchive,
+                liveSnapshot, entryMap, res.getModifiedEntryMap(), hotArchive,
                 res.getRestoredKeys().liveBucketList,
                 ledgerInfo.getLedgerSeq());
         }

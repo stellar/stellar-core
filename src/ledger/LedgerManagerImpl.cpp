@@ -2075,12 +2075,13 @@ LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
 }
 
 std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>
-LedgerManagerImpl::applyThread(AppConnector& app,
-                               std::unique_ptr<ThreadEntryMap> entryMap,
-                               Cluster const& cluster, Config const& config,
-                               SorobanNetworkConfig const& sorobanConfig,
-                               ParallelLedgerInfo ledgerInfo,
-                               Hash sorobanBasePrngSeed)
+LedgerManagerImpl::applyThread(
+    AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
+
+    UnorderedMap<LedgerKey, LedgerEntry> previouslyRestoredHotEntries,
+    Cluster const& cluster, Config const& config,
+    SorobanNetworkConfig const& sorobanConfig, ParallelLedgerInfo ledgerInfo,
+    Hash sorobanBasePrngSeed)
 {
     // RO TTL bumps should only be observed when the entry is modified, so
     // we accumulate the RO TTL bumps until we need to apply them.
@@ -2105,15 +2106,23 @@ LedgerManagerImpl::applyThread(AppConnector& app,
                                     txBundle);
 
         auto res = txBundle.getTx()->parallelApply(
-            app, *entryMap, config, sorobanConfig, ledgerInfo,
-            txBundle.getResPayload(), getSorobanMetrics(), txSubSeed,
-            txBundle.getEffects());
+            app, *entryMap, previouslyRestoredHotEntries, config, sorobanConfig,
+            ledgerInfo, txBundle.getResPayload(), getSorobanMetrics(),
+            txSubSeed, txBundle.getEffects());
 
         if (res.getSuccess())
         {
             recordModifiedAndRestoredEntries(liveSnapshot, *entryMap,
                                              roTTLBumps, threadRestoredKeys,
                                              txBundle, res);
+
+            // Keep track of every restored key from the hot archive
+            // so we can check before loading from the hot archive.
+            // This prevents us from double-restores.
+            for (auto kvp : res.getRestoredKeys().hotArchive)
+            {
+                previouslyRestoredHotEntries.emplace(kvp.first, kvp.second);
+            }
         }
         else
         {
@@ -2137,8 +2146,10 @@ std::pair<std::vector<RestoredKeys>,
           std::vector<std::unique_ptr<ThreadEntryMap>>>
 LedgerManagerImpl::applySorobanStageClustersInParallel(
     AppConnector& app, ApplyStage const& stage,
-    ThreadEntryMap const& globalEntryMap, Hash const& sorobanBasePrngSeed,
-    Config const& config, SorobanNetworkConfig const& sorobanConfig,
+    ThreadEntryMap const& globalEntryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Hash const& sorobanBasePrngSeed, Config const& config,
+    SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo)
 {
     std::vector<RestoredKeys> threadRestoredKeys;
@@ -2159,9 +2170,9 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 
         threadFutures.emplace_back(std::async(
             std::launch::async, &LedgerManagerImpl::applyThread, this,
-            std::ref(app), std::move(entryMapPtr), std::cref(cluster),
-            std::cref(config), std::cref(sorobanConfig), ledgerInfo,
-            sorobanBasePrngSeed));
+            std::ref(app), std::move(entryMapPtr), previouslyRestoredHotEntries,
+            std::cref(cluster), std::cref(config), std::cref(sorobanConfig),
+            ledgerInfo, sorobanBasePrngSeed));
     }
 
     for (auto& restoredKeysFutures : threadFutures)
@@ -2379,10 +2390,11 @@ LedgerManagerImpl::applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
     auto const& sorobanConfig = getSorobanNetworkConfigForApply();
     auto ledgerInfo = getParallelLedgerInfo(app, ltx.loadHeader().current());
 
+    auto previouslyRestoredHotEntries = ltx.getRestoredHotArchiveKeys();
     auto [threadRestoredKeys, entryMapsByCluster] =
-        applySorobanStageClustersInParallel(app, stage, globalEntryMap,
-                                            sorobanBasePrngSeed, config,
-                                            sorobanConfig, ledgerInfo);
+        applySorobanStageClustersInParallel(
+            app, stage, globalEntryMap, previouslyRestoredHotEntries,
+            sorobanBasePrngSeed, config, sorobanConfig, ledgerInfo);
 
     addAllRestoredKeysToLedgerTxn(threadRestoredKeys, ltx);
 

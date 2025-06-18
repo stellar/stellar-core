@@ -315,16 +315,16 @@ TransactionTestFrame::preParallelApply(
 
 ParallelTxReturnVal
 TransactionTestFrame::parallelApply(
-    AppConnector& app,
-    ThreadEntryMap const& entryMap, // Must not be shared between threads!,
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& resPayload, SorobanMetrics& sorobanMetrics,
     Hash const& txPrngSeed, TxEffects& effects) const
 {
     return mTransactionFrame->parallelApply(
-        app, entryMap, config, sorobanConfig, ledgerInfo, resPayload,
-        sorobanMetrics, txPrngSeed, effects);
+        app, entryMap, previouslyRestoredHotEntries, config, sorobanConfig,
+        ledgerInfo, resPayload, sorobanMetrics, txPrngSeed, effects);
 }
 
 MutableTxResultPtr

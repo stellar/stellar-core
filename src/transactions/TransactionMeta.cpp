@@ -338,25 +338,38 @@ OperationMetaBuilder::setLedgerChangesFromEntryMaps(
         }
         else
         {
-            // op should return a LedgerEntry for this key if it doesn't
-            // exist in EntryMap because it must've been created in the
-            // op
-            releaseAssertOrThrow(le);
+            if (!le)
+            {
+                // If this is a delete, and an entry cannot be found in the live
+                // snapshot of initialEntryMap, it means that this entry was
+                // restored
+                auto it = hotArchiveRestores.find(lk);
+                releaseAssertOrThrow(it != hotArchiveRestores.end());
 
-            changes.emplace_back(LEDGER_ENTRY_CREATED);
-            changes.back().created() = *le;
-            changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
+                changes.emplace_back(LEDGER_ENTRY_CREATED);
+                changes.back().created() = it->second;
+                changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
+
+                changes.emplace_back(LEDGER_ENTRY_REMOVED);
+                changes.back().removed() = lk;
+            }
+            else
+            {
+                changes.emplace_back(LEDGER_ENTRY_CREATED);
+                changes.back().created() = *le;
+                changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
+            }
         }
-
-        std::visit(
-            [&changes, &hotArchiveRestores, &liveRestores, ledgerSeq,
-             this](auto&& meta) {
-                meta.get().changes = processOpLedgerEntryChanges(
-                    mConfig, mOp, changes, hotArchiveRestores, liveRestores,
-                    mProtocolVersion, ledgerSeq);
-            },
-            mMeta);
     }
+
+    std::visit(
+        [&changes, &hotArchiveRestores, &liveRestores, ledgerSeq,
+         this](auto&& meta) {
+            meta.get().changes = processOpLedgerEntryChanges(
+                mConfig, mOp, changes, hotArchiveRestores, liveRestores,
+                mProtocolVersion, ledgerSeq);
+        },
+        mMeta);
 }
 
 void
