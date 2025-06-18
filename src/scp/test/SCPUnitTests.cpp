@@ -19,6 +19,11 @@ class TestNominationSCP : public SCPDriver
 {
   public:
     SCP mSCP;
+    uint32_t mInitialNominationTimeoutMS = 1000;
+    uint32_t mIncrementNominationTimeoutMS = 1000;
+    uint32_t mInitialBallotTimeoutMS = 1000;
+    uint32_t mIncrementBallotTimeoutMS = 1000;
+
     TestNominationSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal)
         : mSCP(*this, nodeID, true, qSetLocal)
     {
@@ -100,11 +105,32 @@ class TestNominationSCP : public SCPDriver
         return hasher.finish();
     }
 
+    // Copied from HerderSCPDriver.cpp
+    static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
+
     std::chrono::milliseconds
     computeTimeout(uint32 roundNumber, bool isNomination) override
     {
-        // For testing, just return default timeout values
-        return std::chrono::milliseconds(roundNumber * 1000);
+        int initialTimeoutMS;
+        int incrementMS;
+
+        if (isNomination)
+        {
+            initialTimeoutMS = mInitialNominationTimeoutMS;
+            incrementMS = mIncrementNominationTimeoutMS;
+        }
+        else
+        {
+            initialTimeoutMS = mInitialBallotTimeoutMS;
+            incrementMS = mIncrementBallotTimeoutMS;
+        }
+
+        int timeoutMS = initialTimeoutMS + (roundNumber - 1) * incrementMS;
+        if (timeoutMS > MAX_TIMEOUT_MS)
+        {
+            timeoutMS = MAX_TIMEOUT_MS;
+        }
+        return std::chrono::milliseconds(timeoutMS);
     }
 };
 

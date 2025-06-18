@@ -607,6 +607,8 @@ LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
 std::chrono::milliseconds
 LedgerManagerImpl::getExpectedLedgerCloseTime() const
 {
+    releaseAssert(threadIsMain());
+
 #ifdef BUILD_TESTS
     auto const& cfg = mApp.getConfig();
     // Always check for testing override first
@@ -620,6 +622,17 @@ LedgerManagerImpl::getExpectedLedgerCloseTime() const
         return std::chrono::milliseconds{1000};
     }
 #endif
+
+    // If a service calls this function during startup, it's possible that we
+    // have not yet set last closed ledger state, so return the "default" value.
+    // This is fine, since any protocol or consensus related functions that have
+    // a strong requirement that the value returned is the actual version in
+    // the network config will always be called after we've set the last closed
+    // ledger state.
+    if (!mLastClosedLedgerState)
+    {
+        return Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
+    }
 
     auto const& lcl = getLastClosedLedgerHeader();
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
@@ -1399,7 +1412,6 @@ LedgerManagerImpl::setLastClosedLedger(
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
-    auto lv = header.current().ledgerVersion;
     auto has = storePersistentStateAndLedgerHeaderInDB(
         header.current(), /* appendToCheckpoint */ false);
     ltx.commit();
@@ -1408,6 +1420,7 @@ LedgerManagerImpl::setLastClosedLedger(
         advanceBucketListSnapshotAndMakeLedgerState(lastClosed.header, has);
     advanceLastClosedLedgerState(output);
 
+    auto lv = lastClosed.header.ledgerVersion;
     maybeLoadSorobanNetworkConfig(lv);
     // This should not be additionally conditionalized on lv >= anything,
     // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.

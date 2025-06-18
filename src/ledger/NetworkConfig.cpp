@@ -1324,8 +1324,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
     loadEvictionIterator(ltx);
     // NB: this should follow loading state archival settings
     maybeUpdateBucketListWindowSize(ltx);
-    if (protocolVersionStartsFrom(protocolVersion,
-                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
     {
         loadParallelComputeConfig(ltx);
         loadLedgerCostExtConfig(ltx);

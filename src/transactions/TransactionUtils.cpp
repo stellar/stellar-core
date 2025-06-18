@@ -18,8 +18,8 @@
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
-#include <xdrpp/depth_checker.h>
 #include <chrono>
+#include <xdrpp/depth_checker.h>
 
 namespace stellar
 {
