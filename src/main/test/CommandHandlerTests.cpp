@@ -274,7 +274,9 @@ TEST_CASE("manualclose", "[commandhandler]")
     REQUIRE(app->getConfig().FORCE_SCP);
 
     auto const defaultManualCloseTimeInterval =
-        app->getConfig().getExpectedLedgerCloseTime().count();
+        std::chrono::duration_cast<std::chrono::seconds>(
+            app->getLedgerManager().getExpectedLedgerCloseTime())
+            .count();
 
     auto lastLedgerNum = [&]() {
         return app->getLedgerManager().getLastClosedLedgerNum();

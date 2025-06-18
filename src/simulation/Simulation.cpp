@@ -341,6 +341,19 @@ Simulation::stopOverlayTick()
     }
 }
 
+std::chrono::milliseconds
+Simulation::getExpectedLedgerCloseTime() const
+{
+    if (mNodes.empty())
+    {
+        return Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
+    }
+
+    // Pick arbitrary app
+    auto const& node = mNodes.begin()->second.mApp;
+    return node->getLedgerManager().getExpectedLedgerCloseTime();
+}
+
 void
 Simulation::startAllNodes()
 {

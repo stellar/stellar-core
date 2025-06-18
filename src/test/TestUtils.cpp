@@ -239,7 +239,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         lg.generateLoad(createAccountsLoadConfig);
         simulation->crankUntil(
             [&]() { return complete.count() == completeCount + 1; },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            300 * simulation->getExpectedLedgerCloseTime(), false);
 
         // Create upload wasm transaction.
         auto createUploadCfg =
@@ -249,7 +249,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         completeCount = complete.count();
         simulation->crankUntil(
             [&]() { return complete.count() == completeCount + 1; },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            300 * simulation->getExpectedLedgerCloseTime(), false);
 
         simulation->markReadyForSorobanUpgrade();
     }
@@ -268,7 +268,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        4 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Arm for upgrade.
     for (auto app : nodes)
@@ -293,7 +293,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
                                    .getLastClosedSorobanNetworkConfig() == cfg;
                     });
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * simulation->getExpectedLedgerCloseTime(), false);
     }
 }
 
