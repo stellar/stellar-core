@@ -121,6 +121,7 @@ pub(crate) mod rust_bridge {
 
     struct CxxLedgerEntryRentChange {
         is_persistent: bool,
+        is_code_entry: bool,
         old_size_bytes: u32,
         new_size_bytes: u32,
         old_live_until_ledger: u32,

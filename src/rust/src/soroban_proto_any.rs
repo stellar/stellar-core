@@ -94,13 +94,7 @@ impl From<CxxFeeConfiguration> for FeeConfiguration {
 
 impl From<&CxxLedgerEntryRentChange> for LedgerEntryRentChange {
     fn from(value: &CxxLedgerEntryRentChange) -> Self {
-        Self {
-            is_persistent: value.is_persistent,
-            old_size_bytes: value.old_size_bytes,
-            new_size_bytes: value.new_size_bytes,
-            old_live_until_ledger: value.old_live_until_ledger,
-            new_live_until_ledger: value.new_live_until_ledger,
-        }
+        super::convert_ledger_entry_rent_change(value)
     }
 }
 

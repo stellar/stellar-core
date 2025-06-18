@@ -50,7 +50,8 @@ RestoreFootprintOpFrame::RestoreFootprintOpFrame(
 bool
 RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 20;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     SOROBAN_PROTOCOL_VERSION);
 }
 
 ParallelTxReturnVal
@@ -179,29 +180,12 @@ RestoreFootprintOpFrame::doParallelApply(
             return {false, {}};
         }
 
-        rustEntryRentChanges.emplace_back();
-        auto& rustChange = rustEntryRentChanges.back();
-        rustChange.is_persistent = true;
-        // Treat the entry as if it hasn't existed before restoration
-        // for the rent fee purposes.
-        rustChange.old_size_bytes = 0;
-        rustChange.old_live_until_ledger = 0;
-
-        uint32_t entrySizeForRent = entrySize;
-
-        if (isContractCodeEntry(lk))
-        {
-            entrySizeForRent = rust_bridge::contract_code_memory_size_for_rent(
-                app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                ledgerInfo.getLedgerVersion(),
-                toCxxBuf(entry.data.contractCode()),
-                toCxxBuf(sorobanConfig.cpuCostParams()),
-                toCxxBuf(sorobanConfig.memCostParams()));
-        }
-
-        rustChange.new_size_bytes = entrySizeForRent;
-
-        rustChange.new_live_until_ledger = restoredLiveUntilLedger;
+        rustEntryRentChanges.emplace_back(
+            createEntryRentChangeWithoutModification(
+                entry, entrySize,
+                /*entryLiveUntilLedger=*/std::nullopt,
+                /*newLiveUntilLedger=*/restoredLiveUntilLedger,
+                ledgerInfo.getLedgerVersion(), app.getConfig(), sorobanConfig));
 
         if (hotArchiveEntry)
         {
@@ -335,17 +319,12 @@ RestoreFootprintOpFrame::doApply(
             return false;
         }
 
-        rustEntryRentChanges.emplace_back();
-        auto& rustChange = rustEntryRentChanges.back();
-        rustChange.is_persistent = true;
-        // Treat the entry as if it hasn't existed before restoration
-        // for the rent fee purposes.
-        rustChange.old_size_bytes = 0;
-        rustChange.old_live_until_ledger = 0;
-
-        uint32_t entrySizeForRent = entrySize;
-        rustChange.new_size_bytes = entrySizeForRent;
-        rustChange.new_live_until_ledger = restoredLiveUntilLedger;
+        rustEntryRentChanges.emplace_back(
+            createEntryRentChangeWithoutModification(
+                constEntry, entrySize,
+                /*entryLiveUntilLedger=*/std::nullopt,
+                /*newLiveUntilLedger=*/restoredLiveUntilLedger, ledgerVersion,
+                app.getConfig(), sorobanConfig));
 
         // Entry exists in the live BucketList if we get to this point due
         // to the constTTLLtxe loadWithoutRecord logic above.
@@ -361,8 +340,8 @@ RestoreFootprintOpFrame::doApply(
         rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
         ledgerSeq);
     if (!refundableFeeTracker->consumeRefundableSorobanResources(
-            0, rentFee, ltx.loadHeader().current().ledgerVersion, sorobanConfig,
-            app.getConfig(), mParentTx, diagnosticEvents))
+            0, rentFee, ledgerVersion, sorobanConfig, app.getConfig(),
+            mParentTx, diagnosticEvents))
     {
         innerResult(res).code(RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
         return false;

@@ -3,6 +3,7 @@
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
 #include "util/types.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -220,6 +221,16 @@ DiagnosticEventManager::finalize()
     releaseAssert(!mFinalized);
     mFinalized = true;
     return std::move(mBuffer);
+}
+
+void
+DiagnosticEventManager::debugLogEvents() const
+{
+    for (auto const& event : mBuffer)
+    {
+        CLOG_DEBUG(Tx, "Soroban diagnostic event: {}",
+                   xdr::xdr_to_string(event));
+    }
 }
 
 OpEventManager::OpEventManager(bool metaEnabled, bool isSoroban,

@@ -51,6 +51,9 @@ class DiagnosticEventManager
     // Moves the buffered events out from the event manager.
     xdr::xvector<DiagnosticEvent> finalize();
 
+    // Log all the events in the buffer at DEBUG log level.
+    void debugLogEvents() const;
+
   private:
     DiagnosticEventManager(bool enabled);
 

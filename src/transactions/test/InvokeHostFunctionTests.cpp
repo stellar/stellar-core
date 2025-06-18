@@ -1831,7 +1831,7 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
                                       ProtocolVersion::V_23)
-                ? 981'407
+                ? 981'248
                 : 981'527;
         int64_t initialFee = tx->getEnvelope().v1().tx.fee;
         REQUIRE(a1.getBalance() ==
@@ -1906,7 +1906,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         int64_t expectedRefund =
             protocolVersionStartsFrom(test.getLedgerVersion(),
                                       ProtocolVersion::V_23)
-                ? 981'407
+                ? 981'248
                 : 981'527;
 
         // Use the inner transactions fee, which already includes the minimum
@@ -2786,17 +2786,17 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             int const rentBumpForWasm =
                 protocolVersionStartsFrom(test.getLedgerVersion(),
                                           ProtocolVersion::V_23)
-                    ? 285
+                    ? 8'793
                     : 943;
             int const rentBumpForInstance =
                 protocolVersionStartsFrom(test.getLedgerVersion(),
                                           ProtocolVersion::V_23)
-                    ? 166
+                    ? 199
                     : 939;
             int const rentBumpForInstanceAndWasm =
                 protocolVersionStartsFrom(test.getLedgerVersion(),
                                           ProtocolVersion::V_23)
-                    ? 450
+                    ? 8'991
                     : 1881;
 
             SECTION("restore contract instance and wasm")
@@ -3047,7 +3047,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                     {lk, lk2}, /*charge for one entry*/
                     protocolVersionStartsFrom(test.getLedgerVersion(),
                                               ProtocolVersion::V_23)
-                        ? 20'166
+                        ? 20'194
                         : 20'939);
 
                 // Live entry TTL should be unchanged
@@ -3133,7 +3133,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                 int64_t const expectedRefund =
                     protocolVersionStartsFrom(test.getLedgerVersion(),
                                               ProtocolVersion::V_23)
-                        ? 40'331
+                        ? 40'599
                         : 41'877;
                 test.invokeExtendOp(keysToExtend, 10'100, expectedRefund);
                 REQUIRE(
@@ -3211,7 +3211,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                     stateArchivalSettings.maxEntryTTL + 10,
                     client
                         .readKeySpec("key", ContractDataDurability::PERSISTENT)
-                        .setRefundableResourceFee(80'000))));
+                        .setRefundableResourceFee(10'000'000))));
 
                 // Capped at max (Max TTL includes current ledger, so subtract
                 // 1)
@@ -3235,10 +3235,12 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                         ledgerSeq + stateArchivalSettings.minTemporaryTTL - 1);
 
                 // Max TTL includes current ledger, so subtract 1
-                REQUIRE(isSuccess(
-                    client.extend("key", ContractDataDurability::TEMPORARY,
-                                  stateArchivalSettings.maxEntryTTL - 1,
-                                  stateArchivalSettings.maxEntryTTL - 1)));
+                REQUIRE(isSuccess(client.extend(
+                    "key", ContractDataDurability::TEMPORARY,
+                    stateArchivalSettings.maxEntryTTL - 1,
+                    stateArchivalSettings.maxEntryTTL - 1,
+                    client.readKeySpec("key", ContractDataDurability::TEMPORARY)
+                        .setRefundableResourceFee(10'000'000))));
                 REQUIRE(test.getTTL(lkTemp) ==
                         test.getLCLSeq() + stateArchivalSettings.maxEntryTTL -
                             1);
@@ -3266,26 +3268,40 @@ TEST_CASE("charge rent fees for storage resize", "[tx][soroban]")
 
     SECTION("resize with no extend")
     {
-        uint32_t const expectedRefundableFee = 15'844;
-        REQUIRE(client.resizeStorageAndExtend(
+        uint32_t const expectedRefundableFee = 3'292'183;
+        SECTION("failed due to low fee")
+        {
+            REQUIRE(
+                client.resizeStorageAndExtend(
                     "key", 5, 1'000'000 - 2, 1'000'000,
                     spec.setRefundableResourceFee(expectedRefundableFee - 1)) ==
                 INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
-        REQUIRE(isSuccess(client.resizeStorageAndExtend(
-            "key", 5, 1'000'000 - 3, 1'000'000,
-            spec.setRefundableResourceFee(expectedRefundableFee))));
+        }
+        SECTION("success")
+        {
+            REQUIRE(isSuccess(client.resizeStorageAndExtend(
+                "key", 5, 1'000'000 - 3, 1'000'000,
+                spec.setRefundableResourceFee(expectedRefundableFee))));
+        }
     }
 
     SECTION("resize and extend")
     {
-        uint32_t const expectedRefundableFee = 56107;
-        REQUIRE(client.resizeStorageAndExtend(
+        uint32_t const expectedRefundableFee = 7'488'664;
+        SECTION("failed due to low fee")
+        {
+            REQUIRE(
+                client.resizeStorageAndExtend(
                     "key", 5, 2'000'000, 2'000'000,
                     spec.setRefundableResourceFee(expectedRefundableFee - 1)) ==
                 INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
-        REQUIRE(isSuccess(client.resizeStorageAndExtend(
-            "key", 5, 2'000'000, 2'000'000,
-            spec.setRefundableResourceFee(expectedRefundableFee))));
+        }
+        SECTION("success")
+        {
+            REQUIRE(isSuccess(client.resizeStorageAndExtend(
+                "key", 5, 2'000'000, 2'000'000,
+                spec.setRefundableResourceFee(expectedRefundableFee))));
+        }
     }
 }
 
@@ -3307,12 +3323,11 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         std::string metaPath = td.getName() + "/stream.xdr";
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
-
-        auto restoreCost = 20'166;
+        auto restoreCost = 20'167;
         if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                                     ProtocolVersion::V_23))
         {
-            restoreCost -= 118;
+            restoreCost -= 119;
         }
 
         SorobanTest test(cfg);
@@ -4373,6 +4388,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
         cfg.stateArchivalSettings().minPersistentTTL =
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
@@ -4402,7 +4418,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
         makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
     // We need to restore instance, wasm, and data entry
-    auto const refundableRestoreCost = 60'498;
+    auto const refundableRestoreCost = 60'711;
     auto keysToRestore = client.getContract().getKeys();
     keysToRestore.push_back(lk);
     REQUIRE(client.get("key", ContractDataDurability::PERSISTENT,
@@ -4511,7 +4527,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
             auto const expectedSize = 80;
 
             // Restore wasm and instance so we just restore data later
-            test.invokeRestoreOp(contractKeys, 40'333);
+            test.invokeRestoreOp(contractKeys, 40'546);
 
             SECTION("insufficient read bytes")
             {
@@ -4576,6 +4592,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
 TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
         cfg.stateArchivalSettings().minPersistentTTL =
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
@@ -4606,6 +4623,11 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 
     auto const bumpLedgers = 1'000'000;
     auto const resizeKb = 3;
+    // These costs are based on the exact amount of bump ledgers above. They
+    // should match between the manual restore and autorestore cases.
+    auto const costToRestore1KB = 20'342;
+    auto const costToBump = 17'702'779;
+    auto const costToBumpAfterResize = 50'624'589;
 
     auto expirationLedger =
         test.getLCLSeq() +
@@ -4621,16 +4643,11 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 
     REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
 
-    auto const costToRestore1KB = 20'166;
-    auto const costToBump = 105'259;
-    auto const costToBumpAfterResize = 263'688;
-
     auto getExpectedRestoredLedger = [&]() {
         return test.getLCLSeq() +
                MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME -
                1;
     };
-
     // First, test without autorestore to establish baseline expected fees
     SECTION("manual restore")
     {
@@ -4638,28 +4655,26 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
         REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
         REQUIRE(test.getTTL(lk) == getExpectedRestoredLedger());
 
+        // The restored entry has been already bumped by
+        // `MINIMUM_PERSISTENT_ENTRY_LIFETIME` during the restoration, so in
+        // order to extend it by exactly `bumpLedgers` we add the current entry
+        // TTL to the bump amount.
+        // Notice the subtle (LCL + 1) here - the TTL is going to be extended
+        // in the next ledger, not the last one.
+        auto const manualRestoreBumpLedgers =
+            bumpLedgers + (test.getTTL(lk) - (test.getLCLSeq() + 1));
         SECTION("extend only")
         {
-            // Offset by MINIMUM_PERSISTENT_ENTRY_LIFETIME since the restoreOp
-            // above already partially bumped rent
-            test.invokeExtendOp({lk},
-                                bumpLedgers +
-                                    MinimumSorobanNetworkConfig::
-                                        MINIMUM_PERSISTENT_ENTRY_LIFETIME,
-                                costToBump);
+            test.invokeExtendOp({lk}, manualRestoreBumpLedgers, costToBump);
         }
 
         SECTION("extend after resize")
         {
             REQUIRE(isSuccess(
                 client.resizeStorageAndExtend("key", resizeKb, 0, 0)));
-
-            // Offset by MINIMUM_PERSISTENT_ENTRY_LIFETIME since the restoreOp
-            // above already partially bumped rent
-            test.invokeExtendOp({lk},
-                                bumpLedgers +
-                                    MinimumSorobanNetworkConfig::
-                                        MINIMUM_PERSISTENT_ENTRY_LIFETIME,
+            // We've just closed another ledger above, so need to decrease the
+            // bump amount respectively.
+            test.invokeExtendOp({lk}, manualRestoreBumpLedgers - 1,
                                 costToBumpAfterResize);
         }
     }
@@ -4671,7 +4686,7 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
                                .setArchivedIndexes({0})
                                .setReadBytes(10000)
                                .setWriteBytes(10000)
-                               .setRefundableResourceFee(1'000'000);
+                               .setRefundableResourceFee(100'000'000);
 
     auto invokeAndCheck = [&](auto invocation,
                               auto expectedRefundableFeeCharged, auto eventSize,
@@ -4708,19 +4723,23 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
         invokeAndCheck(invocation, costToRestore1KB, 4,
                        getExpectedRestoredLedger());
     }
-
+    // When we autorestore an entry, we consider it to just have been created
+    // and thus the current ledger is included in the rent payment. So we
+    // subtract it from the bump ledgers in order to pay rent for exactly
+    // `bumpLedgers`.
+    auto const autoRestoreBumpLedgers = bumpLedgers - 1;
+    auto const eventsSize = 4;
     SECTION("autorestore with rent bump")
     {
         // autorestore and extend in the same tx. Rent fees should be
         // identical to a an extension of bumpLedgers
         auto invocation = client.getContract().prepareInvocation(
             "replace_with_bytes_and_extend",
-            {makeSymbolSCVal("key"), makeU32(1), makeU32(bumpLedgers),
-             makeU32(bumpLedgers)},
+            {makeSymbolSCVal("key"), makeU32(1),
+             makeU32(autoRestoreBumpLedgers), makeU32(autoRestoreBumpLedgers)},
             autorestoreSpec);
-
-        invokeAndCheck(invocation, costToBump, 4,
-                       bumpLedgers + test.getLCLSeq());
+        invokeAndCheck(invocation, costToBump, eventsSize,
+                       test.getLCLSeq() + autoRestoreBumpLedgers);
     }
 
     SECTION("autorestore with rent bump and resize")
@@ -4728,12 +4747,12 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
         // autorestore and extend in the same tx
         auto invocation = client.getContract().prepareInvocation(
             "replace_with_bytes_and_extend",
-            {makeSymbolSCVal("key"), makeU32(resizeKb), makeU32(bumpLedgers),
-             makeU32(bumpLedgers)},
+            {makeSymbolSCVal("key"), makeU32(resizeKb),
+             makeU32(autoRestoreBumpLedgers), makeU32(autoRestoreBumpLedgers)},
             autorestoreSpec);
 
-        invokeAndCheck(invocation, costToBumpAfterResize, 4,
-                       bumpLedgers + test.getLCLSeq());
+        invokeAndCheck(invocation, costToBumpAfterResize, eventsSize,
+                       test.getLCLSeq() + autoRestoreBumpLedgers);
     }
 }
 
@@ -5027,29 +5046,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
     closeLedger(*app);
 
-    // Update sorobanStateTargetSizeBytes so sorobanStateRentFeeGrowthFactor
-    // comes into play
-    auto const& blSize = app->getLedgerManager()
-                             .getLastClosedSorobanNetworkConfig()
-                             .getAverageBucketListSize();
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto costKey = configSettingKey(
-            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-
-        auto costEntry = ltx.load(costKey);
-        costEntry.current()
-            .data.configSetting()
-            .contractLedgerCost()
-            .sorobanStateTargetSizeBytes = static_cast<int64>(blSize * .95);
-        costEntry.current()
-            .data.configSetting()
-            .contractLedgerCost()
-            .sorobanStateRentFeeGrowthFactor = 1000;
-        ltx.commit();
-        closeLedger(*app);
-    }
-
     for (auto& txEnv : txsToSign)
     {
         txEnv.v1().signatures.emplace_back(SignatureUtils::sign(
@@ -5151,28 +5147,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
         checkSettings(initialEntries);
-    }
-
-    // The rest are failure tests, so flip back our cost overrides so we can
-    // check that the initial settings haven't changed.
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto costKey = configSettingKey(
-            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-
-        auto costEntry = ltx.load(costKey);
-        costEntry.current()
-            .data.configSetting()
-            .contractLedgerCost()
-            .sorobanStateTargetSizeBytes =
-            InitialSorobanNetworkConfig::BUCKET_LIST_TARGET_SIZE_BYTES;
-        costEntry.current()
-            .data.configSetting()
-            .contractLedgerCost()
-            .sorobanStateRentFeeGrowthFactor =
-            InitialSorobanNetworkConfig::STATE_SIZE_RENT_FEE_GROWTH_FACTOR;
-        ltx.commit();
-        closeLedger(*app);
     }
 
     auto const& lcl = lm.getLastClosedLedgerHeader();
@@ -6706,7 +6680,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
     SECTION("scenario A: restore in one ledger, invoke in next")
     {
         // Restore contract in ledger N+1
-        test.invokeRestoreOp(contractKeys, 40333);
+        test.invokeRestoreOp(contractKeys, 40'493);
 
         // Invoke in ledger N+2
         // Because we have a gap between restore and invoke, the module cache
@@ -7814,7 +7788,7 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
     restoreResources.writeBytes = 9'000;
 
     auto const& contractKeys = client.getContract().getKeys();
-    auto const resourceFee = 300'000 + 40'000 * contractKeys.size();
+    auto const resourceFee = 1'000'000 + 40'000 * contractKeys.size();
     auto tx1 = test.createRestoreTx(restoreResources, 1'000, resourceFee, &a1);
 
     auto i1Spec =

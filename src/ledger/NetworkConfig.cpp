@@ -984,7 +984,39 @@ initialEvictionIterator(Config const& cfg)
     entry.evictionIterator().isCurrBucket = true;
     return entry;
 }
+
+void
+updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+
+    auto& ledgerCostSettings =
+        ltx.load(key).current().data.configSetting().contractLedgerCost();
+    ledgerCostSettings.sorobanStateTargetSizeBytes =
+        Protcol23UpgradedConfig::SOROBAN_STATE_TARGET_SIZE_BYTES;
+    ledgerCostSettings.rentFee1KBSorobanStateSizeLow =
+        Protcol23UpgradedConfig::RENT_FEE_1KB_SOROBAN_STATE_SIZE_LOW;
+    ledgerCostSettings.rentFee1KBSorobanStateSizeHigh =
+        Protcol23UpgradedConfig::RENT_FEE_1KB_SOROBAN_STATE_SIZE_HIGH;
+
+    LedgerKey archivalKey(CONFIG_SETTING);
+    archivalKey.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
+    auto& archivalSettings = ltx.load(archivalKey)
+                                 .current()
+                                 .data.configSetting()
+                                 .stateArchivalSettings();
+    archivalSettings.persistentRentRateDenominator =
+        Protcol23UpgradedConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
+    archivalSettings.tempRentRateDenominator =
+        Protcol23UpgradedConfig::TEMP_RENT_RATE_DENOMINATOR;
+    ltx.commit();
 }
+} // namespace
 
 bool
 SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
@@ -1215,8 +1247,8 @@ SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
 }
 
 void
-SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
-                                                Application& app)
+SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
+                                                         Application& app)
 {
     ZoneScoped;
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
@@ -1235,6 +1267,8 @@ SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(
         initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
         static_cast<uint32_t>(ProtocolVersion::V_23));
+
+    updateRentCostParamsForV23(ltx);
 }
 
 void
@@ -1270,7 +1304,7 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     }
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_23))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV23(ltx, app);
+        SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
     }
 }
 

@@ -273,7 +273,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;
-    tx.ext.sorobanData().resourceFee = 65'000'000;
+    tx.ext.sorobanData().resourceFee = 95'000'000;
 
     ConfigUpgradeSetKey key;
     key.contentHash = upgradeHash;

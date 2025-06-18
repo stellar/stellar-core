@@ -54,7 +54,8 @@ ExtendFootprintTTLOpFrame::ExtendFootprintTTLOpFrame(
 bool
 ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 20;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     SOROBAN_PROTOCOL_VERSION);
 }
 
 class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
@@ -95,8 +96,6 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
     }
 
     virtual bool checkReadBytesResourceLimit(uint32_t entrySize) = 0;
-    virtual uint32_t getEntrySizeForRent(uint32_t entrySize,
-                                         LedgerEntry const& entryLe) = 0;
 
     virtual bool
     apply()
@@ -115,6 +114,7 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
         // to be extendable, hence don't include it.
         uint32_t newLiveUntilLedgerSeq =
             getLedgerSeq() + mOpFrame.mExtendFootprintTTLOp.extendTo;
+        auto ledgerVersion = getLedgerVersion();
         for (auto const& lk : footprint.readOnly)
         {
             auto ttlKey = getTTLKey(lk);
@@ -165,17 +165,14 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
             // We already checked that the TTLEntry exists in the logic above
             auto ttlLe = *ttlLeOpt;
 
-            rustEntryRentChanges.emplace_back();
-            auto& rustChange = rustEntryRentChanges.back();
-            rustChange.is_persistent = !isTemporaryEntry(lk);
+            rustEntryRentChanges.emplace_back(
+                createEntryRentChangeWithoutModification(
+                    entryLe, entrySize,
+                    /*entryLiveUntilLedger=*/
+                    ttlLe.data.ttl().liveUntilLedgerSeq,
+                    /*newLiveUntilLedger=*/newLiveUntilLedgerSeq, ledgerVersion,
+                    mAppConfig, mSorobanConfig));
 
-            uint32_t entrySizeForRent = getEntrySizeForRent(entrySize, entryLe);
-
-            rustChange.old_size_bytes = entrySizeForRent;
-            rustChange.new_size_bytes = rustChange.old_size_bytes;
-            rustChange.old_live_until_ledger =
-                ttlLe.data.ttl().liveUntilLedgerSeq;
-            rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
             ttlLe.data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
 
             upsertLedgerEntry(ttlKey, ttlLe);
@@ -184,7 +181,7 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
         // This may throw, but only in case of the Core version
         // misconfiguration.
         int64_t rentFee = rust_bridge::compute_rent_fee(
-            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION, getLedgerVersion(),
+            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
             rustEntryRentChanges,
             mSorobanConfig.rustBridgeRentFeeConfiguration(), getLedgerSeq());
         if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
@@ -232,11 +229,6 @@ class ExtendFootprintTTLPreV23ApplyHelper
         }
         return true;
     }
-    uint32_t
-    getEntrySizeForRent(uint32_t entrySize, LedgerEntry const& entryLe) override
-    {
-        return entrySize;
-    }
 };
 
 class ExtendFootprintTTLParallelApplyHelper
@@ -260,22 +252,7 @@ class ExtendFootprintTTLParallelApplyHelper
     {
         return true;
     }
-    uint32_t
-    getEntrySizeForRent(uint32_t entrySize, LedgerEntry const& entryLe) override
-    {
-        if (isContractCodeEntry(entryLe.data))
-        {
-            return rust_bridge::contract_code_memory_size_for_rent(
-                mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                getLedgerVersion(), toCxxBuf(entryLe.data.contractCode()),
-                toCxxBuf(mSorobanConfig.cpuCostParams()),
-                toCxxBuf(mSorobanConfig.memCostParams()));
-        }
-        else
-        {
-            return entrySize;
-        }
-    }
+
     OpModifiedEntryMap
     takeOpEntryMap()
     {

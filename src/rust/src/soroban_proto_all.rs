@@ -37,6 +37,7 @@ pub(crate) use p22 as soroban_curr;
 pub(crate) mod p23 {
     pub(crate) extern crate soroban_env_host_p23;
     use crate::{
+        bridge::rust_bridge::CxxLedgerEntryRentChange,
         rust_bridge::{
             CxxFeeConfiguration, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration,
             CxxTransactionResources,
@@ -47,8 +48,8 @@ pub(crate) mod p23 {
         budget::Budget,
         e2e_invoke::{self, InvokeHostFunctionResult},
         fees::{
-            compute_rent_write_fee_per_1kb, FeeConfiguration, RentFeeConfiguration,
-            RentWriteFeeConfiguration, TransactionResources,
+            compute_rent_write_fee_per_1kb, FeeConfiguration, LedgerEntryRentChange,
+            RentFeeConfiguration, RentWriteFeeConfiguration, TransactionResources,
         },
         vm::wasm_module_memory_cost,
         xdr::{ContractCodeEntry, DiagnosticEvent},
@@ -172,6 +173,19 @@ pub(crate) mod p23 {
             fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
         }
     }
+
+    pub(crate) fn convert_ledger_entry_rent_change(
+        value: &CxxLedgerEntryRentChange,
+    ) -> LedgerEntryRentChange {
+        LedgerEntryRentChange {
+            is_persistent: value.is_persistent,
+            is_code_entry: value.is_code_entry,
+            old_size_bytes: value.old_size_bytes,
+            new_size_bytes: value.new_size_bytes,
+            old_live_until_ledger: value.old_live_until_ledger,
+            new_live_until_ledger: value.new_live_until_ledger,
+        }
+    }
 }
 
 #[path = "."]
@@ -180,6 +194,7 @@ pub(crate) mod p22 {
     pub(crate) use soroban_env_host_p22 as soroban_env_host;
     pub(crate) mod soroban_proto_any;
     use crate::{
+        bridge::rust_bridge::CxxLedgerEntryRentChange,
         rust_bridge::{
             CxxFeeConfiguration, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration,
             CxxTransactionResources,
@@ -190,8 +205,8 @@ pub(crate) mod p22 {
         budget::{AsBudget, Budget},
         e2e_invoke::{self, InvokeHostFunctionResult},
         fees::{
-            compute_write_fee_per_1kb, FeeConfiguration, RentFeeConfiguration,
-            TransactionResources, WriteFeeConfiguration,
+            compute_write_fee_per_1kb, FeeConfiguration, LedgerEntryRentChange,
+            RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
         },
         xdr::{ContractCodeEntry, DiagnosticEvent, Hash},
         Error, HostError, LedgerInfo, TraceHook, Val,
@@ -348,6 +363,18 @@ pub(crate) mod p22 {
             fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
         }
     }
+
+    pub(crate) fn convert_ledger_entry_rent_change(
+        value: &CxxLedgerEntryRentChange,
+    ) -> LedgerEntryRentChange {
+        LedgerEntryRentChange {
+            is_persistent: value.is_persistent,
+            old_size_bytes: value.old_size_bytes,
+            new_size_bytes: value.new_size_bytes,
+            old_live_until_ledger: value.old_live_until_ledger,
+            new_live_until_ledger: value.new_live_until_ledger,
+        }
+    }
 }
 
 #[path = "."]
@@ -356,6 +383,7 @@ pub(crate) mod p21 {
     pub(crate) use soroban_env_host_p21 as soroban_env_host;
     pub(crate) mod soroban_proto_any;
     use crate::{
+        bridge::rust_bridge::CxxLedgerEntryRentChange,
         rust_bridge::{
             CxxFeeConfiguration, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration,
             CxxTransactionResources,
@@ -366,8 +394,8 @@ pub(crate) mod p21 {
         budget::{AsBudget, Budget},
         e2e_invoke::{self, InvokeHostFunctionResult},
         fees::{
-            compute_write_fee_per_1kb, FeeConfiguration, RentFeeConfiguration,
-            TransactionResources, WriteFeeConfiguration,
+            compute_write_fee_per_1kb, FeeConfiguration, LedgerEntryRentChange,
+            RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
         },
         xdr::{ContractCodeEntry, DiagnosticEvent, Hash},
         Error, HostError, LedgerInfo, TraceHook, Val,
@@ -523,6 +551,18 @@ pub(crate) mod p21 {
             fee_per_historical_1kb: value.fee_per_historical_1kb,
             fee_per_contract_event_1kb: value.fee_per_contract_event_1kb,
             fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
+        }
+    }
+
+    pub(crate) fn convert_ledger_entry_rent_change(
+        value: &CxxLedgerEntryRentChange,
+    ) -> LedgerEntryRentChange {
+        LedgerEntryRentChange {
+            is_persistent: value.is_persistent,
+            old_size_bytes: value.old_size_bytes,
+            new_size_bytes: value.new_size_bytes,
+            old_live_until_ledger: value.old_live_until_ledger,
+            new_live_until_ledger: value.new_live_until_ledger,
         }
     }
 }
