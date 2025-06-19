@@ -364,9 +364,9 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         ttlEntry = ttlEntryOp->data.ttl();
                     }
                 }
-                // If ttlEntryOp doesn't exist, this is a new Soroban entry
-                // Starting in protocol 23, we must check the Hot Archive for
-                // new keys. If a new key is actually archived, fail the op.
+                // Starting from protocol 23, check the hot archive for this
+                // key, and restore it if this transaction is configured to.
+                // Otherwise, fail the transaction.
                 else if (protocolVersionStartsFrom(
                              ledgerVersion,
                              PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
