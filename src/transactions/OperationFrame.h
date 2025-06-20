@@ -52,6 +52,16 @@ class OperationFrame
             std::optional<RefundableFeeTracker>& refundableFeeTracker,
             OperationMetaBuilder& opMeta) const = 0;
 
+    virtual ParallelTxReturnVal doParallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+        SorobanMetrics& sorobanMetrics, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta) const;
+
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
 
@@ -89,6 +99,16 @@ class OperationFrame
                OperationResult& res,
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
                OperationMetaBuilder& opMeta) const;
+
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+        OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, Hash const& sorobanBasePrngSeed) const;
 
     Operation const&
     getOperation() const

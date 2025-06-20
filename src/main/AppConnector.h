@@ -20,7 +20,7 @@ struct LedgerTxnDelta;
 class CapacityTrackedMessage;
 
 // Helper class to isolate access to Application; all function helpers must
-// either be called from main or be thread-sade
+// either be called from main or be thread-safe
 class AppConnector
 {
     Application& mApp;
@@ -65,6 +65,8 @@ class AppConnector
     medida::MetricsRegistry& getMetrics() const;
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot();
+
+    SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot();
 
     // Refreshes `snapshot` if a newer snapshot is available. No-op otherwise.
     void

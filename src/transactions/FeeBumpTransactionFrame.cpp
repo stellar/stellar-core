@@ -80,6 +80,74 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 }
 #endif
 
+void
+FeeBumpTransactionFrame::preParallelApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult) const
+{
+    try
+    {
+        LedgerTxn ltxTx(ltx);
+        removeOneTimeSignerKeyFromFeeSource(ltxTx);
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception in preParallelApply ", e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception in preParallelApply");
+    }
+
+    try
+    {
+        mInnerTx->preParallelApply(app, ltx, meta, txResult, false);
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception during preParallelApply: ", e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception during preParallelApply");
+    }
+}
+
+ParallelTxReturnVal
+FeeBumpTransactionFrame::parallelApply(
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Config const& config, SorobanNetworkConfig const& sorobanConfig,
+    ParallelLedgerInfo const& ledgerInfo,
+    MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
+    Hash const& txPrngSeed, TxEffects& effects) const
+{
+    try
+    {
+        // If this throws, then we may not have the correct TransactionResult so
+        // we must crash.
+        // Note that even after updateResult is called here, feeCharged will not
+        // be accurate for Soroban transactions until
+        // FeeBumpTransactionFrame::processPostApply is called.
+        auto res = mInnerTx->parallelApply(
+            app, entryMap, previouslyRestoredHotEntries, config, sorobanConfig,
+            ledgerInfo, txResult, sorobanMetrics, txPrngSeed, effects);
+        return res;
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception while applying inner transaction: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort(
+            "Unknown exception while applying inner transaction");
+    }
+}
+
 bool
 FeeBumpTransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                                TransactionMetaBuilder& meta,
@@ -144,8 +212,6 @@ FeeBumpTransactionFrame::processPostApply(
         meta.pushTxChangesAfter(ltxInner);
         ltxInner.commit();
     }
-
-    meta.maybeSetRefundableFeeMeta(txResult.getRefundableFeeTracker());
 }
 
 void

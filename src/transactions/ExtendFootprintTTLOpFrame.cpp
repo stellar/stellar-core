@@ -9,12 +9,19 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
 {
+
+static ExtendFootprintTTLResult&
+innerResult(OperationResult& res)
+{
+    return res.tr().extendFootprintTTLResult();
+}
 
 struct ExtendFootprintTTLMetrics
 {
@@ -50,40 +57,71 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
     return header.ledgerVersion >= 20;
 }
 
-bool
-ExtendFootprintTTLOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
 {
-    releaseAssertOrThrow(refundableFeeTracker);
-    ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
 
-    ExtendFootprintTTLMetrics metrics(app.getSorobanMetrics());
-    auto timeScope = metrics.getExecTimer();
+  protected:
+    AppConnector& mApp;
+    OperationResult& mRes;
+    std::optional<RefundableFeeTracker>& mRefundableFeeTracker;
+    OperationMetaBuilder& mOpMeta;
+    ExtendFootprintTTLOpFrame const& mOpFrame;
 
-    auto const& resources = mParentTx.sorobanResources();
-    auto const& footprint = resources.footprint;
-    auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
+    SorobanResources const& mResources;
+    SorobanNetworkConfig const& mSorobanConfig;
+    Config const& mAppConfig;
 
-    rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
-    rustEntryRentChanges.reserve(footprint.readOnly.size());
-    uint32_t ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    // Extend for `extendTo` more ledgers since the current
-    // ledger. Current ledger has to be payed for in order for entry
-    // to be extendable, hence don't include it.
-    uint32_t newLiveUntilLedgerSeq = ledgerSeq + mExtendFootprintTTLOp.extendTo;
-    auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
-    for (auto const& lk : footprint.readOnly)
+    rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
+    rust::Vec<CxxBuf> mTtlEntryCxxBufs;
+    ExtendFootprintTTLMetrics mMetrics;
+    DiagnosticEventManager& mDiagnosticEvents;
+
+  public:
+    ExtendFootprintTTLApplyHelper(
+        AppConnector& app, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame)
+        : mApp(app)
+        , mRes(res)
+        , mRefundableFeeTracker(refundableFeeTracker)
+        , mOpMeta(opMeta)
+        , mOpFrame(opFrame)
+        , mResources(mOpFrame.mParentTx.sorobanResources())
+        , mSorobanConfig(app.getSorobanNetworkConfigForApply())
+        , mAppConfig(app.getConfig())
+        , mMetrics(app.getSorobanMetrics())
+        , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
-        auto ttlKey = getTTLKey(lk);
+    }
+
+    virtual bool checkReadBytesResourceLimit(uint32_t entrySize) = 0;
+    virtual uint32_t getEntrySizeForRent(uint32_t entrySize,
+                                         LedgerEntry const& entryLe) = 0;
+
+    virtual bool
+    apply()
+    {
+        ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
+        releaseAssertOrThrow(mRefundableFeeTracker);
+
+        auto timeScope = mMetrics.getExecTimer();
+
+        auto const& footprint = mResources.footprint;
+
+        rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
+        rustEntryRentChanges.reserve(footprint.readOnly.size());
+        // Extend for `extendTo` more ledgers since the current
+        // ledger. Current ledger has to be payed for in order for entry
+        // to be extendable, hence don't include it.
+        uint32_t newLiveUntilLedgerSeq =
+            getLedgerSeq() + mOpFrame.mExtendFootprintTTLOp.extendTo;
+        for (auto const& lk : footprint.readOnly)
         {
-            // Initially load without record since we may not need to modify
-            // entry
-            auto ttlConstLtxe = ltx.loadWithoutRecord(ttlKey);
-            if (!ttlConstLtxe || !isLive(ttlConstLtxe.current(), ledgerSeq))
+            auto ttlKey = getTTLKey(lk);
+
+            auto ttlLeOpt = getLedgerEntryOpt(ttlKey);
+
+            if (!ttlLeOpt || !isLive(*ttlLeOpt, getLedgerSeq()))
             {
                 // Skip archived entries, as those must be restored.
                 //
@@ -94,91 +132,197 @@ ExtendFootprintTTLOpFrame::doApply(
             }
 
             auto currLiveUntilLedgerSeq =
-                ttlConstLtxe.current().data.ttl().liveUntilLedgerSeq;
+                ttlLeOpt->data.ttl().liveUntilLedgerSeq;
             if (currLiveUntilLedgerSeq >= newLiveUntilLedgerSeq)
             {
                 continue;
             }
-        }
 
-        // Load the ContractCode/ContractData entry for fee calculation.
-        auto entryLtxe = ltx.loadWithoutRecord(lk);
+            auto entryOpt = getLedgerEntryOpt(lk);
+            // We checked for TTLEntry existence above
+            releaseAssertOrThrow(entryOpt);
 
-        // We checked for TTLEntry existence above
-        releaseAssertOrThrow(entryLtxe);
+            // Load the ContractCode/ContractData entry for fee calculation.
 
-        uint32_t entrySize =
-            static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
+            auto const& entryLe = *entryOpt;
 
-        if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                         app.getConfig(), mParentTx,
-                                         diagnosticEvents))
-        {
-            innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
-            return false;
-        }
+            uint32_t entrySize = static_cast<uint32_t>(xdr::xdr_size(entryLe));
 
-        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
-        {
-            metrics.mLedgerReadByte += entrySize;
-            if (resources.diskReadBytes < metrics.mLedgerReadByte)
+            if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
+                                             mAppConfig, mOpFrame.mParentTx,
+                                             mDiagnosticEvents))
             {
-                diagnosticEvents.pushError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation byte-read resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.diskReadBytes)});
-
-                innerResult(res).code(
+                innerResult(mRes).code(
                     EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
-        }
 
-        // We already checked that the TTLEntry exists in the logic above
-        auto ttlLtxe = ltx.load(ttlKey);
-
-        rustEntryRentChanges.emplace_back();
-        auto& rustChange = rustEntryRentChanges.back();
-        rustChange.is_persistent = !isTemporaryEntry(lk);
-
-        uint32_t entrySizeForRent = entrySize;
-        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
-        {
-            if (isContractCodeEntry(lk))
+            if (!checkReadBytesResourceLimit(entrySize))
             {
-                entrySizeForRent =
-                    rust_bridge::contract_code_memory_size_for_rent(
-                        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                        ledgerVersion,
-                        toCxxBuf(entryLtxe.current().data.contractCode()),
-                        toCxxBuf(sorobanConfig.cpuCostParams()),
-                        toCxxBuf(sorobanConfig.memCostParams()));
+                return false;
             }
+
+            // We already checked that the TTLEntry exists in the logic above
+            auto ttlLe = *ttlLeOpt;
+
+            rustEntryRentChanges.emplace_back();
+            auto& rustChange = rustEntryRentChanges.back();
+            rustChange.is_persistent = !isTemporaryEntry(lk);
+
+            uint32_t entrySizeForRent = getEntrySizeForRent(entrySize, entryLe);
+
+            rustChange.old_size_bytes = entrySizeForRent;
+            rustChange.new_size_bytes = rustChange.old_size_bytes;
+            rustChange.old_live_until_ledger =
+                ttlLe.data.ttl().liveUntilLedgerSeq;
+            rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
+            ttlLe.data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+
+            upsertLedgerEntry(ttlKey, ttlLe);
         }
 
-        rustChange.old_size_bytes = entrySizeForRent;
-        rustChange.new_size_bytes = rustChange.old_size_bytes;
-        rustChange.old_live_until_ledger =
-            ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
-        rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
-        ttlLtxe.current().data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+        // This may throw, but only in case of the Core version
+        // misconfiguration.
+        int64_t rentFee = rust_bridge::compute_rent_fee(
+            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION, getLedgerVersion(),
+            rustEntryRentChanges,
+            mSorobanConfig.rustBridgeRentFeeConfiguration(), getLedgerSeq());
+        if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
+                0, rentFee, getLedgerVersion(), mSorobanConfig, mAppConfig,
+                mOpFrame.mParentTx, mDiagnosticEvents))
+        {
+            innerResult(mRes).code(
+                EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
+            return false;
+        }
+        innerResult(mRes).code(EXTEND_FOOTPRINT_TTL_SUCCESS);
+        return true;
     }
+};
 
-    // This may throw, but only in case of the Core version misconfiguration.
-    int64_t rentFee = rust_bridge::compute_rent_fee(
-        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
-        rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
-        ledgerSeq);
-    if (!refundableFeeTracker->consumeRefundableSorobanResources(
-            0, rentFee, ledgerVersion, sorobanConfig, app.getConfig(),
-            mParentTx, diagnosticEvents))
+class ExtendFootprintTTLPreV23ApplyHelper
+    : virtual public ExtendFootprintTTLApplyHelper,
+      virtual public PreV23LedgerAccessHelper
+{
+  public:
+    ExtendFootprintTTLPreV23ApplyHelper(
+        AppConnector& app, AbstractLedgerTxn& ltx, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame)
+        : ExtendFootprintTTLApplyHelper(app, res, refundableFeeTracker, opMeta,
+                                        opFrame)
+        , PreV23LedgerAccessHelper(ltx)
     {
-        innerResult(res).code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
-        return false;
     }
-    innerResult(res).code(EXTEND_FOOTPRINT_TTL_SUCCESS);
-    return true;
+    virtual bool
+    checkReadBytesResourceLimit(uint32_t entrySize) override
+    {
+        mMetrics.mLedgerReadByte += entrySize;
+        if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
+        {
+            mDiagnosticEvents.pushError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-read resources exceeds amount specified",
+                {makeU64SCVal(mMetrics.mLedgerReadByte),
+                 makeU64SCVal(mResources.diskReadBytes)});
+
+            innerResult(mRes).code(
+                EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+        return true;
+    }
+    uint32_t
+    getEntrySizeForRent(uint32_t entrySize, LedgerEntry const& entryLe) override
+    {
+        return entrySize;
+    }
+};
+
+class ExtendFootprintTTLParallelApplyHelper
+    : virtual public ExtendFootprintTTLApplyHelper,
+      virtual public ParallelLedgerAccessHelper
+{
+  public:
+    ExtendFootprintTTLParallelApplyHelper(
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        ParallelLedgerInfo const& ledgerInfo, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame)
+        : ExtendFootprintTTLApplyHelper(app, res, refundableFeeTracker, opMeta,
+                                        opFrame)
+        , ParallelLedgerAccessHelper(entryMap, ledgerInfo,
+                                     app.copySearchableLiveBucketListSnapshot())
+    {
+    }
+    virtual bool
+    checkReadBytesResourceLimit(uint32_t entrySize) override
+    {
+        return true;
+    }
+    uint32_t
+    getEntrySizeForRent(uint32_t entrySize, LedgerEntry const& entryLe) override
+    {
+        if (isContractCodeEntry(entryLe.data))
+        {
+            return rust_bridge::contract_code_memory_size_for_rent(
+                mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+                getLedgerVersion(), toCxxBuf(entryLe.data.contractCode()),
+                toCxxBuf(mSorobanConfig.cpuCostParams()),
+                toCxxBuf(mSorobanConfig.memCostParams()));
+        }
+        else
+        {
+            return entrySize;
+        }
+    }
+    OpModifiedEntryMap
+    takeOpEntryMap()
+    {
+        return std::move(mOpEntryMap);
+    }
+};
+
+ParallelTxReturnVal
+ExtendFootprintTTLOpFrame::doParallelApply(
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
+    Hash const& _txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
+{
+    ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame doParallelApply", true);
+    releaseAssertOrThrow(
+        protocolVersionStartsFrom(ledgerInfo.getLedgerVersion(),
+                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
+    ExtendFootprintTTLParallelApplyHelper helper(
+        app, entryMap, ledgerInfo, res, refundableFeeTracker, opMeta, *this);
+    if (helper.apply())
+    {
+        return {true, helper.takeOpEntryMap()};
+    }
+    else
+    {
+        return {false, {}};
+    }
+}
+
+bool
+ExtendFootprintTTLOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
+{
+    ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
+    releaseAssertOrThrow(
+        protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
+    ExtendFootprintTTLPreV23ApplyHelper helper(
+        app, ltx, res, refundableFeeTracker, opMeta, *this);
+    return helper.apply();
 }
 
 bool

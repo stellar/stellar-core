@@ -11,6 +11,7 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
 #include "util/GlobalChecks.h"
@@ -37,10 +38,14 @@ vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
 // stellar-core as a whole, but this change type is reclassified to
 // LEDGER_ENTRY_RESTORED for easier consumption downstream.
 LedgerEntryChanges
-processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
-                            AbstractLedgerTxn& ltx, uint32_t protocolVersion)
+processOpLedgerEntryChanges(
+    Config const& cfg, OperationFrame const& op,
+    LedgerEntryChanges const& initialChanges,
+    UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
+    UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
+    uint32_t protocolVersion, uint32_t ledgerSeq)
 {
-    auto changes = ltx.getChanges();
+    auto changes = initialChanges;
     bool needToProcess =
         (op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT ||
          op.getOperation().body.type() ==
@@ -52,9 +57,6 @@ processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
     {
         return changes;
     }
-
-    auto const& hotArchiveRestores = ltx.getRestoredHotArchiveKeys();
-    auto const& liveRestores = ltx.getRestoredLiveBucketListKeys();
 
     // Entry was restored from the hot archive and modified, so we need to
     // construct and insert a RESTORE change with the restored value.
@@ -225,8 +227,7 @@ processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
 
                 // For consistency between live and hot archive restores,
                 // restores lastModifiedLedgerSeq should be the current ledger
-                iter->restored().lastModifiedLedgerSeq =
-                    ltx.getHeader().ledgerSeq;
+                iter->restored().lastModifiedLedgerSeq = ledgerSeq;
             }
         }
 
@@ -239,7 +240,7 @@ processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
         LedgerEntryChange change;
         change.type(LEDGER_ENTRY_RESTORED);
         change.restored() = le;
-        change.restored().lastModifiedLedgerSeq = ltx.getHeader().ledgerSeq;
+        change.restored().lastModifiedLedgerSeq = ledgerSeq;
         changes.push_back(change);
     }
 
@@ -274,16 +275,99 @@ processOpLedgerEntryChanges(Config const& cfg, OperationFrame const& op,
 } // namespace
 
 void
-OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx)
+OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
+                                       uint32_t ledgerSeq)
 {
     if (!mEnabled)
     {
         return;
     }
     std::visit(
-        [&opLtx, this](auto&& meta) {
+        [&opLtx, ledgerSeq, this](auto&& meta) {
             meta.get().changes = processOpLedgerEntryChanges(
-                mConfig, mOp, opLtx, mProtocolVersion);
+                mConfig, mOp, opLtx.getChanges(),
+                opLtx.getRestoredHotArchiveKeys(),
+                opLtx.getRestoredLiveBucketListKeys(), mProtocolVersion,
+                ledgerSeq);
+        },
+        mMeta);
+}
+
+void
+OperationMetaBuilder::setLedgerChangesFromEntryMaps(
+    SearchableSnapshotConstPtr liveSnapshot,
+    ThreadEntryMap const& initialEntryMap,
+    OpModifiedEntryMap const& opModifiedEntryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
+    UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
+    uint32_t ledgerSeq)
+{
+    if (!mEnabled)
+    {
+        return;
+    }
+
+    LedgerEntryChanges changes;
+    for (auto const& newUpdates : opModifiedEntryMap)
+    {
+        auto const& lk = newUpdates.first;
+        auto const& le = newUpdates.second;
+
+        auto prevLe = getLiveEntry(lk, liveSnapshot, initialEntryMap);
+
+        if (prevLe)
+        {
+            changes.emplace_back(LEDGER_ENTRY_STATE);
+            changes.back().state() = *prevLe;
+
+            if (le)
+            {
+                changes.emplace_back(LEDGER_ENTRY_UPDATED);
+                changes.back().updated() = *le;
+                // TODO: Find a better way to set lastModifiedLedgerSeq
+                // lastModifiedLedgerSeq will be set by the ltx commit
+                // later but we need to do this here so meta is
+                // generated correctly.
+                changes.back().updated().lastModifiedLedgerSeq = ledgerSeq;
+            }
+            else
+            {
+                changes.emplace_back(LEDGER_ENTRY_REMOVED);
+                changes.back().removed() = lk;
+            }
+        }
+        else
+        {
+            if (!le)
+            {
+                // If this is a delete, and an entry cannot be found in the live
+                // snapshot of initialEntryMap, it means that this entry was
+                // restored
+                auto it = hotArchiveRestores.find(lk);
+                releaseAssertOrThrow(it != hotArchiveRestores.end());
+
+                changes.emplace_back(LEDGER_ENTRY_CREATED);
+                changes.back().created() = it->second;
+                changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
+
+                changes.emplace_back(LEDGER_ENTRY_REMOVED);
+                changes.back().removed() = lk;
+            }
+            else
+            {
+                changes.emplace_back(LEDGER_ENTRY_CREATED);
+                changes.back().created() = *le;
+                changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
+            }
+        }
+    }
+
+    std::visit(
+        [&changes, &hotArchiveRestores, &liveRestores, ledgerSeq,
+         this](auto&& meta) {
+            meta.get().changes = processOpLedgerEntryChanges(
+                mConfig, mOp, changes, hotArchiveRestores, liveRestores,
+                mProtocolVersion, ledgerSeq);
         },
         mMeta);
 }

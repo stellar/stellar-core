@@ -14,11 +14,6 @@ class MutableTransactionResultBase;
 
 class ExtendFootprintTTLOpFrame : public OperationFrame
 {
-    ExtendFootprintTTLResult&
-    innerResult(OperationResult& res) const
-    {
-        return res.tr().extendFootprintTTLResult();
-    }
 
     ExtendFootprintTTLOp const& mExtendFootprintTTLOp;
 
@@ -39,6 +34,16 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
+    ParallelTxReturnVal doParallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
+        Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+        SorobanMetrics& sorobanMetrics, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta) const override;
+
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
@@ -51,5 +56,9 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
     virtual bool isSoroban() const override;
 
     ThresholdLevel getThresholdLevel() const override;
+
+    friend class ExtendFootprintTTLApplyHelper;
+    friend class ExtendFootprintTTLPreV23ApplyHelper;
+    friend class ExtendFootprintTTLParallelApplyHelper;
 };
 }

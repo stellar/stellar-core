@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/OperationFrame.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BeginSponsoringFutureReservesOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
@@ -159,6 +160,39 @@ OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
     }
 
     return applyRes;
+}
+
+ParallelTxReturnVal
+OperationFrame::parallelApply(
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Config const& config, SorobanNetworkConfig const& sorobanConfig,
+    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta, Hash const& txPrngSeed) const
+{
+    ZoneScoped;
+    CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
+    // checkValid is called earlier in preParallelApply
+
+    return doParallelApply(app, entryMap, previouslyRestoredHotEntries, config,
+                           sorobanConfig, txPrngSeed, ledgerInfo,
+                           sorobanMetrics, res, refundableFeeTracker, opMeta);
+}
+
+ParallelTxReturnVal
+OperationFrame::doParallelApply(
+    AppConnector& app, ThreadEntryMap const& entryMap,
+    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
+    Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
+    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
+{
+    throw std::runtime_error(
+        "Cannot call doParallelApply on a non Soroban operation");
 }
 
 ThresholdLevel

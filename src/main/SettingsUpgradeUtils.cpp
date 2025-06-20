@@ -268,7 +268,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     invokeResources.footprint.readWrite = {upgrade};
     invokeResources.instructions = 2'000'000;
     invokeResources.diskReadBytes =
-        rust_bridge::get_write_bytes().data.size() + 100;
+        rust_bridge::get_write_bytes().data.size() + 300;
     invokeResources.writeBytes = upgradeSetBytes.size() + 200;
 
     tx.ext.v(1);

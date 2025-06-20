@@ -13,6 +13,7 @@
 #include "ledger/SorobanMetrics.h"
 #include "main/PersistentState.h"
 #include "rust/RustBridge.h"
+#include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
@@ -41,6 +42,7 @@ class Application;
 class Database;
 class LedgerTxnHeader;
 class BasicWork;
+class ParallelLedgerInfo;
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -158,11 +160,82 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);
 
+    void processResultAndMeta(
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t txIndex, TransactionMetaBuilder& txMetaBuilder,
+        TransactionFrameBase const& tx,
+        MutableTransactionResultBase const& result,
+        TransactionResultSet& txResultSet);
+
     TransactionResultSet applyTransactions(
         ApplicableTxSetFrame const& txSet,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
+
+    void
+    applyParallelPhase(TxSetPhaseFrame const& phase,
+                       std::vector<ApplyStage>& applyStages,
+                       std::vector<MutableTxResultPtr> const& mutableTxResults,
+                       int& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
+                       Hash const& sorobanBasePrngSeed);
+
+    void applySequentialPhase(
+        TxSetPhaseFrame const& phase,
+        std::vector<MutableTxResultPtr> const& mutableTxResults, int& index,
+        AbstractLedgerTxn& ltx, bool enableTxMeta,
+        Hash const& sorobanBasePrngSeed,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet& txResultSet);
+
+    void processPostTxSetApply(
+        std::vector<TxSetPhaseFrame> const& phases,
+        std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet& txResultSet);
+
+    std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>> applyThread(
+        AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
+
+        UnorderedMap<LedgerKey, LedgerEntry> previouslyRestoredHotEntries,
+        Cluster const& cluster, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
+
+    std::pair<std::vector<RestoredKeys>,
+              std::vector<std::unique_ptr<ThreadEntryMap>>>
+    applySorobanStageClustersInParallel(
+        AppConnector& app, ApplyStage const& stage,
+        ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Hash const& sorobanBasePrngSeed, Config const& config,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo);
+
+    void addAllRestoredKeysToLedgerTxn(
+        std::vector<RestoredKeys> const& threadRestoredKeys,
+        AbstractLedgerTxn& ltx);
+    void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
+                                    Config const& config,
+                                    ParallelLedgerInfo const& ledgerInfo,
+                                    AbstractLedgerTxn& ltx);
+
+    void writeDirtyMapEntriesToGlobalEntryMap(
+        std::vector<std::unique_ptr<ThreadEntryMap>> const& entryMapsByCluster,
+        ThreadEntryMap& globalEntryMap,
+        std::unordered_set<LedgerKey> const& isInReadWriteSet);
+
+    void writeGlobalEntryMapToLedgerTxn(AbstractLedgerTxn& ltx,
+                                        ThreadEntryMap const& globalEntryMap);
+
+    void applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
+                           ThreadEntryMap& entryMap, ApplyStage const& stage,
+                           Hash const& sorobanBasePrngSeed);
+
+    void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
+                            std::vector<ApplyStage> const& stages,
+                            Hash const& sorobanBasePrngSeed);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,

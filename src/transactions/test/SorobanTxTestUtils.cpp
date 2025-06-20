@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
@@ -527,7 +528,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                        createResources, inclusionFee, {});
 }
 
-TransactionFrameBaseConstPtr
+TransactionTestFramePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
@@ -832,8 +833,16 @@ TestContract::Invocation::getSpec()
     return mSpec;
 }
 
-TransactionFrameBaseConstPtr
-TestContract::Invocation::createTx(TestAccount* source)
+TestContract::Invocation&
+TestContract::Invocation::withOpSourceAccount(AccountID const& source)
+{
+    mOp.sourceAccount.activate() = toMuxedAccount(source);
+    return *this;
+}
+
+TransactionTestFramePtr
+TestContract::Invocation::createTx(TestAccount* source,
+                                   std::optional<std::string> memo)
 {
     if (mDeduplicateFootprint)
     {
@@ -842,7 +851,7 @@ TestContract::Invocation::createTx(TestAccount* source)
     auto& acc = source ? *source : mTest.getRoot();
 
     return sorobanTransactionFrameFromOps(mTest.getApp().getNetworkID(), acc,
-                                          {mOp}, {}, mSpec);
+                                          {mOp}, {}, mSpec, memo);
 }
 
 TestContract::Invocation&
@@ -1579,6 +1588,56 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
         toMuxId ? std::optional<SCMapEntry>(SCMapEntry(
                       makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)))
                 : std::nullopt);
+}
+
+TransactionTestFramePtr
+AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
+                                       SCAddress const& toAddr, int64_t amount,
+                                       bool sourceIsRoot)
+{
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddr;
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
+
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAcc.getPublicKey());
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
+
+    auto spec = defaultSpec();
+
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        spec = spec.extendReadOnlyFootprint({makeIssuerKey(mAsset)});
+
+        if (!(getIssuer(mAsset) == fromAcc.getPublicKey()))
+        {
+            spec = spec.extendReadWriteFootprint({fromBalanceKey});
+        }
+
+        if (toAddr.type() != SC_ADDRESS_TYPE_ACCOUNT ||
+            !(getIssuer(mAsset) == toAddr.accountId()))
+        {
+            spec = spec.extendReadWriteFootprint({toBalanceKey});
+        }
+    }
+    else
+    {
+        spec = spec.setReadWriteFootprint({fromBalanceKey, toBalanceKey});
+    }
+
+    auto invocation =
+        mContract
+            .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
+                               spec)
+            .withAuthorizedTopCall();
+    if (!sourceIsRoot)
+    {
+        return invocation.createTx(&fromAcc);
+    }
+    auto tx = invocation.withOpSourceAccount(fromAcc.getPublicKey()).createTx();
+    tx->addSignature(fromAcc.getSecretKey());
+    return tx;
 }
 
 bool

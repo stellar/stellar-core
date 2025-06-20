@@ -16,6 +16,8 @@
 #include "util/types.h"
 #include <optional>
 
+#include "ledger/SorobanMetrics.h"
+
 namespace stellar
 {
 class AbstractLedgerTxn;
@@ -26,6 +28,8 @@ class TransactionFrame;
 class FeeBumpTransactionFrame;
 class AppConnector;
 class SignatureChecker;
+class ParallelLedgerInfo;
+class TxEffects;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::unique_ptr<MutableTransactionResultBase>;
@@ -38,6 +42,71 @@ using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
+// Tracks entry updates within an operation. If the transaction succeeds, the
+// ThreadEntryMap should be updated with the entries from the
+// OpModifiedEntryMap.
+using OpModifiedEntryMap = UnorderedMap<LedgerKey, std::optional<LedgerEntry>>;
+
+// Used to track the current state of an entry within a thread. Can be updated
+// by successful transactions.
+struct ThreadEntry
+{
+    // Will not be set if the entry doesn't exist, or if no tx was able to load
+    // it due to hitting read limits.
+    std::optional<LedgerEntry> mLedgerEntry;
+    bool isDirty;
+};
+
+// This is a map of all entries that will be read and/or written within a
+// specific thread. applyThread can modify the entries in this map to reflect
+// changes made by the transactions applied by that thread. Once all threads
+// return, the updates from each threads entry map should be commited to
+// LedgerTxn.
+using ThreadEntryMap = UnorderedMap<LedgerKey, ThreadEntry>;
+
+// Returned by each parallel transaction. It will contain the entries modified
+// by the transaction, the success status of the transaction, and the keys
+// restored.
+class ParallelTxReturnVal
+{
+  public:
+    ParallelTxReturnVal(bool success,
+                        OpModifiedEntryMap const&& modifiedEntryMap)
+        : mSuccess(success), mModifiedEntryMap(std::move(modifiedEntryMap))
+    {
+    }
+    ParallelTxReturnVal(bool success,
+                        OpModifiedEntryMap const&& modifiedEntryMap,
+                        RestoredKeys const&& restoredKeys)
+        : mSuccess(success)
+        , mModifiedEntryMap(std::move(modifiedEntryMap))
+        , mRestoredKeys(std::move(restoredKeys))
+    {
+    }
+
+    bool
+    getSuccess() const
+    {
+        return mSuccess;
+    }
+    OpModifiedEntryMap const&
+    getModifiedEntryMap() const
+    {
+        return mModifiedEntryMap;
+    }
+    RestoredKeys const&
+    getRestoredKeys() const
+    {
+        return mRestoredKeys;
+    }
+
+  private:
+    bool mSuccess;
+    // This will contain a key for every entry modified by a transaction
+    OpModifiedEntryMap mModifiedEntryMap;
+    RestoredKeys mRestoredKeys;
+};
+
 class TransactionFrameBase
 {
   public:
@@ -49,6 +118,22 @@ class TransactionFrameBase
                        TransactionMetaBuilder& meta,
                        MutableTransactionResultBase& txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
+
+    virtual void
+    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& resPayload) const = 0;
+
+    virtual ParallelTxReturnVal parallelApply(
+        AppConnector& app, ThreadEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo,
+        MutableTransactionResultBase& resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const = 0;
+
     virtual MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
