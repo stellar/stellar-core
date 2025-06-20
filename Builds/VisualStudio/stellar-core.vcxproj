@@ -692,6 +692,8 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\MutableTransactionResult.cpp" />
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp" />
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ParallelApplyStage.cpp" />
+    <ClCompile Include="..\..\src\transactions\ParallelApplyUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp" />
@@ -1131,6 +1133,8 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\MutableTransactionResult.h" />
     <ClInclude Include="..\..\src\transactions\OfferExchange.h" />
     <ClInclude Include="..\..\src\transactions\OperationFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ParallelApplyStage.h" />
+    <ClInclude Include="..\..\src\transactions\ParallelApplyUtils.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h" />
@@ -2077,7 +2081,7 @@ exit /b 0
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <Target Name="CustomCleanScript" BeforeTargets="Clean">
-     <Message Text="Cleaning folder: $(OutDir)\rust" Importance="high" />
-     <Exec Command="cmd.exe /c &quot;rmdir /S /Q $(OutDir)\rust &quot;" />
-    </Target>
+    <Message Text="Cleaning folder: $(OutDir)\rust" Importance="high" />
+    <Exec Command="cmd.exe /c &quot;rmdir /S /Q $(OutDir)\rust &quot;" />
+  </Target>
 </Project>

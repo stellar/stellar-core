@@ -1402,6 +1402,12 @@
     <ClCompile Include="..\..\src\simulation\TxGenerator.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ParallelApplyStage.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ParallelApplyUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2483,6 +2489,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\TxGenerator.h">
       <Filter>simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ParallelApplyStage.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ParallelApplyUtils.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

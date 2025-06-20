@@ -238,6 +238,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
     rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
+    rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
     SearchableHotArchiveSnapshotConstPtr mHotArchive;
     DiagnosticEventManager& mDiagnosticEvents;
@@ -452,7 +453,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     bool
     addFootprint()
     {
-        if (!addReads(mResources.footprint.readOnly, /*isReadOnly=*/true))
+        if (!addReads(mResources.footprint.readOnly,
+                      /*isReadOnly=*/true))
         {
             // Error code set in addReads
             return false;
@@ -490,7 +492,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
                 mResources.instructions,
                 toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
-                toCxxBuf(mResources), toCxxBuf(mOpFrame.getResourcesExt()),
+                toCxxBuf(mResources), mAutoRestoredRwEntryIndices,
                 toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
                 getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
                 basePrngSeedBuf,
@@ -916,6 +918,7 @@ class InvokeHostFunctionParallelApplyHelper
             mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
             auto ttlBuf = toCxxBuf(ttlEntry.data.ttl());
             mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+            mAutoRestoredRwEntryIndices.push_back(index);
 
             return true;
         }

@@ -80,7 +80,7 @@ pub(crate) mod p23 {
         enable_diagnostics: bool,
         encoded_host_fn: T,
         encoded_resources: T,
-        encoded_resources_ext: T,
+        restored_rw_entry_indices: &[u32],
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
@@ -96,7 +96,7 @@ pub(crate) mod p23 {
             enable_diagnostics,
             encoded_host_fn,
             encoded_resources,
-            encoded_resources_ext,
+            restored_rw_entry_indices,
             encoded_source_account,
             encoded_auth_entries,
             ledger_info,
@@ -260,7 +260,7 @@ pub(crate) mod p22 {
         enable_diagnostics: bool,
         encoded_host_fn: T,
         encoded_resources: T,
-        _encoded_resources_ext: T, // Ignored before p23
+        _restored_rw_entry_indices: &[u32], // Ignored before p23
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
@@ -436,7 +436,7 @@ pub(crate) mod p21 {
         enable_diagnostics: bool,
         encoded_host_fn: T,
         encoded_resources: T,
-        _encoded_resources_ext: T, // Ignored before p23
+        _restored_rw_entry_indices: &[u32], // Ignored before p23
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
@@ -584,7 +584,7 @@ pub(crate) struct HostModule {
             instruction_limit: u32,
             hf_buf: &CxxBuf,
             resources_buf: &CxxBuf,
-            resources_ext_buf: &CxxBuf,
+            restored_rw_entry_indices: &Vec<u32>,
             source_account_buf: &CxxBuf,
             auth_entries: &Vec<CxxBuf>,
             ledger_info: &CxxLedgerInfo,
