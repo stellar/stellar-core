@@ -281,6 +281,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                                      bool isHotArchiveEntry,
                                      uint32_t index) = 0;
 
+    virtual bool previouslyRestoredFromHotArchive(LedgerKey const& lk) = 0;
+
     // Helper to meter disk read resources and validate
     // resource usage. Returns false if the operation
     // should fail and populates result code and
@@ -372,6 +374,14 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                              PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
                          isPersistentEntry(lk))
                 {
+                    // Before doing a disk load on the Hot Archive, check the
+                    // in-memory map to see if the entry was already restored
+                    // from the hot archive by an earlier TX.
+                    if (previouslyRestoredFromHotArchive(lk))
+                    {
+                        continue;
+                    }
+
                     auto archiveEntry = mHotArchive->load(lk);
                     if (archiveEntry)
                     {
@@ -793,6 +803,13 @@ class InvokeHostFunctionPreV23ApplyHelper
         return false;
     }
 
+    // Entries can't be restored from the hot archive before p23
+    bool
+    previouslyRestoredFromHotArchive(LedgerKey const& lk) override
+    {
+        return false;
+    }
+
     CxxLedgerInfo
     getLedgerInfo() override
     {
@@ -840,17 +857,6 @@ class InvokeHostFunctionParallelApplyHelper
                         bool isReadOnly, uint32_t restoredLiveUntilLedger,
                         bool isHotArchiveEntry, uint32_t index) override
     {
-        if (isHotArchiveEntry)
-        {
-            // If the entry is in the hot archive, we need to check if it was
-            // previously restored by a previous transaction. If it was return
-            // without adding the entry so we treat the entry as if it
-            // does not exist.
-            if (mPreviouslyRestoredHotEntries.count(lk) > 0)
-            {
-                return true;
-            }
-        }
         // autorestore support started in p23. Entry must be in the read write
         // footprint and must be marked as in the archivedSorobanEntries vector.
         if (!isReadOnly &&
@@ -938,6 +944,12 @@ class InvokeHostFunctionParallelApplyHelper
 
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
         return false;
+    }
+
+    bool
+    previouslyRestoredFromHotArchive(LedgerKey const& lk) override
+    {
+        return mPreviouslyRestoredHotEntries.count(lk) > 0;
     }
 
     // Returns true if the given key is marked for
