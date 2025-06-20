@@ -2247,17 +2247,6 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
             }
         }
 
-        // We only increase the internal-error metric count if the
-        // ledger is a newer version.
-        if (txBundle.getResPayload().getResultCode() == txINTERNAL_ERROR &&
-            ledgerInfo.getLedgerVersion() >=
-                config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT)
-        {
-            auto& internalErrorCounter = app.getMetrics().NewCounter(
-                {"ledger", "transaction", "internal-error"});
-            internalErrorCounter.inc();
-        }
-
         // We don't call processPostApply for post v23 transactions at the
         // moment because processPostApply is currently a no-op for those
         // transactions.
