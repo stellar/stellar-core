@@ -4268,7 +4268,9 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 Config cfg;
                 if (enableParallelApply)
                 {
+#ifdef USE_POSTGRES
                     cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+#endif
                 }
                 else
                 {
