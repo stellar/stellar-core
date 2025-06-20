@@ -2001,7 +2001,10 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Hash const& sorobanBasePrngSeed) const
 {
     ZoneScoped;
-    maybeAdoptFailedReplayResult(txResult);
+    if (!maybeAdoptFailedReplayResult(txResult))
+    {
+        return false;
+    }
 
     auto& internalErrorCounter = app.getMetrics().NewCounter(
         {"ledger", "transaction", "internal-error"});
