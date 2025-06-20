@@ -194,7 +194,7 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
 
-    std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>> applyThread(
+    std::pair<RestoredEntries, std::unique_ptr<ThreadEntryMap>> applyThread(
         AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
 
         UnorderedMap<LedgerKey, LedgerEntry> previouslyRestoredHotEntries,
@@ -202,7 +202,7 @@ class LedgerManagerImpl : public LedgerManager
         SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
 
-    std::pair<std::vector<RestoredKeys>,
+    std::pair<std::vector<RestoredEntries>,
               std::vector<std::unique_ptr<ThreadEntryMap>>>
     applySorobanStageClustersInParallel(
         AppConnector& app, ApplyStage const& stage,
@@ -213,8 +213,8 @@ class LedgerManagerImpl : public LedgerManager
         SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo);
 
-    void addAllRestoredKeysToLedgerTxn(
-        std::vector<RestoredKeys> const& threadRestoredKeys,
+    void addAllRestoredEntriesToLedgerTxn(
+        std::vector<RestoredEntries> const& threadRestoredEntries,
         AbstractLedgerTxn& ltx);
     void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
                                     Config const& config,

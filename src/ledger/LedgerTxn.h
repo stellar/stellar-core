@@ -318,9 +318,15 @@ struct InflationWinner
 // been restored. Maps LedgerKey -> LedgerEntry at the point of restoration. For
 // contract code/data, this is the original, restored value. For TTL entries,
 // this is the value after applying the minimum rent required to restore.
-struct RestoredKeys
+struct RestoredEntries
 {
+    // Restoration can take two forms. In the first form, the key
+    // had been evicted to the hotArchive BL and restoration involved
+    // doing IO to bring it back into memory.
     UnorderedMap<LedgerKey, LedgerEntry> hotArchive;
+    // In the second form, the key was in the live BL but its TTL was
+    // past so it was considered expired, just not evicted. Restoring
+    // this does not cost any IO, just writing a new TTL.
     UnorderedMap<LedgerKey, LedgerEntry> liveBucketList;
 };
 
@@ -431,7 +437,7 @@ class AbstractLedgerTxnParent
     // to trigger an atomic commit or an atomic rollback of the data stored in
     // the child.
     virtual void commitChild(EntryIterator iter,
-                             RestoredKeys const& restoredKeys,
+                             RestoredEntries const& restoredEntries,
                              LedgerTxnConsistency cons) noexcept = 0;
     virtual void rollbackChild() noexcept = 0;
 
@@ -753,7 +759,7 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void commit() noexcept override;
 
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
@@ -896,7 +902,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
 
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept override;
 
     uint64_t countOffers(LedgerRange const& ledgers) const override;

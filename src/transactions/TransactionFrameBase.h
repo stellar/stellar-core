@@ -77,10 +77,10 @@ class ParallelTxReturnVal
     }
     ParallelTxReturnVal(bool success,
                         OpModifiedEntryMap const&& modifiedEntryMap,
-                        RestoredKeys const&& restoredKeys)
+                        RestoredEntries const&& restoredEntries)
         : mSuccess(success)
         , mModifiedEntryMap(std::move(modifiedEntryMap))
-        , mRestoredKeys(std::move(restoredKeys))
+        , mRestoredEntries(std::move(restoredEntries))
     {
     }
 
@@ -94,17 +94,17 @@ class ParallelTxReturnVal
     {
         return mModifiedEntryMap;
     }
-    RestoredKeys const&
-    getRestoredKeys() const
+    RestoredEntries const&
+    getRestoredEntries() const
     {
-        return mRestoredKeys;
+        return mRestoredEntries;
     }
 
   private:
     bool mSuccess;
     // This will contain a key for every entry modified by a transaction
     OpModifiedEntryMap mModifiedEntryMap;
-    RestoredKeys mRestoredKeys;
+    RestoredEntries mRestoredEntries;
 };
 
 class TransactionFrameBase

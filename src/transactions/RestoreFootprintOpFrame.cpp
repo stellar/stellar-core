@@ -82,7 +82,7 @@ RestoreFootprintOpFrame::doParallelApply(
     // Keep track of LedgerEntry updates we need to make
     OpModifiedEntryMap opEntryMap;
 
-    RestoredKeys restoredKeys;
+    RestoredEntries restoredEntries;
 
     auto const& archivalSettings = sorobanConfig.stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
@@ -209,8 +209,8 @@ RestoreFootprintOpFrame::doParallelApply(
 
             opEntryMap.emplace(ttlKey, ttlEntry);
 
-            restoredKeys.hotArchive.emplace(lk, entry);
-            restoredKeys.hotArchive.emplace(ttlKey, ttlEntry);
+            restoredEntries.hotArchive.emplace(lk, entry);
+            restoredEntries.hotArchive.emplace(ttlKey, ttlEntry);
         }
         else
         {
@@ -221,8 +221,8 @@ RestoreFootprintOpFrame::doParallelApply(
             ttlEntry.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
             opEntryMap.emplace(ttlKey, ttlEntry);
 
-            restoredKeys.liveBucketList.emplace(lk, entry);
-            restoredKeys.liveBucketList.emplace(ttlKey, ttlEntry);
+            restoredEntries.liveBucketList.emplace(lk, entry);
+            restoredEntries.liveBucketList.emplace(ttlKey, ttlEntry);
         }
     }
     int64_t rentFee = rust_bridge::compute_rent_fee(
@@ -237,7 +237,7 @@ RestoreFootprintOpFrame::doParallelApply(
         return {false, {}};
     }
     innerResult(res).code(RESTORE_FOOTPRINT_SUCCESS);
-    return {true, std::move(opEntryMap), std::move(restoredKeys)};
+    return {true, std::move(opEntryMap), std::move(restoredEntries)};
 }
 
 bool

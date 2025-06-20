@@ -334,9 +334,9 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             {
                 auto ttlKey = getTTLKey(lk);
 
-                // handleArchiveEntry may need to load the TTL key to write the
+                // handleArchivedEntry may need to load the TTL key to write the
                 // restored TTL, so make sure any TTL ltxe destructs before
-                // calling handleArchiveEntry
+                // calling handleArchivedEntry
                 auto ttlEntryOp = getLedgerEntryOpt(ttlKey);
 
                 if (ttlEntryOp)
@@ -823,7 +823,7 @@ class InvokeHostFunctionParallelApplyHelper
       virtual public ParallelLedgerAccessHelper
 {
   private:
-    RestoredKeys mRestoredKeys;
+    RestoredEntries mRestoredEntries;
     // Map of entries that were restored from the hot archive prior to this
     // transaction
     UnorderedMap<LedgerKey, LedgerEntry> const& mPreviouslyRestoredHotEntries;
@@ -876,6 +876,18 @@ class InvokeHostFunctionParallelApplyHelper
 
             // Charge for the restoration reads. TTLEntry writes come out of
             // refundable fee, so only meter the actual code/data entry here.
+            //
+            // Note: it is CAP-0066-conformant to do this for both
+            // archived-non-evicted and evicted restorations -- those with and
+            // without "real" IO. CAP 0066 explicitly says:
+            //
+            //   Restored state is still subject to the same minimum rent and
+            //   write fees that exist currently based on the final result of
+            //   the invocation. Even if an entry is archived but not yet
+            //   evicted such that it technically still exists in memory, it is
+            //   still subject to the same limits and fees as disk based entries
+            //   in order ot provide a simpler unified interface for downstream
+            //   systems.
             if (!meterDiskReadResource(lk, keySize, entrySize))
             {
                 return false;
@@ -895,8 +907,8 @@ class InvokeHostFunctionParallelApplyHelper
 
                 mOpEntryMap.emplace(ttlKey, ttlEntry);
 
-                mRestoredKeys.hotArchive.emplace(lk, le);
-                mRestoredKeys.hotArchive.emplace(ttlKey, ttlEntry);
+                mRestoredEntries.hotArchive.emplace(lk, le);
+                mRestoredEntries.hotArchive.emplace(ttlKey, ttlEntry);
             }
             else
             {
@@ -910,8 +922,8 @@ class InvokeHostFunctionParallelApplyHelper
                     restoredLiveUntilLedger;
                 mOpEntryMap.emplace(ttlKey, ttlEntry);
 
-                mRestoredKeys.liveBucketList.emplace(lk, le);
-                mRestoredKeys.liveBucketList.emplace(ttlKey, ttlEntry);
+                mRestoredEntries.liveBucketList.emplace(lk, le);
+                mRestoredEntries.liveBucketList.emplace(ttlKey, ttlEntry);
             }
 
             // Finally, add the entries to the Cxx buffer as if they were live.
@@ -1013,7 +1025,7 @@ class InvokeHostFunctionParallelApplyHelper
     {
         if (applySucceeded)
         {
-            return {true, std::move(mOpEntryMap), std::move(mRestoredKeys)};
+            return {true, std::move(mOpEntryMap), std::move(mRestoredEntries)};
         }
         else
         {
