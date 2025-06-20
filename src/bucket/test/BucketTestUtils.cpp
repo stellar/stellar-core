@@ -292,6 +292,10 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
         }
 
         // Use the testing values.
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                                 mTestInitEntries);
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                                 mTestLiveEntries);
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
 
@@ -299,42 +303,8 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
         if (protocolVersionStartsFrom(initialLedgerVers,
                                       SOROBAN_PROTOCOL_VERSION))
         {
-            for (auto const& entry : mTestInitEntries)
-            {
-                if (entry.data.type() == CONTRACT_DATA)
-                {
-                    mApplyState.mLedgerStateCache->createContractDataEntry(
-                        entry);
-                }
-                else if (entry.data.type() == TTL)
-                {
-                    mApplyState.mLedgerStateCache->createTTL(entry);
-                }
-            }
-
-            for (auto const& entry : mTestLiveEntries)
-            {
-                if (entry.data.type() == CONTRACT_DATA)
-                {
-                    mApplyState.mLedgerStateCache->updateContractData(entry);
-                }
-                else if (entry.data.type() == TTL)
-                {
-                    mApplyState.mLedgerStateCache->updateTTL(entry);
-                }
-            }
-
-            for (auto const& key : mTestDeadEntries)
-            {
-                if (key.type() == CONTRACT_DATA)
-                {
-                    mApplyState.mLedgerStateCache->evictContractData(key);
-                }
-                else if (key.type() == TTL)
-                {
-                    mApplyState.mLedgerStateCache->evictTTL(key);
-                }
-            }
+            mApplyState.mLedgerStateCache->updateState(
+                mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
         }
 
         mUseTestEntries = false;

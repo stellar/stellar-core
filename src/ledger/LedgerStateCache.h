@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "bucket/BucketSnapshotManager.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/HashOfHash.h"
@@ -28,8 +29,24 @@ struct ContractDataCacheT
     std::shared_ptr<LedgerEntry const> const ledgerEntry;
     uint32_t const liveUntilLedgerSeq;
 
-    explicit ContractDataCacheT(std::shared_ptr<LedgerEntry const> ledgerEntry,
-                                uint32_t liveUntilLedgerSeq)
+    explicit ContractDataCacheT(
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry,
+        uint32_t liveUntilLedgerSeq)
+        : ledgerEntry(std::move(ledgerEntry))
+        , liveUntilLedgerSeq(liveUntilLedgerSeq)
+    {
+    }
+};
+
+// ContractCodeCacheT stores a ContractCode LedgerEntry and its TTL.
+struct ContractCodeCacheT
+{
+    std::shared_ptr<LedgerEntry const> ledgerEntry;
+    uint32_t liveUntilLedgerSeq;
+
+    explicit ContractCodeCacheT(
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry,
+        uint32_t liveUntilLedgerSeq)
         : ledgerEntry(std::move(ledgerEntry))
         , liveUntilLedgerSeq(liveUntilLedgerSeq)
     {
@@ -93,9 +110,9 @@ class InternalContractDataCacheEntry
         ContractDataCacheT entry;
 
       public:
-        ValueEntry(std::shared_ptr<LedgerEntry const> ledgerEntry,
+        ValueEntry(std::shared_ptr<LedgerEntry const>&& ledgerEntry,
                    uint32_t liveUntilLedgerSeq)
-            : entry(ledgerEntry, liveUntilLedgerSeq)
+            : entry(std::move(ledgerEntry), liveUntilLedgerSeq)
         {
         }
 
@@ -166,9 +183,10 @@ class InternalContractDataCacheEntry
 
     // Creates a ValueEntry from a shared_ptr (avoids copying)
     InternalContractDataCacheEntry(
-        std::shared_ptr<LedgerEntry const> ledgerEntry,
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry,
         uint32_t liveUntilLedgerSeq)
-        : impl(std::make_unique<ValueEntry>(ledgerEntry, liveUntilLedgerSeq))
+        : impl(std::make_unique<ValueEntry>(std::move(ledgerEntry),
+                                            liveUntilLedgerSeq))
     {
     }
 
@@ -222,19 +240,17 @@ struct InternalContractDataEntryHash
 
 // LedgerStateCache provides an efficient cache for Soroban contract state.
 //
-// This includes contract data entries, their TTL, and contract code TTL (WASM
-// modules are cached seperatedly).
+// This includes contract data entries, contract code entries, and their TTLs.
 //
 // The cache logically provides two maps:
 //   - ContractData: TTLKey -> (LedgerEntry, liveUntilLedgerSeq)
-//   - ContractCode: TTLKey -> liveUntilLedgerSeq
+//   - ContractCode: TTLKey -> (LedgerEntry, liveUntilLedgerSeq)
 //
 // Implementation notes:
-// - We don't store ContractData TTL entries explicitly, liveUntilLedgerSeq is
-// stored with the ContractData entry
-// - We don't store WASM code - just track ContractCode TTLs
+// - We don't store TTL entries explicitly, liveUntilLedgerSeq is
+// stored with the ContractData/ContractCode entry
 // - During initialization, TTLs may arrive before their corresponding data
-//   entries, so mTTLs temporarily holds these orphaned TTLs
+//   entries, so mPendingTTLs temporarily holds these orphaned TTLs
 //
 // This class is NOT thread-safe and should only be accessed and populated from
 // the apply thread.
@@ -250,19 +266,26 @@ class LedgerStateCache : public NonMovableOrCopyable
                        InternalContractDataEntryHash>
         mContractDataEntries;
 
-    // Storage for ContractCode TTLs (we don't need to cache WASM blobs, those
-    // are handled by the module cache). During initialization, also temporarily
-    // stores orphaned ContractData TTLs that arrive before their corresponding
-    // data entries.
-    std::unordered_map<uint256, uint32_t> mTTLs;
+    // Storage for ContractCode entries. Maps from TTL key hash to cache entry.
+    // Unlike ContractData, we use a map here because the key size is dominated
+    // by LedgerEntry size, so there's no real need for extra complexity.
+    std::unordered_map<uint256, ContractCodeCacheT> mContractCodeEntries;
 
-  private:
+    // Temporary storage for orphaned TTLs that arrive before their
+    // corresponding data entries during initialization. After initialization,
+    // this should be empty.
+    std::unordered_map<uint256, uint32_t> mPendingTTLs;
+
     // Helper to update an existing ContractData entry's TTL without changing
     // data
     void updateContractDataTTL(
         std::unordered_set<InternalContractDataCacheEntry,
                            InternalContractDataEntryHash>::iterator dataIt,
         uint32_t newLiveUntilLedgerSeq);
+
+    // Should be called after initialization/updates finish to check consistency
+    // invariants.
+    void checkUpdateInvariants() const;
 
   public:
     // Creates new TTL entry. Throws if a non-zero TTL value at the key already
@@ -275,15 +298,15 @@ class LedgerStateCache : public NonMovableOrCopyable
     // Update the TTL of an existing ContractData or ContractCode entry. Throws
     // if the key does not exist. LedgerEntry must be of type TTL. We don't know
     // if a TTL maps to a ContractData or ContractCode entry, so we will check
-    // both mEntries and mTTLs.
+    // both mContractDataEntries and mContractCodeEntries.
     void updateTTL(LedgerEntry const& ttlEntry);
 
     // Updates an existing ContractData entry. Throws if the key does
     // not exist. LedgerEntry must be of type CONTRACT_DATA.
     void updateContractData(LedgerEntry const& ledgerEntry);
 
-    // Evicts a TTL key from the cache. LedgerKey must be of type TTL.
-    void evictTTL(LedgerKey const& ledgerKey);
+    // Note: since we store TTLs with there associated entry, there is no
+    // explicit evictTTL function.
 
     // Evicts a ContractData entry from the cache. LedgerKey must be of type
     // CONTRACT_DATA.
@@ -294,13 +317,32 @@ class LedgerStateCache : public NonMovableOrCopyable
     std::optional<ContractDataCacheT>
     getContractDataEntry(LedgerKey const& ledgerKey) const;
 
+    // Creates new ContractCode entry. Throws if key already exists.
+    void createContractCodeEntry(LedgerEntry const& ledgerEntry);
+
+    // Updates an existing ContractCode entry. Throws if the key does
+    // not exist. LedgerEntry must be of type CONTRACT_CODE.
+    void updateContractCode(LedgerEntry const& ledgerEntry);
+
+    // Evicts a ContractCode entry from the cache. LedgerKey must be of type
+    // CONTRACT_CODE.
+    void evictContractCode(LedgerKey const& ledgerKey);
+
     // Returns nullopt if the entry is not in the cache. LedgerKey must be of
     // type CONTRACT_CODE.
-    std::optional<uint32_t>
-    getContractCodeTTL(LedgerKey const& ledgerKey) const;
+    std::optional<ContractCodeCacheT>
+    getContractCodeEntry(LedgerKey const& ledgerKey) const;
 
     // Returns true if the given TTL entry exists in the cache. LedgerKey must
     // be of type TTL.
     bool hasTTL(LedgerKey const& ledgerKey) const;
+
+    // Initialize the cache from a bucket list snapshot
+    void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap);
+
+    // Update the cache with entries from a ledger close.
+    void updateState(std::vector<LedgerEntry> const& initEntries,
+                     std::vector<LedgerEntry> const& liveEntries,
+                     std::vector<LedgerKey> const& deadEntries);
 };
 }

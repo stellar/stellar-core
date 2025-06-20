@@ -973,44 +973,7 @@ LedgerManagerImpl::ApplyState::populateSorobanStateCache(
     SearchableSnapshotConstPtr snap)
 {
     mLedgerStateCache = std::make_unique<LedgerStateCache>();
-
-    std::unordered_set<LedgerKey> deletedKeys;
-    auto f = [&cache = *mLedgerStateCache,
-              &deletedKeys](BucketEntry const& be) {
-        if (be.type() == DEADENTRY)
-        {
-            deletedKeys.insert(be.deadEntry());
-            return Loop::INCOMPLETE;
-        }
-
-        releaseAssertOrThrow(be.type() == LIVEENTRY || be.type() == INITENTRY);
-
-        auto lk = LedgerEntryKey(be.liveEntry());
-        releaseAssertOrThrow(lk.type() == CONTRACT_DATA || lk.type() == TTL);
-
-        // Skip if we've seen a DEADENTRY for this key already.
-        if (deletedKeys.find(lk) != deletedKeys.end())
-        {
-            return Loop::INCOMPLETE;
-        }
-
-        // Skip if we've already cached this key.
-        if (lk.type() == TTL && !cache.hasTTL(lk))
-        {
-            cache.createTTL(be.liveEntry());
-        }
-        else if (lk.type() == CONTRACT_DATA && !cache.getContractDataEntry(lk))
-        {
-            cache.createContractDataEntry(be.liveEntry());
-        }
-
-        return Loop::INCOMPLETE;
-    };
-
-    // Only scan for TTL and data entries since we only have to store the TTL
-    // for code entries
-    snap->scanForEntriesOfType(CONTRACT_DATA, f);
-    snap->scanForEntriesOfType(TTL, f);
+    mLedgerStateCache->initializeStateFromSnapshot(snap);
 }
 
 void
@@ -2923,41 +2886,8 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     // Update Soroban state cache
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        for (auto const& entry : initEntries)
-        {
-            if (entry.data.type() == CONTRACT_DATA)
-            {
-                mApplyState.mLedgerStateCache->createContractDataEntry(entry);
-            }
-            else if (entry.data.type() == TTL)
-            {
-                mApplyState.mLedgerStateCache->createTTL(entry);
-            }
-        }
-
-        for (auto const& entry : liveEntries)
-        {
-            if (entry.data.type() == CONTRACT_DATA)
-            {
-                mApplyState.mLedgerStateCache->updateContractData(entry);
-            }
-            else if (entry.data.type() == TTL)
-            {
-                mApplyState.mLedgerStateCache->updateTTL(entry);
-            }
-        }
-
-        for (auto const& key : deadEntries)
-        {
-            if (key.type() == CONTRACT_DATA)
-            {
-                mApplyState.mLedgerStateCache->evictContractData(key);
-            }
-            else if (key.type() == TTL)
-            {
-                mApplyState.mLedgerStateCache->evictTTL(key);
-            }
-        }
+        mApplyState.mLedgerStateCache->updateState(initEntries, liveEntries,
+                                                   deadEntries);
     }
 }
 

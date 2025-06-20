@@ -1113,15 +1113,20 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
                                 .copySearchableLiveBucketListSnapshot();
 
             // First, test that the cache is maintained correctly via `addBatch`
-            REQUIRE(codeEntries.size() == cache.mTTLs.size());
+            REQUIRE(codeEntries.size() == cache.mContractCodeEntries.size());
             for (auto const& [k, v] : codeEntries)
             {
-                auto ttl = cache.getContractCodeTTL(k);
-                REQUIRE(ttl);
+                auto cacheEntry = cache.getContractCodeEntry(k);
+                REQUIRE(cacheEntry);
+
+                auto liveEntry = snapshot->load(k);
+                REQUIRE(liveEntry);
+                REQUIRE(*liveEntry == *cacheEntry->ledgerEntry);
 
                 auto ttlEntry = snapshot->load(getTTLKey(k));
                 REQUIRE(ttlEntry);
-                REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq == ttl);
+                REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq ==
+                        cacheEntry->liveUntilLedgerSeq);
             }
 
             REQUIRE(dataEntries.size() == cache.mContractDataEntries.size());

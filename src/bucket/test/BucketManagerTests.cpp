@@ -204,7 +204,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 
         std::vector<LedgerEntry> live(
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                {CONFIG_SETTING}, 10));
+                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 10));
         std::vector<LedgerKey> dead{};
 
         std::shared_ptr<LiveBucket> b1;
@@ -278,7 +278,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 
         // But if we mutate the curr bucket of the bucketlist, it should.
         live[0] = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-            {CONFIG_SETTING});
+            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL});
         bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
         clearFutures(app, bl);
         CHECK(b1.use_count() == 2);
@@ -376,7 +376,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
             addLiveBatchAndUpdateSnapshot(
                 *app, lh, {},
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10),
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 10),
                 {});
             if (protocolVersionStartsFrom(
                     vers,
@@ -541,7 +541,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
             addLiveBatchAndUpdateSnapshot(
                 *app, lh, {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 100),
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 100),
                 {});
             if (hasHotArchive)
             {
@@ -1838,7 +1838,8 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
 
         auto batch_entries =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                {CONFIG_SETTING, OFFER}, 111);
+                {CONFIG_SETTING, OFFER, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                111);
         auto alice = batch_entries.back();
         batch_entries.pop_back();
         std::vector<std::vector<LedgerEntry>> batches;

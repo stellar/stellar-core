@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerStateCache.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 
@@ -18,8 +19,8 @@ LedgerStateCache::updateContractDataTTL(
     // Since entries are immutable, we must erase and re-insert
     auto ledgerEntryPtr = dataIt->get().ledgerEntry;
     mContractDataEntries.erase(dataIt);
-    mContractDataEntries.emplace(
-        InternalContractDataCacheEntry(ledgerEntryPtr, newLiveUntilLedgerSeq));
+    mContractDataEntries.emplace(InternalContractDataCacheEntry(
+        std::move(ledgerEntryPtr), newLiveUntilLedgerSeq));
 }
 
 void
@@ -39,9 +40,11 @@ LedgerStateCache::updateTTL(LedgerEntry const& ttlEntry)
     }
     else
     {
-        auto ttlIt = mTTLs.find(lk.ttl().keyHash);
-        releaseAssertOrThrow(ttlIt != mTTLs.end());
-        ttlIt->second = newLiveUntilLedgerSeq;
+        // Since we're updating a TTL that exists, if we get here it must belong
+        // to a contract code entry.
+        auto codeIt = mContractCodeEntries.find(lk.ttl().keyHash);
+        releaseAssertOrThrow(codeIt != mContractCodeEntries.end());
+        codeIt->second.liveUntilLedgerSeq = newLiveUntilLedgerSeq;
     }
 }
 
@@ -77,12 +80,12 @@ LedgerStateCache::createContractDataEntry(LedgerEntry const& ledgerEntry)
     auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
     uint32_t liveUntilLedgerSeq = 0;
 
-    auto ttlIt = mTTLs.find(ttlKey.ttl().keyHash);
-    if (ttlIt != mTTLs.end())
+    auto ttlIt = mPendingTTLs.find(ttlKey.ttl().keyHash);
+    if (ttlIt != mPendingTTLs.end())
     {
         // Found orphaned TTL - adopt it and remove from temporary storage
         liveUntilLedgerSeq = ttlIt->second;
-        mTTLs.erase(ttlIt);
+        mPendingTTLs.erase(ttlIt);
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
 
@@ -111,32 +114,32 @@ LedgerStateCache::createTTL(LedgerEntry const& ttlEntry)
     }
     else
     {
-        // No ContractData yet - store TTL for later
-        // (Could be ContractCode TTL or orphaned ContractData TTL)
-        auto ttlIt = mTTLs.find(lk.ttl().keyHash);
-        releaseAssertOrThrow(ttlIt == mTTLs.end());
-        mTTLs.emplace(lk.ttl().keyHash, newLiveUntilLedgerSeq);
+        // Check if this TTL belongs to a ContractCode entry that hasn't arrived
+        // yet
+        auto codeIt = mContractCodeEntries.find(lk.ttl().keyHash);
+        if (codeIt != mContractCodeEntries.end())
+        {
+            // ContractCode exists but has no TTL yet - update it
+            // Verify TTL hasn't been set yet (should be default initialized)
+            releaseAssertOrThrow(codeIt->second.liveUntilLedgerSeq == 0);
+            codeIt->second.liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+        }
+        else
+        {
+            // No ContractData or ContractCode yet - store TTL for later
+            auto [_, inserted] =
+                mPendingTTLs.emplace(lk.ttl().keyHash, newLiveUntilLedgerSeq);
+            releaseAssertOrThrow(inserted);
+        }
     }
-}
-
-void
-LedgerStateCache::evictTTL(LedgerKey const& ledgerKey)
-{
-    releaseAssertOrThrow(ledgerKey.type() == TTL);
-
-    // Only evict from mTTLs (ContractCode TTLs)
-    // ContractData TTLs are stored with their data and will be evicted
-    // when evictContractData() is called
-    mTTLs.erase(ledgerKey.ttl().keyHash);
 }
 
 void
 LedgerStateCache::evictContractData(LedgerKey const& ledgerKey)
 {
     releaseAssertOrThrow(ledgerKey.type() == CONTRACT_DATA);
-
-    // This removes both the ContractData entry and its embedded TTL
-    mContractDataEntries.erase(InternalContractDataCacheEntry(ledgerKey));
+    releaseAssertOrThrow(mContractDataEntries.erase(
+                             InternalContractDataCacheEntry(ledgerKey)) == 1);
 }
 
 std::optional<ContractDataCacheT>
@@ -154,14 +157,75 @@ LedgerStateCache::getContractDataEntry(LedgerKey const& ledgerKey) const
     return it->get();
 }
 
-std::optional<uint32_t>
-LedgerStateCache::getContractCodeTTL(LedgerKey const& ledgerKey) const
+void
+LedgerStateCache::createContractCodeEntry(LedgerEntry const& ledgerEntry)
+{
+    releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_CODE);
+
+    // Get the TTL key hash
+    auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
+    auto keyHash = ttlKey.ttl().keyHash;
+
+    // Verify entry doesn't already exist
+    auto codeIt = mContractCodeEntries.find(keyHash);
+    releaseAssertOrThrow(codeIt == mContractCodeEntries.end());
+
+    // Check if we've already seen this entry's TTL (can happen during
+    // initialization when TTL is written before the code)
+    uint32_t liveUntilLedgerSeq = 0;
+
+    auto ttlIt = mPendingTTLs.find(keyHash);
+    if (ttlIt != mPendingTTLs.end())
+    {
+        // Found orphaned TTL - adopt it and remove from temporary storage
+        liveUntilLedgerSeq = ttlIt->second;
+        mPendingTTLs.erase(ttlIt);
+    }
+    // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
+
+    mContractCodeEntries.emplace(
+        keyHash,
+        ContractCodeCacheT(std::make_shared<LedgerEntry const>(ledgerEntry),
+                           liveUntilLedgerSeq));
+}
+
+void
+LedgerStateCache::updateContractCode(LedgerEntry const& ledgerEntry)
+{
+    releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_CODE);
+    auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
+    auto keyHash = ttlKey.ttl().keyHash;
+
+    // Entry must already exist since this is an update
+    auto codeIt = mContractCodeEntries.find(keyHash);
+    releaseAssertOrThrow(codeIt != mContractCodeEntries.end());
+
+    // Preserve the existing TTL while updating the code
+    auto ttl = codeIt->second.liveUntilLedgerSeq;
+    codeIt->second = ContractCodeCacheT(
+        std::make_shared<LedgerEntry const>(ledgerEntry), ttl);
+}
+
+void
+LedgerStateCache::evictContractCode(LedgerKey const& ledgerKey)
+{
+    releaseAssertOrThrow(ledgerKey.type() == CONTRACT_CODE);
+
+    auto ttlKey = getTTLKey(ledgerKey);
+    auto keyHash = ttlKey.ttl().keyHash;
+    releaseAssertOrThrow(mContractCodeEntries.erase(keyHash) == 1);
+}
+
+std::optional<ContractCodeCacheT>
+LedgerStateCache::getContractCodeEntry(LedgerKey const& ledgerKey) const
 {
     releaseAssertOrThrow(ledgerKey.type() == LedgerEntryType::CONTRACT_CODE);
 
     auto ttlKey = getTTLKey(ledgerKey);
-    auto it = mTTLs.find(ttlKey.ttl().keyHash);
-    if (it == mTTLs.end())
+    auto keyHash = ttlKey.ttl().keyHash;
+
+    auto it = mContractCodeEntries.find(keyHash);
+    if (it == mContractCodeEntries.end())
     {
         return std::nullopt;
     }
@@ -174,8 +238,8 @@ LedgerStateCache::hasTTL(LedgerKey const& ledgerKey) const
 {
     releaseAssertOrThrow(ledgerKey.type() == TTL);
 
-    // Check if this is a ContractCode TTL
-    if (mTTLs.find(ledgerKey.ttl().keyHash) != mTTLs.end())
+    // Check if this is a pending TTL
+    if (mPendingTTLs.find(ledgerKey.ttl().keyHash) != mPendingTTLs.end())
     {
         return true;
     }
@@ -190,6 +254,153 @@ LedgerStateCache::hasTTL(LedgerKey const& ledgerKey) const
         return dataIt->get().liveUntilLedgerSeq != 0;
     }
 
+    // Check if this is a ContractCode TTL (stored with the code)
+    auto codeIt = mContractCodeEntries.find(ledgerKey.ttl().keyHash);
+    if (codeIt != mContractCodeEntries.end())
+    {
+        // Only return true if TTL has been set (non-zero)
+        // During initialization, entries may exist with TTL == 0
+        return codeIt->second.liveUntilLedgerSeq != 0;
+    }
+
     return false;
+}
+
+void
+LedgerStateCache::initializeStateFromSnapshot(SearchableSnapshotConstPtr snap)
+{
+    releaseAssertOrThrow(mContractDataEntries.empty());
+    releaseAssertOrThrow(mContractCodeEntries.empty());
+    releaseAssertOrThrow(mPendingTTLs.empty());
+
+    // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise, check
+    // if the entry is shadowed by a DEADENTRY.
+    std::unordered_set<LedgerKey> deletedKeys;
+    auto shouldAddToCache = [&deletedKeys](BucketEntry const& be,
+                                           LedgerEntryType expectedType) {
+        if (be.type() == DEADENTRY)
+        {
+            deletedKeys.insert(be.deadEntry());
+            return false;
+        }
+
+        releaseAssertOrThrow(be.type() == LIVEENTRY || be.type() == INITENTRY);
+        auto lk = LedgerEntryKey(be.liveEntry());
+        releaseAssertOrThrow(lk.type() == expectedType);
+        return deletedKeys.find(lk) == deletedKeys.end();
+    };
+
+    auto contractDataHandler = [this,
+                                &shouldAddToCache](BucketEntry const& be) {
+        if (!shouldAddToCache(be, CONTRACT_DATA))
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        auto lk = LedgerEntryKey(be.liveEntry());
+        if (!getContractDataEntry(lk))
+        {
+            createContractDataEntry(be.liveEntry());
+        }
+
+        return Loop::INCOMPLETE;
+    };
+
+    auto ttlHandler = [this, &shouldAddToCache](BucketEntry const& be) {
+        if (!shouldAddToCache(be, TTL))
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        auto lk = LedgerEntryKey(be.liveEntry());
+        if (!hasTTL(lk))
+        {
+            createTTL(be.liveEntry());
+        }
+
+        return Loop::INCOMPLETE;
+    };
+
+    auto contractCodeHandler = [this,
+                                &shouldAddToCache](BucketEntry const& be) {
+        if (!shouldAddToCache(be, CONTRACT_CODE))
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        auto lk = LedgerEntryKey(be.liveEntry());
+        if (!getContractCodeEntry(lk))
+        {
+            createContractCodeEntry(be.liveEntry());
+        }
+
+        return Loop::INCOMPLETE;
+    };
+
+    snap->scanForEntriesOfType(CONTRACT_DATA, contractDataHandler);
+    snap->scanForEntriesOfType(TTL, ttlHandler);
+    snap->scanForEntriesOfType(CONTRACT_CODE, contractCodeHandler);
+
+    checkUpdateInvariants();
+}
+
+void
+LedgerStateCache::updateState(std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries)
+{
+    for (auto const& entry : initEntries)
+    {
+        if (entry.data.type() == CONTRACT_DATA)
+        {
+            createContractDataEntry(entry);
+        }
+        else if (entry.data.type() == CONTRACT_CODE)
+        {
+            createContractCodeEntry(entry);
+        }
+        else if (entry.data.type() == TTL)
+        {
+            createTTL(entry);
+        }
+    }
+
+    for (auto const& entry : liveEntries)
+    {
+        if (entry.data.type() == CONTRACT_DATA)
+        {
+            updateContractData(entry);
+        }
+        else if (entry.data.type() == CONTRACT_CODE)
+        {
+            updateContractCode(entry);
+        }
+        else if (entry.data.type() == TTL)
+        {
+            updateTTL(entry);
+        }
+    }
+
+    for (auto const& key : deadEntries)
+    {
+        if (key.type() == CONTRACT_DATA)
+        {
+            evictContractData(key);
+        }
+        else if (key.type() == CONTRACT_CODE)
+        {
+            evictContractCode(key);
+        }
+        // No need to evict TTLs, they are stored with their associated entry
+    }
+
+    checkUpdateInvariants();
+}
+
+void
+LedgerStateCache::checkUpdateInvariants() const
+{
+    // No TTLs should be orphaned after finishing an update
+    releaseAssertOrThrow(mPendingTTLs.empty());
 }
 }
