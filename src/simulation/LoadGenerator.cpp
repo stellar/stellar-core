@@ -253,12 +253,12 @@ LoadGenerator::reset()
     mStartTime.reset();
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
-    mSorobanWasmWaitTillLedgers = 0;
     mFailed = false;
     mStarted = false;
     mInitialAccountsCreated = false;
     mPreLoadgenApplySorobanSuccess = 0;
     mPreLoadgenApplySorobanFailure = 0;
+    mTransactionsAppliedAtTheStart = 0;
 }
 
 // Reset Soroban persistent state
@@ -294,6 +294,11 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     {
         return;
     }
+
+    mTransactionsAppliedAtTheStart =
+        mApp.getMetrics()
+            .NewHistogram({"ledger", "transaction", "count"})
+            .sum();
 
     if (cfg.txRate == 0)
     {
@@ -700,7 +705,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-
+    uint32_t count = 0;
     for (int64_t i = 0; i < txPerStep; ++i)
     {
         if (cfg.mode == LoadGenMode::CREATE)
@@ -858,6 +863,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 break;
             }
         }
+        ++count;
         if (cfg.nAccounts == 0 || !cfg.areTxsRemaining())
         {
             // Nothing to do for the rest of the step
@@ -876,7 +882,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     mLastSecond = now;
-    mTotalSubmitted += txPerStep;
+    mTotalSubmitted += count;
     scheduleLoadGeneration(cfg);
 }
 
@@ -1339,13 +1345,30 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
-    vector<TxGenerator::TestAccountPtr> inconsistencies;
-    inconsistencies = checkAccountSynced(mApp, cfg.isCreate());
-    auto sorobanInconsistencies = checkSorobanStateSynced(mApp, cfg);
+
+    bool classicIsDone = false;
+    bool sorobanIsDone = false;
+    if (mApp.getRunInOverlayOnlyMode())
+    {
+        auto count = mApp.getMetrics()
+                         .NewHistogram({"ledger", "transaction", "count"})
+                         .sum();
+        CLOG_INFO(LoadGen, "Transaction count: {}", count);
+        CLOG_INFO(LoadGen, "Transactions applied at the start: {}",
+                  mTransactionsAppliedAtTheStart);
+        CLOG_INFO(LoadGen, "Transactions applied: {}", mTotalSubmitted);
+        classicIsDone =
+            (count - mTransactionsAppliedAtTheStart) >= mTotalSubmitted;
+        sorobanIsDone = classicIsDone;
+    }
+    else
+    {
+        classicIsDone = checkAccountSynced(mApp, cfg.isCreate()).empty();
+        sorobanIsDone = checkSorobanStateSynced(mApp, cfg).empty();
+    }
 
     // If there are no inconsistencies and we have generated all load, finish
-    if (inconsistencies.empty() && sorobanInconsistencies.empty() &&
-        cfg.isDone())
+    if (classicIsDone && sorobanIsDone && cfg.isDone())
     {
         // Check whether run met the minimum success rate for soroban invoke
         if (checkMinimumSorobanSuccess(cfg))
@@ -1366,11 +1389,11 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         return;
     }
     // If we have an inconsistency, reset the timer and wait for another ledger
-    else if (!inconsistencies.empty() || !sorobanInconsistencies.empty())
+    else if (!classicIsDone || !sorobanIsDone)
     {
         if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
         {
-            emitFailure(!sorobanInconsistencies.empty());
+            emitFailure(!sorobanIsDone);
             return;
         }
 

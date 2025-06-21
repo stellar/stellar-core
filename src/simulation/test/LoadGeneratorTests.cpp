@@ -19,7 +19,51 @@
 
 using namespace stellar;
 
-TEST_CASE("generate load in protocol 1")
+TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID);
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    // Make sure upgrades work
+    const uint32_t ledgerMaxTxCount = 42;
+    uint32_t nAccounts = 1000;
+    uint32_t nTxs = 100;
+
+    // Upgrade the network config.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = ledgerMaxTxCount;
+        },
+        simulation);
+
+    for (auto& node : nodes)
+    {
+        node->setRunInOverlayOnlyMode(true);
+    }
+
+    auto prev = app.getMetrics()
+                    .NewMeter({"loadgen", "run", "complete"}, "run")
+                    .count();
+    app.getLoadGenerator().generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, nAccounts, nTxs, /* txRate */ 1));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == prev + 1;
+        },
+        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+}
+
+TEST_CASE("generate load in protocol 1", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =

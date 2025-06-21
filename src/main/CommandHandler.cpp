@@ -130,6 +130,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("generateload", &CommandHandler::generateLoad);
     addRoute("testacc", &CommandHandler::testAcc);
     addRoute("testtx", &CommandHandler::testTx);
+    addRoute("toggleoverlayonlymode", &CommandHandler::toggleOverlayOnlyMode);
     addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
     addRoute("startsurveycollecting", &CommandHandler::startSurveyCollecting);
     addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
@@ -1434,6 +1435,20 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["detail"] = "Bad HTTP GET: try something like: "
                          "testtx?from=root&to=bob&amount=1000000000";
     }
+    retStr = root.toStyledString();
+}
+
+void
+CommandHandler::toggleOverlayOnlyMode(std::string const& params,
+                                      std::string& retStr)
+{
+    ZoneScoped;
+
+    bool currentMode = mApp.getRunInOverlayOnlyMode();
+    mApp.setRunInOverlayOnlyMode(!currentMode);
+
+    Json::Value root;
+    root["overlay_only_mode"] = !currentMode;
     retStr = root.toStyledString();
 }
 #endif

@@ -296,6 +296,10 @@ class Application
     virtual Config& getMutableConfig() = 0;
 
     virtual std::shared_ptr<TestAccount> getRoot() = 0;
+
+    // Access the runtime overlay-only mode flag for testing
+    virtual bool getRunInOverlayOnlyMode() const = 0;
+    virtual void setRunInOverlayOnlyMode(bool mode) = 0;
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS

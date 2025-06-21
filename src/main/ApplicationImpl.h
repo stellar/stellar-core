@@ -125,6 +125,9 @@ class ApplicationImpl : public Application
     virtual Config& getMutableConfig() override;
 
     virtual std::shared_ptr<TestAccount> getRoot() override;
+
+    virtual bool getRunInOverlayOnlyMode() const override;
+    virtual void setRunInOverlayOnlyMode(bool mode) override;
 #endif
 
     virtual void applyCfgCommands() override;
@@ -235,6 +238,10 @@ class ApplicationImpl : public Application
     bool mStarted;
     std::atomic<bool> mStopping;
     bool mLedgerCloseThreadStopped{false};
+
+#ifdef BUILD_TESTS
+    bool mRunInOverlayOnlyMode;
+#endif
 
     VirtualTimer mStoppingTimer;
     VirtualTimer mSelfCheckTimer;
