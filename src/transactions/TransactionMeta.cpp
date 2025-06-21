@@ -198,6 +198,26 @@ processOpLedgerEntryChanges(
                 }
             }
         }
+        else if (change.type() == LEDGER_ENTRY_REMOVED)
+        {
+            if (auto key = change.removed();
+                key.type() == TTL || isPersistentEntry(key))
+            {
+                // Entry was restored from the live BucketList then deleted.
+                // META for this case will be LEDGER_ENTRY_STATE,
+                // LEDGER_ENTRY_REMOVED. We want to keep the
+                // LEDGER_ENTRY_REMOVED, but convert the STATE to a RESTORED.
+                auto liveRestoreIter = liveRestores.find(key);
+                if (liveRestoreIter != liveRestores.end())
+                {
+                    stateChangesToConvert.insert(key);
+                }
+
+                // Note: We don't have to do anything special here for Hot
+                // Archive restores. Those will generate a CREATE change type
+                // handled above.
+            }
+        }
     }
 
     // First remove and convert STATE changes

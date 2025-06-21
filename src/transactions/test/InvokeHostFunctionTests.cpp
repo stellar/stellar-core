@@ -3291,6 +3291,15 @@ TEST_CASE("charge rent fees for storage resize", "[tx][soroban]")
 
 TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 {
+    // This test verifies that archival metadata is properly emitted when:
+    // 1. Temporary entries are evicted
+    // 2. Persistent entries are evicted
+    // 3. Entries are restored manually or via autorestore (both before and
+    //    after eviction)
+    // 4. Entries are updated or deleted in the same TX that restores them
+    // 5. Entries are restored then deleted, then recreated by another TX in
+    //    the same ledger.
+
     auto test = [](Config& cfg) {
         TmpDirManager tdm(std::string("soroban-storage-meta-") +
                           binToHex(randomBytes(8)));
@@ -3298,6 +3307,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         std::string metaPath = td.getName() + "/stream.xdr";
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
+
         auto restoreCost = 20'166;
         if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                                     ProtocolVersion::V_23))
@@ -3307,11 +3317,81 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
         SorobanTest test(cfg);
         ContractStorageTestClient client(test);
+        auto acc1 = test.getRoot().create(
+            "acc1", test.getApp().getLedgerManager().getLastMinBalance(2));
         auto const& contractKeys = client.getContract().getKeys();
 
-        // Extend Wasm and instance
+        auto getMetaForLedger =
+            [&metaPath](
+                uint32_t ledgerSeq) -> std::optional<LedgerCloseMetaFrame> {
+            XDRInputFileStream in;
+            in.open(metaPath);
+            LedgerCloseMeta lcm;
+
+            while (in.readOne(lcm))
+            {
+                LedgerCloseMetaFrame frame(lcm);
+                if (frame.getLedgerHeader().ledgerSeq == ledgerSeq)
+                {
+                    return frame;
+                }
+            }
+            return std::nullopt;
+        };
+
+        auto verifyEvictions = [&](uint32_t ledgerSeq,
+                                   LedgerKeySet const& expectedKeys) {
+            auto frame = getMetaForLedger(ledgerSeq);
+            REQUIRE(frame.has_value());
+
+            auto evictedKeys = frame->getEvictedKeys();
+            REQUIRE(evictedKeys.size() == expectedKeys.size());
+
+            for (auto const& key : expectedKeys)
+            {
+                REQUIRE(std::find(evictedKeys.begin(), evictedKeys.end(),
+                                  key) != evictedKeys.end());
+            }
+        };
+
+        auto verifySingleTxMeta =
+            [&](uint32_t ledgerSeq,
+                std::function<void(TransactionMetaFrame const&)> verify) {
+                auto frame = getMetaForLedger(ledgerSeq);
+                REQUIRE(frame.has_value());
+                REQUIRE(frame->getEvictedKeys().empty());
+                REQUIRE(frame->getTransactionResultMetaCount() == 1);
+
+                auto txMeta = frame->getTransactionMeta(0);
+                TransactionMetaFrame txFrame(txMeta);
+                REQUIRE(txFrame.getNumOperations() == 1);
+                verify(txFrame);
+            };
+
+        // Used to check meta for ledgers that apply 2 TXs, first a restore TX,
+        // then a TX that updates the value or recreates it.
+        auto verifyDualTxMeta =
+            [&](uint32_t ledgerSeq,
+                std::function<void(TransactionMetaFrame const&)> verifyRestore,
+                std::function<void(TransactionMetaFrame const&)> verifyUpdate) {
+                auto frame = getMetaForLedger(ledgerSeq);
+                REQUIRE(frame.has_value());
+                REQUIRE(frame->getEvictedKeys().empty());
+                REQUIRE(frame->getTransactionResultMetaCount() == 2);
+
+                auto restoreMeta = frame->getTransactionMeta(0);
+                auto updateMeta = frame->getTransactionMeta(1);
+
+                verifyRestore(TransactionMetaFrame(restoreMeta));
+                verifyUpdate(TransactionMetaFrame(updateMeta));
+            };
+
+        // Extend contract instance lifetime to ensure it doesn't expire during
+        // test
         test.invokeExtendOp(contractKeys, 10'000);
 
+        // Create a temporary storage entry that will be used for eviction
+        // testing
         auto invocation = client.getContract().prepareInvocation(
             "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
             client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
@@ -3323,9 +3403,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             test.getLCLSeq() +
             test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL - 1;
         REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-        auto const evictionLedger = 4097;
 
-        // Close ledgers until temp entry is evicted
+        // Advance ledgers to just before eviction
+        auto const evictionLedger = 4097;
         for (uint32_t i = test.getLCLSeq(); i < evictionLedger - 2; ++i)
         {
             closeLedgerOn(test.getApp(), i, 2, 1, 2016);
@@ -3333,11 +3413,11 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
         REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
 
-        // This should be a noop
+        // Verify extend operation is a no-op for expired temporary entries
         test.invokeExtendOp({temporaryLk}, 10'000, 0);
         REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
 
-        // This will fail because the entry is expired
+        // Verify contract function fails when accessing expired entry
         REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY, 10'000,
                               10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
         REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
@@ -3346,48 +3426,37 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
         SECTION("temp entry meta")
         {
-            // close one more ledger to trigger the eviction
+            // Close one more ledger to trigger the eviction
             closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
 
+            // Verify the entry is deleted from eviction
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(!ltx.load(temporaryLk));
             }
 
-            XDRInputFileStream in;
-            in.open(metaPath);
-            LedgerCloseMeta lcm;
-            bool evicted = false;
-            while (in.readOne(lcm))
-            {
-                LedgerCloseMetaFrame lcmFrame(lcm);
-                if (lcmFrame.getLedgerHeader().ledgerSeq == evictionLedger)
-                {
-                    REQUIRE(lcmFrame.getEvictedKeys().size() == 2);
-                    auto sortedKeys = lcmFrame.getEvictedKeys();
-                    std::sort(sortedKeys.begin(), sortedKeys.end());
-                    REQUIRE(sortedKeys[0] == temporaryLk);
-                    REQUIRE(sortedKeys[1] == getTTLKey(temporaryLk));
-                    evicted = true;
-                }
-                else
-                {
-                    REQUIRE(lcmFrame.getEvictedKeys().empty());
-                }
-            }
-
-            REQUIRE(evicted);
+            LedgerKeySet expectedEvictedKeys = {temporaryLk,
+                                                getTTLKey(temporaryLk)};
+            verifyEvictions(evictionLedger, expectedEvictedKeys);
         }
         SECTION("persistent entry meta")
         {
+            // For perstent entry restoration, we'll write an entry initially
+            // with kOldValue. Some tests will restore and update the value to
+            // kUpdatedValue to test autorestore + update scenarios.
+            auto const kOldValue = 123;
+            auto const kUpdatedValue = 999;
+            auto persistentKey = client.getContract().getDataKey(
+                makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
             auto persistentInvocation = client.getContract().prepareInvocation(
-                "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+                "put_persistent",
+                {makeSymbolSCVal("key"), makeU64SCVal(kOldValue)},
                 client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
             REQUIRE(persistentInvocation.withExactNonRefundableResourceFee()
                         .invoke());
 
-            auto persistentKey = client.getContract().getDataKey(
-                makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+            auto const originalLastModifiedLedgerSeq = test.getLCLSeq();
 
             LedgerEntry persistentLE;
             {
@@ -3397,98 +3466,222 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 persistentLE = ltxe.current();
             }
 
-            auto testRestore = [&](std::optional<uint32_t> updatedValue =
-                                       std::nullopt) {
-                auto targetRestorationLedger = test.getLCLSeq();
+            // Helper for dual-transaction restore+update scenarios. If
+            // wasDeleted is true, first TX is expected to autorestore then
+            // delete the restored key. Otherwise, first TX is expected to
+            // restore the entry. The 2nd transaction is expected to update the
+            // key to updatedValue.
+            auto verifyRestoreAndUpdate = [&](uint32_t updatedValue,
+                                              bool restoreRequiresDataWrite,
+                                              bool wasDeleted) {
+                auto targetLedger = test.getLCLSeq();
 
-                XDRInputFileStream in;
-                in.open(metaPath);
-                LedgerCloseMeta lcm;
-                bool restoreMeta = false;
-                bool seenUpdated = false;
+                // If restore does not require a write, the data entry should
+                // not be re-written and meta should reflect the old
+                // lastModifiedLedgerSeq. TTL is always written on restores.
+                uint32_t expectedDataRestoreLastModified =
+                    restoreRequiresDataWrite ? targetLedger
+                                             : originalLastModifiedLedgerSeq;
+                uint32_t expectedTTLRestoreLastModified = targetLedger;
 
-                // TTL Restore, Data Restore, optional Data updated
-                auto numChanges = updatedValue ? 3 : 2;
+                // First TX will restore the entry and delete it if wasDeleted
+                // is true.
+                auto verifyRestoreTx = [&](TransactionMetaFrame const&
+                                               restoreTx) {
+                    auto const& restoreChanges =
+                        restoreTx.getLedgerEntryChangesAtOp(0);
+                    LedgerKeySet keysToRestore = {persistentKey,
+                                                  getTTLKey(persistentKey)};
+                    LedgerKeySet keysToDelete =
+                        wasDeleted ? keysToRestore : LedgerKeySet{};
 
-                LedgerKeySet keysToRestore = {persistentKey,
-                                              getTTLKey(persistentKey)};
-                LedgerKeySet updatedKeys =
-                    updatedValue ? LedgerKeySet{persistentKey} : LedgerKeySet{};
-
-                while (in.readOne(lcm))
-                {
-                    LedgerCloseMetaFrame lcmFrame(lcm);
-
-                    if (lcmFrame.getLedgerHeader().ledgerSeq ==
-                        targetRestorationLedger)
+                    for (auto const& change : restoreChanges)
                     {
-                        REQUIRE(lcmFrame.getEvictedKeys().empty());
-
-                        REQUIRE(lcmFrame.getTransactionResultMetaCount() == 1);
-                        auto txMeta = lcmFrame.getTransactionMeta(0);
-                        auto txApplyProcessing = TransactionMetaFrame(txMeta);
-                        REQUIRE(txApplyProcessing.getNumOperations() == 1);
-
-                        auto const& changes =
-                            txApplyProcessing.getLedgerEntryChangesAtOp(0);
-                        REQUIRE(changes.size() == numChanges);
-                        for (auto const& change : changes)
+                        if (change.type() ==
+                            LedgerEntryChangeType::LEDGER_ENTRY_RESTORED)
                         {
-                            if (change.type() ==
-                                LedgerEntryChangeType::LEDGER_ENTRY_RESTORED)
-                            {
-                                auto le = change.restored();
-                                auto lk = LedgerEntryKey(le);
-                                REQUIRE(keysToRestore.find(lk) !=
-                                        keysToRestore.end());
-                                keysToRestore.erase(lk);
+                            auto le = change.restored();
+                            auto lk = LedgerEntryKey(le);
+                            REQUIRE(keysToRestore.erase(lk) == 1);
 
-                                // If the restored value was also updated,
-                                // RESTORE meta will hold the previous value
-                                if (updatedKeys.find(lk) == updatedKeys.end())
-                                {
-                                    LedgerTxn ltx(
-                                        test.getApp().getLedgerTxnRoot());
-                                    auto ltxe = ltx.load(lk);
-                                    REQUIRE(ltxe);
-                                    REQUIRE(ltxe.current() == le);
-                                }
-                            }
-                            else if (change.type() == LedgerEntryChangeType::
-                                                          LEDGER_ENTRY_UPDATED)
+                            if (lk.type() == CONTRACT_DATA)
                             {
-                                auto le = change.updated();
-                                auto lk = LedgerEntryKey(le);
-                                REQUIRE(updatedKeys.find(lk) !=
-                                        updatedKeys.end());
-                                seenUpdated = true;
-
-                                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                                auto ltxe = ltx.load(lk);
-                                REQUIRE(ltxe);
-                                REQUIRE(ltxe.current() == le);
-                                REQUIRE(
-                                    ltxe.current().data.contractData().val ==
-                                    makeU64SCVal(*updatedValue));
+                                REQUIRE(le.data.contractData().val ==
+                                        makeU64SCVal(kOldValue));
+                                REQUIRE(le.lastModifiedLedgerSeq ==
+                                        expectedDataRestoreLastModified);
                             }
                             else
                             {
-                                FAIL();
+                                REQUIRE(le.lastModifiedLedgerSeq ==
+                                        expectedTTLRestoreLastModified);
                             }
                         }
-
-                        restoreMeta = true;
-                        break;
+                        else if (change.type() ==
+                                 LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
+                        {
+                            auto lk = change.removed();
+                            REQUIRE(keysToDelete.erase(lk) == 1);
+                        }
+                        else
+                        {
+                            FAIL();
+                        }
                     }
-                }
 
-                REQUIRE(restoreMeta);
-                REQUIRE(seenUpdated == (updatedValue.has_value()));
-                REQUIRE(keysToRestore.empty());
+                    REQUIRE(keysToRestore.empty());
+                    REQUIRE(keysToDelete.empty());
+                };
+
+                // Second TX will recreate the entry if wasDeleted is true, or
+                // update the entry if wasDeleted is false.
+                auto verifyUpdateTx = [&](TransactionMetaFrame const&
+                                              updateTx) {
+                    LedgerKeySet keysToCreate =
+                        wasDeleted ? LedgerKeySet{persistentKey,
+                                                  getTTLKey(persistentKey)}
+                                   : LedgerKeySet{};
+                    LedgerKeySet keysToUpdate =
+                        wasDeleted ? LedgerKeySet{}
+                                   : LedgerKeySet{persistentKey};
+                    LedgerKeySet expectedStateKeys = keysToUpdate;
+
+                    auto const& updateChanges =
+                        updateTx.getLedgerEntryChangesAtOp(0);
+                    for (auto const& change : updateChanges)
+                    {
+                        if (change.type() ==
+                            LedgerEntryChangeType::LEDGER_ENTRY_UPDATED)
+                        {
+                            auto le = change.updated();
+                            REQUIRE(le.data.contractData().val ==
+                                    makeU64SCVal(updatedValue));
+                            REQUIRE(keysToUpdate.erase(LedgerEntryKey(le)) ==
+                                    1);
+                            REQUIRE(le.lastModifiedLedgerSeq == targetLedger);
+                        }
+                        else if (change.type() ==
+                                 LedgerEntryChangeType::LEDGER_ENTRY_CREATED)
+                        {
+                            auto le = change.created();
+                            if (LedgerEntryKey(le).type() == CONTRACT_DATA)
+                            {
+                                REQUIRE(le.data.contractData().val ==
+                                        makeU64SCVal(updatedValue));
+                            }
+
+                            REQUIRE(keysToCreate.erase(LedgerEntryKey(le)) ==
+                                    1);
+                            REQUIRE(le.lastModifiedLedgerSeq == targetLedger);
+                        }
+                        else if (change.type() ==
+                                 LedgerEntryChangeType::LEDGER_ENTRY_STATE)
+                        {
+                            auto le = change.state();
+                            REQUIRE(expectedStateKeys.erase(
+                                        LedgerEntryKey(le)) == 1);
+                            REQUIRE(le.lastModifiedLedgerSeq ==
+                                    expectedDataRestoreLastModified);
+                            REQUIRE(le.data.contractData().val ==
+                                    makeU64SCVal(kOldValue));
+                        }
+                        else
+                        {
+                            FAIL();
+                        }
+                    }
+
+                    // Check that we saw all expected keys
+                    REQUIRE(keysToUpdate.empty());
+                    REQUIRE(keysToCreate.empty());
+                };
+
+                verifyDualTxMeta(targetLedger, verifyRestoreTx, verifyUpdateTx);
             };
 
-            auto persistentLk = client.getContract().getDataKey(
-                makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+            // Helper for manual and autorestore TXs. If updatedValue is not
+            // nullopt, the TX is an autorestore and updates the entry after
+            // restoration. If deleted is true, the TX is an autorestore that
+            // deletes the entry after restoration.
+            auto verifyRestore = [&](bool restoreRequiresDataWrite,
+                                     std::optional<uint32_t> updatedValue =
+                                         std::nullopt,
+                                     bool deleted = false) {
+                if (updatedValue && deleted)
+                {
+                    throw "Invalid test case: updatedValue and deleted cannot "
+                          "both be set";
+                }
+
+                // If restore does not require a write, the data entry should
+                // not be re-written and meta should reflect the old
+                // lastModifiedLedgerSeq. TTL is always written on restores.
+                auto targetLedger = test.getLCLSeq();
+                uint32_t expectedDataLastModified =
+                    restoreRequiresDataWrite ? targetLedger
+                                             : originalLastModifiedLedgerSeq;
+                uint32_t expectedTTLLastModified = targetLedger;
+
+                auto verifySingleTx = [&](TransactionMetaFrame const& txFrame) {
+                    auto const& changes = txFrame.getLedgerEntryChangesAtOp(0);
+
+                    LedgerKeySet keysToRestore = {persistentKey,
+                                                  getTTLKey(persistentKey)};
+                    LedgerKeySet keysToUpdate =
+                        updatedValue ? LedgerKeySet{persistentKey}
+                                     : LedgerKeySet{};
+                    LedgerKeySet keysToDelete =
+                        deleted ? keysToRestore : LedgerKeySet{};
+
+                    for (auto const& change : changes)
+                    {
+                        if (change.type() ==
+                            LedgerEntryChangeType::LEDGER_ENTRY_RESTORED)
+                        {
+                            auto le = change.restored();
+                            auto lk = LedgerEntryKey(le);
+                            REQUIRE(keysToRestore.erase(lk) == 1);
+
+                            if (lk.type() == CONTRACT_DATA)
+                            {
+                                REQUIRE(le.lastModifiedLedgerSeq ==
+                                        expectedDataLastModified);
+                            }
+                            else
+                            {
+                                REQUIRE(le.lastModifiedLedgerSeq ==
+                                        expectedTTLLastModified);
+                            }
+                        }
+                        else if (change.type() ==
+                                 LedgerEntryChangeType::LEDGER_ENTRY_UPDATED)
+                        {
+                            REQUIRE(updatedValue.has_value());
+                            auto le = change.updated();
+                            REQUIRE(le.data.contractData().val ==
+                                    makeU64SCVal(*updatedValue));
+                            REQUIRE(keysToUpdate.erase(LedgerEntryKey(le)) ==
+                                    1);
+                        }
+                        else if (change.type() ==
+                                 LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
+                        {
+                            auto lk = change.removed();
+                            REQUIRE(keysToDelete.erase(lk) == 1);
+                        }
+                        else
+                        {
+                            FAIL();
+                        }
+                    }
+
+                    REQUIRE(keysToRestore.empty());
+                    REQUIRE(keysToUpdate.empty());
+                    REQUIRE(keysToDelete.empty());
+                };
+
+                verifySingleTxMeta(targetLedger, verifySingleTx);
+            };
 
             // First, close ledgers until entry is expired, but not yet evicted
             auto expirationLedger =
@@ -3509,14 +3702,15 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     .setWriteBytes(5000)
                     .setRefundableResourceFee(1'000'000);
 
-            // First, check restoration meta in non-evicted case. This should be
-            // identical to meta in the evicted case.
-            SECTION("restore expired but not evicted")
-            {
+            // Helper to run common restore test cases (used by both evicted
+            // and non-evicted sections)
+            auto runRestoreTestCases = [&](bool wasEvicted) {
                 SECTION("manual restore")
                 {
                     test.invokeRestoreOp({persistentKey}, restoreCost);
-                    testRestore();
+                    // RestoreOp of non-evicted state is the only time restores
+                    // don't rewrite data entry
+                    verifyRestore(/*restoreRequiresDataWrite=*/wasEvicted);
                 }
 
                 SECTION("autorestore")
@@ -3531,7 +3725,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 spec, /* addContractKeys */ false);
                         REQUIRE(invocation.withExactNonRefundableResourceFee()
                                     .invoke());
-                        testRestore();
+                        verifyRestore(/*restoreRequiresDataWrite=*/true);
                     }
                 }
 
@@ -3544,130 +3738,155 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                         auto invocation =
                             client.getContract().prepareInvocation(
                                 "put_persistent",
-                                {makeSymbolSCVal("key"), makeU64SCVal(999)},
+                                {makeSymbolSCVal("key"),
+                                 makeU64SCVal(kUpdatedValue)},
                                 spec, /* addContractKeys */ false);
                         REQUIRE(invocation.withExactNonRefundableResourceFee()
                                     .invoke());
-                        testRestore(999);
+                        verifyRestore(/*restoreRequiresDataWrite=*/true,
+                                      kUpdatedValue);
                     }
                 }
+
+                SECTION("restore, update value in next tx")
+                {
+                    auto spec = client.defaultSpecWithoutFootprint()
+                                    .setReadWriteFootprint({persistentKey})
+                                    .setReadOnlyFootprint(
+                                        client.getContract().getKeys())
+                                    .setReadBytes(5000)
+                                    .setWriteBytes(5000)
+                                    .setRefundableResourceFee(1'000'000);
+
+                    SorobanResources resources;
+                    resources.footprint.readWrite = {persistentKey};
+                    resources.instructions = 0;
+                    resources.diskReadBytes = 10'000;
+                    resources.writeBytes = 10'000;
+
+                    auto resourceFee = 300'000 + 40'000;
+                    auto restoreTx =
+                        test.createRestoreTx(resources, 1'000, resourceFee);
+
+                    auto updateTx =
+                        client.getContract()
+                            .prepareInvocation("put_persistent",
+                                               {makeSymbolSCVal("key"),
+                                                makeU64SCVal(kUpdatedValue)},
+                                               spec, false)
+                            .withExactNonRefundableResourceFee()
+                            .createTx(&acc1);
+
+                    closeLedger(test.getApp(), {restoreTx, updateTx},
+                                /*strictOrder=*/true);
+
+                    verifyRestoreAndUpdate(
+                        kUpdatedValue,
+                        /*restoreRequiresDataWrite=*/wasEvicted,
+                        /*wasDeleted=*/false);
+                }
+
+                SECTION("autorestore with delete")
+                {
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            AUTO_RESTORE_PROTOCOL_VERSION))
+                    {
+                        auto invocation =
+                            client.getContract().prepareInvocation(
+                                "del_persistent", {makeSymbolSCVal("key")},
+                                spec, /* addContractKeys */ false);
+                        REQUIRE(invocation.withExactNonRefundableResourceFee()
+                                    .invoke());
+                        verifyRestore(/*restoreRequiresDataWrite=*/true,
+                                      std::nullopt, /*deleted=*/true);
+                    }
+                }
+
+                SECTION("autorestore with deleted, then recreate with new TX")
+                {
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            AUTO_RESTORE_PROTOCOL_VERSION))
+                    {
+                        auto deleteInvocation =
+                            client.getContract().prepareInvocation(
+                                "del_persistent", {makeSymbolSCVal("key")},
+                                spec, /* addContractKeys */ false);
+                        auto deleteTx = deleteInvocation.createTx();
+
+                        auto createInvocation =
+                            client.getContract().prepareInvocation(
+                                "put_persistent",
+                                {makeSymbolSCVal("key"),
+                                 makeU64SCVal(kUpdatedValue)},
+                                spec, /* addContractKeys */ false);
+                        auto createTx = createInvocation.createTx(&acc1);
+
+                        closeLedger(test.getApp(), {deleteTx, createTx},
+                                    /*strictOrder=*/true);
+
+                        verifyRestoreAndUpdate(
+                            kUpdatedValue,
+                            /*restoreRequiresDataWrite=*/true,
+                            /*wasDeleted=*/true);
+                    }
+                }
+            };
+
+            // First, check restoration meta in non-evicted case. This should
+            // be identical to meta in the evicted case.
+            SECTION("restore expired but not evicted")
+            {
+                runRestoreTestCases(/*wasEvicted=*/false);
             }
 
-            SECTION("entry evicted")
+            if (protocolVersionStartsFrom(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
-                // Entry must merge down the BucketList until it is in the first
-                // scan level
-                auto evictionLedger = 8193;
-
-                // Close ledgers until entry is evicted
-                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
+                SECTION("entry evicted")
                 {
-                    closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-                }
-
-                if (protocolVersionStartsFrom(
-                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                        LiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                {
-                    LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                    REQUIRE(!ltx.load(persistentKey));
-                }
-
-                SECTION("eviction meta")
-                {
-                    XDRInputFileStream in;
-                    in.open(metaPath);
-                    LedgerCloseMeta lcm;
-                    bool evicted = false;
-                    LedgerKeySet keysToEvict = {persistentKey,
-                                                getTTLKey(persistentKey)};
-                    while (in.readOne(lcm))
+                    // Close ledgers until entry is evicted
+                    auto evictionLedger = 8193;
+                    for (uint32_t i = test.getLCLSeq(); i <= evictionLedger;
+                         ++i)
                     {
-                        LedgerCloseMetaFrame lcmFrame(lcm);
-                        if (lcmFrame.getLedgerHeader().ledgerSeq ==
-                            evictionLedger)
+                        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                    }
+
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            LiveBucket::
+                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    {
+                        LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                        REQUIRE(!ltx.load(persistentKey));
+                    }
+
+                    SECTION("eviction meta")
+                    {
+                        // Only support persistent eviction meta >= p23
+                        if (protocolVersionStartsFrom(
+                                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                LiveBucket::
+                                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                         {
-                            // Only support persistent eviction meta >= p23
-                            if (protocolVersionStartsFrom(
-                                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    LiveBucket::
-                                        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                            {
-                                REQUIRE(lcmFrame.getEvictedKeys().size() == 2);
-                                for (auto const& key :
-                                     lcmFrame.getEvictedKeys())
-                                {
-                                    REQUIRE(keysToEvict.find(key) !=
-                                            keysToEvict.end());
-                                    keysToEvict.erase(key);
-                                }
-
-                                evicted = true;
-                            }
-                            else
-                            {
-                                REQUIRE(lcmFrame.getEvictedKeys().empty());
-                                evicted = false;
-                            }
-
-                            break;
+                            LedgerKeySet expectedEvictedKeys = {
+                                persistentKey, getTTLKey(persistentKey)};
+                            verifyEvictions(evictionLedger,
+                                            expectedEvictedKeys);
+                        }
+                        else
+                        {
+                            // For older protocols, verify no evictions occurred
+                            auto frame = getMetaForLedger(evictionLedger);
+                            REQUIRE(frame.has_value());
+                            REQUIRE(frame->getEvictedKeys().empty());
                         }
                     }
 
-                    if (protocolVersionStartsFrom(
-                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                            LiveBucket::
-                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                    {
-                        REQUIRE(evicted);
-                        REQUIRE(keysToEvict.empty());
-                    }
-                    else
-                    {
-                        REQUIRE(!evicted);
-                    }
-                }
-
-                SECTION("manual restore")
-                {
-                    test.invokeRestoreOp({persistentKey}, restoreCost);
-                    testRestore();
-                }
-
-                SECTION("autorestore")
-                {
-                    if (protocolVersionStartsFrom(
-                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                            LiveBucket::
-                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                    {
-                        auto invocation =
-                            client.getContract().prepareInvocation(
-                                "has_persistent", {makeSymbolSCVal("key")},
-                                spec, /* addContractKeys */ false);
-                        REQUIRE(invocation.withExactNonRefundableResourceFee()
-                                    .invoke());
-                        testRestore();
-                    }
-                }
-
-                SECTION("autorestore with updated value")
-                {
-                    if (protocolVersionStartsFrom(
-                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                            LiveBucket::
-                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                    {
-                        auto invocation =
-                            client.getContract().prepareInvocation(
-                                "put_persistent",
-                                {makeSymbolSCVal("key"), makeU64SCVal(999)},
-                                spec, /* addContractKeys */ false);
-                        REQUIRE(invocation.withExactNonRefundableResourceFee()
-                                    .invoke());
-                        testRestore(999);
-                    }
+                    runRestoreTestCases(/*wasEvicted=*/true);
                 }
             }
         }
@@ -3682,8 +3901,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 REQUIRE(ltx.load(temporaryLk));
             }
 
-            // Verify that we're on the ledger where the entry would get evicted
-            // it wasn't recreated.
+            // Verify that we're on the ledger where the entry would get
+            // evicted it wasn't recreated.
             REQUIRE(test.getLCLSeq() == evictionLedger);
 
             // Entry is live again

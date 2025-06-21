@@ -127,6 +127,11 @@ RestoreFootprintOpFrame::doParallelApply(
         if (hotArchiveEntry)
         {
             entry = hotArchiveEntry->archivedEntry();
+
+            // Update last modified ledger seq to the current ledger seq since
+            // we're rewriting this entry. ltx will update this for us, but we
+            // need to process the meta before ltx has a chance for the update.
+            entry.lastModifiedLedgerSeq = ledgerSeq;
             entrySize = static_cast<uint32>(xdr::xdr_size(entry));
         }
         else
@@ -261,7 +266,6 @@ RestoreFootprintOpFrame::doApply(
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
     auto const& appConfig = app.getConfig();
-    auto hotArchive = app.copySearchableHotArchiveBucketListSnapshot();
 
     auto const& archivalSettings = sorobanConfig.stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
@@ -274,7 +278,6 @@ RestoreFootprintOpFrame::doApply(
     auto& diagnosticEvents = opMeta.getDiagnosticEventManager();
     for (auto const& lk : footprint.readWrite)
     {
-        std::shared_ptr<HotArchiveBucketEntry const> hotArchiveEntry{nullptr};
         auto ttlKey = getTTLKey(lk);
         {
             // First check the live BucketList
@@ -293,22 +296,10 @@ RestoreFootprintOpFrame::doApply(
 
         // We must load the ContractCode/ContractData entry for fee purposes, as
         // restore is considered a write
-        uint32_t entrySize = 0;
-        LedgerEntry entry;
-        if (hotArchiveEntry)
-        {
-            entry = hotArchiveEntry->archivedEntry();
-            entrySize = static_cast<uint32>(xdr::xdr_size(entry));
-        }
-        else
-        {
-            auto constEntryLtxe = ltx.loadWithoutRecord(lk);
-
-            // We checked for TTLEntry existence above
-            releaseAssertOrThrow(constEntryLtxe);
-            entry = constEntryLtxe.current();
-            entrySize = static_cast<uint32>(xdr::xdr_size(entry));
-        }
+        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
+        releaseAssertOrThrow(constEntryLtxe);
+        LedgerEntry constEntry = constEntryLtxe.current();
+        uint32_t entrySize = static_cast<uint32>(xdr::xdr_size(constEntry));
 
         metrics.mLedgerReadByte += entrySize;
         if (resources.diskReadBytes < metrics.mLedgerReadByte)
@@ -356,22 +347,14 @@ RestoreFootprintOpFrame::doApply(
         rustChange.new_size_bytes = entrySizeForRent;
         rustChange.new_live_until_ledger = restoredLiveUntilLedger;
 
-        if (hotArchiveEntry)
-        {
-            ltx.restoreFromHotArchive(hotArchiveEntry->archivedEntry(),
+        // Entry exists in the live BucketList if we get to this point due
+        // to the constTTLLtxe loadWithoutRecord logic above.
+        // Get the actual ledger entry (since we know it exists already at
+        // this point)
+        auto entry = ltx.getNewestVersion(lk);
+        releaseAssertOrThrow(entry);
+        ltx.restoreFromLiveBucketList(entry->ledgerEntry(),
                                       restoredLiveUntilLedger);
-        }
-        else
-        {
-            // Entry exists in the live BucketList if we get to this point due
-            // to the constTTLLtxe loadWithoutRecord logic above.
-            // Get the actual ledger entry (since we know it exists already at
-            // this point)
-            auto entry = ltx.getNewestVersion(lk);
-            releaseAssertOrThrow(entry);
-            ltx.restoreFromLiveBucketList(entry->ledgerEntry(),
-                                          restoredLiveUntilLedger);
-        }
     }
     int64_t rentFee = rust_bridge::compute_rent_fee(
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
