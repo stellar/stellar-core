@@ -7,6 +7,7 @@
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
 #include "herder/PendingEnvelopes.h"
+#include "herder/QuorumIntersectionChecker.h"
 #include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
 #include "util/Timer.h"
@@ -337,37 +338,14 @@ class HerderImpl : public Herder
     // run a background job that re-analyzes the current quorum map.
     void checkAndMaybeReanalyzeQuorumMap();
 
+    void checkAndMaybeReanalyzeQuorumMapV2();
+
     // erase all data for ledgers strictly less than ledgerSeq except for the
     // first ledger on the current checkpoint. Hold onto this ledger so
     // peers can catchup without waiting for the next checkpoint.
     void eraseBelow(uint32 ledgerSeq);
 
-    struct QuorumMapIntersectionState
-    {
-        uint32_t mLastCheckLedger{0};
-        uint32_t mLastGoodLedger{0};
-        size_t mNumNodes{0};
-        Hash mLastCheckQuorumMapHash{};
-        Hash mCheckingQuorumMapHash{};
-        bool mRecalculating{false};
-        std::atomic<bool> mInterruptFlag{false};
-        std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
-            mPotentialSplit{};
-        std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
-
-        bool
-        hasAnyResults() const
-        {
-            return mLastGoodLedger != 0;
-        }
-
-        bool
-        enjoysQuorunIntersection() const
-        {
-            return mLastCheckLedger == mLastGoodLedger;
-        }
-    };
-    QuorumMapIntersectionState mLastQuorumMapIntersectionState;
+    std::shared_ptr<QuorumMapIntersectionState> mLastQuorumMapIntersectionState;
 
     State mState;
     void setState(State st);
