@@ -25,7 +25,8 @@ class OperationMetaBuilder
     // Similar to the above function, but used during parallel apply,
     // which uses maps to track entry changes.
     void setLedgerChangesFromEntryMaps(
-        SearchableSnapshotConstPtr liveSnapshot, ThreadEntryMap const& entryMap,
+        SearchableSnapshotConstPtr liveSnapshot,
+        ParallelApplyEntryMap const& entryMap,
         OpModifiedEntryMap const& opModifiedEntryMap,
         UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
         UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,

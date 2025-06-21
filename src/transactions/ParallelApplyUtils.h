@@ -63,24 +63,36 @@ class ParallelLedgerInfo
 
 std::unordered_set<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage);
 
-std::unique_ptr<ThreadEntryMap>
+std::unique_ptr<ParallelApplyEntryMap>
 collectEntries(SearchableSnapshotConstPtr liveSnapshot,
-               ThreadEntryMap const& globalEntryMap, Cluster const& cluster);
+               ParallelApplyEntryMap const& globalEntryMap,
+               Cluster const& cluster);
 
 // sets LedgerTxnDelta within effects
 void setDelta(SearchableSnapshotConstPtr liveSnapshot,
-              ThreadEntryMap const& entryMap,
+              ParallelApplyEntryMap const& entryMap,
               OpModifiedEntryMap const& opModifiedEntryMap,
               UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
               ParallelLedgerInfo const& ledgerInfo, TxEffects& effects);
 
 void preParallelApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages, ThreadEntryMap& globalEntryMap);
+    std::vector<ApplyStage> const& stages,
+    ParallelApplyEntryMap& globalEntryMap);
+
+void
+writeGlobalEntryMapToLedgerTxn(AbstractLedgerTxn& ltx,
+                               ParallelApplyEntryMap const& globalEntryMap);
+
+void writeDirtyMapEntriesToGlobalEntryMap(
+    std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
+        entryMapsByCluster,
+    ParallelApplyEntryMap& globalEntryMap,
+    std::unordered_set<LedgerKey> const& isInReadWriteSet);
 
 std::optional<LedgerEntry> getLiveEntry(LedgerKey const& lk,
                                         SearchableSnapshotConstPtr liveSnapshot,
-                                        ThreadEntryMap const& entryMap);
+                                        ParallelApplyEntryMap const& entryMap);
 
 class LedgerAccessHelper
 {
@@ -119,11 +131,11 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
 {
 
   protected:
-    ParallelLedgerAccessHelper(ThreadEntryMap const& entryMap,
+    ParallelLedgerAccessHelper(ParallelApplyEntryMap const& entryMap,
                                ParallelLedgerInfo const& ledgerInfo,
                                SearchableSnapshotConstPtr liveSnapshot);
 
-    ThreadEntryMap const& mEntryMap;
+    ParallelApplyEntryMap const& mEntryMap;
     ParallelLedgerInfo const& mLedgerInfo;
     SearchableSnapshotConstPtr mLiveSnapshot;
     OpModifiedEntryMap mOpEntryMap;

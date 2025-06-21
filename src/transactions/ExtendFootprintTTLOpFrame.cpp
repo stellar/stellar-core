@@ -245,7 +245,7 @@ class ExtendFootprintTTLParallelApplyHelper
 {
   public:
     ExtendFootprintTTLParallelApplyHelper(
-        AppConnector& app, ThreadEntryMap const& entryMap,
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
         ParallelLedgerInfo const& ledgerInfo, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame)
@@ -285,7 +285,7 @@ class ExtendFootprintTTLParallelApplyHelper
 
 ParallelTxReturnVal
 ExtendFootprintTTLOpFrame::doParallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap,
+    AppConnector& app, ParallelApplyEntryMap const& entryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& _txPrngSeed, ParallelLedgerInfo const& ledgerInfo,

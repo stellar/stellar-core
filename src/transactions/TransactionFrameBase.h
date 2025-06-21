@@ -42,14 +42,14 @@ using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
-// Tracks entry updates within an operation. If the transaction succeeds, the
-// ThreadEntryMap should be updated with the entries from the
-// OpModifiedEntryMap.
+// Tracks entry updates within an operation during parallel apply phases. If the
+// transaction succeeds, the thread's ParallelApplyEntryMap should be updated
+// with the entries from the OpModifiedEntryMap.
 using OpModifiedEntryMap = UnorderedMap<LedgerKey, std::optional<LedgerEntry>>;
 
-// Used to track the current state of an entry within a thread. Can be updated
-// by successful transactions.
-struct ThreadEntry
+// Used to track the current state of an entry during parallel apply phases. Can
+// be updated by successful transactions.
+struct ParallelApplyEntry
 {
     // Will not be set if the entry doesn't exist, or if no tx was able to load
     // it due to hitting read limits.
@@ -57,12 +57,12 @@ struct ThreadEntry
     bool isDirty;
 };
 
-// This is a map of all entries that will be read and/or written within a
-// specific thread. applyThread can modify the entries in this map to reflect
-// changes made by the transactions applied by that thread. Once all threads
-// return, the updates from each threads entry map should be commited to
+// This is a map of all entries that will be read and/or written during parallel
+// apply phases: there is one such "global" map which disjoint per-thread maps
+// get split off of, modified during applyThread, and merged back into. Once all
+// threads return, the updates from each threads entry map should be commited to
 // LedgerTxn.
-using ThreadEntryMap = UnorderedMap<LedgerKey, ThreadEntry>;
+using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry>;
 
 // Returned by each parallel transaction. It will contain the entries modified
 // by the transaction, the success status of the transaction, and the keys
@@ -125,7 +125,7 @@ class TransactionFrameBase
                      MutableTransactionResultBase& resPayload) const = 0;
 
     virtual ParallelTxReturnVal parallelApply(
-        AppConnector& app, ThreadEntryMap const& entryMap,
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
         UnorderedMap<LedgerKey, LedgerEntry> const&
             previouslyRestoredHotEntries,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,

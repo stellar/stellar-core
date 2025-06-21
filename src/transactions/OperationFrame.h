@@ -53,7 +53,7 @@ class OperationFrame
             OperationMetaBuilder& opMeta) const = 0;
 
     virtual ParallelTxReturnVal doParallelApply(
-        AppConnector& app, ThreadEntryMap const& entryMap,
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
         UnorderedMap<LedgerKey, LedgerEntry> const&
             previouslyRestoredHotEntries,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
@@ -101,7 +101,7 @@ class OperationFrame
                OperationMetaBuilder& opMeta) const;
 
     ParallelTxReturnVal parallelApply(
-        AppConnector& app, ThreadEntryMap const& entryMap,
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
         UnorderedMap<LedgerKey, LedgerEntry> const&
             previouslyRestoredHotEntries,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,

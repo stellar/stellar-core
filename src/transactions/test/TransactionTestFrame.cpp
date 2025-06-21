@@ -315,7 +315,7 @@ TransactionTestFrame::preParallelApply(
 
 ParallelTxReturnVal
 TransactionTestFrame::parallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap,
+    AppConnector& app, ParallelApplyEntryMap const& entryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo,

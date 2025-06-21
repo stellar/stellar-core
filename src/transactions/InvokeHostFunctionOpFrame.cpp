@@ -984,7 +984,7 @@ class InvokeHostFunctionParallelApplyHelper
 
   public:
     InvokeHostFunctionParallelApplyHelper(
-        AppConnector& app, ThreadEntryMap const& entryMap,
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
         UnorderedMap<LedgerKey, LedgerEntry> const&
             previouslyRestoredHotEntries,
         ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
@@ -1130,7 +1130,7 @@ InvokeHostFunctionOpFrame::doApply(
 
 ParallelTxReturnVal
 InvokeHostFunctionOpFrame::doParallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap,
+    AppConnector& app, ParallelApplyEntryMap const& entryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,

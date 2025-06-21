@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/ParallelApplyUtils.h"
+#include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
 #include "ledger/NetworkConfig.h"
 #include "transactions/MutableTransactionResult.h"
 
@@ -29,11 +31,12 @@ getReadWriteKeysForStage(ApplyStage const& stage)
     return res;
 }
 
-std::unique_ptr<ThreadEntryMap>
+std::unique_ptr<ParallelApplyEntryMap>
 collectEntries(SearchableSnapshotConstPtr liveSnapshot,
-               ThreadEntryMap const& globalEntryMap, Cluster const& cluster)
+               ParallelApplyEntryMap const& globalEntryMap,
+               Cluster const& cluster)
 {
-    auto entryMap = std::make_unique<ThreadEntryMap>();
+    auto entryMap = std::make_unique<ParallelApplyEntryMap>();
 
     auto processKeys = [&](xdr::xvector<LedgerKey> const& keys) {
         for (auto const& lk : keys)
@@ -71,7 +74,8 @@ collectEntries(SearchableSnapshotConstPtr liveSnapshot,
 void
 preParallelApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages, ThreadEntryMap& globalEntryMap)
+    std::vector<ApplyStage> const& stages,
+    ParallelApplyEntryMap& globalEntryMap)
 {
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
@@ -96,7 +100,7 @@ preParallelApplyAndCollectModifiedClassicEntries(
                                            entryPair.second->ledgerEntry())
                                      : std::nullopt;
 
-                globalEntryMap.emplace(lk, ThreadEntry{entry, false});
+                globalEntryMap.emplace(lk, ParallelApplyEntry{entry, false});
             }
         };
 
@@ -131,8 +135,124 @@ preParallelApplyAndCollectModifiedClassicEntries(
 }
 
 void
+writeGlobalEntryMapToLedgerTxn(AbstractLedgerTxn& ltx,
+                               ParallelApplyEntryMap const& globalEntryMap)
+{
+    LedgerTxn ltxInner(ltx);
+    for (auto const& entry : globalEntryMap)
+    {
+        // Only update if dirty bit is set
+        if (!entry.second.isDirty)
+        {
+            continue;
+        }
+
+        if (entry.second.mLedgerEntry)
+        {
+            auto const& updatedEntry = *entry.second.mLedgerEntry;
+            auto ltxe = ltxInner.load(entry.first);
+            if (ltxe)
+            {
+                ltxe.current() = updatedEntry;
+            }
+            else
+            {
+                ltxInner.create(updatedEntry);
+            }
+        }
+        else
+        {
+            auto ltxe = ltxInner.load(entry.first);
+            if (ltxe)
+            {
+                ltxInner.erase(entry.first);
+            }
+        }
+    }
+    ltxInner.commit();
+}
+
+void
+writeDirtyMapEntriesToGlobalEntryMap(
+    std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
+        entryMapsByCluster,
+    ParallelApplyEntryMap& globalEntryMap,
+    std::unordered_set<LedgerKey> const& isInReadWriteSet)
+{
+    // merge entryMaps into globalEntryMap
+    for (auto const& ParallelApplyEntryMap : entryMapsByCluster)
+    {
+        for (auto const& entry : *ParallelApplyEntryMap)
+        {
+            // Only update if dirty bit is set
+            if (!entry.second.isDirty)
+            {
+                continue;
+            }
+
+            if (entry.second.mLedgerEntry)
+            {
+                auto const& updatedEntry = *entry.second.mLedgerEntry;
+
+                auto it = globalEntryMap.find(entry.first);
+                if (it != globalEntryMap.end() && it->second.mLedgerEntry)
+                {
+                    auto const& currentEntry = *it->second.mLedgerEntry;
+                    if (currentEntry.data.type() == TTL)
+                    {
+                        auto currLiveUntil =
+                            currentEntry.data.ttl().liveUntilLedgerSeq;
+                        auto newLiveUntil =
+                            updatedEntry.data.ttl().liveUntilLedgerSeq;
+
+                        // The only scenario where we accept a reduction in TTL
+                        // is one where an entry was deleted, and then
+                        // recreated. This can only happen if the key was in the
+                        // readWrite set, so if it's not then this is just a
+                        // parallel readOnly bump that we can ignore here.
+                        if (newLiveUntil <= currLiveUntil &&
+                            isInReadWriteSet.count(entry.first) == 0)
+                        {
+                            continue;
+                        }
+                    }
+                    it->second = entry.second;
+                }
+                else
+                {
+                    if (it != globalEntryMap.end())
+                    {
+                        it->second = entry.second;
+                    }
+                    else
+                    {
+                        globalEntryMap.emplace(
+                            entry.first,
+                            ParallelApplyEntry{updatedEntry, true});
+                    }
+                }
+            }
+            else
+            {
+                auto it = globalEntryMap.find(entry.first);
+                if (it != globalEntryMap.end())
+                {
+                    it->second.mLedgerEntry.reset();
+                    it->second.isDirty = true;
+                }
+                else
+                {
+                    globalEntryMap.emplace(
+                        entry.first, ParallelApplyEntry{std::nullopt, true});
+                }
+            }
+        }
+    }
+}
+
+void
 setDelta(SearchableSnapshotConstPtr liveSnapshot,
-         ThreadEntryMap const& entryMap,
+         ParallelApplyEntryMap const& entryMap,
          OpModifiedEntryMap const& opModifiedEntryMap,
          UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
          ParallelLedgerInfo const& ledgerInfo, TxEffects& effects)
@@ -177,7 +297,7 @@ setDelta(SearchableSnapshotConstPtr liveSnapshot,
 
 std::optional<LedgerEntry>
 getLiveEntry(LedgerKey const& lk, SearchableSnapshotConstPtr liveSnapshot,
-             ThreadEntryMap const& entryMap)
+             ParallelApplyEntryMap const& entryMap)
 {
     // TODO: These copies aren't ideal.
     auto entryIter = entryMap.find(lk);
@@ -250,7 +370,7 @@ PreV23LedgerAccessHelper::eraseLedgerEntry(LedgerKey const& key)
 }
 
 ParallelLedgerAccessHelper::ParallelLedgerAccessHelper(
-    ThreadEntryMap const& entryMap, ParallelLedgerInfo const& ledgerInfo,
+    ParallelApplyEntryMap const& entryMap, ParallelLedgerInfo const& ledgerInfo,
     SearchableSnapshotConstPtr liveSnapshot)
     : mEntryMap(entryMap), mLedgerInfo(ledgerInfo), mLiveSnapshot(liveSnapshot)
 

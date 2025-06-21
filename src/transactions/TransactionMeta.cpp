@@ -296,7 +296,7 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
 void
 OperationMetaBuilder::setLedgerChangesFromEntryMaps(
     SearchableSnapshotConstPtr liveSnapshot,
-    ThreadEntryMap const& initialEntryMap,
+    ParallelApplyEntryMap const& initialEntryMap,
     OpModifiedEntryMap const& opModifiedEntryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
     UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
