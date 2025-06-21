@@ -333,13 +333,13 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
 }
 
 // Writes the entries in `res` back to the `entryMap`, `roTTLBumps` and
-// `threadRestoredKeys` variables that are accumulating the state of
+// `threadRestoredEntries` variables that are accumulating the state of
 // the transaction cluster.
 void
 recordModifiedAndRestoredEntries(SearchableSnapshotConstPtr liveSnapshot,
                                  ThreadEntryMap& entryMap,
                                  UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                                 RestoredKeys& threadRestoredKeys,
+                                 RestoredEntries& threadRestoredEntries,
                                  TxBundle const& txBundle,
                                  ParallelTxReturnVal const& res)
 {
@@ -373,14 +373,14 @@ recordModifiedAndRestoredEntries(SearchableSnapshotConstPtr liveSnapshot,
         }
     }
 
-    for (auto const& key : res.getRestoredKeys().hotArchive)
+    for (auto const& pair : res.getRestoredEntries().hotArchive)
     {
-        auto [_, inserted] = threadRestoredKeys.hotArchive.emplace(key);
+        auto [_, inserted] = threadRestoredEntries.hotArchive.emplace(pair);
         releaseAssert(inserted);
     }
-    for (auto const& key : res.getRestoredKeys().liveBucketList)
+    for (auto const& pair : res.getRestoredEntries().liveBucketList)
     {
-        auto [_, inserted] = threadRestoredKeys.liveBucketList.emplace(key);
+        auto [_, inserted] = threadRestoredEntries.liveBucketList.emplace(pair);
         releaseAssert(inserted);
     }
 }
@@ -2074,7 +2074,7 @@ LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
     }
 }
 
-std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>
+std::pair<RestoredEntries, std::unique_ptr<ThreadEntryMap>>
 LedgerManagerImpl::applyThread(
     AppConnector& app, std::unique_ptr<ThreadEntryMap> entryMap,
 
@@ -2091,7 +2091,7 @@ LedgerManagerImpl::applyThread(
     // TODO: Do the same for the hot archive snapshot?
     auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
 
-    RestoredKeys threadRestoredKeys;
+    RestoredEntries threadRestoredEntries;
     for (auto const& txBundle : cluster)
     {
         // Apply timer
@@ -2113,13 +2113,13 @@ LedgerManagerImpl::applyThread(
         if (res.getSuccess())
         {
             recordModifiedAndRestoredEntries(liveSnapshot, *entryMap,
-                                             roTTLBumps, threadRestoredKeys,
+                                             roTTLBumps, threadRestoredEntries,
                                              txBundle, res);
 
             // Keep track of every restored key from the hot archive
             // so we can check before loading from the hot archive.
             // This prevents us from double-restores.
-            for (auto kvp : res.getRestoredKeys().hotArchive)
+            for (auto kvp : res.getRestoredEntries().hotArchive)
             {
                 previouslyRestoredHotEntries.emplace(kvp.first, kvp.second);
             }
@@ -2132,7 +2132,7 @@ LedgerManagerImpl::applyThread(
 
     flushResidualRoTTLBumps(liveSnapshot, *entryMap, roTTLBumps);
 
-    return {threadRestoredKeys, std::move(entryMap)};
+    return {threadRestoredEntries, std::move(entryMap)};
 }
 
 ParallelLedgerInfo
@@ -2142,7 +2142,7 @@ getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
             lh.scpValue.closeTime, app.getNetworkID()};
 }
 
-std::pair<std::vector<RestoredKeys>,
+std::pair<std::vector<RestoredEntries>,
           std::vector<std::unique_ptr<ThreadEntryMap>>>
 LedgerManagerImpl::applySorobanStageClustersInParallel(
     AppConnector& app, ApplyStage const& stage,
@@ -2152,11 +2152,11 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo)
 {
-    std::vector<RestoredKeys> threadRestoredKeys;
+    std::vector<RestoredEntries> threadRestoredEntries;
     std::vector<std::unique_ptr<ThreadEntryMap>> entryMapsByCluster;
 
-    std::vector<
-        std::future<std::pair<RestoredKeys, std::unique_ptr<ThreadEntryMap>>>>
+    std::vector<std::future<
+        std::pair<RestoredEntries, std::unique_ptr<ThreadEntryMap>>>>
         threadFutures;
 
     auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
@@ -2175,35 +2175,36 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             ledgerInfo, sorobanBasePrngSeed));
     }
 
-    for (auto& restoredKeysFutures : threadFutures)
+    for (auto& restoredEntriesFutures : threadFutures)
     {
-        releaseAssert(restoredKeysFutures.valid());
-        auto futureResult = restoredKeysFutures.get();
-        threadRestoredKeys.emplace_back(futureResult.first);
+        releaseAssert(restoredEntriesFutures.valid());
+        auto futureResult = restoredEntriesFutures.get();
+        threadRestoredEntries.emplace_back(futureResult.first);
         entryMapsByCluster.emplace_back(std::move(futureResult.second));
     }
     threadFutures.clear();
-    return {std::move(threadRestoredKeys), std::move(entryMapsByCluster)};
+    return {std::move(threadRestoredEntries), std::move(entryMapsByCluster)};
 }
 
 void
-LedgerManagerImpl::addAllRestoredKeysToLedgerTxn(
-    std::vector<RestoredKeys> const& threadRestoredKeys, AbstractLedgerTxn& ltx)
+LedgerManagerImpl::addAllRestoredEntriesToLedgerTxn(
+    std::vector<RestoredEntries> const& threadRestoredEntries,
+    AbstractLedgerTxn& ltx)
 {
     LedgerTxn ltxInner(ltx);
-    for (auto const& restoredKeys : threadRestoredKeys)
+    for (auto const& restoredEntries : threadRestoredEntries)
     {
         // We don't need to add the live bucket list restoration keys
         // because they're only needed for meta generation, which has already
         // happened.
-        for (auto const& kvp : restoredKeys.hotArchive)
+        for (auto const& kvp : restoredEntries.hotArchive)
         {
             // We will search for the ttl key in the hot archive when the entry
             // is seen
             if (kvp.first.type() != TTL)
             {
-                auto it = restoredKeys.hotArchive.find(getTTLKey(kvp.first));
-                releaseAssert(it != restoredKeys.hotArchive.end());
+                auto it = restoredEntries.hotArchive.find(getTTLKey(kvp.first));
+                releaseAssert(it != restoredEntries.hotArchive.end());
                 ltxInner.addRestoredFromHotArchive(kvp.second, it->second);
             }
         }
@@ -2391,12 +2392,12 @@ LedgerManagerImpl::applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
     auto ledgerInfo = getParallelLedgerInfo(app, ltx.loadHeader().current());
 
     auto previouslyRestoredHotEntries = ltx.getRestoredHotArchiveKeys();
-    auto [threadRestoredKeys, entryMapsByCluster] =
+    auto [threadRestoredEntries, entryMapsByCluster] =
         applySorobanStageClustersInParallel(
             app, stage, globalEntryMap, previouslyRestoredHotEntries,
             sorobanBasePrngSeed, config, sorobanConfig, ledgerInfo);
 
-    addAllRestoredKeysToLedgerTxn(threadRestoredKeys, ltx);
+    addAllRestoredEntriesToLedgerTxn(threadRestoredEntries, ltx);
 
     checkAllTxBundleInvariants(app, stage, config, ledgerInfo, ltx);
 
@@ -2817,7 +2818,7 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                     initialLedgerVers,
                     LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
-                std::vector<LedgerKey> restoredKeys;
+                std::vector<LedgerKey> restoredEntries;
                 auto const& restoredKeyMap =
                     ltxEvictions.getRestoredHotArchiveKeys();
                 for (auto const& [key, entry] : restoredKeyMap)
@@ -2826,11 +2827,11 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                     if (key.type() == CONTRACT_DATA ||
                         key.type() == CONTRACT_CODE)
                     {
-                        restoredKeys.push_back(key);
+                        restoredEntries.push_back(key);
                     }
                 }
                 mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries, restoredKeys);
+                    mApp, lh, evictedState.archivedEntries, restoredEntries);
             }
 
             if (ledgerCloseMeta)

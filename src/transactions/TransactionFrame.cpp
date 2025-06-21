@@ -1943,13 +1943,13 @@ TransactionFrame::parallelApply(
 
         if (res.getSuccess())
         {
-            auto hotArchive = res.getRestoredKeys().hotArchive;
+            auto hotArchive = res.getRestoredEntries().hotArchive;
             setDelta(liveSnapshot, entryMap, res.getModifiedEntryMap(),
                      hotArchive, ledgerInfo, effects);
 
             opMeta.setLedgerChangesFromEntryMaps(
                 liveSnapshot, entryMap, res.getModifiedEntryMap(), hotArchive,
-                res.getRestoredKeys().liveBucketList,
+                res.getRestoredEntries().liveBucketList,
                 ledgerInfo.getLedgerSeq());
         }
         else

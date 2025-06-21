@@ -96,7 +96,7 @@ class LedgerTxn::Impl
     std::shared_ptr<LedgerTxnHeader::Impl> mActiveHeader;
     EntryMap mEntry;
 
-    RestoredKeys mRestoredKeys;
+    RestoredEntries mRestoredEntries;
     UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
@@ -338,7 +338,7 @@ class LedgerTxn::Impl
 
     void commit() noexcept;
 
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept;
 
     // create has the basic exception safety guarantee. If it throws an
@@ -745,7 +745,7 @@ class LedgerTxnRoot::Impl
     // addChild has the strong exception safety guarantee.
     void addChild(AbstractLedgerTxn& child, TransactionMode mode);
 
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept;
 
     // countOffers has the strong exception safety guarantee.
