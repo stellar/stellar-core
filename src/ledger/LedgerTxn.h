@@ -328,6 +328,43 @@ struct RestoredEntries
     // past so it was considered expired, just not evicted. Restoring
     // this does not cost any IO, just writing a new TTL.
     UnorderedMap<LedgerKey, LedgerEntry> liveBucketList;
+
+    std::optional<LedgerEntry>
+    getEntryOpt(LedgerKey const& key) const
+    {
+        auto it0 = hotArchive.find(key);
+        auto it1 = liveBucketList.find(key);
+        // No key should be in both maps.
+        releaseAssertOrThrow(it0 == hotArchive.end() ||
+                             it1 == liveBucketList.end());
+        if (it0 != hotArchive.end())
+        {
+            return it0->second;
+        }
+        else if (it1 != liveBucketList.end())
+        {
+            return it1->second;
+        }
+        else
+        {
+            return std::nullopt;
+        }
+    }
+
+    void
+    addRestoresFrom(RestoredEntries const& other, bool assertNew)
+    {
+        for (auto kvp : other.hotArchive)
+        {
+            auto [_, inserted] = hotArchive.emplace(kvp.first, kvp.second);
+            releaseAssert(inserted || !assertNew);
+        }
+        for (auto kvp : other.liveBucketList)
+        {
+            auto [_, inserted] = liveBucketList.emplace(kvp.first, kvp.second);
+            releaseAssert(inserted || !assertNew);
+        }
+    }
 };
 
 class AbstractLedgerTxn;

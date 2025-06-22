@@ -55,6 +55,26 @@ struct ParallelApplyEntry
     // it due to hitting read limits.
     std::optional<LedgerEntry> mLedgerEntry;
     bool isDirty;
+    static ParallelApplyEntry
+    cleanLive(LedgerEntry const& e)
+    {
+        return ParallelApplyEntry{e, false};
+    }
+    static ParallelApplyEntry
+    dirtyLive(LedgerEntry const& e)
+    {
+        return ParallelApplyEntry{e, true};
+    }
+    static ParallelApplyEntry
+    cleanDead()
+    {
+        return ParallelApplyEntry{std::nullopt, false};
+    }
+    static ParallelApplyEntry
+    dirtyDead()
+    {
+        return ParallelApplyEntry{std::nullopt, true};
+    }
 };
 
 // This is a map of all entries that will be read and/or written during parallel

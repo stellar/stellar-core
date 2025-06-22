@@ -7,6 +7,8 @@
 #include "bucket/BucketUtils.h"
 #include "ledger/NetworkConfig.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/TransactionFrameBase.h"
+#include <fmt/core.h>
 
 namespace stellar
 {
@@ -173,6 +175,74 @@ writeGlobalEntryMapToLedgerTxn(AbstractLedgerTxn& ltx,
 }
 
 void
+writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
+    ParallelApplyEntryMap const& threadEntryMap,
+    ParallelApplyEntryMap& globalEntryMap,
+    std::unordered_set<LedgerKey> const& isInReadWriteSet)
+{
+    for (auto const& entry : threadEntryMap)
+    {
+        // Only update if dirty bit is set
+        if (!entry.second.isDirty)
+        {
+            continue;
+        }
+
+        if (entry.second.mLedgerEntry)
+        {
+            auto const& updatedEntry = *entry.second.mLedgerEntry;
+
+            auto it = globalEntryMap.find(entry.first);
+            if (it != globalEntryMap.end() && it->second.mLedgerEntry)
+            {
+                auto const& currentEntry = *it->second.mLedgerEntry;
+                if (currentEntry.data.type() == TTL)
+                {
+                    auto currLiveUntil =
+                        currentEntry.data.ttl().liveUntilLedgerSeq;
+                    auto newLiveUntil =
+                        updatedEntry.data.ttl().liveUntilLedgerSeq;
+
+                    // The only scenario where we accept a reduction in TTL
+                    // is one where an entry was deleted, and then
+                    // recreated. This can only happen if the key was in the
+                    // readWrite set, so if it's not then this is just a
+                    // parallel readOnly bump that we can ignore here.
+                    if (newLiveUntil <= currLiveUntil &&
+                        isInReadWriteSet.count(entry.first) == 0)
+                    {
+                        continue;
+                    }
+                }
+                it->second = entry.second;
+            }
+            else
+            {
+                if (it != globalEntryMap.end())
+                {
+                    it->second = entry.second;
+                }
+                else
+                {
+                    globalEntryMap.emplace(
+                        entry.first,
+                        ParallelApplyEntry::dirtyLive(updatedEntry));
+                }
+            }
+        }
+        else
+        {
+            auto dead = ParallelApplyEntry::dirtyDead();
+            auto [it, inserted] = globalEntryMap.emplace(entry.first, dead);
+            if (!inserted)
+            {
+                it->second = dead;
+            }
+        }
+    }
+}
+
+void
 writeDirtyMapEntriesToGlobalEntryMap(
     std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
         entryMapsByCluster,
@@ -180,73 +250,10 @@ writeDirtyMapEntriesToGlobalEntryMap(
     std::unordered_set<LedgerKey> const& isInReadWriteSet)
 {
     // merge entryMaps into globalEntryMap
-    for (auto const& ParallelApplyEntryMap : entryMapsByCluster)
+    for (auto const& map : entryMapsByCluster)
     {
-        for (auto const& entry : *ParallelApplyEntryMap)
-        {
-            // Only update if dirty bit is set
-            if (!entry.second.isDirty)
-            {
-                continue;
-            }
-
-            if (entry.second.mLedgerEntry)
-            {
-                auto const& updatedEntry = *entry.second.mLedgerEntry;
-
-                auto it = globalEntryMap.find(entry.first);
-                if (it != globalEntryMap.end() && it->second.mLedgerEntry)
-                {
-                    auto const& currentEntry = *it->second.mLedgerEntry;
-                    if (currentEntry.data.type() == TTL)
-                    {
-                        auto currLiveUntil =
-                            currentEntry.data.ttl().liveUntilLedgerSeq;
-                        auto newLiveUntil =
-                            updatedEntry.data.ttl().liveUntilLedgerSeq;
-
-                        // The only scenario where we accept a reduction in TTL
-                        // is one where an entry was deleted, and then
-                        // recreated. This can only happen if the key was in the
-                        // readWrite set, so if it's not then this is just a
-                        // parallel readOnly bump that we can ignore here.
-                        if (newLiveUntil <= currLiveUntil &&
-                            isInReadWriteSet.count(entry.first) == 0)
-                        {
-                            continue;
-                        }
-                    }
-                    it->second = entry.second;
-                }
-                else
-                {
-                    if (it != globalEntryMap.end())
-                    {
-                        it->second = entry.second;
-                    }
-                    else
-                    {
-                        globalEntryMap.emplace(
-                            entry.first,
-                            ParallelApplyEntry{updatedEntry, true});
-                    }
-                }
-            }
-            else
-            {
-                auto it = globalEntryMap.find(entry.first);
-                if (it != globalEntryMap.end())
-                {
-                    it->second.mLedgerEntry.reset();
-                    it->second.isDirty = true;
-                }
-                else
-                {
-                    globalEntryMap.emplace(
-                        entry.first, ParallelApplyEntry{std::nullopt, true});
-                }
-            }
-        }
+        writeDirtyThreadEntryMapEntriesToGlobalEntryMap(*map, globalEntryMap,
+                                                        isInReadWriteSet);
     }
 }
 
@@ -431,5 +438,279 @@ ParallelLedgerAccessHelper::eraseLedgerEntry(LedgerKey const& key)
     }
     return false;
 }
+
+// We model the states in terms of a set of maps and snapshots. The
+// relationships are subtle but basically follow an "newer information overrides
+// older" pattern: per-op maps override per-thread maps which override the
+// cross-thread "global" maps which override the bucket list snapshots. And of
+// course when each newer type is successful it commits to its parent / older
+// type.
+//
+// In this way the structure mirrors the ltx, but is not generalized to multiple
+// "levels" and, crucially, has some special rules around _threading_. The
+// per-thread objects retain no references at all to the global maps or
+// snapshots, which are not threadsafe. Instead all information the per-thread
+// maps will need is copied into the them when they're built, and only committed
+// back to the parent once the threads using them are complete.
+class ThreadParalllelApplyLedgerState;
+class GlobalParallelApplyLedgerState
+{
+
+    // Contains the hot archive state from the start of the ledger close. If a
+    // key is in here, it is "evicted". An invariant is that if a key is in here
+    // it is _not_ in the live snapshot.
+    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
+
+    // Contains the live soroban state from the start of the ledger close. If a
+    // key is in here, it is either "archived" or "live", depending on its TTL.
+    // Classic entries are always live, soroban entries always have an
+    // associated TTL entry and if the TTL is in the past the entry is
+    // "archived", otherwise "live". An invariant is that if a key is in here it
+    // is _not_ in the hot archive snapshot.
+    SearchableSnapshotConstPtr mLiveSnapshot;
+
+    // Contains restorations that happened during each stage of the parallel
+    // soroban phase. As with mGlobalEntryMap, this is propagated stage to stage
+    // by being split into per-thread maps and re-merged at the end of the
+    // stage, before begin committed to the ltx at the end of the phase. As with
+    // restorations inside the thread, these entries are the restored values _at
+    // their time of restoration_ which may be further overridden by
+    // mGlobalEntryMap.
+    RestoredEntries mGlobalRestoredEntries;
+
+    // Contains two different sets of entries:
+    //
+    //  - Classic entries modified during earlier sequential phases that are
+    //    read during the parallel soroban phase. These are copied out of the
+    //    ltx before the parallel soroban phase begins.
+    //
+    //  - Dirty entries resulting from each stage of the parallel soroban phase.
+    //    These are propagated from stage to stage of the parallel soroban phase
+    //    -- split into disjoint per-thread maps during execution and merged
+    //    after -- as well as written back to the ltx at the phase's end.
+    ParallelApplyEntryMap mGlobalEntryMap;
+
+  public:
+    GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
+                                   std::vector<ApplyStage> const& stages)
+        : mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
+        , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    {
+        preParallelApplyAndCollectModifiedClassicEntries(app, ltx, stages,
+                                                         mGlobalEntryMap);
+    }
+
+    std::optional<LedgerEntry>
+    getLiveEntryOpt(LedgerKey const& key) const
+    {
+        auto it0 = mGlobalEntryMap.find(key);
+        if (it0 != mGlobalEntryMap.end())
+        {
+            return it0->second.mLedgerEntry;
+        }
+        auto rop = mGlobalRestoredEntries.getEntryOpt(key);
+        if (rop)
+        {
+            return rop;
+        }
+        auto res = mLiveSnapshot->load(key);
+        return res ? std::make_optional(*res) : std::nullopt;
+    }
+
+    // Returns true iff this upsert was a _creation_, relative to the
+    // live entries visible.
+    void
+    upsertEntry(LedgerKey const& key, LedgerEntry const& entry)
+    {
+        auto e = ParallelApplyEntry::dirtyLive(entry);
+        auto [it, inserted] = mGlobalEntryMap.emplace(key, e);
+        if (!inserted)
+        {
+            it->second = e;
+        }
+    }
+
+    // Returns true iff there was something live that got erased.
+    void
+    eraseEntry(LedgerKey const& key)
+    {
+        auto e = ParallelApplyEntry::dirtyDead();
+        auto [it, inserted] = mGlobalEntryMap.emplace(key, e);
+        if (!inserted)
+        {
+            it->second = e;
+        }
+    }
+
+    friend class ThreadParallelApplyLedgerState;
+};
+
+class ThreadParallelApplyLedgerState
+{
+    // Copies of snapshots from the global state.
+    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
+    SearchableSnapshotConstPtr mLiveSnapshot;
+
+    // Contains keys restored by any tx/op in the current thread's tx cluster
+    // from the current stage of the parallel apply phase. Any entry should only
+    // be in one of the two sub-maps here, live or hot. The entry in the map is
+    // the entry value _at the time of restoration_ which may be overridden by
+    // the entry map.
+    RestoredEntries mThreadRestoredEntries;
+
+    // Contains all entries accessed by any tx/op in the current thread's
+    // tx cluster from the current stage of the parallel apply phase. As with
+    // the live entry map, any soroban entry in here must have an associated TTL
+    // entry.
+    ParallelApplyEntryMap mThreadEntryMap;
+
+  public:
+    ThreadParallelApplyLedgerState(AppConnector& app,
+                                   GlobalParallelApplyLedgerState const& global,
+                                   Cluster const& cluster)
+        // TODO: find a way to clone these from parent rather than asking the
+        // snapshot manager again. That might have changed! NB taking a shared
+        // pointer copy is not safe, the snapshot objects are not threadsafe.
+        : mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
+        , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    {
+        releaseAssert(threadIsMain() ||
+                      app.threadIsType(Application::ThreadType::APPLY));
+        // Review note: this loop is similar to "collectEntries" in the previous
+        // code, except that:
+        //
+        //  - it skips copying duplicates if 2 txs touch the same key, just an
+        //    optimization.
+        //
+        //  - it uses parent.getLiveEntryOpt which will:
+        //
+        //    - copy entries that were restored in the parent restore map not
+        //      just in the parent entry map. the old code did not, and I think
+        //      this may have actually been a bug in collectEntries.
+        //
+        //    - also copy footprint entries from the live snapshot -- not just
+        //      propagated/dirty stuff from the live snapshot, so it's a bit of
+        //      a pre-load (though not a pre-hot-restore)
+
+        for (auto const& txBundle : cluster)
+        {
+            auto const& footprint =
+                txBundle.getTx()->sorobanResources().footprint;
+            for (auto const& keys : {footprint.readWrite, footprint.readOnly})
+            {
+                for (auto const& key : keys)
+                {
+                    if (mThreadEntryMap.find(key) != mThreadEntryMap.end())
+                    {
+                        continue;
+                    }
+                    auto opt = global.getLiveEntryOpt(key);
+                    if (opt)
+                    {
+                        mThreadEntryMap.emplace(
+                            key, ParallelApplyEntry::cleanLive(opt.value()));
+                        if (isSorobanEntry(key))
+                        {
+                            auto ttlKey = getTTLKey(key);
+                            auto ttlOpt = global.getLiveEntryOpt(ttlKey);
+                            releaseAssertOrThrow(ttlOpt);
+                            mThreadEntryMap.emplace(
+                                ttlKey,
+                                ParallelApplyEntry::cleanLive(ttlOpt.value()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    std::optional<LedgerEntry>
+    getLiveEntryOpt(LedgerKey const& key) const
+    {
+        auto it0 = mThreadEntryMap.find(key);
+        if (it0 != mThreadEntryMap.end())
+        {
+            return it0->second.mLedgerEntry;
+        }
+        auto rop = mThreadRestoredEntries.getEntryOpt(key);
+        if (rop)
+        {
+            return rop;
+        }
+        auto res = mLiveSnapshot->load(key);
+        return res ? std::make_optional(*res) : std::nullopt;
+    }
+
+    void
+    commitThreadChangesToGlobal(AppConnector& app,
+                                GlobalParallelApplyLedgerState& global,
+                                ApplyStage const& stage)
+    {
+        releaseAssert(threadIsMain() ||
+                      app.threadIsType(Application::ThreadType::APPLY));
+        auto readWriteSet = getReadWriteKeysForStage(stage);
+        writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
+            mThreadEntryMap, global.mGlobalEntryMap, readWriteSet);
+        global.mGlobalRestoredEntries.addRestoresFrom(mThreadRestoredEntries);
+    }
+};
+
+class OpParallelApplyLedgerState
+{
+    // Read-only access to the parent stage-spanning state.
+    ThreadParallelApplyLedgerState const& mThreadState;
+
+    // Contains keys restored during this op. As with the thread RestoredEntries
+    // set, this is not just a key set but also contains entry values at the
+    // point in time the entry was restored, and can be overridden by entries
+    // in the mOpEntryMap.
+    RestoredEntries mOpRestoredEntries;
+
+    // Contains entries changed during this op. As with all such maps, if a
+    // soroban entry is in this map, it must also have a TTL entry. Entries in
+    // this map may also be set to nullopt, indicating that the entry was
+    // _deleted_ in this op.
+    //
+    // Any entry in this map is implicitly dirty.
+    OpModifiedEntryMap mOpEntryMap;
+
+  public:
+    OpParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent)
+        : mThreadState(parent)
+    {
+    }
+
+    void
+    commitOpChangesToThread()
+    {
+    }
+
+    // Any read should read _through_ these from bottom-to-top: first look in
+    // the mOpEntryMap, then the mEntryMap, then the mLiveSnapshot, and finally
+    // (if the read is a restoring-read) the mHotArchiveSnapshot.
+    //
+    // Any write should be directed to mOpEntryMap during the transaction
+    // execution. At the end of each transaction, mOpEntryMap will be flushed
+    // back to mEntryMap.
+    //
+    // The reason mEntryMap and mOpEntryMap are separate is that we sometimes
+    // want to ask "was an entry created during this op?" and to do that we must
+    // compare the two.
+
+    // An additional complication is that every time you look up an entry, you
+    // typically have to also look up its TTL, which is a separate entry also
+    // stored in these maps.
+
+    // Legal state transitions:
+    //
+    // each of these makes the entry dirty in the mParallelApplyEntryMap
+    //
+    //    evicted (not live, only in hot) => restored-live
+    //    archived (TTL-expired-but-live) => restored-live
+    //    live => deleted
+    //    live => live modified
+    //    nonexistent => created
+    //    deleted => recreated
+};
 
 }

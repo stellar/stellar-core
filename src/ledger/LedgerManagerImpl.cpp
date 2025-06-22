@@ -361,28 +361,14 @@ recordModifiedAndRestoredEntries(SearchableSnapshotConstPtr liveSnapshot,
         {
             // A entry deletion will be marked by a nullopt le.
             // Set the dirty bit so it'll be written to ltx later.
-            auto it = entryMap.find(lk);
-            if (it == entryMap.end())
-            {
-                entryMap.emplace(lk, ParallelApplyEntry{updatedLe, true});
-            }
-            else
-            {
-                it->second = {updatedLe, true};
+            auto e = ParallelApplyEntry{updatedLe, true};
+            auto [it, inserted] = entryMap.emplace(e);
+            if (!inserted) {
+                it->second = e;
             }
         }
     }
-
-    for (auto const& pair : res.getRestoredEntries().hotArchive)
-    {
-        auto [_, inserted] = threadRestoredEntries.hotArchive.emplace(pair);
-        releaseAssert(inserted);
-    }
-    for (auto const& pair : res.getRestoredEntries().liveBucketList)
-    {
-        auto [_, inserted] = threadRestoredEntries.liveBucketList.emplace(pair);
-        releaseAssert(inserted);
-    }
+    threadRestoredEntries.addRestoresFrom(res.getRestoredEntries(), true);
 }
 
 }
