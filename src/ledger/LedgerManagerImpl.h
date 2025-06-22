@@ -14,6 +14,7 @@
 #include "main/PersistentState.h"
 #include "rust/RustBridge.h"
 #include "transactions/ParallelApplyStage.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
@@ -194,28 +195,24 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
 
-    std::pair<RestoredEntries, std::unique_ptr<ParallelApplyEntryMap>>
-    applyThread(
-        AppConnector& app, std::unique_ptr<ParallelApplyEntryMap> entryMap,
+    std::unique_ptr<ThreadParallelApplyLedgerState>
+    applyThread(AppConnector& app,
+                std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
+                Cluster const& cluster, Config const& config,
+                SorobanNetworkConfig const& sorobanConfig,
+                ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
 
-        UnorderedMap<LedgerKey, LedgerEntry> previouslyRestoredHotEntries,
-        Cluster const& cluster, Config const& config,
-        SorobanNetworkConfig const& sorobanConfig,
-        ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
-
-    std::pair<std::vector<RestoredEntries>,
-              std::vector<std::unique_ptr<ParallelApplyEntryMap>>>
+    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
     applySorobanStageClustersInParallel(
         AppConnector& app, ApplyStage const& stage,
-        ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        GlobalParallelApplyLedgerState const& globalState,
         Hash const& sorobanBasePrngSeed, Config const& config,
         SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo);
 
     void addAllRestoredEntriesToLedgerTxn(
-        std::vector<RestoredEntries> const& threadRestoredEntries,
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
+            threadStates,
         AbstractLedgerTxn& ltx);
     void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
                                     Config const& config,
@@ -223,7 +220,7 @@ class LedgerManagerImpl : public LedgerManager
                                     AbstractLedgerTxn& ltx);
 
     void applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
-                           ParallelApplyEntryMap& entryMap,
+                           GlobalParallelApplyLedgerState& globalParState,
                            ApplyStage const& stage,
                            Hash const& sorobanBasePrngSeed);
 

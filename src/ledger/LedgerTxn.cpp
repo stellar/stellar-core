@@ -167,6 +167,127 @@ LedgerEntryPtr::isDeleted() const
 {
     return mState == EntryPtrState::DELETED;
 }
+
+std::optional<LedgerEntry>
+RestoredEntries::getEntryOpt(LedgerKey const& key) const
+{
+    auto it0 = hotArchive.find(key);
+    auto it1 = liveBucketList.find(key);
+    // No key should be in both maps.
+    releaseAssertOrThrow(it0 == hotArchive.end() ||
+                         it1 == liveBucketList.end());
+    if (it0 != hotArchive.end())
+    {
+        return it0->second;
+    }
+    else if (it1 != liveBucketList.end())
+    {
+        return it1->second;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}
+
+bool
+RestoredEntries::entryWasRestored(LedgerKey const& k) const
+{
+    return entryWasRestoredFromMap(k, liveBucketList) ||
+           entryWasRestoredFromMap(k, hotArchive);
+}
+
+bool
+RestoredEntries::entryWasRestoredFromMap(
+    LedgerKey const& k, UnorderedMap<LedgerKey, LedgerEntry> const& map)
+{
+    auto it = map.find(k);
+    if (it != map.end())
+    {
+        if (isSorobanEntry(k))
+        {
+            // Check invariant: any soroban entry in either restore map should
+            // have an accompanying TTL entry. The converse is not true: a
+            // restore in the liveBucketlist map can have a TTL entry without a
+            // soroban entry, because the soroban entry is in the live BL
+            // already and the only thing the "restore" does is dirty a TTL.
+            auto ttlkey = getTTLKey(k);
+            releaseAssert(map.find(ttlkey) != map.end());
+        }
+        return true;
+    }
+    return false;
+}
+
+void
+RestoredEntries::addRestoreToMap(LedgerKey const& key, LedgerEntry const& entry,
+                                 LedgerKey const& ttlKey,
+                                 LedgerEntry const& ttlEntry,
+                                 UnorderedMap<LedgerKey, LedgerEntry>& map)
+{
+    releaseAssert(isSorobanEntry(key));
+    releaseAssert(ttlKey.type() == TTL);
+    auto [_i, inserted] = map.emplace(key, entry);
+    releaseAssert(inserted);
+    auto [_j, ttlInserted] = map.emplace(ttlKey, ttlEntry);
+    releaseAssert(ttlInserted);
+}
+
+void
+RestoredEntries::addHotArchiveRestore(LedgerKey const& key,
+                                      LedgerEntry const& entry,
+                                      LedgerKey const& ttlKey,
+                                      LedgerEntry const& ttlEntry)
+{
+    addRestoreToMap(key, entry, ttlKey, ttlEntry, hotArchive);
+}
+
+void
+RestoredEntries::addLiveBucketlistRestore(LedgerKey const& key,
+                                          LedgerEntry const& entry,
+                                          LedgerKey const& ttlKey,
+                                          LedgerEntry const& ttlEntry)
+{
+    addRestoreToMap(key, entry, ttlKey, ttlEntry, liveBucketList);
+}
+
+void
+RestoredEntries::addRestoresFrom(RestoredEntries const& other,
+                                 bool allowDuplicates)
+{
+    // This method is called from three different call sites. In 2 of them it is
+    // correct to assert that each restore is new/disjoint from any existing
+    // restore:
+    //
+    //   - In the first call site we're committing per-op restores back to the
+    //     per-thread maps. In this case a restore would only have _happened_
+    //     during the op if the thread had not previously done a restore; if
+    //     there had already been a restore, the previous restore should have
+    //     inhibited the subsequent attempted restore. If it didn't there's a
+    //     bug somewhere!
+    //
+    //   - In the second call site we're committing per-thread restores back to
+    //     the shared (cross-thread) map. In this case the restore, being a
+    //     write, would have been clustered by all other ops that write to that
+    //     entry -- it'd be a concurrency bug if not! -- so there should not be
+    //     any other restores of the same entry from other threads.
+    //
+    // In the third place we're committing from an ltx to its parent, and the
+    // ltx was actually starting with a copy of the restored-maps from the
+    // parent, so there are going to be duplicates. We allow duplicates in that
+    // case.
+    for (auto kvp : other.hotArchive)
+    {
+        auto [_, inserted] = hotArchive.emplace(kvp.first, kvp.second);
+        releaseAssert(inserted || allowDuplicates);
+    }
+    for (auto kvp : other.liveBucketList)
+    {
+        auto [_, inserted] = liveBucketList.emplace(kvp.first, kvp.second);
+        releaseAssert(inserted || allowDuplicates);
+    }
+}
+
 bool
 LedgerKeyMeter::canLoad(LedgerKey const& key, size_t entrySizeBytes) const
 {
@@ -649,15 +770,7 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
     // The child will have started with a copy of the parents mRestoredEntries,
     // so we can see duplicates here, but duplicate restores would've been
     // caught during restoration in the restoreFrom* functions.
-    for (auto const& [key, entry] : restoredEntries.hotArchive)
-    {
-        mRestoredEntries.hotArchive.emplace(key, entry);
-    }
-
-    for (auto const& [key, entry] : restoredEntries.liveBucketList)
-    {
-        mRestoredEntries.liveBucketList.emplace(key, entry);
-    }
+    mRestoredEntries.addRestoresFrom(restoredEntries, /*allowDuplicates=*/true);
 
     // std::unique_ptr<...>::swap does not throw
     mHeader.swap(childHeader);

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionMeta.h"
 
@@ -12,6 +13,7 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class SignatureChecker;
+class ThreadParallelApplyLedgerState;
 
 class FeeBumpTransactionFrame : public TransactionFrameBase
 {
@@ -77,9 +79,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                      MutableTransactionResultBase& resPayload) const override;
 
     ParallelTxReturnVal parallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,

@@ -56,8 +56,7 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 
 ParallelTxReturnVal
 RestoreFootprintOpFrame::doParallelApply(
-    AppConnector& app, ParallelApplyEntryMap const& entryMap,
-    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
     SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -99,11 +98,12 @@ RestoreFootprintOpFrame::doParallelApply(
         auto ttlKey = getTTLKey(lk);
         {
             // First check the live BucketList
-            auto ttlLeOpt = getLiveEntry(ttlKey, liveSnapshot, entryMap);
+            auto ttlLeOpt =
+                getLiveEntry(ttlKey, liveSnapshot, threadState.getEntryMap());
             if (!ttlLeOpt)
             {
                 // this entry has already been restored and then deleted
-                if (previouslyRestoredHotEntries.count(lk) > 0)
+                if (threadState.entryWasRestored(lk))
                 {
                     continue;
                 }
@@ -137,7 +137,8 @@ RestoreFootprintOpFrame::doParallelApply(
         }
         else
         {
-            auto entryLeOpt = getLiveEntry(lk, liveSnapshot, entryMap);
+            auto entryLeOpt =
+                getLiveEntry(lk, liveSnapshot, threadState.getEntryMap());
 
             // We checked for TTLEntry existence above
             releaseAssertOrThrow(entryLeOpt);
@@ -190,28 +191,24 @@ RestoreFootprintOpFrame::doParallelApply(
         if (hotArchiveEntry)
         {
             opEntryMap.emplace(lk, entry);
-
-            LedgerEntry ttlEntry;
-            ttlEntry.data.type(TTL);
-            ttlEntry.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
-            ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
-
+            LedgerEntry ttlEntry =
+                getTTLEntryForTTLKey(ttlKey, restoredLiveUntilLedger);
             opEntryMap.emplace(ttlKey, ttlEntry);
-
-            restoredEntries.hotArchive.emplace(lk, entry);
-            restoredEntries.hotArchive.emplace(ttlKey, ttlEntry);
+            restoredEntries.addHotArchiveRestore(lk, entry, ttlKey, ttlEntry);
         }
         else
         {
-            auto ttlLeOpt = getLiveEntry(ttlKey, liveSnapshot, entryMap);
+            auto ttlLeOpt =
+                getLiveEntry(ttlKey, liveSnapshot, threadState.getEntryMap());
             releaseAssertOrThrow(ttlLeOpt);
-
             LedgerEntry ttlEntry = *ttlLeOpt;
             ttlEntry.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
             opEntryMap.emplace(ttlKey, ttlEntry);
-
-            restoredEntries.liveBucketList.emplace(lk, entry);
-            restoredEntries.liveBucketList.emplace(ttlKey, ttlEntry);
+            // Review note: there might have been a bug here, or at least
+            // possibly a deviation from the invariant that every restored entry
+            // is in the opEntryMap.
+            restoredEntries.addLiveBucketlistRestore(lk, entry, ttlKey,
+                                                     ttlEntry);
         }
     }
     int64_t rentFee = rust_bridge::compute_rent_fee(

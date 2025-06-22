@@ -30,6 +30,7 @@ class AppConnector;
 class SignatureChecker;
 class ParallelLedgerInfo;
 class TxEffects;
+class ThreadParallelApplyLedgerState;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::unique_ptr<MutableTransactionResultBase>;
@@ -55,6 +56,26 @@ struct ParallelApplyEntry
     // it due to hitting read limits.
     std::optional<LedgerEntry> mLedgerEntry;
     bool isDirty;
+    static ParallelApplyEntry
+    cleanLive(LedgerEntry const& e)
+    {
+        return ParallelApplyEntry{e, false};
+    }
+    static ParallelApplyEntry
+    dirtyLive(LedgerEntry const& e)
+    {
+        return ParallelApplyEntry{e, true};
+    }
+    static ParallelApplyEntry
+    cleanDead()
+    {
+        return ParallelApplyEntry{std::nullopt, false};
+    }
+    static ParallelApplyEntry
+    dirtyDead()
+    {
+        return ParallelApplyEntry{std::nullopt, true};
+    }
 };
 
 // This is a map of all entries that will be read and/or written during parallel
@@ -125,9 +146,7 @@ class TransactionFrameBase
                      MutableTransactionResultBase& resPayload) const = 0;
 
     virtual ParallelTxReturnVal parallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,

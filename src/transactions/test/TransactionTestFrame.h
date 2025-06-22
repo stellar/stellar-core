@@ -4,11 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 
 namespace stellar
 {
 class TransactionTestFrame;
+class ThreadParallelApplyLedgerState;
 using TransactionTestFramePtr = std::shared_ptr<TransactionTestFrame>;
 
 // The normal TransactionFrame object is immutable, and the caller needs to
@@ -136,9 +138,7 @@ class TransactionTestFrame : public TransactionFrameBase
                      MutableTransactionResultBase& resPayload) const override;
 
     ParallelTxReturnVal parallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,

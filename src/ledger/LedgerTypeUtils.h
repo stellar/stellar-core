@@ -19,6 +19,7 @@ bool isLive(LedgerEntry const& e, uint32_t cutoffLedger);
 
 LedgerKey getTTLKey(LedgerEntry const& e);
 LedgerKey getTTLKey(LedgerKey const& e);
+LedgerEntry getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl);
 
 // Precondition: The keys associated with entries are unique and constitute a
 // subset of keys

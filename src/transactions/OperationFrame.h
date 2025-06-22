@@ -9,6 +9,7 @@
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "util/types.h"
 #include <memory>
 
@@ -25,6 +26,7 @@ class MutableTransactionResultBase;
 class DiagnosticEventManager;
 class RefundableFeeTracker;
 class OperationMetaBuilder;
+class ThreadParallelApplyLedgerState;
 
 enum class ThresholdLevel
 {
@@ -53,9 +55,7 @@ class OperationFrame
             OperationMetaBuilder& opMeta) const = 0;
 
     virtual ParallelTxReturnVal doParallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
         SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -101,9 +101,7 @@ class OperationFrame
                OperationMetaBuilder& opMeta) const;
 
     ParallelTxReturnVal parallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
         OperationResult& res,

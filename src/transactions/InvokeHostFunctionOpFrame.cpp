@@ -7,6 +7,7 @@
 #include "rust/RustVecXdrMarshal.h"
 #include "TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
@@ -656,13 +657,13 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         {
             if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
             {
-                if (eraseLedgerEntry(lk))
+                if (eraseLedgerEntryIfExists(lk))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));
 
                     // Also delete associated ttlEntry
                     auto ttlLK = getTTLKey(lk);
-                    releaseAssertOrThrow(eraseLedgerEntry(ttlLK));
+                    releaseAssertOrThrow(eraseLedgerEntryIfExists(ttlLK));
                 }
             }
         }
@@ -917,11 +918,6 @@ class InvokeHostFunctionParallelApplyHelper
       virtual public ParallelLedgerAccessHelper
 {
   private:
-    RestoredEntries mRestoredEntries;
-    // Map of entries that were restored from the hot archive prior to this
-    // transaction
-    UnorderedMap<LedgerKey, LedgerEntry> const& mPreviouslyRestoredHotEntries;
-
     // Bitmap to track which entries in the read-write footprint are
     // marked for autorestore based on readWrite footprint ordering. If
     // true, the entry is marked for autorestore.
@@ -981,32 +977,22 @@ class InvokeHostFunctionParallelApplyHelper
             LedgerEntry ttlEntry;
             if (isHotArchiveEntry)
             {
-                mOpEntryMap.emplace(lk, le);
-
-                ttlEntry.data.type(TTL);
-                ttlEntry.data.ttl().liveUntilLedgerSeq =
-                    restoredLiveUntilLedger;
-                ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
-
-                mOpEntryMap.emplace(ttlKey, ttlEntry);
-
-                mRestoredEntries.hotArchive.emplace(lk, le);
-                mRestoredEntries.hotArchive.emplace(ttlKey, ttlEntry);
+                mOpState.upsertEntry(lk, le);
+                ttlEntry =
+                    getTTLEntryForTTLKey(ttlKey, restoredLiveUntilLedger);
+                mOpState.upsertEntry(ttlKey, ttlEntry);
+                mOpState.addHotArchiveRestore(lk, le, ttlKey, ttlEntry);
             }
             else
             {
                 // Entry exists in the live BucketList if we get to this point
-
-                auto ttlLeOpt = getLiveEntry(ttlKey, mLiveSnapshot, mEntryMap);
+                auto ttlLeOpt = mOpState.getLiveEntryOpt(ttlKey);
                 releaseAssertOrThrow(ttlLeOpt);
-
                 ttlEntry = *ttlLeOpt;
                 ttlEntry.data.ttl().liveUntilLedgerSeq =
                     restoredLiveUntilLedger;
-                mOpEntryMap.emplace(ttlKey, ttlEntry);
-
-                mRestoredEntries.liveBucketList.emplace(lk, le);
-                mRestoredEntries.liveBucketList.emplace(ttlKey, ttlEntry);
+                mOpState.upsertEntry(ttlKey, ttlEntry);
+                mOpState.addLiveBucketlistRestore(lk, le, ttlKey, ttlEntry);
             }
 
             // Finally, add the entries to the Cxx buffer as if they were live.
@@ -1041,7 +1027,7 @@ class InvokeHostFunctionParallelApplyHelper
     bool
     previouslyRestoredFromHotArchive(LedgerKey const& lk) override
     {
-        return mPreviouslyRestoredHotEntries.count(lk) > 0;
+        return mOpState.entryWasRestored(lk);
     }
 
     // Returns true if the given key is marked for
@@ -1073,18 +1059,15 @@ class InvokeHostFunctionParallelApplyHelper
 
   public:
     InvokeHostFunctionParallelApplyHelper(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         ParallelLedgerInfo const& ledgerInfo, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
                                         refundableFeeTracker, opMeta, opFrame)
-        , ParallelLedgerAccessHelper(entryMap, ledgerInfo,
+        , ParallelLedgerAccessHelper(threadState, ledgerInfo,
                                      app.copySearchableLiveBucketListSnapshot())
-        , mPreviouslyRestoredHotEntries(previouslyRestoredHotEntries)
     {
         // Initialize the autorestore lookup vector
         auto const& resourceExt = mOpFrame.getResourcesExt();
@@ -1114,11 +1097,11 @@ class InvokeHostFunctionParallelApplyHelper
     {
         if (applySucceeded)
         {
-            return {true, std::move(mOpEntryMap), std::move(mRestoredEntries)};
+            return mOpState.takeSuccess();
         }
         else
         {
-            return {false, {}, {}};
+            return mOpState.takeFailure();
         }
     }
 };
@@ -1159,8 +1142,7 @@ InvokeHostFunctionOpFrame::doApply(
 
 ParallelTxReturnVal
 InvokeHostFunctionOpFrame::doParallelApply(
-    AppConnector& app, ParallelApplyEntryMap const& entryMap,
-    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
     SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -1174,8 +1156,8 @@ InvokeHostFunctionOpFrame::doParallelApply(
     releaseAssertOrThrow(refundableFeeTracker);
 
     InvokeHostFunctionParallelApplyHelper helper(
-        app, entryMap, previouslyRestoredHotEntries, ledgerInfo, txPrngSeed,
-        res, refundableFeeTracker, opMeta, *this);
+        app, threadState, ledgerInfo, txPrngSeed, res, refundableFeeTracker,
+        opMeta, *this);
 
     bool success = helper.apply();
     return helper.takeResults(success);
