@@ -164,7 +164,7 @@ OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
 
 ParallelTxReturnVal
 OperationFrame::parallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap,
+    AppConnector& app, ParallelApplyEntryMap const& entryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
@@ -183,7 +183,7 @@ OperationFrame::parallelApply(
 
 ParallelTxReturnVal
 OperationFrame::doParallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap,
+    AppConnector& app, ParallelApplyEntryMap const& entryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,

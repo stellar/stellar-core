@@ -1893,7 +1893,7 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
 ParallelTxReturnVal
 TransactionFrame::parallelApply(
-    AppConnector& app, ThreadEntryMap const& entryMap,
+    AppConnector& app, ParallelApplyEntryMap const& entryMap,
     UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
     Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo,
