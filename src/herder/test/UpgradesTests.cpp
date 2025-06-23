@@ -989,7 +989,7 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
 
         // Upgrade SCP timing parameters
         upgradeSorobanNetworkConfig(
-            [](SorobanNetworkConfig& cfg) {
+            [&](SorobanNetworkConfig& cfg) {
                 cfg.mNominationTimeoutInitialMilliseconds =
                     nominationTimeoutInitialMilliseconds;
                 cfg.mNominationTimeoutIncrementMilliseconds =

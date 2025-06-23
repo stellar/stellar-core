@@ -1677,7 +1677,7 @@ checkTx(int index, TransactionResultSet& r, TransactionResultCode expected,
     REQUIRE(r.results[index].result.result.results()[0].code() == code);
 };
 
-static void
+void
 sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
 {
     env.signatures.emplace_back(SignatureUtils::sign(
@@ -1787,14 +1787,16 @@ sorobanTransactionFrameFromOps(
     std::optional<SequenceNumber> seq,
     std::optional<std::vector<uint32_t>> archivedIndexes)
 {
-    uint64 totalFee = inclusionFee;
+    int64_t totalFee = inclusionFee;
     totalFee += resourceFee;
-    releaseAssert(totalFee >= 0 && totalFee <= UINT32_MAX);
+    releaseAssert(totalFee >= 0);
+    uint32_t totalFeeUint32 = std::min(
+        totalFee, static_cast<int64_t>(std::numeric_limits<uint32_t>::max()));
     auto tx = TransactionFrameBase::makeTransactionFromWire(
         networkID,
         sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
-                               static_cast<uint32>(totalFee), resourceFee, memo,
-                               seq, std::nullopt, archivedIndexes));
+                               totalFeeUint32, resourceFee, memo, seq,
+                               std::nullopt, archivedIndexes));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
@@ -2011,7 +2013,8 @@ getLclProtocolVersion(Application& app)
 bool
 isSuccessResult(TransactionResult const& res)
 {
-    return res.result.code() == txSUCCESS;
+    return res.result.code() == txSUCCESS ||
+           res.result.code() == txFEE_BUMP_INNER_SUCCESS;
 }
 
 } // namespace txtest

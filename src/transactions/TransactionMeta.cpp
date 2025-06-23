@@ -795,6 +795,12 @@ TransactionMetaFrame::getReturnValue() const
     }
 }
 
+bool
+TransactionMetaFrame::eventsAreSupported() const
+{
+    return mTransactionMeta.v() >= 4;
+}
+
 xdr::xvector<DiagnosticEvent> const&
 TransactionMetaFrame::getDiagnosticEvents() const
 {

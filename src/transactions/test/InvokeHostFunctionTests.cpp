@@ -563,26 +563,22 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
         auto invocation = contract.prepareInvocation(functionName, args, spec,
                                                      addContractKeys);
         auto tx = invocation.createTx(&rootAccount);
-        auto resPair = test.invokeTxAndGetLCM(tx);
-        auto const& result = resPair.first;
-        auto const& lcm = resPair.second;
+        auto result = test.invokeTx(tx);
 
         REQUIRE(tx->getFullFee() ==
                 spec.getInclusionFee() + spec.getResourceFee());
         REQUIRE(tx->getInclusionFee() == spec.getInclusionFee());
-
-        TransactionMetaFrame txm(lcm.getTransactionMeta(0));
+        auto txm = test.getLastTxMeta();
         auto refundChanges =
             protocolVersionIsBefore(test.getLedgerVersion(),
                                     PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
                 ? txm.getChangesAfter()
-                : lcm.getPostTxApplyFeeProcessing(0);
+                : test.getLastLcm().getPostTxApplyFeeProcessing(0);
 
         // In case of failure we simply refund the whole refundable fee portion.
         if (!expectedRefund)
         {
-            REQUIRE(result.result.code() !=
-                    txSUCCESS); // We expect a failure here.
+            REQUIRE(!isSuccessResult(result)); // We expect a failure here.
             // Compute the exact refundable fee (so we don't need spec
             // to have the exact refundable fee set).
             auto nonRefundableFee =
@@ -653,7 +649,7 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
 
         REQUIRE(hostFnSuccessMeter.count() - successesBefore == 1);
         REQUIRE(hostFnFailureMeter.count() - failuresBefore == 0);
-        REQUIRE(result.result.code() == txSUCCESS);
+        REQUIRE(isSuccessResult(result));
 
         auto const& ores = result.result.results().at(0);
         REQUIRE(ores.tr().type() == INVOKE_HOST_FUNCTION);
@@ -849,10 +845,10 @@ TEST_CASE("version test", "[tx][soroban]")
 
         REQUIRE(test.isTxValid(tx));
 
-        auto resMetaPair = test.invokeTxAndGetTxMeta(tx);
+        auto result = test.invokeTx(tx);
 
-        REQUIRE(isSuccessResult(resMetaPair.first));
-        return resMetaPair.second;
+        REQUIRE(isSuccessResult(result));
+        return test.getLastTxMeta();
     };
 
     auto fnName = "get_protocol_version";
@@ -1658,9 +1654,7 @@ TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
 
         REQUIRE(r.results[1].result.feeCharged == initialFee);
 
-        auto const& txEvents = app->getLedgerManager()
-                                   .getLastClosedLedgerTxMeta()[1]
-                                   .getTxEvents();
+        auto const& txEvents = test.getLastTxMeta(1).getTxEvents();
 
         // The refund event was not emitted because the account was merged.
         REQUIRE(txEvents.size() == 1);
@@ -1732,9 +1726,7 @@ TEST_CASE_VERSIONS("fee bump refund account merged", "[tx][soroban][merge]")
 
         REQUIRE(r.results[1].result.feeCharged == initialFee);
 
-        auto const& txEvents = app->getLedgerManager()
-                                   .getLastClosedLedgerTxMeta()[1]
-                                   .getTxEvents();
+        auto const& txEvents = test.getLastTxMeta(1).getTxEvents();
 
         // The refund event was not emitted because the account was merged.
         REQUIRE(txEvents.size() == 1);
@@ -1787,9 +1779,7 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
         REQUIRE(a1PostTxBalance ==
                 a1PreTxBalance - initialFee + expectedRefund);
 
-        auto const& txEvents = app->getLedgerManager()
-                                   .getLastClosedLedgerTxMeta()[1]
-                                   .getTxEvents();
+        auto const& txEvents = test.getLastTxMeta(1).getTxEvents();
 
         REQUIRE(txEvents.size() == 2);
         validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee,
@@ -1842,9 +1832,7 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         // DEFAULT_TEST_RESOURCE_FEE without the refund.
         REQUIRE(initialFee - expectedRefund < DEFAULT_TEST_RESOURCE_FEE);
 
-        auto const& txEvents = app->getLedgerManager()
-                                   .getLastClosedLedgerTxMeta()[0]
-                                   .getTxEvents();
+        auto const& txEvents = test.getLastTxMeta().getTxEvents();
 
         REQUIRE(txEvents.size() == 2);
         validateFeeEvent(txEvents[0], a1.getPublicKey(), initialFee,
@@ -1866,7 +1854,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
 
     for_versions_from(20, *app, [&] {
         SorobanTest test(app);
-        auto ledgerVersion = getLclProtocolVersion(test.getApp());
+        auto ledgerVersion = test.getLedgerVersion();
 
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
@@ -1883,20 +1871,10 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
-        TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
-        fb.feeBump().tx.feeSource = toMuxedAccount(feeBumper);
-        fb.feeBump().tx.fee = tx->getEnvelope().v1().tx.fee * 5;
-
-        fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
-        fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
-
-        fb.feeBump().signatures.emplace_back(SignatureUtils::sign(
-            feeBumper, sha256(xdr::xdr_to_opaque(test.getApp().getNetworkID(),
-                                                 ENVELOPE_TYPE_TX_FEE_BUMP,
-                                                 fb.feeBump().tx))));
-        auto feeBumpTxFrame = TransactionFrameBase::makeTransactionFromWire(
-            test.getApp().getNetworkID(), fb);
-
+        int64_t feeBumpFullFee = tx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpTxFrame =
+            feeBump(test.getApp(), feeBumper, tx, feeBumpFullFee,
+                    /*useInclusionAsFullFee=*/true);
         auto r = closeLedger(test.getApp(), {feeBumpTxFrame});
         checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
 
@@ -1934,9 +1912,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         // There should be no change to a1's balance
         REQUIRE(a1.getBalance() == a1StartingBalance);
 
-        auto const& txEvents = app->getLedgerManager()
-                                   .getLastClosedLedgerTxMeta()[0]
-                                   .getTxEvents();
+        auto const& txEvents = test.getLastTxMeta().getTxEvents();
 
         REQUIRE(txEvents.size() == 2);
         validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee,
@@ -1944,6 +1920,149 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         validateFeeEvent(txEvents[1], feeBumper.getPublicKey(), -expectedRefund,
                          ledgerVersion, true);
     });
+}
+
+TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    int64_t const stroopsInXlm = 10'000'000;
+
+    SorobanTest test(getTestConfig(), true, [&](SorobanNetworkConfig& cfg) {
+        // Set the rent fee settings to rather high, but somewhat realistic
+        // values: 120 days for min persistent TTL, and 500k stroops per 1KB of
+        // rent ( the rent fee is realistic if storage enters 'surge pricing'
+        // mode past the target size).
+        cfg.mStateArchivalSettings.minPersistentTTL = 120 * 24 * 3600 / 5;
+        cfg.mRentFee1KBSorobanStateSizeLow = 500'000;
+        cfg.mRentFee1KBSorobanStateSizeHigh =
+            cfg.mRentFee1KBSorobanStateSizeLow;
+    });
+
+    int64_t const expectedRentFee = 8'395'575'720LL;
+    int64_t const uploadEventsSize = 40;
+
+    auto runTest = [&](int64_t feeBumperBalance, int64_t inclusionFee,
+                       int64_t rentFee, bool selfFeeBump) {
+        auto a1 = test.getRoot().create(
+            "A", test.getApp().getLedgerManager().getLastMinBalance(1));
+        auto feeBumper = test.getRoot().create("B", feeBumperBalance);
+
+        auto a1StartingBalance = a1.getBalance();
+        auto feeBumperStartingBalance = feeBumper.getBalance();
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, test.getLedgerVersion());
+        auto& innerAccount = selfFeeBump ? feeBumper : a1;
+
+        auto initTx = makeSorobanWasmUploadTx(test.getApp(), innerAccount, wasm,
+                                              resources, 0, 0);
+        auto txResourceFee = sorobanResourceFee(
+            test.getApp(), initTx->sorobanResources(),
+            xdr::xdr_size(initTx->getEnvelope()), uploadEventsSize);
+        auto txEnvelope = initTx->getEnvelope();
+        int64_t resourceFee = txResourceFee + rentFee;
+        txEnvelope.v1().tx.ext.sorobanData().resourceFee = resourceFee;
+        txEnvelope.v1().signatures.clear();
+        txtest::sign(test.getApp().getNetworkID(), innerAccount.getSecretKey(),
+                     txEnvelope.v1());
+        auto tx = TransactionFrameBase::makeTransactionFromWire(
+            test.getApp().getNetworkID(), txEnvelope);
+        LedgerSnapshot ls(test.getApp());
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto innerCheckValidResult = tx->checkValid(
+            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+
+        int64_t feeBumpFullFee = resourceFee + inclusionFee;
+        auto feeBumpTx = feeBump(test.getApp(), feeBumper, tx, feeBumpFullFee,
+                                 /*useInclusionAsFullFee=*/true);
+
+        REQUIRE(feeBumpTx->getInclusionFee() == inclusionFee);
+
+        auto checkValidResult = feeBumpTx->checkValid(
+            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+        if (!checkValidResult->isSuccess())
+        {
+            return checkValidResult->getResultCode();
+        }
+        auto result = test.invokeTx(feeBumpTx);
+        // There should be no change to a1's balance
+        REQUIRE(a1.getBalance() == a1StartingBalance);
+        bool success = isSuccessResult(result);
+        test.checkRefundableFee(feeBumperStartingBalance, feeBumpTx,
+                                success ? expectedRentFee : 0,
+                                /*eventsSize=*/40, success);
+        return result.result.code();
+    };
+
+    auto runTests = [&](bool selfFeeBump) {
+        SECTION("success")
+        {
+
+            SECTION("low inclusion fee")
+            {
+                REQUIRE(runTest(10000 * stroopsInXlm, 200, expectedRentFee,
+                                selfFeeBump) == txFEE_BUMP_INNER_SUCCESS);
+            }
+            SECTION("inclusion fee exceeds uint32")
+            {
+                REQUIRE(runTest(10000 * stroopsInXlm, 700 * stroopsInXlm,
+                                expectedRentFee,
+                                selfFeeBump) == txFEE_BUMP_INNER_SUCCESS);
+            }
+            SECTION("inclusion fee and refund exceed uint32")
+            {
+                int64_t const rentFee = 2000 * stroopsInXlm;
+                // Make sure that refund will also exceed uint32 max (rentFee is
+                // not the full resource fee, but makes up for a bulk of it).
+                REQUIRE(rentFee - expectedRentFee >
+                        std::numeric_limits<uint32_t>::max());
+
+                REQUIRE(runTest(10000 * stroopsInXlm, 700 * stroopsInXlm,
+                                rentFee,
+                                selfFeeBump) == txFEE_BUMP_INNER_SUCCESS);
+            }
+        }
+        SECTION("failure")
+        {
+            SECTION("insufficient fee bumper balance")
+            {
+                REQUIRE(runTest(expectedRentFee, 200, expectedRentFee,
+                                selfFeeBump) == txINSUFFICIENT_BALANCE);
+            }
+            SECTION("fee bump fee is not sufficient to cover the resource fee")
+            {
+                REQUIRE(runTest(10000 * stroopsInXlm, 200, expectedRentFee - 1,
+                                selfFeeBump) == txFEE_BUMP_INNER_FAILED);
+            }
+            SECTION(
+                "fee bump fee is not sufficient to cover the resource fee with "
+                "high inclusion fee")
+            {
+                REQUIRE(runTest(10000 * stroopsInXlm, 1000 * stroopsInXlm,
+                                expectedRentFee - 1,
+                                selfFeeBump) == txFEE_BUMP_INNER_FAILED);
+            }
+            SECTION(
+                "fee bump fee is not sufficient to cover the resource fee with "
+                "low resource fee")
+            {
+                REQUIRE(runTest(10000 * stroopsInXlm, 1000,
+                                std::numeric_limits<uint32_t>::max(),
+                                selfFeeBump) == txFEE_BUMP_INNER_FAILED);
+            }
+        }
+    };
+    SECTION("other account fee bump")
+    {
+        runTests(false);
+    }
+    SECTION("self fee bump")
+    {
+        runTests(true);
+    }
 }
 
 TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
@@ -4450,16 +4569,14 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
 
         auto initialBalance = test.getAccountBalance();
 
-        auto resMetaPair = test.invokeTxAndGetLCM(autorestoreTx);
-        REQUIRE(resMetaPair.first.result.code() ==
-                TransactionResultCode::txSUCCESS);
+        auto result = test.invokeTx(autorestoreTx);
+        REQUIRE(isSuccessResult(result));
 
         // Check that the refundable fee charged matches what we expect for
         // restoration
         auto const eventSize = 4;
         test.checkRefundableFee(initialBalance, autorestoreTx,
-                                resMetaPair.second, refundableRestoreCost,
-                                eventSize);
+                                refundableRestoreCost, eventSize);
 
         // Entry should be live again
         client.get("key", ContractDataDurability::PERSISTENT, 123);
@@ -4696,14 +4813,12 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 
         auto initialBalance = test.getAccountBalance();
 
-        auto resMetaPair = test.invokeTxAndGetLCM(autorestoreTx);
-        REQUIRE(resMetaPair.first.result.code() ==
-                TransactionResultCode::txSUCCESS);
+        auto result = test.invokeTx(autorestoreTx);
+        REQUIRE(isSuccessResult(result));
 
         // Check that the refundable fee charged matches what we expect
         // for restoration
         test.checkRefundableFee(initialBalance, autorestoreTx,
-                                resMetaPair.second,
                                 expectedRefundableFeeCharged, eventSize);
         REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
 

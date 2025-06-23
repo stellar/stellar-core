@@ -294,6 +294,8 @@ ChangeTrustAsset makeChangeTrustAssetPoolShare(Asset const& assetA,
 OperationResult const& getFirstResult(TransactionTestFramePtr tx);
 OperationResultCode getFirstResultCode(TransactionTestFramePtr tx);
 
+void sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env);
+
 // methods to check results based off meta data
 void checkTx(int index, TransactionResultSet& r,
              TransactionResultCode expected);
