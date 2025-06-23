@@ -6794,13 +6794,10 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
                 .setInclusionFee(i1Spec.getInclusionFee() + 7));
         auto tx7 = i7.withExactNonRefundableResourceFee().createTx(&a9);
 
-        // If this executes before tx9, it's is expected to fail
         auto i8 = client.getContract().prepareInvocation(
             "extend_temporary",
-            {makeSymbolSCVal("extendDelete"), makeU32SCVal(1000),
-             makeU32SCVal(1000)},
-            client
-                .readKeySpec("extendDelete", ContractDataDurability::TEMPORARY)
+            {makeSymbolSCVal("key2"), makeU32SCVal(1000), makeU32SCVal(1000)},
+            client.readKeySpec("key2", ContractDataDurability::TEMPORARY)
                 .setInclusionFee(i1Spec.getInclusionFee() + 8));
         auto tx8 = i8.withExactNonRefundableResourceFee().createTx(&a10);
 
@@ -6827,10 +6824,6 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
         sorobanTxs.emplace_back(tx7);
         sorobanTxs.emplace_back(tx8);
         sorobanTxs.emplace_back(tx9);
-
-        // These two transactions have the same fee, so surge pricing will
-        // non-deterministically order them. This doesn't matter for our test
-        // though because we just check trustlines balances at the end.
         sorobanTxs.emplace_back(transferTx1);
         sorobanTxs.emplace_back(transferTx2);
 
@@ -6855,15 +6848,14 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
                     refundChanges[0].state().data.account().balance);
         }
 
-        // Two tx's will fail
-        checkResults(r, sorobanTxs.size() - 2, 1);
+        // One tx should fail due to low fee.
+        checkResults(r, sorobanTxs.size() - 1, 1);
 
-        REQUIRE(
-            hostFnSuccessMeter.count() - successesBefore ==
-            sorobanTxs.size() -
-                3); // -3 because two txs are expected to fail, and the other
-                    // is a extend op not covered by the hostFnSuccessMeter
-        REQUIRE(hostFnFailureMeter.count() == 2);
+        REQUIRE(hostFnSuccessMeter.count() - successesBefore ==
+                sorobanTxs.size() -
+                    2); // -2 because one tx is expected to fail, and the other
+                        // is a extend op not covered by the hostFnSuccessMeter
+        REQUIRE(hostFnFailureMeter.count() == 1);
 
         REQUIRE(r.results[8]
                     .result.result.results()[0]
@@ -6881,7 +6873,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
         REQUIRE(
             test.getTTL(client.getContract().getDataKey(
                 makeSymbolSCVal("key2"), ContractDataDurability::TEMPORARY)) ==
-            400 + test.getLCLSeq());
+            1000 + test.getLCLSeq());
 
         REQUIRE(client.get("key1", ContractDataDurability::TEMPORARY, 8) ==
                 INVOKE_HOST_FUNCTION_SUCCESS);
@@ -6917,8 +6909,10 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
 
         auto r = closeLedger(test.getApp(), {tx1, tx2});
         checkResults(r, 1, 1);
-
-        REQUIRE(r.results[1].result.result.code() == txINTERNAL_ERROR);
+        bool hasInternalError =
+            r.results[0].result.result.code() == txINTERNAL_ERROR ||
+            r.results[1].result.result.code() == txINTERNAL_ERROR;
+        REQUIRE(hasInternalError);
 
         REQUIRE(
             test.getTTL(client.getContract().getDataKey(
@@ -7243,9 +7237,11 @@ TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
                 .setInclusionFee(i1Spec.getInclusionFee() + 2));
         auto tx2 = i2.withExactNonRefundableResourceFee().createTx(&a2);
 
-        auto r = closeLedger(test.getApp(), {tx1, tx2});
+        auto r = closeLedger(test.getApp(), {tx1, tx2}, /*strictOrder=*/true);
         REQUIRE(r.results.size() == 2);
 
+        checkTx(0, r, txFAILED);
+        checkTx(1, r, txSUCCESS);
         REQUIRE(r.results[0]
                     .result.result.results()[0]
                     .tr()
@@ -7266,12 +7262,16 @@ TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
         restoreResources.footprint.readWrite = contractKeys;
         restoreResources.diskReadBytes = 3'028 + 104;
         restoreResources.writeBytes = restoreResources.diskReadBytes;
-        auto tx1 = test.createRestoreTx(restoreResources, 30'000, 500'000, &a1);
+        auto txSufficientReadBytes =
+            test.createRestoreTx(restoreResources, 30'000, 500'000, &a1);
 
         --restoreResources.diskReadBytes;
-        auto tx2 = test.createRestoreTx(restoreResources, 30'000, 500'000, &a2);
+        auto txInsufficientReadBytes =
+            test.createRestoreTx(restoreResources, 30'000, 500'000, &a2);
 
-        auto r = closeLedger(test.getApp(), {tx1, tx2});
+        auto r = closeLedger(test.getApp(),
+                             {txInsufficientReadBytes, txSufficientReadBytes},
+                             /*strictOrder=*/true);
         REQUIRE(r.results.size() == 2);
 
         checkTx(0, r, txFAILED);
@@ -7613,7 +7613,7 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
     sorobanTxs.emplace_back(tx1);
     sorobanTxs.emplace_back(tx2);
 
-    auto r = closeLedger(test.getApp(), sorobanTxs);
+    auto r = closeLedger(test.getApp(), sorobanTxs, /*strictOrder=*/true);
     REQUIRE(r.results.size() == sorobanTxs.size());
 
     checkTx(0, r, txSUCCESS);

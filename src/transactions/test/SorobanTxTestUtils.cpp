@@ -976,7 +976,7 @@ void
 SorobanTest::checkRefundableFee(int64_t initialBalance,
                                 TransactionFrameBaseConstPtr tx,
                                 LedgerCloseMetaFrame const& lcm,
-                                int64_t expectedRefundableFeeCharged,
+                                int64_t expectedRentFeeCharged,
                                 size_t eventsSize)
 {
     // Get the account balance after transaction execution
@@ -1014,13 +1014,15 @@ SorobanTest::checkRefundableFee(int64_t initialBalance,
         archivedIndexes = ext.resourceExt().archivedSorobanEntries;
     }
 
-    int64_t nonRefundableResourceFee = sorobanResourceFee(
+    int64_t nonRefundableResourceFeeWithEvents = sorobanResourceFee(
         getApp(), tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()),
         eventsSize, archivedIndexes, tx->isRestoreFootprintTx());
     int64_t expectedFeeCharged =
-        nonRefundableResourceFee + expectedRefundableFeeCharged + baseFee;
+        nonRefundableResourceFeeWithEvents + expectedRentFeeCharged + baseFee;
     int64_t actualFeeCharged = initialBalance - balanceAfterFeeCharged;
-    REQUIRE(actualFeeCharged == expectedFeeCharged);
+    int64_t actualRentFeeCharged =
+        actualFeeCharged - nonRefundableResourceFeeWithEvents - baseFee;
+    REQUIRE(actualRentFeeCharged == expectedRentFeeCharged);
 
     // Meta should contain the refund in `changesAfter`.
     int64_t chargedBeforeRefund =
@@ -1426,7 +1428,8 @@ SorobanTest::invokeExtendOp(xdr::xvector<LedgerKey> const& readOnly,
     extendResources.footprint.readOnly = readOnly;
     extendResources.diskReadBytes = 10'000;
 
-    auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * readOnly.size();
+    auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * readOnly.size() +
+                       *expectedRefundableFeeCharged;
     auto tx = createExtendOpTx(extendResources, extendTo, 1'000, resourceFee);
     invokeArchivalOp(tx, *expectedRefundableFeeCharged);
 }
@@ -1914,7 +1917,7 @@ ContractStorageTestClient::defaultSpecWithoutFootprint() const
         .setInstructions(4'000'000)
         .setReadBytes(10'000)
         .setNonRefundableResourceFee(0)
-        .setRefundableResourceFee(40'000);
+        .setRefundableResourceFee(1'000'000);
 }
 
 SorobanInvocationSpec
