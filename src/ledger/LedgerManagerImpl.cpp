@@ -2381,7 +2381,7 @@ LedgerManagerImpl::applyTransactions(
     size_t numTxs = txSet.sizeTxTotal();
     size_t numOps = txSet.sizeOpTotal();
     releaseAssert(numTxs == mutableTxResults.size());
-    int index = 0;
+    uint32_t index = 0;
 
     // Record counts
     if (numTxs > 0)
@@ -2447,7 +2447,7 @@ void
 LedgerManagerImpl::applyParallelPhase(
     TxSetPhaseFrame const& phase, std::vector<stellar::ApplyStage>& applyStages,
     std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
-    int& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
+    uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
     Hash const& sorobanBasePrngSeed)
 {
 
@@ -2504,7 +2504,7 @@ LedgerManagerImpl::applyParallelPhase(
 void
 LedgerManagerImpl::applySequentialPhase(
     TxSetPhaseFrame const& phase,
-    std::vector<MutableTxResultPtr> const& mutableTxResults, int& index,
+    std::vector<MutableTxResultPtr> const& mutableTxResults, uint32_t& index,
     AbstractLedgerTxn& ltx, bool enableTxMeta, Hash const& sorobanBasePrngSeed,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     TransactionResultSet& txResultSet)
@@ -2536,7 +2536,11 @@ LedgerManagerImpl::applySequentialPhase(
         {
             SHA256 subSeedSha;
             subSeedSha.add(sorobanBasePrngSeed);
-            subSeedSha.add(xdr::xdr_to_opaque(index));
+            // The index used here was originally a uint64_t, but it was removed
+            // because it was duplicated info. We need to still use a uint64_t
+            // because the type of the integer affects the prng seed, which
+            // is observable in the protocol.
+            subSeedSha.add(xdr::xdr_to_opaque(static_cast<uint64_t>(index)));
             subSeed = subSeedSha.finish();
         }
 
