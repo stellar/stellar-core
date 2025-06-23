@@ -2915,6 +2915,37 @@
 		"ps4mQItJilo=",
 		"U29SbyRC5LM="
 	],
+	"resource fee exceeds uint32" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"resource fee exceeds uint32|other account fee bump|failure|fee bump fee is not sufficient to cover the resource fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|other account fee bump|failure|fee bump fee is not sufficient to cover the resource fee with high inclusion fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|other account fee bump|failure|fee bump fee is not sufficient to cover the resource fee with low resource fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|other account fee bump|failure|insufficient fee bumper balance" : [ "5HgQdihFqJ4=", "6wb4xiGt/vg=" ],
+	"resource fee exceeds uint32|other account fee bump|success|inclusion fee and refund exceed uint32" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|other account fee bump|success|inclusion fee exceeds uint32" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|other account fee bump|success|low inclusion fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|self fee bump|failure|fee bump fee is not sufficient to cover the resource fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|self fee bump|failure|fee bump fee is not sufficient to cover the resource fee with high inclusion fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|self fee bump|failure|fee bump fee is not sufficient to cover the resource fee with low resource fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|self fee bump|failure|insufficient fee bumper balance" : [ "5HgQdihFqJ4=", "6wb4xiGt/vg=" ],
+	"resource fee exceeds uint32|self fee bump|success|inclusion fee and refund exceed uint32" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|self fee bump|success|inclusion fee exceeds uint32" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
+	"resource fee exceeds uint32|self fee bump|success|low inclusion fee" : [ "5HgQdihFqJ4=", "jVKnnZavBro=" ],
 	"settings upgrade" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"settings upgrade command line utils" : 
 	[

@@ -2216,16 +2216,16 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             if (!isSoroban)
             {
                 TransactionQueueTest test{queue};
-                auto tx = transaction(*app, account1, 1, 1, 100, /* nbOps */ 1,
-                                      isSoroban);
+                auto tx = transaction(*app, account1, 1, 1, 100,
+                                      /* nbOps */ 1, isSoroban);
                 auto txMultiOps = transaction(*app, account1, 1, 1, 10 * 100,
                                               /* nbOps */ 10, isSoroban);
                 TransactionFrameBasePtr fb;
 
                 SECTION("more ops")
                 {
-                    // Set fee=150*10*10, such that feePerOp is higher than tx's
-                    // fee (150 > 100)
+                    // Set fee=150*10*10, such that feePerOp is higher than
+                    // tx's fee (150 > 100)
                     fb = feeBump(*app, account1, txMultiOps, 15000);
                     test.add(
                         tx,
@@ -2403,9 +2403,9 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             auto newInclusionToPay = 200;
             if (isSoroban)
             {
-                // In case of Soroban, provide additional discount to test the
-                // case where inclusion fee is less than balance, but total fee
-                // is not.
+                // In case of Soroban, provide additional discount to test
+                // the case where inclusion fee is less than balance, but
+                // total fee is not.
                 discount += newInclusionToPay;
             }
             // Available balance after fb1 is 1
@@ -2422,7 +2422,8 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             SECTION("transaction")
             {
                 // NB: source account limit does not apply here; fb1 has
-                // account1 as source account (account3 is just a fee source)
+                // account1 as source account (account3 is just a fee
+                // source)
                 auto tx2 = transaction(*app, account3, 1, 1, newInclusionToPay,
                                        1, isSoroban);
                 auto addResult = test.add(
@@ -2478,7 +2479,8 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                 }
                 SECTION("balance insufficient")
                 {
-                    // valid replace-by-fee, but not enough funds to pay for fb2
+                    // valid replace-by-fee, but not enough funds to pay for
+                    // fb2
                     auto tx2 =
                         transaction(*app, account1, 1, 1, 100, 1, isSoroban);
                     TransactionFrameBasePtr fb2;
@@ -2519,6 +2521,61 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             test.add(tx1,
                      TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE);
             test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+        }
+        if (isSoroban)
+        {
+            SECTION("fee bump for Soroban resource fee exceeding uint32")
+            {
+                TransactionQueueTest test{queue};
+                int64_t const stroopsInXlm = 10'000'000;
+                auto highBalanceAccount =
+                    root->create("highBalance", 20'000 * stroopsInXlm);
+                SorobanResources resources;
+                resources.instructions = 1;
+                auto tx = createUploadWasmTx(*app, account1, 0,
+                                             10'000 * stroopsInXlm, resources);
+                auto fb = feeBump(
+                    *app, highBalanceAccount, tx,
+                    tx->getEnvelope().v1().tx.ext.sorobanData().resourceFee +
+                        200,
+                    /*useInclusionAsFullFee=*/true);
+                test.add(fb,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}},
+                             {account2},
+                             {account3},
+                             {highBalanceAccount}},
+                            {}});
+                auto tx2 = createUploadWasmTx(
+                    *app, account2, 0, std::numeric_limits<uint32_t>::max(),
+                    resources);
+                auto fb2 = feeBump(
+                    *app, highBalanceAccount, tx2,
+                    tx2->getEnvelope().v1().tx.ext.sorobanData().resourceFee +
+                        1000,
+                    /*useInclusionAsFullFee=*/true);
+                test.add(fb2,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}},
+                             {account2, 0, {fb2}},
+                             {account3},
+                             {highBalanceAccount}},
+                            {}});
+                auto tx3 = createUploadWasmTx(*app, highBalanceAccount, 0,
+                                              5000 * stroopsInXlm, resources);
+                auto fb3 = feeBump(
+                    *app, highBalanceAccount, tx3,
+                    tx3->getEnvelope().v1().tx.ext.sorobanData().resourceFee +
+                        1000,
+                    /*useInclusionAsFullFee=*/true);
+                test.add(fb3,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}},
+                             {account2, 0, {fb2}},
+                             {account3},
+                             {highBalanceAccount, 0, {fb3}}},
+                            {}});
+            }
         }
     };
 
@@ -2682,8 +2739,8 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
             submitTransactions(test, txs, isSoroban);
         }
 
-        SECTION(
-            "replace fee-bump having same source and fee-source with fee-bump")
+        SECTION("replace fee-bump having same source and fee-source with "
+                "fee-bump")
         {
             TransactionQueueTest test{queue};
             auto txs = setupFeeBumps(test, account1, isSoroban);
@@ -2926,12 +2983,12 @@ TEST_CASE("arbitrage tx identification",
 TEST_CASE("arbitrage tx identification benchmark",
           "[herder][transactionqueue][arbitrage][bench][!hide]")
 {
-    // This test generates a tx with a single 600-step-long discontiguous loop
-    // formed from 100 7-step ops with 100 overlapping endpoints (forcing the
-    // use of the SCC checker) and then benchmarks how long it takes to check it
-    // for payment loops 100 times, giving a rough idea of how much time the
-    // arb-loop checker might take in the worst case in the middle of the
-    // txqueue flood loop.
+    // This test generates a tx with a single 600-step-long discontiguous
+    // loop formed from 100 7-step ops with 100 overlapping endpoints
+    // (forcing the use of the SCC checker) and then benchmarks how long it
+    // takes to check it for payment loops 100 times, giving a rough idea of
+    // how much time the arb-loop checker might take in the worst case in
+    // the middle of the txqueue flood loop.
     SecretKey bobSec = txtest::getAccount("bob");
     PublicKey bobPub = bobSec.getPublicKey();
     Asset xlm = txtest::makeNativeAsset();
