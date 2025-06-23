@@ -177,13 +177,13 @@ class LedgerManagerImpl : public LedgerManager
     applyParallelPhase(TxSetPhaseFrame const& phase,
                        std::vector<ApplyStage>& applyStages,
                        std::vector<MutableTxResultPtr> const& mutableTxResults,
-                       int& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
-                       Hash const& sorobanBasePrngSeed);
+                       uint32_t& index, AbstractLedgerTxn& ltx,
+                       bool enableTxMeta, Hash const& sorobanBasePrngSeed);
 
     void applySequentialPhase(
         TxSetPhaseFrame const& phase,
-        std::vector<MutableTxResultPtr> const& mutableTxResults, int& index,
-        AbstractLedgerTxn& ltx, bool enableTxMeta,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
         Hash const& sorobanBasePrngSeed,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
