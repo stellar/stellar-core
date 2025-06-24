@@ -294,7 +294,7 @@ TxGenerator::createUploadWasmTransaction(
 
     int64_t resourceFee =
         sorobanResourceFee(mApp, *uploadResources, 5000 + wasm.size(), 100);
-    resourceFee += 1'000'000;
+    resourceFee += 50'000'000;
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                              {uploadOp}, {}, *uploadResources,
                                              generateFee(maxGeneratedFeeRate,
@@ -502,7 +502,7 @@ TxGenerator::invokeSorobanLoadTransaction(
 
     auto resourceFee =
         sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes, 40);
-    resourceFee += 1'000'000;
+    resourceFee += 10'000'000;
 
     // A tx created using this method may be discarded when creating the txSet,
     // so we need to refresh the TestAccount sequence number to avoid a
@@ -1080,7 +1080,7 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     ihf.invokeContract().args.emplace_back(b);
 
     auto resourceFee = sorobanResourceFee(mApp, *resources, 1'000, 40);
-    resourceFee += 1'000'000;
+    resourceFee += 20'000'000;
 
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                              {op}, {}, *resources,
@@ -1109,7 +1109,7 @@ TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
     int64_t resourceFee = sorobanResourceFee(
         mApp, resources, 5000 + static_cast<size_t>(wasmSize), 100);
     // Roughly cover the rent fee.
-    resourceFee += 10'000'000;
+    resourceFee += 200'000'000;
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                              {uploadOp}, {}, resources,
                                              inclusionFee, resourceFee);
