@@ -1,0 +1,103 @@
+name: Clang-19 Static Analysis
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - master
+      - prod
+      - testnet
+      - acceptance-test-pass
+
+jobs:
+  clang-19-compile:
+    runs-on: ubuntu-latest
+    env:
+      CACHED_PATHS: |
+        ~/.cargo
+        target
+    strategy:
+      fail-fast: false
+      matrix:
+        protocol: ["current", "next"]
+    steps:
+      - name: Fix kernel mmap rnd bits
+        # Asan in llvm provided in ubuntu 22.04 is incompatible with
+        # high-entropy ASLR in much newer kernels that GitHub runners are
+        # using leading to random crashes: https://reviews.llvm.org/D148280
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Probe Cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ runner.os }}-clang-19-${{ matrix.protocol }}-${{ github.sha }}
+          lookup-only: true
+
+      - name: Restore Cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+          restore-keys: |
+            ${{ runner.os }}-clang-19-${{ matrix.protocol }}
+
+      - uses: actions/checkout@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          fetch-depth: 200
+          submodules: true
+
+      - name: install core packages
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
+
+      - name: install clang-19
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install clang-19 llvm-19
+
+      - name: install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get -y install libc++-19-dev libc++abi-19-dev
+          sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel sed perl ccache
+
+      - name: install rustup components
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: rustup component add rustfmt
+
+      - name: install cargo-cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-cache --version 0.8.3
+
+      - name: install cargo-sweep
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-sweep --version 0.7.0
+
+      - name: Build with ci-build.sh
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          # Set compiler environment variables for ci-build.sh
+          export CC='clang'
+          export CXX='clang++'
+          export CLANG_VERSION='19'
+
+          # Skip clang-format check since we don't have clang-format-12
+          export SKIP_FORMAT_CHECK=1
+
+          # Run ci-build.sh with tests disabled and protocol specified
+          ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
+
+      - uses: actions/cache/save@v4
+        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
+        with:
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
