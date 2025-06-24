@@ -672,8 +672,9 @@ Every key queried is guaranteed to have a corresponding `state` field while the 
   - `live`: Entry is live.
   - `not-found`: Entry does not exist. Either the entry has never existed or is an expired temp entry.
   - `archived`: Entry is archived, counts towards disk resources.
-- `liveUntilLedgerSeq`: An optional value, only returned for live Soroban entries. Contains
-  a uint32 value for the entry's `liveUntilLedgerSeq`.
+- `liveUntilLedgerSeq`: An optional value, only returned for Soroban entries. For live
+  Soroban entries, contains the actual TTL value. For archived Soroban entries, contains
+  a placeholder value of 0. Not returned for classic entries.
 - `ledgerSeq`: The ledger number on which the query was performed.
 
 Classic entries will always return a state of `live` or `not-found`.

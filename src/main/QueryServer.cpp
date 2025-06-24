@@ -372,6 +372,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
             {
                 entry["entry"] = toOpaqueBase64(le);
                 entry["state"] = "archived";
+                entry["liveUntilLedgerSeq"] = 0;
             }
             // Archived temporary entries are considered "not-found"
             else
@@ -400,6 +401,9 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
         Json::Value entry;
         entry["entry"] = toOpaqueBase64(le);
         entry["state"] = "archived";
+
+        // Add placeholder TTL value for archived entries
+        entry["liveUntilLedgerSeq"] = 0;
 
         responseEntries[lk] = entry;
     }

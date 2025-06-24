@@ -172,15 +172,24 @@ TEST_CASE("getledgerentry", "[queryserver]")
 
                 REQUIRE(entry["state"].asString() == expectedState);
 
-                // Only live soroban entries should have a TTL
-                if (isSorobanEntry(le.data) && expectedState == "live")
+                // All soroban entries should have a TTL
+                if (isSorobanEntry(le.data))
                 {
                     REQUIRE(entry.isMember("liveUntilLedgerSeq"));
-                    REQUIRE(entry["liveUntilLedgerSeq"].asUInt() ==
-                            *expectedTTL);
+                    if (expectedState == "live")
+                    {
+                        REQUIRE(entry["liveUntilLedgerSeq"].asUInt() ==
+                                *expectedTTL);
+                    }
+                    else if (expectedState == "archived")
+                    {
+                        // Archived Soroban entries should have TTL = 0
+                        REQUIRE(entry["liveUntilLedgerSeq"].asUInt() == 0);
+                    }
                 }
                 else
                 {
+                    // Classic entries should not have TTL
                     REQUIRE(!entry.isMember("liveUntilLedgerSeq"));
                 }
 
