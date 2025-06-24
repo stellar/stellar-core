@@ -6,19 +6,19 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "3123a4fe94281c7b049cfcac2e72378b7f3cbe6fd31ae7c6efd15ef65f4b9ec8",
+                "hash": "b42d6d10b74ebdbcc2a2baf5b2fff0368b9dcf0fd7f7f48a17fcef50564cacd1",
                 "header": {
                     "ledgerVersion": 24,
-                    "previousLedgerHash": "d82ce3b5d260a89eb26a8173664f3ad45c983e7a9e9f2c2848b54f7faf7dc0ab",
+                    "previousLedgerHash": "06d58b2fa0b366921ba6597930f84d36af2af2a0d49b66815e78db57c646b3d1",
                     "scpValue": {
-                        "txSetHash": "106e7251cb478842feb8e2d244d80427d1ba8ebf3aabe54413e77a94edfadc49",
+                        "txSetHash": "b86814b4ffd2c8724d506b1f73f29a9b606aed98f3b6870c0fe46a9ba57bddf1",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "8194b6f7d41dee661a4f6dfaa0eafa7435f77e55b7937df8c8043b5724561fb000274530d4e7069d6ad46dd7e89e9469773420ed0b8a4888de4fa4d49ee88406"
+                                "signature": "a68643055b9c8bef0d34eb3d5987190c67dc8d1c84b3d6c33c641fd2ef3be0bed9eaec99fb9df07816e0ef234a5da791723d437010e84c15a99793d539e6d50c"
                             }
                         }
                     },
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "d82ce3b5d260a89eb26a8173664f3ad45c983e7a9e9f2c2848b54f7faf7dc0ab",
+                    "previousLedgerHash": "06d58b2fa0b366921ba6597930f84d36af2af2a0d49b66815e78db57c646b3d1",
                     "phases": [
                         {
                             "v": 0,
