@@ -237,7 +237,15 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             std::string indexFilename =
                 app->getBucketManager().bucketIndexFilename(b->getHash());
             CHECK(fs::exists(filename));
-            CHECK(fs::exists(indexFilename));
+
+            if (b->getIndexForTesting().getPageSize() == 0)
+            {
+                CHECK(!fs::exists(indexFilename));
+            }
+            else
+            {
+                CHECK(fs::exists(indexFilename));
+            }
 
             b.reset();
             app->getBucketManager().forgetUnreferencedBuckets(

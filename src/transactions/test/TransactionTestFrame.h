@@ -125,6 +125,26 @@ class TransactionTestFrame : public TransactionFrameBase
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
                               LedgerKeyMeter* lkMeter) const override;
 
+    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          MutableTransactionResultBase& resPayload,
+                          bool chargeFee) const;
+
+    void
+    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& resPayload) const override;
+
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo,
+        MutableTransactionResultBase& resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const override;
+
     MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
@@ -147,6 +167,7 @@ class TransactionTestFrame : public TransactionFrameBase
     SorobanTransactionData::_ext_t const& getResourcesExt() const override;
     int64 declaredSorobanResourceFee() const override;
     bool XDRProvidesValidFee() const override;
+    bool isRestoreFootprintTx() const override;
 
     bool
     isTestTx() const override

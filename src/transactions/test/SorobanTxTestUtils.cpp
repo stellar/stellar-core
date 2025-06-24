@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
@@ -527,7 +528,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                        createResources, inclusionFee, {});
 }
 
-TransactionFrameBaseConstPtr
+TransactionTestFramePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
@@ -832,8 +833,16 @@ TestContract::Invocation::getSpec()
     return mSpec;
 }
 
-TransactionFrameBaseConstPtr
-TestContract::Invocation::createTx(TestAccount* source)
+TestContract::Invocation&
+TestContract::Invocation::withOpSourceAccount(AccountID const& source)
+{
+    mOp.sourceAccount.activate() = toMuxedAccount(source);
+    return *this;
+}
+
+TransactionTestFramePtr
+TestContract::Invocation::createTx(TestAccount* source,
+                                   std::optional<std::string> memo)
 {
     if (mDeduplicateFootprint)
     {
@@ -842,7 +851,7 @@ TestContract::Invocation::createTx(TestAccount* source)
     auto& acc = source ? *source : mTest.getRoot();
 
     return sorobanTransactionFrameFromOps(mTest.getApp().getNetworkID(), acc,
-                                          {mOp}, {}, mSpec);
+                                          {mOp}, {}, mSpec, memo);
 }
 
 TestContract::Invocation&
@@ -857,8 +866,8 @@ TestContract::Invocation::withExactNonRefundableResourceFee()
                                                   mTest.getDummyAccount(),
                                                   {mOp}, {}, mSpec);
     auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
-    auto fee =
-        sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize, 0);
+    auto fee = sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize,
+                                  0, mSpec.getArchivedIndexes());
     releaseAssert(fee <= UINT32_MAX);
     mSpec = mSpec.setNonRefundableResourceFee(static_cast<uint32_t>(fee));
     return *this;
@@ -967,7 +976,7 @@ void
 SorobanTest::checkRefundableFee(int64_t initialBalance,
                                 TransactionFrameBaseConstPtr tx,
                                 LedgerCloseMetaFrame const& lcm,
-                                int64_t expectedRefundableFeeCharged,
+                                int64_t expectedRentFeeCharged,
                                 size_t eventsSize)
 {
     // Get the account balance after transaction execution
@@ -997,13 +1006,23 @@ SorobanTest::checkRefundableFee(int64_t initialBalance,
             TransactionMetaFrame{lcm.getTransactionMeta(0)}.getChangesAfter();
     }
     REQUIRE(refundChanges.size() == 2);
-    int64_t nonRefundableResourceFee =
-        sorobanResourceFee(getApp(), tx->sorobanResources(),
-                           xdr::xdr_size(tx->getEnvelope()), eventsSize);
+
+    std::optional<std::vector<uint32_t>> archivedIndexes;
+    auto ext = tx->getResourcesExt();
+    if (ext.v() == 1)
+    {
+        archivedIndexes = ext.resourceExt().archivedSorobanEntries;
+    }
+
+    int64_t nonRefundableResourceFeeWithEvents = sorobanResourceFee(
+        getApp(), tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()),
+        eventsSize, archivedIndexes, tx->isRestoreFootprintTx());
     int64_t expectedFeeCharged =
-        nonRefundableResourceFee + expectedRefundableFeeCharged + baseFee;
+        nonRefundableResourceFeeWithEvents + expectedRentFeeCharged + baseFee;
     int64_t actualFeeCharged = initialBalance - balanceAfterFeeCharged;
-    REQUIRE(actualFeeCharged == expectedFeeCharged);
+    int64_t actualRentFeeCharged =
+        actualFeeCharged - nonRefundableResourceFeeWithEvents - baseFee;
+    REQUIRE(actualRentFeeCharged == expectedRentFeeCharged);
 
     // Meta should contain the refund in `changesAfter`.
     int64_t chargedBeforeRefund =
@@ -1409,7 +1428,8 @@ SorobanTest::invokeExtendOp(xdr::xvector<LedgerKey> const& readOnly,
     extendResources.footprint.readOnly = readOnly;
     extendResources.diskReadBytes = 10'000;
 
-    auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * readOnly.size();
+    auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * readOnly.size() +
+                       *expectedRefundableFeeCharged;
     auto tx = createExtendOpTx(extendResources, extendTo, 1'000, resourceFee);
     invokeArchivalOp(tx, *expectedRefundableFeeCharged);
 }
@@ -1571,6 +1591,56 @@ AssetContractTestClient::makeTransferEvent(SCAddress const& from,
         toMuxId ? std::optional<SCMapEntry>(SCMapEntry(
                       makeSymbolSCVal("to_muxed_id"), makeU64(*toMuxId)))
                 : std::nullopt);
+}
+
+TransactionTestFramePtr
+AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
+                                       SCAddress const& toAddr, int64_t amount,
+                                       bool sourceIsRoot)
+{
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddr;
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
+
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAcc.getPublicKey());
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
+
+    auto spec = defaultSpec();
+
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        spec = spec.extendReadOnlyFootprint({makeIssuerKey(mAsset)});
+
+        if (!(getIssuer(mAsset) == fromAcc.getPublicKey()))
+        {
+            spec = spec.extendReadWriteFootprint({fromBalanceKey});
+        }
+
+        if (toAddr.type() != SC_ADDRESS_TYPE_ACCOUNT ||
+            !(getIssuer(mAsset) == toAddr.accountId()))
+        {
+            spec = spec.extendReadWriteFootprint({toBalanceKey});
+        }
+    }
+    else
+    {
+        spec = spec.setReadWriteFootprint({fromBalanceKey, toBalanceKey});
+    }
+
+    auto invocation =
+        mContract
+            .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
+                               spec)
+            .withAuthorizedTopCall();
+    if (!sourceIsRoot)
+    {
+        return invocation.createTx(&fromAcc);
+    }
+    auto tx = invocation.withOpSourceAccount(fromAcc.getPublicKey()).createTx();
+    tx->addSignature(fromAcc.getSecretKey());
+    return tx;
 }
 
 bool
@@ -1847,7 +1917,7 @@ ContractStorageTestClient::defaultSpecWithoutFootprint() const
         .setInstructions(4'000'000)
         .setReadBytes(10'000)
         .setNonRefundableResourceFee(0)
-        .setRefundableResourceFee(40'000);
+        .setRefundableResourceFee(1'000'000);
 }
 
 SorobanInvocationSpec

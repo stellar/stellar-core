@@ -188,7 +188,7 @@ InMemoryLedgerTxn::getFilteredEntryIterator(EntryIterator const& iter)
 
 void
 InMemoryLedgerTxn::commitChild(EntryIterator iter,
-                               RestoredKeys const& restoredKeys,
+                               RestoredEntries const& restoredEntries,
                                LedgerTxnConsistency cons) noexcept
 {
     if (!mTransaction)
@@ -200,7 +200,7 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter,
         auto filteredIter = getFilteredEntryIterator(iter);
         updateLedgerKeyMap(filteredIter);
 
-        LedgerTxn::commitChild(filteredIter, restoredKeys, cons);
+        LedgerTxn::commitChild(filteredIter, restoredEntries, cons);
         mTransaction->commit();
         mTransaction.reset();
     }

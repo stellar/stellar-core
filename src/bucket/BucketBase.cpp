@@ -9,6 +9,7 @@
 #include "bucket/BucketBase.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketMergeAdapter.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
@@ -221,38 +222,12 @@ calculateMergeProtocolVersion(
     // we switch shadowing-behaviour to a more conservative mode, in order to
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
-    keepShadowedLifecycleEntries = true;
-
-    // Don't count shadow metrics for Hot Archive BucketList
-    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
+    // Shadows are only supported for LiveBucket
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
     {
-        return;
-    }
-
-    if (protocolVersionIsBefore(
-            protocolVersion,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
-    {
-        ++mc.mPreInitEntryProtocolMerges;
-        keepShadowedLifecycleEntries = false;
-    }
-    else
-    {
-        ++mc.mPostInitEntryProtocolMerges;
-    }
-
-    if (protocolVersionIsBefore(protocolVersion,
-                                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
-    {
-        ++mc.mPreShadowRemovalProtocolMerges;
-    }
-    else
-    {
-        if (!shadowIterators.empty())
-        {
-            throw std::runtime_error("Shadows are not supported");
-        }
-        ++mc.mPostShadowRemovalProtocolMerges;
+        keepShadowedLifecycleEntries =
+            LiveBucket::updateMergeCountersForProtocolVersion(
+                mc, protocolVersion, shadowIterators);
     }
 }
 
@@ -260,50 +235,85 @@ calculateMergeProtocolVersion(
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
-template <class BucketT, class IndexT>
+template <class BucketT, class IndexT, typename InputSource,
+          typename... ShadowParams>
 static bool
 mergeCasesWithDefaultAcceptance(
     BucketEntryIdCmp<BucketT> const& cmp, MergeCounters& mc,
-    BucketInputIterator<BucketT>& oi, BucketInputIterator<BucketT>& ni,
-    BucketOutputIterator<BucketT>& out,
-    std::vector<BucketInputIterator<BucketT>>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+    InputSource& inputSource,
+    std::function<void(typename BucketT::EntryT const&)> putFunc,
+    uint32_t protocolVersion, ShadowParams&&... shadowParams)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
-    if (!ni || (oi && ni && cmp(*oi, *ni)))
+    // Either of:
+    //
+    //   - Out of new entries.
+    //   - Old entry has smaller key.
+    //
+    // In both cases: take old entry.
+    if (inputSource.oldFirst())
     {
-        // Either of:
-        //
-        //   - Out of new entries.
-        //   - Old entry has smaller key.
-        //
-        // In both cases: take old entry.
+        // Take old entry
+        auto entry = inputSource.getOldEntry();
         ++mc.mOldEntriesDefaultAccepted;
-        BucketT::checkProtocolLegality(*oi, protocolVersion);
-        BucketT::countOldEntryType(mc, *oi);
-        BucketT::maybePut(out, *oi, shadowIterators,
-                          keepShadowedLifecycleEntries, mc);
-        ++oi;
+        BucketT::checkProtocolLegality(entry, protocolVersion);
+        BucketT::countOldEntryType(mc, entry);
+        BucketT::maybePut(putFunc, entry, mc, shadowParams...);
+        inputSource.advanceOld();
         return true;
     }
-    else if (!oi || (oi && ni && cmp(*ni, *oi)))
+    // Either of:
+    //
+    //   - Out of old entries.
+    //   - New entry has smaller key.
+    //
+    // In both cases: take new entry.
+    else if (inputSource.newFirst())
     {
-        // Either of:
-        //
-        //   - Out of old entries.
-        //   - New entry has smaller key.
-        //
-        // In both cases: take new entry.
+        auto entry = inputSource.getNewEntry();
         ++mc.mNewEntriesDefaultAccepted;
-        BucketT::checkProtocolLegality(*ni, protocolVersion);
-        BucketT::countNewEntryType(mc, *ni);
-        BucketT::maybePut(out, *ni, shadowIterators,
-                          keepShadowedLifecycleEntries, mc);
-        ++ni;
+        BucketT::checkProtocolLegality(entry, protocolVersion);
+        BucketT::countNewEntryType(mc, entry);
+        BucketT::maybePut(putFunc, entry, mc, shadowParams...);
+        inputSource.advanceNew();
         return true;
     }
     return false;
+}
+
+template <class BucketT, class IndexT>
+template <typename InputSource, typename PutFuncT, typename... ShadowParams>
+void
+BucketBase<BucketT, IndexT>::mergeInternal(
+    BucketManager& bucketManager, InputSource& inputSource, PutFuncT putFunc,
+    uint32_t protocolVersion, MergeCounters& mc, ShadowParams&&... shadowParams)
+{
+    BucketEntryIdCmp<BucketT> cmp;
+    size_t iter = 0;
+
+    while (!inputSource.isDone())
+    {
+        // Check if the merge should be stopped every few entries
+        if (++iter >= 1000)
+        {
+            iter = 0;
+            if (bucketManager.isShutdown())
+            {
+                // Stop merging, as BucketManager is now shutdown
+                throw std::runtime_error(
+                    "Incomplete bucket merge due to BucketManager shutdown");
+            }
+        }
+
+        if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT, InputSource>(
+                cmp, mc, inputSource, putFunc, protocolVersion,
+                shadowParams...))
+        {
+            BucketT::template mergeCasesWithEqualKeys<InputSource>(
+                mc, inputSource, putFunc, protocolVersion, shadowParams...);
+        }
+    }
 }
 
 template <class BucketT, class IndexT>
@@ -333,7 +343,7 @@ BucketBase<BucketT, IndexT>::merge(
                                                               shadows.end());
 
     uint32_t protocolVersion;
-    bool keepShadowedLifecycleEntries;
+    bool keepShadowedLifecycleEntries = true;
     calculateMergeProtocolVersion<BucketT, IndexT>(
         mc, maxProtocolVersion, oi, ni, shadowIterators, protocolVersion,
         keepShadowedLifecycleEntries);
@@ -363,50 +373,53 @@ BucketBase<BucketT, IndexT>::merge(
                                       keepTombstoneEntries, meta, mc, ctx,
                                       doFsync);
 
-    BucketEntryIdCmp<BucketT> cmp;
-    size_t iter = 0;
+    FileMergeInput<BucketT> inputSource(oi, ni);
+    auto putFunc = [&out](typename BucketT::EntryT const& entry) {
+        out.put(entry);
+    };
 
-    while (oi || ni)
+    // Perform the merge
+    std::vector<Hash> shadowHashes;
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
     {
-        // Check if the merge should be stopped every few entries
-        if (++iter >= 1000)
+        mergeInternal(bucketManager, inputSource, putFunc, protocolVersion, mc,
+                      shadowIterators, keepShadowedLifecycleEntries);
+        shadowHashes.reserve(shadows.size());
+        for (auto const& s : shadows)
         {
-            iter = 0;
-            if (bucketManager.isShutdown())
-            {
-                // Stop merging, as BucketManager is now shutdown
-                // This is safe as temp file has not been adopted yet,
-                // so it will be removed with the tmp dir
-                throw std::runtime_error(
-                    "Incomplete bucket merge due to BucketManager shutdown");
-            }
-        }
-
-        if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT>(
-                cmp, mc, oi, ni, out, shadowIterators, protocolVersion,
-                keepShadowedLifecycleEntries))
-        {
-            BucketT::mergeCasesWithEqualKeys(mc, oi, ni, out, shadowIterators,
-                                             protocolVersion,
-                                             keepShadowedLifecycleEntries);
+            shadowHashes.push_back(s->getHash());
         }
     }
+    else
+    {
+        // HotArchive BucketList does not support shadows
+        mergeInternal(bucketManager, inputSource, putFunc, protocolVersion, mc);
+    }
+
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters<BucketT>(mc);
-    }
-
-    std::vector<Hash> shadowHashes;
-    shadowHashes.reserve(shadows.size());
-    for (auto const& s : shadows)
-    {
-        shadowHashes.push_back(s->getHash());
     }
 
     MergeKey mk{keepTombstoneEntries, oldBucket->getHash(),
                 newBucket->getHash(), shadowHashes};
     return out.getBucket(bucketManager, &mk);
 }
+
+template void BucketBase<LiveBucket, LiveBucket::IndexT>::mergeInternal<
+    MemoryMergeInput<LiveBucket>, std::function<void(BucketEntry const&)>,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool&>(
+    BucketManager&, MemoryMergeInput<LiveBucket>&,
+    std::function<void(BucketEntry const&)>, uint32_t, MergeCounters&,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool&);
+
+template void
+BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>::mergeInternal<
+    MemoryMergeInput<HotArchiveBucket>,
+    std::function<void(HotArchiveBucketEntry const&)>>(
+    BucketManager&, MemoryMergeInput<HotArchiveBucket>&,
+    std::function<void(HotArchiveBucketEntry const&)>, uint32_t,
+    MergeCounters&);
 
 template class BucketBase<LiveBucket, LiveBucket::IndexT>;
 template class BucketBase<HotArchiveBucket, HotArchiveBucket::IndexT>;

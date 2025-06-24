@@ -216,12 +216,12 @@ class LedgerManager
     getLastClosedLedgerHeader() const = 0;
 
     // Get bucketlist snapshot of LCL
-    virtual SearchableSnapshotConstPtr getLastClosedSnaphot() = 0;
+    virtual SearchableSnapshotConstPtr getLastClosedSnaphot() const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
     // This function return of copy of latest HAS, so it's thread-safe.
-    virtual HistoryArchiveState getLastClosedLedgerHAS() = 0;
+    virtual HistoryArchiveState getLastClosedLedgerHAS() const = 0;
 
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
@@ -258,6 +258,8 @@ class LedgerManager
 
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
+    virtual void mutateSorobanNetworkConfigForApply(
+        std::function<void(SorobanNetworkConfig&)> const& f) = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
     virtual std::optional<LedgerCloseMetaFrame> const&
@@ -299,6 +301,10 @@ class LedgerManager
     // `calledViaExternalize` false in this case).
     virtual void applyLedger(LedgerCloseData const& ledgerData,
                              bool calledViaExternalize) = 0;
+    virtual void advanceLedgerStateAndPublish(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        CompleteConstLedgerStatePtr newLedgerState) = 0;
 #ifdef BUILD_TESTS
     void
     applyLedger(LedgerCloseData const& ledgerData)

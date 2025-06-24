@@ -95,7 +95,7 @@ class LiveBucketIndex : public NonMovableOrCopyable
 
   public:
     inline static const std::string DB_BACKEND_STATE = "bl";
-    inline static const uint32_t BUCKET_INDEX_VERSION = 5;
+    inline static const uint32_t BUCKET_INDEX_VERSION = 6;
 
     // Constructor for creating new index from Bucketfile
     // Note: Constructor does not initialize the cache
@@ -107,6 +107,11 @@ class LiveBucketIndex : public NonMovableOrCopyable
     template <class Archive>
     LiveBucketIndex(BucketManager const& bm, Archive& ar,
                     std::streamoff pageSize);
+
+    // Constructor for creating new index from in-memory state
+    LiveBucketIndex(BucketManager& bm,
+                    std::vector<BucketEntry> const& inMemoryState,
+                    BucketMetadata const& metadata);
 
     // Initializes the random eviction cache if it has not already been
     // initialized. The random eviction cache itself has an entry limit, but we
@@ -133,13 +138,10 @@ class LiveBucketIndex : public NonMovableOrCopyable
 
     std::vector<PoolID> const& getPoolIDsByAsset(Asset const& asset) const;
 
-    std::optional<std::pair<std::streamoff, std::streamoff>>
-    getOfferRange() const;
-
     void maybeAddToCache(std::shared_ptr<BucketEntry const> const& entry) const;
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getContractCodeRange() const;
+    getRangeForType(LedgerEntryType type) const;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
     uint32_t getPageSize() const;

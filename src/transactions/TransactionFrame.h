@@ -52,6 +52,9 @@ class TransactionFrame : public TransactionFrameBase
   private:
     uint32_t getSize() const;
 
+    bool
+    maybeAdoptFailedReplayResult(MutableTransactionResultBase& txResult) const;
+
   protected:
 #ifdef BUILD_TESTS
     mutable
@@ -245,6 +248,42 @@ class TransactionFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
+    // preApply runs all pre-application steps that are common between
+    // parallelApply and (sequential) apply:
+    //
+    //  - building a signature checker
+    //  - calling commonValid
+    //  - calling processSeqNum
+    //  - calling processSignatures
+    //
+    // If all of this succeeds it returns a non-nullptr pointer to the
+    // signature checker, to be used elsewhere in the txn. If anything
+    // fails it returns nullptr. It does all of its work in a sub-ltx
+    // so the passed ltx is unchanged on failure.
+    std::unique_ptr<SignatureChecker> commonPreApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult, bool chargeFee) const;
+
+    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          MutableTransactionResultBase& resPayload,
+                          bool chargeFee) const;
+
+    void
+    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& resPayload) const override;
+
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo,
+        MutableTransactionResultBase& resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const override;
+
     // apply this transaction to the current ledger
     // returns true if successfully applied
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
@@ -295,9 +334,11 @@ class TransactionFrame : public TransactionFrameBase
     static FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanResources const& txResources,
         uint32_t txSize, uint32_t eventsSize,
-        SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
+        SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
+        SorobanTransactionData::_ext_t const& ext, bool isRestoreFootprintOp);
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+    virtual bool isRestoreFootprintTx() const override;
 
     Memo const& getMemo() const;
 

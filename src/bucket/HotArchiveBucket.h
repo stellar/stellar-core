@@ -58,13 +58,11 @@ class HotArchiveBucket
     static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
 
     // Note: this functions is called maybePut for interoperability with
-    // LiveBucket. This function always writes te given entry to the output
-    // iterator.
+    // LiveBucket. This function always writes the given entry to the output
+    // iterator using putFunc.
     static void
-    maybePut(HotArchiveBucketOutputIterator& out,
-             HotArchiveBucketEntry const& entry,
-             std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-             bool keepShadowedLifecycleEntries, MergeCounters& mc);
+    maybePut(std::function<void(HotArchiveBucketEntry const&)> putFunc,
+             HotArchiveBucketEntry const& entry, MergeCounters& mc);
 
     // For now, we only count LiveBucket merge events
     static void
@@ -83,11 +81,11 @@ class HotArchiveBucket
     {
     }
 
+    template <typename InputSource>
     static void mergeCasesWithEqualKeys(
-        MergeCounters& mc, HotArchiveBucketInputIterator& oi,
-        HotArchiveBucketInputIterator& ni, HotArchiveBucketOutputIterator& out,
-        std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-        uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+        MergeCounters& mc, InputSource& inputSource,
+        std::function<void(HotArchiveBucketEntry const&)> putFunc,
+        uint32_t protocolVersion);
 
     static std::shared_ptr<LoadT const>
     bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be);

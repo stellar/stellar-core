@@ -161,6 +161,14 @@ AppConnector::copySearchableHotArchiveBucketListSnapshot()
         .copySearchableHotArchiveBucketListSnapshot();
 }
 
+SearchableSnapshotConstPtr
+AppConnector::copySearchableLiveBucketListSnapshot()
+{
+    return mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .copySearchableLiveBucketListSnapshot();
+}
+
 void
 AppConnector::maybeCopySearchableBucketListSnapshot(
     SearchableSnapshotConstPtr& snapshot)

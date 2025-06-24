@@ -189,14 +189,18 @@ class InMemoryIndex
     InMemoryBucketState mInMemoryState;
     AssetPoolIDMap mAssetPoolIDMap;
     BucketEntryCounters mCounters{};
-    std::optional<std::pair<std::streamoff, std::streamoff>> mOfferRange;
-    std::optional<std::pair<std::streamoff, std::streamoff>> mContractCodeRange;
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+        mTypeRanges;
 
   public:
     using IterT = InMemoryBucketState::IterT;
 
     InMemoryIndex(BucketManager const& bm,
                   std::filesystem::path const& filename, SHA256* hasher);
+
+    InMemoryIndex(BucketManager& bm,
+                  std::vector<BucketEntry> const& inMemoryState,
+                  BucketMetadata const& metadata);
 
     IterT
     begin() const
@@ -228,25 +232,10 @@ class InMemoryIndex
     }
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getOfferRange() const
-    {
-        return mOfferRange;
-    }
-
-    std::optional<std::pair<std::streamoff, std::streamoff>>
-    getContractCodeRange() const
-    {
-        return mContractCodeRange;
-    }
+    getRangeForType(LedgerEntryType type) const;
 
 #ifdef BUILD_TESTS
-    bool
-    operator==(InMemoryIndex const& in) const
-    {
-        return mInMemoryState == in.mInMemoryState &&
-               mAssetPoolIDMap == in.mAssetPoolIDMap &&
-               mCounters == in.mCounters;
-    }
+    bool operator==(InMemoryIndex const& in) const;
 #endif
 };
 }

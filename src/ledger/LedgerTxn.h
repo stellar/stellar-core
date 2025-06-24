@@ -318,9 +318,15 @@ struct InflationWinner
 // been restored. Maps LedgerKey -> LedgerEntry at the point of restoration. For
 // contract code/data, this is the original, restored value. For TTL entries,
 // this is the value after applying the minimum rent required to restore.
-struct RestoredKeys
+struct RestoredEntries
 {
+    // Restoration can take two forms. In the first form, the key
+    // had been evicted to the hotArchive BL and restoration involved
+    // doing IO to bring it back into memory.
     UnorderedMap<LedgerKey, LedgerEntry> hotArchive;
+    // In the second form, the key was in the live BL but its TTL was
+    // past so it was considered expired, just not evicted. Restoring
+    // this does not cost any IO, just writing a new TTL.
     UnorderedMap<LedgerKey, LedgerEntry> liveBucketList;
 };
 
@@ -431,7 +437,7 @@ class AbstractLedgerTxnParent
     // to trigger an atomic commit or an atomic rollback of the data stored in
     // the child.
     virtual void commitChild(EntryIterator iter,
-                             RestoredKeys const& restoredKeys,
+                             RestoredEntries const& restoredEntries,
                              LedgerTxnConsistency cons) noexcept = 0;
     virtual void rollbackChild() noexcept = 0;
 
@@ -478,6 +484,16 @@ class AbstractLedgerTxnParent
     virtual std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const = 0;
 
+    // getNewestVersionBelowRoot finds the newest version of the
+    // InternalLedgerEntry associated with the InternalLedgerKey key by
+    // checking if there is a version stored in this AbstractLedgerTxnParent.
+    // The difference with getNewestVersion is that this function does not do
+    // any lookups in the root, and instead returns nullptr. This is used to
+    // determine which entries need to be loaded from LedgerTxn instead of
+    // the liveSnapshot during ledger apply.
+    virtual std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+    getNewestVersionBelowRoot(InternalLedgerKey const& key) const = 0;
+
     // Return the count of the number of offer objects within
     // range of ledgers `ledgers`. Will throw when called on anything other than
     // a (real or stub) root LedgerTxn.
@@ -510,6 +526,13 @@ class AbstractLedgerTxnParent
     virtual void prepareNewObjects(size_t s) = 0;
 
     virtual SessionWrapper& getSession() const = 0;
+
+    // Returns map of TTL and corresponding contract/data keys that have been
+    // restored from the Hot Archive/Live Bucket List.
+    virtual UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredHotArchiveKeys() const = 0;
+    virtual UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredLiveBucketListKeys() const = 0;
 
 #ifdef BUILD_TESTS
     virtual void resetForFuzzer() = 0;
@@ -597,6 +620,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                                  uint32_t ttl) = 0;
     virtual LedgerTxnEntry restoreFromLiveBucketList(LedgerEntry const& entry,
                                                      uint32_t ttl) = 0;
+    virtual void addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                           LedgerEntry const& ttlEntry) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) = 0;
@@ -639,12 +664,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
-    // Returns map of TTL and corresponding contract/data keys that have been
-    // restored from the Hot Archive/Live Bucket List.
-    virtual UnorderedMap<LedgerKey, LedgerEntry> const&
-    getRestoredHotArchiveKeys() const = 0;
-    virtual UnorderedMap<LedgerKey, LedgerEntry> const&
-    getRestoredLiveBucketListKeys() const = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
@@ -740,16 +759,19 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void commit() noexcept override;
 
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
     void erase(InternalLedgerKey const& key) override;
+
     LedgerTxnEntry restoreFromHotArchive(LedgerEntry const& entry,
                                          uint32_t ttl) override;
     LedgerTxnEntry restoreFromLiveBucketList(LedgerEntry const& entry,
                                              uint32_t ttl) override;
+    void addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                   LedgerEntry const& ttlEntry) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 
@@ -784,13 +806,16 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerKey>& deadEntries) override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
 
-    UnorderedMap<LedgerKey, LedgerEntry> const&
+    UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const override;
-    UnorderedMap<LedgerKey, LedgerEntry> const&
+    UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredLiveBucketListKeys() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
+
+    std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+    getNewestVersionBelowRoot(InternalLedgerKey const& key) const override;
 
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
@@ -877,7 +902,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
 
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept override;
 
     uint64_t countOffers(LedgerRange const& ledgers) const override;
@@ -911,6 +936,14 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
+
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredHotArchiveKeys() const override;
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredLiveBucketListKeys() const override;
+
+    std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+    getNewestVersionBelowRoot(InternalLedgerKey const& key) const override;
 
     void rollbackChild() noexcept override;
 

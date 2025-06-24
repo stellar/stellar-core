@@ -16,6 +16,8 @@
 #include "util/types.h"
 #include <optional>
 
+#include "ledger/SorobanMetrics.h"
+
 namespace stellar
 {
 class AbstractLedgerTxn;
@@ -26,6 +28,8 @@ class TransactionFrame;
 class FeeBumpTransactionFrame;
 class AppConnector;
 class SignatureChecker;
+class ParallelLedgerInfo;
+class TxEffects;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::unique_ptr<MutableTransactionResultBase>;
@@ -38,6 +42,71 @@ using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
+// Tracks entry updates within an operation during parallel apply phases. If the
+// transaction succeeds, the thread's ParallelApplyEntryMap should be updated
+// with the entries from the OpModifiedEntryMap.
+using OpModifiedEntryMap = UnorderedMap<LedgerKey, std::optional<LedgerEntry>>;
+
+// Used to track the current state of an entry during parallel apply phases. Can
+// be updated by successful transactions.
+struct ParallelApplyEntry
+{
+    // Will not be set if the entry doesn't exist, or if no tx was able to load
+    // it due to hitting read limits.
+    std::optional<LedgerEntry> mLedgerEntry;
+    bool isDirty;
+};
+
+// This is a map of all entries that will be read and/or written during parallel
+// apply phases: there is one such "global" map which disjoint per-thread maps
+// get split off of, modified during applyThread, and merged back into. Once all
+// threads return, the updates from each threads entry map should be commited to
+// LedgerTxn.
+using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry>;
+
+// Returned by each parallel transaction. It will contain the entries modified
+// by the transaction, the success status of the transaction, and the keys
+// restored.
+class ParallelTxReturnVal
+{
+  public:
+    ParallelTxReturnVal(bool success,
+                        OpModifiedEntryMap const&& modifiedEntryMap)
+        : mSuccess(success), mModifiedEntryMap(std::move(modifiedEntryMap))
+    {
+    }
+    ParallelTxReturnVal(bool success,
+                        OpModifiedEntryMap const&& modifiedEntryMap,
+                        RestoredEntries const&& restoredEntries)
+        : mSuccess(success)
+        , mModifiedEntryMap(std::move(modifiedEntryMap))
+        , mRestoredEntries(std::move(restoredEntries))
+    {
+    }
+
+    bool
+    getSuccess() const
+    {
+        return mSuccess;
+    }
+    OpModifiedEntryMap const&
+    getModifiedEntryMap() const
+    {
+        return mModifiedEntryMap;
+    }
+    RestoredEntries const&
+    getRestoredEntries() const
+    {
+        return mRestoredEntries;
+    }
+
+  private:
+    bool mSuccess;
+    // This will contain a key for every entry modified by a transaction
+    OpModifiedEntryMap mModifiedEntryMap;
+    RestoredEntries mRestoredEntries;
+};
+
 class TransactionFrameBase
 {
   public:
@@ -49,6 +118,22 @@ class TransactionFrameBase
                        TransactionMetaBuilder& meta,
                        MutableTransactionResultBase& txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
+
+    virtual void
+    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& resPayload) const = 0;
+
+    virtual ParallelTxReturnVal parallelApply(
+        AppConnector& app, ParallelApplyEntryMap const& entryMap,
+        UnorderedMap<LedgerKey, LedgerEntry> const&
+            previouslyRestoredHotEntries,
+        Config const& config, SorobanNetworkConfig const& sorobanConfig,
+        ParallelLedgerInfo const& ledgerInfo,
+        MutableTransactionResultBase& resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const = 0;
+
     virtual MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
@@ -134,5 +219,9 @@ class TransactionFrameBase
     virtual SorobanTransactionData::_ext_t const& getResourcesExt() const = 0;
     virtual int64 declaredSorobanResourceFee() const = 0;
     virtual bool XDRProvidesValidFee() const = 0;
+
+    // Returns true if this TX is a soroban transaction with a
+    // RestoreFootprintOp.
+    virtual bool isRestoreFootprintTx() const = 0;
 };
 }

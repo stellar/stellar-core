@@ -40,7 +40,11 @@ LedgerEntryWrapper::current() const
     case 1:
         return std::get<1>(mEntry).current();
     case 2:
-        return *std::get<2>(mEntry);
+    {
+        auto res = std::get<2>(mEntry);
+        releaseAssertOrThrow(res);
+        return *res;
+    }
     default:
         throw std::runtime_error("Invalid LedgerEntryWrapper index");
     }
@@ -268,4 +272,71 @@ LedgerSnapshot::executeWithMaybeInnerSnapshot(
 {
     return mGetter->executeWithMaybeInnerSnapshot(f);
 }
+
+void
+CompleteConstLedgerState::checkInvariant() const
+{
+    releaseAssert(mLastClosedHistoryArchiveState.currentLedger ==
+                  mLastClosedLedgerHeader.header.ledgerSeq);
+    if (mLastClosedLedgerHeader.header.ledgerSeq > 0)
+    {
+        releaseAssert(mBucketSnapshot->getLedgerHeader() ==
+                      mLastClosedLedgerHeader.header);
+    }
+}
+
+CompleteConstLedgerState::CompleteConstLedgerState(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    SorobanNetworkConfig const& sorobanConfig,
+    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+    HistoryArchiveState const& lastClosedHistoryArchiveState)
+    : mBucketSnapshot(searchableSnapshot)
+    , mSorobanConfig(sorobanConfig)
+    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
+    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+}
+
+CompleteConstLedgerState::CompleteConstLedgerState(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+    HistoryArchiveState const& lastClosedHistoryArchiveState)
+    : mBucketSnapshot(searchableSnapshot)
+    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
+    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+}
+
+SearchableSnapshotConstPtr
+CompleteConstLedgerState::getBucketSnapshot() const
+{
+    return mBucketSnapshot;
+}
+
+SorobanNetworkConfig const&
+CompleteConstLedgerState::getSorobanConfig() const
+{
+    return mSorobanConfig.value();
+}
+
+bool
+CompleteConstLedgerState::hasSorobanConfig() const
+{
+    return mSorobanConfig.has_value();
+}
+
+LedgerHeaderHistoryEntry const&
+CompleteConstLedgerState::getLastClosedLedgerHeader() const
+{
+    return mLastClosedLedgerHeader;
+}
+
+HistoryArchiveState const&
+CompleteConstLedgerState::getLastClosedHistoryArchiveState() const
+{
+    return mLastClosedHistoryArchiveState;
+}
+
 }

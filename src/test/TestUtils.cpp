@@ -287,9 +287,11 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         // Wait for upgrade to be applied
         simulation->crankUntil(
             [&]() {
-                auto netCfg =
-                    app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-                return netCfg == cfg;
+                return std::all_of(
+                    nodes.begin(), nodes.end(), [&](auto const& node) {
+                        return node->getLedgerManager()
+                                   .getLastClosedSorobanNetworkConfig() == cfg;
+                    });
             },
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
@@ -343,12 +345,26 @@ modifySorobanNetworkConfig(Application& app,
         wasmBytes, contractCodeLedgerKey, std::nullopt);
     closeWithTx(createUploadWasmTxnPair.second);
 
-    // Step 2: Create instance txn
-    auto contractOverhead = 160 + wasmBytes.size();
-    auto instanceTxPair = txGenerator.createContractTransaction(
-        app.getLedgerManager().getLastClosedLedgerNum(), std::nullopt,
-        contractCodeLedgerKey, contractOverhead, instanceSalt, std::nullopt);
-    closeWithTx(instanceTxPair.second);
+    bool instanceExists = false;
+    {
+        // Step 1: Check if instance already exists.
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        if (ltx.load(instanceLk))
+        {
+            instanceExists = true;
+        }
+    }
+
+    if (!instanceExists)
+    {
+        // Step 2: Create instance txn
+        auto contractOverhead = 160 + wasmBytes.size();
+        auto instanceTxPair = txGenerator.createContractTransaction(
+            app.getLedgerManager().getLastClosedLedgerNum(), std::nullopt,
+            contractCodeLedgerKey, contractOverhead, instanceSalt,
+            std::nullopt);
+        closeWithTx(instanceTxPair.second);
+    }
 
     // Step 3: Create upgrade transaction.
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(

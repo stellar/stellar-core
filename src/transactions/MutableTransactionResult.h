@@ -70,6 +70,7 @@ class MutableTransactionResultBase
     TransactionResult mTxResult;
     std::optional<RefundableFeeTracker> mRefundableFeeTracker{};
 #ifdef BUILD_TESTS
+    virtual void copyReplayResultWithoutFeeCharged() = 0;
     std::optional<TransactionResult> mReplayTransactionResult{};
 #endif
 
@@ -148,6 +149,11 @@ class MutableTransactionResult : public MutableTransactionResultBase
     MutableTransactionResult(TransactionResultCode txErrorCode);
     MutableTransactionResult(TransactionFrame const& tx, int64_t feeCharged);
 
+  protected:
+#ifdef BUILD_TESTS
+    void copyReplayResultWithoutFeeCharged() override;
+#endif
+
   public:
     // Creates a transaction result with the provided error code.
     static std::unique_ptr<MutableTransactionResult>
@@ -183,6 +189,11 @@ class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
 
     InnerTransactionResult& getInnerResult();
     InnerTransactionResult const& getInnerResult() const;
+
+  protected:
+#ifdef BUILD_TESTS
+    void copyReplayResultWithoutFeeCharged() override;
+#endif
 
   public:
     // Creates a fee bump transaction result with the provided error code.

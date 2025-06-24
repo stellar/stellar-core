@@ -880,10 +880,12 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
     for_versions_from(20, *app, [&] {
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
-        auto& networkConfig =
-            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+        auto networkConfig = [&]() {
+            return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+        };
 
-        uint32_t windowSize = networkConfig.stateArchivalSettings()
+        uint32_t windowSize = networkConfig()
+                                  .stateArchivalSettings()
                                   .liveSorobanStateSizeWindowSampleSize;
         std::deque<uint64_t> correctWindow;
         for (auto i = 0u; i < windowSize; ++i)
@@ -902,7 +904,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             uint64_t correctAverage = sum / correctWindow.size();
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(networkConfig.getAverageBucketListSize() == correctAverage);
+            REQUIRE(networkConfig().getAverageBucketListSize() ==
+                    correctAverage);
 
             // Check on-disk sliding window
             LedgerKey key(CONFIG_SETTING);
@@ -929,7 +932,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 
         // Generate enough ledgers to fill sliding window
         auto ledgersToGenerate =
-            (windowSize + 1) * networkConfig.stateArchivalSettings()
+            (windowSize + 1) * networkConfig()
+                                   .stateArchivalSettings()
                                    .liveSorobanStateSizeWindowSamplePeriod;
         auto lclSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
         for (uint32_t ledger = lclSeq; ledger < ledgersToGenerate; ++ledger)
@@ -938,7 +942,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             // adding new sliding window config entry with the resulting
             // snapshot, so we have to take the snapshot here before closing the
             // ledger to avoid counting the new  snapshot config entry
-            if ((ledger + 1) % networkConfig.stateArchivalSettings()
+            if ((ledger + 1) % networkConfig()
+                                   .stateArchivalSettings()
                                    .liveSorobanStateSizeWindowSamplePeriod ==
                 0)
             {
@@ -953,7 +958,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                     {CONFIG_SETTING}, 10),
                 {});
             closeLedger(*app);
-            if ((ledger + 1) % networkConfig.stateArchivalSettings()
+            if ((ledger + 1) % networkConfig()
+                                   .stateArchivalSettings()
                                    .liveSorobanStateSizeWindowSamplePeriod ==
                 0)
             {

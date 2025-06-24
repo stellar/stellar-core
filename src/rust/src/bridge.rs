@@ -166,7 +166,7 @@ pub(crate) mod rust_bridge {
             instruction_limit: u32,
             hf_buf: &CxxBuf,
             resources: CxxBuf,
-            resources_ext: CxxBuf,
+            restored_rw_entry_indices: &Vec<u32>,
             source_account: &CxxBuf,
             auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,

@@ -262,8 +262,8 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
-bool isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                      TransactionEnvelope const& envelope);
+bool checkVNext(uint32_t currProtocol, Config const& cfg,
+                TransactionEnvelope const& envelope);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
@@ -332,6 +332,7 @@ SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
 SCVal makeStringSCVal(std::string const& str);
+SCVal makeU32SCVal(uint32_t u);
 SCVal makeU64SCVal(uint64_t u);
 template <typename T>
 SCVal

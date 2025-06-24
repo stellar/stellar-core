@@ -34,7 +34,7 @@ InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
 void
 InMemoryLedgerTxnRoot::commitChild(EntryIterator iter,
-                                   RestoredKeys const& restoredKeys,
+                                   RestoredEntries const& restoredEntries,
                                    LedgerTxnConsistency cons) noexcept
 {
     printErrorAndAbort("committing to stub InMemoryLedgerTxnRoot");
@@ -95,6 +95,25 @@ std::shared_ptr<InternalLedgerEntry const>
 InMemoryLedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
 {
     return nullptr;
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+InMemoryLedgerTxnRoot::getRestoredHotArchiveKeys() const
+{
+    return {};
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+InMemoryLedgerTxnRoot::getRestoredLiveBucketListKeys() const
+{
+    return {};
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+InMemoryLedgerTxnRoot::getNewestVersionBelowRoot(
+    InternalLedgerKey const& key) const
+{
+    return {false, nullptr};
 }
 
 uint64_t

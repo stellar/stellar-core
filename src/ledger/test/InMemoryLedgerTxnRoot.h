@@ -38,7 +38,7 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
 #endif
     );
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept override;
     void rollbackChild() noexcept override;
 
@@ -63,6 +63,14 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
+
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredHotArchiveKeys() const override;
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredLiveBucketListKeys() const override;
+
+    std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+    getNewestVersionBelowRoot(InternalLedgerKey const& key) const override;
 
     uint64_t countOffers(LedgerRange const& ledgers) const override;
 

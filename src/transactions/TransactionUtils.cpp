@@ -18,6 +18,7 @@
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
+#include <xdrpp/depth_checker.h>
 
 namespace stellar
 {
@@ -1956,6 +1957,14 @@ makeStringSCVal(std::string const& str)
 }
 
 SCVal
+makeU32SCVal(uint32_t u)
+{
+    SCVal val(SCV_U32);
+    val.u32() = u;
+    return val;
+}
+
+SCVal
 makeU64SCVal(uint64_t u)
 {
     SCVal val(SCV_U64);
@@ -2152,23 +2161,23 @@ hasMuxedAccount(TransactionEnvelope const& e)
 }
 
 bool
-isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                 TransactionEnvelope const& envelope)
+checkVNext(uint32_t currProtocol, Config const& cfg,
+           TransactionEnvelope const& envelope)
 {
     uint32_t maxProtocol = cfg.CURRENT_LEDGER_PROTOCOL_VERSION;
     // If we could parse the XDR when ledger is using the maximum supported
     // protocol version, then XDR has to be valid.
     // This check also is pointless before protocol 21 as Soroban environment
     // doesn't support XDR versions before 21.
-    if (maxProtocol == currProtocol ||
-        protocolVersionIsBefore(currProtocol, ProtocolVersion::V_21))
+    if (!xdr::check_xdr_depth(envelope, 500))
     {
-        return true;
+        return false;
     }
+
     auto cxxBuf = CxxBuf{
         std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(envelope))};
     return rust_bridge::can_parse_transaction(maxProtocol, currProtocol, cxxBuf,
-                                              xdr::marshaling_stack_limit);
+                                              1000);
 }
 
 ClaimAtom

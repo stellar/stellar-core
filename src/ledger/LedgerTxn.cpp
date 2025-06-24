@@ -393,6 +393,15 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mIsSealed(false)
     , mConsistency(LedgerTxnConsistency::EXACT)
 {
+    for (auto const& [key, entry] : mParent.getRestoredHotArchiveKeys())
+    {
+        mRestoredEntries.hotArchive.emplace(key, entry);
+    }
+    for (auto const& [key, entry] : mParent.getRestoredLiveBucketListKeys())
+    {
+        mRestoredEntries.liveBucketList.emplace(key, entry);
+    }
+
     mParent.addChild(self, mode);
 }
 
@@ -502,16 +511,17 @@ LedgerTxn::Impl::commit() noexcept
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
         // commitChild has the strong exception safety guarantee
-        mParent.commitChild(getEntryIterator(entries), mRestoredKeys,
+        mParent.commitChild(getEntryIterator(entries), mRestoredEntries,
                             mConsistency);
     });
 }
 
 void
-LedgerTxn::commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+LedgerTxn::commitChild(EntryIterator iter,
+                       RestoredEntries const& restoredEntries,
                        LedgerTxnConsistency cons) noexcept
 {
-    getImpl()->commitChild(std::move(iter), restoredKeys, cons);
+    getImpl()->commitChild(std::move(iter), restoredEntries, cons);
 }
 
 static LedgerTxnConsistency
@@ -530,7 +540,7 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
 
 void
 LedgerTxn::Impl::commitChild(EntryIterator iter,
-                             RestoredKeys const& restoredKeys,
+                             RestoredEntries const& restoredEntries,
                              LedgerTxnConsistency cons) noexcept
 {
     // Assignment of xdrpp objects does not have the strong exception safety
@@ -636,22 +646,17 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
         printErrorAndAbort("unknown fatal error during commit to LedgerTxn");
     }
 
-    for (auto const& [key, entry] : restoredKeys.hotArchive)
+    // The child will have started with a copy of the parents mRestoredEntries,
+    // so we can see duplicates here, but duplicate restores would've been
+    // caught during restoration in the restoreFrom* functions.
+    for (auto const& [key, entry] : restoredEntries.hotArchive)
     {
-        auto [_, inserted] = mRestoredKeys.hotArchive.emplace(key, entry);
-        if (!inserted)
-        {
-            printErrorAndAbort("restored hot archive entry already exists");
-        }
+        mRestoredEntries.hotArchive.emplace(key, entry);
     }
 
-    for (auto const& [key, entry] : restoredKeys.liveBucketList)
+    for (auto const& [key, entry] : restoredEntries.liveBucketList)
     {
-        auto [_, inserted] = mRestoredKeys.liveBucketList.emplace(key, entry);
-        if (!inserted)
-        {
-            printErrorAndAbort("restored live BucketList entry already exists");
-        }
+        mRestoredEntries.liveBucketList.emplace(key, entry);
     }
 
     // std::unique_ptr<...>::swap does not throw
@@ -824,6 +829,38 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     }
 }
 
+void
+LedgerTxn::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                     LedgerEntry const& ttlEntry)
+{
+    getImpl()->addRestoredFromHotArchive(ledgerEntry, ttlEntry);
+}
+
+void
+LedgerTxn::Impl::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                           LedgerEntry const& ttlEntry)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(ledgerEntry.data))
+    {
+        throw std::runtime_error("Key type not supported in Hot Archive");
+    }
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerEntry const& entry) {
+        auto [_, inserted] =
+            mRestoredEntries.hotArchive.emplace(LedgerEntryKey(entry), entry);
+        if (!inserted)
+        {
+            throw std::runtime_error("Key already removed from hot archive");
+        }
+    };
+    addKey(ledgerEntry);
+    addKey(ttlEntry);
+}
+
 LedgerTxnEntry
 LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
 {
@@ -855,7 +892,7 @@ LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
 
     // Mark the keys as restored
     auto addEntry = [this](LedgerEntry const& entry, LedgerKey const& key) {
-        auto [_, inserted] = mRestoredKeys.hotArchive.emplace(key, entry);
+        auto [_, inserted] = mRestoredEntries.hotArchive.emplace(key, entry);
         if (!inserted)
         {
             throw std::runtime_error("Key already removed from hot archive");
@@ -902,7 +939,8 @@ LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
 
     // Mark the keys as restored
     auto addEntry = [this](LedgerEntry const& entry, LedgerKey const& key) {
-        auto [_, inserted] = mRestoredKeys.liveBucketList.emplace(key, entry);
+        auto [_, inserted] =
+            mRestoredEntries.liveBucketList.emplace(key, entry);
         if (!inserted)
         {
             throw std::runtime_error(
@@ -1583,28 +1621,30 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     deadEntries.swap(resDead);
 }
 
-UnorderedMap<LedgerKey, LedgerEntry> const&
+UnorderedMap<LedgerKey, LedgerEntry>
 LedgerTxn::getRestoredHotArchiveKeys() const
 {
     return getImpl()->getRestoredHotArchiveKeys();
 }
 
-UnorderedMap<LedgerKey, LedgerEntry> const&
+UnorderedMap<LedgerKey, LedgerEntry>
 LedgerTxn::Impl::getRestoredHotArchiveKeys() const
 {
-    return mRestoredKeys.hotArchive;
+    throwIfChild();
+    return mRestoredEntries.hotArchive;
 }
 
-UnorderedMap<LedgerKey, LedgerEntry> const&
+UnorderedMap<LedgerKey, LedgerEntry>
 LedgerTxn::getRestoredLiveBucketListKeys() const
 {
     return getImpl()->getRestoredLiveBucketListKeys();
 }
 
-UnorderedMap<LedgerKey, LedgerEntry> const&
+UnorderedMap<LedgerKey, LedgerEntry>
 LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
 {
-    return mRestoredKeys.liveBucketList;
+    throwIfChild();
+    return mRestoredEntries.liveBucketList;
 }
 
 LedgerKeySet
@@ -1657,6 +1697,23 @@ LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key)
         return std::make_pair(iter->second.get(), iter);
     }
     return std::make_pair(mParent.getNewestVersion(key), iter);
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+LedgerTxn::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
+{
+    return getImpl()->getNewestVersionBelowRoot(key);
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+LedgerTxn::Impl::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
+{
+    auto iter = mEntry.find(key);
+    if (iter != mEntry.end())
+    {
+        return std::make_pair(true, iter->second.get());
+    }
+    return mParent.getNewestVersionBelowRoot(key);
 }
 
 UnorderedMap<LedgerKey, LedgerEntry>
@@ -2094,8 +2151,8 @@ LedgerTxn::Impl::rollback() noexcept
     }
 
     mEntry.clear();
-    mRestoredKeys.hotArchive.clear();
-    mRestoredKeys.liveBucketList.clear();
+    mRestoredEntries.hotArchive.clear();
+    mRestoredEntries.liveBucketList.clear();
     mMultiOrderBook.clear();
     mActive.clear();
     mActiveHeader.reset();
@@ -2698,10 +2755,11 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+LedgerTxnRoot::commitChild(EntryIterator iter,
+                           RestoredEntries const& restoredEntries,
                            LedgerTxnConsistency cons) noexcept
 {
-    mImpl->commitChild(std::move(iter), restoredKeys, cons);
+    mImpl->commitChild(std::move(iter), restoredEntries, cons);
 }
 
 static void
@@ -2758,7 +2816,7 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
 
 void
 LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
-                                 RestoredKeys const& restoredHotArchiveKeys,
+                                 RestoredEntries const& /* restoredEntries */,
                                  LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
@@ -3445,6 +3503,34 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     }
 }
 
+// The restored keys are not written to disk,
+// so the root will always return nothing.
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxnRoot::getRestoredHotArchiveKeys() const
+{
+    return mImpl->getRestoredHotArchiveKeys();
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxnRoot::Impl::getRestoredHotArchiveKeys() const
+{
+    throwIfChild();
+    return {};
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxnRoot::getRestoredLiveBucketListKeys() const
+{
+    return mImpl->getRestoredLiveBucketListKeys();
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxnRoot::Impl::getRestoredLiveBucketListKeys() const
+{
+    throwIfChild();
+    return {};
+}
+
 std::shared_ptr<InternalLedgerEntry const>
 LedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
 {
@@ -3542,6 +3628,12 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             return nullptr;
         }
     }
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+LedgerTxnRoot::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
+{
+    return {false, nullptr};
 }
 
 void

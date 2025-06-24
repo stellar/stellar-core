@@ -748,7 +748,7 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 
 TransactionTestFramePtr
 feeBump(Application& app, TestAccount& feeSource,
-        std::shared_ptr<TransactionTestFrame const> tx, int64_t fee,
+        TransactionFrameBaseConstPtr tx, int64_t fee,
         bool useInclusionAsFullFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
@@ -948,14 +948,24 @@ createUploadWasmTx(Application& app, TestAccount& account,
 
 int64_t
 sorobanResourceFee(Application& app, SorobanResources const& resources,
-                   size_t txSize, uint32_t eventsSize)
+                   size_t txSize, uint32_t eventsSize,
+                   std::optional<std::vector<uint32_t>> archivedIndexes,
+                   bool isRestoreFootprintOp)
 {
     releaseAssert(txSize <= INT32_MAX);
+    SorobanTransactionData::_ext_t ext;
+    if (archivedIndexes)
+    {
+        ext.v(1);
+        ext.resourceExt().archivedSorobanEntries.insert(
+            ext.resourceExt().archivedSorobanEntries.end(),
+            archivedIndexes->begin(), archivedIndexes->end());
+    }
     auto feePair = TransactionFrame::computeSorobanResourceFee(
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion,
         resources, static_cast<uint32>(txSize), eventsSize,
         app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-        app.getConfig());
+        app.getConfig(), ext, isRestoreFootprintOp);
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }
 
