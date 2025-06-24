@@ -3340,18 +3340,14 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         };
 
         auto verifyEvictions = [&](uint32_t ledgerSeq,
-                                   LedgerKeySet const& expectedKeys) {
+                                   xdr::xvector<LedgerKey> expectedKeys) {
             auto frame = getMetaForLedger(ledgerSeq);
             REQUIRE(frame.has_value());
 
             auto evictedKeys = frame->getEvictedKeys();
-            REQUIRE(evictedKeys.size() == expectedKeys.size());
-
-            for (auto const& key : expectedKeys)
-            {
-                REQUIRE(std::find(evictedKeys.begin(), evictedKeys.end(),
-                                  key) != evictedKeys.end());
-            }
+            std::sort(evictedKeys.begin(), evictedKeys.end());
+            std::sort(expectedKeys.begin(), expectedKeys.end());
+            REQUIRE(evictedKeys == expectedKeys);
         };
 
         auto verifySingleTxMeta =
@@ -3435,8 +3431,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 REQUIRE(!ltx.load(temporaryLk));
             }
 
-            LedgerKeySet expectedEvictedKeys = {temporaryLk,
-                                                getTTLKey(temporaryLk)};
+            xdr::xvector<LedgerKey> expectedEvictedKeys = {
+                temporaryLk, getTTLKey(temporaryLk)};
             verifyEvictions(evictionLedger, expectedEvictedKeys);
         }
         SECTION("persistent entry meta")
@@ -3872,7 +3868,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 LiveBucket::
                                     FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                         {
-                            LedgerKeySet expectedEvictedKeys = {
+                            xdr::xvector<LedgerKey> expectedEvictedKeys = {
                                 persistentKey, getTTLKey(persistentKey)};
                             verifyEvictions(evictionLedger,
                                             expectedEvictedKeys);

@@ -321,44 +321,32 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
     // worry about the restore op. We look at the TTLs that have been modified
     // by this op (i.e. restored TTLs) and use that to create an op-specific
     // subset of the restored key maps.
-    UnorderedMap<LedgerKey, LedgerEntry> opRestoredHotArchiveKeys{};
     UnorderedMap<LedgerKey, LedgerEntry> opRestoredLiveBucketListKeys{};
-    auto allRestoredHotArchiveKeys = opLtx.getRestoredHotArchiveKeys();
     auto allRestoredLiveBucketListKeys = opLtx.getRestoredLiveBucketListKeys();
     auto opModifiedTTLKeys = opLtx.getAllTTLKeysWithoutSealing();
     if (mOp.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT)
     {
-        auto processRestoredKeys =
-            [&opModifiedTTLKeys](
-                auto const& allRestoredKeys,
-                UnorderedMap<LedgerKey, LedgerEntry>& opRestoredKeys) {
-                for (auto const& [key, entry] : allRestoredKeys)
+        for (auto const& [key, entry] : allRestoredLiveBucketListKeys)
+        {
+            if (isSorobanEntry(key))
+            {
+                auto ttlKey = getTTLKey(key);
+                if (opModifiedTTLKeys.find(ttlKey) != opModifiedTTLKeys.end())
                 {
-                    if (key.type() == CONTRACT_CODE ||
-                        key.type() == CONTRACT_DATA)
-                    {
-                        auto ttlKey = getTTLKey(key);
-                        if (opModifiedTTLKeys.find(ttlKey) !=
-                            opModifiedTTLKeys.end())
-                        {
-                            opRestoredKeys[key] = entry;
-                            opRestoredKeys[ttlKey] = allRestoredKeys.at(ttlKey);
-                        }
-                    }
+                    opRestoredLiveBucketListKeys[key] = entry;
+                    opRestoredLiveBucketListKeys[ttlKey] =
+                        allRestoredLiveBucketListKeys.at(ttlKey);
                 }
-            };
-
-        processRestoredKeys(allRestoredHotArchiveKeys,
-                            opRestoredHotArchiveKeys);
-        processRestoredKeys(allRestoredLiveBucketListKeys,
-                            opRestoredLiveBucketListKeys);
+            }
+        }
     }
 
+    // Note: Hot Archive restore map is always empty since this is never called
+    // in p23.
     std::visit(
-        [&opLtx, &opRestoredHotArchiveKeys, &opRestoredLiveBucketListKeys,
-         ledgerSeq, this](auto&& meta) {
+        [&opLtx, &opRestoredLiveBucketListKeys, ledgerSeq, this](auto&& meta) {
             meta.get().changes = processOpLedgerEntryChanges(
-                mConfig, mOp, opLtx.getChanges(), opRestoredHotArchiveKeys,
+                mConfig, mOp, opLtx.getChanges(), /*hotArchiveRestores*/ {},
                 opRestoredLiveBucketListKeys, mProtocolVersion, ledgerSeq);
         },
         mMeta);
