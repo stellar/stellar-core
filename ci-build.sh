@@ -77,12 +77,14 @@ hash -r
 
 if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
-    which clang-12
-    ln -s `which clang-12` bin/clang
-    which clang++-12
-    ln -s `which clang++-12` bin/clang++
-    which llvm-symbolizer-12
-    ln -s `which llvm-symbolizer-12` bin/llvm-symbolizer
+    # Use CLANG_VERSION environment variable if set, otherwise default to 12
+    CLANG_VER=${CLANG_VERSION:-12}
+    which clang-${CLANG_VER}
+    ln -s `which clang-${CLANG_VER}` bin/clang
+    which clang++-${CLANG_VER}
+    ln -s `which clang++-${CLANG_VER}` bin/clang++
+    which llvm-symbolizer-${CLANG_VER}
+    ln -s `which llvm-symbolizer-${CLANG_VER}` bin/llvm-symbolizer
     clang -v
     llvm-symbolizer --version || true
 elif test $CXX = 'g++'; then
@@ -97,7 +99,7 @@ fi
 
 config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
 export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
-export CXXFLAGS="-w $CFLAGS"
+export CXXFLAGS="$CFLAGS"
 
 # quarantine_size_mb / malloc_context_size : reduce memory usage to avoid
 # crashing in tests that churn a lot of memory
@@ -130,13 +132,15 @@ ccache -s
 date
 time ./autogen.sh
 time ./configure $config_flags
-make format
-d=`git diff | wc -l`
-if [ $d -ne 0 ]
-then
-    echo "clang format must be run as part of the pull request, current diff:"
-    git diff
-    exit 1
+if [ -z "${SKIP_FORMAT_CHECK}" ]; then
+    make format
+    d=`git diff | wc -l`
+    if [ $d -ne 0 ]
+    then
+        echo "clang format must be run as part of the pull request, current diff:"
+        git diff
+        exit 1
+    fi
 fi
 
 crlf=$(find . ! \( -type d -o -path './.git/*' -o -path './Builds/*' -o -path './lib/*' \) -print0 | xargs -0 -n1 -P9 file "{}" | grep CRLF || true)
