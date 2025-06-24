@@ -133,13 +133,13 @@ class FlowControl
 
 #ifdef BUILD_TESTS
     FlowControlCapacity&
-    getCapacity()
+    getCapacity() NO_THREAD_SAFETY_ANALYSIS
     {
         return mFlowControlCapacity;
     }
 
     FlowControlCapacity&
-    getCapacityBytes()
+    getCapacityBytes() NO_THREAD_SAFETY_ANALYSIS
     {
         return mFlowControlBytesCapacity;
     }
@@ -152,7 +152,7 @@ class FlowControl
     }
 
     FloodQueues<QueuedOutboundMessage>&
-    getQueuesForTesting()
+    getQueuesForTesting() NO_THREAD_SAFETY_ANALYSIS
     {
         return mOutboundQueues;
     }

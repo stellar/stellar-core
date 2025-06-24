@@ -147,12 +147,12 @@ BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
     SharedLockShared guard(mSnapshotMutex);
     if (needsUpdate(liveSnapshot, mCurrLiveSnapshot))
     {
-        liveSnapshot = copySearchableLiveBucketListSnapshot();
+        liveSnapshot = copySearchableLiveBucketListSnapshot(guard);
     }
 
     if (needsUpdate(hotArchiveSnapshot, mCurrHotArchiveSnapshot))
     {
-        hotArchiveSnapshot = copySearchableHotArchiveBucketListSnapshot();
+        hotArchiveSnapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
 }
 
