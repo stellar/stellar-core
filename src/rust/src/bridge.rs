@@ -269,6 +269,8 @@ pub(crate) mod rust_bridge {
 
         fn i128_from_i64(val: i64) -> Result<CxxI128>;
 
+        fn i128_is_negative(val: &CxxI128) -> Result<bool>;
+
         type SorobanModuleCache;
 
         fn new_module_cache() -> Result<Box<SorobanModuleCache>>;

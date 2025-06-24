@@ -440,6 +440,11 @@ aggregateEventDiffs(Hash const& networkID,
 
             auto amount = getAmountFromData(event.body.v0().data);
 
+            if (rust_bridge::i128_is_negative(amount))
+            {
+                return std::nullopt;
+            }
+
             // If the events are sane, we should never overflow.
             if (!res.subtractAssetBalance(fromVal.address(), asset, amount))
             {
@@ -461,6 +466,12 @@ aggregateEventDiffs(Hash const& networkID,
             auto const& toVal = topics.at(1);
 
             auto amount = getAmountFromData(event.body.v0().data);
+
+            if (rust_bridge::i128_is_negative(amount))
+            {
+                return std::nullopt;
+            }
+
             if (!res.addAssetBalance(toVal.address(), asset, amount))
             {
                 return std::nullopt;
@@ -477,6 +488,12 @@ aggregateEventDiffs(Hash const& networkID,
             auto const& fromVal = topics.at(1);
 
             auto amount = getAmountFromData(event.body.v0().data);
+
+            if (rust_bridge::i128_is_negative(amount))
+            {
+                return std::nullopt;
+            }
+
             if (!res.subtractAssetBalance(fromVal.address(), asset, amount))
             {
                 return std::nullopt;

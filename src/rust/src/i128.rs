@@ -59,3 +59,9 @@ pub(crate) fn i128_from_i64(val: i64) -> Result<CxxI128, Box<dyn std::error::Err
         lo: i128_lo(res),
     })
 }
+
+pub(crate) fn i128_is_negative(val: &CxxI128) -> Result<bool, Box<dyn std::error::Error>> {
+    use xdr::int128_helpers::i128_from_pieces;
+    let res: i128 = i128_from_pieces(val.hi, val.lo);
+    Ok(res.is_negative())
+}
