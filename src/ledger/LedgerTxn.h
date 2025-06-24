@@ -522,7 +522,9 @@ class AbstractLedgerTxnParent
     virtual SessionWrapper& getSession() const = 0;
 
     // Returns map of TTL and corresponding contract/data keys that have been
-    // restored from the Hot Archive/Live Bucket List.
+    // restored from the Hot Archive/Live Bucket List. Note that this returns
+    // all keys that have been restored this ledger, including those that have
+    // been restored via earlier LedgerTxns commited to the same parent.
     virtual UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const = 0;
     virtual UnorderedMap<LedgerKey, LedgerEntry>
