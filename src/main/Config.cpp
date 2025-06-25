@@ -1653,6 +1653,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_MAX_TX_COUNT",
                  [&]() { APPLY_LOAD_MAX_TX_COUNT = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS =
+                         readInt<uint32_t>(item);
+                 }},
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
