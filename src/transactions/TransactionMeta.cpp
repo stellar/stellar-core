@@ -198,6 +198,26 @@ processOpLedgerEntryChanges(
                 }
             }
         }
+        else if (change.type() == LEDGER_ENTRY_REMOVED)
+        {
+            if (auto key = change.removed();
+                key.type() == TTL || isPersistentEntry(key))
+            {
+                // Entry was restored from the live BucketList then deleted.
+                // META for this case will be LEDGER_ENTRY_STATE,
+                // LEDGER_ENTRY_REMOVED. We want to keep the
+                // LEDGER_ENTRY_REMOVED, but convert the STATE to a RESTORED.
+                auto liveRestoreIter = liveRestores.find(key);
+                if (liveRestoreIter != liveRestores.end())
+                {
+                    stateChangesToConvert.insert(key);
+                }
+
+                // Note: We don't have to do anything special here for Hot
+                // Archive restores. Those will generate a CREATE change type
+                // handled above.
+            }
+        }
     }
 
     // First remove and convert STATE changes
@@ -282,13 +302,52 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
     {
         return;
     }
+
+    // This is in the non-parallel apply path and should only be called on
+    // Soroban TXs before p23.
+    auto opType = mOp.getOperation().body.type();
+    if (opType == OperationType::RESTORE_FOOTPRINT ||
+        opType == OperationType::INVOKE_HOST_FUNCTION ||
+        opType == OperationType::EXTEND_FOOTPRINT_TTL)
+    {
+        releaseAssertOrThrow(protocolVersionIsBefore(
+            opLtx.getHeader().ledgerVersion, ProtocolVersion::V_23));
+    }
+
+    // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys return all
+    // entries that have been restored this ledger, not just by this op.
+    // However, processOpLedgerEntryChanges expects just the map of restores for
+    // this op. This function only gets called for <p23, so we only have to
+    // worry about the restore op. We look at the TTLs that have been modified
+    // by this op (i.e. restored TTLs) and use that to create an op-specific
+    // subset of the restored key maps.
+    UnorderedMap<LedgerKey, LedgerEntry> opRestoredLiveBucketListKeys{};
+    auto allRestoredLiveBucketListKeys = opLtx.getRestoredLiveBucketListKeys();
+    auto opModifiedTTLKeys = opLtx.getAllTTLKeysWithoutSealing();
+    if (mOp.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT)
+    {
+        for (auto const& [key, entry] : allRestoredLiveBucketListKeys)
+        {
+            if (isSorobanEntry(key))
+            {
+                auto ttlKey = getTTLKey(key);
+                if (opModifiedTTLKeys.find(ttlKey) != opModifiedTTLKeys.end())
+                {
+                    opRestoredLiveBucketListKeys[key] = entry;
+                    opRestoredLiveBucketListKeys[ttlKey] =
+                        allRestoredLiveBucketListKeys.at(ttlKey);
+                }
+            }
+        }
+    }
+
+    // Note: Hot Archive restore map is always empty since this is never called
+    // in p23.
     std::visit(
-        [&opLtx, ledgerSeq, this](auto&& meta) {
+        [&opLtx, &opRestoredLiveBucketListKeys, ledgerSeq, this](auto&& meta) {
             meta.get().changes = processOpLedgerEntryChanges(
-                mConfig, mOp, opLtx.getChanges(),
-                opLtx.getRestoredHotArchiveKeys(),
-                opLtx.getRestoredLiveBucketListKeys(), mProtocolVersion,
-                ledgerSeq);
+                mConfig, mOp, opLtx.getChanges(), /*hotArchiveRestores*/ {},
+                opRestoredLiveBucketListKeys, mProtocolVersion, ledgerSeq);
         },
         mMeta);
 }
