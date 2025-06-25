@@ -1222,7 +1222,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     }
     if (needUpgradeToVersion(ProtocolVersion::V_23, prevVersion, newVersion))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV23(ltx, app);
+        SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
     }
 }
 

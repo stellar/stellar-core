@@ -82,7 +82,26 @@ metricsEvent(bool success, std::string&& topic, uint64_t value)
     de.event.body.v0().data = makeU64SCVal(value);
     return de;
 }
+
+void
+maybePopulateOutputDiagnosticEvents(Config const& cfg,
+                                    InvokeHostFunctionOutput const& output,
+                                    DiagnosticEventManager& buffer)
+{
+    if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+    {
+        return;
+    }
+    for (auto const& e : output.diagnostic_events)
+    {
+        DiagnosticEvent evt;
+        xdr::xdr_from_opaque(e.data, evt);
+        buffer.pushEvent(std::move(evt));
+    }
+}
+
 } // namespace
+
 // Metrics for host function execution
 struct HostFunctionMetrics
 {
@@ -513,11 +532,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             mMetrics.mCpuInsnExclVm = out.cpu_insns_excluding_vm_instantiation;
             mMetrics.mInvokeTimeNsecsExclVm =
                 out.time_nsecs_excluding_vm_instantiation;
-            if (!out.success)
-            {
-                mOpFrame.maybePopulateDiagnosticEvents(
-                    mAppConfig, out, mMetrics, mDiagnosticEvents);
-            }
+            maybePopulateOutputDiagnosticEvents(mAppConfig, out,
+                                                mDiagnosticEvents);
         }
         catch (std::exception& e)
         {
@@ -685,9 +701,6 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             success.events.emplace_back(evt);
         }
 
-        mOpFrame.maybePopulateDiagnosticEvents(mAppConfig, out, mMetrics,
-                                               mDiagnosticEvents);
-
         mMetrics.mEmitEventByte +=
             static_cast<uint32>(out.result_value.data.size());
         if (mSorobanConfig.txMaxContractEventsSizeBytes() <
@@ -733,11 +746,62 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         mMetrics.mSuccess = true;
     }
 
-  public:
-    bool
-    apply()
+    void
+    maybePopulateMetricsInDiagnosticEvents(Config const& cfg,
+                                           DiagnosticEventManager& buffer)
     {
-        ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
+        if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+        {
+            return;
+        }
+
+        // add additional diagnostic events for metrics
+        buffer.pushEvent(
+            metricsEvent(mMetrics.mSuccess, "read_entry", mMetrics.mReadEntry));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "write_entry",
+                                      mMetrics.mWriteEntry));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "ledger_read_byte",
+                                      mMetrics.mLedgerReadByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "ledger_write_byte",
+                                      mMetrics.mLedgerWriteByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "read_key_byte",
+                                      mMetrics.mReadKeyByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "write_key_byte",
+                                      mMetrics.mWriteKeyByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "read_data_byte",
+                                      mMetrics.mReadDataByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "write_data_byte",
+                                      mMetrics.mWriteDataByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "read_code_byte",
+                                      mMetrics.mReadCodeByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "write_code_byte",
+                                      mMetrics.mWriteCodeByte));
+        buffer.pushEvent(
+            metricsEvent(mMetrics.mSuccess, "emit_event", mMetrics.mEmitEvent));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "emit_event_byte",
+                                      mMetrics.mEmitEventByte));
+        buffer.pushEvent(
+            metricsEvent(mMetrics.mSuccess, "cpu_insn", mMetrics.mCpuInsn));
+        buffer.pushEvent(
+            metricsEvent(mMetrics.mSuccess, "mem_byte", mMetrics.mMemByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "invoke_time_nsecs",
+                                      mMetrics.mInvokeTimeNsecs));
+        // skip publishing `cpu_insn_excl_vm` and `invoke_time_nsecs_excl_vm`,
+        // we are mostly interested in those internally
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "max_rw_key_byte",
+                                      mMetrics.mMaxReadWriteKeyByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "max_rw_data_byte",
+                                      mMetrics.mMaxReadWriteDataByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "max_rw_code_byte",
+                                      mMetrics.mMaxReadWriteCodeByte));
+        buffer.pushEvent(metricsEvent(mMetrics.mSuccess, "max_emit_event_byte",
+                                      mMetrics.mMaxEmitEventByte));
+    }
+
+    bool
+    doApply()
+    {
+        ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame doApply", true);
         auto timeScope = mMetrics.getExecTimer();
 
         if (!addFootprint())
@@ -770,6 +834,19 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         finalizeSuccess(out, success);
 
         return true;
+    }
+
+  public:
+    bool
+    apply()
+    {
+        bool success = doApply();
+        // Log the diagnostic events, but not the metrics, as these seem too
+        // spammy even for debugging.
+        mOpMeta.getDiagnosticEventManager().debugLogEvents();
+        maybePopulateMetricsInDiagnosticEvents(
+            mAppConfig, mOpMeta.getDiagnosticEventManager());
+        return success;
     }
 };
 
@@ -1056,68 +1133,8 @@ InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(
 bool
 InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 20;
-}
-
-void
-InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
-    Config const& cfg, InvokeHostFunctionOutput const& output,
-    HostFunctionMetrics const& metrics, DiagnosticEventManager& buffer) const
-{
-    if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        return;
-    }
-
-    for (auto const& e : output.diagnostic_events)
-    {
-        DiagnosticEvent evt;
-        xdr::xdr_from_opaque(e.data, evt);
-        buffer.pushEvent(std::move(evt));
-        CLOG_DEBUG(Tx, "Soroban diagnostic event: {}", xdr::xdr_to_string(evt));
-    }
-
-    // add additional diagnostic events for metrics
-    buffer.pushEvent(
-        metricsEvent(metrics.mSuccess, "read_entry", metrics.mReadEntry));
-    buffer.pushEvent(
-        metricsEvent(metrics.mSuccess, "write_entry", metrics.mWriteEntry));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "ledger_read_byte",
-                                  metrics.mLedgerReadByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "ledger_write_byte",
-                                  metrics.mLedgerWriteByte));
-    buffer.pushEvent(
-        metricsEvent(metrics.mSuccess, "read_key_byte", metrics.mReadKeyByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "write_key_byte",
-                                  metrics.mWriteKeyByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "read_data_byte",
-                                  metrics.mReadDataByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "write_data_byte",
-                                  metrics.mWriteDataByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "read_code_byte",
-                                  metrics.mReadCodeByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "write_code_byte",
-                                  metrics.mWriteCodeByte));
-    buffer.pushEvent(
-        metricsEvent(metrics.mSuccess, "emit_event", metrics.mEmitEvent));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "emit_event_byte",
-                                  metrics.mEmitEventByte));
-    buffer.pushEvent(
-        metricsEvent(metrics.mSuccess, "cpu_insn", metrics.mCpuInsn));
-    buffer.pushEvent(
-        metricsEvent(metrics.mSuccess, "mem_byte", metrics.mMemByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "invoke_time_nsecs",
-                                  metrics.mInvokeTimeNsecs));
-    // skip publishing `cpu_insn_excl_vm` and `invoke_time_nsecs_excl_vm`,
-    // we are mostly interested in those internally
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_rw_key_byte",
-                                  metrics.mMaxReadWriteKeyByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_rw_data_byte",
-                                  metrics.mMaxReadWriteDataByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_rw_code_byte",
-                                  metrics.mMaxReadWriteCodeByte));
-    buffer.pushEvent(metricsEvent(metrics.mSuccess, "max_emit_event_byte",
-                                  metrics.mMaxEmitEventByte));
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     SOROBAN_PROTOCOL_VERSION);
 }
 
 bool

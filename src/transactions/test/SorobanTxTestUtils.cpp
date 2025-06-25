@@ -1167,18 +1167,15 @@ SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
                         toCxxBuf(getNetworkCfg().memCostParams()));
             }
         }
-
-        rustEntryRentChanges.emplace_back();
-        auto& rustChange = rustEntryRentChanges.back();
-        rustChange.is_persistent = !isTemporaryEntry(key);
-
-        rustChange.old_size_bytes = entrySizeForRent;
-        rustChange.new_size_bytes = rustChange.old_size_bytes;
         auto ttlLtxe = ltx.loadWithoutRecord(getTTLKey(key));
         REQUIRE(ttlLtxe);
-        rustChange.old_live_until_ledger =
-            ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
-        rustChange.new_live_until_ledger = getLCLSeq() + 1 + newLifetime;
+        rustEntryRentChanges.emplace_back(
+            createEntryRentChangeWithoutModification(
+                entry, entrySize,
+                /*entryLiveUntilLedger=*/
+                ttlLtxe.current().data.ttl().liveUntilLedgerSeq,
+                /*newLiveUntilLedger=*/getLCLSeq() + 1 + newLifetime,
+                getLedgerVersion(), getApp().getConfig(), getNetworkCfg()));
     }
     return rust_bridge::compute_rent_fee(
         getApp().getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
@@ -1751,15 +1748,16 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
     }
     else
     {
+        auto const& contractEvents =
+            invocation.getTxMeta().getSorobanContractEvents();
+        REQUIRE(contractEvents.size() == 0);
         if (mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
         {
             // Check for a contract error in the second event (the first should
             // be an `fn_call` event)
-            auto const& contractEvents =
-                invocation.getTxMeta().getSorobanContractEvents();
+
             auto const& diagnosticEvents =
                 invocation.getTxMeta().getDiagnosticEvents();
-            REQUIRE(contractEvents.size() == 0);
             REQUIRE(diagnosticEvents.size() > 1);
 
             auto const& contract_ev = diagnosticEvents.at(1);

@@ -73,7 +73,7 @@ RefundableFeeTracker::consumeRefundableSorobanResources(
             "refundable resource fee was not sufficient to cover the events "
             "fee after paying for ledger storage rent: {} > {}",
             {makeU64SCVal(consumedFee.refundable_fee),
-             makeU64SCVal(mMaximumRefundableFee)});
+             makeU64SCVal(mMaximumRefundableFee - mConsumedRentFee)});
         return false;
     }
     return true;

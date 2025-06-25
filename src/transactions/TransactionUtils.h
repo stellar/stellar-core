@@ -363,4 +363,16 @@ toCxxBuf(T const& t)
     return CxxBuf{
         std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(t))};
 }
+
+// Creates a ledger entry change for the rent computation via Rust bridge.
+// This only allows creating rent changes that don't involve the entry
+// modification (as entries with TTL currently only may be modified by the
+// Soroban host). When `entryLiveUntilLedger` is `nullopt`, this creates a rent
+// change corresponding to the entry restoration (or creation). Otherwise,
+// creates a rent change for TTL extension.
+CxxLedgerEntryRentChange createEntryRentChangeWithoutModification(
+    LedgerEntry const& entry, uint32_t entrySize,
+    std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
+    uint32_t ledgerVersion, Config const& config,
+    SorobanNetworkConfig const& sorobanConfig);
 }

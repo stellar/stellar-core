@@ -6,27 +6,27 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "b42d6d10b74ebdbcc2a2baf5b2fff0368b9dcf0fd7f7f48a17fcef50564cacd1",
+                "hash": "870b91b9c298d07266a93fa1d200fc0e10c223284ca6d262f0c39ce860a64da5",
                 "header": {
                     "ledgerVersion": 24,
-                    "previousLedgerHash": "06d58b2fa0b366921ba6597930f84d36af2af2a0d49b66815e78db57c646b3d1",
+                    "previousLedgerHash": "9261ca654abf269146d71f90bc47c1cf129a1c257a9d35f1f7f95a0ec4532d23",
                     "scpValue": {
-                        "txSetHash": "b86814b4ffd2c8724d506b1f73f29a9b606aed98f3b6870c0fe46a9ba57bddf1",
+                        "txSetHash": "b2f4ad2b592ec5df548878086261b0cc4a5a80e96263866fe2ebfb3a06e614bd",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "a68643055b9c8bef0d34eb3d5987190c67dc8d1c84b3d6c33c641fd2ef3be0bed9eaec99fb9df07816e0ef234a5da791723d437010e84c15a99793d539e6d50c"
+                                "signature": "5b5159f7159494f8ee0e70fb3f275c11cb7048336a795e65f33971986c64a9894eb6d3637e346fd27e824890301881981b526fd53e17ea93bfae963442120603"
                             }
                         }
                     },
-                    "txSetResultHash": "b3accac4a9a860ff40122006369f025ce89b48b5ff5a4521853a611b55491130",
-                    "bucketListHash": "0e76a27430f604d03b5c9d89f77474601a09256a2eb977eba355ae9b2d65f302",
+                    "txSetResultHash": "ba38143542aa1c03f682000c411c84b631e1e88143be11361a1876cf638566b0",
+                    "bucketListHash": "5d336b1ac368bd6d94712849443284a699ec3d24215bc1e004ded1ccd040b28b",
                     "ledgerSeq": 31,
                     "totalCoins": 1000000000000000000,
-                    "feePool": 1109457,
+                    "feePool": 9157435,
                     "inflationSeq": 0,
                     "idPool": 0,
                     "baseFee": 100,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "06d58b2fa0b366921ba6597930f84d36af2af2a0d49b66815e78db57c646b3d1",
+                    "previousLedgerHash": "9261ca654abf269146d71f90bc47c1cf129a1c257a9d35f1f7f95a0ec4532d23",
                     "phases": [
                         {
                             "v": 0,
@@ -507,7 +507,7 @@
                     "result": {
                         "transactionHash": "d9d747111c25cd7e829c819f13fbfe771849c9a994dcc2dc554ac20841322f01",
                         "result": {
-                            "feeCharged": 94334,
+                            "feeCharged": 94335,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
@@ -791,7 +791,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GDWWCIR2FIWTY2D3CEDXZYRTRNTFZCC5PBCGC6XPMKCLUV7BRG2AT3RD",
-                                        "balance": 399905666,
+                                        "balance": 399905665,
                                         "seqNum": 55834574849,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
@@ -842,7 +842,7 @@
                     "result": {
                         "transactionHash": "89c02a589a36decde3f1e6f9aa8b629fc012daa68eefc76b3763bcc1fdb2609d",
                         "result": {
-                            "feeCharged": 54106,
+                            "feeCharged": 54107,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
@@ -1123,7 +1123,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                        "balance": 399945894,
+                                        "balance": 399945893,
                                         "seqNum": 47244640257,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
@@ -1174,7 +1174,7 @@
                     "result": {
                         "transactionHash": "47fd1151d61624bbce0b9a9f7883c60ccd70bcdf6f6c640a53e13e3fa856609f",
                         "result": {
-                            "feeCharged": 50800,
+                            "feeCharged": 51268,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
@@ -1476,7 +1476,7 @@
                                     "type": "ACCOUNT",
                                     "account": {
                                         "accountID": "GCAEBM3GKNR6SV6N73FSGBXU6NSMZ2URQVMJQHXFQFY2PJPX6YBCSAKZ",
-                                        "balance": 399949200,
+                                        "balance": 399948732,
                                         "seqNum": 51539607553,
                                         "numSubEntries": 0,
                                         "inflationDest": null,

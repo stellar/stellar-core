@@ -1761,7 +1761,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 
-    uint32_t const rentFee = 20'168;
+    uint32_t const rentFee = 20'368;
     resourceFee += rentFee;
     resources.footprint.readWrite.pop_back();
     auto addSorobanTx = [&](uint32_t inclusionFee) {

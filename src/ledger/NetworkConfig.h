@@ -155,6 +155,21 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t FEE_LEDGER_WRITE_1KB = 3'500;
 };
 
+// The setting values that have to be updated during the protocol 23 upgrade.
+// These values are calibrated for the pubnet, but they are also suitable for
+// the smaller test networks, so we don't provide a way to override these on
+// any network.
+struct Protcol23UpgradedConfig
+{
+
+    static constexpr int64_t SOROBAN_STATE_TARGET_SIZE_BYTES =
+        3'000'000'000LL; // 3 GB
+    static constexpr int64_t RENT_FEE_1KB_SOROBAN_STATE_SIZE_LOW = -17'000;
+    static constexpr int64_t RENT_FEE_1KB_SOROBAN_STATE_SIZE_HIGH = 10'000;
+    static constexpr int64_t PERSISTENT_RENT_RATE_DENOMINATOR = 1'215;
+    static constexpr int64_t TEMP_RENT_RATE_DENOMINATOR = 2'430;
+};
+
 // Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for
 // testing, enabled by `Config::TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE`.
 struct TestOverrideSorobanNetworkConfig
@@ -236,8 +251,12 @@ class SorobanNetworkConfig
     // upgrade.
     static void createCostTypesForV22(AbstractLedgerTxn& ltx, Application& app);
 
-    static void createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
-                                          Application& app);
+    // Creates the new ledger entries introduced in v23 and updates the existing
+    // entries.
+    // This should happen once during the correspondent protocol version
+    // upgrade.
+    static void createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
+                                                   Application& app);
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)

@@ -30,11 +30,6 @@ class InvokeHostFunctionOpFrame : public OperationFrame
         return res.tr().invokeHostFunctionResult();
     }
 
-    void maybePopulateDiagnosticEvents(Config const& cfg,
-                                       InvokeHostFunctionOutput const& output,
-                                       HostFunctionMetrics const& metrics,
-                                       DiagnosticEventManager& buffer) const;
-
     InvokeHostFunctionOp const& mInvokeHostFunction;
 
   public:

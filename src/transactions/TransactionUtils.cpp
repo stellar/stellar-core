@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/TrustLineWrapper.h"
 #include "rust/RustBridge.h"
 #include "transactions/MutableTransactionResult.h"
@@ -2199,5 +2200,44 @@ makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
             accountID, offerID, wheat, numWheatReceived, sheep, numSheepSend);
     }
     return atom;
+}
+
+CxxLedgerEntryRentChange
+createEntryRentChangeWithoutModification(
+    LedgerEntry const& entry, uint32_t entrySize,
+    std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
+    uint32_t ledgerVersion, Config const& config,
+    SorobanNetworkConfig const& sorobanConfig)
+{
+    CxxLedgerEntryRentChange rustChange;
+    bool isCodeEntry = isContractCodeEntry(entry.data);
+    rustChange.is_persistent = !isTemporaryEntry(entry.data);
+    rustChange.is_code_entry = isCodeEntry;
+    uint32_t entrySizeForRent = entrySize;
+
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+        isCodeEntry)
+    {
+        entrySizeForRent += rust_bridge::contract_code_memory_size_for_rent(
+            config.CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+            toCxxBuf(entry.data.contractCode()),
+            toCxxBuf(sorobanConfig.cpuCostParams()),
+            toCxxBuf(sorobanConfig.memCostParams()));
+    }
+    if (entryLiveUntilLedger)
+    {
+        rustChange.old_size_bytes = entrySizeForRent;
+        rustChange.old_live_until_ledger = *entryLiveUntilLedger;
+    }
+    else
+    {
+        rustChange.old_size_bytes = 0;
+        rustChange.old_live_until_ledger = 0;
+    }
+
+    rustChange.new_size_bytes = entrySizeForRent;
+    rustChange.new_live_until_ledger = newLiveUntilLedger;
+
+    return rustChange;
 }
 } // namespace stellar
