@@ -1912,6 +1912,8 @@ TransactionFrame::parallelApply(
         return {false, {}};
     }
 
+    auto& internalErrorCounter = app.getMetrics().NewCounter(
+        {"ledger", "transaction", "internal-error"});
     bool reportInternalErrOnException = true;
     try
     {
@@ -1990,6 +1992,13 @@ TransactionFrame::parallelApply(
 
     // This is only reachable if an exception is thrown
     txResult.setInnermostError(txINTERNAL_ERROR);
+
+    // We only increase the internal-error metric count if the
+    // ledger is a newer version.
+    if (reportInternalErrOnException)
+    {
+        internalErrorCounter.inc();
+    }
     return {false, {}};
 }
 

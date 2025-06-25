@@ -64,24 +64,17 @@ reconcileEvents(AccountID const& txSourceAccount, Operation const& operation,
                         : txSourceAccount;
 
     Asset native(ASSET_TYPE_NATIVE);
-    if (operation.body.type() == ACCOUNT_MERGE ||
-        operation.body.type() == PAYMENT)
-    {
 
+    if (deltaBalances > 0)
+    {
         opEventManager.newMintEvent(native, makeAccountAddress(opSource),
                                     deltaBalances, false,
                                     true /*Insert mint at the beginning*/);
     }
-    else if (operation.body.type() == PATH_PAYMENT_STRICT_RECEIVE)
+    else
     {
         opEventManager.newBurnEvent(native, makeAccountAddress(opSource),
                                     std::abs(deltaBalances));
-    }
-    else
-    {
-        CLOG_ERROR(
-            Tx, "LumenEventReconciler: Unknown mint or burn. OperationType={}",
-            operation.body.type());
     }
 }
 }
