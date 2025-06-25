@@ -31,6 +31,9 @@
 
 namespace stellar
 {
+
+template <typename T> inline void xdr_validate_enum(T);
+
 static void
 printCurrentException()
 {
