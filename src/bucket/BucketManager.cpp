@@ -96,18 +96,15 @@ BucketManager::initialize()
     mLockedBucketDir = std::make_unique<std::string>(d);
     mTmpDirManager = std::make_unique<TmpDirManager>(d + "/tmp");
 
-    if (mConfig.MODE_ENABLES_BUCKETLIST)
-    {
-        mLiveBucketList = std::make_unique<LiveBucketList>();
-        mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
-        mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-            mApp,
-            std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
-                                                             LedgerHeader()),
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                *mHotArchiveBucketList, LedgerHeader()),
-            mConfig.QUERY_SNAPSHOT_LEDGERS);
-    }
+    mLiveBucketList = std::make_unique<LiveBucketList>();
+    mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
+    mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+        mApp,
+        std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
+                                                         LedgerHeader()),
+        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+            *mHotArchiveBucketList, LedgerHeader()),
+        mConfig.QUERY_SNAPSHOT_LEDGERS);
 
     // Create persistent publish directories
     // Note: HISTORY_FILE_TYPE_BUCKET is already tracked by BucketList in
@@ -306,14 +303,12 @@ BucketManager::deleteTmpDirAndUnlockBucketDir()
 LiveBucketList&
 BucketManager::getLiveBucketList()
 {
-    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     return *mLiveBucketList;
 }
 
 HotArchiveBucketList&
 BucketManager::getHotArchiveBucketList()
 {
-    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     return *mHotArchiveBucketList;
 }
 
@@ -437,7 +432,6 @@ BucketManager::adoptFileAsBucketInternal(
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
 
     if (mergeKey)
@@ -529,7 +523,6 @@ BucketManager::noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
                                             FutureMapT<BucketT>& futureMap)
 {
     BUCKET_TYPE_ASSERT(BucketT);
-    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
     // We _do_ want to remove the mergeKey from mLiveFutures, both so that that
     // map does not grow without bound and more importantly so that we drop the
@@ -715,7 +708,6 @@ BucketManager::putMergeFutureInternal(
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(
         Bucket,
@@ -739,10 +731,6 @@ BucketManager::getBucketListReferencedBuckets() const
 {
     ZoneScoped;
     std::set<Hash> referenced;
-    if (!mConfig.MODE_ENABLES_BUCKETLIST)
-    {
-        return referenced;
-    }
 
     auto processBucketList = [&](auto const& bl, uint32_t levels) {
         // retain current bucket list
@@ -784,10 +772,6 @@ BucketManager::getAllReferencedBuckets(HistoryArchiveState const& has) const
 {
     ZoneScoped;
     auto referenced = getBucketListReferencedBuckets();
-    if (!mConfig.MODE_ENABLES_BUCKETLIST)
-    {
-        return referenced;
-    }
 
     // retain any bucket referenced by the last closed ledger as recorded in the
     // database (as merges complete, the bucket list drifts from that state)
@@ -973,7 +957,6 @@ BucketManager::addLiveBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
-    releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -996,7 +979,6 @@ BucketManager::addHotArchiveBatch(
     std::vector<LedgerKey> const& restoredEntries)
 {
     ZoneScoped;
-    releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
     releaseAssertOrThrow(protocolVersionStartsFrom(
         header.ledgerVersion,
         HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
@@ -1052,22 +1034,18 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
 {
     ZoneScoped;
     Hash hash;
-    if (mConfig.MODE_ENABLES_BUCKETLIST)
+    if (protocolVersionStartsFrom(
+            currentHeader.ledgerVersion,
+            HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
-        if (protocolVersionStartsFrom(
-                currentHeader.ledgerVersion,
-                HotArchiveBucket::
-                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-        {
-            SHA256 hsh;
-            hsh.add(mLiveBucketList->getHash());
-            hsh.add(mHotArchiveBucketList->getHash());
-            hash = hsh.finish();
-        }
-        else
-        {
-            hash = mLiveBucketList->getHash();
-        }
+        SHA256 hsh;
+        hsh.add(mLiveBucketList->getHash());
+        hsh.add(mHotArchiveBucketList->getHash());
+        hash = hsh.finish();
+    }
+    else
+    {
+        hash = mLiveBucketList->getHash();
     }
 
     currentHeader.bucketListHash = hash;
@@ -1264,7 +1242,6 @@ BucketManager::assumeState(HistoryArchiveState const& has,
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
     auto processBucketList = [this](auto& bl, auto const& hasBuckets) {
         auto kNumLevels = std::remove_reference<decltype(bl)>::type::kNumLevels;

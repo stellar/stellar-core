@@ -465,10 +465,6 @@ class Config : public std::enable_shared_from_this<Config>
     // builds)
     uint32_t SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
 
-    // A config parameter that allows a node to generate buckets. This should
-    // be set to `false` only for testing purposes.
-    bool MODE_ENABLES_BUCKETLIST;
-
     // A config parameter that can be set to true (in a captive-core
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;

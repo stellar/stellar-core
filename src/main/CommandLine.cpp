@@ -1531,7 +1531,6 @@ run(CommandLineArgs const& args)
                 {
                     cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.MODE_STORES_HISTORY_MISC = false;
-                    cfg.MODE_ENABLES_BUCKETLIST = false;
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
