@@ -972,49 +972,6 @@ LedgerTxn::Impl::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
 }
 
 LedgerTxnEntry
-LedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
-{
-    return getImpl()->restoreFromHotArchive(*this, entry, ttl);
-}
-
-LedgerTxnEntry
-LedgerTxn::Impl::restoreFromHotArchive(LedgerTxn& self,
-                                       LedgerEntry const& entry, uint32_t ttl)
-{
-    throwIfSealed();
-    throwIfChild();
-
-    if (!isPersistentEntry(entry.data))
-    {
-        throw std::runtime_error("Key type not supported in Hot Archive");
-    }
-    auto ttlKey = getTTLKey(entry);
-
-    // Restore entry by creating it on the live BucketList
-    create(self, entry);
-
-    // Also create the corresponding TTL entry
-    LedgerEntry ttlEntry;
-    ttlEntry.data.type(TTL);
-    ttlEntry.data.ttl().liveUntilLedgerSeq = ttl;
-    ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
-    auto ttlLtxe = create(self, ttlEntry);
-
-    // Mark the keys as restored
-    auto addEntry = [this](LedgerEntry const& entry, LedgerKey const& key) {
-        auto [_, inserted] = mRestoredEntries.hotArchive.emplace(key, entry);
-        if (!inserted)
-        {
-            throw std::runtime_error("Key already removed from hot archive");
-        }
-    };
-    addEntry(entry, LedgerEntryKey(entry));
-    addEntry(ttlLtxe.current(), ttlKey);
-
-    return ttlLtxe;
-}
-
-LedgerTxnEntry
 LedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry, uint32_t ttl)
 {
     return getImpl()->restoreFromLiveBucketList(*this, entry, ttl);
