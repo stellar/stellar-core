@@ -630,6 +630,22 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             }
         }
     }
+
+    // We don't need to add the live bucket list restoration keys
+    // because they're only needed for meta generation, which has already
+    // happened.
+    for (auto const& kvp : mGlobalRestoredEntries.hotArchive)
+    {
+        // We will search for the ttl key in the hot archive when the entry
+        // is seen
+        if (kvp.first.type() != TTL)
+        {
+            auto it =
+                mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
+            releaseAssert(it != mGlobalRestoredEntries.hotArchive.end());
+            ltxInner.addRestoredFromHotArchive(kvp.second, it->second);
+        }
+    }
     ltxInner.commit();
 }
 

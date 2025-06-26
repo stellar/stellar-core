@@ -1923,37 +1923,9 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 }
 
 void
-LedgerManagerImpl::addAllRestoredEntriesToLedgerTxn(
-    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
-        threadStates,
-    AbstractLedgerTxn& ltx)
-{
-    LedgerTxn ltxInner(ltx);
-    for (auto const& threadState : threadStates)
-    {
-        // We don't need to add the live bucket list restoration keys
-        // because they're only needed for meta generation, which has already
-        // happened.
-        auto const& restoredEntries = threadState->getRestoredEntries();
-        for (auto const& kvp : restoredEntries.hotArchive)
-        {
-            // We will search for the ttl key in the hot archive when the entry
-            // is seen
-            if (kvp.first.type() != TTL)
-            {
-                auto it = restoredEntries.hotArchive.find(getTTLKey(kvp.first));
-                releaseAssert(it != restoredEntries.hotArchive.end());
-                ltxInner.addRestoredFromHotArchive(kvp.second, it->second);
-            }
-        }
-    }
-    ltxInner.commit();
-}
-
-void
 LedgerManagerImpl::checkAllTxBundleInvariants(
     AppConnector& app, ApplyStage const& stage, Config const& config,
-    ParallelLedgerInfo const& ledgerInfo, AbstractLedgerTxn& ltx)
+    ParallelLedgerInfo const& ledgerInfo, LedgerHeader const& header)
 {
     for (auto const& txBundle : stage)
     {
@@ -1965,8 +1937,7 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
                 // Soroban transactions don't have access to the ledger
                 // header, so they can't modify it. Pass in the current
                 // header as both current and previous.
-                txBundle.getEffects().setDeltaHeader(
-                    ltx.loadHeader().current());
+                txBundle.getEffects().setDeltaHeader(header);
 
                 app.checkOnOperationApply(
                     txBundle.getTx()->getRawOperations().at(0),
@@ -1996,21 +1967,19 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
 
 void
 LedgerManagerImpl::applySorobanStage(
-    AppConnector& app, AbstractLedgerTxn& ltx,
+    AppConnector& app, LedgerHeader const& header,
     GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
     Hash const& sorobanBasePrngSeed)
 {
     auto const& config = app.getConfig();
     auto const& sorobanConfig = getSorobanNetworkConfigForApply();
-    auto ledgerInfo = getParallelLedgerInfo(app, ltx.loadHeader().current());
+    auto ledgerInfo = getParallelLedgerInfo(app, header);
 
     auto threadStates = applySorobanStageClustersInParallel(
         app, stage, globalParState, sorobanBasePrngSeed, config, sorobanConfig,
         ledgerInfo);
 
-    addAllRestoredEntriesToLedgerTxn(threadStates, ltx);
-
-    checkAllTxBundleInvariants(app, stage, config, ledgerInfo, ltx);
+    checkAllTxBundleInvariants(app, stage, config, ledgerInfo, header);
 
     globalParState.commitChangesFromThreads(app, threadStates, stage);
 }
@@ -2021,9 +1990,13 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                                       Hash const& sorobanBasePrngSeed)
 {
     GlobalParallelApplyLedgerState globalParState(app, ltx, stages);
+    // LedgerTxn is not passed into applySorobanStage, so there's no risk
+    // of the header being updated while we apply the stages.
+    auto const& header = ltx.loadHeader().current();
     for (auto const& stage : stages)
     {
-        applySorobanStage(app, ltx, globalParState, stage, sorobanBasePrngSeed);
+        applySorobanStage(app, header, globalParState, stage,
+                          sorobanBasePrngSeed);
     }
     globalParState.commitChangesToLedgerTxn(ltx);
 }

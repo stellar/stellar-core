@@ -210,16 +210,12 @@ class LedgerManagerImpl : public LedgerManager
         SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo);
 
-    void addAllRestoredEntriesToLedgerTxn(
-        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
-            threadStates,
-        AbstractLedgerTxn& ltx);
     void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
                                     Config const& config,
                                     ParallelLedgerInfo const& ledgerInfo,
-                                    AbstractLedgerTxn& ltx);
+                                    LedgerHeader const& header);
 
-    void applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
+    void applySorobanStage(AppConnector& app, LedgerHeader const& header,
                            GlobalParallelApplyLedgerState& globalParState,
                            ApplyStage const& stage,
                            Hash const& sorobanBasePrngSeed);
