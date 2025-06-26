@@ -19,7 +19,79 @@
 
 using namespace stellar;
 
-TEST_CASE("generate load in protocol 1")
+TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING = {10};
+            cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING = {100};
+            cfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING = {5};
+            cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING = {100};
+            cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
+            cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
+            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    uint32_t nAccounts = 1000;
+    uint32_t nTxs = 100;
+
+    // Upgrade the network config.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            auto mx = std::numeric_limits<uint32_t>::max();
+            cfg.mLedgerMaxTxCount = mx;
+            cfg.mLedgerMaxInstructions = mx;
+            cfg.mLedgerMaxTransactionsSizeBytes = mx;
+            cfg.mledgerMaxDiskReadEntries = mx;
+            cfg.mledgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxWriteLedgerEntries = mx;
+            cfg.mLedgerMaxWriteBytes = mx;
+        },
+        simulation);
+
+    for (auto& node : nodes)
+    {
+        node->setRunInOverlayOnlyMode(true);
+    }
+
+    auto prev = app.getMetrics()
+                    .NewMeter({"loadgen", "run", "complete"}, "run")
+                    .count();
+    SECTION("pay")
+    {
+        // Simulate payment transactions
+        app.getLoadGenerator().generateLoad(GeneratedLoadConfig::txLoad(
+            LoadGenMode::PAY, nAccounts, nTxs, /* txRate */ 1));
+    }
+    SECTION("invoke realistic")
+    {
+        // Simulate realistic invoke transactions
+        app.getLoadGenerator().generateLoad(
+            GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD,
+                                        nAccounts, nTxs, /* txRate */ 1));
+    }
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == prev + 1;
+        },
+        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+}
+
+TEST_CASE("generate load in protocol 1", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
