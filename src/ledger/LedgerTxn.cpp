@@ -207,10 +207,7 @@ RestoredEntries::entryWasRestoredFromMap(
         if (isSorobanEntry(k))
         {
             // Check invariant: any soroban entry in either restore map should
-            // have an accompanying TTL entry. The converse is not true: a
-            // restore in the liveBucketlist map can have a TTL entry without a
-            // soroban entry, because the soroban entry is in the live BL
-            // already and the only thing the "restore" does is dirty a TTL.
+            // have an accompanying TTL entry.
             auto ttlkey = getTTLKey(k);
             releaseAssert(map.find(ttlkey) != map.end());
         }

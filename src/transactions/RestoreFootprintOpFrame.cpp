@@ -204,9 +204,6 @@ RestoreFootprintOpFrame::doParallelApply(
             LedgerEntry ttlEntry = *ttlLeOpt;
             ttlEntry.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
             opEntryMap.emplace(ttlKey, ttlEntry);
-            // Review note: there might have been a bug here, or at least
-            // possibly a deviation from the invariant that every restored entry
-            // is in the opEntryMap.
             restoredEntries.addLiveBucketlistRestore(lk, entry, ttlKey,
                                                      ttlEntry);
         }

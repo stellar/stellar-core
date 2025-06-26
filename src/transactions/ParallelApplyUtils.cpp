@@ -641,8 +641,8 @@ GlobalParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     {
         return it0->second.mLedgerEntry;
     }
-    // Invariant check: if an entry is not in mLedgerEntry it should
-    // also not be in the restored map.
+    // Invariant check: if an entry is not in mGlobalEntryMap it should also not
+    // be in the restored map.
     releaseAssert(!mGlobalRestoredEntries.entryWasRestored(key));
     auto res = mLiveSnapshot->load(key);
     return res ? std::make_optional(*res) : std::nullopt;
@@ -709,7 +709,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
 {
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
-    // Review note: this loop is similar to "collectEntries" in the previous
+    // This loop is similar to "collectEntries" in the previous
     // code, except that:
     //
     //  - it skips copying duplicates if 2 txs touch the same key; just an
@@ -802,11 +802,11 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     {
         return it0->second.mLedgerEntry;
     }
-    // Invariant check: if an entry is not in mLedgerEntry it should
-    // also not be in the restored map, unless it's a TTL entry, in
-    // which case only a weaker invariant holds: it can't be in the
-    // _hot_ restored map. It's possible for a TTL entry to be just
-    // in the live restored map if its associated entry was live-restored.
+    // Invariant check: if an entry is not in mThreadEntryMap it should also not
+    // be in the restored map, unless it's a TTL entry, in which case only a
+    // weaker invariant holds: it can't be in the _hot_ restored map. It's
+    // possible for a TTL entry to be just in the live restored map if its
+    // associated entry was live-restored.
     if (key.type() == TTL)
     {
         releaseAssert(!mThreadRestoredEntries.entryWasRestoredFromMap(
