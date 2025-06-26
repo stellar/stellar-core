@@ -75,5 +75,10 @@ class AppConnector
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.
     SearchableSnapshotConstPtr& getOverlayThreadSnapshot();
+
+#ifdef BUILD_TESTS
+    // Access the runtime overlay-only mode flag for testing
+    bool getRunInOverlayOnlyMode() const;
+#endif
 };
 }

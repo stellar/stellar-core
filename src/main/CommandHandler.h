@@ -81,6 +81,7 @@ class CommandHandler
     void generateLoad(std::string const& params, std::string& retStr);
     void testAcc(std::string const& params, std::string& retStr);
     void testTx(std::string const& params, std::string& retStr);
+    void toggleOverlayOnlyMode(std::string const& params, std::string& retStr);
 #endif
 };
 }

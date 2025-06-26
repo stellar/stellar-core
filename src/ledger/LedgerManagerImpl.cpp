@@ -1204,15 +1204,39 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     }
 #endif
 
-    // first, prefetch source accounts for txset, then charge fees
-    prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
-                        mApp.getConfig());
-    auto const mutableTxResults =
-        processFeesSeqNums(*applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
+    TransactionResultSet txResultSet;
+#ifdef BUILD_TESTS
+    if (mApp.getRunInOverlayOnlyMode())
+    {
+        auto numTxs = txSet->sizeTxTotal();
+        auto numOps = txSet->sizeOpTotalForLogging();
 
-    // Subtle: after this call, `header` is invalidated, and is not safe to use
-    auto txResultSet = applyTransactions(*applicableTxSet, mutableTxResults,
-                                         ltx, ledgerCloseMeta);
+        // Force-deactivate header in overlay only mode; in normal mode, this is
+        // done by `applyTransactions`
+        ltx.deactivateHeaderTestOnly();
+        mApplyState.mMetrics.mTransactionCount.Update(
+            static_cast<int64_t>(numTxs));
+        TracyPlot("ledger.transaction.count", static_cast<int64_t>(numTxs));
+
+        mApplyState.mMetrics.mOperationCount.Update(
+            static_cast<int64_t>(numOps));
+        TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
+    }
+    else
+#endif
+    {
+        // first, prefetch source accounts for txset, then charge fees
+        prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
+                            mApp.getConfig());
+        auto const mutableTxResults = processFeesSeqNums(
+            *applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
+
+        // Subtle: after this call, `header` is invalidated, and is not safe
+        // to use
+        txResultSet = applyTransactions(*applicableTxSet, mutableTxResults, ltx,
+                                        ledgerCloseMeta);
+    }
+
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
