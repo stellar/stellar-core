@@ -48,7 +48,9 @@ enum class LoadGenMode
     // Blend classic and soroban transactions. Mix of pay, upload, and invoke.
     MIXED_CLASSIC_SOROBAN,
     // Submit pre-generated payment transactions from an XDR file
-    PAY_PREGENERATED
+    PAY_PREGENERATED,
+    // Submit the same type of invoke transaction as ApplyLoad
+    SOROBAN_INVOKE_APPLY_LOAD
 };
 
 struct GeneratedLoadConfig
@@ -264,6 +266,7 @@ class LoadGenerator
     // Set when load generation actually begins
     std::unique_ptr<VirtualClock::time_point> mStartTime;
 
+    uint32_t mTransactionsAppliedAtTheStart = 0;
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
@@ -318,7 +321,6 @@ class LoadGenerator
     bool mInitialAccountsCreated{false};
 
     uint32_t mWaitTillCompleteForLedgers{0};
-    uint32_t mSorobanWasmWaitTillLedgers{0};
 
     // Mode used for last mixed transaction in MIX_CLASSIC_SOROBAN mode
     LoadGenMode mLastMixedMode;

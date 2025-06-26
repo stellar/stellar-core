@@ -360,7 +360,6 @@ TransactionQueue::canAdd(
         if (!mApp.getRunInOverlayOnlyMode())
 #endif
         {
-            CLOG_INFO(Tx, "Transaction is banned, not adding to queue");
             return AddResult(
                 TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
         }
