@@ -183,6 +183,13 @@ scp.timing.self-to-others-externalize-lag | timer     | delay between local node
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
+scp.qic.successful-run                    | meter     | number of successful quorum intersection checks completed (a valid result was returned)
+scp.qic.failed-run                        | meter     | number of failed quorum intersection checks (an error/exception was thrown, this could happen if the time-limit was exceeded)
+scp.qic.aborted-run                       | meter     | number of aborted quorum intersection checks (the call was aborted, this could happen if the memory-limit was exceeded)
+scp.qic.result-potential-split            | meter     | number of potential quorum splits detected
+scp.qic.result-unknown                    | meter     | number of unknown results returned (the SAT solver has reached internal limits such as no. conflicts)
+scp.qic.cumulative-time-ms                | meter     | total time spent on quorum intersection checks (non-aborted runs) in milliseconds
+scp.qic.cumulative-mem-byte               | meter     | total memory used by quorum intersection checks (non-aborted runs) in bytes
 state-archival.eviction.age               | counter   | the average of the delta between an entry's liveUntilLedger and the ledger when it is evicted
 state-archival.eviction.bytes-scanned     | counter   | number of bytes that eviction scan has read
 state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted

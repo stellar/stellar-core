@@ -42,3 +42,10 @@ impl std::error::Error for BridgeError {}
 pub(crate) fn get_rustc_version() -> String {
     rustc_simple_version::RUSTC_VERSION.to_string()
 }
+
+pub(crate) fn current_exe() -> Result<String, Box<dyn std::error::Error>> {
+    std::env::current_exe()?
+        .into_os_string()
+        .into_string()
+        .map_err(|e| format!("Failed to convert path to string: {:?}", e).into())
+}

@@ -155,6 +155,25 @@ pub(crate) mod rust_bridge {
         refundable_fee: i64,
     }
 
+    // These are used as return code for the command line tool so we use a
+    // higher value to avoid collision. Note rust bridge translates these into
+    // uint8_t, so make sure the values <= 255.
+    enum QuorumCheckerStatus {
+        UNSAT = 0,
+        SAT = 101,
+        UNKNOWN = 102,
+    }
+
+    struct QuorumSplit {
+        left: Vec<String>,
+        right: Vec<String>,
+    }
+
+    struct QuorumCheckerResource {
+        time_ms: u64,
+        mem_bytes: usize,
+    }
+
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
@@ -206,6 +225,10 @@ pub(crate) mod rust_bridge {
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
+
+        // Exposes Rust's platform-compatible method for getting the full
+        // filesystem path of the current running executable.
+        fn current_exe() -> Result<String>;
 
         // Return the soroban versions linked into this binary. Panics
         // if the protocol version is not supported.
@@ -285,6 +308,43 @@ pub(crate) mod rust_bridge {
         fn clear(self: &mut SorobanModuleCache) -> Result<()>;
         fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
         fn get_mem_bytes_consumed(self: &SorobanModuleCache) -> Result<u64>;
+
+        // Given a quorum set configuration, checks if quorum intersection is
+        // enjoyed among all possible quorums. Returns `Ok(status)` where
+        // `status` can be:
+        //  - `QuorumCheckerStatus::UNSAT` if enjoys quorum intersection (good!)
+        //  - `QuorumCheckerStatus::SAT` if found quorum split (bad!). It also
+        //     populates `potential_split` with the split found (may not be
+        //     unique).
+        //  - `QuorumCheckerStatus::UNKNOWN`. Solver could not finish, possibly
+        //     due to reaching some internal limits (e.g. num conflicts) not
+        //     including resource limits (see "Resource limits and errors")
+        //
+        // Resource limits and errors:
+        //
+        // The quorum checker accepts two limits (passed via `resource_limit`),
+        // time (ms) and memory (bytes). The time limit is enforced internally
+        // via code logic, once exceeds, returns a solver error. The memory
+        // limit is enforced by a global memory allocator, and if exceeded, will
+        // abort the program. In other words, memory limit is a hard, system
+        // enforced limit.
+        //
+        // Errors:
+        //  - if resource limits (not including memory) have been exceeded.
+        //  - any other solver error In either sucess or error case, the
+        // `resource_usage` will be updated with the actual resource
+        // consumption.
+        //
+        // Aborts:
+        // - if the memory limit has been exceeded
+        // Abort is non-recoverable (it cannot be caught by catch_unwind)
+        fn network_enjoys_quorum_intersection(
+            nodes: &Vec<CxxBuf>,
+            quorum_set: &Vec<CxxBuf>,
+            potential_split: &mut QuorumSplit,
+            resource_limit: &QuorumCheckerResource,
+            resource_usage: &mut QuorumCheckerResource,
+        ) -> Result<QuorumCheckerStatus>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -315,6 +375,7 @@ use crate::b64::*;
 use crate::common::*;
 use crate::i128::*;
 use crate::log::*;
+use crate::quorum_checker::*;
 use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;
 use crate::soroban_proto_all::*;
