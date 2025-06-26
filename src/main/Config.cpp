@@ -124,7 +124,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // fill in defaults
 
     // non configurable
-    MODE_ENABLES_BUCKETLIST = true;
     MODE_STORES_HISTORY_MISC = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
@@ -2409,7 +2408,7 @@ Config::getExpectedLedgerCloseTime() const
 bool
 Config::modeDoesCatchupWithBucketList() const
 {
-    return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
+    return MODE_DOES_CATCHUP;
 }
 
 bool

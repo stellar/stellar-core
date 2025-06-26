@@ -677,24 +677,20 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
         throw std::runtime_error("Bucket directory is corrupt");
     }
 
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    // Only restart merges in full startup mode. Many modes in core
+    // (standalone offline commands, in-memory setup) do not need to
+    // spin up expensive merge processes.
+    auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
+        has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+    if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
-        // Only restart merges in full startup mode. Many modes in core
-        // (standalone offline commands, in-memory setup) do not need to
-        // spin up expensive merge processes.
-        auto assumeStateWork =
-            mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-                has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
-        if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
-        {
-            CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                      ledgerAbbrev(*latestLedgerHeader));
-        }
-        else
-        {
-            // Work should only fail during graceful shutdown
-            releaseAssertOrThrow(mApp.isStopping());
-        }
+        CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                  ledgerAbbrev(*latestLedgerHeader));
+    }
+    else
+    {
+        // Work should only fail during graceful shutdown
+        releaseAssertOrThrow(mApp.isStopping());
     }
 
     // Step 4. Restore LedgerManager's LCL state
@@ -2629,11 +2625,7 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
             mApp.getConfig().ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING);
     }
 
-    LiveBucketList bl;
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
-    {
-        bl = mApp.getBucketManager().getLiveBucketList();
-    }
+    LiveBucketList bl = mApp.getBucketManager().getLiveBucketList();
     // Store the current HAS in the database; this is really just to
     // checkpoint the bucketlist so we can survive a restart and re-attach
     // to the buckets.
@@ -2674,15 +2666,13 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
-    auto blEnabled = mApp.getConfig().MODE_ENABLES_BUCKETLIST;
 
     // Since snapshots are stored in a LedgerEntry, need to snapshot before
     // sealing the ledger with ltx.getAllEntries
     //
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
-    if (blEnabled &&
-        protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
             auto keys = ltx.getAllTTLKeysWithoutSealing();
@@ -2729,13 +2719,10 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
 
     // NB: getAllEntries seals the ltx.
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-    if (blEnabled)
-    {
-        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
-        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
-        mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
-                                             deadEntries);
-    }
+    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
+    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
+    mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
+                                         deadEntries);
 }
 
 CompleteConstLedgerStatePtr

@@ -400,13 +400,9 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
 {
     ZoneScoped;
 
-    LiveBucketList bl;
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
-    {
-        // Only one thread can modify the bucketlist, access BL from the _same_
-        // thread
-        bl = mApp.getBucketManager().getLiveBucketList();
-    }
+    // Only one thread can modify the bucketlist, access BL from the _same_
+    // thread
+    LiveBucketList bl = mApp.getBucketManager().getLiveBucketList();
 
     HistoryArchiveState has;
     if (protocolVersionStartsFrom(
