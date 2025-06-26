@@ -1602,9 +1602,7 @@ run(CommandLineArgs const& args)
                 if (!cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
                     !cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
                 {
-                    cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.MODE_STORES_HISTORY_MISC = false;
-                    cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
                 maybeSetMetadataOutputStream(cfg, stream);
@@ -1850,121 +1848,165 @@ runGenFuzz(CommandLineArgs const& args)
         });
 }
 
+ParserWithValidation
+applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
+{
+    auto validateMode = [&] {
+        if (iequals(modeArg, "soroban"))
+        {
+            mode = ApplyLoadMode::SOROBAN;
+            return "";
+        }
+        if (iequals(modeArg, "classic"))
+        {
+            mode = ApplyLoadMode::CLASSIC;
+            return "";
+        }
+        return "Unrecognized apply-load mode. Please select 'soroban' or "
+               "'classic'.";
+    };
+
+    return {clara::Opt{modeArg, "MODE"}["--mode"](
+                "set the apply-load mode. Expected modes: soroban, classic. "
+                "Defaults to soroban."),
+            validateMode};
+}
+
 int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    ApplyLoadMode mode{ApplyLoadMode::SOROBAN};
+    std::string modeArg = "soroban";
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        auto config = configOption.getConfig();
-        config.RUN_STANDALONE = true;
-        config.MANUAL_CLOSE = true;
-        config.USE_CONFIG_FOR_GENESIS = true;
-        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-        config.LEDGER_PROTOCOL_VERSION =
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), applyLoadModeParser(modeArg, mode)},
+        [&] {
+            auto config = configOption.getConfig();
+            config.RUN_STANDALONE = true;
+            config.MANUAL_CLOSE = true;
+            config.USE_CONFIG_FOR_GENESIS = true;
+            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+            config.LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
-        TmpDirManager tdm(std::string("soroban-storage-meta-"));
-        TmpDir td = tdm.tmpDir("soroban-meta-ok");
-        std::string metaPath = td.getName() + "/stream.xdr";
+            TmpDirManager tdm(std::string("soroban-storage-meta-"));
+            TmpDir td = tdm.tmpDir("soroban-meta-ok");
+            std::string metaPath = td.getName() + "/stream.xdr";
 
-        config.METADATA_OUTPUT_STREAM = metaPath;
+            config.METADATA_OUTPUT_STREAM = metaPath;
 
-        VirtualClock clock(VirtualClock::REAL_TIME);
-        auto appPtr = Application::create(clock, config);
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto appPtr = Application::create(clock, config);
 
-        auto& app = *appPtr;
-        {
-            app.start();
-
-            ApplyLoad al(app);
-
-            auto& ledgerClose =
-                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-            ledgerClose.Clear();
-
-            auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
-            cpuInsRatio.Clear();
-
-            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op",
-                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-            cpuInsRatioExclVm.Clear();
-
-            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-            ledgerCpuInsRatio.Clear();
-
-            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
-            ledgerCpuInsRatioExclVm.Clear();
-
-            for (size_t i = 0; i < 100; ++i)
+            auto& app = *appPtr;
             {
-                app.getBucketManager().getLiveBucketList().resolveAllFutures();
-                releaseAssert(app.getBucketManager()
-                                  .getLiveBucketList()
-                                  .futuresAllResolved());
-                al.benchmark();
+                app.start();
+
+                ApplyLoad al(app, mode);
+
+                auto& ledgerClose =
+                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+                ledgerClose.Clear();
+
+                auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio"});
+                cpuInsRatio.Clear();
+
+                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+                cpuInsRatioExclVm.Clear();
+
+                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+                ledgerCpuInsRatio.Clear();
+
+                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "ledger-cpu-insns-ratio-excl-vm"});
+                ledgerCpuInsRatioExclVm.Clear();
+
+                for (size_t i = 0; i < 100; ++i)
+                {
+                    app.getBucketManager()
+                        .getLiveBucketList()
+                        .resolveAllFutures();
+                    releaseAssert(app.getBucketManager()
+                                      .getLiveBucketList()
+                                      .futuresAllResolved());
+                    al.benchmark();
+                }
+
+                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                          ledgerClose.max());
+                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
+                          ledgerClose.min());
+                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                          ledgerClose.mean());
+                CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
+                          ledgerClose.std_dev());
+
+                // Only log CPU instruction metrics in Soroban mode
+                if (mode == ApplyLoadMode::SOROBAN)
+                {
+                    CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                              cpuInsRatio.max() / 1000000);
+                    CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                              cpuInsRatio.mean() / 1000000);
+
+                    CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                              cpuInsRatioExclVm.max() / 1000000);
+                    CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                              cpuInsRatioExclVm.mean() / 1000000);
+                    CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
+                              cpuInsRatioExclVm.std_dev() / 1000000);
+
+                    CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
+                              ledgerCpuInsRatio.max() / 1000000);
+                    CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
+                              ledgerCpuInsRatio.mean() / 1000000);
+                    CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
+                              ledgerCpuInsRatio.std_dev() / 1000000);
+
+                    CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
+                              ledgerCpuInsRatioExclVm.max() / 1000000);
+                    CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
+                              ledgerCpuInsRatioExclVm.mean() / 1000000);
+                    CLOG_INFO(
+                        Perf,
+                        "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
+                        ledgerCpuInsRatioExclVm.std_dev() / 1000000);
+                }
+
+                CLOG_INFO(Perf, "Tx count utilization {}%",
+                          al.getTxCountUtilization().mean() / 1000.0);
+
+                // Only log Soroban-specific metrics in Soroban mode
+                if (mode == ApplyLoadMode::SOROBAN)
+                {
+                    CLOG_INFO(Perf, "Instruction utilization {}%",
+                              al.getInstructionUtilization().mean() / 1000.0);
+                    CLOG_INFO(Perf, "Tx size utilization {}%",
+                              al.getTxSizeUtilization().mean() / 1000.0);
+                    CLOG_INFO(Perf, "Read bytes utilization {}%",
+                              al.getReadByteUtilization().mean() / 1000.0);
+                    CLOG_INFO(Perf, "Write bytes utilization {}%",
+                              al.getWriteByteUtilization().mean() / 1000.0);
+                    CLOG_INFO(Perf, "Read entry utilization {}%",
+                              al.getReadEntryUtilization().mean() / 1000.0);
+                    CLOG_INFO(Perf, "Write entry utilization {}%",
+                              al.getWriteEntryUtilization().mean() / 1000.0);
+                }
+
+                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
+                          al.successRate() * 100);
             }
 
-            CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
-                      ledgerClose.max());
-            CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
-                      ledgerClose.min());
-            CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
-                      ledgerClose.mean());
-            CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
-                      ledgerClose.std_dev());
-
-            CLOG_INFO(Perf, "Max CPU ins ratio: {}",
-                      cpuInsRatio.max() / 1000000);
-            CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
-                      cpuInsRatio.mean() / 1000000);
-
-            CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-                      cpuInsRatioExclVm.max() / 1000000);
-            CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-                      cpuInsRatioExclVm.mean() / 1000000);
-            CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-                      cpuInsRatioExclVm.std_dev() / 1000000);
-
-            CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
-                      ledgerCpuInsRatio.max() / 1000000);
-            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
-                      ledgerCpuInsRatio.mean() / 1000000);
-            CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
-                      ledgerCpuInsRatio.std_dev() / 1000000);
-
-            CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
-                      ledgerCpuInsRatioExclVm.max() / 1000000);
-            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
-                      ledgerCpuInsRatioExclVm.mean() / 1000000);
-            CLOG_INFO(Perf,
-                      "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
-                      ledgerCpuInsRatioExclVm.std_dev() / 1000000);
-
-            CLOG_INFO(Perf, "Tx count utilization {}%",
-                      al.getTxCountUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Instruction utilization {}%",
-                      al.getInstructionUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Tx size utilization {}%",
-                      al.getTxSizeUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Read bytes utilization {}%",
-                      al.getReadByteUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Write bytes utilization {}%",
-                      al.getWriteByteUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Read entry utilization {}%",
-                      al.getReadEntryUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Write entry utilization {}%",
-                      al.getWriteEntryUtilization().mean() / 1000.0);
-
-            CLOG_INFO(Perf, "Tx Success Rate: {:f}%", al.successRate() * 100);
-        }
-
-        return 0;
-    });
+            return 0;
+        });
 }
 
 int

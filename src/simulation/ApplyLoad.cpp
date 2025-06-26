@@ -90,7 +90,7 @@ getUpgradeConfig(Config const& cfg)
 }
 }
 
-ApplyLoad::ApplyLoad(Application& app)
+ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     : mTxGenerator(app)
     , mApp(app)
     , mRoot(app.getRoot())
@@ -112,6 +112,7 @@ ApplyLoad::ApplyLoad(Application& app)
           {"soroban", "benchmark", "read-entry"}))
     , mWriteEntryUtilization(mApp.getMetrics().NewHistogram(
           {"soroban", "benchmark", "write-entry"}))
+    , mMode(mode)
 {
     setup();
 }
@@ -123,11 +124,27 @@ ApplyLoad::setup()
 
     setupAccounts();
 
-    setupUpgradeContract();
+    if (mMode == ApplyLoadMode::SOROBAN)
+    {
+        setupUpgradeContract();
 
-    upgradeSettings();
+        upgradeSettings();
 
-    setupLoadContract();
+        setupLoadContract();
+    }
+    else
+    {
+        auto upgrade = xdr::xvector<UpgradeType, 6>{};
+
+        LedgerUpgrade ledgerUpgrade;
+        ledgerUpgrade.type(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        ledgerUpgrade.newMaxTxSetSize() =
+            mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT;
+        auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+        upgrade.push_back(UpgradeType{v.begin(), v.end()});
+        closeLedger({}, upgrade);
+    }
+
     setupBucketList();
 }
 
@@ -404,9 +421,13 @@ ApplyLoad::benchmark()
         Resource::Type::INSTRUCTIONS,
         resources.getVal(Resource::Type::INSTRUCTIONS) *
             mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
+    auto classicResources =
+        multiplyByDouble(lm.maxLedgerResources(false),
+                         mApp.getConfig().TRANSACTION_QUEUE_SIZE_MULTIPLIER);
 
     // Save a snapshot so we can calculate what % we used up.
     auto const resourcesSnapshot = resources;
+    auto const classicResourcesSnapshot = classicResources;
 
     auto const& accounts = mTxGenerator.getAccounts();
     std::vector<uint64_t> shuffledAccounts(accounts.size());
@@ -420,9 +441,21 @@ ApplyLoad::benchmark()
         auto it = accounts.find(accountIndex);
         releaseAssert(it != accounts.end());
 
-        auto tx = mTxGenerator.invokeSorobanLoadTransactionV2(
-            lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
-            mDataEntryCount, mDataEntrySize, 1'000'000);
+        std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr> tx;
+
+        if (mMode == ApplyLoadMode::CLASSIC)
+        {
+            it->second->loadSequenceNumber();
+            tx = mTxGenerator.paymentTransaction(
+                mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
+                std::nullopt);
+        }
+        else
+        {
+            tx = mTxGenerator.invokeSorobanLoadTransactionV2(
+                lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
+                mDataEntryCount, mDataEntrySize, 1'000'000);
+        }
 
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -435,26 +468,46 @@ ApplyLoad::benchmark()
         uint32_t ledgerVersion = mApp.getLedgerManager()
                                      .getLastClosedLedgerHeader()
                                      .header.ledgerVersion;
-        if (!anyGreater(tx.second->getResources(false, ledgerVersion),
-                        resources))
+        if (mMode == ApplyLoadMode::SOROBAN)
         {
-            resources -= tx.second->getResources(false, ledgerVersion);
-        }
-        else
-        {
-            for (size_t i = 0; i < resources.size(); ++i)
+            if (!anyGreater(tx.second->getResources(false, ledgerVersion),
+                            resources))
             {
-                auto type = static_cast<Resource::Type>(i);
-                if (tx.second->getResources(false, ledgerVersion).getVal(type) >
-                    resources.getVal(type))
-                {
-                    CLOG_INFO(Perf, "Ledger {} limit hit during tx generation",
-                              Resource::getStringFromType(type));
-                    limitHit = true;
-                }
+                resources -= tx.second->getResources(false, ledgerVersion);
             }
+            else
+            {
+                for (size_t i = 0; i < resources.size(); ++i)
+                {
+                    auto type = static_cast<Resource::Type>(i);
+                    if (tx.second->getResources(false, ledgerVersion)
+                            .getVal(type) > resources.getVal(type))
+                    {
+                        CLOG_INFO(Perf,
+                                  "Ledger {} limit hit during tx generation",
+                                  Resource::getStringFromType(type));
+                        limitHit = true;
+                    }
+                }
 
-            break;
+                break;
+            }
+        }
+        else if (mMode == ApplyLoadMode::CLASSIC)
+        {
+            if (!anyGreater(tx.second->getResources(false, ledgerVersion),
+                            classicResources))
+            {
+                classicResources -=
+                    tx.second->getResources(false, ledgerVersion);
+            }
+            else
+            {
+                CLOG_INFO(Perf,
+                          "Operation ledger limit hit during tx generation");
+                limitHit = true;
+                break;
+            }
         }
 
         txs.emplace_back(tx.second);
@@ -464,36 +517,49 @@ ApplyLoad::benchmark()
     // accounts, which should not happen.
     releaseAssert(limitHit);
 
-    mTxCountUtilization.Update(
-        (1.0 - (resources.getVal(Resource::Type::OPERATIONS) * 1.0 /
-                resourcesSnapshot.getVal(Resource::Type::OPERATIONS))) *
-        100000.0);
-    mInstructionUtilization.Update(
-        (1.0 - (resources.getVal(Resource::Type::INSTRUCTIONS) * 1.0 /
-                resourcesSnapshot.getVal(Resource::Type::INSTRUCTIONS))) *
-        100000.0);
-    mTxSizeUtilization.Update(
-        (1.0 - (resources.getVal(Resource::Type::TX_BYTE_SIZE) * 1.0 /
-                resourcesSnapshot.getVal(Resource::Type::TX_BYTE_SIZE))) *
-        100000.0);
-    mReadByteUtilization.Update(
-        (1.0 - (resources.getVal(Resource::Type::DISK_READ_BYTES) * 1.0 /
-                resourcesSnapshot.getVal(Resource::Type::DISK_READ_BYTES))) *
-        100000.0);
-    mWriteByteUtilization.Update(
-        (1.0 - (resources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /
-                resourcesSnapshot.getVal(Resource::Type::WRITE_BYTES))) *
-        100000.0);
-    mReadEntryUtilization.Update(
-        (1.0 -
-         (resources.getVal(Resource::Type::READ_LEDGER_ENTRIES) * 1.0 /
-          resourcesSnapshot.getVal(Resource::Type::READ_LEDGER_ENTRIES))) *
-        100000.0);
-    mWriteEntryUtilization.Update(
-        (1.0 -
-         (resources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) * 1.0 /
-          resourcesSnapshot.getVal(Resource::Type::WRITE_LEDGER_ENTRIES))) *
-        100000.0);
+    // Only update Soroban-specific metrics in Soroban mode
+    if (mMode == ApplyLoadMode::SOROBAN)
+    {
+        mTxCountUtilization.Update(
+            (1.0 - (resources.getVal(Resource::Type::OPERATIONS) * 1.0 /
+                    resourcesSnapshot.getVal(Resource::Type::OPERATIONS))) *
+            100000.0);
+        mInstructionUtilization.Update(
+            (1.0 - (resources.getVal(Resource::Type::INSTRUCTIONS) * 1.0 /
+                    resourcesSnapshot.getVal(Resource::Type::INSTRUCTIONS))) *
+            100000.0);
+        mTxSizeUtilization.Update(
+            (1.0 - (resources.getVal(Resource::Type::TX_BYTE_SIZE) * 1.0 /
+                    resourcesSnapshot.getVal(Resource::Type::TX_BYTE_SIZE))) *
+            100000.0);
+        mReadByteUtilization.Update(
+            (1.0 -
+             (resources.getVal(Resource::Type::DISK_READ_BYTES) * 1.0 /
+              resourcesSnapshot.getVal(Resource::Type::DISK_READ_BYTES))) *
+            100000.0);
+        mWriteByteUtilization.Update(
+            (1.0 - (resources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /
+                    resourcesSnapshot.getVal(Resource::Type::WRITE_BYTES))) *
+            100000.0);
+        mReadEntryUtilization.Update(
+            (1.0 -
+             (resources.getVal(Resource::Type::READ_LEDGER_ENTRIES) * 1.0 /
+              resourcesSnapshot.getVal(Resource::Type::READ_LEDGER_ENTRIES))) *
+            100000.0);
+        mWriteEntryUtilization.Update(
+            (1.0 -
+             (resources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) * 1.0 /
+              resourcesSnapshot.getVal(Resource::Type::WRITE_LEDGER_ENTRIES))) *
+            100000.0);
+    }
+    else if (mMode == ApplyLoadMode::CLASSIC)
+    {
+        mTxCountUtilization.Update(
+            (1.0 -
+             (classicResources.getVal(Resource::Type::OPERATIONS) * 1.0 /
+              classicResourcesSnapshot.getVal(Resource::Type::OPERATIONS))) *
+            100000.0);
+    }
 
     closeLedger(txs);
 }
@@ -501,9 +567,20 @@ ApplyLoad::benchmark()
 double
 ApplyLoad::successRate()
 {
-    return mTxGenerator.getApplySorobanSuccess().count() * 1.0 /
-           (mTxGenerator.getApplySorobanSuccess().count() +
-            mTxGenerator.getApplySorobanFailure().count());
+    if (mMode == ApplyLoadMode::CLASSIC)
+    {
+        auto& success =
+            mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
+        auto& failure =
+            mApp.getMetrics().NewCounter({"ledger", "apply", "failure"});
+        return success.count() * 1.0 / (success.count() + failure.count());
+    }
+    else
+    {
+        return mTxGenerator.getApplySorobanSuccess().count() * 1.0 /
+               (mTxGenerator.getApplySorobanSuccess().count() +
+                mTxGenerator.getApplySorobanFailure().count());
+    }
 }
 
 medida::Histogram const&
