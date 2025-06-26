@@ -381,6 +381,8 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 0;
     uint32_t APPLY_LOAD_MAX_TX_COUNT = 0;
 
+    uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
+
     // Number of read-only and read-write entries in the apply-load
     // transactions. Every entry will have
     // `APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING` size.

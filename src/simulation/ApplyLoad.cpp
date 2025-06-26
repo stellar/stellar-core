@@ -57,6 +57,10 @@ getUpgradeConfig(Config const& cfg)
     upgradeConfig.liveSorobanStateSizeWindowSampleSize = 30;
     upgradeConfig.evictionScanSize = 100000;
     upgradeConfig.startingEvictionScanLevel = 7;
+
+    upgradeConfig.ledgerMaxDependentTxClusters =
+        cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
+
     // Increase the default TTL and reduce the rent rate in order to avoid the
     // state archival and too high rent fees. The apply load test is generally
     // not concerned about the resource fees.
@@ -392,6 +396,14 @@ ApplyLoad::benchmark()
     auto resources = multiplyByDouble(
         lm.maxLedgerResources(true),
         mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
+
+    // The TxSet validation will compare the ledger instruction limit against
+    // the sum of the instructions of the slowest cluster in each stage, so we
+    // just multiply the instructions limit by the max number of clusters.
+    resources.setVal(
+        Resource::Type::INSTRUCTIONS,
+        resources.getVal(Resource::Type::INSTRUCTIONS) *
+            mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
     // Save a snapshot so we can calculate what % we used up.
     auto const resourcesSnapshot = resources;
