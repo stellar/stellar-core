@@ -275,13 +275,6 @@ InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
 }
 
 LedgerTxnEntry
-InMemoryLedgerTxn::restoreFromHotArchive(LedgerEntry const& entry, uint32_t ttl)
-{
-    throw std::runtime_error(
-        "called restoreFromHotArchive on InMemoryLedgerTxn");
-}
-
-LedgerTxnEntry
 InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry,
                                              uint32_t ttl)
 {

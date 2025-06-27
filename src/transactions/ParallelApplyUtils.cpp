@@ -630,6 +630,22 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             }
         }
     }
+
+    // While the final state of a restored key that will be written to the
+    // Live BucketList is already handled in mGlobalEntryMap, we need to
+    // let the ltx know what keys need to be removed from the Hot Archive.
+    for (auto const& kvp : mGlobalRestoredEntries.hotArchive)
+    {
+        // We will search for the ttl key in the hot archive when the entry
+        // is seen
+        if (kvp.first.type() != TTL)
+        {
+            auto it =
+                mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
+            releaseAssert(it != mGlobalRestoredEntries.hotArchive.end());
+            ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
+        }
+    }
     ltxInner.commit();
 }
 

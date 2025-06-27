@@ -247,12 +247,6 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                                              LedgerEntryKey(randomEntries[1])};
         LedgerTxn ltx1(app->getLedgerTxnRoot());
 
-        SECTION("hot archive restore key exists in live BL")
-        {
-            ltx1.create(randomEntries[0]);
-            REQUIRE_THROWS(ltx1.restoreFromHotArchive(randomEntries[0], 42));
-        }
-
         SECTION("live BL restore key does not exist")
         {
             REQUIRE_THROWS(
@@ -268,13 +262,26 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
         {
             SECTION("hot archive")
             {
-                ltx1.restoreFromHotArchive(randomEntries[0], 42);
+                auto getTTLEntry =
+                    [](LedgerEntry const& entry,
+                       uint32_t liveUntilLedgerSeq) -> LedgerEntry {
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().liveUntilLedgerSeq = liveUntilLedgerSeq;
+                    ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
+                    return ttl;
+                };
+
+                ltx1.markRestoredFromHotArchive(
+                    randomEntries[0], getTTLEntry(randomEntries[0], 42));
 
                 SECTION("rollback")
                 {
                     {
                         LedgerTxn ltx2(ltx1);
-                        ltx2.restoreFromHotArchive(randomEntries[1], 42);
+                        ltx2.markRestoredFromHotArchive(
+                            randomEntries[1],
+                            getTTLEntry(randomEntries[1], 42));
                     }
 
                     REQUIRE(ltx1.getRestoredLiveBucketListKeys().empty());
@@ -289,7 +296,9 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                 {
                     {
                         LedgerTxn ltx2(ltx1);
-                        ltx2.restoreFromHotArchive(randomEntries[1], 42);
+                        ltx2.markRestoredFromHotArchive(
+                            randomEntries[1],
+                            getTTLEntry(randomEntries[1], 42));
                         ltx2.commit();
                     }
 

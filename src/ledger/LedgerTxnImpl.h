@@ -361,20 +361,12 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     void erase(InternalLedgerKey const& key);
 
-    // addRestoredFromHotArchive has the basic exception safety guarantee. If
+    // markRestoredFromHotArchive has the basic exception safety guarantee. If
     // it throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
-    void addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
-                                   LedgerEntry const& ttlEntry);
-
-    // restoreFromHotArchive has the basic exception safety guarantee. If it
-    // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
-    LedgerTxnEntry restoreFromHotArchive(LedgerTxn& self,
-                                         LedgerEntry const& entry,
-                                         uint32_t ttl);
+    void markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                    LedgerEntry const& ttlEntry);
 
     // restoreFromLiveBucketList has the basic exception safety guarantee. If it
     // throws an exception, then
