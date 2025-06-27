@@ -72,8 +72,6 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
     SorobanNetworkConfig const& mSorobanConfig;
     Config const& mAppConfig;
 
-    rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
-    rust::Vec<CxxBuf> mTtlEntryCxxBufs;
     ExtendFootprintTTLMetrics mMetrics;
     DiagnosticEventManager& mDiagnosticEvents;
 
