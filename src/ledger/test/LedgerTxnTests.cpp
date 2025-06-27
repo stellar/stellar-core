@@ -272,14 +272,14 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                     return ttl;
                 };
 
-                ltx1.addRestoredFromHotArchive(
+                ltx1.markRestoredFromHotArchive(
                     randomEntries[0], getTTLEntry(randomEntries[0], 42));
 
                 SECTION("rollback")
                 {
                     {
                         LedgerTxn ltx2(ltx1);
-                        ltx2.addRestoredFromHotArchive(
+                        ltx2.markRestoredFromHotArchive(
                             randomEntries[1],
                             getTTLEntry(randomEntries[1], 42));
                     }
@@ -296,7 +296,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                 {
                     {
                         LedgerTxn ltx2(ltx1);
-                        ltx2.addRestoredFromHotArchive(
+                        ltx2.markRestoredFromHotArchive(
                             randomEntries[1],
                             getTTLEntry(randomEntries[1], 42));
                         ltx2.commit();

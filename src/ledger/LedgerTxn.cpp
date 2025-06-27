@@ -940,15 +940,15 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
 }
 
 void
-LedgerTxn::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
-                                     LedgerEntry const& ttlEntry)
+LedgerTxn::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                      LedgerEntry const& ttlEntry)
 {
-    getImpl()->addRestoredFromHotArchive(ledgerEntry, ttlEntry);
+    getImpl()->markRestoredFromHotArchive(ledgerEntry, ttlEntry);
 }
 
 void
-LedgerTxn::Impl::addRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
-                                           LedgerEntry const& ttlEntry)
+LedgerTxn::Impl::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                            LedgerEntry const& ttlEntry)
 {
     throwIfSealed();
     throwIfChild();
