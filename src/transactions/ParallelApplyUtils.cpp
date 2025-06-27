@@ -16,8 +16,84 @@
 #include <fmt/std.h>
 #include <thread>
 
-namespace stellar
+namespace
 {
+using namespace stellar;
+
+// Notes on parallelism and TTL bumps
+// ==================================
+//
+// We say two soroban txs "conflict" if the RW footprint of either tx intersects
+// with the RO _or_ RW footprints of the other. Put another way: if either might
+// be able to observe whether it ran before or after the other.
+//
+// The `ParallelTxSetBuilder` partitions a txset into stages and each stage into
+// _clusters_ such that there are no conflicts between the clusters of a stage.
+// Within a cluster, any two txs may or may not conflict. But between clusters
+// they definitely do not.
+//
+//
+// Read-only TTL bumps
+// -------------------
+//
+// We special-case one action that we expect to be quite common: when a tx bumps
+// the TTL of an LE that is otherwise _not written_ by the tx. For example
+// bumping the TTL of a popular contract instance when executing it. We call
+// this action `RoTTLBump(LE)`, and it is treated as a pseudo-write that can
+// potentially commute with all other RoTTLBump(LE) actions. Specifically it
+// causes LE to only go in the tx's RO footprint, not its RW footprint.
+//
+// This is enough to cause the following:
+//
+//   - If no txs in a stage do write(LE), the RoTTLBump(LE)-containing txs are
+//     free to run in parallel, do not effect clustering. We merge the bumps
+//     performed by each cluster using std::max() when committing it back to the
+//     global state (see GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps)
+//
+//   - If _any_ tx in a stage does write(LE) it will have LE in its RW
+//     footprint, and so conflict with all txs doing RoTTLBump(LE). All of them
+//     will get clustered together, no bumps can happen in parallel. This is
+//     correct since the order of bumping and writing is observable both ways:
+//
+//       1. An RoTTLBump(LE) will cost a different fee if it happens before or
+//          after write(LE) since the write(LE) can change LE's size.
+//
+//       2. a write(LE) will cost a different fee if it happens before or after
+//          an RoTTLBump(LE) since the RoTTLBump(LE) can change LE's TTL.
+//
+//
+// Deferred read-only TTL bumps
+// ----------------------------
+//
+// We want to retain the ability for future versions of stellar-core to run txs
+// within a cluster in "as much parallelism as is legal", by further analyzing
+// the conflict relationships that exist _inside_ each cluster and scheduling
+// non-conflicting txs in parallel. But any given write(LE) in a cluster
+// essentially represents a synchronization barrier for all RoTTLBump(LE)
+// operations: those RoTTLBump(LE)s that run before the write(LE) don't conflict
+// with one another, but they _do_ conflict with the write(LE) and so a future
+// scheduler will have to commit to at least a partial order between _groups_ of
+// RoTTLBump(LE)s and individual write(LE)s.
+//
+// In absence of such a fancy future scheduler, we run each cluster in
+// sequential order, using the (somewhat incidental) total order that the
+// cluster is given to us as "the schedule", and we do our best not to constrain
+// future stellar-cores to replay in exactly this order. Specifically we defer
+// the effects of each RoTTLBump(LE) by merging them into a separate map
+// (mRoTTLBumps) that we only flush back to the ledger at each write(LE), as
+// well as the end of the cluster. This bakes-in to the history the execution
+// order of groups of RoTTLBump(LE)s and write(LE)s -- as it must! -- but not
+// the order of execution within each group of RoTTLBump(LE)s before or after
+// each write(LE). In other words we wind up constraining the future scheduler
+// by a partial order, not the total order.
+//
+// Note: by deferring the visibility of RoTTLBump(LE) effects this way it is
+// possible that slightly higher fees are charged. For example if we had
+// transactions A, B and C in the total order and A and B both do the same
+// RoTTLBump(LE) then C does write(LE), A's bump will be deferred until C, and
+// so B will pay to do the same bump again. Whereas if we were to commit to a
+// total order, B could save this fee, but we would lose the ability to run A
+// and B in parallel in the future. CAP 0063 explicitly chose this tradeoff.
 
 std::unordered_set<LedgerKey>
 getReadWriteKeysForStage(ApplyStage const& stage)
@@ -37,6 +113,34 @@ getReadWriteKeysForStage(ApplyStage const& stage)
         }
     }
     return res;
+}
+
+bool
+maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
+                     ParallelApplyEntry& oldEntry,
+                     std::unordered_set<LedgerKey> const& readWriteSet)
+{
+    // Read Only bumps will always be updating a pre-existing value. TTL
+    // creation (!oldEntry) or deletion (!newEntry) are write conflicts that
+    // don't have merge special casing.
+    if (newEntry.mLedgerEntry && oldEntry.mLedgerEntry)
+    {
+        auto const& newLe = newEntry.mLedgerEntry.value();
+        auto& oldLe = oldEntry.mLedgerEntry.value();
+        if (key.type() == TTL)
+        {
+            releaseAssertOrThrow(newLe.data.type() == TTL);
+            releaseAssertOrThrow(oldLe.data.type() == TTL);
+            if (readWriteSet.find(key) == readWriteSet.end())
+            {
+                auto const& newTTL = newLe.data.ttl().liveUntilLedgerSeq;
+                auto& oldTTL = oldLe.data.ttl().liveUntilLedgerSeq;
+                oldTTL = std::max(oldTTL, newTTL);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void
@@ -99,89 +203,6 @@ preParallelApplyAndCollectModifiedClassicEntries(
             fetchInMemoryClassicEntries(footprint.readWrite);
             fetchInMemoryClassicEntries(footprint.readOnly);
         }
-    }
-}
-
-void
-writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
-    ParallelApplyEntryMap const& threadEntryMap,
-    ParallelApplyEntryMap& globalEntryMap,
-    std::unordered_set<LedgerKey> const& isInReadWriteSet)
-{
-    for (auto const& entry : threadEntryMap)
-    {
-        // Only update if dirty bit is set
-        if (!entry.second.mIsDirty)
-        {
-            continue;
-        }
-
-        if (entry.second.mLedgerEntry)
-        {
-            auto const& updatedEntry = *entry.second.mLedgerEntry;
-
-            auto it = globalEntryMap.find(entry.first);
-            if (it != globalEntryMap.end() && it->second.mLedgerEntry)
-            {
-                auto const& currentEntry = *it->second.mLedgerEntry;
-                if (currentEntry.data.type() == TTL)
-                {
-                    auto currLiveUntil =
-                        currentEntry.data.ttl().liveUntilLedgerSeq;
-                    auto newLiveUntil =
-                        updatedEntry.data.ttl().liveUntilLedgerSeq;
-
-                    // The only scenario where we accept a reduction in TTL
-                    // is one where an entry was deleted, and then
-                    // recreated. This can only happen if the key was in the
-                    // readWrite set, so if it's not then this is just a
-                    // parallel readOnly bump that we can ignore here.
-                    if (newLiveUntil <= currLiveUntil &&
-                        isInReadWriteSet.count(entry.first) == 0)
-                    {
-                        continue;
-                    }
-                }
-                it->second = entry.second;
-            }
-            else
-            {
-                if (it != globalEntryMap.end())
-                {
-                    it->second = entry.second;
-                }
-                else
-                {
-                    globalEntryMap.emplace(
-                        entry.first,
-                        ParallelApplyEntry::dirtyLive(updatedEntry));
-                }
-            }
-        }
-        else
-        {
-            auto dead = ParallelApplyEntry::dirtyDead();
-            auto [it, inserted] = globalEntryMap.emplace(entry.first, dead);
-            if (!inserted)
-            {
-                it->second = dead;
-            }
-        }
-    }
-}
-
-void
-writeDirtyMapEntriesToGlobalEntryMap(
-    std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
-        entryMapsByCluster,
-    ParallelApplyEntryMap& globalEntryMap,
-    std::unordered_set<LedgerKey> const& isInReadWriteSet)
-{
-    // merge entryMaps into globalEntryMap
-    for (auto const& map : entryMapsByCluster)
-    {
-        writeDirtyThreadEntryMapEntriesToGlobalEntryMap(*map, globalEntryMap,
-                                                        isInReadWriteSet);
     }
 }
 
@@ -310,13 +331,14 @@ flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
     }
 }
 
-// Construct a map of all the TTL keys associated with all soroban
-// (code-or-data) keys named in the footprint of the `txBundle`, along with a
-// boolean indicating whether they're RO TTL keys. When false, they're RW.
-UnorderedMap<LedgerKey, bool>
-buildRoTTLMap(TxBundle const& txBundle)
+// Construct a set of all the TTL keys associated with all RO soroban
+// (code-or-data) keys named in the footprint of the `txBundle`. Note
+// that since RO and RW footprints are disjoint, we only have to look
+// at the RO set.
+UnorderedSet<LedgerKey>
+buildRoTTLSet(TxBundle const& txBundle)
 {
-    UnorderedMap<LedgerKey, bool> isReadOnlyTTLMap;
+    UnorderedSet<LedgerKey> isReadOnlyTTLSet;
     for (auto const& ro :
          txBundle.getTx()->sorobanResources().footprint.readOnly)
     {
@@ -324,29 +346,9 @@ buildRoTTLMap(TxBundle const& txBundle)
         {
             continue;
         }
-        isReadOnlyTTLMap.emplace(getTTLKey(ro), true);
+        isReadOnlyTTLSet.emplace(getTTLKey(ro));
     }
-    for (auto const& rw :
-         txBundle.getTx()->sorobanResources().footprint.readWrite)
-    {
-        if (!isSorobanEntry(rw))
-        {
-            continue;
-        }
-        isReadOnlyTTLMap.emplace(getTTLKey(rw), false);
-    }
-
-    return isReadOnlyTTLMap;
-}
-
-// Look up a key in the RO TTL map built above. If the key is either not a TTL,
-// or not RO, return false.
-bool
-isRoTTLKey(UnorderedMap<LedgerKey, bool> const& rmap, LedgerKey const& lk)
-{
-    auto it = rmap.find(lk);
-    releaseAssert(lk.type() == TTL || it == rmap.end());
-    return lk.type() == TTL && it->second;
+    return isReadOnlyTTLSet;
 }
 
 // Accumulate into the buffer of `roTTLBumps` the max of any existing entry and
@@ -363,45 +365,10 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
     }
 }
 
-// Writes the entries in `res` back to the `entryMap`, `roTTLBumps` and
-// `threadRestoredEntries` variables that are accumulating the state of
-// the transaction cluster.
-void
-recordModifiedAndRestoredEntries(SearchableSnapshotConstPtr liveSnapshot,
-                                 ParallelApplyEntryMap& entryMap,
-                                 UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                                 RestoredEntries& threadRestoredEntries,
-                                 TxBundle const& txBundle,
-                                 ParallelTxReturnVal const& res)
-{
-    releaseAssert(res.getSuccess());
-    auto rmap = buildRoTTLMap(txBundle);
-
-    // now apply the entry changes to entryMap
-    for (auto const& [lk, updatedLe] : res.getModifiedEntryMap())
-    {
-        auto oldEntryOpt = getLiveEntry(lk, liveSnapshot, entryMap);
-
-        if (isRoTTLKey(rmap, lk) && oldEntryOpt && updatedLe)
-        {
-            // Accumulate RO bumps instead of writing them to the entryMap.
-            releaseAssert(ttl(updatedLe) >= ttl(oldEntryOpt));
-            updateMaxOfRoTTLBump(roTTLBumps, lk, updatedLe);
-        }
-        else
-        {
-            // A entry deletion will be marked by a nullopt le.
-            // Set the dirty bit so it'll be written to ltx later.
-            auto e = ParallelApplyEntry{updatedLe, true};
-            auto [it, inserted] = entryMap.emplace(lk, e);
-            if (!inserted)
-            {
-                it->second = e;
-            }
-        }
-    }
-    threadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }
+
+namespace stellar
+{
 
 void
 setDelta(SearchableSnapshotConstPtr liveSnapshot,
@@ -668,29 +635,38 @@ void
 GlobalParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                                             LedgerEntry const& entry)
 {
-    auto e = ParallelApplyEntry::dirtyLive(entry);
-    auto [it, inserted] = mGlobalEntryMap.emplace(key, e);
-    if (!inserted)
-    {
-        it->second = e;
-    }
+    mGlobalEntryMap[key] = ParallelApplyEntry::dirtyPopulated(entry);
 }
 
 void
 GlobalParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
 {
-    auto e = ParallelApplyEntry::dirtyDead();
-    auto [it, inserted] = mGlobalEntryMap.emplace(key, e);
-    if (!inserted)
-    {
-        it->second = e;
-    }
+    mGlobalEntryMap[key] = ParallelApplyEntry::dirtyEmpty();
 }
 
 RestoredEntries const&
 GlobalParallelApplyLedgerState::getRestoredEntries() const
 {
     return mGlobalRestoredEntries;
+}
+
+void
+GlobalParallelApplyLedgerState::commitChangeFromThread(
+    LedgerKey const& key, ParallelApplyEntry const& parEntry,
+    std::unordered_set<LedgerKey> const& readWriteSet)
+{
+    if (!parEntry.mIsDirty)
+    {
+        return;
+    }
+    auto [it, inserted] = mGlobalEntryMap.emplace(key, parEntry);
+    if (!inserted)
+    {
+        if (!maybeMergeRoTTLBumps(key, parEntry, it->second, readWriteSet))
+        {
+            it->second = parEntry;
+        }
+    }
 }
 
 void
@@ -701,8 +677,10 @@ GlobalParallelApplyLedgerState::commitChangesFromThread(
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
     auto readWriteSet = getReadWriteKeysForStage(stage);
-    writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
-        thread.getEntryMap(), mGlobalEntryMap, readWriteSet);
+    for (auto const& [key, entry] : thread.getEntryMap())
+    {
+        commitChangeFromThread(key, entry, readWriteSet);
+    }
     mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
 }
 
@@ -754,7 +732,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                 if (opt)
                 {
                     mThreadEntryMap.emplace(
-                        key, ParallelApplyEntry::cleanLive(opt.value()));
+                        key, ParallelApplyEntry::cleanPopulated(opt.value()));
                     if (isSorobanEntry(key))
                     {
                         auto ttlKey = getTTLKey(key);
@@ -762,7 +740,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                         releaseAssertOrThrow(ttlOpt);
                         mThreadEntryMap.emplace(
                             ttlKey,
-                            ParallelApplyEntry::cleanLive(ttlOpt.value()));
+                            ParallelApplyEntry::cleanPopulated(ttlOpt.value()));
                     }
                 }
             }
@@ -837,13 +815,50 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
 }
 
 void
+ThreadParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
+                                            LedgerEntry const& entry)
+{
+    mThreadEntryMap[key] = ParallelApplyEntry::dirtyPopulated(entry);
+}
+void
+ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
+{
+    mThreadEntryMap[key] = ParallelApplyEntry::dirtyEmpty();
+}
+
+void
+ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
+    LedgerKey const& key, std::optional<LedgerEntry> const& entryOpt,
+    UnorderedSet<LedgerKey> const& roTTLSet)
+{
+    auto oldEntryOpt = getLiveEntryOpt(key);
+    if (entryOpt && oldEntryOpt && roTTLSet.find(key) != roTTLSet.end())
+    {
+        // Accumulate RO bumps instead of writing them to the entryMap.
+        releaseAssert(ttl(entryOpt) >= ttl(oldEntryOpt));
+        updateMaxOfRoTTLBump(mRoTTLBumps, key, entryOpt);
+    }
+    else if (entryOpt)
+    {
+        upsertEntry(key, entryOpt.value());
+    }
+    else
+    {
+        eraseEntry(key);
+    }
+}
+
+void
 ThreadParallelApplyLedgerState::commitChangesFromSuccessfulOp(
     ParallelTxReturnVal const& res, TxBundle const& txBundle)
 {
     releaseAssert(res.getSuccess());
-    recordModifiedAndRestoredEntries(mLiveSnapshot, mThreadEntryMap,
-                                     mRoTTLBumps, mThreadRestoredEntries,
-                                     txBundle, res);
+    auto roTTLSet = buildRoTTLSet(txBundle);
+    for (auto const& [key, entryOpt] : res.getModifiedEntryMap())
+    {
+        commitChangeFromSuccessfulOp(key, entryOpt, roTTLSet);
+    }
+    mThreadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }
 
 bool
@@ -913,11 +928,7 @@ OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                std::this_thread::get_id(),
                liveEntryExistedAlready ? "already-live" : "new",
                xdr::xdr_to_string(key, "key"));
-    auto [it, inserted] = mOpEntryMap.emplace(key, entry);
-    if (!inserted)
-    {
-        it->second = entry;
-    }
+    mOpEntryMap[key] = entry;
     return !liveEntryExistedAlready;
 }
 
@@ -933,11 +944,7 @@ OpParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
         // any pre-state key when calculating the ledger delta.
         CLOG_TRACE(Tx, "parallel apply thread {} erasing {}",
                    std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
-        auto [it, inserted] = mOpEntryMap.emplace(key, std::nullopt);
-        if (!inserted)
-        {
-            it->second = std::nullopt;
-        }
+        mOpEntryMap[key] = std::nullopt;
     }
     else
     {

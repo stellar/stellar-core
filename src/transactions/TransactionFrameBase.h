@@ -57,22 +57,22 @@ struct ParallelApplyEntry
     std::optional<LedgerEntry> mLedgerEntry;
     bool mIsDirty;
     static ParallelApplyEntry
-    cleanLive(LedgerEntry const& e)
+    cleanPopulated(LedgerEntry const& e)
     {
         return ParallelApplyEntry{e, false};
     }
     static ParallelApplyEntry
-    dirtyLive(LedgerEntry const& e)
+    dirtyPopulated(LedgerEntry const& e)
     {
         return ParallelApplyEntry{e, true};
     }
     static ParallelApplyEntry
-    cleanDead()
+    cleanEmpty()
     {
         return ParallelApplyEntry{std::nullopt, false};
     }
     static ParallelApplyEntry
-    dirtyDead()
+    dirtyEmpty()
     {
         return ParallelApplyEntry{std::nullopt, true};
     }
