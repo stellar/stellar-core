@@ -6,6 +6,7 @@
 #include "crypto/SHA.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
+#include "xdr/Stellar-types.h"
 #include <fmt/format.h>
 
 namespace stellar
@@ -33,4 +34,16 @@ getTTLKey(LedgerKey const& e)
     k.ttl().keyHash = sha256(xdr::xdr_to_opaque(e));
     return k;
 }
+
+LedgerEntry
+getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl)
+{
+    releaseAssert(ttlKey.type() == TTL);
+    LedgerEntry ttlEntry;
+    ttlEntry.data.type(TTL);
+    ttlEntry.data.ttl().keyHash = ttlKey.ttl().keyHash;
+    ttlEntry.data.ttl().liveUntilLedgerSeq = ttl;
+    return ttlEntry;
+}
+
 };

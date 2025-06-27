@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/LiveBucketList.h"
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -328,6 +329,28 @@ struct RestoredEntries
     // past so it was considered expired, just not evicted. Restoring
     // this does not cost any IO, just writing a new TTL.
     UnorderedMap<LedgerKey, LedgerEntry> liveBucketList;
+
+    std::optional<LedgerEntry> getEntryOpt(LedgerKey const& key) const;
+
+    bool entryWasRestored(LedgerKey const& k) const;
+
+    static bool
+    entryWasRestoredFromMap(LedgerKey const& k,
+                            UnorderedMap<LedgerKey, LedgerEntry> const& map);
+    static void addRestoreToMap(LedgerKey const& key, LedgerEntry const& entry,
+                                LedgerKey const& ttlKey,
+                                LedgerEntry const& ttlEntry,
+                                UnorderedMap<LedgerKey, LedgerEntry>& map);
+
+    void addHotArchiveRestore(LedgerKey const& key, LedgerEntry const& entry,
+                              LedgerKey const& ttlKey,
+                              LedgerEntry const& ttlEntry);
+    void addLiveBucketlistRestore(LedgerKey const& key,
+                                  LedgerEntry const& entry,
+                                  LedgerKey const& ttlKey,
+                                  LedgerEntry const& ttlEntry);
+    void addRestoresFrom(RestoredEntries const& other,
+                         bool allowDuplicates = false);
 };
 
 class AbstractLedgerTxn;

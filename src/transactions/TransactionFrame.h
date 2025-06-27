@@ -43,6 +43,7 @@ class XDROutputFileStream;
 class SHA256;
 class AppConnector;
 class TransactionMetaBuilder;
+class ThreadParallelApplyLedgerState;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
@@ -275,9 +276,7 @@ class TransactionFrame : public TransactionFrameBase
                      MutableTransactionResultBase& resPayload) const override;
 
     ParallelTxReturnVal parallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,

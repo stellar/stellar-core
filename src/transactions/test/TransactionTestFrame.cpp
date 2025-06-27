@@ -8,9 +8,11 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
+#include <thread>
 
 namespace stellar
 {
+class ThreadParallelApplyLedgerState;
 TransactionTestFrame::TransactionTestFrame(TransactionFrameBasePtr tx)
     : mTransactionFrame(tx)
     , mTransactionTxResult(tx->createValidationSuccessResult())
@@ -315,16 +317,15 @@ TransactionTestFrame::preParallelApply(
 
 ParallelTxReturnVal
 TransactionTestFrame::parallelApply(
-    AppConnector& app, ParallelApplyEntryMap const& entryMap,
-    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& resPayload, SorobanMetrics& sorobanMetrics,
     Hash const& txPrngSeed, TxEffects& effects) const
 {
     return mTransactionFrame->parallelApply(
-        app, entryMap, previouslyRestoredHotEntries, config, sorobanConfig,
-        ledgerInfo, resPayload, sorobanMetrics, txPrngSeed, effects);
+        app, threadState, config, sorobanConfig, ledgerInfo, resPayload,
+        sorobanMetrics, txPrngSeed, effects);
 }
 
 MutableTxResultPtr

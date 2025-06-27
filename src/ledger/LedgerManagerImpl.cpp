@@ -153,238 +153,6 @@ mergeOpInTx(std::vector<Operation> const& ops)
     }
     return false;
 }
-
-inline uint32_t&
-ttl(LedgerEntry& le)
-{
-    return le.data.ttl().liveUntilLedgerSeq;
-}
-
-inline uint32_t const&
-ttl(LedgerEntry const& le)
-{
-    return le.data.ttl().liveUntilLedgerSeq;
-}
-
-inline uint32_t&
-ttl(std::optional<LedgerEntry>& le)
-{
-    return ttl(le.value());
-}
-
-inline uint32_t const&
-ttl(std::optional<LedgerEntry> const& le)
-{
-    return ttl(le.value());
-}
-
-// For every soroban LE in `txBundle`s RW footprint, ensure we've flushed any
-// buffered RO TTL bumps stored in `roTTLBumps` to the `entryMap`.
-//
-// We do so because this tx that does an RW access to the LE:
-//
-//   - _Will_ be clustered with all other RO and RW txs touching the LE, so we
-//     don't need to worry about other clusters touching this LE or bumping its
-//     TTL in parallel. This LE and its TTL are sequentialized in this cluster.
-//
-//   - _Might_ be clustered with an earlier tx that did an RO TTL bump of the
-//     LE, which could have changed the cost of the LE write happening in this
-//     tx. We do have to worry about that!
-//
-// So: for correct accounting of the write happening in this tx, we have to
-// flush any pending RO TTL bumps that interfere with its RW footprint.
-void
-flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
-                            ParallelApplyEntryMap& entryMap,
-                            UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                            TxBundle const& txBundle)
-{
-    auto const& readWrite =
-        txBundle.getTx()->sorobanResources().footprint.readWrite;
-
-    for (auto const& lk : readWrite)
-    {
-        if (!isSorobanEntry(lk))
-        {
-            continue;
-        }
-
-        auto const& ttlKey = getTTLKey(lk);
-        auto b = roTTLBumps.find(ttlKey);
-        if (b != roTTLBumps.end())
-        {
-            // If we have residual RO TTL bumps for this key,
-            // the entry must exist. If it was deleted, we would've
-            // erased the TTL key from roTTLBumps.
-
-            // "Commit" max RO bump now that the key is in a
-            // readWrite set
-            auto e = entryMap.find(ttlKey);
-            if (e != entryMap.end())
-            {
-                releaseAssert(e->second.mLedgerEntry);
-                releaseAssert(ttl(e->second.mLedgerEntry) <= b->second);
-
-                ttl(e->second.mLedgerEntry) = b->second;
-
-                // Mark as dirty so this entry gets written.
-                e->second.isDirty = true;
-            }
-            else
-            {
-                // The entry being must be in the liveSnapshot
-                // if it is not in the entryMap.
-                auto snapshotEntry = liveSnapshot->load(ttlKey);
-                releaseAssert(snapshotEntry);
-
-                auto le = *snapshotEntry;
-                releaseAssert(ttl(le) <= b->second);
-
-                ttl(le) = b->second;
-                entryMap.emplace(ttlKey, ParallelApplyEntry{le, true});
-            }
-            roTTLBumps.erase(b);
-        }
-    }
-}
-
-// Ensure that for each remaining RO TTL bump in `roTTLBumps`, the
-// TTL entry is present in the `entryMap` and is >= the bump TTL.
-void
-flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
-                        ParallelApplyEntryMap& entryMap,
-                        UnorderedMap<LedgerKey, uint32_t> const& roTTLBumps)
-{
-    for (auto const& [lk, ttlBump] : roTTLBumps)
-    {
-        auto entryOpt = getLiveEntry(lk, liveSnapshot, entryMap);
-
-        // The entry should always exist. If the entry was deleted,
-        // then we would've erased the TTL key from roTTLBumps.
-        releaseAssert(entryOpt);
-        if (ttl(entryOpt) < ttlBump)
-        {
-            auto it = entryMap.find(lk);
-            if (it == entryMap.end())
-            {
-                ttl(entryOpt) = ttlBump;
-                entryMap.emplace(lk, ParallelApplyEntry{*entryOpt, true});
-            }
-            else
-            {
-                ttl(it->second.mLedgerEntry) = ttlBump;
-                it->second.isDirty = true;
-            }
-        }
-    }
-}
-
-// Construct a map of all the TTL keys associated with all soroban
-// (code-or-data) keys named in the footprint of the `txBundle`, along with a
-// boolean indicating whether they're RO TTL keys. When false, they're RW.
-UnorderedMap<LedgerKey, bool>
-buildRoTTLMap(TxBundle const& txBundle)
-{
-    UnorderedMap<LedgerKey, bool> isReadOnlyTTLMap;
-    for (auto const& ro :
-         txBundle.getTx()->sorobanResources().footprint.readOnly)
-    {
-        if (!isSorobanEntry(ro))
-        {
-            continue;
-        }
-        isReadOnlyTTLMap.emplace(getTTLKey(ro), true);
-    }
-    for (auto const& rw :
-         txBundle.getTx()->sorobanResources().footprint.readWrite)
-    {
-        if (!isSorobanEntry(rw))
-        {
-            continue;
-        }
-        isReadOnlyTTLMap.emplace(getTTLKey(rw), false);
-    }
-
-    return isReadOnlyTTLMap;
-}
-
-// Look up a key in the RO TTL map built above. If the key is either not a TTL,
-// or not RO, return false.
-bool
-isRoTTLKey(UnorderedMap<LedgerKey, bool> const& rmap, LedgerKey const& lk)
-{
-    auto it = rmap.find(lk);
-    releaseAssert(lk.type() == TTL || it == rmap.end());
-    return lk.type() == TTL && it->second;
-}
-
-// Accumulate into the buffer of `roTTLBumps` the max of any existing entry and
-// the provided `updatedLE`, which must be a non-nullopt TTL LE.
-void
-updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                     LedgerKey const& lk,
-                     std::optional<LedgerEntry> const& updatedLe)
-{
-    auto [it, emplaced] = roTTLBumps.emplace(lk, ttl(updatedLe));
-    if (!emplaced)
-    {
-        it->second = std::max(it->second, ttl(updatedLe));
-    }
-}
-
-// Writes the entries in `res` back to the `entryMap`, `roTTLBumps` and
-// `threadRestoredEntries` variables that are accumulating the state of
-// the transaction cluster.
-void
-recordModifiedAndRestoredEntries(SearchableSnapshotConstPtr liveSnapshot,
-                                 ParallelApplyEntryMap& entryMap,
-                                 UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                                 RestoredEntries& threadRestoredEntries,
-                                 TxBundle const& txBundle,
-                                 ParallelTxReturnVal const& res)
-{
-    releaseAssert(res.getSuccess());
-    auto rmap = buildRoTTLMap(txBundle);
-
-    // now apply the entry changes to entryMap
-    for (auto const& [lk, updatedLe] : res.getModifiedEntryMap())
-    {
-        auto entryOpt = getLiveEntry(lk, liveSnapshot, entryMap);
-
-        if (isRoTTLKey(rmap, lk) && entryOpt && updatedLe)
-        {
-            // Accumulate RO bumps instead of writing them to the entryMap.
-            releaseAssert(ttl(updatedLe) >= ttl(entryOpt));
-            updateMaxOfRoTTLBump(roTTLBumps, lk, updatedLe);
-        }
-        else
-        {
-            // A entry deletion will be marked by a nullopt le.
-            // Set the dirty bit so it'll be written to ltx later.
-            auto it = entryMap.find(lk);
-            if (it == entryMap.end())
-            {
-                entryMap.emplace(lk, ParallelApplyEntry{updatedLe, true});
-            }
-            else
-            {
-                it->second = {updatedLe, true};
-            }
-        }
-    }
-
-    for (auto const& pair : res.getRestoredEntries().hotArchive)
-    {
-        auto [_, inserted] = threadRestoredEntries.hotArchive.emplace(pair);
-        releaseAssert(inserted);
-    }
-    for (auto const& pair : res.getRestoredEntries().liveBucketList)
-    {
-        auto [_, inserted] = threadRestoredEntries.liveBucketList.emplace(pair);
-        releaseAssert(inserted);
-    }
-}
-
 }
 
 std::unique_ptr<LedgerManager>
@@ -2070,24 +1838,14 @@ LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
     }
 }
 
-std::pair<RestoredEntries, std::unique_ptr<ParallelApplyEntryMap>>
+std::unique_ptr<ThreadParallelApplyLedgerState>
 LedgerManagerImpl::applyThread(
-    AppConnector& app, std::unique_ptr<ParallelApplyEntryMap> entryMap,
-
-    UnorderedMap<LedgerKey, LedgerEntry> previouslyRestoredHotEntries,
+    AppConnector& app,
+    std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
     Cluster const& cluster, Config const& config,
     SorobanNetworkConfig const& sorobanConfig, ParallelLedgerInfo ledgerInfo,
     Hash sorobanBasePrngSeed)
 {
-    // RO TTL bumps should only be observed when the entry is modified, so
-    // we accumulate the RO TTL bumps until we need to apply them.
-    UnorderedMap<LedgerKey, uint32_t> roTTLBumps;
-
-    // TODO: copy the snapshot here once and pass it down
-    // TODO: Do the same for the hot archive snapshot?
-    auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
-
-    RestoredEntries threadRestoredEntries;
     for (auto const& txBundle : cluster)
     {
         // Apply timer
@@ -2098,27 +1856,16 @@ LedgerManagerImpl::applyThread(
         txSubSeedSha.add(xdr::xdr_to_opaque(txBundle.getTxNum()));
         Hash txSubSeed = txSubSeedSha.finish();
 
-        flushRoTTLBumpsRequiredByTx(liveSnapshot, *entryMap, roTTLBumps,
-                                    txBundle);
+        threadState->flushRoTTLBumpsInTxWriteFootprint(txBundle);
 
         auto res = txBundle.getTx()->parallelApply(
-            app, *entryMap, previouslyRestoredHotEntries, config, sorobanConfig,
-            ledgerInfo, txBundle.getResPayload(), getSorobanMetrics(),
-            txSubSeed, txBundle.getEffects());
+            app, *threadState, config, sorobanConfig, ledgerInfo,
+            txBundle.getResPayload(), getSorobanMetrics(), txSubSeed,
+            txBundle.getEffects());
 
         if (res.getSuccess())
         {
-            recordModifiedAndRestoredEntries(liveSnapshot, *entryMap,
-                                             roTTLBumps, threadRestoredEntries,
-                                             txBundle, res);
-
-            // Keep track of every restored key from the hot archive
-            // so we can check before loading from the hot archive.
-            // This prevents us from double-restores.
-            for (auto kvp : res.getRestoredEntries().hotArchive)
-            {
-                previouslyRestoredHotEntries.emplace(kvp.first, kvp.second);
-            }
+            threadState->commitChangesFromSuccessfulOp(res, txBundle);
         }
         else
         {
@@ -2126,9 +1873,9 @@ LedgerManagerImpl::applyThread(
         }
     }
 
-    flushResidualRoTTLBumps(liveSnapshot, *entryMap, roTTLBumps);
+    threadState->flushRemainingRoTTLBumps();
 
-    return {threadRestoredEntries, std::move(entryMap)};
+    return threadState;
 }
 
 ParallelLedgerInfo
@@ -2138,21 +1885,17 @@ getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
             lh.scpValue.closeTime, app.getNetworkID()};
 }
 
-std::pair<std::vector<RestoredEntries>,
-          std::vector<std::unique_ptr<ParallelApplyEntryMap>>>
+std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
 LedgerManagerImpl::applySorobanStageClustersInParallel(
     AppConnector& app, ApplyStage const& stage,
-    ParallelApplyEntryMap const& globalEntryMap,
-    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    GlobalParallelApplyLedgerState const& globalState,
     Hash const& sorobanBasePrngSeed, Config const& config,
     SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo)
 {
-    std::vector<RestoredEntries> threadRestoredEntries;
-    std::vector<std::unique_ptr<ParallelApplyEntryMap>> entryMapsByCluster;
 
-    std::vector<std::future<
-        std::pair<RestoredEntries, std::unique_ptr<ParallelApplyEntryMap>>>>
+    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
+    std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
         threadFutures;
 
     auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
@@ -2160,39 +1903,38 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         auto const& cluster = stage.getCluster(i);
-
-        auto entryMapPtr =
-            collectEntries(liveSnapshot, globalEntryMap, cluster);
-
+        auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
+            app, globalState, cluster);
         threadFutures.emplace_back(std::async(
             std::launch::async, &LedgerManagerImpl::applyThread, this,
-            std::ref(app), std::move(entryMapPtr), previouslyRestoredHotEntries,
-            std::cref(cluster), std::cref(config), std::cref(sorobanConfig),
-            ledgerInfo, sorobanBasePrngSeed));
+            std::ref(app), std::move(threadStatePtr), std::cref(cluster),
+            std::cref(config), std::cref(sorobanConfig), ledgerInfo,
+            sorobanBasePrngSeed));
     }
 
-    for (auto& restoredEntriesFutures : threadFutures)
+    for (auto& threadFuture : threadFutures)
     {
-        releaseAssert(restoredEntriesFutures.valid());
-        auto futureResult = restoredEntriesFutures.get();
-        threadRestoredEntries.emplace_back(futureResult.first);
-        entryMapsByCluster.emplace_back(std::move(futureResult.second));
+        releaseAssert(threadFuture.valid());
+        auto futureResult = threadFuture.get();
+        threadStates.emplace_back(std::move(futureResult));
     }
     threadFutures.clear();
-    return {std::move(threadRestoredEntries), std::move(entryMapsByCluster)};
+    return threadStates;
 }
 
 void
 LedgerManagerImpl::addAllRestoredEntriesToLedgerTxn(
-    std::vector<RestoredEntries> const& threadRestoredEntries,
+    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
+        threadStates,
     AbstractLedgerTxn& ltx)
 {
     LedgerTxn ltxInner(ltx);
-    for (auto const& restoredEntries : threadRestoredEntries)
+    for (auto const& threadState : threadStates)
     {
         // We don't need to add the live bucket list restoration keys
         // because they're only needed for meta generation, which has already
         // happened.
+        auto const& restoredEntries = threadState->getRestoredEntries();
         for (auto const& kvp : restoredEntries.hotArchive)
         {
             // We will search for the ttl key in the hot archive when the entry
@@ -2253,29 +1995,24 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
 }
 
 void
-LedgerManagerImpl::applySorobanStage(AppConnector& app, AbstractLedgerTxn& ltx,
-                                     ParallelApplyEntryMap& globalEntryMap,
-                                     ApplyStage const& stage,
-                                     Hash const& sorobanBasePrngSeed)
+LedgerManagerImpl::applySorobanStage(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
+    Hash const& sorobanBasePrngSeed)
 {
     auto const& config = app.getConfig();
     auto const& sorobanConfig = getSorobanNetworkConfigForApply();
     auto ledgerInfo = getParallelLedgerInfo(app, ltx.loadHeader().current());
 
-    auto previouslyRestoredHotEntries = ltx.getRestoredHotArchiveKeys();
-    auto [threadRestoredEntries, entryMapsByCluster] =
-        applySorobanStageClustersInParallel(
-            app, stage, globalEntryMap, previouslyRestoredHotEntries,
-            sorobanBasePrngSeed, config, sorobanConfig, ledgerInfo);
+    auto threadStates = applySorobanStageClustersInParallel(
+        app, stage, globalParState, sorobanBasePrngSeed, config, sorobanConfig,
+        ledgerInfo);
 
-    addAllRestoredEntriesToLedgerTxn(threadRestoredEntries, ltx);
+    addAllRestoredEntriesToLedgerTxn(threadStates, ltx);
 
     checkAllTxBundleInvariants(app, stage, config, ledgerInfo, ltx);
 
-    auto isInReadWriteSet = getReadWriteKeysForStage(stage);
-
-    writeDirtyMapEntriesToGlobalEntryMap(entryMapsByCluster, globalEntryMap,
-                                         isInReadWriteSet);
+    globalParState.commitChangesFromThreads(app, threadStates, stage);
 }
 
 void
@@ -2283,25 +2020,12 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                                       std::vector<ApplyStage> const& stages,
                                       Hash const& sorobanBasePrngSeed)
 {
-    ParallelApplyEntryMap globalEntryMap;
-    // From now on, we will be using globalEntryMap, liveSnapshots, and the
-    // hotArchive to collect all entries. Before we continue though, we need to
-    // load into the globalEntryMap any classic entries that have been modified
-    // in this ledger because those changes won't be reflected in the
-    // globalEntryMap. The entries that could've changed are accounts and
-    // trustlines from the classic phase, as well as fee source accounts that
-    // had their sequence numbers bumped and fees charged. preParallelApply will
-    // update sequence numbers so it needs to be called before we check
-    // LedgerTxn.
-    preParallelApplyAndCollectModifiedClassicEntries(app, ltx, stages,
-                                                     globalEntryMap);
-
+    GlobalParallelApplyLedgerState globalParState(app, ltx, stages);
     for (auto const& stage : stages)
     {
-        applySorobanStage(app, ltx, globalEntryMap, stage, sorobanBasePrngSeed);
+        applySorobanStage(app, ltx, globalParState, stage, sorobanBasePrngSeed);
     }
-
-    writeGlobalEntryMapToLedgerTxn(ltx, globalEntryMap);
+    globalParState.commitChangesToLedgerTxn(ltx);
 }
 
 void

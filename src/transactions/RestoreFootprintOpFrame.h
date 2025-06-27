@@ -40,9 +40,7 @@ class RestoreFootprintOpFrame : public OperationFrame
                       OperationResult& res) const override;
 
     ParallelTxReturnVal doParallelApply(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const&
-            previouslyRestoredHotEntries,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
         Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
         SorobanMetrics& sorobanMetrics, OperationResult& res,

@@ -237,13 +237,13 @@ class ExtendFootprintTTLParallelApplyHelper
 {
   public:
     ExtendFootprintTTLParallelApplyHelper(
-        AppConnector& app, ParallelApplyEntryMap const& entryMap,
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         ParallelLedgerInfo const& ledgerInfo, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame)
         : ExtendFootprintTTLApplyHelper(app, res, refundableFeeTracker, opMeta,
                                         opFrame)
-        , ParallelLedgerAccessHelper(entryMap, ledgerInfo,
+        , ParallelLedgerAccessHelper(threadState, ledgerInfo,
                                      app.copySearchableLiveBucketListSnapshot())
     {
     }
@@ -256,14 +256,13 @@ class ExtendFootprintTTLParallelApplyHelper
     OpModifiedEntryMap
     takeOpEntryMap()
     {
-        return std::move(mOpEntryMap);
+        return std::move(mOpState.takeSuccess().getModifiedEntryMap());
     }
 };
 
 ParallelTxReturnVal
 ExtendFootprintTTLOpFrame::doParallelApply(
-    AppConnector& app, ParallelApplyEntryMap const& entryMap,
-    UnorderedMap<LedgerKey, LedgerEntry> const& previouslyRestoredHotEntries,
+    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
     Hash const& _txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
     SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -275,7 +274,7 @@ ExtendFootprintTTLOpFrame::doParallelApply(
         protocolVersionStartsFrom(ledgerInfo.getLedgerVersion(),
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
     ExtendFootprintTTLParallelApplyHelper helper(
-        app, entryMap, ledgerInfo, res, refundableFeeTracker, opMeta, *this);
+        app, threadState, ledgerInfo, res, refundableFeeTracker, opMeta, *this);
     if (helper.apply())
     {
         return {true, helper.takeOpEntryMap()};

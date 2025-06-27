@@ -63,11 +63,6 @@ class ParallelLedgerInfo
 
 std::unordered_set<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage);
 
-std::unique_ptr<ParallelApplyEntryMap>
-collectEntries(SearchableSnapshotConstPtr liveSnapshot,
-               ParallelApplyEntryMap const& globalEntryMap,
-               Cluster const& cluster);
-
 // sets LedgerTxnDelta within effects
 void setDelta(SearchableSnapshotConstPtr liveSnapshot,
               ParallelApplyEntryMap const& entryMap,
@@ -80,19 +75,188 @@ void preParallelApplyAndCollectModifiedClassicEntries(
     std::vector<ApplyStage> const& stages,
     ParallelApplyEntryMap& globalEntryMap);
 
-void
-writeGlobalEntryMapToLedgerTxn(AbstractLedgerTxn& ltx,
-                               ParallelApplyEntryMap const& globalEntryMap);
-
 void writeDirtyMapEntriesToGlobalEntryMap(
     std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
         entryMapsByCluster,
     ParallelApplyEntryMap& globalEntryMap,
     std::unordered_set<LedgerKey> const& isInReadWriteSet);
 
+void flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
+                                 ParallelApplyEntryMap& entryMap,
+                                 UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
+                                 TxBundle const& txBundle);
+
+void
+flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
+                        ParallelApplyEntryMap& entryMap,
+                        UnorderedMap<LedgerKey, uint32_t> const& roTTLBumps);
+
+void recordModifiedAndRestoredEntries(
+    SearchableSnapshotConstPtr liveSnapshot, ParallelApplyEntryMap& entryMap,
+    UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
+    RestoredEntries& threadRestoredEntries, TxBundle const& txBundle,
+    ParallelTxReturnVal const& res);
+
 std::optional<LedgerEntry> getLiveEntry(LedgerKey const& lk,
                                         SearchableSnapshotConstPtr liveSnapshot,
                                         ParallelApplyEntryMap const& entryMap);
+
+class ThreadParallelApplyLedgerState;
+class GlobalParallelApplyLedgerState
+{
+
+    // Contains the hot archive state from the start of the ledger close. If a
+    // key is in here, it is "evicted". An invariant is that if a key is in here
+    // it is _not_ in the live snapshot.
+    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
+
+    // Contains the live soroban state from the start of the ledger close. If a
+    // key is in here, it is either "archived" or "live", depending on its TTL.
+    // Classic entries are always live, soroban entries always have an
+    // associated TTL entry and if the TTL is in the past the entry is
+    // "archived", otherwise "live". An invariant is that if a key is in here it
+    // is _not_ in the hot archive snapshot.
+    SearchableSnapshotConstPtr mLiveSnapshot;
+
+    // Contains restorations that happened during each stage of the parallel
+    // soroban phase. As with mGlobalEntryMap, this is propagated stage to stage
+    // by being split into per-thread maps and re-merged at the end of the
+    // stage, before begin committed to the ltx at the end of the phase. As with
+    // restorations inside the thread, these entries are the restored values _at
+    // their time of restoration_ which may be further overridden by
+    // mGlobalEntryMap.
+    RestoredEntries mGlobalRestoredEntries;
+
+    // Contains two different sets of entries:
+    //
+    //  - Classic entries modified during earlier sequential phases that are
+    //    read during the parallel soroban phase. These are copied out of the
+    //    ltx before the parallel soroban phase begins.
+    //
+    //  - Dirty entries resulting from each stage of the parallel soroban phase.
+    //    These are propagated from stage to stage of the parallel soroban phase
+    //    -- split into disjoint per-thread maps during execution and merged
+    //    after -- as well as written back to the ltx at the phase's end.
+    ParallelApplyEntryMap mGlobalEntryMap;
+
+    void commitChangesFromThread(AppConnector& app,
+                                 ThreadParallelApplyLedgerState const& thread,
+                                 ApplyStage const& stage);
+
+  public:
+    GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
+                                   std::vector<ApplyStage> const& stages);
+
+    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+    void eraseEntry(LedgerKey const& key);
+
+    RestoredEntries const& getRestoredEntries() const;
+
+    void commitChangesFromThreads(
+        AppConnector& app,
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
+            threads,
+        ApplyStage const& stage);
+
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+};
+
+class ThreadParallelApplyLedgerState
+{
+    // Copies of snapshots from the global state.
+    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
+    SearchableSnapshotConstPtr mLiveSnapshot;
+
+    // Contains entries restored by any tx/op in the current thread's tx cluster
+    // from the current stage of the parallel apply phase. Any entry should only
+    // be in one of the two sub-maps here, live or hot. The entry in the map is
+    // the entry value _at the time of restoration_ which may be overridden by
+    // the entry map.
+    RestoredEntries mThreadRestoredEntries;
+
+    // Contains entries that were restored in previous stages of the parallel
+    // execution phase. These are not considered as restorations that happened
+    // in this thread for the sake of meta generation; but they _are_ consulted
+    // when deciding if a given entry has already been restored (to inhibit
+    // double-restores).
+    RestoredEntries mPreviouslyRestoredEntries;
+
+    // Contains all entries accessed by any tx/op in the current thread's
+    // tx cluster from the current stage of the parallel apply phase. As with
+    // the live entry map, any soroban entry in here must have an associated TTL
+    // entry.
+    ParallelApplyEntryMap mThreadEntryMap;
+
+    // Contains a buffered set of RO TTL bumps that should only be observed
+    // when/if the corresponding entry is modified, otherwise they are merged
+    // (by taking maximums) into the global map at the end of the thread's life.
+    UnorderedMap<LedgerKey, uint32_t> mRoTTLBumps;
+
+    void collectClusterFootprintEntriesFromGlobal(
+        AppConnector& app, GlobalParallelApplyLedgerState const& global,
+        Cluster const& cluster);
+
+  public:
+    ThreadParallelApplyLedgerState(AppConnector& app,
+                                   GlobalParallelApplyLedgerState const& global,
+                                   Cluster const& cluster);
+
+    void flushRoTTLBumpsInTxWriteFootprint(const TxBundle& txBundle);
+
+    void flushRemainingRoTTLBumps();
+
+    ParallelApplyEntryMap const& getEntryMap() const;
+
+    RestoredEntries const& getRestoredEntries() const;
+
+    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    bool entryWasRestored(LedgerKey const& key) const;
+
+    void commitChangesFromSuccessfulOp(ParallelTxReturnVal const& res,
+                                       TxBundle const& txBundle);
+};
+
+class OpParallelApplyLedgerState
+{
+    // Read-only access to the parent stage-spanning state.
+    ThreadParallelApplyLedgerState const& mThreadState;
+
+    // Contains keys restored during this op. As with the thread RestoredEntries
+    // set, this is not just a key set but also contains entry values at the
+    // point in time the entry was restored, and can be overridden by entries
+    // in the mOpEntryMap.
+    RestoredEntries mOpRestoredEntries;
+
+    // Contains entries changed during this op. As with all such maps, if a
+    // soroban entry is in this map, it must also have a TTL entry. Entries in
+    // this map may also be set to nullopt, indicating that the entry was
+    // _deleted_ in this op.
+    //
+    // Deletions will only be added if there was a previously-existing entry to
+    // delete in the parent (thread or live snapshot) maps. A stray delete here
+    // (eg. a std::nullptr entry) not-related to a previous live LE is a bug.
+    //
+    // Any entry in this map is implicitly dirty. Merely loading data from the
+    // thread map or the live snapshot does not add an entry to this map.
+    OpModifiedEntryMap mOpEntryMap;
+
+  public:
+    OpParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent);
+    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    bool upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+    bool eraseEntryIfExists(LedgerKey const& key);
+    bool entryWasRestored(LedgerKey const& key) const;
+    void addHotArchiveRestore(LedgerKey const& key, LedgerEntry const& entry,
+                              LedgerKey const& ttlKey,
+                              LedgerEntry const& ttlEntry);
+    void addLiveBucketlistRestore(LedgerKey const& key,
+                                  LedgerEntry const& entry,
+                                  LedgerKey const& ttlKey,
+                                  LedgerEntry const& ttlEntry);
+    ParallelTxReturnVal takeSuccess();
+    ParallelTxReturnVal takeFailure();
+};
 
 class LedgerAccessHelper
 {
@@ -102,11 +266,18 @@ class LedgerAccessHelper
     getLedgerEntryOpt(LedgerKey const& key) = 0;
 
     // upsert returns true if the entry was created, false if it was updated.
+    // "created" here is interpreted narrowly to mean there was no
+    // populated/non-null entry in any parent level of the ledger state; a
+    // "local" map-insert that shadows an existing entry is not considered a
+    // create.
     virtual bool upsertLedgerEntry(LedgerKey const& key,
                                    LedgerEntry const& entry) = 0;
 
     // erase returns true if the entry was erased, false if it wasn't present.
-    virtual bool eraseLedgerEntry(LedgerKey const& key) = 0;
+    // as with upsert, this is interpreted narrowly to mean that an erase
+    // (essentially a nullptr / std::nullopt upsert) is only performed if there
+    // was no populated/non-null entry in any parent level of the ledger state.
+    virtual bool eraseLedgerEntryIfExists(LedgerKey const& key) = 0;
 
     virtual uint32_t getLedgerVersion() = 0;
     virtual uint32_t getLedgerSeq() = 0;
@@ -122,7 +293,7 @@ class PreV23LedgerAccessHelper : virtual public LedgerAccessHelper
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
     bool upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
-    bool eraseLedgerEntry(LedgerKey const& key) override;
+    bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;
     uint32_t getLedgerSeq() override;
 };
@@ -131,21 +302,19 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
 {
 
   protected:
-    ParallelLedgerAccessHelper(ParallelApplyEntryMap const& entryMap,
-                               ParallelLedgerInfo const& ledgerInfo,
-                               SearchableSnapshotConstPtr liveSnapshot);
+    ParallelLedgerAccessHelper(
+        ThreadParallelApplyLedgerState const& threadState,
+        ParallelLedgerInfo const& ledgerInfo,
+        SearchableSnapshotConstPtr liveSnapshot);
 
-    ParallelApplyEntryMap const& mEntryMap;
     ParallelLedgerInfo const& mLedgerInfo;
-    SearchableSnapshotConstPtr mLiveSnapshot;
-    OpModifiedEntryMap mOpEntryMap;
+    OpParallelApplyLedgerState mOpState;
 
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
     bool upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
-    bool eraseLedgerEntry(LedgerKey const& key) override;
+    bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;
     uint32_t getLedgerSeq() override;
 };
-
 }
