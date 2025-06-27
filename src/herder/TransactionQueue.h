@@ -292,6 +292,16 @@ class SorobanTransactionQueue : public TransactionQueue
     }
 
     size_t getMaxQueueSizeOps() const override;
+
+    /**
+     * Reset and rebuild the Soroban transaction queue with respect to new
+     * limits. This method extracts all current transactions, clears the queue
+     * state, and re-adds transactions using surge pricing logic for
+     * sorting/evictions. Should be called synchronously during protocol or
+     * network config upgrades.
+     */
+    void resetAndRebuild();
+
 #ifdef BUILD_TESTS
     void
     clearBroadcastCarryover()

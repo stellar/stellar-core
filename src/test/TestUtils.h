@@ -126,6 +126,8 @@ void
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
                             std::shared_ptr<Simulation> simulation,
                             bool applyUpgrade = true);
+std::pair<SorobanNetworkConfig, UpgradeType> prepareSorobanNetworkConfigUpgrade(
+    Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);

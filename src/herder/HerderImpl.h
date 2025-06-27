@@ -233,6 +233,7 @@ class HerderImpl : public Herder
     size_t getMaxQueueSizeOps() const override;
     size_t getMaxQueueSizeSorobanOps() const override;
     void maybeHandleUpgrade() override;
+    void scheduleQueueRebuild() override;
 
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
@@ -355,6 +356,9 @@ class HerderImpl : public Herder
     // network or not (Herder::State is used to properly track the state of
     // Herder) On startup, this variable is set to LCL
     ConsensusData mTrackingSCP;
+
+    // Flag to trigger transaction queue rebuild after upgrades
+    std::atomic<bool> mQueueRebuildNeeded{false};
 
     uint32_t mMaxTxSize{0};
 };

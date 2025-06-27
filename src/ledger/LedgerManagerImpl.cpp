@@ -1292,6 +1292,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
     // was validated before upgrades
+    bool upgradeApplied = false;
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
@@ -1330,6 +1331,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                 uem.changes = changes;
             }
             ltxUpgrade.commit();
+            upgradeApplied = true;
         }
         catch (std::runtime_error& e)
         {
@@ -1340,6 +1342,15 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             CLOG_ERROR(Ledger, "Unknown exception during upgrade");
         }
     }
+
+    // Schedule transaction queue rebuild if any upgrades were applied. Note
+    // that the actual upgrade must occur on synchronously on the main thread to
+    // avoid races with incoming TXs added to the queue.
+    if (upgradeApplied)
+    {
+        mApp.getHerder().scheduleQueueRebuild();
+    }
+
     auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))

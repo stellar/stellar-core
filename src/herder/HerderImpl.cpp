@@ -2435,9 +2435,18 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
 
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
 
-    auto updateQueue = [&](auto& queue, auto const& applied) {
+    auto updateQueue = [&](auto& queue, auto const& applied, bool isSoroban) {
         queue.removeApplied(applied);
         queue.shift();
+
+        // Check if queue rebuild was scheduled due to upgrades. Do this
+        // after removing applied transactions, but before checking for invalid
+        // TXs so we can use the most up to date limits for the validity check.
+        if (isSoroban && mQueueRebuildNeeded)
+        {
+            mSorobanTransactionQueue->resetAndRebuild();
+            mQueueRebuildNeeded = false;
+        }
 
         auto txs = queue.getTransactions(lhhe.header);
 
@@ -2451,7 +2460,8 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
     if (txsPerPhase.size() > static_cast<size_t>(TxSetPhase::CLASSIC))
     {
         updateQueue(mTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)]);
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)],
+                    false);
     }
 
     // Even if we're in protocol 20, still check for number of phases, in case
@@ -2461,8 +2471,15 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
         txsPerPhase.size() > static_cast<size_t>(TxSetPhase::SOROBAN))
     {
         updateQueue(*mSorobanTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)]);
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)],
+                    true);
     }
+}
+
+void
+HerderImpl::scheduleQueueRebuild()
+{
+    mQueueRebuildNeeded = true;
 }
 
 void
