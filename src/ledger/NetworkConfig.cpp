@@ -1431,15 +1431,15 @@ SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
     auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractLedgerCost();
-    mledgerMaxDiskReadEntries = configSetting.ledgerMaxDiskReadEntries;
-    mledgerMaxDiskReadBytes = configSetting.ledgerMaxDiskReadBytes;
+    mLedgerMaxDiskReadEntries = configSetting.ledgerMaxDiskReadEntries;
+    mLedgerMaxDiskReadBytes = configSetting.ledgerMaxDiskReadBytes;
     mLedgerMaxWriteLedgerEntries = configSetting.ledgerMaxWriteLedgerEntries;
     mLedgerMaxWriteBytes = configSetting.ledgerMaxWriteBytes;
     mTxMaxDiskReadEntries = configSetting.txMaxDiskReadEntries;
     mTxMaxDiskReadBytes = configSetting.txMaxDiskReadBytes;
     mTxMaxWriteLedgerEntries = configSetting.txMaxWriteLedgerEntries;
     mTxMaxWriteBytes = configSetting.txMaxWriteBytes;
-    mfeeDiskReadLedgerEntry = configSetting.feeDiskReadLedgerEntry;
+    mFeeDiskReadLedgerEntry = configSetting.feeDiskReadLedgerEntry;
     mFeeWriteLedgerEntry = configSetting.feeWriteLedgerEntry;
     mFeeDiskRead1KB = configSetting.feeDiskRead1KB;
     mSorobanStateTargetSizeBytes = configSetting.sorobanStateTargetSizeBytes;
@@ -1730,13 +1730,13 @@ SorobanNetworkConfig::txMemoryLimit() const
 uint32_t
 SorobanNetworkConfig::ledgerMaxDiskReadEntries() const
 {
-    return mledgerMaxDiskReadEntries;
+    return mLedgerMaxDiskReadEntries;
 }
 
 uint32_t
 SorobanNetworkConfig::ledgerMaxDiskReadBytes() const
 {
-    return mledgerMaxDiskReadBytes;
+    return mLedgerMaxDiskReadBytes;
 }
 
 uint32_t
@@ -1778,7 +1778,7 @@ SorobanNetworkConfig::txMaxWriteBytes() const
 int64_t
 SorobanNetworkConfig::feeDiskReadLedgerEntry() const
 {
-    return mfeeDiskReadLedgerEntry;
+    return mFeeDiskReadLedgerEntry;
 }
 
 int64_t
@@ -2288,8 +2288,8 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
                other.feeRatePerInstructionsIncrement() &&
            mTxMemoryLimit == other.txMemoryLimit() &&
 
-           mledgerMaxDiskReadEntries == other.ledgerMaxDiskReadEntries() &&
-           mledgerMaxDiskReadBytes == other.ledgerMaxDiskReadBytes() &&
+           mLedgerMaxDiskReadEntries == other.ledgerMaxDiskReadEntries() &&
+           mLedgerMaxDiskReadBytes == other.ledgerMaxDiskReadBytes() &&
            mLedgerMaxWriteLedgerEntries ==
                other.ledgerMaxWriteLedgerEntries() &&
            mLedgerMaxWriteBytes == other.ledgerMaxWriteBytes() &&
@@ -2300,7 +2300,7 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
            mTxMaxDiskReadBytes == other.txMaxDiskReadBytes() &&
            mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
            mTxMaxWriteBytes == other.txMaxWriteBytes() &&
-           mfeeDiskReadLedgerEntry == other.feeDiskReadLedgerEntry() &&
+           mFeeDiskReadLedgerEntry == other.feeDiskReadLedgerEntry() &&
            mFeeWriteLedgerEntry == other.feeWriteLedgerEntry() &&
            mFeeDiskRead1KB == other.feeDiskRead1KB() &&
            mFeeFlatRateWrite1KB == other.feeFlatRateWrite1KB() &&
