@@ -16,8 +16,9 @@
 #include <fmt/std.h>
 #include <thread>
 
-namespace stellar
+namespace
 {
+using namespace stellar;
 
 std::unordered_set<LedgerKey>
 getReadWriteKeysForStage(ApplyStage const& stage)
@@ -38,6 +39,36 @@ getReadWriteKeysForStage(ApplyStage const& stage)
     }
     return res;
 }
+
+bool
+maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
+                     ParallelApplyEntry& oldEntry,
+                     std::unordered_set<LedgerKey> const& readWriteSet)
+{
+    if (newEntry.mLedgerEntry && oldEntry.mLedgerEntry)
+    {
+        auto const& newLe = newEntry.mLedgerEntry.value();
+        auto& oldLe = oldEntry.mLedgerEntry.value();
+        if (key.type() == TTL)
+        {
+            releaseAssertOrThrow(newLe.data.type() == TTL);
+            releaseAssertOrThrow(oldLe.data.type() == TTL);
+            if (readWriteSet.find(key) == readWriteSet.end())
+            {
+                auto const& newTTL = newLe.data.ttl().liveUntilLedgerSeq;
+                auto& oldTTL = oldLe.data.ttl().liveUntilLedgerSeq;
+                oldTTL = std::max(oldTTL, newTTL);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+}
+
+namespace stellar
+{
 
 void
 preParallelApplyAndCollectModifiedClassicEntries(
@@ -99,89 +130,6 @@ preParallelApplyAndCollectModifiedClassicEntries(
             fetchInMemoryClassicEntries(footprint.readWrite);
             fetchInMemoryClassicEntries(footprint.readOnly);
         }
-    }
-}
-
-void
-writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
-    ParallelApplyEntryMap const& threadEntryMap,
-    ParallelApplyEntryMap& globalEntryMap,
-    std::unordered_set<LedgerKey> const& isInReadWriteSet)
-{
-    for (auto const& entry : threadEntryMap)
-    {
-        // Only update if dirty bit is set
-        if (!entry.second.mIsDirty)
-        {
-            continue;
-        }
-
-        if (entry.second.mLedgerEntry)
-        {
-            auto const& updatedEntry = *entry.second.mLedgerEntry;
-
-            auto it = globalEntryMap.find(entry.first);
-            if (it != globalEntryMap.end() && it->second.mLedgerEntry)
-            {
-                auto const& currentEntry = *it->second.mLedgerEntry;
-                if (currentEntry.data.type() == TTL)
-                {
-                    auto currLiveUntil =
-                        currentEntry.data.ttl().liveUntilLedgerSeq;
-                    auto newLiveUntil =
-                        updatedEntry.data.ttl().liveUntilLedgerSeq;
-
-                    // The only scenario where we accept a reduction in TTL
-                    // is one where an entry was deleted, and then
-                    // recreated. This can only happen if the key was in the
-                    // readWrite set, so if it's not then this is just a
-                    // parallel readOnly bump that we can ignore here.
-                    if (newLiveUntil <= currLiveUntil &&
-                        isInReadWriteSet.count(entry.first) == 0)
-                    {
-                        continue;
-                    }
-                }
-                it->second = entry.second;
-            }
-            else
-            {
-                if (it != globalEntryMap.end())
-                {
-                    it->second = entry.second;
-                }
-                else
-                {
-                    globalEntryMap.emplace(
-                        entry.first,
-                        ParallelApplyEntry::dirtyLive(updatedEntry));
-                }
-            }
-        }
-        else
-        {
-            auto dead = ParallelApplyEntry::dirtyDead();
-            auto [it, inserted] = globalEntryMap.emplace(entry.first, dead);
-            if (!inserted)
-            {
-                it->second = dead;
-            }
-        }
-    }
-}
-
-void
-writeDirtyMapEntriesToGlobalEntryMap(
-    std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
-        entryMapsByCluster,
-    ParallelApplyEntryMap& globalEntryMap,
-    std::unordered_set<LedgerKey> const& isInReadWriteSet)
-{
-    // merge entryMaps into globalEntryMap
-    for (auto const& map : entryMapsByCluster)
-    {
-        writeDirtyThreadEntryMapEntriesToGlobalEntryMap(*map, globalEntryMap,
-                                                        isInReadWriteSet);
     }
 }
 
@@ -668,7 +616,7 @@ void
 GlobalParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                                             LedgerEntry const& entry)
 {
-    auto e = ParallelApplyEntry::dirtyLive(entry);
+    auto e = ParallelApplyEntry::dirtyPopulated(entry);
     auto [it, inserted] = mGlobalEntryMap.emplace(key, e);
     if (!inserted)
     {
@@ -679,7 +627,7 @@ GlobalParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
 void
 GlobalParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
 {
-    auto e = ParallelApplyEntry::dirtyDead();
+    auto e = ParallelApplyEntry::dirtyEmpty();
     auto [it, inserted] = mGlobalEntryMap.emplace(key, e);
     if (!inserted)
     {
@@ -694,6 +642,25 @@ GlobalParallelApplyLedgerState::getRestoredEntries() const
 }
 
 void
+GlobalParallelApplyLedgerState::commitChangeFromThread(
+    LedgerKey const& key, ParallelApplyEntry const& parEntry,
+    std::unordered_set<LedgerKey> const& readWriteSet)
+{
+    if (!parEntry.mIsDirty)
+    {
+        return;
+    }
+    auto [it, inserted] = mGlobalEntryMap.emplace(key, parEntry);
+    if (!inserted)
+    {
+        if (!maybeMergeRoTTLBumps(key, parEntry, it->second, readWriteSet))
+        {
+            it->second = parEntry;
+        }
+    }
+}
+
+void
 GlobalParallelApplyLedgerState::commitChangesFromThread(
     AppConnector& app, ThreadParallelApplyLedgerState const& thread,
     ApplyStage const& stage)
@@ -701,8 +668,10 @@ GlobalParallelApplyLedgerState::commitChangesFromThread(
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
     auto readWriteSet = getReadWriteKeysForStage(stage);
-    writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
-        thread.getEntryMap(), mGlobalEntryMap, readWriteSet);
+    for (auto const& [key, entry] : thread.getEntryMap())
+    {
+        commitChangeFromThread(key, entry, readWriteSet);
+    }
     mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
 }
 
@@ -754,7 +723,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                 if (opt)
                 {
                     mThreadEntryMap.emplace(
-                        key, ParallelApplyEntry::cleanLive(opt.value()));
+                        key, ParallelApplyEntry::cleanPopulated(opt.value()));
                     if (isSorobanEntry(key))
                     {
                         auto ttlKey = getTTLKey(key);
@@ -762,7 +731,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                         releaseAssertOrThrow(ttlOpt);
                         mThreadEntryMap.emplace(
                             ttlKey,
-                            ParallelApplyEntry::cleanLive(ttlOpt.value()));
+                            ParallelApplyEntry::cleanPopulated(ttlOpt.value()));
                     }
                 }
             }

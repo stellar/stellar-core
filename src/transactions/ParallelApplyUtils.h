@@ -61,8 +61,6 @@ class ParallelLedgerInfo
     Hash networkID;
 };
 
-std::unordered_set<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage);
-
 // sets LedgerTxnDelta within effects
 void setDelta(SearchableSnapshotConstPtr liveSnapshot,
               ParallelApplyEntryMap const& entryMap,
@@ -74,12 +72,6 @@ void preParallelApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
     ParallelApplyEntryMap& globalEntryMap);
-
-void writeDirtyMapEntriesToGlobalEntryMap(
-    std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
-        entryMapsByCluster,
-    ParallelApplyEntryMap& globalEntryMap,
-    std::unordered_set<LedgerKey> const& isInReadWriteSet);
 
 void flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
                                  ParallelApplyEntryMap& entryMap,
@@ -138,6 +130,11 @@ class GlobalParallelApplyLedgerState
     //    -- split into disjoint per-thread maps during execution and merged
     //    after -- as well as written back to the ltx at the phase's end.
     ParallelApplyEntryMap mGlobalEntryMap;
+
+    void
+    commitChangeFromThread(LedgerKey const& key,
+                           ParallelApplyEntry const& parEntry,
+                           std::unordered_set<LedgerKey> const& readWriteSet);
 
     void commitChangesFromThread(AppConnector& app,
                                  ThreadParallelApplyLedgerState const& thread,
