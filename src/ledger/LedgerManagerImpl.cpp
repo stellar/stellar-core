@@ -365,6 +365,12 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
+
+    // mInMemorySorobanState is expected to exist when we go through the ledger
+    // close flow, so initialize empty in-memory state.
+    mApplyState.mInMemorySorobanState =
+        std::make_unique<InMemorySorobanState>();
+
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(ltx, /*ledgerCloseMeta*/ nullptr,
                                             /*initialLedgerVers*/ 0);
@@ -1464,6 +1470,7 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     }
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
+    mApplyState.mInMemorySorobanState->manuallyAdvanceLedgerHeader(header);
     advanceLastClosedLedgerState(
         advanceBucketListSnapshotAndMakeLedgerState(header, has));
 }
@@ -2446,13 +2453,8 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
     mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                          deadEntries);
-
-    // Update Soroban state cache
-    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
-    {
-        mApplyState.mInMemorySorobanState->updateState(initEntries, liveEntries,
-                                                       deadEntries);
-    }
+    mApplyState.mInMemorySorobanState->updateState(initEntries, liveEntries,
+                                                   deadEntries, lh);
 }
 
 CompleteConstLedgerStatePtr

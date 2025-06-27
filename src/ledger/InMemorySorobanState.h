@@ -279,6 +279,9 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // this should be empty.
     std::unordered_map<uint256, uint32_t> mPendingTTLs;
 
+    // ledgerSeq which the InMemorySorobanState currently "snapshots".
+    uint32_t mLastClosedLedgerSeq = 0;
+
     // Helper to update an existing ContractData entry's TTL without changing
     // data
     void updateContractDataTTL(
@@ -343,9 +346,14 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // Initialize the map from a bucket list snapshot
     void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap);
 
-    // Update the map with entries from a ledger close.
+    // Update the map with entries from a ledger close. ledgerSeq must be
+    // exactly mLastClosedLedgerSeq + 1.
     void updateState(std::vector<LedgerEntry> const& initEntries,
                      std::vector<LedgerEntry> const& liveEntries,
-                     std::vector<LedgerKey> const& deadEntries);
+                     std::vector<LedgerKey> const& deadEntries,
+                     LedgerHeader const& lh);
+
+    // Should only be called in manual ledger close paths.
+    void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
 };
 }

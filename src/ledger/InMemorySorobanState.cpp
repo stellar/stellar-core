@@ -340,60 +340,78 @@ InMemorySorobanState::initializeStateFromSnapshot(
     snap->scanForEntriesOfType(TTL, ttlHandler);
     snap->scanForEntriesOfType(CONTRACT_CODE, contractCodeHandler);
 
+    mLastClosedLedgerSeq = snap->getLedgerSeq();
     checkUpdateInvariants();
 }
 
 void
 InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
                                   std::vector<LedgerEntry> const& liveEntries,
-                                  std::vector<LedgerKey> const& deadEntries)
+                                  std::vector<LedgerKey> const& deadEntries,
+                                  LedgerHeader const& lh)
 {
-    for (auto const& entry : initEntries)
+    // We only store soroban entries, no reason to check before protocol 20
+    if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        if (entry.data.type() == CONTRACT_DATA)
+        for (auto const& entry : initEntries)
         {
-            createContractDataEntry(entry);
+            if (entry.data.type() == CONTRACT_DATA)
+            {
+                createContractDataEntry(entry);
+            }
+            else if (entry.data.type() == CONTRACT_CODE)
+            {
+                createContractCodeEntry(entry);
+            }
+            else if (entry.data.type() == TTL)
+            {
+                createTTL(entry);
+            }
         }
-        else if (entry.data.type() == CONTRACT_CODE)
+
+        for (auto const& entry : liveEntries)
         {
-            createContractCodeEntry(entry);
+            if (entry.data.type() == CONTRACT_DATA)
+            {
+                updateContractData(entry);
+            }
+            else if (entry.data.type() == CONTRACT_CODE)
+            {
+                updateContractCode(entry);
+            }
+            else if (entry.data.type() == TTL)
+            {
+                updateTTL(entry);
+            }
         }
-        else if (entry.data.type() == TTL)
+
+        for (auto const& key : deadEntries)
         {
-            createTTL(entry);
+            if (key.type() == CONTRACT_DATA)
+            {
+                deleteContractData(key);
+            }
+            else if (key.type() == CONTRACT_CODE)
+            {
+                deleteContractCode(key);
+            }
+            // No need to evict TTLs, they are stored with their associated
+            // entry
         }
     }
 
-    for (auto const& entry : liveEntries)
-    {
-        if (entry.data.type() == CONTRACT_DATA)
-        {
-            updateContractData(entry);
-        }
-        else if (entry.data.type() == CONTRACT_CODE)
-        {
-            updateContractCode(entry);
-        }
-        else if (entry.data.type() == TTL)
-        {
-            updateTTL(entry);
-        }
-    }
-
-    for (auto const& key : deadEntries)
-    {
-        if (key.type() == CONTRACT_DATA)
-        {
-            deleteContractData(key);
-        }
-        else if (key.type() == CONTRACT_CODE)
-        {
-            deleteContractCode(key);
-        }
-        // No need to evict TTLs, they are stored with their associated entry
-    }
+    // After initialization, we must apply every ledger in order to the
+    // in-memory state with no gaps.
+    releaseAssertOrThrow(mLastClosedLedgerSeq + 1 == lh.ledgerSeq);
+    mLastClosedLedgerSeq = lh.ledgerSeq;
 
     checkUpdateInvariants();
+}
+
+void
+InMemorySorobanState::manuallyAdvanceLedgerHeader(LedgerHeader const& lh)
+{
+    mLastClosedLedgerSeq = lh.ledgerSeq;
 }
 
 void
