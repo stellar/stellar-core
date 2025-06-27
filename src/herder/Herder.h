@@ -229,6 +229,9 @@ class Herder
     virtual size_t getMaxQueueSizeSorobanOps() const = 0;
     virtual void maybeHandleUpgrade() = 0;
 
+    // Schedule transaction queue rebuild after protocol/network config upgrades
+    virtual void scheduleQueueRebuild() = 0;
+
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
 
