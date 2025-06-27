@@ -68,27 +68,6 @@ void setDelta(SearchableSnapshotConstPtr liveSnapshot,
               UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
               ParallelLedgerInfo const& ledgerInfo, TxEffects& effects);
 
-void preParallelApplyAndCollectModifiedClassicEntries(
-    AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
-    ParallelApplyEntryMap& globalEntryMap);
-
-void flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
-                                 ParallelApplyEntryMap& entryMap,
-                                 UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                                 TxBundle const& txBundle);
-
-void
-flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
-                        ParallelApplyEntryMap& entryMap,
-                        UnorderedMap<LedgerKey, uint32_t> const& roTTLBumps);
-
-void recordModifiedAndRestoredEntries(
-    SearchableSnapshotConstPtr liveSnapshot, ParallelApplyEntryMap& entryMap,
-    UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-    RestoredEntries& threadRestoredEntries, TxBundle const& txBundle,
-    ParallelTxReturnVal const& res);
-
 std::optional<LedgerEntry> getLiveEntry(LedgerKey const& lk,
                                         SearchableSnapshotConstPtr liveSnapshot,
                                         ParallelApplyEntryMap const& entryMap);
@@ -193,6 +172,13 @@ class ThreadParallelApplyLedgerState
     void collectClusterFootprintEntriesFromGlobal(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
+
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+    void eraseEntry(LedgerKey const& key);
+    void
+    commitChangeFromSuccessfulOp(LedgerKey const& key,
+                                 std::optional<LedgerEntry> const& entryOpt,
+                                 UnorderedSet<LedgerKey> const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,

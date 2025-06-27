@@ -65,11 +65,6 @@ maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
     return false;
 }
 
-}
-
-namespace stellar
-{
-
 void
 preParallelApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
@@ -258,13 +253,12 @@ flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
     }
 }
 
-// Construct a map of all the TTL keys associated with all soroban
-// (code-or-data) keys named in the footprint of the `txBundle`, along with a
-// boolean indicating whether they're RO TTL keys. When false, they're RW.
-UnorderedMap<LedgerKey, bool>
-buildRoTTLMap(TxBundle const& txBundle)
+// Construct a set of all the TTL keys associated with all RO soroban
+// (code-or-data) keys named in the footprint of the `txBundle`.
+UnorderedSet<LedgerKey>
+buildRoTTLSet(TxBundle const& txBundle)
 {
-    UnorderedMap<LedgerKey, bool> isReadOnlyTTLMap;
+    UnorderedSet<LedgerKey> isReadOnlyTTLSet;
     for (auto const& ro :
          txBundle.getTx()->sorobanResources().footprint.readOnly)
     {
@@ -272,7 +266,7 @@ buildRoTTLMap(TxBundle const& txBundle)
         {
             continue;
         }
-        isReadOnlyTTLMap.emplace(getTTLKey(ro), true);
+        isReadOnlyTTLSet.emplace(getTTLKey(ro));
     }
     for (auto const& rw :
          txBundle.getTx()->sorobanResources().footprint.readWrite)
@@ -281,20 +275,9 @@ buildRoTTLMap(TxBundle const& txBundle)
         {
             continue;
         }
-        isReadOnlyTTLMap.emplace(getTTLKey(rw), false);
+        isReadOnlyTTLSet.erase(getTTLKey(rw));
     }
-
-    return isReadOnlyTTLMap;
-}
-
-// Look up a key in the RO TTL map built above. If the key is either not a TTL,
-// or not RO, return false.
-bool
-isRoTTLKey(UnorderedMap<LedgerKey, bool> const& rmap, LedgerKey const& lk)
-{
-    auto it = rmap.find(lk);
-    releaseAssert(lk.type() == TTL || it == rmap.end());
-    return lk.type() == TTL && it->second;
+    return isReadOnlyTTLSet;
 }
 
 // Accumulate into the buffer of `roTTLBumps` the max of any existing entry and
@@ -311,45 +294,10 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
     }
 }
 
-// Writes the entries in `res` back to the `entryMap`, `roTTLBumps` and
-// `threadRestoredEntries` variables that are accumulating the state of
-// the transaction cluster.
-void
-recordModifiedAndRestoredEntries(SearchableSnapshotConstPtr liveSnapshot,
-                                 ParallelApplyEntryMap& entryMap,
-                                 UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                                 RestoredEntries& threadRestoredEntries,
-                                 TxBundle const& txBundle,
-                                 ParallelTxReturnVal const& res)
-{
-    releaseAssert(res.getSuccess());
-    auto rmap = buildRoTTLMap(txBundle);
-
-    // now apply the entry changes to entryMap
-    for (auto const& [lk, updatedLe] : res.getModifiedEntryMap())
-    {
-        auto oldEntryOpt = getLiveEntry(lk, liveSnapshot, entryMap);
-
-        if (isRoTTLKey(rmap, lk) && oldEntryOpt && updatedLe)
-        {
-            // Accumulate RO bumps instead of writing them to the entryMap.
-            releaseAssert(ttl(updatedLe) >= ttl(oldEntryOpt));
-            updateMaxOfRoTTLBump(roTTLBumps, lk, updatedLe);
-        }
-        else
-        {
-            // A entry deletion will be marked by a nullopt le.
-            // Set the dirty bit so it'll be written to ltx later.
-            auto e = ParallelApplyEntry{updatedLe, true};
-            auto [it, inserted] = entryMap.emplace(lk, e);
-            if (!inserted)
-            {
-                it->second = e;
-            }
-        }
-    }
-    threadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }
+
+namespace stellar
+{
 
 void
 setDelta(SearchableSnapshotConstPtr liveSnapshot,
@@ -806,13 +754,60 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
 }
 
 void
+ThreadParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
+                                            LedgerEntry const& entry)
+{
+    auto e = ParallelApplyEntry::dirtyPopulated(entry);
+    auto [it, inserted] = mThreadEntryMap.emplace(key, e);
+    if (!inserted)
+    {
+        it->second = e;
+    }
+}
+void
+ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
+{
+    auto e = ParallelApplyEntry::dirtyEmpty();
+    auto [it, inserted] = mThreadEntryMap.emplace(key, e);
+    if (!inserted)
+    {
+        it->second = e;
+    }
+}
+
+void
+ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
+    LedgerKey const& key, std::optional<LedgerEntry> const& entryOpt,
+    UnorderedSet<LedgerKey> const& roTTLSet)
+{
+    auto oldEntryOpt = getLiveEntryOpt(key);
+    if (entryOpt && oldEntryOpt && roTTLSet.find(key) != roTTLSet.end())
+    {
+        // Accumulate RO bumps instead of writing them to the entryMap.
+        releaseAssert(ttl(entryOpt) >= ttl(oldEntryOpt));
+        updateMaxOfRoTTLBump(mRoTTLBumps, key, entryOpt);
+    }
+    else if (entryOpt)
+    {
+        upsertEntry(key, entryOpt.value());
+    }
+    else
+    {
+        eraseEntry(key);
+    }
+}
+
+void
 ThreadParallelApplyLedgerState::commitChangesFromSuccessfulOp(
     ParallelTxReturnVal const& res, TxBundle const& txBundle)
 {
     releaseAssert(res.getSuccess());
-    recordModifiedAndRestoredEntries(mLiveSnapshot, mThreadEntryMap,
-                                     mRoTTLBumps, mThreadRestoredEntries,
-                                     txBundle, res);
+    auto roTTLSet = buildRoTTLSet(txBundle);
+    for (auto const& [key, entryOpt] : res.getModifiedEntryMap())
+    {
+        commitChangeFromSuccessfulOp(key, entryOpt, roTTLSet);
+    }
+    mThreadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }
 
 bool
