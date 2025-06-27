@@ -34,6 +34,11 @@ class XDROutputFileStream;
 class Herder
 {
   public:
+    // Multiplier for the number of ledgers worth of TXs to keep in the queue.
+    static constexpr uint32_t DEFAULT_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+    static constexpr uint32_t
+        DEFAULT_SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+
     // Expected time between two ledger close.
     static std::chrono::seconds const EXP_LEDGER_TIMESPAN_SECONDS;
 

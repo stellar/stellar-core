@@ -1357,19 +1357,19 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxInstructions =
-                            std::numeric_limits<int64_t>::max();
+                            std::numeric_limits<int64_t>::max() / 4;
                         sorobanCfg.mLedgerMaxDiskReadBytes =
-                            std::numeric_limits<uint32_t>::max();
+                            std::numeric_limits<uint32_t>::max() / 4;
                         sorobanCfg.mLedgerMaxWriteBytes =
-                            std::numeric_limits<uint32_t>::max();
+                            std::numeric_limits<uint32_t>::max() / 4;
                         sorobanCfg.mLedgerMaxDiskReadEntries =
-                            std::numeric_limits<uint32_t>::max();
+                            std::numeric_limits<uint32_t>::max() / 4;
                         sorobanCfg.mLedgerMaxWriteLedgerEntries =
-                            std::numeric_limits<uint32_t>::max();
+                            std::numeric_limits<uint32_t>::max() / 4;
                         sorobanCfg.mLedgerMaxTxCount =
-                            std::numeric_limits<uint32_t>::max();
+                            std::numeric_limits<uint32_t>::max() / 4;
                         sorobanCfg.mLedgerMaxTransactionsSizeBytes =
-                            std::numeric_limits<uint32_t>::max();
+                            std::numeric_limits<uint32_t>::max() / 4;
                         sorobanCfg.mLedgerMaxDependentTxClusters = 100;
                     });
                 TxStageFrameList nonConflictingTxsPerStage = {

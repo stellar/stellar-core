@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "herder/Herder.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
@@ -1013,6 +1014,19 @@ updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
         Protcol23UpgradedConfig::TEMP_RENT_RATE_DENOMINATOR;
     ltx.commit();
 }
+
+// The queue can hold up to DEFAULT_SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
+// networkConfigValue of the given resource for ledger wide resources. We need
+// to check that this calculation won't cause an overflow (we check the multiply
+// later in TX queue so there's no actual overflow, but core will throw).
+template <typename T>
+bool
+checkForOverflow(T networkConfigValue)
+{
+    return networkConfigValue <
+           std::numeric_limits<T>::max() /
+               Herder::DEFAULT_SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
+}
 } // namespace
 
 bool
@@ -1050,7 +1064,8 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 cfg.contractBandwidth().txMaxSizeBytes >=
                     MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES &&
                 cfg.contractBandwidth().ledgerMaxTxsSizeBytes >=
-                    cfg.contractBandwidth().txMaxSizeBytes;
+                    cfg.contractBandwidth().txMaxSizeBytes &&
+                checkForOverflow(cfg.contractBandwidth().ledgerMaxTxsSizeBytes);
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
         valid = cfg.contractCompute().feeRatePerInstructionsIncrement >= 0 &&
@@ -1059,34 +1074,42 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 cfg.contractCompute().ledgerMaxInstructions >=
                     cfg.contractCompute().txMaxInstructions &&
                 cfg.contractCompute().txMemoryLimit >=
-                    MinimumSorobanNetworkConfig::MEMORY_LIMIT;
+                    MinimumSorobanNetworkConfig::MEMORY_LIMIT &&
+                checkForOverflow(cfg.contractCompute().ledgerMaxInstructions);
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
         valid = cfg.contractHistoricalData().feeHistorical1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-        valid = cfg.contractLedgerCost().txMaxDiskReadEntries >=
-                    MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
-                cfg.contractLedgerCost().ledgerMaxDiskReadEntries >=
-                    cfg.contractLedgerCost().txMaxDiskReadEntries &&
-                cfg.contractLedgerCost().txMaxDiskReadBytes >=
-                    MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
-                cfg.contractLedgerCost().ledgerMaxDiskReadBytes >=
-                    cfg.contractLedgerCost().txMaxDiskReadBytes &&
-                cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
-                    MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES &&
-                cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
-                    cfg.contractLedgerCost().txMaxWriteLedgerEntries &&
-                cfg.contractLedgerCost().txMaxWriteBytes >=
-                    MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES &&
-                cfg.contractLedgerCost().ledgerMaxWriteBytes >=
-                    cfg.contractLedgerCost().txMaxWriteBytes &&
-                cfg.contractLedgerCost().feeDiskReadLedgerEntry >= 0 &&
-                cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
-                cfg.contractLedgerCost().feeDiskRead1KB >= 0 &&
-                cfg.contractLedgerCost().sorobanStateTargetSizeBytes > 0 &&
-                cfg.contractLedgerCost().rentFee1KBSorobanStateSizeHigh >= 0 &&
-                cfg.contractLedgerCost().sorobanStateRentFeeGrowthFactor >= 0;
+        valid =
+            cfg.contractLedgerCost().txMaxDiskReadEntries >=
+                MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
+            cfg.contractLedgerCost().ledgerMaxDiskReadEntries >=
+                cfg.contractLedgerCost().txMaxDiskReadEntries &&
+            checkForOverflow(
+                cfg.contractLedgerCost().ledgerMaxDiskReadEntries) &&
+            cfg.contractLedgerCost().txMaxDiskReadBytes >=
+                MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
+            cfg.contractLedgerCost().ledgerMaxDiskReadBytes >=
+                cfg.contractLedgerCost().txMaxDiskReadBytes &&
+            checkForOverflow(cfg.contractLedgerCost().ledgerMaxDiskReadBytes) &&
+            cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES &&
+            cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
+                cfg.contractLedgerCost().txMaxWriteLedgerEntries &&
+            checkForOverflow(
+                cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries) &&
+            cfg.contractLedgerCost().txMaxWriteBytes >=
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES &&
+            cfg.contractLedgerCost().ledgerMaxWriteBytes >=
+                cfg.contractLedgerCost().txMaxWriteBytes &&
+            checkForOverflow(cfg.contractLedgerCost().ledgerMaxWriteBytes) &&
+            cfg.contractLedgerCost().feeDiskReadLedgerEntry >= 0 &&
+            cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
+            cfg.contractLedgerCost().feeDiskRead1KB >= 0 &&
+            cfg.contractLedgerCost().sorobanStateTargetSizeBytes > 0 &&
+            cfg.contractLedgerCost().rentFee1KBSorobanStateSizeHigh >= 0 &&
+            cfg.contractLedgerCost().sorobanStateRentFeeGrowthFactor >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
         valid = cfg.contractEvents().txMaxContractEventsSizeBytes >=

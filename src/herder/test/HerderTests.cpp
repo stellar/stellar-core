@@ -986,7 +986,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
-    auto max = std::numeric_limits<uint32_t>::max();
+    auto max = std::numeric_limits<uint32_t>::max() / 3;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
 
     VirtualClock clock;
@@ -3048,7 +3048,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
             auto simulation = Topologies::core(
                 4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
                     auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
-                    auto mid = std::numeric_limits<uint32_t>::max() / 2;
+                    auto mid = std::numeric_limits<uint32_t>::max() / 4;
                     cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {mid};
                     cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1};
                     cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {60};
@@ -3066,7 +3066,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
             upgradeSorobanNetworkConfig(
                 [&tweakSorobanConfig](SorobanNetworkConfig& cfg) {
                     setSorobanNetworkConfigForTest(cfg);
-                    auto mx = std::numeric_limits<uint32_t>::max();
+                    auto mx = std::numeric_limits<uint32_t>::max() / 3;
                     // Set all Soroban resources to maximum initially; each
                     // section will adjust the config as desired
                     cfg.mLedgerMaxTxCount = mx;
