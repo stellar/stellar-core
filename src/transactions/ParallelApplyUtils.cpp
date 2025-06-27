@@ -111,7 +111,7 @@ writeDirtyThreadEntryMapEntriesToGlobalEntryMap(
     for (auto const& entry : threadEntryMap)
     {
         // Only update if dirty bit is set
-        if (!entry.second.isDirty)
+        if (!entry.second.mIsDirty)
         {
             continue;
         }
@@ -259,7 +259,7 @@ flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
                 ttl(e->second.mLedgerEntry) = b->second;
 
                 // Mark as dirty so this entry gets written.
-                e->second.isDirty = true;
+                e->second.mIsDirty = true;
             }
             else
             {
@@ -304,7 +304,7 @@ flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
             else
             {
                 ttl(it->second.mLedgerEntry) = ttlBump;
-                it->second.isDirty = true;
+                it->second.mIsDirty = true;
             }
         }
     }
@@ -603,7 +603,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     for (auto const& entry : mGlobalEntryMap)
     {
         // Only update if dirty bit is set
-        if (!entry.second.isDirty)
+        if (!entry.second.mIsDirty)
         {
             continue;
         }

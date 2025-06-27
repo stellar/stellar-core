@@ -55,7 +55,7 @@ struct ParallelApplyEntry
     // Will not be set if the entry doesn't exist, or if no tx was able to load
     // it due to hitting read limits.
     std::optional<LedgerEntry> mLedgerEntry;
-    bool isDirty;
+    bool mIsDirty;
     static ParallelApplyEntry
     cleanLive(LedgerEntry const& e)
     {

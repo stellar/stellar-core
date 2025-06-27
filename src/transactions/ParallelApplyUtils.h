@@ -139,6 +139,10 @@ class GlobalParallelApplyLedgerState
     //    after -- as well as written back to the ltx at the phase's end.
     ParallelApplyEntryMap mGlobalEntryMap;
 
+    void commitChangesFromThread(AppConnector& app,
+                                 ThreadParallelApplyLedgerState const& thread,
+                                 ApplyStage const& stage);
+
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages);
@@ -148,10 +152,6 @@ class GlobalParallelApplyLedgerState
     void eraseEntry(LedgerKey const& key);
 
     RestoredEntries const& getRestoredEntries() const;
-
-    void commitChangesFromThread(AppConnector& app,
-                                 ThreadParallelApplyLedgerState const& thread,
-                                 ApplyStage const& stage);
 
     void commitChangesFromThreads(
         AppConnector& app,
@@ -266,16 +266,17 @@ class LedgerAccessHelper
     getLedgerEntryOpt(LedgerKey const& key) = 0;
 
     // upsert returns true if the entry was created, false if it was updated.
-    // "created" here is interpreted narrowly to mean there was no live entry in
-    // any parent level of the ledger state; a "local" map-insert that shadows
-    // an existing entry is not considered a create.
+    // "created" here is interpreted narrowly to mean there was no
+    // populated/non-null entry in any parent level of the ledger state; a
+    // "local" map-insert that shadows an existing entry is not considered a
+    // create.
     virtual bool upsertLedgerEntry(LedgerKey const& key,
                                    LedgerEntry const& entry) = 0;
 
     // erase returns true if the entry was erased, false if it wasn't present.
-    // as with upsert, this is interpreted narrowly to mean that an insert is
-    // only performed if there was no live entry in any parent level of the
-    // ledger state.
+    // as with upsert, this is interpreted narrowly to mean that an erase
+    // (essentially a nullptr / std::nullopt upsert) is only performed if there
+    // was no populated/non-null entry in any parent level of the ledger state.
     virtual bool eraseLedgerEntryIfExists(LedgerKey const& key) = 0;
 
     virtual uint32_t getLedgerVersion() = 0;
