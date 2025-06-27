@@ -1176,7 +1176,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         txCount * sorobanCfg.mTxMaxInstructions;
 
                     sorobanCfg.mTxMaxDiskReadBytes = 5000;
-                    sorobanCfg.mledgerMaxDiskReadBytes =
+                    sorobanCfg.mLedgerMaxDiskReadBytes =
                         txCount * sorobanCfg.mTxMaxDiskReadBytes;
 
                     sorobanCfg.mTxMaxWriteBytes =
@@ -1185,7 +1185,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         txCount * sorobanCfg.mTxMaxWriteBytes;
 
                     sorobanCfg.mTxMaxDiskReadEntries = 10;
-                    sorobanCfg.mledgerMaxDiskReadEntries =
+                    sorobanCfg.mLedgerMaxDiskReadEntries =
                         txCount * sorobanCfg.mTxMaxDiskReadEntries;
 
                     sorobanCfg.mTxMaxWriteLedgerEntries = 2;
@@ -1277,7 +1277,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             {
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                        sorobanCfg.mledgerMaxDiskReadBytes -= 1;
+                        sorobanCfg.mLedgerMaxDiskReadBytes -= 1;
                     });
                 REQUIRE(!buildAndValidate());
             }
@@ -1293,7 +1293,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             {
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
-                        sorobanCfg.mledgerMaxDiskReadEntries -= 1;
+                        sorobanCfg.mLedgerMaxDiskReadEntries -= 1;
                     });
                 bool useClassic = protocolVersionStartsFrom(
                     protocolVersion, ProtocolVersion::V_23);
@@ -1358,11 +1358,11 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxInstructions =
                             std::numeric_limits<int64_t>::max();
-                        sorobanCfg.mledgerMaxDiskReadBytes =
+                        sorobanCfg.mLedgerMaxDiskReadBytes =
                             std::numeric_limits<uint32_t>::max();
                         sorobanCfg.mLedgerMaxWriteBytes =
                             std::numeric_limits<uint32_t>::max();
-                        sorobanCfg.mledgerMaxDiskReadEntries =
+                        sorobanCfg.mLedgerMaxDiskReadEntries =
                             std::numeric_limits<uint32_t>::max();
                         sorobanCfg.mLedgerMaxWriteLedgerEntries =
                             std::numeric_limits<uint32_t>::max();
@@ -1834,15 +1834,15 @@ TEST_CASE("txset nomination", "[txset]")
                     static_cast<int64_t>(cfg.mLedgerMaxWriteLedgerEntries) *
                     100 / txToLedgerRatioPercentDistr(rng);
 
-                cfg.mledgerMaxDiskReadEntries =
+                cfg.mLedgerMaxDiskReadEntries =
                     cfg.mLedgerMaxWriteLedgerEntries + ledgerEntriesDistr(rng);
                 cfg.mTxMaxDiskReadEntries =
-                    static_cast<int64_t>(cfg.mledgerMaxDiskReadEntries) * 100 /
+                    static_cast<int64_t>(cfg.mLedgerMaxDiskReadEntries) * 100 /
                     txToLedgerRatioPercentDistr(rng);
 
-                cfg.mledgerMaxDiskReadBytes = ledgerBytesDistr(rng);
+                cfg.mLedgerMaxDiskReadBytes = ledgerBytesDistr(rng);
                 cfg.mTxMaxDiskReadBytes =
-                    static_cast<int64_t>(cfg.mledgerMaxDiskReadBytes) * 100 /
+                    static_cast<int64_t>(cfg.mLedgerMaxDiskReadBytes) * 100 /
                     txToLedgerRatioPercentDistr(rng);
 
                 cfg.mLedgerMaxWriteBytes = ledgerBytesDistr(rng);
@@ -2171,12 +2171,12 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         sorobanCfg.mLedgerMaxInstructions = 400'000'000;
         sorobanCfg.mTxMaxDiskReadEntries = 3000;
         sorobanCfg.mTxMaxFootprintEntries = sorobanCfg.mTxMaxDiskReadEntries;
-        sorobanCfg.mledgerMaxDiskReadEntries = 3000;
+        sorobanCfg.mLedgerMaxDiskReadEntries = 3000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
         sorobanCfg.mTxMaxWriteLedgerEntries = 2000;
         sorobanCfg.mLedgerMaxWriteLedgerEntries = 2000;
         sorobanCfg.mTxMaxDiskReadBytes = 1'000'000;
-        sorobanCfg.mledgerMaxDiskReadBytes = 1'000'000;
+        sorobanCfg.mLedgerMaxDiskReadBytes = 1'000'000;
         sorobanCfg.mTxMaxWriteBytes = 100'000;
         sorobanCfg.mLedgerMaxWriteBytes = 100'000;
         sorobanCfg.mLedgerMaxTxCount = 1000;
@@ -2398,7 +2398,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             modifySorobanNetworkConfig(
                 *app, [&](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxDiskReadEntries = 4 * 10 + 3;
-                    sorobanCfg.mledgerMaxDiskReadEntries = 4 * 10 + 3;
+                    sorobanCfg.mLedgerMaxDiskReadEntries = 4 * 10 + 3;
                 });
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
@@ -2836,9 +2836,9 @@ TEST_CASE("parallel tx set building benchmark",
     sorobanCfg.mLedgerMaxInstructions =
         static_cast<int64_t>(MEAN_INSTRUCTIONS_PER_TX) *
         MEAN_INCLUDED_TX_COUNT / CLUSTER_COUNT;
-    sorobanCfg.mledgerMaxDiskReadEntries =
+    sorobanCfg.mLedgerMaxDiskReadEntries =
         MEAN_INCLUDED_TX_COUNT * (MEAN_READS_PER_TX + MEAN_WRITES_PER_TX);
-    sorobanCfg.mledgerMaxDiskReadBytes =
+    sorobanCfg.mLedgerMaxDiskReadBytes =
         MEAN_INCLUDED_TX_COUNT * MEAN_READ_BYTES_PER_TX;
     sorobanCfg.mLedgerMaxWriteLedgerEntries =
         MEAN_INCLUDED_TX_COUNT * MEAN_WRITES_PER_TX;
