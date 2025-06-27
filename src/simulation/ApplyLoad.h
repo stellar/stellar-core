@@ -11,10 +11,17 @@
 
 namespace stellar
 {
+
+enum class ApplyLoadMode
+{
+    SOROBAN,
+    CLASSIC
+};
+
 class ApplyLoad
 {
   public:
-    ApplyLoad(Application& app);
+    ApplyLoad(Application& app, ApplyLoadMode mode = ApplyLoadMode::SOROBAN);
 
     // Fills up a list of transactions with
     // SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER * the max ledger resources
@@ -75,6 +82,8 @@ class ApplyLoad
     medida::Histogram& mWriteByteUtilization;
     medida::Histogram& mReadEntryUtilization;
     medida::Histogram& mWriteEntryUtilization;
+
+    ApplyLoadMode mMode;
 };
 
 }

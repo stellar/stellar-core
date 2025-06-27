@@ -84,6 +84,23 @@ const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 // buffer in case loadgen is unstable and needs more accounts)
 const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
+uint32_t
+getTxCount(Application& app, bool isSoroban)
+{
+    if (isSoroban)
+    {
+        return app.getMetrics()
+            .NewCounter({"herder", "pending-soroban-txs", "self-count"})
+            .count();
+    }
+    else
+    {
+        return app.getMetrics()
+            .NewCounter({"herder", "pending-txs", "self-count"})
+            .count();
+    }
+}
+
 LoadGenerator::LoadGenerator(Application& app)
     : mTxGenerator(app)
     , mApp(app)
@@ -151,6 +168,10 @@ LoadGenerator::getMode(std::string const& mode)
     else if (mode == "pay_pregenerated")
     {
         return LoadGenMode::PAY_PREGENERATED;
+    }
+    else if (mode == "soroban_invoke_apply_load")
+    {
+        return LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
     }
     else
     {
@@ -253,12 +274,12 @@ LoadGenerator::reset()
     mStartTime.reset();
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
-    mSorobanWasmWaitTillLedgers = 0;
     mFailed = false;
     mStarted = false;
     mInitialAccountsCreated = false;
     mPreLoadgenApplySorobanSuccess = 0;
     mPreLoadgenApplySorobanFailure = 0;
+    mTransactionsAppliedAtTheStart = 0;
 }
 
 // Reset Soroban persistent state
@@ -295,6 +316,14 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         return;
     }
 
+    mTransactionsAppliedAtTheStart = getTxCount(mApp, cfg.isSoroban());
+    if (cfg.mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD &&
+        !mApp.getRunInOverlayOnlyMode())
+    {
+        reset();
+        throw std::runtime_error(
+            "Can only run SOROBAN_INVOKE_APPLY_LOAD in overlay only mode");
+    }
     if (cfg.txRate == 0)
     {
         cfg.txRate = 1;
@@ -605,6 +634,9 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::PAY_PREGENERATED:
         modeStr = "pay_pregenerated";
         break;
+    case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
+        modeStr = "SOROBAN_INVOKE_APPLY_LOAD";
+        break;
     }
 
     ret["mode"] = modeStr;
@@ -700,7 +732,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-
+    uint32_t count = 0;
     for (int64_t i = 0; i < txPerStep; ++i)
     {
         if (cfg.mode == LoadGenMode::CREATE)
@@ -836,6 +868,24 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             case LoadGenMode::PAY_PREGENERATED:
                 generateTx = [&]() { return readTransactionFromFile(cfg); };
                 break;
+            case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
+                generateTx = [&]() {
+                    auto instanceIter =
+                        mContractInstances.find(sourceAccountId);
+                    releaseAssert(instanceIter != mContractInstances.end());
+                    auto const& instance = instanceIter->second;
+                    auto const& appCfg = mApp.getConfig();
+                    uint64_t dataEntryCount =
+                        appCfg.APPLY_LOAD_BL_BATCH_SIZE *
+                        appCfg.APPLY_LOAD_BL_SIMULATED_LEDGERS;
+                    size_t dataEntrySize =
+                        appCfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
+
+                    return mTxGenerator.invokeSorobanLoadTransactionV2(
+                        ledgerNum, sourceAccountId, instance, dataEntryCount,
+                        dataEntrySize, cfg.maxGeneratedFeeRate);
+                };
+                break;
             }
 
             try
@@ -858,6 +908,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 break;
             }
         }
+        ++count;
         if (cfg.nAccounts == 0 || !cfg.areTxsRemaining())
         {
             // Nothing to do for the rest of the step
@@ -876,7 +927,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     mLastSecond = now;
-    mTotalSubmitted += txPerStep;
+    mTotalSubmitted += count;
     scheduleLoadGeneration(cfg);
 }
 
@@ -1339,13 +1390,28 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
-    vector<TxGenerator::TestAccountPtr> inconsistencies;
-    inconsistencies = checkAccountSynced(mApp, cfg.isCreate());
-    auto sorobanInconsistencies = checkSorobanStateSynced(mApp, cfg);
+
+    bool classicIsDone = false;
+    bool sorobanIsDone = false;
+    if (mApp.getRunInOverlayOnlyMode())
+    {
+        auto count = getTxCount(mApp, cfg.isSoroban());
+        CLOG_INFO(LoadGen, "Transaction count: {}", count);
+        CLOG_INFO(LoadGen, "Transactions applied at the start: {}",
+                  mTransactionsAppliedAtTheStart);
+        CLOG_INFO(LoadGen, "Transactions applied: {}", mTotalSubmitted);
+        classicIsDone =
+            (count - mTransactionsAppliedAtTheStart) == mTotalSubmitted;
+        sorobanIsDone = classicIsDone;
+    }
+    else
+    {
+        classicIsDone = checkAccountSynced(mApp, cfg.isCreate()).empty();
+        sorobanIsDone = checkSorobanStateSynced(mApp, cfg).empty();
+    }
 
     // If there are no inconsistencies and we have generated all load, finish
-    if (inconsistencies.empty() && sorobanInconsistencies.empty() &&
-        cfg.isDone())
+    if (classicIsDone && sorobanIsDone && cfg.isDone())
     {
         // Check whether run met the minimum success rate for soroban invoke
         if (checkMinimumSorobanSuccess(cfg))
@@ -1366,11 +1432,11 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         return;
     }
     // If we have an inconsistency, reset the timer and wait for another ledger
-    else if (!inconsistencies.empty() || !sorobanInconsistencies.empty())
+    else if (!classicIsDone || !sorobanIsDone)
     {
         if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
         {
-            emitFailure(!sorobanInconsistencies.empty());
+            emitFailure(!sorobanIsDone);
             return;
         }
 
@@ -1541,6 +1607,9 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         default:
             releaseAssert(false);
         }
+        break;
+    case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
+        txm.mSorobanInvokeTxs.Mark();
         break;
     }
 
@@ -1803,7 +1872,8 @@ GeneratedLoadConfig::isSoroban() const
            mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
-           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
+           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
+           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
 }
 
 bool
@@ -1822,14 +1892,16 @@ GeneratedLoadConfig::isLoad() const
            mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
-           mode == LoadGenMode::PAY_PREGENERATED;
+           mode == LoadGenMode::PAY_PREGENERATED ||
+           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
 }
 
 bool
 GeneratedLoadConfig::modeInvokes() const
 {
     return mode == LoadGenMode::SOROBAN_INVOKE ||
-           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
+           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
+           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
 }
 
 bool

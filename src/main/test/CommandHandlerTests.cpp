@@ -545,3 +545,30 @@ TEST_CASE("manualclose", "[commandhandler]")
         }
     }
 }
+
+TEST_CASE("toggleoverlayonlymode", "[commandhandler]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& ch = app->getCommandHandler();
+    bool initialMode = app->getRunInOverlayOnlyMode();
+
+    for (int i = 0; i < 5; ++i)
+    {
+        std::string retStr;
+        ch.toggleOverlayOnlyMode("", retStr);
+
+        bool expectedMode = !initialMode;
+        if (i % 2 == 1)
+        {
+            expectedMode = initialMode;
+        }
+
+        REQUIRE(app->getRunInOverlayOnlyMode() == expectedMode);
+
+        Json::Value root;
+        Json::Reader reader;
+        REQUIRE(reader.parse(retStr, root));
+        REQUIRE(root["overlay_only_mode"].asBool() == expectedMode);
+    }
+}

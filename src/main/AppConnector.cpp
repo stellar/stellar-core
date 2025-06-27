@@ -183,4 +183,12 @@ AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();
 }
+
+#ifdef BUILD_TESTS
+bool
+AppConnector::getRunInOverlayOnlyMode() const
+{
+    return mApp.getRunInOverlayOnlyMode();
+}
+#endif
 }

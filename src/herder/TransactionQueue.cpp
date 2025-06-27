@@ -356,8 +356,13 @@ TransactionQueue::canAdd(
     ZoneScoped;
     if (isBanned(tx->getFullHash()))
     {
-        return AddResult(
-            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
+#ifdef BUILD_TESTS
+        if (!mApp.getRunInOverlayOnlyMode())
+#endif
+        {
+            return AddResult(
+                TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
+        }
     }
     if (isFiltered(tx))
     {
@@ -508,7 +513,7 @@ TransactionQueue::canAdd(
     // Loadgen transactions are given unlimited funds, and therefore do no need
     // to be checked for fees
 #ifdef BUILD_TESTS
-    if (!isLoadgenTx)
+    if (!isLoadgenTx && !mApp.getRunInOverlayOnlyMode())
 #endif
     {
         auto const feeSource = ls.getAccount(tx->getFeeSourceID());

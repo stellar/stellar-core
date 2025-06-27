@@ -106,6 +106,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)
+#ifdef BUILD_TESTS
+    , mRunInOverlayOnlyMode(false)
+#endif
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
     , mMetrics(
@@ -1138,6 +1141,18 @@ ApplicationImpl::getRoot()
     }
 
     return mRootAccount;
+}
+
+bool
+ApplicationImpl::getRunInOverlayOnlyMode() const
+{
+    return mRunInOverlayOnlyMode;
+}
+
+void
+ApplicationImpl::setRunInOverlayOnlyMode(bool mode)
+{
+    mRunInOverlayOnlyMode = mode;
 }
 #endif
 

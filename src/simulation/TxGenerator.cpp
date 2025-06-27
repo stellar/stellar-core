@@ -162,7 +162,7 @@ TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
         newAccountPtr =
             std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
 
-        if (!loadAccount(newAccountPtr))
+        if (!mApp.getRunInOverlayOnlyMode() && !loadAccount(newAccountPtr))
         {
             throw std::runtime_error(
                 fmt::format("Account {0} must exist in the DB.", accountId));

@@ -1664,6 +1664,13 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                              uint64_t upperBoundCloseTimeOffset,
                              DiagnosticEventManager& diagnosticEvents) const
 {
+#ifdef BUILD_TESTS
+    if (app.getRunInOverlayOnlyMode())
+    {
+        return MutableTransactionResult::createSuccess(*this, 0);
+    }
+#endif
+
     // Subtle: this check has to happen in `checkValid` and not
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use
