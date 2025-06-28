@@ -6,6 +6,7 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
+#include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
@@ -44,6 +45,13 @@ class Database;
 class LedgerTxnHeader;
 class BasicWork;
 class ParallelLedgerInfo;
+
+#ifdef BUILD_TESTS
+namespace BucketTestUtils
+{
+class LedgerManagerForBucketTests;
+}
+#endif
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -101,6 +109,9 @@ class LedgerManagerImpl : public LedgerManager
         // Number of threads to use for compilation (cached from config).
         size_t mNumCompilationThreads;
 
+        // In-memory map of live Soroban state for the current ledger.
+        std::unique_ptr<InMemorySorobanState> mInMemorySorobanState;
+
         // Kicks off (on auxiliary threads) compilation of all contracts in the
         // provided snapshot, for ledger protocols starting at minLedgerVersion
         // and running through to Config::CURRENT_LEDGER_PROTOCOL_VERSION (to
@@ -132,6 +143,10 @@ class LedgerManagerImpl : public LedgerManager
         // This should be called as entries are added to the live bucketlist.
         void addAnyContractsToModuleCache(uint32_t ledgerVersion,
                                           std::vector<LedgerEntry> const& le);
+
+        // Populates all live Soroban state into the cache from the provided
+        // snapshot.
+        void populateInMemorySorobanState(SearchableSnapshotConstPtr snap);
 
         ApplyState(Application& app);
     };
@@ -323,6 +338,8 @@ class LedgerManagerImpl : public LedgerManager
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
     std::function<void()> mAdvanceLedgerStateAndPublishOverride;
+    InMemorySorobanState& getInMemorySorobanStateForTesting() override;
+    void rebuildInMemorySorobanStateForTesting() override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -365,5 +382,9 @@ class LedgerManagerImpl : public LedgerManager
         return mCurrentlyApplyingLedger;
     }
     ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
+
+#ifdef BUILD_TESTS
+    friend class BucketTestUtils::LedgerManagerForBucketTests;
+#endif
 };
 }

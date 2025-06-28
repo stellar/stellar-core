@@ -48,6 +48,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
@@ -364,6 +365,12 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
+
+    // mInMemorySorobanState is expected to exist when we go through the ledger
+    // close flow, so initialize empty in-memory state.
+    mApplyState.mInMemorySorobanState =
+        std::make_unique<InMemorySorobanState>();
+
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(ltx, /*ledgerCloseMeta*/ nullptr,
                                             /*initialLedgerVers*/ 0);
@@ -491,9 +498,10 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // Prime module cache with LCL state, not apply-state. This is acceptable
     // here because we just started and there is no apply-state yet and no apply
     // thread to hold such state.
-    mApplyState.compileAllContractsInLedger(
-        mLastClosedLedgerState->getBucketSnapshot(),
-        latestLedgerHeader->ledgerVersion);
+    auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
+    mApplyState.compileAllContractsInLedger(snapshot,
+                                            latestLedgerHeader->ledgerVersion);
+    mApplyState.populateInMemorySorobanState(snapshot);
 }
 
 Database&
@@ -674,6 +682,21 @@ LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
     storePersistentStateAndLedgerHeaderInDB(header, true);
 }
+
+InMemorySorobanState&
+LedgerManagerImpl::getInMemorySorobanStateForTesting()
+{
+    releaseAssert(mApplyState.mInMemorySorobanState);
+    return *mApplyState.mInMemorySorobanState;
+}
+
+void
+LedgerManagerImpl::rebuildInMemorySorobanStateForTesting()
+{
+    mApplyState.mInMemorySorobanState.reset();
+    mApplyState.populateInMemorySorobanState(
+        mLastClosedLedgerState->getBucketSnapshot());
+}
 #endif
 
 SorobanMetrics&
@@ -713,6 +736,14 @@ LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
 {
     startCompilingAllContracts(snap, minLedgerVersion);
     finishPendingCompilation();
+}
+
+void
+LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
+    SearchableSnapshotConstPtr snap)
+{
+    mInMemorySorobanState = std::make_unique<InMemorySorobanState>();
+    mInMemorySorobanState->initializeStateFromSnapshot(snap);
 }
 
 void
@@ -1447,8 +1478,9 @@ LedgerManagerImpl::setLastClosedLedger(
     // bucket state, there's no tx-apply state to snapshot, in this one
     // case we will prime the tx-apply-state's soroban module cache using
     // a snapshot _from_ the LCL state.
-    mApplyState.compileAllContractsInLedger(
-        mLastClosedLedgerState->getBucketSnapshot(), lv);
+    auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
+    mApplyState.compileAllContractsInLedger(snapshot, lv);
+    mApplyState.populateInMemorySorobanState(snapshot);
 }
 
 void
@@ -1462,6 +1494,7 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     }
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
+    mApplyState.mInMemorySorobanState->manuallyAdvanceLedgerHeader(header);
     advanceLastClosedLedgerState(
         advanceBucketListSnapshotAndMakeLedgerState(header, has));
 }
@@ -2444,6 +2477,8 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
     mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                          deadEntries);
+    mApplyState.mInMemorySorobanState->updateState(initEntries, liveEntries,
+                                                   deadEntries, lh);
 }
 
 CompleteConstLedgerStatePtr

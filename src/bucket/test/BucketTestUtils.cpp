@@ -292,8 +292,14 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
         }
 
         // Use the testing values.
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                                 mTestInitEntries);
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                                 mTestLiveEntries);
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
+        mApplyState.mInMemorySorobanState->updateState(
+            mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh);
 
         mUseTestEntries = false;
         mTestInitEntries.clear();
