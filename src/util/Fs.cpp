@@ -503,5 +503,22 @@ getOpenHandleCount()
 }
 #endif
 
+bool
+removeWithLog(std::string const& path, bool ignoreEnoent)
+{
+    if (std::remove(path.c_str()) == 0)
+    {
+        return true;
+    }
+
+    if (ignoreEnoent && errno == ENOENT)
+    {
+        return true;
+    }
+
+    CLOG_WARNING(Fs, "Failed to remove file {}: {}", path, strerror(errno));
+    return false;
+}
+
 }
 }
