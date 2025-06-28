@@ -303,15 +303,12 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
 // 2. Creating the upgrade contract instance
 // 3. Creating the upgrade ContractData entry
 // 4. Arming for the upgrade
-// 5. Closing the ledger for which the upgrade is armed
-void
-modifySorobanNetworkConfig(Application& app,
-                           std::function<void(SorobanNetworkConfig&)> modifyFn)
+// Note that the armed ledger will not be closed.
+std::pair<SorobanNetworkConfig, UpgradeType>
+prepareSorobanNetworkConfigUpgrade(
+    Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn)
 {
-    if (!modifyFn)
-    {
-        return;
-    }
+    releaseAssertOrThrow(modifyFn);
 
     TxGenerator txGenerator(app);
     auto root = app.getRoot();
@@ -398,16 +395,38 @@ modifySorobanNetworkConfig(Application& app,
     scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
     app.getHerder().setUpgrades(scheduledUpgrades);
 
-    TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
     auto configSetFrame = std::make_shared<ConfigUpgradeSetFrame>(
         configUpgradeSet, upgradeSetKey, lclHeader.header.ledgerVersion);
     auto ledgerUpgrade = txtest::makeConfigUpgrade(*configSetFrame);
-    auto upgrade = LedgerTestUtils::toUpgradeType(ledgerUpgrade);
+    return {upgradeCfg, LedgerTestUtils::toUpgradeType(ledgerUpgrade)};
+}
+
+// This will go through the full process of upgrading the network config.
+// This includes:
+// 1. Deploying the upgrade contract wasm
+// 2. Creating the upgrade contract instance
+// 3. Creating the upgrade ContractData entry
+// 4. Arming for the upgrade
+// 5. Closing the ledger for which the upgrade is armed
+void
+modifySorobanNetworkConfig(Application& app,
+                           std::function<void(SorobanNetworkConfig&)> modifyFn)
+{
+    if (!modifyFn)
+    {
+        return;
+    }
+
+    auto [upgradeCfg, upgrade] =
+        prepareSorobanNetworkConfigUpgrade(app, modifyFn);
+
+    auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
+    TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
 
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
                                      lclHeader.header.ledgerSeq + 1, closeTime,
                                      {upgrade});
-    root->loadSequenceNumber();
+    app.getRoot()->loadSequenceNumber();
 
     // Check that the upgrade was actually applied.
     auto postUpgradeCfg =
@@ -435,8 +454,8 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
     cfg.mTxMaxWriteLedgerEntries = 20;
     cfg.mTxMaxWriteBytes = 100 * 1024;
 
-    cfg.mledgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
-    cfg.mledgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
+    cfg.mLedgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
+    cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
     cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
     cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
 
