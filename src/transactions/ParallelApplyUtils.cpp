@@ -20,6 +20,82 @@ namespace
 {
 using namespace stellar;
 
+// Notes on parallelism and TTL bumps
+// ==================================
+//
+// We say two soroban txs "conflict" if the RW footprint of either tx intersects
+// with the RO _or_ RW footprints of the other. Put another way: if either might
+// be able to observe whether it ran before or after the other.
+//
+// The `ParallelTxSetBuilder` partitions a txset into stages and each stage into
+// _clusters_ such that there are no conflicts between the clusters of a stage.
+// Within a cluster, any two txs may or may not conflict. But between clusters
+// they definitely do not.
+//
+//
+// Read-only TTL bumps
+// -------------------
+//
+// We special-case one action that we expect to be quite common: when a tx bumps
+// the TTL of an LE that is otherwise _not written_ by the tx. For example
+// bumping the TTL of a popular contract instance when executing it. We call
+// this action `RoTTLBump(LE)`, and it is treated as a pseudo-write that can
+// potentially commute with all other RoTTLBump(LE) actions. Specifically it
+// causes LE to only go in the tx's RO footprint, not its RW footprint.
+//
+// This is enough to cause the following:
+//
+//   - If no txs in a stage do write(LE), the RoTTLBump(LE)-containing txs are
+//     free to run in parallel, do not effect clustering. We merge the bumps
+//     performed by each cluster using std::max() when committing it back to the
+//     global state (see GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps)
+//
+//   - If _any_ tx in a stage does write(LE) it will have LE in its RW
+//     footprint, and so conflict with all txs doing RoTTLBump(LE). All of them
+//     will get clustered together, no bumps can happen in parallel. This is
+//     correct since the order of bumping and writing is observable both ways:
+//
+//       1. An RoTTLBump(LE) will cost a different fee if it happens before or
+//          after write(LE) since the write(LE) can change LE's size.
+//
+//       2. a write(LE) will cost a different fee if it happens before or after
+//          an RoTTLBump(LE) since the RoTTLBump(LE) can change LE's TTL.
+//
+//
+// Deferred read-only TTL bumps
+// ----------------------------
+//
+// We want to retain the ability for future versions of stellar-core to run txs
+// within a cluster in "as much parallelism as is legal", by further analyzing
+// the conflict relationships that exist _inside_ each cluster and scheduling
+// non-conflicting txs in parallel. But any given write(LE) in a cluster
+// essentially represents a synchronization barrier for all RoTTLBump(LE)
+// operations: those RoTTLBump(LE)s that run before the write(LE) don't conflict
+// with one another, but they _do_ conflict with the write(LE) and so a future
+// scheduler will have to commit to at least a partial order between _groups_ of
+// RoTTLBump(LE)s and individual write(LE)s.
+//
+// In absence of such a fancy future scheduler, we run each cluster in
+// sequential order, using the (somewhat incidental) total order that the
+// cluster is given to us as "the schedule", and we do our best not to constrain
+// future stellar-cores to replay in exactly this order. Specifically we defer
+// the effects of each RoTTLBump(LE) by merging them into a separate map
+// (mRoTTLBumps) that we only flush back to the ledger at each write(LE), as
+// well as the end of the cluster. This bakes-in to the history the execution
+// order of groups of RoTTLBump(LE)s and write(LE)s -- as it must! -- but not
+// the order of execution within each group of RoTTLBump(LE)s before or after
+// each write(LE). In other words we wind up constraining the future scheduler
+// by a partial order, not the total order.
+//
+// Note: by deferring the visibility of RoTTLBump(LE) effects this way it is
+// possible that slightly higher fees are charged. For example if we had
+// transactions A, B and C in the total order and A and B both do the same
+// RoTTLBump(LE) then C does write(LE), A's bump will be deferred until C, and
+// so B will pay to do the same bump again. Whereas if we were to commit to a
+// total order, B could save this fee, but we would lose the ability to run A
+// and B in parallel in the future. CAP 0063 explicitly chose this tradeoff.
+
+
 std::unordered_set<LedgerKey>
 getReadWriteKeysForStage(ApplyStage const& stage)
 {
