@@ -61,41 +61,12 @@ class ParallelLedgerInfo
     Hash networkID;
 };
 
-std::unordered_set<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage);
-
 // sets LedgerTxnDelta within effects
 void setDelta(SearchableSnapshotConstPtr liveSnapshot,
               ParallelApplyEntryMap const& entryMap,
               OpModifiedEntryMap const& opModifiedEntryMap,
               UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
               ParallelLedgerInfo const& ledgerInfo, TxEffects& effects);
-
-void preParallelApplyAndCollectModifiedClassicEntries(
-    AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
-    ParallelApplyEntryMap& globalEntryMap);
-
-void writeDirtyMapEntriesToGlobalEntryMap(
-    std::vector<std::unique_ptr<ParallelApplyEntryMap>> const&
-        entryMapsByCluster,
-    ParallelApplyEntryMap& globalEntryMap,
-    std::unordered_set<LedgerKey> const& isInReadWriteSet);
-
-void flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
-                                 ParallelApplyEntryMap& entryMap,
-                                 UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                                 TxBundle const& txBundle);
-
-void
-flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
-                        ParallelApplyEntryMap& entryMap,
-                        UnorderedMap<LedgerKey, uint32_t> const& roTTLBumps);
-
-void recordModifiedAndRestoredEntries(
-    SearchableSnapshotConstPtr liveSnapshot, ParallelApplyEntryMap& entryMap,
-    UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-    RestoredEntries& threadRestoredEntries, TxBundle const& txBundle,
-    ParallelTxReturnVal const& res);
 
 std::optional<LedgerEntry> getLiveEntry(LedgerKey const& lk,
                                         SearchableSnapshotConstPtr liveSnapshot,
@@ -138,6 +109,11 @@ class GlobalParallelApplyLedgerState
     //    -- split into disjoint per-thread maps during execution and merged
     //    after -- as well as written back to the ltx at the phase's end.
     ParallelApplyEntryMap mGlobalEntryMap;
+
+    void
+    commitChangeFromThread(LedgerKey const& key,
+                           ParallelApplyEntry const& parEntry,
+                           std::unordered_set<LedgerKey> const& readWriteSet);
 
     void commitChangesFromThread(AppConnector& app,
                                  ThreadParallelApplyLedgerState const& thread,
@@ -196,6 +172,13 @@ class ThreadParallelApplyLedgerState
     void collectClusterFootprintEntriesFromGlobal(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
+
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+    void eraseEntry(LedgerKey const& key);
+    void
+    commitChangeFromSuccessfulOp(LedgerKey const& key,
+                                 std::optional<LedgerEntry> const& entryOpt,
+                                 UnorderedSet<LedgerKey> const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
