@@ -111,7 +111,7 @@ class SimulationHelper
             [&simulation = mSimulation]() {
                 return simulation->haveAllExternalized(3, 5);
             },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * mSimulation->getExpectedLedgerCloseTime(), false);
     }
 
     void
@@ -144,7 +144,7 @@ class SimulationHelper
                                        ->getLedgerManager()
                                        .isSynced();
             },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * mSimulation->getExpectedLedgerCloseTime(), false);
     }
 
     // Publish checkpoints until selected checkpoint reached. Returns seqno and
@@ -186,7 +186,7 @@ class SimulationHelper
                        mSimulation->haveAllExternalized(
                            (selectedCheckpoint + 1) * checkpoint, 5);
             },
-            50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            50 * mSimulation->getExpectedLedgerCloseTime(), false);
 
         REQUIRE(selectedLedger != 0);
         REQUIRE(!selectedHash.empty());

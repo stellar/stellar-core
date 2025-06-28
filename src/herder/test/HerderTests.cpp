@@ -2596,7 +2596,7 @@ TEST_CASE("SCP State", "[herder]")
         // wait to close a few ledgers
         sim->crankUntil(
             [&]() { return sim->haveAllExternalized(expectedLedger, 1); },
-            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            2 * numLedgers * sim->getExpectedLedgerCloseTime(), true);
 
         REQUIRE(sim->getNode(nodeIDs[0])
                     ->getLedgerManager()
@@ -2702,7 +2702,7 @@ TEST_CASE("SCP State", "[herder]")
         // next ledger
         sim->crankUntil(
             [&]() { return sim->haveAllExternalized(expectedLedger + 2, 6); },
-            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * numLedgers * sim->getExpectedLedgerCloseTime(), false);
 
         // nodes are at least on ledger 7 (some may be on 8)
         for (int i = 0; i <= 2; i++)
@@ -2749,7 +2749,7 @@ TEST_CASE("SCP State", "[herder]")
                 return sim->getNode(nodeIDs[2])->getHerder().getState() ==
                        Herder::State::HERDER_SYNCING_STATE;
             },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * sim->getExpectedLedgerCloseTime(), false);
         // Verify that the app is not synced anymore
         REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
                 Application::State::APP_ACQUIRING_CONSENSUS_STATE);
@@ -2769,7 +2769,7 @@ TEST_CASE("SCP State", "[herder]")
                     expectedLedger + nodeCfgs[0].MAX_SLOTS_TO_REMEMBER + 1, 1);
             },
             2 * nodeCfgs[0].MAX_SLOTS_TO_REMEMBER *
-                Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                sim->getExpectedLedgerCloseTime(),
             false);
 
         // Remove node1 so node0 can't make progress
@@ -2831,7 +2831,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         [&]() {
             return simulation->haveAllExternalized(firstCheckpoint + 32, 1);
         },
-        2 * (firstCheckpoint + 32) * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+        2 * (firstCheckpoint + 32) * simulation->getExpectedLedgerCloseTime(),
         false);
 
     SECTION("GC old checkpoints")
@@ -2851,7 +2851,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
             [&]() {
                 return simulation->haveAllExternalized(secondCheckpoint, 1);
             },
-            2 * 32 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * 32 * simulation->getExpectedLedgerCloseTime(), false);
 
         REQUIRE(mainNode->getLedgerManager().getLastClosedLedgerNum() ==
                 secondCheckpoint);
@@ -2996,7 +2996,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         [&]() {
             return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
         },
-        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        3 * simulation->getExpectedLedgerCloseTime(), false);
 
     for (auto const& node : simulation->getNodes())
     {
@@ -3023,7 +3023,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         [&]() {
             return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
         },
-        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        3 * simulation->getExpectedLedgerCloseTime(), false);
 
     for (auto const& node : simulation->getNodes())
     {
@@ -3089,7 +3089,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 numAccounts, baseTxRate));
             simulation->crankUntil(
                 [&]() { return loadGenDone.count() > currLoadGenCount; },
-                10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                10 * simulation->getExpectedLedgerCloseTime(), false);
 
             // Setup invoke
             currLoadGenCount = loadGenDone.count();
@@ -3099,7 +3099,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                     /* txRate */ 1));
             simulation->crankUntil(
                 [&]() { return loadGenDone.count() > currLoadGenCount; },
-                100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                100 * simulation->getExpectedLedgerCloseTime(), false);
 
             auto& secondLoadGen = nodes[1]->getLoadGenerator();
             auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
@@ -3174,7 +3174,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                     return loadGenDone.count() > currLoadGenCount &&
                            secondLoadGenDone.count() > secondLoadGenCount;
                 },
-                200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                200 * simulation->getExpectedLedgerCloseTime(), false);
 
             REQUIRE(loadGenFailed.count() == 0);
             REQUIRE(secondLoadGenFailed.count() == 0);
@@ -3182,6 +3182,11 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         };
 
     auto idTweakAppConfig = [](Config& cfg) { return cfg; };
+    auto desiredTxRate =
+        baseTxRate *
+        std::chrono::duration_cast<std::chrono::seconds>(
+            Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS)
+            .count();
 
     // We will be submitting soroban txs at desiredTxRate * 3, but the network
     // can only accept up to desiredTxRate for each resource dimension,
@@ -3189,17 +3194,14 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("operations")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTxCount = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count());
+            cfg.mLedgerMaxTxCount = static_cast<uint32>(desiredTxRate);
         };
         test(tweakSorobanConfig, idTweakAppConfig);
     }
     SECTION("instructions")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxInstructions =
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxInstructions;
+            cfg.mLedgerMaxInstructions = desiredTxRate * cfg.mTxMaxInstructions;
         };
         auto tweakAppConfig = [](Config& cfg) {
             cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {50'000'000};
@@ -3209,9 +3211,8 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("tx size")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTransactionsSizeBytes = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxSizeBytes);
+            cfg.mLedgerMaxTransactionsSizeBytes =
+                static_cast<uint32>(desiredTxRate * cfg.mTxMaxSizeBytes);
         };
         auto tweakAppConfig = [](Config& cfg) {
             cfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {60'000};
@@ -3235,8 +3236,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxWriteLedgerEntries = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxWriteLedgerEntries);
+                desiredTxRate * cfg.mTxMaxWriteLedgerEntries);
         };
         auto tweakAppConfig = [](Config& cfg) {
             cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
@@ -3248,18 +3248,16 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         uint32_t constexpr txMaxDiskReadBytes = 100 * 1024;
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mTxMaxDiskReadBytes = txMaxDiskReadBytes;
-            cfg.mledgerMaxDiskReadBytes = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxDiskReadBytes);
+            cfg.mledgerMaxDiskReadBytes =
+                static_cast<uint32>(desiredTxRate * cfg.mTxMaxDiskReadBytes);
         };
         test(tweakSorobanConfig, idTweakAppConfig);
     }
     SECTION("write bytes")
     {
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxWriteBytes = static_cast<uint32>(
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxWriteBytes);
+            cfg.mLedgerMaxWriteBytes =
+                static_cast<uint32>(desiredTxRate * cfg.mTxMaxWriteBytes);
         };
         test(tweakSorobanConfig, idTweakAppConfig);
     }
@@ -3317,7 +3315,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
     uint32_t ledgerWideLimit = static_cast<uint32>(
-        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
+        desiredTxRate * simulation->getExpectedLedgerCloseTime().count() * 2);
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
             setSorobanNetworkConfigForTest(cfg);
@@ -3335,7 +3333,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
         GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto& secondLoadGen = nodes[1]->getLoadGenerator();
     auto& secondLoadGenDone =
@@ -3360,7 +3358,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
             return loadGenDone.count() > currLoadGenCount &&
                    secondLoadGenDone.count() > secondLoadGenCount;
         },
-        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        200 * simulation->getExpectedLedgerCloseTime(), false);
     auto& loadGenFailed =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
     REQUIRE(loadGenFailed.count() == 0);
@@ -3384,8 +3382,12 @@ TEST_CASE("soroban txs accepted by the network",
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
-    uint32_t ledgerWideLimit = static_cast<uint32>(
-        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
+    uint32_t ledgerWideLimit =
+        static_cast<uint32>(desiredTxRate *
+                            std::chrono::duration_cast<std::chrono::seconds>(
+                                simulation->getExpectedLedgerCloseTime())
+                                .count() *
+                            2);
     uint32_t const numAccounts = 100;
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
@@ -3412,7 +3414,7 @@ TEST_CASE("soroban txs accepted by the network",
         GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     uint64_t lastSorobanSucceeded = sorobanTxsSucceeded.count();
     uint64_t lastSucceeded = txsSucceeded.count();
@@ -3436,7 +3438,7 @@ TEST_CASE("soroban txs accepted by the network",
 
         simulation->crankUntil(
             [&]() { return loadGenDone.count() > currLoadGenCount; },
-            50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            50 * simulation->getExpectedLedgerCloseTime(), false);
         auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
             {"loadgen", "run", "failed"}, "run");
         REQUIRE(loadGenFailed.count() == 0);
@@ -3492,7 +3494,7 @@ TEST_CASE("soroban txs accepted by the network",
                         upgradeApplied || txSetSize > ledgerWideLimit;
                     return loadGenDone.count() > currLoadGenCount;
                 },
-                10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                10 * simulation->getExpectedLedgerCloseTime(), false);
             REQUIRE(loadGenFailed.count() == 0);
             REQUIRE(upgradeApplied);
         }
@@ -3545,7 +3547,7 @@ TEST_CASE("soroban txs accepted by the network",
                 return loadGenDone.count() > currLoadGenCount &&
                        secondLoadGenDone.count() > secondLoadGenCount;
             },
-            200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            200 * simulation->getExpectedLedgerCloseTime(), false);
         auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
             {"loadgen", "run", "failed"}, "run");
         REQUIRE(loadGenFailed.count() == 0);
@@ -3707,7 +3709,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             [&]() {
                 return simulation->haveAllExternalized(destinationLedger, 100);
             },
-            10 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
         return std::min(currentALedger(), currentCLedger());
     };
 
@@ -3743,7 +3745,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
                 return currentALedger() >= destinationLedger &&
                        (!waitForB || currentBLedger() >= destinationLedger);
             },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
         return currentALedger();
     };
 
@@ -3900,7 +3902,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
                 }
                 return false;
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * simulation->getExpectedLedgerCloseTime(), false);
 
         // C landed on the same hash as A and B
         REQUIRE(A->getLedgerManager().getLastClosedLedgerHeader().hash ==
@@ -4126,7 +4128,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
         auto destinationLedger = currentValidatorLedger() + nLedgers;
         simulation->crankUntil(
             [&]() { return currentValidatorLedger() == destinationLedger; },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
         return currentValidatorLedger();
     };
     auto waitForLedgers = [&](int nLedgers) {
@@ -4135,7 +4137,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
             [&]() {
                 return simulation->haveAllExternalized(destinationLedger, 100);
             },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
         return currentValidatorLedger();
     };
 
@@ -5560,7 +5562,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             return A->getLedgerManager().getLastClosedLedgerNum() == 2 &&
                    B->getLedgerManager().getLastClosedLedgerNum() == 2;
         },
-        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        4 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Check that a node's scphistory table for a given ledger has the correct
     // number of entries of each type in `expectedTypes`
@@ -5630,7 +5632,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     // Crank C until it is on ledger 2
     simulation->crankUntil(
         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 2; },
-        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        4 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Get messages from C
     HerderImpl& herderC = dynamic_cast<HerderImpl&>(C->getHerder());
@@ -5649,7 +5651,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             return A->getLedgerManager().getLastClosedLedgerNum() == 3 &&
                    B->getLedgerManager().getLastClosedLedgerNum() == 3;
         },
-        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        4 * simulation->getExpectedLedgerCloseTime(), false);
 
     // A and B should now each have 3 EXTERNALIZEs in their scphistory table for
     // ledger 2. A's CONFIRM entry has been replaced with an EXTERNALIZE.
@@ -5663,7 +5665,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
                               validatorBKey.getPublicKey());
     simulation->crankUntil(
         [&]() { return C->getLedgerManager().getLastClosedLedgerNum() >= 3; },
-        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        4 * simulation->getExpectedLedgerCloseTime(), false);
 
     // C should have 3 EXTERNALIZEs in its scphistory table for ledger 2. This
     // check ensures that C does not double count messages from ledger 2 when

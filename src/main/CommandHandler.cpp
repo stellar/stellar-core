@@ -1270,6 +1270,16 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "evctlvl");
             upgradeCfg.txMaxFootprintEntries =
                 parseOptionalParam<uint32_t>(map, "txmxftprnt");
+            upgradeCfg.ledgerTargetCloseTimeMilliseconds =
+                parseOptionalParam<uint32_t>(map, "ldgrclse");
+            upgradeCfg.ballotTimeoutIncrementMilliseconds =
+                parseOptionalParam<uint32_t>(map, "balinc");
+            upgradeCfg.ballotTimeoutInitialMilliseconds =
+                parseOptionalParam<uint32_t>(map, "balinit");
+            upgradeCfg.nominationTimeoutInitialMilliseconds =
+                parseOptionalParam<uint32_t>(map, "nominit");
+            upgradeCfg.nominationTimeoutIncrementMilliseconds =
+                parseOptionalParam<uint32_t>(map, "nominc");
         }
 
         if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)

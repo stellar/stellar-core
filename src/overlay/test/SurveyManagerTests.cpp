@@ -56,7 +56,7 @@ void
 crankForSurveyPropagation(Simulation::pointer simulation, Config const& cfg)
 {
     simulation->crankForAtLeast(
-        cfg.getExpectedLedgerCloseTime() *
+        simulation->getExpectedLedgerCloseTime() *
             SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT * 2,
         false);
 }
@@ -145,7 +145,7 @@ setupStaticNetworkTopology(std::vector<Config>& configList,
         [&simulation, nLedgers]() {
             return simulation->haveAllExternalized(nLedgers + 1, 1);
         },
-        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 1));
     return simulation;
@@ -416,7 +416,7 @@ TEST_CASE("survey request process order", "[overlay][survey][topology]")
         [&simulation, nLedgers]() {
             return simulation->haveAllExternalized(nLedgers + 1, 1);
         },
-        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 1));
 
@@ -742,7 +742,7 @@ TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
         [&simulation, nLedgers]() {
             return simulation->haveAllExternalized(nLedgers + 1, 1);
         },
-        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 1));
 

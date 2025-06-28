@@ -92,6 +92,8 @@ class Simulation
     // prevent overlay from automatically re-connecting to peers
     void stopOverlayTick();
 
+    std::chrono::milliseconds getExpectedLedgerCloseTime() const;
+
     bool
     isSetUpForSorobanUpgrade() const
     {

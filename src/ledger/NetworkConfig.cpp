@@ -937,16 +937,20 @@ initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
     return entry;
 }
 
-// TODO: Set to proper values
 ConfigSettingEntry
 initialScpTimingEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_SCP_TIMING);
-    entry.contractSCPTiming().ledgerTargetCloseTimeMilliseconds = 0;
-    entry.contractSCPTiming().nominationTimeoutInitialMilliseconds = 0;
-    entry.contractSCPTiming().nominationTimeoutIncrementMilliseconds = 0;
-    entry.contractSCPTiming().ballotTimeoutInitialMilliseconds = 0;
-    entry.contractSCPTiming().ballotTimeoutIncrementMilliseconds = 0;
+    entry.contractSCPTiming().ledgerTargetCloseTimeMilliseconds =
+        InitialSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS;
+    entry.contractSCPTiming().nominationTimeoutInitialMilliseconds =
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
+    entry.contractSCPTiming().nominationTimeoutIncrementMilliseconds =
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
+    entry.contractSCPTiming().ballotTimeoutInitialMilliseconds =
+        InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
+    entry.contractSCPTiming().ballotTimeoutIncrementMilliseconds =
+        InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
 
     return entry;
 }
@@ -1145,16 +1149,38 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_SCP_TIMING:
-        // TODO: Set to proper values
-        valid = protocolVersionStartsFrom(ledgerVersion,
-                                          ProtocolVersion::V_23) /* &&
- cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds > 0 &&
- cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds > 0 &&
- cfg.contractSCPTiming()
-         .nominationTimeoutIncrementMilliseconds > 0 &&
- cfg.contractSCPTiming().ballotTimeoutInitialMilliseconds > 0 &&
- cfg.contractSCPTiming().ballotTimeoutIncrementMilliseconds > 0 */
-            ;
+        valid =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+            cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
+            cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutIncrementMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutIncrementMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutInitialMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutInitialMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutIncrementMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INCREMENT_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutIncrementMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         break;
     default:
         break;
@@ -1329,11 +1355,11 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
     loadEvictionIterator(ltx);
     // NB: this should follow loading state archival settings
     maybeUpdateBucketListWindowSize(ltx);
-    if (protocolVersionStartsFrom(protocolVersion,
-                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
     {
         loadParallelComputeConfig(ltx);
         loadLedgerCostExtConfig(ltx);
+        loadSCPTimingConfig(ltx);
     }
     // NB: this should follow loading/updating bucket list window
     // size and state archival settings
@@ -1577,6 +1603,27 @@ SorobanNetworkConfig::loadLedgerCostExtConfig(AbstractLedgerTxn& ltx)
     auto const& configSetting = le.data.configSetting().contractLedgerCostExt();
     mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
     mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
+}
+
+void
+SorobanNetworkConfig::loadSCPTimingConfig(AbstractLedgerTxn& ltx)
+{
+    ZoneScoped;
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_SCP_TIMING;
+    auto le = ltx.loadWithoutRecord(key).current();
+    auto const& configSetting = le.data.configSetting().contractSCPTiming();
+    mLedgerTargetCloseTimeMilliseconds =
+        configSetting.ledgerTargetCloseTimeMilliseconds;
+    mNominationTimeoutInitialMilliseconds =
+        configSetting.nominationTimeoutInitialMilliseconds;
+    mNominationTimeoutIncrementMilliseconds =
+        configSetting.nominationTimeoutIncrementMilliseconds;
+    mBallotTimeoutInitialMilliseconds =
+        configSetting.ballotTimeoutInitialMilliseconds;
+    mBallotTimeoutIncrementMilliseconds =
+        configSetting.ballotTimeoutIncrementMilliseconds;
 }
 
 void
@@ -1947,6 +1994,36 @@ SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
 }
 
 uint32_t
+SorobanNetworkConfig::ledgerTargetCloseTimeMilliseconds() const
+{
+    return mLedgerTargetCloseTimeMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::nominationTimeoutInitialMilliseconds() const
+{
+    return mNominationTimeoutInitialMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::nominationTimeoutIncrementMilliseconds() const
+{
+    return mNominationTimeoutIncrementMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::ballotTimeoutInitialMilliseconds() const
+{
+    return mBallotTimeoutInitialMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::ballotTimeoutIncrementMilliseconds() const
+{
+    return mBallotTimeoutIncrementMilliseconds;
+}
+
+uint32_t
 SorobanNetworkConfig::txMaxFootprintEntries() const
 {
     return mTxMaxFootprintEntries;
@@ -2255,7 +2332,18 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
                other.ledgerMaxDependentTxClusters() &&
 
            mStateArchivalSettings == other.stateArchivalSettings() &&
-           mEvictionIterator == other.evictionIterator();
+           mEvictionIterator == other.evictionIterator() &&
+
+           mLedgerTargetCloseTimeMilliseconds ==
+               other.ledgerTargetCloseTimeMilliseconds() &&
+           mNominationTimeoutInitialMilliseconds ==
+               other.nominationTimeoutInitialMilliseconds() &&
+           mNominationTimeoutIncrementMilliseconds ==
+               other.nominationTimeoutIncrementMilliseconds() &&
+           mBallotTimeoutInitialMilliseconds ==
+               other.ballotTimeoutInitialMilliseconds() &&
+           mBallotTimeoutIncrementMilliseconds ==
+               other.ballotTimeoutIncrementMilliseconds();
 }
 
 } // namespace stellar
