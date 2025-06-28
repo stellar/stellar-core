@@ -18,13 +18,6 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static void
-sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
-{
-    env.signatures.emplace_back(SignatureUtils::sign(
-        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
-}
-
-static void
 sign(Hash const& networkID, SecretKey key, FeeBumpTransactionEnvelope& env)
 {
     env.signatures.emplace_back(SignatureUtils::sign(

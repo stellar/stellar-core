@@ -83,6 +83,7 @@ class TransactionMetaFrame
     LedgerEntryChanges getChangesBefore() const;
     LedgerEntryChanges getChangesAfter() const;
     SCVal const& getReturnValue() const;
+    bool eventsAreSupported() const;
     xdr::xvector<TransactionEvent> const& getTxEvents() const;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const;
     xdr::xvector<ContractEvent> const& getOpEventsAtOp(size_t opIdx) const;
