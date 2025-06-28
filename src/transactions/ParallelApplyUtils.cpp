@@ -95,7 +95,6 @@ using namespace stellar;
 // total order, B could save this fee, but we would lose the ability to run A
 // and B in parallel in the future. CAP 0063 explicitly chose this tradeoff.
 
-
 std::unordered_set<LedgerKey>
 getReadWriteKeysForStage(ApplyStage const& stage)
 {
