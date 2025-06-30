@@ -1410,7 +1410,9 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
                                          mFilteredTypes);
     }
     default:
-        abort();
+        throw std::runtime_error(fmt::format(
+            "TransactionQueue::isFiltered: unexpected envelope type {}",
+            static_cast<int>(tx->getEnvelope().type())));
     }
 }
 

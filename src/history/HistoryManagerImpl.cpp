@@ -32,6 +32,7 @@
 #include "medida/metrics_registry.h"
 #include "transactions/TransactionSQL.h"
 #include "util/BufferedAsioCerealOutputArchive.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
@@ -616,19 +617,60 @@ void
 HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
 {
     releaseAssert(HistoryManager::isLastLedgerInCheckpoint(ledgerSeq, cfg));
-    FileTransferInfo res(FileType::HISTORY_FILE_TYPE_RESULTS, ledgerSeq, cfg);
-    FileTransferInfo txs(FileType::HISTORY_FILE_TYPE_TRANSACTIONS, ledgerSeq,
-                         cfg);
-    FileTransferInfo headers(FileType::HISTORY_FILE_TYPE_LEDGER, ledgerSeq,
-                             cfg);
-    // Dirty files shouldn't exist, but cleanup just in case
-    std::remove(res.localPath_nogz_dirty().c_str());
-    std::remove(txs.localPath_nogz_dirty().c_str());
-    std::remove(headers.localPath_nogz_dirty().c_str());
-    // Remove published files
-    std::remove(res.localPath_nogz().c_str());
-    std::remove(txs.localPath_nogz().c_str());
-    std::remove(headers.localPath_nogz().c_str());
+
+    // Delete published files for all checkpoints <= ledgerSeq, walking
+    // backwards
+    uint32_t currentCheckpoint = ledgerSeq;
+    uint32_t checkpointFreq = getCheckpointFrequency(cfg);
+    uint32_t const MAX_CHECKPOINTS = 100;
+    uint32_t currentCheckpointCount = 0;
+
+    while (currentCheckpointCount < MAX_CHECKPOINTS)
+    {
+        FileTransferInfo res(FileType::HISTORY_FILE_TYPE_RESULTS,
+                             currentCheckpoint, cfg);
+        FileTransferInfo txs(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
+                             currentCheckpoint, cfg);
+        FileTransferInfo headers(FileType::HISTORY_FILE_TYPE_LEDGER,
+                                 currentCheckpoint, cfg);
+
+        auto snapshotFile =
+            publishQueuePath(cfg) / publishQueueFileName(ledgerSeq);
+
+        // Check if any files exist before attempting removal
+        bool filesExist = fs::exists(res.localPath_nogz()) ||
+                          fs::exists(txs.localPath_nogz()) ||
+                          fs::exists(headers.localPath_nogz()) ||
+                          fs::exists(res.localPath_nogz_dirty()) ||
+                          fs::exists(txs.localPath_nogz_dirty()) ||
+                          fs::exists(headers.localPath_nogz_dirty()) ||
+                          fs::exists(snapshotFile);
+
+        if (!filesExist)
+        {
+            // No files exist for this checkpoint, stop going backwards
+            break;
+        }
+
+        // Dirty files shouldn't exist, but cleanup just in case
+        fs::removeWithLog(res.localPath_nogz_dirty());
+        fs::removeWithLog(txs.localPath_nogz_dirty());
+        fs::removeWithLog(headers.localPath_nogz_dirty());
+
+        // Remove published files
+        fs::removeWithLog(res.localPath_nogz());
+        fs::removeWithLog(txs.localPath_nogz());
+        fs::removeWithLog(headers.localPath_nogz());
+        fs::removeWithLog(snapshotFile);
+
+        if (currentCheckpoint < checkpointFreq)
+        {
+            // We're at the first checkpoint, stop
+            break;
+        }
+        currentCheckpoint -= checkpointFreq;
+        currentCheckpointCount++;
+    }
 }
 
 void
@@ -652,9 +694,6 @@ HistoryManagerImpl::historyPublished(
         }
 
         this->mPublishSuccess.Mark();
-        auto file = publishQueuePath(mApp.getConfig()) /
-                    publishQueueFileName(ledgerSeq);
-        std::filesystem::remove(file);
         deletePublishedFiles(ledgerSeq, mApp.getConfig());
     }
     else
@@ -701,13 +740,38 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
         // Remove any tmp checkpoints that were potentially queued _before_ a
         // crash, causing ledger rollback. These files will be finalized during
         // successful ledger close.
-        forEveryTmpCheckpoint(publishQueuePath(mApp.getConfig()).string(),
-                              [&](uint32_t seq, std::string const& f) {
-                                  if (seq > lcl)
-                                  {
-                                      std::remove(f.c_str());
-                                  }
-                              });
+        forEveryTmpCheckpoint(
+            publishQueuePath(mApp.getConfig()).string(),
+            [&](uint32_t seq, std::string const& f) {
+                if (seq > lcl)
+                {
+                    // Retry removal up to 5 times with 500ms delay
+                    bool removed = false;
+                    uint32_t const ATTEMPTS = 5;
+                    for (int attempt = 0; attempt < ATTEMPTS; ++attempt)
+                    {
+                        if (fs::removeWithLog(f))
+                        {
+                            removed = true;
+                            break;
+                        }
+                        if (attempt < ATTEMPTS - 1)
+                        {
+                            std::this_thread::sleep_for(
+                                std::chrono::milliseconds(500));
+                        }
+                    }
+                    if (!removed)
+                    {
+                        auto msg =
+                            fmt::format("Failed to remove stale checkpoint "
+                                        "file {} after 5 attempts: {}",
+                                        f, strerror(errno));
+                        CLOG_ERROR(History, "{}", msg);
+                        throw std::runtime_error(msg);
+                    }
+                }
+            });
         // Maybe finalize checkpoint if we're at a checkpoint boundary and
         // haven't rotated yet. No-op if checkpoint has been rotated already
         maybeCheckpointComplete(lcl);

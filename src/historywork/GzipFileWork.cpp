@@ -22,7 +22,7 @@ void
 GzipFileWork::onReset()
 {
     std::string filenameGz = mFilenameNoGz + ".gz";
-    std::remove(filenameGz.c_str());
+    fs::removeWithLog(filenameGz);
 }
 
 CommandInfo

@@ -15,6 +15,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionSQL.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
@@ -94,7 +95,7 @@ StateSnapshot::writeSCPMessages() const
     if (nbSCPMessages == 0)
     {
         // don't upload empty files
-        std::remove(mSCPHistorySnapFile->localPath_nogz().c_str());
+        fs::removeWithLog(mSCPHistorySnapFile->localPath_nogz(), false);
     }
 
     // When writing checkpoint 0x3f (63) we will have written 63 headers because

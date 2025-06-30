@@ -115,5 +115,10 @@ int64_t getMaxHandles();
 // process handle count. On other unixes return 0.
 int64_t getOpenHandleCount();
 
+// Remove a file and log a warning if removal fails (except for ENOENT by
+// default). Returns true if file was removed or didn't exist, false if removal
+// failed.
+bool removeWithLog(std::string const& path, bool ignoreEnoent = true);
+
 }
 }
