@@ -211,7 +211,8 @@ LedgerCloseMetaFrame::setNetworkConfiguration(
     auto& totalByteSizeOfLiveSorobanState =
         mVersion == 1 ? mLedgerCloseMeta.v1().totalByteSizeOfLiveSorobanState
                       : mLedgerCloseMeta.v2().totalByteSizeOfLiveSorobanState;
-    totalByteSizeOfLiveSorobanState = networkConfig.getAverageBucketListSize();
+    totalByteSizeOfLiveSorobanState =
+        networkConfig.getAverageSorobanStateSize();
 
     if (emitExtV1)
     {

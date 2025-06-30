@@ -250,7 +250,7 @@ makeMaxContractSizeBytesTestUpgrade(
 }
 
 ConfigUpgradeSetFrameConstPtr
-makeliveSorobanStateSizeWindowSampleSizeTestUpgrade(Application& app,
+makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(Application& app,
                                                     AbstractLedgerTxn& ltx,
                                                     uint32_t newWindowSize)
 {
@@ -1029,6 +1029,302 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
     }
 }
 
+TEST_CASE("upgrades affect in-memory Soroban state state size",
+          "[soroban][upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+
+    uint32_t const windowSize = 15;
+    uint32_t const samplePeriod = 4;
+    SorobanTest test(cfg, true, [&](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize =
+            windowSize;
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+            samplePeriod;
+    });
+
+    std::vector<LedgerKey> addedKeys;
+
+    uint64_t lastInMemorySize =
+        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+    auto ensureInMemorySizeIncreased = [&]() {
+        // We only increase the state by either generating lots of
+        // transactions, or by multiplicatively increasing the memory cost, so
+        // use a large minimum increase to ensure that we don't count the
+        // state necessary for upgrade as increase.
+        int64_t const minIncrease = 2'000'000;
+        int64_t diff =
+            static_cast<int64_t>(test.getApp()
+                                     .getLedgerManager()
+                                     .getSorobanInMemoryStateSize()) -
+            static_cast<int64_t>(lastInMemorySize);
+        REQUIRE(diff >= minIncrease);
+        lastInMemorySize =
+            test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+    };
+    auto generateTxs = [&](int untilLedger) {
+        // Make sure we start on odd ledger, so that we finish generation 1
+        // ledger before taking the snapshot (every `deployWasmContract` call
+        // closes 2 ledgers).
+        REQUIRE(test.getLCLSeq() % 2 == 1);
+        for (int ledgerNum = test.getLCLSeq() + 1; ledgerNum < untilLedger;
+             ledgerNum += 2)
+        {
+            auto& contract = test.deployWasmContract(
+                rust_bridge::get_random_wasm(2000, ledgerNum));
+            addedKeys.insert(addedKeys.end(), contract.getKeys().begin(),
+                             contract.getKeys().end());
+        }
+        // Close one more ledger to cause the size snapshot to be taken with
+        // the previous size (we add no new data here).
+        closeLedger(test.getApp());
+        REQUIRE(test.getLCLSeq() == untilLedger);
+        ensureInMemorySizeIncreased();
+    };
+
+    // We accumulate a small error in the expected state size estimation due
+    // to upgrades. It's tracked in `expectedInMemorySizeDelta` variable.
+    int64_t expectedInMemorySizeDelta =
+        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+    auto getExpectedInMemorySize = [&]() {
+        LedgerSnapshot ls(test.getApp());
+        auto res = expectedInMemorySizeDelta;
+        for (auto const& key : addedKeys)
+        {
+            auto le = ls.load(key);
+            res += ledgerEntrySizeForRent(le.current(),
+                                          xdr::xdr_size(le.current()), 23,
+                                          test.getNetworkCfg());
+        }
+        return res;
+    };
+
+    auto getStateSizeWindow = [&]() {
+        LedgerSnapshot ls(test.getApp());
+        LedgerKey key(CONFIG_SETTING);
+        key.configSetting().configSettingID =
+            ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+        auto le = ls.load(key);
+        REQUIRE(le);
+        std::vector<uint64_t> windowFromLtx =
+            le.current().data.configSetting().liveSorobanStateSizeWindow();
+        auto const& cfg = test.getNetworkCfg();
+        std::vector<uint64_t> windowInMemory(
+            cfg.mSorobanStateSizeSnapshots.begin(),
+            cfg.mSorobanStateSizeSnapshots.end());
+        REQUIRE(windowFromLtx == windowInMemory);
+        return windowFromLtx;
+    };
+    auto getAverageStateSize = [&]() {
+        auto window = getStateSizeWindow();
+        uint64_t sum = 0;
+        for (auto v : window)
+        {
+            sum += v;
+        }
+        uint64_t averageFromWindow = sum / window.size();
+        auto const& cfg = test.getNetworkCfg();
+        uint64_t averageFromConfig = cfg.getAverageSorobanStateSize();
+        REQUIRE(averageFromConfig == averageFromWindow);
+        return averageFromConfig;
+    };
+
+    auto verifyAverageStateSize = [&](uint64_t minSize, uint64_t maxSize) {
+        auto average = getAverageStateSize();
+        if (minSize == maxSize)
+        {
+            REQUIRE(average == maxSize);
+        }
+        else
+        {
+            REQUIRE(average > minSize);
+            REQUIRE(average < maxSize);
+        }
+    };
+
+    auto verifyExpectedInMemorySize = [&](int64_t maxDiff) {
+        int64_t diff =
+            static_cast<int64_t>(test.getApp()
+                                     .getLedgerManager()
+                                     .getSorobanInMemoryStateSize()) -
+            static_cast<int64_t>(getExpectedInMemorySize());
+        if (maxDiff >= 0)
+        {
+            REQUIRE(diff >= 0);
+            REQUIRE(diff <= maxDiff);
+        }
+        else
+        {
+            REQUIRE(diff <= 0);
+            REQUIRE(diff >= maxDiff);
+        }
+
+        expectedInMemorySizeDelta += diff;
+    };
+
+    auto expectSingleValueStateSizeWindow =
+        [&](uint64_t value,
+            std::optional<uint32_t> expectedWindowSize = std::nullopt) {
+            if (!expectedWindowSize)
+            {
+                expectedWindowSize = windowSize;
+            }
+            std::vector<uint64_t> expectedWindow(*expectedWindowSize);
+            expectedWindow.assign(*expectedWindowSize, value);
+            REQUIRE(getStateSizeWindow() == expectedWindow);
+        };
+
+    auto const initBlSize =
+        test.getApp().getBucketManager().getLiveBucketList().getSize();
+
+    INFO("snapshot BL size in p22");
+    // Generate txs to fill up the state size window.
+    generateTxs(windowSize * samplePeriod * 2);
+
+    // We're still in p22, so the last snapshot must still be BL size.
+    auto const blSize =
+        test.getApp().getBucketManager().getLiveBucketList().getSize();
+    auto const p22StateSizeWindow = getStateSizeWindow();
+    verifyAverageStateSize(initBlSize, blSize);
+
+    // The BL grows by the updated config entry after we create the
+    // snapshot. That's why the actual BL size is a bit smaller than the
+    // snapshotted value.
+    int64_t blSizeDiff =
+        std::abs(static_cast<int64_t>(blSize) -
+                 static_cast<int64_t>(p22StateSizeWindow.back()));
+    REQUIRE(blSizeDiff <= 200);
+
+    {
+        INFO("track in-memory size in p22");
+        verifyExpectedInMemorySize(0);
+    }
+
+    {
+        INFO("perform settings upgrade in p22");
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm *= 2;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 2;
+            });
+        ensureInMemorySizeIncreased();
+        // There is a small expected state size diff due to the settings upgrade
+        // contract.
+        verifyExpectedInMemorySize(100'000);
+
+        // The state size window must be unchanged.
+        REQUIRE(getStateSizeWindow() == p22StateSizeWindow);
+    }
+
+    INFO("upgrade to p23");
+    executeUpgrade(test.getApp(), makeProtocolVersionUpgrade(23));
+    // In-memory size shouldn't have changed as it has been computed with p23
+    // logic.
+    REQUIRE(test.getApp().getLedgerManager().getSorobanInMemoryStateSize() ==
+            lastInMemorySize);
+    auto const p23MemorySize = lastInMemorySize;
+    // State size window now contains only the current in-memory size.
+    expectSingleValueStateSizeWindow(p23MemorySize);
+    verifyAverageStateSize(p23MemorySize, p23MemorySize);
+
+    {
+        INFO("fill window with in-memory size in p23");
+        closeLedger(test.getApp());
+
+        // Now generate more txs to fill up the window with in-memory sizes.
+        generateTxs(windowSize * samplePeriod * 4);
+        verifyExpectedInMemorySize(0);
+        REQUIRE(getStateSizeWindow().back() == lastInMemorySize);
+        verifyAverageStateSize(p23MemorySize, lastInMemorySize);
+    }
+
+    {
+        INFO("upgrade memory settings in p23 without state size snapshot");
+        // Make sure we won't snapshot the window size when we perform the
+        // upgrade on LCL + 1.
+        while (test.getLCLSeq() % windowSize == windowSize - 2)
+        {
+            closeLedger(test.getApp());
+        }
+
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm *= 3;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 3;
+            });
+        ensureInMemorySizeIncreased();
+        verifyExpectedInMemorySize(100'000);
+        expectSingleValueStateSizeWindow(lastInMemorySize);
+    }
+
+    {
+        INFO("upgrade memory settings in p23 with state size snapshot");
+        // Wait until we're one ledger before the ledger that will trigger
+        // snapshotting.
+        while (test.getLCLSeq() % windowSize == windowSize - 1)
+        {
+            closeLedger(test.getApp());
+        }
+
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm *= 2;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 2;
+            });
+        ensureInMemorySizeIncreased();
+        verifyExpectedInMemorySize(200'000);
+        expectSingleValueStateSizeWindow(lastInMemorySize);
+    }
+
+    {
+        INFO("decrease state size via settings upgrade");
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm /= 10;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm /= 10;
+            });
+        int64_t stateSizeDecrease =
+            static_cast<int64_t>(test.getApp()
+                                     .getLedgerManager()
+                                     .getSorobanInMemoryStateSize()) -
+            static_cast<int64_t>(lastInMemorySize);
+        REQUIRE(stateSizeDecrease <= -10'000'000);
+        // The state size is now smaller than expected because the upgrade
+        // contract had its memory cost decreased.
+        verifyExpectedInMemorySize(-300'000);
+        lastInMemorySize =
+            test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        expectSingleValueStateSizeWindow(lastInMemorySize);
+        verifyAverageStateSize(lastInMemorySize, lastInMemorySize);
+    }
+
+    {
+        INFO("upgrade memory settings and window size in p23");
+        modifySorobanNetworkConfig(
+            test.getApp(), [&](SorobanNetworkConfig& cfg) {
+                cfg.mStateArchivalSettings
+                    .liveSorobanStateSizeWindowSampleSize = windowSize * 2;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 3;
+            });
+        ensureInMemorySizeIncreased();
+        verifyExpectedInMemorySize(100'000);
+        expectSingleValueStateSizeWindow(lastInMemorySize, windowSize * 2);
+        verifyAverageStateSize(lastInMemorySize, lastInMemorySize);
+    }
+}
+
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
     VirtualClock clock;
@@ -1090,15 +1386,15 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 
                 // Populate sliding window with interesting values
                 auto i = 0;
-                for (auto& val : cfg.mBucketListSizeSnapshots)
+                for (auto& val : cfg.mSorobanStateSizeSnapshots)
                 {
                     val = i++;
                 }
-                cfg.writeliveSorobanStateSizeWindow(ltx2);
-                cfg.updateBucketListSizeAverage();
+                cfg.writeLiveSorobanStateSizeWindow(ltx2);
+                cfg.updateSorobanStateSizeAverage();
 
                 configUpgradeSet =
-                    makeliveSorobanStateSizeWindowSampleSizeTestUpgrade(
+                    makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(
                         *app, ltx2, size);
                 ltx2.commit();
             }
@@ -1117,8 +1413,8 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             // Verify that we popped the 10 oldest values
             auto sum = 0;
             auto expectedValue = 10;
-            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
-            for (auto const val : cfg2.mBucketListSizeSnapshots)
+            REQUIRE(cfg2.mSorobanStateSizeSnapshots.size() == newSize);
+            for (auto const val : cfg2.mSorobanStateSizeSnapshots)
             {
                 REQUIRE(val == expectedValue);
                 sum += expectedValue;
@@ -1126,7 +1422,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             }
 
             // Verify average has been properly updated as well
-            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(cfg2.getAverageSorobanStateSize() == (sum / newSize));
         }
 
         SECTION("increase size")
@@ -1139,8 +1435,8 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
             auto expectedValue = 0;
-            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
-            for (auto i = 0; i < cfg2.mBucketListSizeSnapshots.size(); ++i)
+            REQUIRE(cfg2.mSorobanStateSizeSnapshots.size() == newSize);
+            for (auto i = 0; i < cfg2.mSorobanStateSizeSnapshots.size(); ++i)
             {
                 // First 11 values should be oldest value (0)
                 if (i > 10)
@@ -1148,12 +1444,12 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                     ++expectedValue;
                 }
 
-                REQUIRE(cfg2.mBucketListSizeSnapshots[i] == expectedValue);
+                REQUIRE(cfg2.mSorobanStateSizeSnapshots[i] == expectedValue);
                 sum += expectedValue;
             }
 
             // Verify average has been properly updated as well
-            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(cfg2.getAverageSorobanStateSize() == (sum / newSize));
         }
 
         auto testUpgradeHasNoEffect = [&](uint32_t size) {
@@ -1167,11 +1463,11 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                     app->getLedgerManager().getLastClosedSorobanNetworkConfig();
                 initialSize = cfg.mStateArchivalSettings
                                   .liveSorobanStateSizeWindowSampleSize;
-                initialWindow = cfg.mBucketListSizeSnapshots;
+                initialWindow = cfg.mSorobanStateSizeSnapshots;
                 REQUIRE(initialWindow.size() == initialSize);
 
                 configUpgradeSet =
-                    makeliveSorobanStateSizeWindowSampleSizeTestUpgrade(
+                    makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(
                         *app, ltx2, size);
                 ltx2.commit();
             }
@@ -1183,7 +1479,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             REQUIRE(cfg.mStateArchivalSettings
                         .liveSorobanStateSizeWindowSampleSize == initialSize);
-            REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
+            REQUIRE(cfg.mSorobanStateSizeSnapshots == initialWindow);
         };
 
         SECTION("upgrade size to 0")
@@ -2454,10 +2750,10 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     // Check that BucketList size window initialized with current BL size
     auto& networkConfig =
         app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-    REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
+    REQUIRE(networkConfig.getAverageSorobanStateSize() == blSize);
 
     // Check in memory window
-    auto const& inMemoryWindow = networkConfig.mBucketListSizeSnapshots;
+    auto const& inMemoryWindow = networkConfig.mSorobanStateSizeSnapshots;
     REQUIRE(inMemoryWindow.size() ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
     for (auto const& e : inMemoryWindow)
@@ -3521,9 +3817,7 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
     auto& contract =
         test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
 
-    // TODO: Update this to calculate the write amount once Dima's PR is merged
-    // in?
-    auto expectedInMemorySize = 7996;
+    uint64_t const expectedInMemorySize = 81297;
 
     REQUIRE(getStateSizeWindow().size() ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
@@ -3539,6 +3833,10 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
     correctWindow.push_back(expectedInMemorySize);
 
     auto check = [&]() {
+        std::vector<uint64_t> correctWindowVec(correctWindow.begin(),
+                                               correctWindow.end());
+        REQUIRE(correctWindowVec == getStateSizeWindow());
+
         uint64_t sum = 0;
         for (auto e : correctWindow)
         {
@@ -3547,11 +3845,7 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
 
         uint64_t correctAverage = sum / correctWindow.size();
 
-        REQUIRE(networkConfig().getAverageBucketListSize() == correctAverage);
-
-        std::vector<uint64_t> correctWindowVec(correctWindow.begin(),
-                                               correctWindow.end());
-        REQUIRE(correctWindowVec == getStateSizeWindow());
+        REQUIRE(networkConfig().getAverageSorobanStateSize() == correctAverage);
     };
 
     // Make sure next snapshot is taken

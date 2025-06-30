@@ -1195,21 +1195,7 @@ SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
         auto ltxe = ltx.loadWithoutRecord(key);
         REQUIRE(ltxe);
         auto entry = ltxe.current();
-        size_t entrySize = xdr::xdr_size(entry);
-        uint32_t entrySizeForRent = static_cast<uint32_t>(entrySize);
-        if (protocolVersionStartsFrom(getLedgerVersion(),
-                                      ProtocolVersion::V_23))
-        {
-            if (isContractCodeEntry(key))
-            {
-                entrySizeForRent =
-                    rust_bridge::contract_code_memory_size_for_rent(
-                        getApp().getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                        getLedgerVersion(), toCxxBuf(entry.data.contractCode()),
-                        toCxxBuf(getNetworkCfg().cpuCostParams()),
-                        toCxxBuf(getNetworkCfg().memCostParams()));
-            }
-        }
+        uint32_t entrySize = static_cast<uint32_t>(xdr::xdr_size(entry));
         auto ttlLtxe = ltx.loadWithoutRecord(getTTLKey(key));
         REQUIRE(ttlLtxe);
         rustEntryRentChanges.emplace_back(
@@ -1218,12 +1204,12 @@ SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
                 /*entryLiveUntilLedger=*/
                 ttlLtxe.current().data.ttl().liveUntilLedgerSeq,
                 /*newLiveUntilLedger=*/getLCLSeq() + 1 + newLifetime,
-                getLedgerVersion(), getApp().getConfig(), getNetworkCfg()));
+                getLedgerVersion(), getNetworkCfg()));
     }
     return rust_bridge::compute_rent_fee(
-        getApp().getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-        getLedgerVersion(), rustEntryRentChanges,
-        getNetworkCfg().rustBridgeRentFeeConfiguration(), getLCLSeq());
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION, getLedgerVersion(),
+        rustEntryRentChanges, getNetworkCfg().rustBridgeRentFeeConfiguration(),
+        getLCLSeq());
 }
 
 Application&
@@ -1943,7 +1929,7 @@ ContractStorageTestClient::getContract() const
 }
 
 SorobanInvocationSpec
-ContractStorageTestClient::defaultSpecWithoutFootprint() const
+ContractStorageTestClient::defaultSpecWithoutFootprint()
 {
     return SorobanInvocationSpec()
         .setInstructions(4'000'000)
@@ -1987,10 +1973,10 @@ ContractStorageTestClient::isEntryLive(std::string const& key,
         mContract.getDataKey(makeSymbolSCVal(key), durability), ledgerSeq);
 }
 
-InvokeHostFunctionResultCode
-ContractStorageTestClient::put(std::string const& key,
-                               ContractDataDurability durability, uint64_t val,
-                               std::optional<SorobanInvocationSpec> spec)
+TestContract::Invocation
+ContractStorageTestClient::putInvocation(
+    std::string const& key, ContractDataDurability durability, uint64_t val,
+    std::optional<SorobanInvocationSpec> spec)
 {
     if (!spec)
     {
@@ -2000,8 +1986,16 @@ ContractStorageTestClient::put(std::string const& key,
     std::string funcStr = durability == ContractDataDurability::TEMPORARY
                               ? "put_temporary"
                               : "put_persistent";
-    auto invocation = mContract.prepareInvocation(
+    return mContract.prepareInvocation(
         funcStr, {makeSymbolSCVal(key), makeU64SCVal(val)}, *spec);
+}
+
+InvokeHostFunctionResultCode
+ContractStorageTestClient::put(std::string const& key,
+                               ContractDataDurability durability, uint64_t val,
+                               std::optional<SorobanInvocationSpec> spec)
+{
+    auto invocation = putInvocation(key, durability, val, spec);
     invocation.withExactNonRefundableResourceFee().invoke();
     return *invocation.getResultCode();
 }
@@ -2055,10 +2049,10 @@ ContractStorageTestClient::has(std::string const& key,
     return *invocation.getResultCode();
 }
 
-InvokeHostFunctionResultCode
-ContractStorageTestClient::del(std::string const& key,
-                               ContractDataDurability durability,
-                               std::optional<SorobanInvocationSpec> spec)
+TestContract::Invocation
+ContractStorageTestClient::delInvocation(
+    std::string const& key, ContractDataDurability durability,
+    std::optional<SorobanInvocationSpec> spec)
 {
     if (!spec)
     {
@@ -2071,8 +2065,16 @@ ContractStorageTestClient::del(std::string const& key,
                               ? "del_temporary"
                               : "del_persistent";
 
-    auto invocation =
-        mContract.prepareInvocation(funcStr, {makeSymbolSCVal(key)}, *spec);
+    return mContract.prepareInvocation(funcStr, {makeSymbolSCVal(key)}, *spec);
+}
+
+InvokeHostFunctionResultCode
+ContractStorageTestClient::del(std::string const& key,
+                               ContractDataDurability durability,
+                               std::optional<SorobanInvocationSpec> spec)
+{
+
+    auto invocation = delInvocation(key, durability, spec);
     invocation.withExactNonRefundableResourceFee().invoke();
     return *invocation.getResultCode();
 }
@@ -2098,8 +2100,8 @@ ContractStorageTestClient::extend(std::string const& key,
     return *invocation.getResultCode();
 }
 
-InvokeHostFunctionResultCode
-ContractStorageTestClient::resizeStorageAndExtend(
+TestContract::Invocation
+ContractStorageTestClient::resizeStorageAndExtendInvocation(
     std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
     uint32_t extendTo, std::optional<SorobanInvocationSpec> spec)
 {
@@ -2110,11 +2112,20 @@ ContractStorageTestClient::resizeStorageAndExtend(
     }
 
     std::string funcStr = "replace_with_bytes_and_extend";
-    auto invocation = mContract.prepareInvocation(
-        funcStr,
-        {makeSymbolSCVal(key), makeU32(numKiloBytes), makeU32(thresh),
-         makeU32(extendTo)},
-        *spec);
+    return mContract.prepareInvocation(funcStr,
+                                       {makeSymbolSCVal(key),
+                                        makeU32(numKiloBytes), makeU32(thresh),
+                                        makeU32(extendTo)},
+                                       *spec);
+}
+
+InvokeHostFunctionResultCode
+ContractStorageTestClient::resizeStorageAndExtend(
+    std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
+    uint32_t extendTo, std::optional<SorobanInvocationSpec> spec)
+{
+    auto invocation = resizeStorageAndExtendInvocation(key, numKiloBytes,
+                                                       thresh, extendTo, spec);
     invocation.withExactNonRefundableResourceFee().invoke();
     return *invocation.getResultCode();
 }

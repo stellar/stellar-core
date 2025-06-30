@@ -878,10 +878,13 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
     }
 }
 
-TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
+TEST_CASE_VERSIONS("network config snapshots Soroban state size", "[soroban]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
+    // TODO(https://github.com/stellar/stellar-core/issues/4816): We should
+    // be using the default DB mode here, and also update the window size to
+    // make sure the upgrades work correctly.
+    Config cfg(getTestConfig(0, Config::TestDbMode::TESTDB_IN_MEMORY));
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
@@ -891,6 +894,11 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         auto networkConfig = [&]() {
             return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
         };
+        // Take snapshots more frequently for faster testing.
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+                7;
+        });
 
         uint32_t windowSize = networkConfig()
                                   .stateArchivalSettings()
@@ -901,19 +909,28 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             correctWindow.push_back(0);
         }
 
-        auto check = [&]() {
+        auto check = [&](bool init = false) {
             // Check in-memory average from BucketManager
             uint64_t sum = 0;
-            for (auto e : correctWindow)
+            for (int i = 0; i < correctWindow.size(); ++i)
             {
-                sum += e;
+                // Ensure that we're actually increasing the state size.
+                if (i < correctWindow.size() - 1 && correctWindow[i] != 0)
+                {
+                    REQUIRE(correctWindow[i] < correctWindow[i + 1]);
+                }
+                sum += correctWindow[i];
             }
 
             uint64_t correctAverage = sum / correctWindow.size();
+            if (!init)
+            {
+                REQUIRE(correctAverage > 0);
+            }
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(networkConfig().getAverageBucketListSize() ==
-                    correctAverage);
+            auto const& networkCfg = networkConfig();
+            REQUIRE(networkCfg.getAverageSorobanStateSize() == correctAverage);
 
             // Check on-disk sliding window
             LedgerKey key(CONFIG_SETTING);
@@ -930,13 +947,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         };
 
         // Check initial conditions
-        check();
-
-        // Take snapshots more frequently for faster testing
-        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-            cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
-                64;
-        });
+        check(true);
 
         // Generate enough ledgers to fill sliding window
         auto ledgersToGenerate =
@@ -945,6 +956,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                                    .liveSorobanStateSizeWindowSamplePeriod;
         auto lclSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
         UnorderedSet<LedgerKey> generatedKeys;
+        int const entryCount = 10;
         for (uint32_t ledger = lclSeq; ledger < ledgersToGenerate; ++ledger)
         {
             // Note: BucketList size in the sliding window is snapshotted before
@@ -957,16 +969,33 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                 0)
             {
                 correctWindow.pop_front();
-                correctWindow.push_back(
-                    app->getBucketManager().getLiveBucketList().getSize());
+                uint64_t sizeSnapshot = 0;
+                if (protocolVersionStartsFrom(app->getLedgerManager()
+                                                  .getLastClosedLedgerHeader()
+                                                  .header.ledgerVersion,
+                                              ProtocolVersion::V_23))
+                {
+                    sizeSnapshot =
+                        app->getLedgerManager().getSorobanInMemoryStateSize();
+                }
+                else
+                {
+                    sizeSnapshot =
+                        app->getBucketManager().getLiveBucketList().getSize();
+                }
+                correctWindow.push_back(sizeSnapshot);
             }
 
-            // Exclude soroban types to avoid TTL invariants
-            lm.setNextLedgerEntryBatchForBucketTesting(
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 10,
-                    generatedKeys),
-                {}, {});
+            auto entries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {CONTRACT_DATA, CONTRACT_CODE}, entryCount, generatedKeys);
+            for (int i = 0; i < entryCount; ++i)
+            {
+                entries.push_back(
+                    getTTLEntryForTTLKey(getTTLKey(entries[i]), 100'000));
+            }
+
+            lm.setNextLedgerEntryBatchForBucketTesting(entries, {}, {});
             closeLedger(*app);
             if ((ledger + 1) % networkConfig()
                                    .stateArchivalSettings()

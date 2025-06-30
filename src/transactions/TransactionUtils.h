@@ -373,6 +373,5 @@ toCxxBuf(T const& t)
 CxxLedgerEntryRentChange createEntryRentChangeWithoutModification(
     LedgerEntry const& entry, uint32_t entrySize,
     std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
-    uint32_t ledgerVersion, Config const& config,
-    SorobanNetworkConfig const& sorobanConfig);
+    uint32_t ledgerVersion, SorobanNetworkConfig const& sorobanConfig);
 }

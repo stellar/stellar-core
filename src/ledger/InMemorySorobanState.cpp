@@ -11,6 +11,26 @@
 namespace stellar
 {
 
+namespace
+{
+uint32_t
+contractCodeSizeForRent(LedgerEntry const& ledgerEntry,
+                        SorobanNetworkConfig const& sorobanConfig,
+                        uint32_t ledgerVersion)
+{
+    releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_CODE);
+    // Subtle: in-memory state size accounting is only used starting from
+    // protocol 23, but the cache itself may be populated in an earlier
+    // protocol. In order to have the correct size immediately on the update
+    // to protocol 23 we compute the size using the Soroban host for at least
+    // protocol 23.
+    uint32_t ledgerVersionForSize =
+        std::max(ledgerVersion, static_cast<uint32_t>(ProtocolVersion::V_23));
+    return ledgerEntrySizeForRent(ledgerEntry, xdr::xdr_size(ledgerEntry),
+                                  ledgerVersionForSize, sorobanConfig);
+}
+} // namespace
+
 bool
 TTLData::isDefault() const
 {
@@ -74,6 +94,11 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     auto lk = LedgerEntryKey(ledgerEntry);
     auto dataIt = mContractDataEntries.find(InternalContractDataMapEntry(lk));
     releaseAssertOrThrow(dataIt != mContractDataEntries.end());
+    releaseAssertOrThrow(dataIt->get().ledgerEntry != nullptr);
+
+    uint32_t oldSize = xdr::xdr_size(*dataIt->get().ledgerEntry);
+    uint32_t newSize = xdr::xdr_size(ledgerEntry);
+    updateStateSizeOnEntryUpdate(oldSize, newSize);
 
     // Preserve the existing TTL while updating the data
     auto preservedTTL = dataIt->get().ttlData;
@@ -107,6 +132,7 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
 
+    updateStateSizeOnEntryUpdate(0, xdr::xdr_size(ledgerEntry));
     mContractDataEntries.emplace(
         InternalContractDataMapEntry(ledgerEntry, ttlData));
 }
@@ -162,8 +188,12 @@ void
 InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
 {
     releaseAssertOrThrow(ledgerKey.type() == CONTRACT_DATA);
-    releaseAssertOrThrow(mContractDataEntries.erase(
-                             InternalContractDataMapEntry(ledgerKey)) == 1);
+    auto it =
+        mContractDataEntries.find(InternalContractDataMapEntry(ledgerKey));
+    releaseAssertOrThrow(it != mContractDataEntries.end());
+    releaseAssertOrThrow(it->get().ledgerEntry != nullptr);
+    updateStateSizeOnEntryUpdate(xdr::xdr_size(*it->get().ledgerEntry), 0);
+    mContractDataEntries.erase(it);
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -201,7 +231,9 @@ InMemorySorobanState::get(LedgerKey const& ledgerKey) const
 }
 
 void
-InMemorySorobanState::createContractCodeEntry(LedgerEntry const& ledgerEntry)
+InMemorySorobanState::createContractCodeEntry(
+    LedgerEntry const& ledgerEntry, SorobanNetworkConfig const& sorobanConfig,
+    uint32_t ledgerVersion)
 {
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_CODE);
 
@@ -227,14 +259,20 @@ InMemorySorobanState::createContractCodeEntry(LedgerEntry const& ledgerEntry)
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
 
+    uint32_t entrySize =
+        contractCodeSizeForRent(ledgerEntry, sorobanConfig, ledgerVersion);
+    updateStateSizeOnEntryUpdate(0, entrySize);
+
     mContractCodeEntries.emplace(
         keyHash,
         ContractCodeMapEntryT(std::make_shared<LedgerEntry const>(ledgerEntry),
-                              ttlData));
+                              ttlData, entrySize));
 }
 
 void
-InMemorySorobanState::updateContractCode(LedgerEntry const& ledgerEntry)
+InMemorySorobanState::updateContractCode(
+    LedgerEntry const& ledgerEntry, SorobanNetworkConfig const& sorobanConfig,
+    uint32_t ledgerVersion)
 {
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_CODE);
     auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
@@ -244,11 +282,17 @@ InMemorySorobanState::updateContractCode(LedgerEntry const& ledgerEntry)
     auto codeIt = mContractCodeEntries.find(keyHash);
     releaseAssertOrThrow(codeIt != mContractCodeEntries.end());
 
+    uint32_t newEntrySize =
+        contractCodeSizeForRent(ledgerEntry, sorobanConfig, ledgerVersion);
+
+    updateStateSizeOnEntryUpdate(codeIt->second.sizeBytes, newEntrySize);
+
     // Preserve the existing TTL while updating the code
     auto ttlData = codeIt->second.ttlData;
     releaseAssertOrThrow(!ttlData.isDefault());
-    codeIt->second = ContractCodeMapEntryT(
-        std::make_shared<LedgerEntry const>(ledgerEntry), ttlData);
+    codeIt->second =
+        ContractCodeMapEntryT(std::make_shared<LedgerEntry const>(ledgerEntry),
+                              ttlData, newEntrySize);
 }
 
 void
@@ -258,7 +302,10 @@ InMemorySorobanState::deleteContractCode(LedgerKey const& ledgerKey)
 
     auto ttlKey = getTTLKey(ledgerKey);
     auto keyHash = ttlKey.ttl().keyHash;
-    releaseAssertOrThrow(mContractCodeEntries.erase(keyHash) == 1);
+    auto it = mContractCodeEntries.find(keyHash);
+    releaseAssertOrThrow(it != mContractCodeEntries.end());
+    updateStateSizeOnEntryUpdate(it->second.sizeBytes, 0);
+    mContractCodeEntries.erase(it);
 }
 
 bool
@@ -347,77 +394,86 @@ InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 
 void
 InMemorySorobanState::initializeStateFromSnapshot(
-    SearchableSnapshotConstPtr snap)
+    SearchableSnapshotConstPtr snap, SorobanNetworkConfig const* sorobanConfig,
+    uint32_t ledgerVersion)
 {
     releaseAssertOrThrow(mContractDataEntries.empty());
     releaseAssertOrThrow(mContractCodeEntries.empty());
     releaseAssertOrThrow(mPendingTTLs.empty());
 
-    // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise, check
-    // if the entry is shadowed by a DEADENTRY.
-    std::unordered_set<LedgerKey> deletedKeys;
-    auto shouldAddToMap = [&deletedKeys](BucketEntry const& be,
-                                         LedgerEntryType expectedType) {
-        if (be.type() == DEADENTRY)
-        {
-            deletedKeys.insert(be.deadEntry());
-            return false;
-        }
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        releaseAssertOrThrow(sorobanConfig != nullptr);
+        // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise,
+        // check if the entry is shadowed by a DEADENTRY.
+        std::unordered_set<LedgerKey> deletedKeys;
+        auto shouldAddToMap = [&deletedKeys](BucketEntry const& be,
+                                             LedgerEntryType expectedType) {
+            if (be.type() == DEADENTRY)
+            {
+                deletedKeys.insert(be.deadEntry());
+                return false;
+            }
 
-        releaseAssertOrThrow(be.type() == LIVEENTRY || be.type() == INITENTRY);
-        auto lk = LedgerEntryKey(be.liveEntry());
-        releaseAssertOrThrow(lk.type() == expectedType);
-        return deletedKeys.find(lk) == deletedKeys.end();
-    };
+            releaseAssertOrThrow(be.type() == LIVEENTRY ||
+                                 be.type() == INITENTRY);
+            auto lk = LedgerEntryKey(be.liveEntry());
+            releaseAssertOrThrow(lk.type() == expectedType);
+            return deletedKeys.find(lk) == deletedKeys.end();
+        };
 
-    auto contractDataHandler = [this, &shouldAddToMap](BucketEntry const& be) {
-        if (!shouldAddToMap(be, CONTRACT_DATA))
-        {
+        auto contractDataHandler = [this,
+                                    &shouldAddToMap](BucketEntry const& be) {
+            if (!shouldAddToMap(be, CONTRACT_DATA))
+            {
+                return Loop::INCOMPLETE;
+            }
+
+            auto lk = LedgerEntryKey(be.liveEntry());
+            if (!get(lk))
+            {
+                createContractDataEntry(be.liveEntry());
+            }
+
             return Loop::INCOMPLETE;
-        }
+        };
 
-        auto lk = LedgerEntryKey(be.liveEntry());
-        if (!get(lk))
-        {
-            createContractDataEntry(be.liveEntry());
-        }
+        auto ttlHandler = [this, &shouldAddToMap](BucketEntry const& be) {
+            if (!shouldAddToMap(be, TTL))
+            {
+                return Loop::INCOMPLETE;
+            }
 
-        return Loop::INCOMPLETE;
-    };
+            auto lk = LedgerEntryKey(be.liveEntry());
+            if (!hasTTL(lk))
+            {
+                createTTL(be.liveEntry());
+            }
 
-    auto ttlHandler = [this, &shouldAddToMap](BucketEntry const& be) {
-        if (!shouldAddToMap(be, TTL))
-        {
             return Loop::INCOMPLETE;
-        }
+        };
 
-        auto lk = LedgerEntryKey(be.liveEntry());
-        if (!hasTTL(lk))
-        {
-            createTTL(be.liveEntry());
-        }
+        auto contractCodeHandler = [this, &shouldAddToMap, &sorobanConfig,
+                                    ledgerVersion](BucketEntry const& be) {
+            if (!shouldAddToMap(be, CONTRACT_CODE))
+            {
+                return Loop::INCOMPLETE;
+            }
 
-        return Loop::INCOMPLETE;
-    };
+            auto lk = LedgerEntryKey(be.liveEntry());
+            if (!get(lk))
+            {
+                createContractCodeEntry(be.liveEntry(), *sorobanConfig,
+                                        ledgerVersion);
+            }
 
-    auto contractCodeHandler = [this, &shouldAddToMap](BucketEntry const& be) {
-        if (!shouldAddToMap(be, CONTRACT_CODE))
-        {
             return Loop::INCOMPLETE;
-        }
+        };
 
-        auto lk = LedgerEntryKey(be.liveEntry());
-        if (!get(lk))
-        {
-            createContractCodeEntry(be.liveEntry());
-        }
-
-        return Loop::INCOMPLETE;
-    };
-
-    snap->scanForEntriesOfType(CONTRACT_DATA, contractDataHandler);
-    snap->scanForEntriesOfType(TTL, ttlHandler);
-    snap->scanForEntriesOfType(CONTRACT_CODE, contractCodeHandler);
+        snap->scanForEntriesOfType(CONTRACT_DATA, contractDataHandler);
+        snap->scanForEntriesOfType(TTL, ttlHandler);
+        snap->scanForEntriesOfType(CONTRACT_CODE, contractCodeHandler);
+    }
 
     mLastClosedLedgerSeq = snap->getLedgerSeq();
     checkUpdateInvariants();
@@ -427,11 +483,19 @@ void
 InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
                                   std::vector<LedgerEntry> const& liveEntries,
                                   std::vector<LedgerKey> const& deadEntries,
-                                  LedgerHeader const& lh)
+                                  LedgerHeader const& lh,
+                                  SorobanNetworkConfig const* sorobanConfig)
 {
+    // After initialization, we must apply every ledger in order to the
+    // in-memory state with no gaps.
+    releaseAssertOrThrow(mLastClosedLedgerSeq + 1 == lh.ledgerSeq);
+    mLastClosedLedgerSeq = lh.ledgerSeq;
+
     // We only store soroban entries, no reason to check before protocol 20
     if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
+        releaseAssertOrThrow(sorobanConfig != nullptr);
+        uint32_t ledgerVersion = lh.ledgerVersion;
         for (auto const& entry : initEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
@@ -440,7 +504,7 @@ InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
             }
             else if (entry.data.type() == CONTRACT_CODE)
             {
-                createContractCodeEntry(entry);
+                createContractCodeEntry(entry, *sorobanConfig, ledgerVersion);
             }
             else if (entry.data.type() == TTL)
             {
@@ -456,7 +520,7 @@ InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
             }
             else if (entry.data.type() == CONTRACT_CODE)
             {
-                updateContractCode(entry);
+                updateContractCode(entry, *sorobanConfig, ledgerVersion);
             }
             else if (entry.data.type() == TTL)
             {
@@ -479,12 +543,27 @@ InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
         }
     }
 
-    // After initialization, we must apply every ledger in order to the
-    // in-memory state with no gaps.
-    releaseAssertOrThrow(mLastClosedLedgerSeq + 1 == lh.ledgerSeq);
-    mLastClosedLedgerSeq = lh.ledgerSeq;
-
     checkUpdateInvariants();
+}
+
+void
+InMemorySorobanState::recomputeContractCodeSize(
+    SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion)
+{
+    for (auto& [_, entry] : mContractCodeEntries)
+    {
+        uint32_t newSize = contractCodeSizeForRent(
+            *entry.ledgerEntry, sorobanConfig, ledgerVersion);
+        updateStateSizeOnEntryUpdate(entry.sizeBytes, newSize);
+        entry.sizeBytes = newSize;
+    }
+}
+
+uint64_t
+InMemorySorobanState::getSize() const
+{
+    releaseAssertOrThrow(mStateSize >= 0);
+    return static_cast<int64_t>(mStateSize);
 }
 
 void
@@ -498,6 +577,18 @@ InMemorySorobanState::checkUpdateInvariants() const
 {
     // No TTLs should be orphaned after finishing an update
     releaseAssertOrThrow(mPendingTTLs.empty());
+}
+void
+InMemorySorobanState::updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
+                                                   uint32_t newEntrySize)
+{
+    int64_t sizeDelta =
+        static_cast<int64_t>(newEntrySize) - static_cast<int64_t>(oldEntrySize);
+    releaseAssertOrThrow(mStateSize + sizeDelta >= 0);
+    releaseAssertOrThrow(sizeDelta <= 0 ||
+                         mStateSize <=
+                             std::numeric_limits<int64_t>::max() - sizeDelta);
+    mStateSize += sizeDelta;
 }
 
 #ifdef BUILD_TESTS

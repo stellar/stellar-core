@@ -862,7 +862,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 
             // non-configurable settings
             archivalInfo["average_bucket_list_size"] =
-                static_cast<Json::UInt64>(conf.getAverageBucketListSize());
+                static_cast<Json::UInt64>(conf.getAverageSorobanStateSize());
             retStr = res.toStyledString();
         }
         else if (format == "detailed")

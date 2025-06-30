@@ -91,14 +91,12 @@ using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry>;
 class ParallelTxReturnVal
 {
   public:
-    ParallelTxReturnVal(bool success,
-                        OpModifiedEntryMap const&& modifiedEntryMap)
+    ParallelTxReturnVal(bool success, OpModifiedEntryMap&& modifiedEntryMap)
         : mSuccess(success), mModifiedEntryMap(std::move(modifiedEntryMap))
     {
     }
-    ParallelTxReturnVal(bool success,
-                        OpModifiedEntryMap const&& modifiedEntryMap,
-                        RestoredEntries const&& restoredEntries)
+    ParallelTxReturnVal(bool success, OpModifiedEntryMap&& modifiedEntryMap,
+                        RestoredEntries&& restoredEntries)
         : mSuccess(success)
         , mModifiedEntryMap(std::move(modifiedEntryMap))
         , mRestoredEntries(std::move(restoredEntries))

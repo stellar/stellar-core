@@ -753,6 +753,13 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
         auto entry = entryPtr.current();
 
         auto& setting = entry.data.configSetting();
+        // TODO(https://github.com/stellar/stellar-core/issues/4812): We should
+        // set `updated` to `false` here and only set it to `true` when the
+        // respective setting actually needs to be updated. However, since
+        // currently all the settings are always updated, we only set this to
+        // `false` for the cost params settings in order to not exceed limits on
+        // the initial settings upgrade.
+        bool updated = true;
         switch (type)
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
@@ -785,6 +792,28 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             {
                 setting.contractCompute().txMemoryLimit =
                     *upgradeCfg.txMemoryLimit;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
+            if (upgradeCfg.cpuCostParams.has_value())
+            {
+                setting.contractCostParamsCpuInsns() =
+                    *upgradeCfg.cpuCostParams;
+            }
+            else
+            {
+                updated = false;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
+            if (upgradeCfg.memCostParams.has_value())
+            {
+                setting.contractCostParamsMemBytes() =
+                    *upgradeCfg.memCostParams;
+            }
+            else
+            {
+                updated = false;
             }
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
@@ -899,9 +928,6 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
                 setting.contractBandwidth().feeTxSize1KB =
                     *upgradeCfg.feeTransactionSize1KB;
             }
-            break;
-        case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
-        case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
             break;
         case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
             if (upgradeCfg.maxContractDataKeySizeBytes.has_value())
@@ -1040,13 +1066,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             releaseAssert(false);
             break;
         }
-
-        // These two definitely aren't changing, and including both will hit the
-        // contractDataEntrySizeBytes limit
-        if (entry.data.configSetting().configSettingID() !=
-                CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS &&
-            entry.data.configSetting().configSettingID() !=
-                CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
+        if (updated)
         {
             updatedEntries.emplace_back(entry.data.configSetting());
         }

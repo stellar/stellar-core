@@ -1159,7 +1159,8 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
 
         // Now wipe cache and repopulate from scratch to test initialization on
         // a non-empty bucketlist.
-        lm.rebuildInMemorySorobanStateForTesting();
+        lm.rebuildInMemorySorobanStateForTesting(
+            lm.getLastClosedLedgerHeader().header.ledgerVersion);
         testCache();
     };
 

@@ -4,6 +4,8 @@
 
 #include "ledger/LedgerTypeUtils.h"
 #include "crypto/SHA.h"
+#include "ledger/NetworkConfig.h"
+#include "rust/RustBridge.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 #include "xdr/Stellar-types.h"
@@ -46,4 +48,28 @@ getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl)
     return ttlEntry;
 }
 
+uint32_t
+ledgerEntrySizeForRent(LedgerEntry const& entry, uint32_t entryXdrSize,
+                       uint32_t ledgerVersion,
+                       SorobanNetworkConfig const& sorobanConfig)
+{
+    bool isCodeEntry = isContractCodeEntry(entry.data);
+    uint32_t entrySizeForRent = entryXdrSize;
+
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+        isCodeEntry)
+    {
+        uint32_t memorySize = rust_bridge::contract_code_memory_size_for_rent(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+            toCxxBuf(entry.data.contractCode()),
+            toCxxBuf(sorobanConfig.cpuCostParams()),
+            toCxxBuf(sorobanConfig.memCostParams()));
+        uint64_t totalSize = static_cast<uint64_t>(entrySizeForRent) +
+                             static_cast<uint64_t>(memorySize);
+        entrySizeForRent = static_cast<uint32_t>(std::min(
+            totalSize,
+            static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())));
+    }
+    return entrySizeForRent;
+}
 };

@@ -593,8 +593,6 @@ TEST_CASE_VERSIONS("basic contract invocation", "[tx][soroban]")
     SorobanTest test(cfg);
     TestContract& addContract =
         test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
-    auto& hostFnExecTimer =
-        test.getApp().getMetrics().NewTimer({"soroban", "host-fn-op", "exec"});
     auto& hostFnSuccessMeter = test.getApp().getMetrics().NewMeter(
         {"soroban", "host-fn-op", "success"}, "call");
     auto& hostFnFailureMeter = test.getApp().getMetrics().NewMeter(
@@ -4940,7 +4938,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     auto& lm = app->getLedgerManager();
 
     // Update the snapshot period and close a ledger to update
-    // mAverageBucketListSize
+    // mAverageSorobanStateSize
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod = 1;
         // These are required to allow for an upgrade of all settings at once.
@@ -6974,8 +6972,6 @@ TEST_CASE_VERSIONS("non-fee source account is recipient of payment in both "
         SorobanTest test(app);
         AssetContractTestClient assetClient(test, txtest::makeNativeAsset());
 
-        auto ledgerVersion = getLclProtocolVersion(test.getApp());
-
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
@@ -7070,8 +7066,6 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
     REQUIRE(client.put("extendDelete", ContractDataDurability::TEMPORARY, 0) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
 
-    auto& hostFnExecTimer =
-        app.getMetrics().NewTimer({"soroban", "host-fn-op", "exec"});
     auto& hostFnSuccessMeter =
         app.getMetrics().NewMeter({"soroban", "host-fn-op", "success"}, "call");
     auto& hostFnFailureMeter =
@@ -7551,10 +7545,6 @@ TEST_CASE("Failed write still causes ttl observation",
 
     SorobanTest test(cfg);
     ContractStorageTestClient client(test);
-
-    auto contractExpirationLedger =
-        test.getLCLSeq() +
-        test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
 
     auto& app = test.getApp();
     modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
@@ -8163,4 +8153,233 @@ TEST_CASE_VERSIONS(
                     preTxA1Balance - r.results.at(0).result.feeCharged);
         }
     });
+}
+
+TEST_CASE("in-memory state size tracking", "[soroban]")
+{
+    int const MIN_PERSISTENT_TTL = 100;
+    auto const keyCount = 20;
+    SorobanTest test(
+        getTestConfig(), /*useTestLimits=*/false,
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.minPersistentTTL = MIN_PERSISTENT_TTL;
+            // Set low eviction scan level in order to get the
+            // entries evicted faster.
+            // The state size is only reduced on evictions.
+            cfg.mStateArchivalSettings.startingEvictionScanLevel = 1;
+            // Modify the config to let the transactions run only in parallel.
+            cfg.mLedgerMaxDependentTxClusters = 5;
+            cfg.mLedgerMaxInstructions =
+                keyCount *
+                ContractStorageTestClient::defaultSpecWithoutFootprint()
+                    .getResources()
+                    .instructions /
+                cfg.mLedgerMaxDependentTxClusters;
+            cfg.mTxMaxInstructions = cfg.mLedgerMaxInstructions;
+
+            // Use the test limit overrides here instead of using
+            // `useTestLimits` in order to have just a single config upgrade
+            // that's easy to account for (all the upgrade data entries will
+            // live for 4096 entries, which is more than this test goes
+            // through).
+            cfg.mMaxContractSizeBytes = 64 * 1024;
+            cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
+
+            cfg.mTxMaxSizeBytes = 100 * 1024;
+            cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
+
+            cfg.mTxMaxDiskReadEntries = 40;
+            cfg.mTxMaxDiskReadBytes = 200 * 1024;
+
+            cfg.mTxMaxWriteLedgerEntries = 20;
+            cfg.mTxMaxWriteBytes = 100 * 1024;
+
+            cfg.mLedgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
+            cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
+            cfg.mLedgerMaxWriteLedgerEntries =
+                cfg.mTxMaxWriteLedgerEntries * 10;
+            cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
+            cfg.mLedgerMaxTxCount = 100;
+        });
+    // Initial network config has a higher persistent TTL, so we don't expect
+    // this state to expire.
+    auto const stateSizeAfterUpgrade =
+        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+
+    std::vector<TestAccount> accounts;
+
+    for (size_t i = 0; i < keyCount; ++i)
+    {
+        accounts.emplace_back(test.getRoot().create(
+            "account" + std::to_string(i),
+            test.getApp().getLedgerManager().getLastMinBalance(1000)));
+    }
+    ContractStorageTestClient client(test);
+
+    auto const initialContractsCreatedLedgerSeq = test.getLCLSeq();
+    auto baseStateSize =
+        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+
+    std::vector<std::pair<std::string, ContractDataDurability>> dataKeys;
+
+    for (size_t i = 0; i < keyCount; ++i)
+    {
+        auto key = "key" + std::to_string(i);
+        dataKeys.emplace_back(key, ContractDataDurability::PERSISTENT);
+    }
+
+    auto verifyInMemorySize = [&]() {
+        auto expectedSize = baseStateSize;
+        for (auto const& [key, durability] : dataKeys)
+        {
+            auto ledgerKey = client.getContract().getDataKey(
+                makeSymbolSCVal(key), durability);
+            LedgerSnapshot ls(test.getApp());
+            auto le = ls.load(ledgerKey);
+            if (le)
+            {
+                // We only deal with the data entries here, so no need to use
+                // ledgerEntrySizeForRent.
+                expectedSize += xdr::xdr_size(le.current());
+            }
+        }
+        auto actualSize =
+            test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        REQUIRE(actualSize == expectedSize);
+        // Make sure there actually were some live contract data entries.
+        REQUIRE(actualSize > baseStateSize);
+    };
+
+    auto closeLedgerAndVerify =
+        [&](std::vector<TransactionFrameBaseConstPtr> const& txs) {
+            auto results = closeLedger(test.getApp(), txs);
+            REQUIRE(results.results.size() == txs.size());
+            for (auto const& res : results.results)
+            {
+                REQUIRE(isSuccessResult(res.result));
+            }
+            verifyInMemorySize();
+        };
+
+    {
+        INFO("put initial entries");
+        std::vector<TransactionFrameBaseConstPtr> txs;
+
+        for (int i = 0; i < keyCount; ++i)
+        {
+            auto invocation =
+                client.putInvocation(dataKeys[i].first, dataKeys[i].second, i);
+            txs.emplace_back(
+                invocation.withExactNonRefundableResourceFee().createTx(
+                    &accounts[i]));
+        }
+
+        closeLedgerAndVerify(txs);
+    }
+
+    {
+        INFO("modify entries (increase size)");
+        std::vector<TransactionFrameBaseConstPtr> txs;
+
+        for (int i = 0; i < keyCount; ++i)
+        {
+            auto invocation = client.resizeStorageAndExtendInvocation(
+                dataKeys[i].first, 5, 0, 0);
+            txs.emplace_back(
+                invocation.withExactNonRefundableResourceFee().createTx(
+                    &accounts[i]));
+        }
+
+        closeLedgerAndVerify(txs);
+    }
+
+    {
+        INFO("modify entries (increase and decrease size)");
+        std::vector<TransactionFrameBaseConstPtr> txs;
+
+        for (int i = 0; i < keyCount; ++i)
+        {
+            auto invocation = client.resizeStorageAndExtendInvocation(
+                dataKeys[i].first, i % 2 == 0 ? 1 : 10, 0, 0);
+            txs.emplace_back(
+                invocation.withExactNonRefundableResourceFee().createTx(
+                    &accounts[i]));
+        }
+
+        closeLedgerAndVerify(txs);
+    }
+
+    {
+        INFO("delete some entries");
+        std::vector<TransactionFrameBaseConstPtr> txs;
+
+        for (int i = 0; i < keyCount / 4; ++i)
+        {
+            auto invocation =
+                client.delInvocation(dataKeys[i].first, dataKeys[i].second);
+            txs.emplace_back(
+                invocation.withExactNonRefundableResourceFee().createTx(
+                    &accounts[i]));
+        }
+
+        closeLedgerAndVerify(txs);
+    }
+    {
+        INFO("create, update and delete entries");
+        std::vector<TransactionFrameBaseConstPtr> txs;
+
+        for (int i = 0; i < keyCount; ++i)
+        {
+            std::unique_ptr<TestContract::Invocation> invocation;
+            if (i < keyCount / 4)
+            {
+                invocation = std::make_unique<TestContract::Invocation>(
+                    client.putInvocation(dataKeys[i].first, dataKeys[i].second,
+                                         i));
+            }
+            else
+            {
+                if (i % 3 == 0)
+                {
+                    invocation = std::make_unique<TestContract::Invocation>(
+                        client.delInvocation(dataKeys[i].first,
+                                             dataKeys[i].second));
+                }
+                else
+                {
+                    invocation = std::make_unique<TestContract::Invocation>(
+                        client.resizeStorageAndExtendInvocation(
+                            dataKeys[i].first, i % 3 == 1 ? 2 : 7, 0, 0));
+                }
+            }
+            txs.emplace_back(
+                invocation->withExactNonRefundableResourceFee().createTx(
+                    &accounts[i]));
+        }
+
+        closeLedgerAndVerify(txs);
+    }
+    {
+        INFO("evict contract entries");
+        while (test.getLCLSeq() <
+               initialContractsCreatedLedgerSeq + MIN_PERSISTENT_TTL)
+        {
+            closeLedger(test.getApp());
+        }
+        // The 'initial' state has been evicted now, so only data entries
+        // should remain.
+        baseStateSize = stateSizeAfterUpgrade;
+        verifyInMemorySize();
+    }
+    {
+        INFO("evict all entries");
+        // Close a few more ledgers to let the entries created above to expire.
+        for (int i = 0; i < 5; ++i)
+        {
+            closeLedger(test.getApp());
+        }
+        REQUIRE(
+            test.getApp().getLedgerManager().getSorobanInMemoryStateSize() ==
+            stateSizeAfterUpgrade);
+    }
 }

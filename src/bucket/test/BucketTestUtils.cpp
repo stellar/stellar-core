@@ -275,7 +275,10 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
             }
             mApp.getLedgerManager()
                 .getMutableSorobanNetworkConfigForApply()
-                .maybeSnapshotBucketListSize(lh.ledgerSeq, ltx, mApp);
+                .maybeSnapshotSorobanStateSize(
+                    lh.ledgerSeq,
+                    mApp.getLedgerManager().getSorobanInMemoryStateSize(), ltx,
+                    mApp);
         }
 
         ltx.getAllEntries(init, live, dead);

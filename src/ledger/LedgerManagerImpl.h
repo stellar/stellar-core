@@ -159,6 +159,8 @@ class LedgerManagerImpl : public LedgerManager
                                    std::vector<LedgerKey> const& deadEntries,
                                    LedgerHeader const& lh);
 
+        uint64_t getSorobanInMemoryStateSize() const;
+
         void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
         // Finishes a compilation started by `startCompilingAllContracts`.
         void finishPendingCompilation();
@@ -187,7 +189,11 @@ class LedgerManagerImpl : public LedgerManager
 
         // Populates all live Soroban state into the cache from the provided
         // snapshot.
-        void populateInMemorySorobanState(SearchableSnapshotConstPtr snap);
+        void populateInMemorySorobanState(SearchableSnapshotConstPtr snap,
+                                          uint32_t ledgerVersion);
+
+        void handleUpgradeAffectingSorobanInMemoryStateSize(
+            AbstractLedgerTxn& upgradeLtx);
     };
 
     // This state is private to the apply thread and holds work-in-progress
@@ -385,6 +391,8 @@ class LedgerManagerImpl : public LedgerManager
     bool hasLastClosedSorobanNetworkConfig() const override;
     std::chrono::milliseconds getExpectedLedgerCloseTime() const override;
 
+    uint64_t getSorobanInMemoryStateSize() const override;
+
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
     void mutateSorobanNetworkConfigForApply(
@@ -397,7 +405,7 @@ class LedgerManagerImpl : public LedgerManager
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
     std::function<void()> mAdvanceLedgerStateAndPublishOverride;
     InMemorySorobanState const& getInMemorySorobanStateForTesting() override;
-    void rebuildInMemorySorobanStateForTesting() override;
+    void rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -442,6 +450,9 @@ class LedgerManagerImpl : public LedgerManager
         return mCurrentlyApplyingLedger;
     }
     ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
+
+    void handleUpgradeAffectingSorobanInMemoryStateSize(
+        AbstractLedgerTxn& upgradeLtx) override;
 
 #ifdef BUILD_TESTS
     friend class BucketTestUtils::LedgerManagerForBucketTests;

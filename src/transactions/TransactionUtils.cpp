@@ -2205,24 +2205,14 @@ CxxLedgerEntryRentChange
 createEntryRentChangeWithoutModification(
     LedgerEntry const& entry, uint32_t entrySize,
     std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
-    uint32_t ledgerVersion, Config const& config,
-    SorobanNetworkConfig const& sorobanConfig)
+    uint32_t ledgerVersion, SorobanNetworkConfig const& sorobanConfig)
 {
-    CxxLedgerEntryRentChange rustChange;
-    bool isCodeEntry = isContractCodeEntry(entry.data);
+    CxxLedgerEntryRentChange rustChange{};
     rustChange.is_persistent = !isTemporaryEntry(entry.data);
-    rustChange.is_code_entry = isCodeEntry;
-    uint32_t entrySizeForRent = entrySize;
+    rustChange.is_code_entry = isContractCodeEntry(entry.data);
+    uint32_t entrySizeForRent =
+        ledgerEntrySizeForRent(entry, entrySize, ledgerVersion, sorobanConfig);
 
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
-        isCodeEntry)
-    {
-        entrySizeForRent += rust_bridge::contract_code_memory_size_for_rent(
-            config.CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
-            toCxxBuf(entry.data.contractCode()),
-            toCxxBuf(sorobanConfig.cpuCostParams()),
-            toCxxBuf(sorobanConfig.memCostParams()));
-    }
     if (entryLiveUntilLedger)
     {
         rustChange.old_size_bytes = entrySizeForRent;

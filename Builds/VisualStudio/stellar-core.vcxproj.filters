@@ -1411,7 +1411,9 @@
     <ClCompile Include="..\..\src\transactions\ParallelApplyUtils.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\InMemorySorobanState.cpp" />
+    <ClCompile Include="..\..\src\ledger\InMemorySorobanState.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2504,6 +2506,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\InMemorySorobanState.h" />
+    <ClInclude Include="..\..\src\ledger\InMemorySorobanState.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

@@ -414,6 +414,20 @@ makeValid(ContractCodeEntry& cce)
     cce.code.assign(wasmBuf.data.data(),
                     wasmBuf.data.data() + wasmBuf.data.size());
     cce.hash = sha256(cce.code);
+    if (cce.ext.v() == 1)
+    {
+        cce.ext.v1().costInputs.nDataSegmentBytes =
+            rand_uniform<uint32_t>(0, 1000);
+        cce.ext.v1().costInputs.nDataSegments = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nElemSegments = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nExports = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nFunctions = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nGlobals = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nImports = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nInstructions = rand_uniform<uint32_t>(0, 1000);
+        cce.ext.v1().costInputs.nTableEntries = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nTypes = rand_uniform<uint32_t>(0, 100);
+    }
 }
 
 void
