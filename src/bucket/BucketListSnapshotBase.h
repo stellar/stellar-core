@@ -119,7 +119,6 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                     LedgerKeyMeter* lkMeter,
                      std::optional<uint32_t> ledgerSeq) const;
 
     medida::Timer& getBulkLoadTimer(std::string const& label,

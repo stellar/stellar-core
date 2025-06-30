@@ -143,8 +143,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                              LedgerKeyMeter* lkMeter) const override;
+    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,

@@ -301,10 +301,9 @@ TransactionTestFrame::insertKeysForFeeProcessing(
 }
 
 void
-TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                                           LedgerKeyMeter* lkMeter) const
+TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 {
-    mTransactionFrame->insertKeysForTxApply(keys, lkMeter);
+    mTransactionFrame->insertKeysForTxApply(keys);
 }
 
 void

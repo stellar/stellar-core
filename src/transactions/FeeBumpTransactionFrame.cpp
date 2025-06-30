@@ -584,10 +584,10 @@ FeeBumpTransactionFrame::insertKeysForFeeProcessing(
 }
 
 void
-FeeBumpTransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                                              LedgerKeyMeter* lkMeter) const
+FeeBumpTransactionFrame::insertKeysForTxApply(
+    UnorderedSet<LedgerKey>& keys) const
 {
-    mInnerTx->insertKeysForTxApply(keys, lkMeter);
+    mInnerTx->insertKeysForTxApply(keys);
 }
 
 MutableTxResultPtr

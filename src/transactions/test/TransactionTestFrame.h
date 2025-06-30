@@ -124,8 +124,7 @@ class TransactionTestFrame : public TransactionFrameBase
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                              LedgerKeyMeter* lkMeter) const override;
+    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           TransactionMetaBuilder& meta,

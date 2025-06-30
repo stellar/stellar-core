@@ -1410,7 +1410,7 @@ prefetchForRevokeFromPoolShareTrustLines(
             keys.emplace(accountKey(sponsor));
         }
     }
-    ltx.prefetchClassic(keys);
+    ltx.prefetch(keys);
 
     // now prefetch the asset trustlines
     keys.clear();
@@ -1436,7 +1436,7 @@ prefetchForRevokeFromPoolShareTrustLines(
             keys.emplace(trustlineKey(accountID, params.assetB));
         }
     }
-    ltx.prefetchClassic(keys);
+    ltx.prefetch(keys);
 }
 
 static ClaimableBalanceID

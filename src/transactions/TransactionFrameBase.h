@@ -210,8 +210,7 @@ class TransactionFrameBase
 
     virtual void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
-    virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                                      LedgerKeyMeter* lkMeter) const = 0;
+    virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
     virtual MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,

@@ -129,7 +129,7 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     std::vector<LedgerEntry> result;
     auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(trustlinesToLoad, result, /*lkMeter=*/nullptr);
+        b.loadKeys(trustlinesToLoad, result);
         return trustlinesToLoad.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
@@ -229,12 +229,12 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 }
 
 std::vector<LedgerEntry>
-SearchableLiveBucketListSnapshot::loadKeysWithLimits(
+SearchableLiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    std::string const& label, LedgerKeyMeter* lkMeter) const
+    std::string const& label) const
 {
     auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
-    auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
+    auto op = loadKeysInternal(inKeys, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
 }
@@ -263,7 +263,7 @@ std::vector<HotArchiveBucketEntry>
 SearchableHotArchiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
-    auto op = loadKeysInternal(inKeys, /*lkMeter=*/nullptr, std::nullopt);
+    auto op = loadKeysInternal(inKeys, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
 }
