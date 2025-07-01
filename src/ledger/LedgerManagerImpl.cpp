@@ -1919,10 +1919,7 @@ LedgerManagerImpl::applyThread(
         // Apply timer
         auto txTime = mApplyState.mMetrics.mTransactionApply.TimeScope();
 
-        SHA256 txSubSeedSha;
-        txSubSeedSha.add(sorobanBasePrngSeed);
-        txSubSeedSha.add(xdr::xdr_to_opaque(txBundle.getTxNum()));
-        Hash txSubSeed = txSubSeedSha.finish();
+        Hash txSubSeed = subSha256(sorobanBasePrngSeed, txBundle.getTxNum());
 
         threadState->flushRoTTLBumpsInTxWriteFootprint(txBundle);
 
@@ -2284,14 +2281,12 @@ LedgerManagerImpl::applySequentialPhase(
         // If tx can use the seed, we need to compute a sub-seed for it.
         if (tx->isSoroban())
         {
-            SHA256 subSeedSha;
-            subSeedSha.add(sorobanBasePrngSeed);
             // The index used here was originally a uint64_t, but it was removed
             // because it was duplicated info. We need to still use a uint64_t
             // because the type of the integer affects the prng seed, which
             // is observable in the protocol.
-            subSeedSha.add(xdr::xdr_to_opaque(static_cast<uint64_t>(index)));
-            subSeed = subSeedSha.finish();
+            subSeed =
+                subSha256(sorobanBasePrngSeed, static_cast<uint64_t>(index));
         }
 
         tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult, subSeed);
