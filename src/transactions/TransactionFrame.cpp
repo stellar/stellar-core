@@ -1177,7 +1177,9 @@ TransactionFrame::commonValidPreSeqNum(
             return std::nullopt;
         }
 
-        // check for duplicates
+        // Check for duplicate entries both within each key-set of the footprint
+        // and between both key-sets. Note this also ensures that the RW and RO
+        // footprints are disjoint.
         UnorderedSet<LedgerKey> set;
         auto checkDuplicates =
             [&](xdr::xvector<stellar::LedgerKey> const& keys) -> bool {

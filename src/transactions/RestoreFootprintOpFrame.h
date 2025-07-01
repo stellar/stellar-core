@@ -14,12 +14,6 @@ class MutableTransactionResultBase;
 
 class RestoreFootprintOpFrame : public OperationFrame
 {
-    RestoreFootprintResult&
-    innerResult(OperationResult& res) const
-    {
-        return res.tr().restoreFootprintResult();
-    }
-
     RestoreFootprintOp const& mRestoreFootprintOp;
 
   public:
@@ -59,5 +53,8 @@ class RestoreFootprintOpFrame : public OperationFrame
     virtual bool isSoroban() const override;
 
     ThresholdLevel getThresholdLevel() const override;
+    friend class RestoreFootprintApplyHelper;
+    friend class RestoreFootprintPreV23ApplyHelper;
+    friend class RestoreFootprintParallelApplyHelper;
 };
 }
