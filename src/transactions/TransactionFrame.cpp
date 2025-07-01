@@ -1930,16 +1930,10 @@ TransactionFrame::parallelApply(
 
         if (res.getSuccess())
         {
-            auto hotArchive = res.getRestoredEntries().hotArchive;
-            setDelta(liveSnapshot, threadState.getEntryMap(),
-                     res.getModifiedEntryMap(), hotArchive, ledgerInfo,
-                     effects);
-
-            opMeta.setLedgerChangesFromEntryMaps(
-                liveSnapshot, threadState.getEntryMap(),
-                res.getModifiedEntryMap(), hotArchive,
-                res.getRestoredEntries().liveBucketList,
-                ledgerInfo.getLedgerSeq());
+            threadState.setEffectsDeltaFromSuccessfulOp(res, ledgerInfo,
+                                                        effects);
+            opMeta.setLedgerChangesFromSuccessfulOp(threadState, res,
+                                                    ledgerInfo.getLedgerSeq());
         }
         else
         {
