@@ -65,7 +65,8 @@ void validateFeeEvent(TransactionEvent const& feeEvent,
 TransactionFrameBaseConstPtr
 makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         RustBuf const& wasm, SorobanResources& uploadResources,
-                        uint32_t inclusionFee);
+                        uint32_t inclusionFee,
+                        int64_t additionalRefundableFee = 0);
 
 struct ConstructorParams
 {
@@ -330,10 +331,8 @@ class SorobanTest
     bool isTxValid(TransactionFrameBaseConstPtr tx);
 
     TransactionResult invokeTx(TransactionFrameBaseConstPtr tx);
-    std::pair<TransactionResult, TransactionMetaFrame>
-    invokeTxAndGetTxMeta(TransactionFrameBaseConstPtr tx);
-    std::pair<TransactionResult, LedgerCloseMetaFrame>
-    invokeTxAndGetLCM(TransactionFrameBaseConstPtr tx);
+    TransactionMetaFrame const& getLastTxMeta(size_t index = 0) const;
+    LedgerCloseMetaFrame getLastLcm() const;
 
     uint32_t getTTL(LedgerKey const& k);
     bool isEntryLive(LedgerKey const& k, uint32_t ledgerSeq);
@@ -351,9 +350,8 @@ class SorobanTest
 
     void checkRefundableFee(int64_t initialBalance,
                             TransactionFrameBaseConstPtr tx,
-                            LedgerCloseMetaFrame const& lcm,
                             int64_t expectedRefundableFeeCharged,
-                            size_t eventsSize = 0);
+                            size_t eventsSize = 0, bool success = true);
 
     // Defaults to root account
     int64_t getAccountBalance(TestAccount* source = nullptr);

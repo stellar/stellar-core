@@ -1137,7 +1137,14 @@ TransactionFrame::commonValidPreSeqNum(
         }
 
         auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
-        if (sorobanData.resourceFee > getFullFee())
+        bool validateResourceFee = true;
+        // Starting from protocol 23 allow fee bump transactions to have an
+        // inner transaction with insufficient full fee.
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23))
+        {
+            validateResourceFee = chargeFee;
+        }
+        if (validateResourceFee && sorobanData.resourceFee > getFullFee())
         {
             diagnosticEvents.pushError(
                 SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
@@ -1238,7 +1245,8 @@ TransactionFrame::commonValidPreSeqNum(
         txResult.setInnermostError(txINSUFFICIENT_FEE);
         return std::nullopt;
     }
-    if (!chargeFee && getInclusionFee() < 0)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23) &&
+        !chargeFee && getInclusionFee() < 0)
     {
         txResult.setInnermostError(txINSUFFICIENT_FEE);
         return std::nullopt;

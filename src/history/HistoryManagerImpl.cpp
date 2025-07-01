@@ -644,7 +644,7 @@ HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
                           fs::exists(res.localPath_nogz_dirty()) ||
                           fs::exists(txs.localPath_nogz_dirty()) ||
                           fs::exists(headers.localPath_nogz_dirty()) ||
-                          fs::exists(snapshotFile);
+                          fs::exists(snapshotFile.string());
 
         if (!filesExist)
         {
@@ -661,7 +661,7 @@ HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
         fs::removeWithLog(res.localPath_nogz());
         fs::removeWithLog(txs.localPath_nogz());
         fs::removeWithLog(headers.localPath_nogz());
-        fs::removeWithLog(snapshotFile);
+        fs::removeWithLog(snapshotFile.string());
 
         if (currentCheckpoint < checkpointFreq)
         {

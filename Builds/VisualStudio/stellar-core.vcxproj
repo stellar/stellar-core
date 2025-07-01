@@ -597,6 +597,7 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\test\SponsorshipCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.cpp" />
+    <ClCompile Include="..\..\src\ledger\InMemorySorobanState.cpp" />
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
@@ -1052,6 +1053,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\test\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.h" />
+    <ClInclude Include="..\..\src\ledger\InMemorySorobanState.h" />
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h" />
