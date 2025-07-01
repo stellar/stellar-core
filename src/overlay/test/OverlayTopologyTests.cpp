@@ -155,7 +155,7 @@ TEST_CASE("basic connectivity", "[overlay][connectivity][!hide]")
 
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(4, 1); },
-            5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            5 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(isConnected(numNodes, numWatchers, simulation));
         return simulation;
     };
@@ -256,7 +256,7 @@ TEST_CASE("peer churn", "[overlay][connectivity][!hide]")
         simulation->startAllNodes();
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(3, 1); },
-            5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            5 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(isConnected(numNodes, numWatchers, simulation));
 
         SECTION("basic churn - remove and add")

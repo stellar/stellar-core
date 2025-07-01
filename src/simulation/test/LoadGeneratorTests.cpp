@@ -40,7 +40,7 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
@@ -88,7 +88,7 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
                        .NewMeter({"loadgen", "run", "complete"}, "run")
                        .count() == prev + 1;
         },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        500 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
 TEST_CASE("generate load in protocol 1", "[loadgen]")
@@ -105,7 +105,7 @@ TEST_CASE("generate load in protocol 1", "[loadgen]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
@@ -120,7 +120,7 @@ TEST_CASE("generate load in protocol 1", "[loadgen]")
                        .NewMeter({"loadgen", "run", "complete"}, "run")
                        .count() == 1;
         },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        100 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
 TEST_CASE("generate load with unique accounts", "[loadgen]")
@@ -142,7 +142,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
@@ -175,7 +175,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 1;
             },
-            500 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            500 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(getSuccessfulTxCount() == nTxs);
     }
     SECTION("success")
@@ -191,7 +191,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 1;
             },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            300 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(getSuccessfulTxCount() == nTxs);
     }
     SECTION("invalid loadgen parameters")
@@ -208,7 +208,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
                            .NewMeter({"loadgen", "run", "failed"}, "run")
                            .count() == 1;
             },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * simulation->getExpectedLedgerCloseTime(), false);
     }
     SECTION("stop loadgen")
     {
@@ -245,7 +245,7 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * simulation->getExpectedLedgerCloseTime(), false);
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
@@ -305,7 +305,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto nodes = simulation->getNodes();
 
@@ -341,7 +341,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        100 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Before creating any contracts, test that loadgen correctly
     // reports an error when trying to run a soroban invoke setup.
@@ -367,7 +367,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        100 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
@@ -437,6 +437,17 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
         upgradeCfg.feeFlatRateWrite1KB =
             rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
+
+        upgradeCfg.ledgerTargetCloseTimeMilliseconds =
+            rand_uniform<uint32_t>(4000, 5000);
+        upgradeCfg.nominationTimeoutInitialMilliseconds =
+            rand_uniform<uint32_t>(1000, 1500);
+        upgradeCfg.nominationTimeoutIncrementMilliseconds =
+            rand_uniform<uint32_t>(1000, 1500);
+        upgradeCfg.ballotTimeoutInitialMilliseconds =
+            rand_uniform<uint32_t>(1000, 1500);
+        upgradeCfg.ballotTimeoutIncrementMilliseconds =
+            rand_uniform<uint32_t>(1000, 1500);
     }
 
     auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(
@@ -447,7 +458,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        300 * simulation->getExpectedLedgerCloseTime(), false);
 
     for (auto node : nodes)
     {
@@ -572,6 +583,23 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             REQUIRE(setting.contractLedgerCostExt().feeWrite1KB ==
                     upgradeCfg.feeFlatRateWrite1KB);
             break;
+        case CONFIG_SETTING_SCP_TIMING:
+            REQUIRE(
+                setting.contractSCPTiming().ledgerTargetCloseTimeMilliseconds ==
+                upgradeCfg.ledgerTargetCloseTimeMilliseconds);
+            REQUIRE(setting.contractSCPTiming()
+                        .nominationTimeoutInitialMilliseconds ==
+                    upgradeCfg.nominationTimeoutInitialMilliseconds);
+            REQUIRE(setting.contractSCPTiming()
+                        .nominationTimeoutIncrementMilliseconds ==
+                    upgradeCfg.nominationTimeoutIncrementMilliseconds);
+            REQUIRE(
+                setting.contractSCPTiming().ballotTimeoutInitialMilliseconds ==
+                upgradeCfg.ballotTimeoutInitialMilliseconds);
+            REQUIRE(setting.contractSCPTiming()
+                        .ballotTimeoutIncrementMilliseconds ==
+                    upgradeCfg.ballotTimeoutIncrementMilliseconds);
+            break;
         default:
             REQUIRE(false);
             break;
@@ -617,7 +645,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        100 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
@@ -646,7 +674,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        300 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
@@ -724,7 +752,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         completeCount = complete.count();
         simulation->crankUntil(
             [&]() { return complete.count() == completeCount + 1; },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            300 * simulation->getExpectedLedgerCloseTime(), false);
 
         // Check results
         for (auto node : nodes)
@@ -752,7 +780,7 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
@@ -772,7 +800,7 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 1;
             },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            3 * simulation->getExpectedLedgerCloseTime(), false);
 
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PRETEND,
                                                          nAccounts, 5, txRate));
@@ -783,7 +811,7 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 2;
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            2 * simulation->getExpectedLedgerCloseTime(), false);
     }
     catch (...)
     {
@@ -823,7 +851,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
@@ -831,7 +859,10 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     uint32_t txRate = 5;
     uint32_t numAccounts =
         txRate *
-        static_cast<uint32>(Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 3);
+        static_cast<uint32>(std::chrono::duration_cast<std::chrono::seconds>(
+                                simulation->getExpectedLedgerCloseTime())
+                                .count() *
+                            3);
     auto& loadGen = app.getLoadGenerator();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ numAccounts,
@@ -844,7 +875,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 1;
             },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            3 * simulation->getExpectedLedgerCloseTime(), false);
         auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_CLASSIC,
                                                   numAccounts, 100, txRate);
         config.getMutDexTxPercent() = 50;
@@ -855,7 +886,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
                            .NewMeter({"loadgen", "run", "complete"}, "run")
                            .count() == 2;
             },
-            15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            15 * simulation->getExpectedLedgerCloseTime(), false);
     }
     catch (...)
     {
@@ -887,7 +918,7 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
         Simulation::OVER_LOOPBACK, sha256(getTestConfig().NETWORK_PASSPHRASE));
     sim->startAllNodes();
     sim->crankUntil([&]() { return sim->haveAllExternalized(3, 1); },
-                    2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                    2 * sim->getExpectedLedgerCloseTime(), false);
 
     Application::pointer app = sim->getNodes().front();
     LoadGenerator& loadgen = app->getLoadGenerator();
@@ -900,7 +931,7 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
     loadgen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ 1, /* txRate */ 1));
     sim->crankUntil([&]() { return runsComplete.count() == 1; },
-                    5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                    5 * sim->getExpectedLedgerCloseTime(), false);
 
     // Clear metrics to reset run count
     app->clearMetrics("");
@@ -911,7 +942,7 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
     upgradeSetupCfg.setMinSorobanPercentSuccess(100);
     loadgen.generateLoad(upgradeSetupCfg);
     sim->crankUntil([&]() { return runsComplete.count() == 1; },
-                    5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                    5 * sim->getExpectedLedgerCloseTime(), false);
     REQUIRE(runsFailed.count() == 0);
 
     // Clear metrics again to reset run count
@@ -921,7 +952,7 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
     // the same `runsComplete` value performing the setup
     loadgen.generateLoad(upgradeSetupCfg);
     sim->crankUntil([&]() { return runsComplete.count() == 1; },
-                    5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                    5 * sim->getExpectedLedgerCloseTime(), false);
     REQUIRE(runsFailed.count() == 0);
 }
 

@@ -177,7 +177,8 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
-    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
+    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber,
+                                                     bool isNomination) = 0;
 
     // returns the weight of the node within the qset normalized between
     // 0-UINT64_MAX. If `nodeID` is the local node, then set `isLocalNode` to

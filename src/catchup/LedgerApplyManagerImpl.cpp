@@ -19,6 +19,7 @@
 #include "util/StatusManager.h"
 #include "work/WorkScheduler.h"
 #include <Tracy.hpp>
+#include <chrono>
 #include <fmt/format.h>
 
 namespace stellar
@@ -247,11 +248,13 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
         // waiting for out of order ledgers, which should arrive quickly
         else if (catchupTriggerLedger > lastLedgerInBuffer)
         {
-            auto eta = (catchupTriggerLedger - lastLedgerInBuffer) *
-                       mApp.getConfig().getExpectedLedgerCloseTime();
+            auto etaMS = (catchupTriggerLedger - lastLedgerInBuffer) *
+                         mApp.getLedgerManager().getExpectedLedgerCloseTime();
             message = fmt::format(
                 FMT_STRING("Waiting for trigger ledger: {:d}/{:d}, ETA: {:d}s"),
-                lastLedgerInBuffer, catchupTriggerLedger, eta.count());
+                lastLedgerInBuffer, catchupTriggerLedger,
+                std::chrono::duration_cast<std::chrono::seconds>(etaMS)
+                    .count());
         }
         else
         {

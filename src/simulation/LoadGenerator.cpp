@@ -484,8 +484,10 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
     // During load submission, we must have enough unique source accounts (with
     // a buffer) to accommodate the desired tx rate.
+    auto closeTimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(
+        mApp.getLedgerManager().getExpectedLedgerCloseTime());
     if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
-        (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count()) *
+        (cfg.txRate * closeTimeSeconds.count()) *
                 MIN_UNIQUE_ACCOUNT_MULTIPLIER >
             cfg.nAccounts)
     {
@@ -1441,7 +1443,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         }
 
         mLoadTimer->expires_from_now(
-            mApp.getConfig().getExpectedLedgerCloseTime());
+            mApp.getLedgerManager().getExpectedLedgerCloseTime());
         mLoadTimer->async_wait([this, cfg]() { this->waitTillComplete(cfg); },
                                &VirtualTimer::onFailureNoop);
     }
@@ -1497,7 +1499,8 @@ LoadGenerator::waitTillCompleteWithoutChecks()
         reset();
         return;
     }
-    mLoadTimer->expires_from_now(mApp.getConfig().getExpectedLedgerCloseTime());
+    mLoadTimer->expires_from_now(
+        mApp.getLedgerManager().getExpectedLedgerCloseTime());
     mLoadTimer->async_wait([this]() { this->waitTillCompleteWithoutChecks(); },
                            &VirtualTimer::onFailureNoop);
 }
@@ -1717,6 +1720,21 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
 
     upgradeCfg.ledgerMaxDependentTxClusters =
         cfg.ledgerMaxDependentTxClusters();
+
+    upgradeCfg.ledgerTargetCloseTimeMilliseconds =
+        cfg.ledgerTargetCloseTimeMilliseconds();
+    upgradeCfg.nominationTimeoutInitialMilliseconds =
+        cfg.nominationTimeoutInitialMilliseconds();
+    upgradeCfg.nominationTimeoutIncrementMilliseconds =
+        cfg.nominationTimeoutIncrementMilliseconds();
+    upgradeCfg.ballotTimeoutInitialMilliseconds =
+        cfg.ballotTimeoutInitialMilliseconds();
+    upgradeCfg.ballotTimeoutIncrementMilliseconds =
+        cfg.ballotTimeoutIncrementMilliseconds();
+    upgradeCfg.nominationTimeoutInitialMilliseconds =
+        cfg.nominationTimeoutInitialMilliseconds();
+    upgradeCfg.nominationTimeoutIncrementMilliseconds =
+        cfg.nominationTimeoutIncrementMilliseconds();
 }
 
 GeneratedLoadConfig

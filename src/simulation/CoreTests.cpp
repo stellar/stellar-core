@@ -91,7 +91,7 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3][acceptance]")
             [&simulation, nLedgers]() {
                 return simulation->haveAllExternalized(nLedgers + 1, 5);
             },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            10 * nLedgers * simulation->getExpectedLedgerCloseTime(), true);
 
         REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 5));
     }
@@ -111,7 +111,7 @@ TEST_CASE("asymmetric topology report cost", "[simulation][!hide]")
 
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(nLedgers + 2, 4); },
-        10 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+        50 * nLedgers * simulation->getExpectedLedgerCloseTime(), true);
 
     REQUIRE(simulation->haveAllExternalized(nLedgers, 4));
 
@@ -154,7 +154,7 @@ TEST_CASE("core topology 4 ledgers at scales 2 to 4",
             [&sim, nLedgers]() {
                 return sim->haveAllExternalized(nLedgers + 1, nLedgers);
             },
-            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            10 * nLedgers * sim->getExpectedLedgerCloseTime(), true);
 
         REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
     }
@@ -178,7 +178,7 @@ resilienceTest(Simulation::pointer sim)
         targetLedger += step;
         sim->crankUntil(
             [&]() { return sim->haveAllExternalized(targetLedger, maxGap); },
-            5 * nbLedgerStep * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            5 * nbLedgerStep * sim->getExpectedLedgerCloseTime(), false);
 
         REQUIRE(sim->haveAllExternalized(targetLedger, maxGap));
     };
@@ -289,7 +289,7 @@ hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
         [&sim, nLedgers]() {
             return sim->haveAllExternalized(nLedgers + 1, 5);
         },
-        20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+        20 * nLedgers * sim->getExpectedLedgerCloseTime(), true);
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
 }
@@ -334,7 +334,7 @@ hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
         [&sim, nLedgers]() {
             return sim->haveAllExternalized(nLedgers + 1, 3);
         },
-        20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+        100 * nLedgers * sim->getExpectedLedgerCloseTime(), true);
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1, 3));
 }
@@ -365,7 +365,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
 
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(nLedgers + 2, 4); },
-        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+        10 * nLedgers * simulation->getExpectedLedgerCloseTime(), true);
 
     // Still transiently does not work (quorum retrieval)
     REQUIRE(simulation->haveAllExternalized(nLedgers, 4));
@@ -382,7 +382,7 @@ TEST_CASE(
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
@@ -401,7 +401,7 @@ TEST_CASE(
                 return simulation->haveAllExternalized(5, 2) &&
                        loadGen.checkAccountSynced(app, true).empty();
             },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            15 * simulation->getExpectedLedgerCloseTime(), false);
 
         loadGen.generateLoad(
             GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 3, 10, 10));
@@ -410,7 +410,7 @@ TEST_CASE(
                 return simulation->haveAllExternalized(8, 2) &&
                        loadGen.checkAccountSynced(app, false).empty();
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            10 * simulation->getExpectedLedgerCloseTime(), true);
     }
     catch (...)
     {
@@ -561,7 +561,7 @@ netTopologyTest(std::string const& name,
         auto sim = mkSim(numNodes);
         sim->startAllNodes();
         sim->crankUntil([&]() { return sim->haveAllExternalized(5, 4); },
-                        2 * 5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                        2 * 5 * 5 * sim->getExpectedLedgerCloseTime(), false);
         REQUIRE(sim->haveAllExternalized(5, 4));
 
         auto nodes = sim->getNodes();
@@ -581,7 +581,7 @@ netTopologyTest(std::string const& name,
                        loadGen.checkAccountSynced(app, true).empty() &&
                        complete.count() == 1;
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            10 * sim->getExpectedLedgerCloseTime(), true);
 
         app.reportCfgMetrics();
 

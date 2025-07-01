@@ -496,7 +496,7 @@ void
 BallotProtocol::startBallotProtocolTimer()
 {
     std::chrono::milliseconds timeout = mSlot.getSCPDriver().computeTimeout(
-        mCurrentBallot->getBallot().counter);
+        mCurrentBallot->getBallot().counter, /*isNomination=*/false);
 
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(

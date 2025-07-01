@@ -35,7 +35,8 @@ class Herder
 {
   public:
     // Expected time between two ledger close.
-    static std::chrono::seconds const EXP_LEDGER_TIMESPAN_SECONDS;
+    static std::chrono::milliseconds const
+        TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
 
     // Maximum timeout for SCP consensus.
     static std::chrono::seconds const MAX_SCP_TIMEOUT_SECONDS;

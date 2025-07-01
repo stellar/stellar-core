@@ -159,7 +159,7 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     std::unordered_map<NodeID, uint32_t> mInboundPeerIndices;
     std::unordered_map<NodeID, uint32_t> mOutboundPeerIndices;
 
-    std::chrono::seconds const SURVEY_THROTTLE_TIMEOUT_SEC;
+    std::chrono::milliseconds const SURVEY_THROTTLE_TIMEOUT_MS;
 
     UnorderedSet<NodeID> mBadResponseNodes;
     Json::Value mResults;

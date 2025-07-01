@@ -36,7 +36,10 @@ Maintainer::start()
         // number
         int64 ledgersPerMaintenancePeriod = bigDivideOrThrow(
             c.AUTOMATIC_MAINTENANCE_PERIOD.count(), 1,
-            c.getExpectedLedgerCloseTime().count(), Rounding::ROUND_UP);
+            std::chrono::duration_cast<std::chrono::seconds>(
+                mApp.getLedgerManager().getExpectedLedgerCloseTime())
+                .count(),
+            Rounding::ROUND_UP);
         if (c.AUTOMATIC_MAINTENANCE_COUNT <= ledgersPerMaintenancePeriod)
         {
             LOG_WARNING(

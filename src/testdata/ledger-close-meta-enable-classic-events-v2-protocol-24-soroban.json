@@ -6,27 +6,27 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "870b91b9c298d07266a93fa1d200fc0e10c223284ca6d262f0c39ce860a64da5",
+                "hash": "adab944c154a9f0d387a7271c621145528c75f60a3e0ab543374c12026cdb8ba",
                 "header": {
                     "ledgerVersion": 24,
-                    "previousLedgerHash": "9261ca654abf269146d71f90bc47c1cf129a1c257a9d35f1f7f95a0ec4532d23",
+                    "previousLedgerHash": "7566e7b5677d86b1b87170574548a45bc70251fbaf605fd78f1b01b3e6f87d1f",
                     "scpValue": {
-                        "txSetHash": "b2f4ad2b592ec5df548878086261b0cc4a5a80e96263866fe2ebfb3a06e614bd",
+                        "txSetHash": "9066b1f90f46ea829f8b4ad12c043732d9218bafbf92dd29f43188082e8ce2ec",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "5b5159f7159494f8ee0e70fb3f275c11cb7048336a795e65f33971986c64a9894eb6d3637e346fd27e824890301881981b526fd53e17ea93bfae963442120603"
+                                "signature": "76ed28714fe715cb6f6142c538f21e6aac206a965bfefb05c56bd63a1f28feb9020785286a509a5c4b27b92d8c5cc4de48943433f230c43ae37ae1f5078aed0a"
                             }
                         }
                     },
                     "txSetResultHash": "ba38143542aa1c03f682000c411c84b631e1e88143be11361a1876cf638566b0",
-                    "bucketListHash": "5d336b1ac368bd6d94712849443284a699ec3d24215bc1e004ded1ccd040b28b",
+                    "bucketListHash": "e62cc1c9eb0cbe7b7b17d41f42bb0ff7fb3ddca17310c93a3b1378650453e407",
                     "ledgerSeq": 31,
                     "totalCoins": 1000000000000000000,
-                    "feePool": 9157435,
+                    "feePool": 9167484,
                     "inflationSeq": 0,
                     "idPool": 0,
                     "baseFee": 100,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "9261ca654abf269146d71f90bc47c1cf129a1c257a9d35f1f7f95a0ec4532d23",
+                    "previousLedgerHash": "7566e7b5677d86b1b87170574548a45bc70251fbaf605fd78f1b01b3e6f87d1f",
                     "phases": [
                         {
                             "v": 0,

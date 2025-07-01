@@ -5,6 +5,7 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "ledger/NetworkConfig.h"
 #include "lib/catch.hpp"
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
@@ -55,6 +56,10 @@ class TestSCP : public SCPDriver
 {
   public:
     SCP mSCP;
+    uint32_t mInitialBallotTimeoutMS = 1000;
+    uint32_t mIncrementBallotTimeoutMS = 1000;
+    uint32_t mInitialNominationTimeoutMS = 1000;
+    uint32_t mIncrementNominationTimeoutMS = 1000;
 
     TestSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal,
             bool isValidator = true)
@@ -307,6 +312,34 @@ class TestSCP : public SCPDriver
     getNominationLeaders(uint64 slotIndex)
     {
         return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
+    }
+
+    // Copied from HerderSCPDriver.cpp
+    static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
+
+    std::chrono::milliseconds
+    computeTimeout(uint32 roundNumber, bool isNomination) override
+    {
+        int initialTimeoutMS;
+        int incrementMS;
+
+        if (isNomination)
+        {
+            initialTimeoutMS = mInitialNominationTimeoutMS;
+            incrementMS = mIncrementNominationTimeoutMS;
+        }
+        else
+        {
+            initialTimeoutMS = mInitialBallotTimeoutMS;
+            incrementMS = mIncrementBallotTimeoutMS;
+        }
+
+        int timeoutMS = initialTimeoutMS + (roundNumber - 1) * incrementMS;
+        if (timeoutMS > MAX_TIMEOUT_MS)
+        {
+            timeoutMS = MAX_TIMEOUT_MS;
+        }
+        return std::chrono::milliseconds(timeoutMS);
     }
 };
 
@@ -596,6 +629,51 @@ makeExternalizeGen(Hash const& qSetHash, SCPBallot const& commitBallot,
                      std::cref(commitBallot), nH);
 }
 
+// Testing matrix that covers interesting min/max values for each timeout
+// parameter
+static void
+testTimeouts(TestSCP& scp, std::function<void(TestSCP&)> f)
+{
+    SECTION("minimum values")
+    {
+        scp.mInitialNominationTimeoutMS = MinimumSorobanNetworkConfig::
+            NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
+        scp.mInitialBallotTimeoutMS =
+            MinimumSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
+        scp.mIncrementNominationTimeoutMS = MinimumSorobanNetworkConfig::
+            NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
+        scp.mIncrementBallotTimeoutMS =
+            MinimumSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
+        f(scp);
+    }
+
+    SECTION("initial values")
+    {
+        scp.mInitialNominationTimeoutMS = InitialSorobanNetworkConfig::
+            NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
+        scp.mInitialBallotTimeoutMS =
+            InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
+        scp.mIncrementNominationTimeoutMS = InitialSorobanNetworkConfig::
+            NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
+        scp.mIncrementBallotTimeoutMS =
+            InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
+        f(scp);
+    }
+
+    SECTION("maximum values")
+    {
+        scp.mInitialNominationTimeoutMS = MaximumSorobanNetworkConfig::
+            NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
+        scp.mInitialBallotTimeoutMS =
+            MaximumSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
+        scp.mIncrementNominationTimeoutMS = MaximumSorobanNetworkConfig::
+            NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
+        scp.mIncrementBallotTimeoutMS =
+            MaximumSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
+        f(scp);
+    }
+}
+
 TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 {
     setupValues();
@@ -620,706 +698,1911 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     TestSCP scp(v0SecretKey.getPublicKey(), qSet);
 
-    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+    auto test = [&](TestSCP& scp) {
+        scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+        uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
 
-    REQUIRE(xValue < yValue);
-    REQUIRE(yValue < zValue);
-    REQUIRE(zValue < zzValue);
+        REQUIRE(xValue < yValue);
+        REQUIRE(yValue < zValue);
+        REQUIRE(zValue < zzValue);
 
-    CLOG_INFO(SCP, "");
-    CLOG_INFO(SCP, "BEGIN TEST");
+        CLOG_INFO(SCP, "");
+        CLOG_INFO(SCP, "BEGIN TEST");
 
-    auto recvVBlockingChecks = [&](genEnvelope gen, bool withChecks) {
-        SCPEnvelope e1 = gen(v1SecretKey);
-        SCPEnvelope e2 = gen(v2SecretKey);
+        auto recvVBlockingChecks = [&](genEnvelope gen, bool withChecks) {
+            SCPEnvelope e1 = gen(v1SecretKey);
+            SCPEnvelope e2 = gen(v2SecretKey);
 
-        scp.bumpTimerOffset();
+            scp.bumpTimerOffset();
 
-        // nothing should happen with first message
-        size_t i = scp.mEnvs.size();
-        scp.receiveEnvelope(e1);
-        if (withChecks)
-        {
-            REQUIRE(scp.mEnvs.size() == i);
-        }
-        i++;
-        scp.receiveEnvelope(e2);
-        if (withChecks)
-        {
-            REQUIRE(scp.mEnvs.size() == i);
-        }
-    };
-
-    auto recvVBlocking = std::bind(recvVBlockingChecks, _1, true);
-
-    auto recvQuorumChecksEx = [&](genEnvelope gen, bool withChecks,
-                                  bool delayedQuorum, bool checkUpcoming) {
-        SCPEnvelope e1 = gen(v1SecretKey);
-        SCPEnvelope e2 = gen(v2SecretKey);
-        SCPEnvelope e3 = gen(v3SecretKey);
-        SCPEnvelope e4 = gen(v4SecretKey);
-
-        scp.bumpTimerOffset();
-
-        scp.receiveEnvelope(e1);
-        scp.receiveEnvelope(e2);
-        size_t i = scp.mEnvs.size() + 1;
-        scp.receiveEnvelope(e3);
-        if (withChecks && !delayedQuorum)
-        {
-            REQUIRE(scp.mEnvs.size() == i);
-        }
-        if (checkUpcoming && !delayedQuorum)
-        {
-            REQUIRE(scp.hasBallotTimerUpcoming());
-        }
-        // nothing happens with an extra vote (unless we're in delayedQuorum)
-        scp.receiveEnvelope(e4);
-        if (withChecks && delayedQuorum)
-        {
-            REQUIRE(scp.mEnvs.size() == i);
-        }
-        if (checkUpcoming && delayedQuorum)
-        {
-            REQUIRE(scp.hasBallotTimerUpcoming());
-        }
-    };
-    // doesn't check timers
-    auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
-    // checks enabled, no delayed quorum
-    auto recvQuorumEx = std::bind(recvQuorumChecksEx, _1, true, false, _2);
-    // checks enabled, no delayed quorum, no check timers
-    auto recvQuorum = std::bind(recvQuorumEx, _1, false);
-
-    auto nodesAllPledgeToCommit = [&]() {
-        SCPBallot b(1, xValue);
-        SCPEnvelope prepare1 = makePrepare(v1SecretKey, qSetHash, 0, b);
-        SCPEnvelope prepare2 = makePrepare(v2SecretKey, qSetHash, 0, b);
-        SCPEnvelope prepare3 = makePrepare(v3SecretKey, qSetHash, 0, b);
-        SCPEnvelope prepare4 = makePrepare(v4SecretKey, qSetHash, 0, b);
-
-        REQUIRE(scp.bumpState(0, xValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-
-        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, b);
-
-        scp.receiveEnvelope(prepare1);
-        REQUIRE(scp.mEnvs.size() == 1);
-        REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
-
-        scp.receiveEnvelope(prepare2);
-        REQUIRE(scp.mEnvs.size() == 1);
-        REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
-
-        scp.receiveEnvelope(prepare3);
-        REQUIRE(scp.mEnvs.size() == 2);
-        REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
-        REQUIRE(scp.mHeardFromQuorums[0][0] == b);
-
-        // We have a quorum including us
-
-        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, b, &b);
-
-        scp.receiveEnvelope(prepare4);
-        REQUIRE(scp.mEnvs.size() == 2);
-
-        SCPEnvelope prepared1 = makePrepare(v1SecretKey, qSetHash, 0, b, &b);
-        SCPEnvelope prepared2 = makePrepare(v2SecretKey, qSetHash, 0, b, &b);
-        SCPEnvelope prepared3 = makePrepare(v3SecretKey, qSetHash, 0, b, &b);
-        SCPEnvelope prepared4 = makePrepare(v4SecretKey, qSetHash, 0, b, &b);
-
-        scp.receiveEnvelope(prepared4);
-        scp.receiveEnvelope(prepared3);
-        REQUIRE(scp.mEnvs.size() == 2);
-
-        scp.receiveEnvelope(prepared2);
-        REQUIRE(scp.mEnvs.size() == 3);
-
-        // confirms prepared
-        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, b, &b, b.counter,
-                      b.counter);
-
-        // extra statement doesn't do anything
-        scp.receiveEnvelope(prepared1);
-        REQUIRE(scp.mEnvs.size() == 3);
-    };
-
-    SECTION("bumpState x")
-    {
-        REQUIRE(scp.bumpState(0, xValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-
-        SCPBallot expectedBallot(1, xValue);
-
-        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, expectedBallot);
-    }
-
-    SECTION("start <1,x>")
-    {
-        // no timer is set
-        REQUIRE(!scp.hasBallotTimer());
-
-        Value const& aValue = xValue;
-        Value const& bValue = zValue;
-        Value const& midValue = yValue;
-        Value const& bigValue = zzValue;
-
-        SCPBallot A1(1, aValue);
-        SCPBallot B1(1, bValue);
-        SCPBallot Mid1(1, midValue);
-        SCPBallot Big1(1, bigValue);
-
-        SCPBallot A2 = A1;
-        A2.counter++;
-
-        SCPBallot A3 = A2;
-        A3.counter++;
-
-        SCPBallot A4 = A3;
-        A4.counter++;
-
-        SCPBallot A5 = A4;
-        A5.counter++;
-
-        SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
-
-        SCPBallot B2 = B1;
-        B2.counter++;
-
-        SCPBallot B3 = B2;
-        B3.counter++;
-
-        SCPBallot Mid2 = Mid1;
-        Mid2.counter++;
-
-        SCPBallot Big2 = Big1;
-        Big2.counter++;
-
-        REQUIRE(scp.bumpState(0, aValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-        REQUIRE(!scp.hasBallotTimer());
-
-        SECTION("prepared A1")
-        {
-            recvQuorumEx(makePrepareGen(qSetHash, A1), true);
-
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &A1);
-
-            SECTION("bump prepared A2")
+            // nothing should happen with first message
+            size_t i = scp.mEnvs.size();
+            scp.receiveEnvelope(e1);
+            if (withChecks)
             {
-                // bump to (2,a)
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+            i++;
+            scp.receiveEnvelope(e2);
+            if (withChecks)
+            {
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+        };
 
-                scp.bumpTimerOffset();
-                REQUIRE(scp.bumpState(0, aValue));
-                REQUIRE(scp.mEnvs.size() == 3);
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2, &A1);
-                REQUIRE(!scp.hasBallotTimer());
+        auto recvVBlocking = std::bind(recvVBlockingChecks, _1, true);
 
-                recvQuorumEx(makePrepareGen(qSetHash, A2), true);
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2, &A2);
+        auto recvQuorumChecksEx = [&](genEnvelope gen, bool withChecks,
+                                      bool delayedQuorum, bool checkUpcoming) {
+            SCPEnvelope e1 = gen(v1SecretKey);
+            SCPEnvelope e2 = gen(v2SecretKey);
+            SCPEnvelope e3 = gen(v3SecretKey);
+            SCPEnvelope e4 = gen(v4SecretKey);
 
-                SECTION("Confirm prepared A2")
+            scp.bumpTimerOffset();
+
+            scp.receiveEnvelope(e1);
+            scp.receiveEnvelope(e2);
+            size_t i = scp.mEnvs.size() + 1;
+            scp.receiveEnvelope(e3);
+            if (withChecks && !delayedQuorum)
+            {
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+            if (checkUpcoming && !delayedQuorum)
+            {
+                REQUIRE(scp.hasBallotTimerUpcoming());
+            }
+            // nothing happens with an extra vote (unless we're in
+            // delayedQuorum)
+            scp.receiveEnvelope(e4);
+            if (withChecks && delayedQuorum)
+            {
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+            if (checkUpcoming && delayedQuorum)
+            {
+                REQUIRE(scp.hasBallotTimerUpcoming());
+            }
+        };
+        // doesn't check timers
+        auto recvQuorumChecks =
+            std::bind(recvQuorumChecksEx, _1, _2, _3, false);
+        // checks enabled, no delayed quorum
+        auto recvQuorumEx = std::bind(recvQuorumChecksEx, _1, true, false, _2);
+        // checks enabled, no delayed quorum, no check timers
+        auto recvQuorum = std::bind(recvQuorumEx, _1, false);
+
+        auto nodesAllPledgeToCommit = [&]() {
+            SCPBallot b(1, xValue);
+            SCPEnvelope prepare1 = makePrepare(v1SecretKey, qSetHash, 0, b);
+            SCPEnvelope prepare2 = makePrepare(v2SecretKey, qSetHash, 0, b);
+            SCPEnvelope prepare3 = makePrepare(v3SecretKey, qSetHash, 0, b);
+            SCPEnvelope prepare4 = makePrepare(v4SecretKey, qSetHash, 0, b);
+
+            REQUIRE(scp.bumpState(0, xValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, b);
+
+            scp.receiveEnvelope(prepare1);
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
+
+            scp.receiveEnvelope(prepare2);
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
+
+            scp.receiveEnvelope(prepare3);
+            REQUIRE(scp.mEnvs.size() == 2);
+            REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
+            REQUIRE(scp.mHeardFromQuorums[0][0] == b);
+
+            // We have a quorum including us
+
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, b, &b);
+
+            scp.receiveEnvelope(prepare4);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            SCPEnvelope prepared1 =
+                makePrepare(v1SecretKey, qSetHash, 0, b, &b);
+            SCPEnvelope prepared2 =
+                makePrepare(v2SecretKey, qSetHash, 0, b, &b);
+            SCPEnvelope prepared3 =
+                makePrepare(v3SecretKey, qSetHash, 0, b, &b);
+            SCPEnvelope prepared4 =
+                makePrepare(v4SecretKey, qSetHash, 0, b, &b);
+
+            scp.receiveEnvelope(prepared4);
+            scp.receiveEnvelope(prepared3);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            scp.receiveEnvelope(prepared2);
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            // confirms prepared
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, b, &b,
+                          b.counter, b.counter);
+
+            // extra statement doesn't do anything
+            scp.receiveEnvelope(prepared1);
+            REQUIRE(scp.mEnvs.size() == 3);
+        };
+
+        SECTION("bumpState x")
+        {
+            REQUIRE(scp.bumpState(0, xValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+
+            SCPBallot expectedBallot(1, xValue);
+
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                          expectedBallot);
+        }
+
+        SECTION("start <1,x>")
+        {
+            // no timer is set
+            REQUIRE(!scp.hasBallotTimer());
+
+            Value const& aValue = xValue;
+            Value const& bValue = zValue;
+            Value const& midValue = yValue;
+            Value const& bigValue = zzValue;
+
+            SCPBallot A1(1, aValue);
+            SCPBallot B1(1, bValue);
+            SCPBallot Mid1(1, midValue);
+            SCPBallot Big1(1, bigValue);
+
+            SCPBallot A2 = A1;
+            A2.counter++;
+
+            SCPBallot A3 = A2;
+            A3.counter++;
+
+            SCPBallot A4 = A3;
+            A4.counter++;
+
+            SCPBallot A5 = A4;
+            A5.counter++;
+
+            SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
+
+            SCPBallot B2 = B1;
+            B2.counter++;
+
+            SCPBallot B3 = B2;
+            B3.counter++;
+
+            SCPBallot Mid2 = Mid1;
+            Mid2.counter++;
+
+            SCPBallot Big2 = Big1;
+            Big2.counter++;
+
+            REQUIRE(scp.bumpState(0, aValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(!scp.hasBallotTimer());
+
+            SECTION("prepared A1")
+            {
+                recvQuorumEx(makePrepareGen(qSetHash, A1), true);
+
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &A1);
+
+                SECTION("bump prepared A2")
                 {
-                    recvQuorum(makePrepareGen(qSetHash, A2, &A2));
-                    REQUIRE(scp.mEnvs.size() == 5);
-                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
-                                  &A2, 2, 2);
-                    REQUIRE(!scp.hasBallotTimerUpcoming());
+                    // bump to (2,a)
 
-                    SECTION("Accept commit")
+                    scp.bumpTimerOffset();
+                    REQUIRE(scp.bumpState(0, aValue));
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2,
+                                  &A1);
+                    REQUIRE(!scp.hasBallotTimer());
+
+                    recvQuorumEx(makePrepareGen(qSetHash, A2), true);
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2,
+                                  &A2);
+
+                    SECTION("Confirm prepared A2")
                     {
-                        SECTION("Quorum A2")
+                        recvQuorum(makePrepareGen(qSetHash, A2, &A2));
+                        REQUIRE(scp.mEnvs.size() == 5);
+                        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0,
+                                      A2, &A2, 2, 2);
+                        REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                        SECTION("Accept commit")
                         {
-                            recvQuorum(makePrepareGen(qSetHash, A2, &A2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 6);
-                            verifyConfirm(scp.mEnvs[5], v0SecretKey, qSetHash0,
-                                          0, 2, A2, 2, 2);
-                            REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                            SECTION("Quorum prepared A3")
+                            SECTION("Quorum A2")
                             {
-                                recvVBlocking(
-                                    makePrepareGen(qSetHash, A3, &A2, 2, 2));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 2, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
+                                recvQuorum(
+                                    makePrepareGen(qSetHash, A2, &A2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, 2, A2, 2, 2);
+                                REQUIRE(!scp.hasBallotTimerUpcoming());
 
-                                recvQuorumEx(
-                                    makePrepareGen(qSetHash, A3, &A2, 2, 2),
-                                    true);
-                                REQUIRE(scp.mEnvs.size() == 8);
-                                verifyConfirm(scp.mEnvs[7], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-
-                                SECTION("Accept more commit A3")
+                                SECTION("Quorum prepared A3")
                                 {
-                                    recvQuorum(makePrepareGen(qSetHash, A3, &A3,
-                                                              2, 3));
-                                    REQUIRE(scp.mEnvs.size() == 9);
-                                    verifyConfirm(scp.mEnvs[8], v0SecretKey,
-                                                  qSetHash0, 0, 3, A3, 2, 3);
-                                    REQUIRE(!scp.hasBallotTimerUpcoming());
+                                    recvVBlocking(makePrepareGen(qSetHash, A3,
+                                                                 &A2, 2, 2));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 2, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
 
-                                    REQUIRE(scp.mExternalizedValues.size() ==
-                                            0);
+                                    recvQuorumEx(
+                                        makePrepareGen(qSetHash, A3, &A2, 2, 2),
+                                        true);
+                                    REQUIRE(scp.mEnvs.size() == 8);
+                                    verifyConfirm(scp.mEnvs[7], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
 
-                                    SECTION("Quorum externalize A3")
+                                    SECTION("Accept more commit A3")
                                     {
-                                        recvQuorum(makeConfirmGen(qSetHash, 3,
-                                                                  A3, 2, 3));
-                                        REQUIRE(scp.mEnvs.size() == 10);
-                                        verifyExternalize(scp.mEnvs[9],
-                                                          v0SecretKey,
-                                                          qSetHash0, 0, A2, 3);
-                                        REQUIRE(!scp.hasBallotTimer());
-
-                                        REQUIRE(
-                                            scp.mExternalizedValues.size() ==
-                                            1);
-                                        REQUIRE(scp.mExternalizedValues[0] ==
-                                                aValue);
-                                    }
-                                }
-                                SECTION("v-blocking accept more A3")
-                                {
-                                    SECTION("Confirm A3")
-                                    {
-                                        recvVBlocking(makeConfirmGen(
-                                            qSetHash, 3, A3, 2, 3));
+                                        recvQuorum(makePrepareGen(qSetHash, A3,
+                                                                  &A3, 2, 3));
                                         REQUIRE(scp.mEnvs.size() == 9);
                                         verifyConfirm(scp.mEnvs[8], v0SecretKey,
                                                       qSetHash0, 0, 3, A3, 2,
                                                       3);
                                         REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                                        REQUIRE(
+                                            scp.mExternalizedValues.size() ==
+                                            0);
+
+                                        SECTION("Quorum externalize A3")
+                                        {
+                                            recvQuorum(makeConfirmGen(
+                                                qSetHash, 3, A3, 2, 3));
+                                            REQUIRE(scp.mEnvs.size() == 10);
+                                            verifyExternalize(
+                                                scp.mEnvs[9], v0SecretKey,
+                                                qSetHash0, 0, A2, 3);
+                                            REQUIRE(!scp.hasBallotTimer());
+
+                                            REQUIRE(scp.mExternalizedValues
+                                                        .size() == 1);
+                                            REQUIRE(
+                                                scp.mExternalizedValues[0] ==
+                                                aValue);
+                                        }
                                     }
-                                    SECTION("Externalize A3")
+                                    SECTION("v-blocking accept more A3")
                                     {
-                                        recvVBlocking(makeExternalizeGen(
-                                            qSetHash, A2, 3));
-                                        REQUIRE(scp.mEnvs.size() == 9);
-                                        verifyConfirm(scp.mEnvs[8], v0SecretKey,
-                                                      qSetHash0, 0, UINT32_MAX,
-                                                      AInf, 2, UINT32_MAX);
-                                        REQUIRE(!scp.hasBallotTimer());
-                                    }
-                                    SECTION("other nodes moved to c=A4 h=A5")
-                                    {
-                                        SECTION("Confirm A4..5")
+                                        SECTION("Confirm A3")
                                         {
                                             recvVBlocking(makeConfirmGen(
-                                                qSetHash, 3, A5, 4, 5));
+                                                qSetHash, 3, A3, 2, 3));
                                             REQUIRE(scp.mEnvs.size() == 9);
                                             verifyConfirm(
                                                 scp.mEnvs[8], v0SecretKey,
-                                                qSetHash0, 0, 3, A5, 4, 5);
-                                            REQUIRE(!scp.hasBallotTimer());
+                                                qSetHash0, 0, 3, A3, 2, 3);
+                                            REQUIRE(
+                                                !scp.hasBallotTimerUpcoming());
                                         }
-                                        SECTION("Externalize A4..5")
+                                        SECTION("Externalize A3")
                                         {
                                             recvVBlocking(makeExternalizeGen(
-                                                qSetHash, A4, 5));
+                                                qSetHash, A2, 3));
                                             REQUIRE(scp.mEnvs.size() == 9);
                                             verifyConfirm(
                                                 scp.mEnvs[8], v0SecretKey,
                                                 qSetHash0, 0, UINT32_MAX, AInf,
-                                                4, UINT32_MAX);
+                                                2, UINT32_MAX);
                                             REQUIRE(!scp.hasBallotTimer());
+                                        }
+                                        SECTION(
+                                            "other nodes moved to c=A4 h=A5")
+                                        {
+                                            SECTION("Confirm A4..5")
+                                            {
+                                                recvVBlocking(makeConfirmGen(
+                                                    qSetHash, 3, A5, 4, 5));
+                                                REQUIRE(scp.mEnvs.size() == 9);
+                                                verifyConfirm(
+                                                    scp.mEnvs[8], v0SecretKey,
+                                                    qSetHash0, 0, 3, A5, 4, 5);
+                                                REQUIRE(!scp.hasBallotTimer());
+                                            }
+                                            SECTION("Externalize A4..5")
+                                            {
+                                                recvVBlocking(
+                                                    makeExternalizeGen(qSetHash,
+                                                                       A4, 5));
+                                                REQUIRE(scp.mEnvs.size() == 9);
+                                                verifyConfirm(
+                                                    scp.mEnvs[8], v0SecretKey,
+                                                    qSetHash0, 0, UINT32_MAX,
+                                                    AInf, 4, UINT32_MAX);
+                                                REQUIRE(!scp.hasBallotTimer());
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            SECTION("v-blocking prepared A3")
-                            {
-                                recvVBlocking(
-                                    makePrepareGen(qSetHash, A3, &A3, 2, 2));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-                            }
-                            SECTION("v-blocking prepared A3+B3")
-                            {
-                                recvVBlocking(makePrepareGen(qSetHash, A3, &B3,
-                                                             2, 2, &A3));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-                            }
-                            SECTION("v-blocking confirm A3")
-                            {
-                                recvVBlocking(
-                                    makeConfirmGen(qSetHash, 3, A3, 2, 2));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-                            }
-                            SECTION("Hang - does not switch to B in CONFIRM")
-                            {
-                                SECTION("Network EXTERNALIZE")
+                                SECTION("v-blocking prepared A3")
                                 {
-                                    // externalize messages have a counter at
-                                    // infinite
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, B2, 3));
+                                    recvVBlocking(makePrepareGen(qSetHash, A3,
+                                                                 &A3, 2, 2));
                                     REQUIRE(scp.mEnvs.size() == 7);
                                     verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                                  qSetHash0, 0, 2, AInf, 2, 2);
+                                                  qSetHash0, 0, 3, A3, 2, 2);
                                     REQUIRE(!scp.hasBallotTimer());
-
-                                    // stuck
-                                    recvQuorumChecks(
-                                        makeExternalizeGen(qSetHash, B2, 3),
-                                        false, false);
-                                    REQUIRE(scp.mEnvs.size() == 7);
-                                    REQUIRE(scp.mExternalizedValues.size() ==
-                                            0);
-                                    // timer scheduled as there is a quorum
-                                    // with (2, *)
-                                    REQUIRE(scp.hasBallotTimerUpcoming());
                                 }
-                                SECTION("Network CONFIRMS other ballot")
+                                SECTION("v-blocking prepared A3+B3")
                                 {
-                                    SECTION("at same counter")
+                                    recvVBlocking(makePrepareGen(
+                                        qSetHash, A3, &B3, 2, 2, &A3));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
+                                }
+                                SECTION("v-blocking confirm A3")
+                                {
+                                    recvVBlocking(
+                                        makeConfirmGen(qSetHash, 3, A3, 2, 2));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
+                                }
+                                SECTION(
+                                    "Hang - does not switch to B in CONFIRM")
+                                {
+                                    SECTION("Network EXTERNALIZE")
                                     {
-                                        // nothing should happen here, in
-                                        // particular, node should not attempt
-                                        // to switch 'p'
-                                        recvQuorumChecks(
-                                            makeConfirmGen(qSetHash, 3, B2, 2,
-                                                           3),
-                                            false, false);
-                                        REQUIRE(scp.mEnvs.size() == 6);
-                                        REQUIRE(
-                                            scp.mExternalizedValues.size() ==
-                                            0);
-                                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                                    }
-                                    SECTION("at a different counter")
-                                    {
-                                        recvVBlocking(makeConfirmGen(
-                                            qSetHash, 3, B3, 3, 3));
+                                        // externalize messages have a counter
+                                        // at infinite
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, B2, 3));
                                         REQUIRE(scp.mEnvs.size() == 7);
                                         verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                                      qSetHash0, 0, 2, A3, 2,
+                                                      qSetHash0, 0, 2, AInf, 2,
                                                       2);
                                         REQUIRE(!scp.hasBallotTimer());
 
+                                        // stuck
                                         recvQuorumChecks(
-                                            makeConfirmGen(qSetHash, 3, B3, 3,
-                                                           3),
+                                            makeExternalizeGen(qSetHash, B2, 3),
                                             false, false);
                                         REQUIRE(scp.mEnvs.size() == 7);
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
                                             0);
                                         // timer scheduled as there is a quorum
-                                        // with (3, *)
+                                        // with (2, *)
                                         REQUIRE(scp.hasBallotTimerUpcoming());
+                                    }
+                                    SECTION("Network CONFIRMS other ballot")
+                                    {
+                                        SECTION("at same counter")
+                                        {
+                                            // nothing should happen here, in
+                                            // particular, node should not
+                                            // attempt to switch 'p'
+                                            recvQuorumChecks(
+                                                makeConfirmGen(qSetHash, 3, B2,
+                                                               2, 3),
+                                                false, false);
+                                            REQUIRE(scp.mEnvs.size() == 6);
+                                            REQUIRE(scp.mExternalizedValues
+                                                        .size() == 0);
+                                            REQUIRE(
+                                                !scp.hasBallotTimerUpcoming());
+                                        }
+                                        SECTION("at a different counter")
+                                        {
+                                            recvVBlocking(makeConfirmGen(
+                                                qSetHash, 3, B3, 3, 3));
+                                            REQUIRE(scp.mEnvs.size() == 7);
+                                            verifyConfirm(
+                                                scp.mEnvs[6], v0SecretKey,
+                                                qSetHash0, 0, 2, A3, 2, 2);
+                                            REQUIRE(!scp.hasBallotTimer());
+
+                                            recvQuorumChecks(
+                                                makeConfirmGen(qSetHash, 3, B3,
+                                                               3, 3),
+                                                false, false);
+                                            REQUIRE(scp.mEnvs.size() == 7);
+                                            REQUIRE(scp.mExternalizedValues
+                                                        .size() == 0);
+                                            // timer scheduled as there is a
+                                            // quorum with (3, *)
+                                            REQUIRE(
+                                                scp.hasBallotTimerUpcoming());
+                                        }
+                                    }
+                                }
+                            }
+                            SECTION("v-blocking")
+                            {
+                                SECTION("CONFIRM")
+                                {
+                                    SECTION("CONFIRM A2")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 2, A2, 2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, 2, A2, 2,
+                                                      2);
+                                        REQUIRE(!scp.hasBallotTimerUpcoming());
+                                    }
+                                    SECTION("CONFIRM A3..4")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 4, A4, 3, 4));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, 4, A4, 3,
+                                                      4);
+                                        REQUIRE(!scp.hasBallotTimer());
+                                    }
+                                    SECTION("CONFIRM B2")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 2, B2, 2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, 2, B2, 2,
+                                                      2);
+                                        REQUIRE(!scp.hasBallotTimerUpcoming());
+                                    }
+                                }
+                                SECTION("EXTERNALIZE")
+                                {
+                                    SECTION("EXTERNALIZE A2")
+                                    {
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, A2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, UINT32_MAX,
+                                                      AInf, 2, UINT32_MAX);
+                                        REQUIRE(!scp.hasBallotTimer());
+                                    }
+                                    SECTION("EXTERNALIZE B2")
+                                    {
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, B2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, UINT32_MAX,
+                                                      BInf, 2, UINT32_MAX);
+                                        REQUIRE(!scp.hasBallotTimer());
                                     }
                                 }
                             }
                         }
-                        SECTION("v-blocking")
+                        SECTION("get conflicting prepared B")
                         {
-                            SECTION("CONFIRM")
+                            SECTION("same counter")
                             {
-                                SECTION("CONFIRM A2")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 2, A2, 2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, 2, A2, 2, 2);
-                                    REQUIRE(!scp.hasBallotTimerUpcoming());
-                                }
-                                SECTION("CONFIRM A3..4")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 4, A4, 3, 4));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, 4, A4, 3, 4);
-                                    REQUIRE(!scp.hasBallotTimer());
-                                }
-                                SECTION("CONFIRM B2")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 2, B2, 2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, 2, B2, 2, 2);
-                                    REQUIRE(!scp.hasBallotTimerUpcoming());
-                                }
+                                recvVBlocking(
+                                    makePrepareGen(qSetHash, B2, &B2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                verifyPrepare(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, A2, &B2, 0, 2, &A2);
+                                REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                                recvQuorum(
+                                    makePrepareGen(qSetHash, B2, &B2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, 2, B2, 2, 2);
+                                REQUIRE(!scp.hasBallotTimerUpcoming());
                             }
-                            SECTION("EXTERNALIZE")
+                            SECTION("higher counter")
                             {
-                                SECTION("EXTERNALIZE A2")
-                                {
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, A2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, UINT32_MAX,
-                                                  AInf, 2, UINT32_MAX);
-                                    REQUIRE(!scp.hasBallotTimer());
-                                }
-                                SECTION("EXTERNALIZE B2")
-                                {
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, B2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, UINT32_MAX,
-                                                  BInf, 2, UINT32_MAX);
-                                    REQUIRE(!scp.hasBallotTimer());
-                                }
+                                recvVBlocking(
+                                    makePrepareGen(qSetHash, B3, &B2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                verifyPrepare(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, A3, &B2, 0, 2, &A2);
+                                REQUIRE(!scp.hasBallotTimer());
+
+                                recvQuorumChecksEx(
+                                    makePrepareGen(qSetHash, B3, &B2, 2, 2),
+                                    true, true, true);
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, 3, B3, 2, 2);
+                            }
+                            SECTION("higher counter mixed")
+                            {
+                                recvVBlocking(makePrepareGen(qSetHash, A3, &B3,
+                                                             0, 2, &A2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                // h still A2
+                                // v-blocking
+                                //     prepared B3 -> p = B3, p'=A2 (1)
+                                //     counter 3, b = A3 (9) (same value than h)
+                                // c = 0 (1)
+                                verifyPrepare(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, A3, &B3, 0, 2, &A2);
+                                recvQuorumEx(makePrepareGen(qSetHash, A3, &B3,
+                                                            0, 2, &A2),
+                                             true);
+                                // p=B3, p'=A3 (1)
+                                // computed_h = B3
+                                // b = computed_h = B3 (8)
+                                // h = computed_h = B3 (2)
+                                // c = h = B3 (3)
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyPrepare(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, B3, &B3, 3, 3, &A3);
                             }
                         }
                     }
-                    SECTION("get conflicting prepared B")
+                    SECTION("Confirm prepared mixed")
                     {
-                        SECTION("same counter")
+                        // a few nodes prepared B2
+                        recvVBlocking(
+                            makePrepareGen(qSetHash, B2, &B2, 0, 0, &A2));
+                        REQUIRE(scp.mEnvs.size() == 5);
+                        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0,
+                                      A2, &B2, 0, 0, &A2);
+                        REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                        SECTION("mixed A2")
                         {
-                            recvVBlocking(makePrepareGen(qSetHash, B2, &B2));
+                            // causes h=A2
+                            // but c = 0, as p >!~ h
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+
                             REQUIRE(scp.mEnvs.size() == 6);
                             verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
                                           0, A2, &B2, 0, 2, &A2);
                             REQUIRE(!scp.hasBallotTimerUpcoming());
 
-                            recvQuorum(makePrepareGen(qSetHash, B2, &B2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 7);
-                            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
-                                          0, 2, B2, 2, 2);
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
+
+                            REQUIRE(scp.mEnvs.size() == 6);
                             REQUIRE(!scp.hasBallotTimerUpcoming());
                         }
-                        SECTION("higher counter")
+                        SECTION("mixed B2")
                         {
-                            recvVBlocking(
-                                makePrepareGen(qSetHash, B3, &B2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 6);
-                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
-                                          0, A3, &B2, 0, 2, &A2);
-                            REQUIRE(!scp.hasBallotTimer());
+                            // causes h=B2, c=B2
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v3SecretKey, qSetHash, 0, B2, &B2));
 
-                            recvQuorumChecksEx(
-                                makePrepareGen(qSetHash, B3, &B2, 2, 2), true,
-                                true, true);
-                            REQUIRE(scp.mEnvs.size() == 7);
-                            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
-                                          0, 3, B3, 2, 2);
-                        }
-                        SECTION("higher counter mixed")
-                        {
-                            recvVBlocking(
-                                makePrepareGen(qSetHash, A3, &B3, 0, 2, &A2));
                             REQUIRE(scp.mEnvs.size() == 6);
-                            // h still A2
-                            // v-blocking
-                            //     prepared B3 -> p = B3, p'=A2 (1)
-                            //     counter 3, b = A3 (9) (same value than h)
-                            // c = 0 (1)
                             verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
-                                          0, A3, &B3, 0, 2, &A2);
-                            recvQuorumEx(
-                                makePrepareGen(qSetHash, A3, &B3, 0, 2, &A2),
-                                true);
-                            // p=B3, p'=A3 (1)
-                            // computed_h = B3
-                            // b = computed_h = B3 (8)
-                            // h = computed_h = B3 (2)
-                            // c = h = B3 (3)
-                            REQUIRE(scp.mEnvs.size() == 7);
-                            verifyPrepare(scp.mEnvs[6], v0SecretKey, qSetHash0,
-                                          0, B3, &B3, 3, 3, &A3);
+                                          0, B2, &B2, 2, 2, &A2);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
+
+                            REQUIRE(scp.mEnvs.size() == 6);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
                         }
                     }
                 }
-                SECTION("Confirm prepared mixed")
+                SECTION("switch prepared B1 from A1")
                 {
-                    // a few nodes prepared B2
-                    recvVBlocking(makePrepareGen(qSetHash, B2, &B2, 0, 0, &A2));
-                    REQUIRE(scp.mEnvs.size() == 5);
-                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
-                                  &B2, 0, 0, &A2);
+                    // (p,p') = (B1, A1) [ from (A1, null) ]
+                    recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1,
+                                  &B1, 0, 0, &A1);
                     REQUIRE(!scp.hasBallotTimerUpcoming());
 
-                    SECTION("mixed A2")
-                    {
-                        // causes h=A2
-                        // but c = 0, as p >!~ h
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+                    // v-blocking with n=2 -> bump n
+                    recvVBlocking(makePrepareGen(qSetHash, B2));
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2,
+                                  &B1, 0, 0, &A1);
 
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
-                                      A2, &B2, 0, 2, &A2);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
-
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                    }
-                    SECTION("mixed B2")
-                    {
-                        // causes h=B2, c=B2
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v3SecretKey, qSetHash, 0, B2, &B2));
-
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
-                                      B2, &B2, 2, 2, &A2);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
-
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                    }
-                }
-            }
-            SECTION("switch prepared B1 from A1")
-            {
-                // (p,p') = (B1, A1) [ from (A1, null) ]
-                recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
-                REQUIRE(scp.mEnvs.size() == 3);
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &B1,
-                              0, 0, &A1);
-                REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                // v-blocking with n=2 -> bump n
-                recvVBlocking(makePrepareGen(qSetHash, B2));
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2, &B1,
-                              0, 0, &A1);
-
-                // move to (p,p') = (B2, A1) [update p from B1 -> B2]
-                recvVBlocking(makePrepareGen(qSetHash, B2, &B2));
-                REQUIRE(scp.mEnvs.size() == 5);
-                verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2, &B2,
-                              0, 0, &A1);
-                REQUIRE(
-                    !scp.hasBallotTimer()); // no quorum (other nodes on (A,1))
-
-                SECTION("v-blocking switches to previous value of p")
-                {
-                    // v-blocking with n=3 -> bump n
-                    recvVBlocking(makePrepareGen(qSetHash, B3));
-                    REQUIRE(scp.mEnvs.size() == 6);
-                    verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, A3,
+                    // move to (p,p') = (B2, A1) [update p from B1 -> B2]
+                    recvVBlocking(makePrepareGen(qSetHash, B2, &B2));
+                    REQUIRE(scp.mEnvs.size() == 5);
+                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
                                   &B2, 0, 0, &A1);
                     REQUIRE(!scp.hasBallotTimer()); // no quorum (other nodes on
                                                     // (A,1))
 
-                    // vBlocking set says "B1" is prepared - but we already have
-                    // p=B2
-                    recvVBlockingChecks(makePrepareGen(qSetHash, B3, &B1),
-                                        false);
-                    REQUIRE(scp.mEnvs.size() == 6);
-                    REQUIRE(!scp.hasBallotTimer());
-                }
-                SECTION("switch p' to Mid2")
-                {
-                    // (p,p') = (B2, Mid2)
-                    recvVBlocking(
-                        makePrepareGen(qSetHash, B2, &B2, 0, 0, &Mid2));
-                    REQUIRE(scp.mEnvs.size() == 6);
-                    verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, A2,
-                                  &B2, 0, 0, &Mid2);
-                    REQUIRE(!scp.hasBallotTimer());
-                }
-                SECTION("switch again Big2")
-                {
-                    // both p and p' get updated
-                    // (p,p') = (Big2, B2)
-                    recvVBlocking(
-                        makePrepareGen(qSetHash, B2, &Big2, 0, 0, &B2));
-                    REQUIRE(scp.mEnvs.size() == 6);
-                    verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, A2,
-                                  &Big2, 0, 0, &B2);
-                    REQUIRE(!scp.hasBallotTimer());
-                }
-            }
-            SECTION("switch prepare B1")
-            {
-                recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
-                REQUIRE(scp.mEnvs.size() == 3);
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &B1,
-                              0, 0, &A1);
-                REQUIRE(!scp.hasBallotTimerUpcoming());
-            }
-            SECTION("prepare higher counter (v-blocking)")
-            {
-                recvVBlocking(makePrepareGen(qSetHash, B2));
-                REQUIRE(scp.mEnvs.size() == 3);
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2, &A1);
-                REQUIRE(!scp.hasBallotTimer());
+                    SECTION("v-blocking switches to previous value of p")
+                    {
+                        // v-blocking with n=3 -> bump n
+                        recvVBlocking(makePrepareGen(qSetHash, B3));
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                                      A3, &B2, 0, 0, &A1);
+                        REQUIRE(!scp.hasBallotTimer()); // no quorum (other
+                                                        // nodes on (A,1))
 
-                // more timeout from vBlocking set
-                recvVBlocking(makePrepareGen(qSetHash, B3));
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A3, &A1);
+                        // vBlocking set says "B1" is prepared - but we already
+                        // have p=B2
+                        recvVBlockingChecks(makePrepareGen(qSetHash, B3, &B1),
+                                            false);
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        REQUIRE(!scp.hasBallotTimer());
+                    }
+                    SECTION("switch p' to Mid2")
+                    {
+                        // (p,p') = (B2, Mid2)
+                        recvVBlocking(
+                            makePrepareGen(qSetHash, B2, &B2, 0, 0, &Mid2));
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                                      A2, &B2, 0, 0, &Mid2);
+                        REQUIRE(!scp.hasBallotTimer());
+                    }
+                    SECTION("switch again Big2")
+                    {
+                        // both p and p' get updated
+                        // (p,p') = (Big2, B2)
+                        recvVBlocking(
+                            makePrepareGen(qSetHash, B2, &Big2, 0, 0, &B2));
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                                      A2, &Big2, 0, 0, &B2);
+                        REQUIRE(!scp.hasBallotTimer());
+                    }
+                }
+                SECTION("switch prepare B1")
+                {
+                    recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1,
+                                  &B1, 0, 0, &A1);
+                    REQUIRE(!scp.hasBallotTimerUpcoming());
+                }
+                SECTION("prepare higher counter (v-blocking)")
+                {
+                    recvVBlocking(makePrepareGen(qSetHash, B2));
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2,
+                                  &A1);
+                    REQUIRE(!scp.hasBallotTimer());
+
+                    // more timeout from vBlocking set
+                    recvVBlocking(makePrepareGen(qSetHash, B3));
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A3,
+                                  &A1);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+            }
+            SECTION("prepared B (v-blocking)")
+            {
+                recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
                 REQUIRE(!scp.hasBallotTimer());
+            }
+            SECTION("prepare B (quorum)")
+            {
+                recvQuorumChecksEx(makePrepareGen(qSetHash, B1), true, true,
+                                   true);
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+            }
+            SECTION("confirm (v-blocking)")
+            {
+                SECTION("via CONFIRM")
+                {
+                    scp.bumpTimerOffset();
+                    scp.receiveEnvelope(
+                        makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
+                    scp.receiveEnvelope(
+                        makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, 3,
+                                  A3, 3, 3);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+                SECTION("via EXTERNALIZE")
+                {
+                    scp.receiveEnvelope(
+                        makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
+                    scp.receiveEnvelope(
+                        makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                  UINT32_MAX, AInf, 3, UINT32_MAX);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
             }
         }
-        SECTION("prepared B (v-blocking)")
+
+        // this is the same test suite than "start <1,x>" with the exception
+        // that some transitions are not possible as x < z - so instead we
+        // verify that nothing happens
+        SECTION("start <1,z>")
         {
-            recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+            // no timer is set
             REQUIRE(!scp.hasBallotTimer());
-        }
-        SECTION("prepare B (quorum)")
-        {
-            recvQuorumChecksEx(makePrepareGen(qSetHash, B1), true, true, true);
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
-        }
-        SECTION("confirm (v-blocking)")
-        {
-            SECTION("via CONFIRM")
-            {
-                scp.bumpTimerOffset();
-                scp.receiveEnvelope(
-                    makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
-                scp.receiveEnvelope(
-                    makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, 3, A3, 3,
-                              3);
-                REQUIRE(!scp.hasBallotTimer());
-            }
-            SECTION("via EXTERNALIZE")
-            {
-                scp.receiveEnvelope(
-                    makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
-                scp.receiveEnvelope(
-                    makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                              UINT32_MAX, AInf, 3, UINT32_MAX);
-                REQUIRE(!scp.hasBallotTimer());
-            }
-        }
-    }
 
-    // this is the same test suite than "start <1,x>" with the exception that
-    // some transitions are not possible as x < z - so instead we verify that
-    // nothing happens
-    SECTION("start <1,z>")
-    {
+            Value const& aValue = zValue;
+            Value const& bValue = xValue;
+
+            SCPBallot A1(1, aValue);
+            SCPBallot B1(1, bValue);
+
+            SCPBallot A2 = A1;
+            A2.counter++;
+
+            SCPBallot A3 = A2;
+            A3.counter++;
+
+            SCPBallot A4 = A3;
+            A4.counter++;
+
+            SCPBallot A5 = A4;
+            A5.counter++;
+
+            SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
+
+            SCPBallot B2 = B1;
+            B2.counter++;
+
+            SCPBallot B3 = B2;
+            B3.counter++;
+
+            SCPBallot B4 = B3;
+            B4.counter++;
+
+            REQUIRE(scp.bumpState(0, aValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(!scp.hasBallotTimer());
+
+            SECTION("prepared A1")
+            {
+                recvQuorumEx(makePrepareGen(qSetHash, A1), true);
+
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &A1);
+
+                SECTION("bump prepared A2")
+                {
+                    // bump to (2,a)
+
+                    scp.bumpTimerOffset();
+                    REQUIRE(scp.bumpState(0, aValue));
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2,
+                                  &A1);
+                    REQUIRE(!scp.hasBallotTimer());
+
+                    recvQuorumEx(makePrepareGen(qSetHash, A2), true);
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2,
+                                  &A2);
+
+                    SECTION("Confirm prepared A2")
+                    {
+                        recvQuorum(makePrepareGen(qSetHash, A2, &A2));
+                        REQUIRE(scp.mEnvs.size() == 5);
+                        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0,
+                                      A2, &A2, 2, 2);
+                        REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                        SECTION("Accept commit")
+                        {
+                            SECTION("Quorum A2")
+                            {
+                                recvQuorum(
+                                    makePrepareGen(qSetHash, A2, &A2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, 2, A2, 2, 2);
+                                REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                                SECTION("Quorum prepared A3")
+                                {
+                                    recvVBlocking(makePrepareGen(qSetHash, A3,
+                                                                 &A2, 2, 2));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 2, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
+
+                                    recvQuorumEx(
+                                        makePrepareGen(qSetHash, A3, &A2, 2, 2),
+                                        true);
+                                    REQUIRE(scp.mEnvs.size() == 8);
+                                    verifyConfirm(scp.mEnvs[7], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
+
+                                    SECTION("Accept more commit A3")
+                                    {
+                                        recvQuorum(makePrepareGen(qSetHash, A3,
+                                                                  &A3, 2, 3));
+                                        REQUIRE(scp.mEnvs.size() == 9);
+                                        verifyConfirm(scp.mEnvs[8], v0SecretKey,
+                                                      qSetHash0, 0, 3, A3, 2,
+                                                      3);
+                                        REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                                        REQUIRE(
+                                            scp.mExternalizedValues.size() ==
+                                            0);
+
+                                        SECTION("Quorum externalize A3")
+                                        {
+                                            recvQuorum(makeConfirmGen(
+                                                qSetHash, 3, A3, 2, 3));
+                                            REQUIRE(scp.mEnvs.size() == 10);
+                                            verifyExternalize(
+                                                scp.mEnvs[9], v0SecretKey,
+                                                qSetHash0, 0, A2, 3);
+                                            REQUIRE(!scp.hasBallotTimer());
+
+                                            REQUIRE(scp.mExternalizedValues
+                                                        .size() == 1);
+                                            REQUIRE(
+                                                scp.mExternalizedValues[0] ==
+                                                aValue);
+                                        }
+                                    }
+                                    SECTION("v-blocking accept more A3")
+                                    {
+                                        SECTION("Confirm A3")
+                                        {
+                                            recvVBlocking(makeConfirmGen(
+                                                qSetHash, 3, A3, 2, 3));
+                                            REQUIRE(scp.mEnvs.size() == 9);
+                                            verifyConfirm(
+                                                scp.mEnvs[8], v0SecretKey,
+                                                qSetHash0, 0, 3, A3, 2, 3);
+                                            REQUIRE(
+                                                !scp.hasBallotTimerUpcoming());
+                                        }
+                                        SECTION("Externalize A3")
+                                        {
+                                            recvVBlocking(makeExternalizeGen(
+                                                qSetHash, A2, 3));
+                                            REQUIRE(scp.mEnvs.size() == 9);
+                                            verifyConfirm(
+                                                scp.mEnvs[8], v0SecretKey,
+                                                qSetHash0, 0, UINT32_MAX, AInf,
+                                                2, UINT32_MAX);
+                                            REQUIRE(!scp.hasBallotTimer());
+                                        }
+                                        SECTION(
+                                            "other nodes moved to c=A4 h=A5")
+                                        {
+                                            SECTION("Confirm A4..5")
+                                            {
+                                                recvVBlocking(makeConfirmGen(
+                                                    qSetHash, 3, A5, 4, 5));
+                                                REQUIRE(scp.mEnvs.size() == 9);
+                                                verifyConfirm(
+                                                    scp.mEnvs[8], v0SecretKey,
+                                                    qSetHash0, 0, 3, A5, 4, 5);
+                                                REQUIRE(!scp.hasBallotTimer());
+                                            }
+                                            SECTION("Externalize A4..5")
+                                            {
+                                                recvVBlocking(
+                                                    makeExternalizeGen(qSetHash,
+                                                                       A4, 5));
+                                                REQUIRE(scp.mEnvs.size() == 9);
+                                                verifyConfirm(
+                                                    scp.mEnvs[8], v0SecretKey,
+                                                    qSetHash0, 0, UINT32_MAX,
+                                                    AInf, 4, UINT32_MAX);
+                                                REQUIRE(!scp.hasBallotTimer());
+                                            }
+                                        }
+                                    }
+                                }
+                                SECTION("v-blocking prepared A3")
+                                {
+                                    recvVBlocking(makePrepareGen(qSetHash, A3,
+                                                                 &A3, 2, 2));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
+                                }
+                                SECTION("v-blocking prepared A3+B3")
+                                {
+                                    recvVBlocking(makePrepareGen(
+                                        qSetHash, A3, &A3, 2, 2, &B3));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
+                                }
+                                SECTION("v-blocking confirm A3")
+                                {
+                                    recvVBlocking(
+                                        makeConfirmGen(qSetHash, 3, A3, 2, 2));
+                                    REQUIRE(scp.mEnvs.size() == 7);
+                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                  qSetHash0, 0, 3, A3, 2, 2);
+                                    REQUIRE(!scp.hasBallotTimer());
+                                }
+                                SECTION(
+                                    "Hang - does not switch to B in CONFIRM")
+                                {
+                                    SECTION("Network EXTERNALIZE")
+                                    {
+                                        // externalize messages have a counter
+                                        // at infinite
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, B2, 3));
+                                        REQUIRE(scp.mEnvs.size() == 7);
+                                        verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                                      qSetHash0, 0, 2, AInf, 2,
+                                                      2);
+                                        REQUIRE(!scp.hasBallotTimer());
+
+                                        // stuck
+                                        recvQuorumChecks(
+                                            makeExternalizeGen(qSetHash, B2, 3),
+                                            false, false);
+                                        REQUIRE(scp.mEnvs.size() == 7);
+                                        REQUIRE(
+                                            scp.mExternalizedValues.size() ==
+                                            0);
+                                        // timer scheduled as there is a quorum
+                                        // with (inf, *)
+                                        REQUIRE(scp.hasBallotTimerUpcoming());
+                                    }
+                                    SECTION("Network CONFIRMS other ballot")
+                                    {
+                                        SECTION("at same counter")
+                                        {
+                                            // nothing should happen here, in
+                                            // particular, node should not
+                                            // attempt to switch 'p'
+                                            recvQuorumChecks(
+                                                makeConfirmGen(qSetHash, 3, B2,
+                                                               2, 3),
+                                                false, false);
+                                            REQUIRE(scp.mEnvs.size() == 6);
+                                            REQUIRE(scp.mExternalizedValues
+                                                        .size() == 0);
+                                            REQUIRE(
+                                                !scp.hasBallotTimerUpcoming());
+                                        }
+                                        SECTION("at a different counter")
+                                        {
+                                            recvVBlocking(makeConfirmGen(
+                                                qSetHash, 3, B3, 3, 3));
+                                            REQUIRE(scp.mEnvs.size() == 7);
+                                            verifyConfirm(
+                                                scp.mEnvs[6], v0SecretKey,
+                                                qSetHash0, 0, 2, A3, 2, 2);
+                                            REQUIRE(!scp.hasBallotTimer());
+
+                                            recvQuorumChecks(
+                                                makeConfirmGen(qSetHash, 3, B3,
+                                                               3, 3),
+                                                false, false);
+                                            REQUIRE(scp.mEnvs.size() == 7);
+                                            REQUIRE(scp.mExternalizedValues
+                                                        .size() == 0);
+                                            // timer scheduled as there is a
+                                            // quorum with (3, *)
+                                            REQUIRE(
+                                                scp.hasBallotTimerUpcoming());
+                                        }
+                                    }
+                                }
+                            }
+                            SECTION("v-blocking")
+                            {
+                                SECTION("CONFIRM")
+                                {
+                                    SECTION("CONFIRM A2")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 2, A2, 2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, 2, A2, 2,
+                                                      2);
+                                        REQUIRE(!scp.hasBallotTimerUpcoming());
+                                    }
+                                    SECTION("CONFIRM A3..4")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 4, A4, 3, 4));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, 4, A4, 3,
+                                                      4);
+                                        REQUIRE(!scp.hasBallotTimer());
+                                    }
+                                    SECTION("CONFIRM B2")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 2, B2, 2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, 2, B2, 2,
+                                                      2);
+                                        REQUIRE(!scp.hasBallotTimerUpcoming());
+                                    }
+                                }
+                                SECTION("EXTERNALIZE")
+                                {
+                                    SECTION("EXTERNALIZE A2")
+                                    {
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, A2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, UINT32_MAX,
+                                                      AInf, 2, UINT32_MAX);
+                                        REQUIRE(!scp.hasBallotTimer());
+                                    }
+                                    SECTION("EXTERNALIZE B2")
+                                    {
+                                        // can switch to B2 with externalize
+                                        // (higher counter)
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, B2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 6);
+                                        verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                      qSetHash0, 0, UINT32_MAX,
+                                                      BInf, 2, UINT32_MAX);
+                                        REQUIRE(!scp.hasBallotTimer());
+                                    }
+                                }
+                            }
+                        }
+                        SECTION("get conflicting prepared B")
+                        {
+                            SECTION("same counter")
+                            {
+                                // messages are ignored as B2 < A2
+                                recvQuorumChecks(
+                                    makePrepareGen(qSetHash, B2, &B2), false,
+                                    false);
+                                REQUIRE(scp.mEnvs.size() == 5);
+                                REQUIRE(!scp.hasBallotTimerUpcoming());
+                            }
+                            SECTION("higher counter")
+                            {
+                                recvVBlocking(
+                                    makePrepareGen(qSetHash, B3, &B2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                // A2 > B2 -> p = A2, p'=B2
+                                verifyPrepare(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, A3, &A2, 2, 2, &B2);
+                                REQUIRE(!scp.hasBallotTimer());
+
+                                // node is trying to commit A2=<2,y> but rest
+                                // of its quorum is trying to commit B2
+                                // we end up with a delayed quorum
+                                recvQuorumChecksEx(
+                                    makePrepareGen(qSetHash, B3, &B2, 2, 2),
+                                    true, true, true);
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, 3, B3, 2, 2);
+                            }
+                            SECTION("higher counter mixed")
+                            {
+                                recvVBlocking(makePrepareGen(qSetHash, A3, &B3,
+                                                             0, 2, &A2));
+                                REQUIRE(scp.mEnvs.size() == 6);
+                                // h still A2
+                                // v-blocking
+                                //     prepared B3 -> p = B3, p'=A2 (1)
+                                //     counter 3, b = A3 (9) (same value than h)
+                                // c = 0 (1)
+                                verifyPrepare(scp.mEnvs[5], v0SecretKey,
+                                              qSetHash0, 0, A3, &B3, 0, 2, &A2);
+                                recvQuorumEx(makePrepareGen(qSetHash, A3, &B3,
+                                                            0, 2, &A2),
+                                             true);
+                                // p=A3, p'=B3 (1)
+                                // computed_h = B3 (2) z = B - cannot update b
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyPrepare(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, A3, &A3, 0, 2, &B3);
+                                // timeout, bump to B4
+                                REQUIRE(scp.hasBallotTimerUpcoming());
+                                auto cb =
+                                    scp.getBallotProtocolTimer().mCallback;
+                                cb();
+                                // computed_h = B3
+                                // h = B3 (2)
+                                // c = 0
+                                REQUIRE(scp.mEnvs.size() == 8);
+                                verifyPrepare(scp.mEnvs[7], v0SecretKey,
+                                              qSetHash0, 0, B4, &A3, 0, 3, &B3);
+                            }
+                        }
+                    }
+                    SECTION("Confirm prepared mixed")
+                    {
+                        // a few nodes prepared B2
+                        recvVBlocking(
+                            makePrepareGen(qSetHash, A2, &A2, 0, 0, &B2));
+                        REQUIRE(scp.mEnvs.size() == 5);
+                        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0,
+                                      A2, &A2, 0, 0, &B2);
+                        REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                        SECTION("mixed A2")
+                        {
+                            // causes h=A2, c=A2
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+
+                            REQUIRE(scp.mEnvs.size() == 6);
+                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
+                                          0, A2, &A2, 2, 2, &B2);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
+
+                            REQUIRE(scp.mEnvs.size() == 6);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
+                        }
+                        SECTION("mixed B2")
+                        {
+                            // causes computed_h=B2 ~ not set as h ~!= b
+                            // -> noop
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v3SecretKey, qSetHash, 0, A2, &B2));
+
+                            REQUIRE(scp.mEnvs.size() == 5);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                            scp.bumpTimerOffset();
+                            scp.receiveEnvelope(
+                                makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
+
+                            REQUIRE(scp.mEnvs.size() == 5);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
+                        }
+                    }
+                }
+                SECTION("switch prepared B1 from A1")
+                {
+                    // can't switch to B1
+                    recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false,
+                                     false);
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    REQUIRE(!scp.hasBallotTimerUpcoming());
+                }
+                SECTION("switch prepare B1")
+                {
+                    // doesn't switch as B1 < A1
+                    recvQuorumChecks(makePrepareGen(qSetHash, B1), false,
+                                     false);
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    REQUIRE(!scp.hasBallotTimerUpcoming());
+                }
+                SECTION("prepare higher counter (v-blocking)")
+                {
+                    recvVBlocking(makePrepareGen(qSetHash, B2));
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2,
+                                  &A1);
+                    REQUIRE(!scp.hasBallotTimer());
+
+                    // more timeout from vBlocking set
+                    recvVBlocking(makePrepareGen(qSetHash, B3));
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A3,
+                                  &A1);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+            }
+            SECTION("prepared B (v-blocking)")
+            {
+                recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+                REQUIRE(!scp.hasBallotTimer());
+            }
+            SECTION("prepare B (quorum)")
+            {
+                recvQuorumChecksEx(makePrepareGen(qSetHash, B1), true, true,
+                                   true);
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+            }
+            SECTION("confirm (v-blocking)")
+            {
+                SECTION("via CONFIRM")
+                {
+                    scp.bumpTimerOffset();
+                    scp.receiveEnvelope(
+                        makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
+                    scp.receiveEnvelope(
+                        makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, 3,
+                                  A3, 3, 3);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+                SECTION("via EXTERNALIZE")
+                {
+                    scp.receiveEnvelope(
+                        makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
+                    scp.receiveEnvelope(
+                        makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                  UINT32_MAX, AInf, 3, UINT32_MAX);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+            }
+        }
+
+        // this is the same test suite than "start <1,x>" but only keeping
+        // the transitions that are observable when starting from empty
+        SECTION("start from pristine")
+        {
+            Value const& aValue = xValue;
+            Value const& bValue = zValue;
+
+            SCPBallot A1(1, aValue);
+            SCPBallot B1(1, bValue);
+
+            SCPBallot A2 = A1;
+            A2.counter++;
+
+            SCPBallot A3 = A2;
+            A3.counter++;
+
+            SCPBallot A4 = A3;
+            A4.counter++;
+
+            SCPBallot A5 = A4;
+            A5.counter++;
+
+            SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
+
+            SCPBallot B2 = B1;
+            B2.counter++;
+
+            SCPBallot B3 = B2;
+            B3.counter++;
+
+            REQUIRE(scp.mEnvs.size() == 0);
+
+            SECTION("prepared A1")
+            {
+                recvQuorumChecks(makePrepareGen(qSetHash, A1), false, false);
+                REQUIRE(scp.mEnvs.size() == 0);
+
+                SECTION("bump prepared A2")
+                {
+                    SECTION("Confirm prepared A2")
+                    {
+                        recvVBlockingChecks(makePrepareGen(qSetHash, A2, &A2),
+                                            false);
+                        REQUIRE(scp.mEnvs.size() == 0);
+
+                        SECTION("Quorum A2")
+                        {
+                            recvVBlockingChecks(
+                                makePrepareGen(qSetHash, A2, &A2), false);
+                            REQUIRE(scp.mEnvs.size() == 0);
+                            recvQuorum(makePrepareGen(qSetHash, A2, &A2));
+                            REQUIRE(scp.mEnvs.size() == 1);
+                            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0,
+                                          0, A2, &A2, 1, 2);
+                        }
+                        SECTION("Quorum B2")
+                        {
+                            recvVBlockingChecks(
+                                makePrepareGen(qSetHash, B2, &B2), false);
+                            REQUIRE(scp.mEnvs.size() == 0);
+                            recvQuorum(makePrepareGen(qSetHash, B2, &B2));
+                            REQUIRE(scp.mEnvs.size() == 1);
+                            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0,
+                                          0, B2, &B2, 2, 2, &A2);
+                        }
+                        SECTION("Accept commit")
+                        {
+                            SECTION("Quorum A2")
+                            {
+                                recvQuorum(
+                                    makePrepareGen(qSetHash, A2, &A2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 1);
+                                verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                              qSetHash0, 0, 2, A2, 2, 2);
+                            }
+                            SECTION("Quorum B2")
+                            {
+                                recvQuorum(
+                                    makePrepareGen(qSetHash, B2, &B2, 2, 2));
+                                REQUIRE(scp.mEnvs.size() == 1);
+                                verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                              qSetHash0, 0, 2, B2, 2, 2);
+                            }
+                            SECTION("v-blocking")
+                            {
+                                SECTION("CONFIRM")
+                                {
+                                    SECTION("CONFIRM A2")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 2, A2, 2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 1);
+                                        verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                                      qSetHash0, 0, 2, A2, 2,
+                                                      2);
+                                    }
+                                    SECTION("CONFIRM A3..4")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 4, A4, 3, 4));
+                                        REQUIRE(scp.mEnvs.size() == 1);
+                                        verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                                      qSetHash0, 0, 4, A4, 3,
+                                                      4);
+                                    }
+                                    SECTION("CONFIRM B2")
+                                    {
+                                        recvVBlocking(makeConfirmGen(
+                                            qSetHash, 2, B2, 2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 1);
+                                        verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                                      qSetHash0, 0, 2, B2, 2,
+                                                      2);
+                                    }
+                                }
+                                SECTION("EXTERNALIZE")
+                                {
+                                    SECTION("EXTERNALIZE A2")
+                                    {
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, A2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 1);
+                                        verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                                      qSetHash0, 0, UINT32_MAX,
+                                                      AInf, 2, UINT32_MAX);
+                                    }
+                                    SECTION("EXTERNALIZE B2")
+                                    {
+                                        recvVBlocking(makeExternalizeGen(
+                                            qSetHash, B2, 2));
+                                        REQUIRE(scp.mEnvs.size() == 1);
+                                        verifyConfirm(scp.mEnvs[0], v0SecretKey,
+                                                      qSetHash0, 0, UINT32_MAX,
+                                                      BInf, 2, UINT32_MAX);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SECTION("Confirm prepared mixed")
+                    {
+                        // a few nodes prepared A2
+                        // causes p=A2
+                        recvVBlockingChecks(makePrepareGen(qSetHash, A2, &A2),
+                                            false);
+                        REQUIRE(scp.mEnvs.size() == 0);
+
+                        // a few nodes prepared B2
+                        // causes p=B2, p'=A2
+                        recvVBlockingChecks(
+                            makePrepareGen(qSetHash, A2, &B2, 0, 0, &A2),
+                            false);
+                        REQUIRE(scp.mEnvs.size() == 0);
+
+                        SECTION("mixed A2")
+                        {
+                            // causes h=A2
+                            // but c = 0, as p >!~ h
+                            scp.receiveEnvelope(
+                                makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+
+                            REQUIRE(scp.mEnvs.size() == 1);
+                            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0,
+                                          0, A2, &B2, 0, 2, &A2);
+
+                            scp.receiveEnvelope(
+                                makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
+
+                            REQUIRE(scp.mEnvs.size() == 1);
+                        }
+                        SECTION("mixed B2")
+                        {
+                            // causes h=B2, c=B2
+                            scp.receiveEnvelope(
+                                makePrepare(v3SecretKey, qSetHash, 0, B2, &B2));
+
+                            REQUIRE(scp.mEnvs.size() == 1);
+                            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0,
+                                          0, B2, &B2, 2, 2, &A2);
+
+                            scp.receiveEnvelope(
+                                makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
+
+                            REQUIRE(scp.mEnvs.size() == 1);
+                        }
+                    }
+                }
+                SECTION("switch prepared B1")
+                {
+                    recvVBlockingChecks(makePrepareGen(qSetHash, B1, &B1),
+                                        false);
+                    REQUIRE(scp.mEnvs.size() == 0);
+                }
+            }
+            SECTION("prepared B (v-blocking)")
+            {
+                recvVBlockingChecks(makePrepareGen(qSetHash, B1, &B1), false);
+                REQUIRE(scp.mEnvs.size() == 0);
+            }
+            SECTION("confirm (v-blocking)")
+            {
+                SECTION("via CONFIRM")
+                {
+                    scp.receiveEnvelope(
+                        makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
+                    scp.receiveEnvelope(
+                        makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, 3,
+                                  A3, 3, 3);
+                }
+                SECTION("via EXTERNALIZE")
+                {
+                    scp.receiveEnvelope(
+                        makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
+                    scp.receiveEnvelope(
+                        makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                  UINT32_MAX, AInf, 3, UINT32_MAX);
+                }
+            }
+        }
+
+        SECTION("normal round (1,x)")
+        {
+            nodesAllPledgeToCommit();
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            SCPBallot b(1, xValue);
+
+            // bunch of prepare messages with "commit b"
+            SCPEnvelope preparedC1 = makePrepare(v1SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+            SCPEnvelope preparedC2 = makePrepare(v2SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+            SCPEnvelope preparedC3 = makePrepare(v3SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+            SCPEnvelope preparedC4 = makePrepare(v4SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+
+            // those should not trigger anything just yet
+            scp.receiveEnvelope(preparedC1);
+            scp.receiveEnvelope(preparedC2);
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            // this should cause the node to accept 'commit b' (quorum)
+            // and therefore send a "CONFIRM" message
+            scp.receiveEnvelope(preparedC3);
+            REQUIRE(scp.mEnvs.size() == 4);
+
+            verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b,
+                          b.counter, b.counter);
+
+            // bunch of confirm messages
+            SCPEnvelope confirm1 = makeConfirm(
+                v1SecretKey, qSetHash, 0, b.counter, b, b.counter, b.counter);
+            SCPEnvelope confirm2 = makeConfirm(
+                v2SecretKey, qSetHash, 0, b.counter, b, b.counter, b.counter);
+            SCPEnvelope confirm3 = makeConfirm(
+                v3SecretKey, qSetHash, 0, b.counter, b, b.counter, b.counter);
+            SCPEnvelope confirm4 = makeConfirm(
+                v4SecretKey, qSetHash, 0, b.counter, b, b.counter, b.counter);
+
+            // those should not trigger anything just yet
+            scp.receiveEnvelope(confirm1);
+            scp.receiveEnvelope(confirm2);
+            REQUIRE(scp.mEnvs.size() == 4);
+
+            scp.receiveEnvelope(confirm3);
+            // this causes our node to
+            // externalize (confirm commit c)
+            REQUIRE(scp.mEnvs.size() == 5);
+
+            // The slot should have externalized the value
+            REQUIRE(scp.mExternalizedValues.size() == 1);
+            REQUIRE(scp.mExternalizedValues[0] == xValue);
+
+            verifyExternalize(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, b,
+                              b.counter);
+
+            // extra vote should not do anything
+            scp.receiveEnvelope(confirm4);
+            REQUIRE(scp.mEnvs.size() == 5);
+            REQUIRE(scp.mExternalizedValues.size() == 1);
+
+            // duplicate should just no-op
+            scp.receiveEnvelope(confirm2);
+            REQUIRE(scp.mEnvs.size() == 5);
+            REQUIRE(scp.mExternalizedValues.size() == 1);
+
+            SECTION("bumpToBallot prevented once committed")
+            {
+                SCPBallot b2;
+                SECTION("bumpToBallot prevented once committed (by value)")
+                {
+                    b2 = SCPBallot(1, zValue);
+                }
+                SECTION("bumpToBallot prevented once committed (by counter)")
+                {
+                    b2 = SCPBallot(2, xValue);
+                }
+                SECTION("bumpToBallot prevented once committed (by value and "
+                        "counter)")
+                {
+                    b2 = SCPBallot(2, zValue);
+                }
+
+                SCPEnvelope confirm1b2, confirm2b2, confirm3b2, confirm4b2;
+                confirm1b2 = makeConfirm(v1SecretKey, qSetHash, 0, b2.counter,
+                                         b2, b2.counter, b2.counter);
+                confirm2b2 = makeConfirm(v2SecretKey, qSetHash, 0, b2.counter,
+                                         b2, b2.counter, b2.counter);
+                confirm3b2 = makeConfirm(v3SecretKey, qSetHash, 0, b2.counter,
+                                         b2, b2.counter, b2.counter);
+                confirm4b2 = makeConfirm(v4SecretKey, qSetHash, 0, b2.counter,
+                                         b2, b2.counter, b2.counter);
+
+                scp.receiveEnvelope(confirm1b2);
+                scp.receiveEnvelope(confirm2b2);
+                scp.receiveEnvelope(confirm3b2);
+                scp.receiveEnvelope(confirm4b2);
+                REQUIRE(scp.mEnvs.size() == 5);
+                REQUIRE(scp.mExternalizedValues.size() == 1);
+            }
+        }
+
+        SECTION("range check")
+        {
+            nodesAllPledgeToCommit();
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            SCPBallot b(1, xValue);
+
+            // bunch of prepare messages with "commit b"
+            SCPEnvelope preparedC1 = makePrepare(v1SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+            SCPEnvelope preparedC2 = makePrepare(v2SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+            SCPEnvelope preparedC3 = makePrepare(v3SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+            SCPEnvelope preparedC4 = makePrepare(v4SecretKey, qSetHash, 0, b,
+                                                 &b, b.counter, b.counter);
+
+            // those should not trigger anything just yet
+            scp.receiveEnvelope(preparedC1);
+            scp.receiveEnvelope(preparedC2);
+            REQUIRE(scp.mEnvs.size() == 3);
+
+            // this should cause the node to accept 'commit b' (quorum)
+            // and therefore send a "CONFIRM" message
+            scp.receiveEnvelope(preparedC3);
+            REQUIRE(scp.mEnvs.size() == 4);
+
+            verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b,
+                          b.counter, b.counter);
+
+            // bunch of confirm messages with different ranges
+            SCPBallot b5(5, xValue);
+            SCPEnvelope confirm1 = makeConfirm(v1SecretKey, qSetHash, 0, 4,
+                                               SCPBallot(4, xValue), 2, 4);
+            SCPEnvelope confirm2 = makeConfirm(v2SecretKey, qSetHash, 0, 6,
+                                               SCPBallot(6, xValue), 2, 6);
+            SCPEnvelope confirm3 = makeConfirm(v3SecretKey, qSetHash, 0, 5,
+                                               SCPBallot(5, xValue), 3, 5);
+            SCPEnvelope confirm4 = makeConfirm(v4SecretKey, qSetHash, 0, 6,
+                                               SCPBallot(6, xValue), 3, 6);
+
+            // this should not trigger anything just yet
+            scp.receiveEnvelope(confirm1);
+
+            // v-blocking
+            //   * b gets bumped to (4,x)
+            //   * p gets bumped to (4,x)
+            //   * (c,h) gets bumped to (2,4)
+            scp.receiveEnvelope(confirm2);
+            REQUIRE(scp.mEnvs.size() == 5);
+            verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 4,
+                          SCPBallot(4, xValue), 2, 4);
+
+            // this causes to externalize
+            // range is [3,4]
+            scp.receiveEnvelope(confirm4);
+            REQUIRE(scp.mEnvs.size() == 6);
+
+            // The slot should have externalized the value
+            REQUIRE(scp.mExternalizedValues.size() == 1);
+            REQUIRE(scp.mExternalizedValues[0] == xValue);
+
+            verifyExternalize(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                              SCPBallot(3, xValue), 4);
+        }
+
+        SECTION("timeout when h is set -> stay locked on h")
+        {
+            SCPBallot bx(1, xValue);
+            REQUIRE(scp.bumpState(0, xValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+
+            // v-blocking -> prepared
+            // quorum -> confirm prepared
+            recvQuorum(makePrepareGen(qSetHash, bx, &bx));
+            REQUIRE(scp.mEnvs.size() == 3);
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, bx, &bx,
+                          bx.counter, bx.counter);
+
+            // now, see if we can timeout and move to a different value
+            REQUIRE(scp.bumpState(0, yValue));
+            REQUIRE(scp.mEnvs.size() == 4);
+            SCPBallot newbx(2, xValue);
+            verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, newbx, &bx,
+                          bx.counter, bx.counter);
+        }
+        SECTION("timeout when h exists but can't be set -> vote for h")
+        {
+            // start with (1,y)
+            SCPBallot by(1, yValue);
+            REQUIRE(scp.bumpState(0, yValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+
+            SCPBallot bx(1, xValue);
+            // but quorum goes with (1,x)
+            // v-blocking -> prepared
+            recvVBlocking(makePrepareGen(qSetHash, bx, &bx));
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, by, &bx);
+            // quorum -> confirm prepared (no-op as b > h)
+            recvQuorumChecks(makePrepareGen(qSetHash, bx, &bx), false, false);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            REQUIRE(scp.bumpState(0, yValue));
+            REQUIRE(scp.mEnvs.size() == 3);
+            SCPBallot newbx(2, xValue);
+            // on timeout:
+            // * we should move to the quorum's h value
+            // * c can't be set yet as b > h
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, newbx, &bx,
+                          0, bx.counter);
+        }
+
+        SECTION("timeout from multiple nodes")
+        {
+            REQUIRE(scp.bumpState(0, xValue));
+
+            SCPBallot x1(1, xValue);
+
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+
+            recvQuorum(makePrepareGen(qSetHash, x1));
+            // quorum -> prepared (1,x)
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
+
+            SCPBallot x2(2, xValue);
+            // timeout from local node
+            REQUIRE(scp.bumpState(0, xValue));
+            // prepares (2,x)
+            REQUIRE(scp.mEnvs.size() == 3);
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x2, &x1);
+
+            recvQuorum(makePrepareGen(qSetHash, x1, &x1));
+            // quorum -> set nH=1
+            REQUIRE(scp.mEnvs.size() == 4);
+            verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x2, &x1, 0,
+                          1);
+            REQUIRE(scp.mEnvs.size() == 4);
+
+            recvVBlocking(makePrepareGen(qSetHash, x2, &x2, 1, 1));
+            // v-blocking prepared (2,x) -> prepared (2,x)
+            REQUIRE(scp.mEnvs.size() == 5);
+            verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, x2, &x2, 0,
+                          1);
+
+            recvQuorum(makePrepareGen(qSetHash, x2, &x2, 1, 1));
+            // quorum (including us) confirms (2,x) prepared -> set h=c=x2
+            // we also get extra message: a quorum not including us confirms
+            // (1,x) prepared
+            //  -> we confirm c=h=x1
+            REQUIRE(scp.mEnvs.size() == 7);
+            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x2, &x2, 2,
+                          2);
+            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0, 0, 2, x2, 1, 1);
+        }
+
+        SECTION("timeout after prepare, receive old messages to prepare")
+        {
+            REQUIRE(scp.bumpState(0, xValue));
+
+            SCPBallot x1(1, xValue);
+
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
+
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1));
+            scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
+
+            // quorum -> prepared (1,x)
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
+
+            SCPBallot x2(2, xValue);
+            // timeout from local node
+            REQUIRE(scp.bumpState(0, xValue));
+            // prepares (2,x)
+            REQUIRE(scp.mEnvs.size() == 3);
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x2, &x1);
+
+            SCPBallot x3(3, xValue);
+            // timeout again
+            REQUIRE(scp.bumpState(0, xValue));
+            // prepares (3,x)
+            REQUIRE(scp.mEnvs.size() == 4);
+            verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x3, &x1);
+
+            // other nodes moved on with x2
+            scp.receiveEnvelope(
+                makePrepare(v1SecretKey, qSetHash, 0, x2, &x2, 1, 2));
+            scp.receiveEnvelope(
+                makePrepare(v2SecretKey, qSetHash, 0, x2, &x2, 1, 2));
+            // v-blocking -> prepared x2
+            REQUIRE(scp.mEnvs.size() == 5);
+            verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, x3, &x2);
+
+            scp.receiveEnvelope(
+                makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 2));
+            // quorum -> set nH=2
+            REQUIRE(scp.mEnvs.size() == 6);
+            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x3, &x2, 0,
+                          2);
+        }
+
+        SECTION("non validator watching the network")
+        {
+            SIMULATION_CREATE_NODE(NV);
+            TestSCP scpNV(vNVSecretKey.getPublicKey(), qSet, false);
+            scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+            uint256 qSetHashNV = scpNV.mSCP.getLocalNode()->getQuorumSetHash();
+
+            SCPBallot b(1, xValue);
+            REQUIRE(scpNV.bumpState(0, xValue));
+            REQUIRE(scpNV.mEnvs.size() == 0);
+            verifyPrepare(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                          qSetHashNV, 0, b);
+            auto ext1 = makeExternalize(v1SecretKey, qSetHash, 0, b, 1);
+            auto ext2 = makeExternalize(v2SecretKey, qSetHash, 0, b, 1);
+            auto ext3 = makeExternalize(v3SecretKey, qSetHash, 0, b, 1);
+            auto ext4 = makeExternalize(v4SecretKey, qSetHash, 0, b, 1);
+            scpNV.receiveEnvelope(ext1);
+            scpNV.receiveEnvelope(ext2);
+            scpNV.receiveEnvelope(ext3);
+            REQUIRE(scpNV.mEnvs.size() == 0);
+            verifyConfirm(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                          qSetHashNV, 0, UINT32_MAX,
+                          SCPBallot(UINT32_MAX, xValue), 1, UINT32_MAX);
+            scpNV.receiveEnvelope(ext4);
+            REQUIRE(scpNV.mEnvs.size() == 0);
+            verifyExternalize(scpNV.getCurrentEnvelope(0, vNVNodeID),
+                              vNVSecretKey, qSetHashNV, 0, b, UINT32_MAX);
+            REQUIRE(scpNV.mExternalizedValues[0] == xValue);
+        }
+
+        SECTION("restore ballot protocol")
+        {
+            TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
+            scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+            SCPBallot b(2, xValue);
+            SECTION("prepare")
+            {
+                scp2.mSCP.setStateFromEnvelope(
+                    0, scp2.wrapEnvelope(
+                           makePrepare(v0SecretKey, qSetHash0, 0, b)));
+            }
+            SECTION("confirm")
+            {
+                scp2.mSCP.setStateFromEnvelope(
+                    0, scp2.wrapEnvelope(
+                           makeConfirm(v0SecretKey, qSetHash0, 0, 2, b, 1, 2)));
+            }
+            SECTION("externalize")
+            {
+                scp2.mSCP.setStateFromEnvelope(
+                    0, scp2.wrapEnvelope(
+                           makeExternalize(v0SecretKey, qSetHash0, 0, b, 2)));
+            }
+        }
+    };
+
+    testTimeouts(scp, test);
+}
+
+TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    // core3 has an edge case where v-blocking and quorum can be the same
+    // v-blocking set size: 2
+    // threshold: 2 = 1 + self or 2 others
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+
+    auto test = [&](TestSCP& scp) {
+        scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+        uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+
+        REQUIRE(xValue < yValue);
+        REQUIRE(yValue < zValue);
+
+        auto recvQuorumChecksEx2 = [&](genEnvelope gen, bool withChecks,
+                                       bool delayedQuorum, bool checkUpcoming,
+                                       bool minQuorum) {
+            SCPEnvelope e1 = gen(v1SecretKey);
+            SCPEnvelope e2 = gen(v2SecretKey);
+
+            scp.bumpTimerOffset();
+
+            size_t i = scp.mEnvs.size() + 1;
+            scp.receiveEnvelope(e1);
+            if (withChecks && !delayedQuorum)
+            {
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+            if (checkUpcoming)
+            {
+                REQUIRE(scp.hasBallotTimerUpcoming());
+            }
+            if (!minQuorum)
+            {
+                // nothing happens with an extra vote (unless we're in
+                // delayedQuorum)
+                scp.receiveEnvelope(e2);
+                if (withChecks)
+                {
+                    REQUIRE(scp.mEnvs.size() == i);
+                }
+            }
+        };
+        auto recvQuorumChecksEx =
+            std::bind(recvQuorumChecksEx2, _1, _2, _3, _4, false);
+        auto recvQuorumChecks =
+            std::bind(recvQuorumChecksEx, _1, _2, _3, false);
+
         // no timer is set
         REQUIRE(!scp.hasBallotTimer());
 
@@ -1349,1236 +2632,105 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         SCPBallot B3 = B2;
         B3.counter++;
 
-        SCPBallot B4 = B3;
-        B4.counter++;
-
-        REQUIRE(scp.bumpState(0, aValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-        REQUIRE(!scp.hasBallotTimer());
-
-        SECTION("prepared A1")
+        SECTION("prepared B1 (quorum votes B1) local aValue")
         {
-            recvQuorumEx(makePrepareGen(qSetHash, A1), true);
+            REQUIRE(scp.bumpState(0, aValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+            REQUIRE(!scp.hasBallotTimer());
 
+            scp.bumpTimerOffset();
+            recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
             REQUIRE(scp.mEnvs.size() == 2);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &A1);
-
-            SECTION("bump prepared A2")
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+            REQUIRE(scp.hasBallotTimerUpcoming());
+            SECTION("quorum prepared B1")
             {
-                // bump to (2,a)
-
                 scp.bumpTimerOffset();
-                REQUIRE(scp.bumpState(0, aValue));
-                REQUIRE(scp.mEnvs.size() == 3);
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2, &A1);
-                REQUIRE(!scp.hasBallotTimer());
-
-                recvQuorumEx(makePrepareGen(qSetHash, A2), true);
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2, &A2);
-
-                SECTION("Confirm prepared A2")
-                {
-                    recvQuorum(makePrepareGen(qSetHash, A2, &A2));
-                    REQUIRE(scp.mEnvs.size() == 5);
-                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
-                                  &A2, 2, 2);
-                    REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                    SECTION("Accept commit")
-                    {
-                        SECTION("Quorum A2")
-                        {
-                            recvQuorum(makePrepareGen(qSetHash, A2, &A2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 6);
-                            verifyConfirm(scp.mEnvs[5], v0SecretKey, qSetHash0,
-                                          0, 2, A2, 2, 2);
-                            REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                            SECTION("Quorum prepared A3")
-                            {
-                                recvVBlocking(
-                                    makePrepareGen(qSetHash, A3, &A2, 2, 2));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 2, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-
-                                recvQuorumEx(
-                                    makePrepareGen(qSetHash, A3, &A2, 2, 2),
-                                    true);
-                                REQUIRE(scp.mEnvs.size() == 8);
-                                verifyConfirm(scp.mEnvs[7], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-
-                                SECTION("Accept more commit A3")
-                                {
-                                    recvQuorum(makePrepareGen(qSetHash, A3, &A3,
-                                                              2, 3));
-                                    REQUIRE(scp.mEnvs.size() == 9);
-                                    verifyConfirm(scp.mEnvs[8], v0SecretKey,
-                                                  qSetHash0, 0, 3, A3, 2, 3);
-                                    REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                                    REQUIRE(scp.mExternalizedValues.size() ==
-                                            0);
-
-                                    SECTION("Quorum externalize A3")
-                                    {
-                                        recvQuorum(makeConfirmGen(qSetHash, 3,
-                                                                  A3, 2, 3));
-                                        REQUIRE(scp.mEnvs.size() == 10);
-                                        verifyExternalize(scp.mEnvs[9],
-                                                          v0SecretKey,
-                                                          qSetHash0, 0, A2, 3);
-                                        REQUIRE(!scp.hasBallotTimer());
-
-                                        REQUIRE(
-                                            scp.mExternalizedValues.size() ==
-                                            1);
-                                        REQUIRE(scp.mExternalizedValues[0] ==
-                                                aValue);
-                                    }
-                                }
-                                SECTION("v-blocking accept more A3")
-                                {
-                                    SECTION("Confirm A3")
-                                    {
-                                        recvVBlocking(makeConfirmGen(
-                                            qSetHash, 3, A3, 2, 3));
-                                        REQUIRE(scp.mEnvs.size() == 9);
-                                        verifyConfirm(scp.mEnvs[8], v0SecretKey,
-                                                      qSetHash0, 0, 3, A3, 2,
-                                                      3);
-                                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                                    }
-                                    SECTION("Externalize A3")
-                                    {
-                                        recvVBlocking(makeExternalizeGen(
-                                            qSetHash, A2, 3));
-                                        REQUIRE(scp.mEnvs.size() == 9);
-                                        verifyConfirm(scp.mEnvs[8], v0SecretKey,
-                                                      qSetHash0, 0, UINT32_MAX,
-                                                      AInf, 2, UINT32_MAX);
-                                        REQUIRE(!scp.hasBallotTimer());
-                                    }
-                                    SECTION("other nodes moved to c=A4 h=A5")
-                                    {
-                                        SECTION("Confirm A4..5")
-                                        {
-                                            recvVBlocking(makeConfirmGen(
-                                                qSetHash, 3, A5, 4, 5));
-                                            REQUIRE(scp.mEnvs.size() == 9);
-                                            verifyConfirm(
-                                                scp.mEnvs[8], v0SecretKey,
-                                                qSetHash0, 0, 3, A5, 4, 5);
-                                            REQUIRE(!scp.hasBallotTimer());
-                                        }
-                                        SECTION("Externalize A4..5")
-                                        {
-                                            recvVBlocking(makeExternalizeGen(
-                                                qSetHash, A4, 5));
-                                            REQUIRE(scp.mEnvs.size() == 9);
-                                            verifyConfirm(
-                                                scp.mEnvs[8], v0SecretKey,
-                                                qSetHash0, 0, UINT32_MAX, AInf,
-                                                4, UINT32_MAX);
-                                            REQUIRE(!scp.hasBallotTimer());
-                                        }
-                                    }
-                                }
-                            }
-                            SECTION("v-blocking prepared A3")
-                            {
-                                recvVBlocking(
-                                    makePrepareGen(qSetHash, A3, &A3, 2, 2));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-                            }
-                            SECTION("v-blocking prepared A3+B3")
-                            {
-                                recvVBlocking(makePrepareGen(qSetHash, A3, &A3,
-                                                             2, 2, &B3));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-                            }
-                            SECTION("v-blocking confirm A3")
-                            {
-                                recvVBlocking(
-                                    makeConfirmGen(qSetHash, 3, A3, 2, 2));
-                                REQUIRE(scp.mEnvs.size() == 7);
-                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                              qSetHash0, 0, 3, A3, 2, 2);
-                                REQUIRE(!scp.hasBallotTimer());
-                            }
-                            SECTION("Hang - does not switch to B in CONFIRM")
-                            {
-                                SECTION("Network EXTERNALIZE")
-                                {
-                                    // externalize messages have a counter at
-                                    // infinite
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, B2, 3));
-                                    REQUIRE(scp.mEnvs.size() == 7);
-                                    verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                                  qSetHash0, 0, 2, AInf, 2, 2);
-                                    REQUIRE(!scp.hasBallotTimer());
-
-                                    // stuck
-                                    recvQuorumChecks(
-                                        makeExternalizeGen(qSetHash, B2, 3),
-                                        false, false);
-                                    REQUIRE(scp.mEnvs.size() == 7);
-                                    REQUIRE(scp.mExternalizedValues.size() ==
-                                            0);
-                                    // timer scheduled as there is a quorum
-                                    // with (inf, *)
-                                    REQUIRE(scp.hasBallotTimerUpcoming());
-                                }
-                                SECTION("Network CONFIRMS other ballot")
-                                {
-                                    SECTION("at same counter")
-                                    {
-                                        // nothing should happen here, in
-                                        // particular, node should not attempt
-                                        // to switch 'p'
-                                        recvQuorumChecks(
-                                            makeConfirmGen(qSetHash, 3, B2, 2,
-                                                           3),
-                                            false, false);
-                                        REQUIRE(scp.mEnvs.size() == 6);
-                                        REQUIRE(
-                                            scp.mExternalizedValues.size() ==
-                                            0);
-                                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                                    }
-                                    SECTION("at a different counter")
-                                    {
-                                        recvVBlocking(makeConfirmGen(
-                                            qSetHash, 3, B3, 3, 3));
-                                        REQUIRE(scp.mEnvs.size() == 7);
-                                        verifyConfirm(scp.mEnvs[6], v0SecretKey,
-                                                      qSetHash0, 0, 2, A3, 2,
-                                                      2);
-                                        REQUIRE(!scp.hasBallotTimer());
-
-                                        recvQuorumChecks(
-                                            makeConfirmGen(qSetHash, 3, B3, 3,
-                                                           3),
-                                            false, false);
-                                        REQUIRE(scp.mEnvs.size() == 7);
-                                        REQUIRE(
-                                            scp.mExternalizedValues.size() ==
-                                            0);
-                                        // timer scheduled as there is a quorum
-                                        // with (3, *)
-                                        REQUIRE(scp.hasBallotTimerUpcoming());
-                                    }
-                                }
-                            }
-                        }
-                        SECTION("v-blocking")
-                        {
-                            SECTION("CONFIRM")
-                            {
-                                SECTION("CONFIRM A2")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 2, A2, 2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, 2, A2, 2, 2);
-                                    REQUIRE(!scp.hasBallotTimerUpcoming());
-                                }
-                                SECTION("CONFIRM A3..4")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 4, A4, 3, 4));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, 4, A4, 3, 4);
-                                    REQUIRE(!scp.hasBallotTimer());
-                                }
-                                SECTION("CONFIRM B2")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 2, B2, 2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, 2, B2, 2, 2);
-                                    REQUIRE(!scp.hasBallotTimerUpcoming());
-                                }
-                            }
-                            SECTION("EXTERNALIZE")
-                            {
-                                SECTION("EXTERNALIZE A2")
-                                {
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, A2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, UINT32_MAX,
-                                                  AInf, 2, UINT32_MAX);
-                                    REQUIRE(!scp.hasBallotTimer());
-                                }
-                                SECTION("EXTERNALIZE B2")
-                                {
-                                    // can switch to B2 with externalize (higher
-                                    // counter)
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, B2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 6);
-                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
-                                                  qSetHash0, 0, UINT32_MAX,
-                                                  BInf, 2, UINT32_MAX);
-                                    REQUIRE(!scp.hasBallotTimer());
-                                }
-                            }
-                        }
-                    }
-                    SECTION("get conflicting prepared B")
-                    {
-                        SECTION("same counter")
-                        {
-                            // messages are ignored as B2 < A2
-                            recvQuorumChecks(makePrepareGen(qSetHash, B2, &B2),
-                                             false, false);
-                            REQUIRE(scp.mEnvs.size() == 5);
-                            REQUIRE(!scp.hasBallotTimerUpcoming());
-                        }
-                        SECTION("higher counter")
-                        {
-                            recvVBlocking(
-                                makePrepareGen(qSetHash, B3, &B2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 6);
-                            // A2 > B2 -> p = A2, p'=B2
-                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
-                                          0, A3, &A2, 2, 2, &B2);
-                            REQUIRE(!scp.hasBallotTimer());
-
-                            // node is trying to commit A2=<2,y> but rest
-                            // of its quorum is trying to commit B2
-                            // we end up with a delayed quorum
-                            recvQuorumChecksEx(
-                                makePrepareGen(qSetHash, B3, &B2, 2, 2), true,
-                                true, true);
-                            REQUIRE(scp.mEnvs.size() == 7);
-                            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
-                                          0, 3, B3, 2, 2);
-                        }
-                        SECTION("higher counter mixed")
-                        {
-                            recvVBlocking(
-                                makePrepareGen(qSetHash, A3, &B3, 0, 2, &A2));
-                            REQUIRE(scp.mEnvs.size() == 6);
-                            // h still A2
-                            // v-blocking
-                            //     prepared B3 -> p = B3, p'=A2 (1)
-                            //     counter 3, b = A3 (9) (same value than h)
-                            // c = 0 (1)
-                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
-                                          0, A3, &B3, 0, 2, &A2);
-                            recvQuorumEx(
-                                makePrepareGen(qSetHash, A3, &B3, 0, 2, &A2),
-                                true);
-                            // p=A3, p'=B3 (1)
-                            // computed_h = B3 (2) z = B - cannot update b
-                            REQUIRE(scp.mEnvs.size() == 7);
-                            verifyPrepare(scp.mEnvs[6], v0SecretKey, qSetHash0,
-                                          0, A3, &A3, 0, 2, &B3);
-                            // timeout, bump to B4
-                            REQUIRE(scp.hasBallotTimerUpcoming());
-                            auto cb = scp.getBallotProtocolTimer().mCallback;
-                            cb();
-                            // computed_h = B3
-                            // h = B3 (2)
-                            // c = 0
-                            REQUIRE(scp.mEnvs.size() == 8);
-                            verifyPrepare(scp.mEnvs[7], v0SecretKey, qSetHash0,
-                                          0, B4, &A3, 0, 3, &B3);
-                        }
-                    }
-                }
-                SECTION("Confirm prepared mixed")
-                {
-                    // a few nodes prepared B2
-                    recvVBlocking(makePrepareGen(qSetHash, A2, &A2, 0, 0, &B2));
-                    REQUIRE(scp.mEnvs.size() == 5);
-                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
-                                  &A2, 0, 0, &B2);
-                    REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                    SECTION("mixed A2")
-                    {
-                        // causes h=A2, c=A2
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
-
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
-                                      A2, &A2, 2, 2, &B2);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
-
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                    }
-                    SECTION("mixed B2")
-                    {
-                        // causes computed_h=B2 ~ not set as h ~!= b
-                        // -> noop
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v3SecretKey, qSetHash, 0, A2, &B2));
-
-                        REQUIRE(scp.mEnvs.size() == 5);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                        scp.bumpTimerOffset();
-                        scp.receiveEnvelope(
-                            makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
-
-                        REQUIRE(scp.mEnvs.size() == 5);
-                        REQUIRE(!scp.hasBallotTimerUpcoming());
-                    }
-                }
-            }
-            SECTION("switch prepared B1 from A1")
-            {
-                // can't switch to B1
                 recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false,
                                  false);
                 REQUIRE(scp.mEnvs.size() == 2);
+                // nothing happens:
+                // computed_h = B1 (2)
+                //    does not actually update h as b > computed_h
+                //    also skips (3)
                 REQUIRE(!scp.hasBallotTimerUpcoming());
-            }
-            SECTION("switch prepare B1")
-            {
-                // doesn't switch as B1 < A1
-                recvQuorumChecks(makePrepareGen(qSetHash, B1), false, false);
-                REQUIRE(scp.mEnvs.size() == 2);
-                REQUIRE(!scp.hasBallotTimerUpcoming());
-            }
-            SECTION("prepare higher counter (v-blocking)")
-            {
-                recvVBlocking(makePrepareGen(qSetHash, B2));
-                REQUIRE(scp.mEnvs.size() == 3);
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2, &A1);
-                REQUIRE(!scp.hasBallotTimer());
-
-                // more timeout from vBlocking set
-                recvVBlocking(makePrepareGen(qSetHash, B3));
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A3, &A1);
-                REQUIRE(!scp.hasBallotTimer());
-            }
-        }
-        SECTION("prepared B (v-blocking)")
-        {
-            recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
-            REQUIRE(!scp.hasBallotTimer());
-        }
-        SECTION("prepare B (quorum)")
-        {
-            recvQuorumChecksEx(makePrepareGen(qSetHash, B1), true, true, true);
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
-        }
-        SECTION("confirm (v-blocking)")
-        {
-            SECTION("via CONFIRM")
-            {
-                scp.bumpTimerOffset();
-                scp.receiveEnvelope(
-                    makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
-                scp.receiveEnvelope(
-                    makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, 3, A3, 3,
-                              3);
-                REQUIRE(!scp.hasBallotTimer());
-            }
-            SECTION("via EXTERNALIZE")
-            {
-                scp.receiveEnvelope(
-                    makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
-                scp.receiveEnvelope(
-                    makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                              UINT32_MAX, AInf, 3, UINT32_MAX);
-                REQUIRE(!scp.hasBallotTimer());
-            }
-        }
-    }
-
-    // this is the same test suite than "start <1,x>" but only keeping
-    // the transitions that are observable when starting from empty
-    SECTION("start from pristine")
-    {
-        Value const& aValue = xValue;
-        Value const& bValue = zValue;
-
-        SCPBallot A1(1, aValue);
-        SCPBallot B1(1, bValue);
-
-        SCPBallot A2 = A1;
-        A2.counter++;
-
-        SCPBallot A3 = A2;
-        A3.counter++;
-
-        SCPBallot A4 = A3;
-        A4.counter++;
-
-        SCPBallot A5 = A4;
-        A5.counter++;
-
-        SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
-
-        SCPBallot B2 = B1;
-        B2.counter++;
-
-        SCPBallot B3 = B2;
-        B3.counter++;
-
-        REQUIRE(scp.mEnvs.size() == 0);
-
-        SECTION("prepared A1")
-        {
-            recvQuorumChecks(makePrepareGen(qSetHash, A1), false, false);
-            REQUIRE(scp.mEnvs.size() == 0);
-
-            SECTION("bump prepared A2")
-            {
-                SECTION("Confirm prepared A2")
+                SECTION("quorum bumps to A1")
                 {
-                    recvVBlockingChecks(makePrepareGen(qSetHash, A2, &A2),
-                                        false);
-                    REQUIRE(scp.mEnvs.size() == 0);
+                    scp.bumpTimerOffset();
+                    recvQuorumChecksEx2(makePrepareGen(qSetHash, A1, &B1),
+                                        false, false, false, true);
 
-                    SECTION("Quorum A2")
-                    {
-                        recvVBlockingChecks(makePrepareGen(qSetHash, A2, &A2),
-                                            false);
-                        REQUIRE(scp.mEnvs.size() == 0);
-                        recvQuorum(makePrepareGen(qSetHash, A2, &A2));
-                        REQUIRE(scp.mEnvs.size() == 1);
-                        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                      A2, &A2, 1, 2);
-                    }
-                    SECTION("Quorum B2")
-                    {
-                        recvVBlockingChecks(makePrepareGen(qSetHash, B2, &B2),
-                                            false);
-                        REQUIRE(scp.mEnvs.size() == 0);
-                        recvQuorum(makePrepareGen(qSetHash, B2, &B2));
-                        REQUIRE(scp.mEnvs.size() == 1);
-                        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                      B2, &B2, 2, 2, &A2);
-                    }
-                    SECTION("Accept commit")
-                    {
-                        SECTION("Quorum A2")
-                        {
-                            recvQuorum(makePrepareGen(qSetHash, A2, &A2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 1);
-                            verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0,
-                                          0, 2, A2, 2, 2);
-                        }
-                        SECTION("Quorum B2")
-                        {
-                            recvQuorum(makePrepareGen(qSetHash, B2, &B2, 2, 2));
-                            REQUIRE(scp.mEnvs.size() == 1);
-                            verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0,
-                                          0, 2, B2, 2, 2);
-                        }
-                        SECTION("v-blocking")
-                        {
-                            SECTION("CONFIRM")
-                            {
-                                SECTION("CONFIRM A2")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 2, A2, 2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 1);
-                                    verifyConfirm(scp.mEnvs[0], v0SecretKey,
-                                                  qSetHash0, 0, 2, A2, 2, 2);
-                                }
-                                SECTION("CONFIRM A3..4")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 4, A4, 3, 4));
-                                    REQUIRE(scp.mEnvs.size() == 1);
-                                    verifyConfirm(scp.mEnvs[0], v0SecretKey,
-                                                  qSetHash0, 0, 4, A4, 3, 4);
-                                }
-                                SECTION("CONFIRM B2")
-                                {
-                                    recvVBlocking(
-                                        makeConfirmGen(qSetHash, 2, B2, 2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 1);
-                                    verifyConfirm(scp.mEnvs[0], v0SecretKey,
-                                                  qSetHash0, 0, 2, B2, 2, 2);
-                                }
-                            }
-                            SECTION("EXTERNALIZE")
-                            {
-                                SECTION("EXTERNALIZE A2")
-                                {
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, A2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 1);
-                                    verifyConfirm(scp.mEnvs[0], v0SecretKey,
-                                                  qSetHash0, 0, UINT32_MAX,
-                                                  AInf, 2, UINT32_MAX);
-                                }
-                                SECTION("EXTERNALIZE B2")
-                                {
-                                    recvVBlocking(
-                                        makeExternalizeGen(qSetHash, B2, 2));
-                                    REQUIRE(scp.mEnvs.size() == 1);
-                                    verifyConfirm(scp.mEnvs[0], v0SecretKey,
-                                                  qSetHash0, 0, UINT32_MAX,
-                                                  BInf, 2, UINT32_MAX);
-                                }
-                            }
-                        }
-                    }
-                }
-                SECTION("Confirm prepared mixed")
-                {
-                    // a few nodes prepared A2
-                    // causes p=A2
-                    recvVBlockingChecks(makePrepareGen(qSetHash, A2, &A2),
-                                        false);
-                    REQUIRE(scp.mEnvs.size() == 0);
+                    REQUIRE(scp.mEnvs.size() == 3);
+                    // still does not set h as b > computed_h
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1,
+                                  &A1, 0, 0, &B1);
+                    REQUIRE(!scp.hasBallotTimerUpcoming());
 
-                    // a few nodes prepared B2
-                    // causes p=B2, p'=A2
-                    recvVBlockingChecks(
-                        makePrepareGen(qSetHash, A2, &B2, 0, 0, &A2), false);
-                    REQUIRE(scp.mEnvs.size() == 0);
-
-                    SECTION("mixed A2")
-                    {
-                        // causes h=A2
-                        // but c = 0, as p >!~ h
-                        scp.receiveEnvelope(
-                            makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
-
-                        REQUIRE(scp.mEnvs.size() == 1);
-                        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                      A2, &B2, 0, 2, &A2);
-
-                        scp.receiveEnvelope(
-                            makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
-
-                        REQUIRE(scp.mEnvs.size() == 1);
-                    }
-                    SECTION("mixed B2")
-                    {
-                        // causes h=B2, c=B2
-                        scp.receiveEnvelope(
-                            makePrepare(v3SecretKey, qSetHash, 0, B2, &B2));
-
-                        REQUIRE(scp.mEnvs.size() == 1);
-                        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                      B2, &B2, 2, 2, &A2);
-
-                        scp.receiveEnvelope(
-                            makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
-
-                        REQUIRE(scp.mEnvs.size() == 1);
-                    }
+                    scp.bumpTimerOffset();
+                    // quorum commits A1
+                    recvQuorumChecksEx2(
+                        makePrepareGen(qSetHash, A2, &A1, 1, 1, &B1), false,
+                        false, false, true);
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 2,
+                                  A1, 1, 1);
+                    REQUIRE(!scp.hasBallotTimerUpcoming());
                 }
             }
-            SECTION("switch prepared B1")
-            {
-                recvVBlockingChecks(makePrepareGen(qSetHash, B1, &B1), false);
-                REQUIRE(scp.mEnvs.size() == 0);
-            }
         }
-        SECTION("prepared B (v-blocking)")
+        SECTION("prepared A1 with timeout")
         {
-            recvVBlockingChecks(makePrepareGen(qSetHash, B1, &B1), false);
-            REQUIRE(scp.mEnvs.size() == 0);
+            // starts with bValue (smallest)
+            REQUIRE(scp.bumpState(0, bValue));
+            REQUIRE(scp.mEnvs.size() == 1);
+
+            // setup
+            recvQuorumChecks(makePrepareGen(qSetHash, A1, &A1, 0, 1), false,
+                             false);
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &A1, 1,
+                          1);
+
+            // now, receive bumped votes
+            recvQuorumChecks(makePrepareGen(qSetHash, A2, &B2, 0, 1, &A1), true,
+                             true);
+            REQUIRE(scp.mEnvs.size() == 3);
+            // p=B2, p'=A1 (1)
+            // computed_h = B2 (2)
+            //   does not update h as b < computed_h
+            // v-blocking ahead -> b = computed_h = B2 (9)
+            // h = B2 (2) (now possible)
+            // c = 0 (1)
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, B2, &A2, 0,
+                          2, &B2);
         }
-        SECTION("confirm (v-blocking)")
+        SECTION("node without self - quorum timeout")
         {
-            SECTION("via CONFIRM")
-            {
-                scp.receiveEnvelope(
-                    makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
-                scp.receiveEnvelope(
-                    makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
-                REQUIRE(scp.mEnvs.size() == 1);
-                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, 3, A3, 3,
-                              3);
-            }
-            SECTION("via EXTERNALIZE")
-            {
-                scp.receiveEnvelope(
-                    makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
-                scp.receiveEnvelope(
-                    makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
-                REQUIRE(scp.mEnvs.size() == 1);
-                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                              UINT32_MAX, AInf, 3, UINT32_MAX);
-            }
-        }
-    }
+            SIMULATION_CREATE_NODE(NodeNS);
+            TestSCP scpNNS(vNodeNSSecretKey.getPublicKey(), qSet);
+            scpNNS.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+            uint256 qSetHashNodeNS =
+                scpNNS.mSCP.getLocalNode()->getQuorumSetHash();
 
-    SECTION("normal round (1,x)")
-    {
-        nodesAllPledgeToCommit();
-        REQUIRE(scp.mEnvs.size() == 3);
+            scpNNS.receiveEnvelope(
+                makePrepare(v1SecretKey, qSetHash, 0, A2, &B2, 0, 1, &A1));
+            scpNNS.receiveEnvelope(
+                makePrepare(v2SecretKey, qSetHash, 0, A1, &A1, 1, 1));
 
-        SCPBallot b(1, xValue);
+            REQUIRE(scpNNS.mEnvs.size() == 1);
+            verifyPrepare(scpNNS.mEnvs[0], vNodeNSSecretKey, qSetHashNodeNS, 0,
+                          A1, &A1, 1, 1);
 
-        // bunch of prepare messages with "commit b"
-        SCPEnvelope preparedC1 =
-            makePrepare(v1SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-        SCPEnvelope preparedC2 =
-            makePrepare(v2SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-        SCPEnvelope preparedC3 =
-            makePrepare(v3SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-        SCPEnvelope preparedC4 =
-            makePrepare(v4SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
+            scpNNS.receiveEnvelope(
+                makePrepare(v0SecretKey, qSetHash, 0, A2, &B2, 0, 1, &A1));
 
-        // those should not trigger anything just yet
-        scp.receiveEnvelope(preparedC1);
-        scp.receiveEnvelope(preparedC2);
-        REQUIRE(scp.mEnvs.size() == 3);
-
-        // this should cause the node to accept 'commit b' (quorum)
-        // and therefore send a "CONFIRM" message
-        scp.receiveEnvelope(preparedC3);
-        REQUIRE(scp.mEnvs.size() == 4);
-
-        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b, b.counter,
-                      b.counter);
-
-        // bunch of confirm messages
-        SCPEnvelope confirm1 = makeConfirm(v1SecretKey, qSetHash, 0, b.counter,
-                                           b, b.counter, b.counter);
-        SCPEnvelope confirm2 = makeConfirm(v2SecretKey, qSetHash, 0, b.counter,
-                                           b, b.counter, b.counter);
-        SCPEnvelope confirm3 = makeConfirm(v3SecretKey, qSetHash, 0, b.counter,
-                                           b, b.counter, b.counter);
-        SCPEnvelope confirm4 = makeConfirm(v4SecretKey, qSetHash, 0, b.counter,
-                                           b, b.counter, b.counter);
-
-        // those should not trigger anything just yet
-        scp.receiveEnvelope(confirm1);
-        scp.receiveEnvelope(confirm2);
-        REQUIRE(scp.mEnvs.size() == 4);
-
-        scp.receiveEnvelope(confirm3);
-        // this causes our node to
-        // externalize (confirm commit c)
-        REQUIRE(scp.mEnvs.size() == 5);
-
-        // The slot should have externalized the value
-        REQUIRE(scp.mExternalizedValues.size() == 1);
-        REQUIRE(scp.mExternalizedValues[0] == xValue);
-
-        verifyExternalize(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, b,
-                          b.counter);
-
-        // extra vote should not do anything
-        scp.receiveEnvelope(confirm4);
-        REQUIRE(scp.mEnvs.size() == 5);
-        REQUIRE(scp.mExternalizedValues.size() == 1);
-
-        // duplicate should just no-op
-        scp.receiveEnvelope(confirm2);
-        REQUIRE(scp.mEnvs.size() == 5);
-        REQUIRE(scp.mExternalizedValues.size() == 1);
-
-        SECTION("bumpToBallot prevented once committed")
-        {
-            SCPBallot b2;
-            SECTION("bumpToBallot prevented once committed (by value)")
-            {
-                b2 = SCPBallot(1, zValue);
-            }
-            SECTION("bumpToBallot prevented once committed (by counter)")
-            {
-                b2 = SCPBallot(2, xValue);
-            }
-            SECTION(
-                "bumpToBallot prevented once committed (by value and counter)")
-            {
-                b2 = SCPBallot(2, zValue);
-            }
-
-            SCPEnvelope confirm1b2, confirm2b2, confirm3b2, confirm4b2;
-            confirm1b2 = makeConfirm(v1SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter, b2.counter);
-            confirm2b2 = makeConfirm(v2SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter, b2.counter);
-            confirm3b2 = makeConfirm(v3SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter, b2.counter);
-            confirm4b2 = makeConfirm(v4SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter, b2.counter);
-
-            scp.receiveEnvelope(confirm1b2);
-            scp.receiveEnvelope(confirm2b2);
-            scp.receiveEnvelope(confirm3b2);
-            scp.receiveEnvelope(confirm4b2);
-            REQUIRE(scp.mEnvs.size() == 5);
-            REQUIRE(scp.mExternalizedValues.size() == 1);
-        }
-    }
-
-    SECTION("range check")
-    {
-        nodesAllPledgeToCommit();
-        REQUIRE(scp.mEnvs.size() == 3);
-
-        SCPBallot b(1, xValue);
-
-        // bunch of prepare messages with "commit b"
-        SCPEnvelope preparedC1 =
-            makePrepare(v1SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-        SCPEnvelope preparedC2 =
-            makePrepare(v2SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-        SCPEnvelope preparedC3 =
-            makePrepare(v3SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-        SCPEnvelope preparedC4 =
-            makePrepare(v4SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
-
-        // those should not trigger anything just yet
-        scp.receiveEnvelope(preparedC1);
-        scp.receiveEnvelope(preparedC2);
-        REQUIRE(scp.mEnvs.size() == 3);
-
-        // this should cause the node to accept 'commit b' (quorum)
-        // and therefore send a "CONFIRM" message
-        scp.receiveEnvelope(preparedC3);
-        REQUIRE(scp.mEnvs.size() == 4);
-
-        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b, b.counter,
-                      b.counter);
-
-        // bunch of confirm messages with different ranges
-        SCPBallot b5(5, xValue);
-        SCPEnvelope confirm1 = makeConfirm(v1SecretKey, qSetHash, 0, 4,
-                                           SCPBallot(4, xValue), 2, 4);
-        SCPEnvelope confirm2 = makeConfirm(v2SecretKey, qSetHash, 0, 6,
-                                           SCPBallot(6, xValue), 2, 6);
-        SCPEnvelope confirm3 = makeConfirm(v3SecretKey, qSetHash, 0, 5,
-                                           SCPBallot(5, xValue), 3, 5);
-        SCPEnvelope confirm4 = makeConfirm(v4SecretKey, qSetHash, 0, 6,
-                                           SCPBallot(6, xValue), 3, 6);
-
-        // this should not trigger anything just yet
-        scp.receiveEnvelope(confirm1);
-
-        // v-blocking
-        //   * b gets bumped to (4,x)
-        //   * p gets bumped to (4,x)
-        //   * (c,h) gets bumped to (2,4)
-        scp.receiveEnvelope(confirm2);
-        REQUIRE(scp.mEnvs.size() == 5);
-        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 4,
-                      SCPBallot(4, xValue), 2, 4);
-
-        // this causes to externalize
-        // range is [3,4]
-        scp.receiveEnvelope(confirm4);
-        REQUIRE(scp.mEnvs.size() == 6);
-
-        // The slot should have externalized the value
-        REQUIRE(scp.mExternalizedValues.size() == 1);
-        REQUIRE(scp.mExternalizedValues[0] == xValue);
-
-        verifyExternalize(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
-                          SCPBallot(3, xValue), 4);
-    }
-
-    SECTION("timeout when h is set -> stay locked on h")
-    {
-        SCPBallot bx(1, xValue);
-        REQUIRE(scp.bumpState(0, xValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-
-        // v-blocking -> prepared
-        // quorum -> confirm prepared
-        recvQuorum(makePrepareGen(qSetHash, bx, &bx));
-        REQUIRE(scp.mEnvs.size() == 3);
-        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, bx, &bx,
-                      bx.counter, bx.counter);
-
-        // now, see if we can timeout and move to a different value
-        REQUIRE(scp.bumpState(0, yValue));
-        REQUIRE(scp.mEnvs.size() == 4);
-        SCPBallot newbx(2, xValue);
-        verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, newbx, &bx,
-                      bx.counter, bx.counter);
-    }
-    SECTION("timeout when h exists but can't be set -> vote for h")
-    {
-        // start with (1,y)
-        SCPBallot by(1, yValue);
-        REQUIRE(scp.bumpState(0, yValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-
-        SCPBallot bx(1, xValue);
-        // but quorum goes with (1,x)
-        // v-blocking -> prepared
-        recvVBlocking(makePrepareGen(qSetHash, bx, &bx));
-        REQUIRE(scp.mEnvs.size() == 2);
-        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, by, &bx);
-        // quorum -> confirm prepared (no-op as b > h)
-        recvQuorumChecks(makePrepareGen(qSetHash, bx, &bx), false, false);
-        REQUIRE(scp.mEnvs.size() == 2);
-
-        REQUIRE(scp.bumpState(0, yValue));
-        REQUIRE(scp.mEnvs.size() == 3);
-        SCPBallot newbx(2, xValue);
-        // on timeout:
-        // * we should move to the quorum's h value
-        // * c can't be set yet as b > h
-        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, newbx, &bx, 0,
-                      bx.counter);
-    }
-
-    SECTION("timeout from multiple nodes")
-    {
-        REQUIRE(scp.bumpState(0, xValue));
-
-        SCPBallot x1(1, xValue);
-
-        REQUIRE(scp.mEnvs.size() == 1);
-        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
-
-        recvQuorum(makePrepareGen(qSetHash, x1));
-        // quorum -> prepared (1,x)
-        REQUIRE(scp.mEnvs.size() == 2);
-        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
-
-        SCPBallot x2(2, xValue);
-        // timeout from local node
-        REQUIRE(scp.bumpState(0, xValue));
-        // prepares (2,x)
-        REQUIRE(scp.mEnvs.size() == 3);
-        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x2, &x1);
-
-        recvQuorum(makePrepareGen(qSetHash, x1, &x1));
-        // quorum -> set nH=1
-        REQUIRE(scp.mEnvs.size() == 4);
-        verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x2, &x1, 0, 1);
-        REQUIRE(scp.mEnvs.size() == 4);
-
-        recvVBlocking(makePrepareGen(qSetHash, x2, &x2, 1, 1));
-        // v-blocking prepared (2,x) -> prepared (2,x)
-        REQUIRE(scp.mEnvs.size() == 5);
-        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, x2, &x2, 0, 1);
-
-        recvQuorum(makePrepareGen(qSetHash, x2, &x2, 1, 1));
-        // quorum (including us) confirms (2,x) prepared -> set h=c=x2
-        // we also get extra message: a quorum not including us confirms (1,x)
-        // prepared
-        //  -> we confirm c=h=x1
-        REQUIRE(scp.mEnvs.size() == 7);
-        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x2, &x2, 2, 2);
-        verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0, 0, 2, x2, 1, 1);
-    }
-
-    SECTION("timeout after prepare, receive old messages to prepare")
-    {
-        REQUIRE(scp.bumpState(0, xValue));
-
-        SCPBallot x1(1, xValue);
-
-        REQUIRE(scp.mEnvs.size() == 1);
-        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, x1);
-
-        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, x1));
-        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1));
-        scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1));
-
-        // quorum -> prepared (1,x)
-        REQUIRE(scp.mEnvs.size() == 2);
-        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, x1, &x1);
-
-        SCPBallot x2(2, xValue);
-        // timeout from local node
-        REQUIRE(scp.bumpState(0, xValue));
-        // prepares (2,x)
-        REQUIRE(scp.mEnvs.size() == 3);
-        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, x2, &x1);
-
-        SCPBallot x3(3, xValue);
-        // timeout again
-        REQUIRE(scp.bumpState(0, xValue));
-        // prepares (3,x)
-        REQUIRE(scp.mEnvs.size() == 4);
-        verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x3, &x1);
-
-        // other nodes moved on with x2
-        scp.receiveEnvelope(
-            makePrepare(v1SecretKey, qSetHash, 0, x2, &x2, 1, 2));
-        scp.receiveEnvelope(
-            makePrepare(v2SecretKey, qSetHash, 0, x2, &x2, 1, 2));
-        // v-blocking -> prepared x2
-        REQUIRE(scp.mEnvs.size() == 5);
-        verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, x3, &x2);
-
-        scp.receiveEnvelope(
-            makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 2));
-        // quorum -> set nH=2
-        REQUIRE(scp.mEnvs.size() == 6);
-        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x3, &x2, 0, 2);
-    }
-
-    SECTION("non validator watching the network")
-    {
-        SIMULATION_CREATE_NODE(NV);
-        TestSCP scpNV(vNVSecretKey.getPublicKey(), qSet, false);
-        scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-        uint256 qSetHashNV = scpNV.mSCP.getLocalNode()->getQuorumSetHash();
-
-        SCPBallot b(1, xValue);
-        REQUIRE(scpNV.bumpState(0, xValue));
-        REQUIRE(scpNV.mEnvs.size() == 0);
-        verifyPrepare(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                      qSetHashNV, 0, b);
-        auto ext1 = makeExternalize(v1SecretKey, qSetHash, 0, b, 1);
-        auto ext2 = makeExternalize(v2SecretKey, qSetHash, 0, b, 1);
-        auto ext3 = makeExternalize(v3SecretKey, qSetHash, 0, b, 1);
-        auto ext4 = makeExternalize(v4SecretKey, qSetHash, 0, b, 1);
-        scpNV.receiveEnvelope(ext1);
-        scpNV.receiveEnvelope(ext2);
-        scpNV.receiveEnvelope(ext3);
-        REQUIRE(scpNV.mEnvs.size() == 0);
-        verifyConfirm(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                      qSetHashNV, 0, UINT32_MAX, SCPBallot(UINT32_MAX, xValue),
-                      1, UINT32_MAX);
-        scpNV.receiveEnvelope(ext4);
-        REQUIRE(scpNV.mEnvs.size() == 0);
-        verifyExternalize(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                          qSetHashNV, 0, b, UINT32_MAX);
-        REQUIRE(scpNV.mExternalizedValues[0] == xValue);
-    }
-
-    SECTION("restore ballot protocol")
-    {
-        TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
-        scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-        SCPBallot b(2, xValue);
-        SECTION("prepare")
-        {
-            scp2.mSCP.setStateFromEnvelope(
-                0,
-                scp2.wrapEnvelope(makePrepare(v0SecretKey, qSetHash0, 0, b)));
-        }
-        SECTION("confirm")
-        {
-            scp2.mSCP.setStateFromEnvelope(
-                0, scp2.wrapEnvelope(
-                       makeConfirm(v0SecretKey, qSetHash0, 0, 2, b, 1, 2)));
-        }
-        SECTION("externalize")
-        {
-            scp2.mSCP.setStateFromEnvelope(
-                0, scp2.wrapEnvelope(
-                       makeExternalize(v0SecretKey, qSetHash0, 0, b, 2)));
-        }
-    }
-}
-
-TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
-{
-    setupValues();
-    SIMULATION_CREATE_NODE(0);
-    SIMULATION_CREATE_NODE(1);
-    SIMULATION_CREATE_NODE(2);
-
-    // core3 has an edge case where v-blocking and quorum can be the same
-    // v-blocking set size: 2
-    // threshold: 2 = 1 + self or 2 others
-    SCPQuorumSet qSet;
-    qSet.threshold = 2;
-    qSet.validators.push_back(v0NodeID);
-    qSet.validators.push_back(v1NodeID);
-    qSet.validators.push_back(v2NodeID);
-
-    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
-
-    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-
-    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
-
-    REQUIRE(xValue < yValue);
-    REQUIRE(yValue < zValue);
-
-    auto recvQuorumChecksEx2 = [&](genEnvelope gen, bool withChecks,
-                                   bool delayedQuorum, bool checkUpcoming,
-                                   bool minQuorum) {
-        SCPEnvelope e1 = gen(v1SecretKey);
-        SCPEnvelope e2 = gen(v2SecretKey);
-
-        scp.bumpTimerOffset();
-
-        size_t i = scp.mEnvs.size() + 1;
-        scp.receiveEnvelope(e1);
-        if (withChecks && !delayedQuorum)
-        {
-            REQUIRE(scp.mEnvs.size() == i);
-        }
-        if (checkUpcoming)
-        {
-            REQUIRE(scp.hasBallotTimerUpcoming());
-        }
-        if (!minQuorum)
-        {
-            // nothing happens with an extra vote (unless we're in
-            // delayedQuorum)
-            scp.receiveEnvelope(e2);
-            if (withChecks)
-            {
-                REQUIRE(scp.mEnvs.size() == i);
-            }
+            REQUIRE(scpNNS.mEnvs.size() == 2);
+            verifyPrepare(scpNNS.mEnvs[1], vNodeNSSecretKey, qSetHashNodeNS, 0,
+                          B2, &A2, 0, 2, &B2);
         }
     };
-    auto recvQuorumChecksEx =
-        std::bind(recvQuorumChecksEx2, _1, _2, _3, _4, false);
-    auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
 
-    // no timer is set
-    REQUIRE(!scp.hasBallotTimer());
-
-    Value const& aValue = zValue;
-    Value const& bValue = xValue;
-
-    SCPBallot A1(1, aValue);
-    SCPBallot B1(1, bValue);
-
-    SCPBallot A2 = A1;
-    A2.counter++;
-
-    SCPBallot A3 = A2;
-    A3.counter++;
-
-    SCPBallot A4 = A3;
-    A4.counter++;
-
-    SCPBallot A5 = A4;
-    A5.counter++;
-
-    SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
-
-    SCPBallot B2 = B1;
-    B2.counter++;
-
-    SCPBallot B3 = B2;
-    B3.counter++;
-
-    SECTION("prepared B1 (quorum votes B1) local aValue")
-    {
-        REQUIRE(scp.bumpState(0, aValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-        REQUIRE(!scp.hasBallotTimer());
-
-        scp.bumpTimerOffset();
-        recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
-        REQUIRE(scp.mEnvs.size() == 2);
-        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
-        REQUIRE(scp.hasBallotTimerUpcoming());
-        SECTION("quorum prepared B1")
-        {
-            scp.bumpTimerOffset();
-            recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false, false);
-            REQUIRE(scp.mEnvs.size() == 2);
-            // nothing happens:
-            // computed_h = B1 (2)
-            //    does not actually update h as b > computed_h
-            //    also skips (3)
-            REQUIRE(!scp.hasBallotTimerUpcoming());
-            SECTION("quorum bumps to A1")
-            {
-                scp.bumpTimerOffset();
-                recvQuorumChecksEx2(makePrepareGen(qSetHash, A1, &B1), false,
-                                    false, false, true);
-
-                REQUIRE(scp.mEnvs.size() == 3);
-                // still does not set h as b > computed_h
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &A1,
-                              0, 0, &B1);
-                REQUIRE(!scp.hasBallotTimerUpcoming());
-
-                scp.bumpTimerOffset();
-                // quorum commits A1
-                recvQuorumChecksEx2(
-                    makePrepareGen(qSetHash, A2, &A1, 1, 1, &B1), false, false,
-                    false, true);
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 2, A1, 1,
-                              1);
-                REQUIRE(!scp.hasBallotTimerUpcoming());
-            }
-        }
-    }
-    SECTION("prepared A1 with timeout")
-    {
-        // starts with bValue (smallest)
-        REQUIRE(scp.bumpState(0, bValue));
-        REQUIRE(scp.mEnvs.size() == 1);
-
-        // setup
-        recvQuorumChecks(makePrepareGen(qSetHash, A1, &A1, 0, 1), false, false);
-        REQUIRE(scp.mEnvs.size() == 2);
-        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &A1, 1, 1);
-
-        // now, receive bumped votes
-        recvQuorumChecks(makePrepareGen(qSetHash, A2, &B2, 0, 1, &A1), true,
-                         true);
-        REQUIRE(scp.mEnvs.size() == 3);
-        // p=B2, p'=A1 (1)
-        // computed_h = B2 (2)
-        //   does not update h as b < computed_h
-        // v-blocking ahead -> b = computed_h = B2 (9)
-        // h = B2 (2) (now possible)
-        // c = 0 (1)
-        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, B2, &A2, 0, 2,
-                      &B2);
-    }
-    SECTION("node without self - quorum timeout")
-    {
-        SIMULATION_CREATE_NODE(NodeNS);
-        TestSCP scpNNS(vNodeNSSecretKey.getPublicKey(), qSet);
-        scpNNS.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-        uint256 qSetHashNodeNS = scpNNS.mSCP.getLocalNode()->getQuorumSetHash();
-
-        scpNNS.receiveEnvelope(
-            makePrepare(v1SecretKey, qSetHash, 0, A2, &B2, 0, 1, &A1));
-        scpNNS.receiveEnvelope(
-            makePrepare(v2SecretKey, qSetHash, 0, A1, &A1, 1, 1));
-
-        REQUIRE(scpNNS.mEnvs.size() == 1);
-        verifyPrepare(scpNNS.mEnvs[0], vNodeNSSecretKey, qSetHashNodeNS, 0, A1,
-                      &A1, 1, 1);
-
-        scpNNS.receiveEnvelope(
-            makePrepare(v0SecretKey, qSetHash, 0, A2, &B2, 0, 1, &A1));
-
-        REQUIRE(scpNNS.mEnvs.size() == 2);
-        verifyPrepare(scpNNS.mEnvs[1], vNodeNSSecretKey, qSetHashNodeNS, 0, B2,
-                      &A2, 0, 2, &B2);
-    }
+    testTimeouts(scp, test);
 }
 
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
@@ -2615,545 +2767,562 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
     SECTION("nomination - v0 is top")
     {
         TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-        uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
-        scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-        SECTION("v0 starts to nominates xValue")
-        {
-            REQUIRE(scp.nominate(0, xValue, false));
+        auto test = [&](TestSCP& scp) {
+            uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+            scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-            checkLeaders(scp, {v0SecretKey.getPublicKey()});
-
-            SECTION("others nominate what v0 says (x) -> prepare x")
+            SECTION("v0 starts to nominates xValue")
             {
-                std::vector<Value> votes, accepted;
-                votes.emplace_back(xValue);
+                REQUIRE(scp.nominate(0, xValue, false));
 
-                REQUIRE(scp.mEnvs.size() == 1);
-                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
-                               accepted);
+                checkLeaders(scp, {v0SecretKey.getPublicKey()});
 
-                SCPEnvelope nom1 =
-                    makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope nom2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope nom3 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope nom4 =
-                    makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+                SECTION("others nominate what v0 says (x) -> prepare x")
+                {
+                    std::vector<Value> votes, accepted;
+                    votes.emplace_back(xValue);
 
-                // nothing happens yet
-                scp.receiveEnvelope(nom1);
-                scp.receiveEnvelope(nom2);
-                REQUIRE(scp.mEnvs.size() == 1);
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                   votes, accepted);
 
-                // this causes 'x' to be accepted (quorum)
-                scp.receiveEnvelope(nom3);
-                REQUIRE(scp.mEnvs.size() == 2);
+                    SCPEnvelope nom1 =
+                        makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope nom2 =
+                        makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope nom3 =
+                        makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope nom4 =
+                        makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+                    // nothing happens yet
+                    scp.receiveEnvelope(nom1);
+                    scp.receiveEnvelope(nom2);
+                    REQUIRE(scp.mEnvs.size() == 1);
+
+                    // this causes 'x' to be accepted (quorum)
+                    scp.receiveEnvelope(nom3);
+                    REQUIRE(scp.mEnvs.size() == 2);
+
+                    scp.mExpectedCandidates.emplace(xValue);
+                    scp.mCompositeValue = xValue;
+
+                    accepted.emplace_back(xValue);
+                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                   votes, accepted);
+
+                    // extra message doesn't do anything
+                    scp.receiveEnvelope(nom4);
+                    REQUIRE(scp.mEnvs.size() == 2);
+
+                    SCPEnvelope acc1 =
+                        makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope acc2 =
+                        makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope acc3 =
+                        makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope acc4 =
+                        makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+                    // nothing happens yet
+                    scp.receiveEnvelope(acc1);
+                    scp.receiveEnvelope(acc2);
+                    REQUIRE(scp.mEnvs.size() == 2);
+
+                    scp.mCompositeValue = xValue;
+                    // this causes the node to send a prepare message (quorum)
+                    scp.receiveEnvelope(acc3);
+                    REQUIRE(scp.mEnvs.size() == 3);
+
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
+                                  SCPBallot(1, xValue));
+
+                    scp.receiveEnvelope(acc4);
+                    REQUIRE(scp.mEnvs.size() == 3);
+
+                    std::vector<Value> votes2 = votes;
+                    votes2.emplace_back(yValue);
+
+                    SECTION("nominate x -> accept x -> prepare (x) ; others "
+                            "accepted y "
+                            "-> update latest to (z=x+y)")
+                    {
+                        SCPEnvelope acc1_2 = makeNominate(v1SecretKey, qSetHash,
+                                                          0, votes2, votes2);
+                        SCPEnvelope acc2_2 = makeNominate(v2SecretKey, qSetHash,
+                                                          0, votes2, votes2);
+                        SCPEnvelope acc3_2 = makeNominate(v3SecretKey, qSetHash,
+                                                          0, votes2, votes2);
+                        SCPEnvelope acc4_2 = makeNominate(v4SecretKey, qSetHash,
+                                                          0, votes2, votes2);
+
+                        scp.receiveEnvelope(acc1_2);
+                        REQUIRE(scp.mEnvs.size() == 3);
+
+                        // v-blocking
+                        scp.receiveEnvelope(acc2_2);
+                        REQUIRE(scp.mEnvs.size() == 4);
+                        verifyNominate(scp.mEnvs[3], v0SecretKey, qSetHash0, 0,
+                                       votes2, votes2);
+
+                        scp.mExpectedCandidates.insert(yValue);
+                        scp.mCompositeValue = kValue;
+                        // this updates the composite value to use next time
+                        // but does not prepare it
+                        scp.receiveEnvelope(acc3_2);
+                        REQUIRE(scp.mEnvs.size() == 4);
+
+                        REQUIRE(scp.getLatestCompositeCandidate(0) == kValue);
+
+                        scp.receiveEnvelope(acc4_2);
+                        REQUIRE(scp.mEnvs.size() == 4);
+                    }
+                    SECTION("nomination - restored state")
+                    {
+                        TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
+                        scp2.storeQuorumSet(
+                            std::make_shared<SCPQuorumSet>(qSet));
+
+                        // at this point
+                        // votes = { x }
+                        // accepted = { x }
+
+                        // tests if nomination proceeds like normal
+                        // nominates x
+                        auto nominationRestore = [&]() {
+                            // restores from the previous state
+                            scp2.mSCP.setStateFromEnvelope(
+                                0, scp2.wrapEnvelope(
+                                       makeNominate(v0SecretKey, qSetHash0, 0,
+                                                    votes, accepted)));
+                            // tries to start nomination with yValue, but picks
+                            // xValue since it was already in the votes
+                            REQUIRE(!scp2.nominate(0, yValue, false));
+
+                            checkLeaders(scp2, {v0SecretKey.getPublicKey()});
+
+                            REQUIRE(scp2.mEnvs.size() == 0);
+
+                            // other nodes vote for 'x'
+                            scp2.receiveEnvelope(nom1);
+                            scp2.receiveEnvelope(nom2);
+                            REQUIRE(scp2.mEnvs.size() == 0);
+                            // 'x' is accepted (quorum)
+                            // but because the restored state already included
+                            // 'x' in the accepted set, no new message is
+                            // emitted
+                            scp2.receiveEnvelope(nom3);
+
+                            scp2.mExpectedCandidates.emplace(xValue);
+                            scp2.mCompositeValue = xValue;
+
+                            // other nodes not emit 'x' as accepted
+                            scp2.receiveEnvelope(acc1);
+                            scp2.receiveEnvelope(acc2);
+                            REQUIRE(scp2.mEnvs.size() == 0);
+
+                            scp2.mCompositeValue = xValue;
+                            // this causes the node to update its composite
+                            // value to
+                            // x
+                            scp2.receiveEnvelope(acc3);
+                        };
+
+                        SECTION("ballot protocol not started")
+                        {
+                            nominationRestore();
+                            // nomination ended up starting the ballot protocol
+                            REQUIRE(scp2.mEnvs.size() == 1);
+
+                            verifyPrepare(scp2.mEnvs[0], v0SecretKey, qSetHash0,
+                                          0, SCPBallot(1, xValue));
+                        }
+                        SECTION("ballot protocol started (on value k)")
+                        {
+                            scp2.mSCP.setStateFromEnvelope(
+                                0, scp2.wrapEnvelope(
+                                       makePrepare(v0SecretKey, qSetHash0, 0,
+                                                   SCPBallot(1, kValue))));
+                            nominationRestore();
+                            // nomination didn't do anything (already working on
+                            // k)
+                            REQUIRE(scp2.mEnvs.size() == 0);
+                        }
+                    }
+                }
+                SECTION("receive more messages, then v0 switches to a "
+                        "different leader")
+                {
+                    SCPEnvelope nom1 =
+                        makeNominate(v1SecretKey, qSetHash, 0, {kValue}, {});
+                    SCPEnvelope nom2 =
+                        makeNominate(v2SecretKey, qSetHash, 0, {yValue}, {});
+
+                    // nothing more happens
+                    scp.receiveEnvelope(nom1);
+                    scp.receiveEnvelope(nom2);
+                    REQUIRE(scp.mEnvs.size() == 1);
+
+                    // switch leader to v1
+                    scp.mPriorityLookup = [&](NodeID const& n) {
+                        return (n == v1NodeID) ? 1000 : 1;
+                    };
+                    REQUIRE(scp.nominate(0, xValue, true));
+                    REQUIRE(scp.mEnvs.size() == 2);
+
+                    std::vector<Value> votesXK;
+                    votesXK.emplace_back(xValue);
+                    votesXK.emplace_back(kValue);
+                    std::sort(votesXK.begin(), votesXK.end());
+
+                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                   votesXK, {});
+                }
+                SECTION("select accepted value from leader")
+                {
+                    REQUIRE(xValue < yValue);
+                    REQUIRE(yValue < zValue);
+                    REQUIRE(scp.mEnvs.size() == 1);
+
+                    // Update round leader to v1
+                    scp.mPriorityLookup = [&](NodeID const& n) {
+                        return (n == v1NodeID) ? 1000 : 1;
+                    };
+
+                    SCPEnvelope nom1 = makeNominate(v1SecretKey, qSetHash, 0,
+                                                    {yValue, zValue}, {yValue});
+
+                    SECTION("receive accepted before timeout")
+                    {
+                        // nothing more happens, v0 is leader
+                        scp.receiveEnvelope(nom1);
+                        REQUIRE(scp.mEnvs.size() == 1);
+
+                        // Update round leaders, vote for accepted value (y)
+                        REQUIRE(scp.nominate(0, xValue, true));
+                        REQUIRE(scp.mEnvs.size() == 2);
+                    }
+                    SECTION("receive accepted after timeout")
+                    {
+                        REQUIRE(!scp.nominate(0, xValue, true));
+                        REQUIRE(scp.mEnvs.size() == 1);
+
+                        // Vote for accepted value (y)
+                        scp.receiveEnvelope(nom1);
+                        REQUIRE(scp.mEnvs.size() == 2);
+                    }
+
+                    std::vector<Value> votesXY;
+                    votesXY.emplace_back(xValue);
+                    votesXY.emplace_back(yValue);
+
+                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                   votesXY, {});
+
+                    SCPEnvelope nom2 =
+                        makeNominate(v1SecretKey, qSetHash, 0,
+                                     {yValue, zValue, zzValue}, {yValue});
+                    scp.receiveEnvelope(nom2);
+                    // Nothing happens, as v0 already voted for the accepted
+                    // value (y)
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                   votesXY, {});
+                }
+            }
+            SECTION("self nominates 'x', others nominate y -> prepare y")
+            {
+                std::vector<Value> myVotes, accepted;
+                myVotes.emplace_back(xValue);
 
                 scp.mExpectedCandidates.emplace(xValue);
                 scp.mCompositeValue = xValue;
+                REQUIRE(scp.nominate(0, xValue, false));
 
-                accepted.emplace_back(xValue);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votes,
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, myVotes,
                                accepted);
 
-                // extra message doesn't do anything
-                scp.receiveEnvelope(nom4);
-                REQUIRE(scp.mEnvs.size() == 2);
+                std::vector<Value> votes;
+                votes.emplace_back(yValue);
 
-                SCPEnvelope acc1 =
-                    makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope acc2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope acc3 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope acc4 =
-                    makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+                std::vector<Value> acceptedY = accepted;
 
-                // nothing happens yet
-                scp.receiveEnvelope(acc1);
-                scp.receiveEnvelope(acc2);
-                REQUIRE(scp.mEnvs.size() == 2);
+                acceptedY.emplace_back(yValue);
 
-                scp.mCompositeValue = xValue;
-                // this causes the node to send a prepare message (quorum)
-                scp.receiveEnvelope(acc3);
-                REQUIRE(scp.mEnvs.size() == 3);
-
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
-                              SCPBallot(1, xValue));
-
-                scp.receiveEnvelope(acc4);
-                REQUIRE(scp.mEnvs.size() == 3);
-
-                std::vector<Value> votes2 = votes;
-                votes2.emplace_back(yValue);
-
-                SECTION(
-                    "nominate x -> accept x -> prepare (x) ; others accepted y "
-                    "-> update latest to (z=x+y)")
+                SECTION("others only vote for y")
                 {
-                    SCPEnvelope acc1_2 =
-                        makeNominate(v1SecretKey, qSetHash, 0, votes2, votes2);
-                    SCPEnvelope acc2_2 =
-                        makeNominate(v2SecretKey, qSetHash, 0, votes2, votes2);
-                    SCPEnvelope acc3_2 =
-                        makeNominate(v3SecretKey, qSetHash, 0, votes2, votes2);
-                    SCPEnvelope acc4_2 =
-                        makeNominate(v4SecretKey, qSetHash, 0, votes2, votes2);
+                    SCPEnvelope nom1 =
+                        makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope nom2 =
+                        makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope nom3 =
+                        makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+                    SCPEnvelope nom4 =
+                        makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
 
-                    scp.receiveEnvelope(acc1_2);
+                    // nothing happens yet
+                    scp.receiveEnvelope(nom1);
+                    scp.receiveEnvelope(nom2);
+                    scp.receiveEnvelope(nom3);
+                    REQUIRE(scp.mEnvs.size() == 1);
+
+                    // 'y' is accepted (quorum)
+                    scp.receiveEnvelope(nom4);
+                    REQUIRE(scp.mEnvs.size() == 2);
+                    myVotes.emplace_back(yValue);
+                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                   myVotes, acceptedY);
+                }
+                SECTION("others accepted y")
+                {
+                    SCPEnvelope acc1 = makeNominate(v1SecretKey, qSetHash, 0,
+                                                    votes, acceptedY);
+                    SCPEnvelope acc2 = makeNominate(v2SecretKey, qSetHash, 0,
+                                                    votes, acceptedY);
+                    SCPEnvelope acc3 = makeNominate(v3SecretKey, qSetHash, 0,
+                                                    votes, acceptedY);
+                    SCPEnvelope acc4 = makeNominate(v4SecretKey, qSetHash, 0,
+                                                    votes, acceptedY);
+
+                    scp.receiveEnvelope(acc1);
+                    REQUIRE(scp.mEnvs.size() == 1);
+
+                    // this causes 'y' to be accepted (v-blocking)
+                    scp.receiveEnvelope(acc2);
+                    REQUIRE(scp.mEnvs.size() == 2);
+
+                    myVotes.emplace_back(yValue);
+                    verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                   myVotes, acceptedY);
+
+                    scp.mExpectedCandidates.clear();
+                    scp.mExpectedCandidates.insert(yValue);
+                    scp.mCompositeValue = yValue;
+                    // this causes the node to send a prepare message (quorum)
+                    scp.receiveEnvelope(acc3);
                     REQUIRE(scp.mEnvs.size() == 3);
 
-                    // v-blocking
-                    scp.receiveEnvelope(acc2_2);
-                    REQUIRE(scp.mEnvs.size() == 4);
-                    verifyNominate(scp.mEnvs[3], v0SecretKey, qSetHash0, 0,
-                                   votes2, votes2);
+                    verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
+                                  SCPBallot(1, yValue));
 
-                    scp.mExpectedCandidates.insert(yValue);
-                    scp.mCompositeValue = kValue;
-                    // this updates the composite value to use next time
-                    // but does not prepare it
-                    scp.receiveEnvelope(acc3_2);
-                    REQUIRE(scp.mEnvs.size() == 4);
-
-                    REQUIRE(scp.getLatestCompositeCandidate(0) == kValue);
-
-                    scp.receiveEnvelope(acc4_2);
-                    REQUIRE(scp.mEnvs.size() == 4);
-                }
-                SECTION("nomination - restored state")
-                {
-                    TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
-                    scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-
-                    // at this point
-                    // votes = { x }
-                    // accepted = { x }
-
-                    // tests if nomination proceeds like normal
-                    // nominates x
-                    auto nominationRestore = [&]() {
-                        // restores from the previous state
-                        scp2.mSCP.setStateFromEnvelope(
-                            0,
-                            scp2.wrapEnvelope(makeNominate(
-                                v0SecretKey, qSetHash0, 0, votes, accepted)));
-                        // tries to start nomination with yValue, but picks
-                        // xValue since it was already in the votes
-                        REQUIRE(!scp2.nominate(0, yValue, false));
-
-                        checkLeaders(scp2, {v0SecretKey.getPublicKey()});
-
-                        REQUIRE(scp2.mEnvs.size() == 0);
-
-                        // other nodes vote for 'x'
-                        scp2.receiveEnvelope(nom1);
-                        scp2.receiveEnvelope(nom2);
-                        REQUIRE(scp2.mEnvs.size() == 0);
-                        // 'x' is accepted (quorum)
-                        // but because the restored state already included
-                        // 'x' in the accepted set, no new message is emitted
-                        scp2.receiveEnvelope(nom3);
-
-                        scp2.mExpectedCandidates.emplace(xValue);
-                        scp2.mCompositeValue = xValue;
-
-                        // other nodes not emit 'x' as accepted
-                        scp2.receiveEnvelope(acc1);
-                        scp2.receiveEnvelope(acc2);
-                        REQUIRE(scp2.mEnvs.size() == 0);
-
-                        scp2.mCompositeValue = xValue;
-                        // this causes the node to update its composite value to
-                        // x
-                        scp2.receiveEnvelope(acc3);
-                    };
-
-                    SECTION("ballot protocol not started")
-                    {
-                        nominationRestore();
-                        // nomination ended up starting the ballot protocol
-                        REQUIRE(scp2.mEnvs.size() == 1);
-
-                        verifyPrepare(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                      SCPBallot(1, xValue));
-                    }
-                    SECTION("ballot protocol started (on value k)")
-                    {
-                        scp2.mSCP.setStateFromEnvelope(
-                            0, scp2.wrapEnvelope(
-                                   makePrepare(v0SecretKey, qSetHash0, 0,
-                                               SCPBallot(1, kValue))));
-                        nominationRestore();
-                        // nomination didn't do anything (already working on k)
-                        REQUIRE(scp2.mEnvs.size() == 0);
-                    }
+                    scp.receiveEnvelope(acc4);
+                    REQUIRE(scp.mEnvs.size() == 3);
                 }
             }
-            SECTION(
-                "receive more messages, then v0 switches to a different leader")
-            {
-                SCPEnvelope nom1 =
-                    makeNominate(v1SecretKey, qSetHash, 0, {kValue}, {});
-                SCPEnvelope nom2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, {yValue}, {});
+        };
 
-                // nothing more happens
-                scp.receiveEnvelope(nom1);
-                scp.receiveEnvelope(nom2);
-                REQUIRE(scp.mEnvs.size() == 1);
-
-                // switch leader to v1
-                scp.mPriorityLookup = [&](NodeID const& n) {
-                    return (n == v1NodeID) ? 1000 : 1;
-                };
-                REQUIRE(scp.nominate(0, xValue, true));
-                REQUIRE(scp.mEnvs.size() == 2);
-
-                std::vector<Value> votesXK;
-                votesXK.emplace_back(xValue);
-                votesXK.emplace_back(kValue);
-                std::sort(votesXK.begin(), votesXK.end());
-
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXK,
-                               {});
-            }
-            SECTION("select accepted value from leader")
-            {
-                REQUIRE(xValue < yValue);
-                REQUIRE(yValue < zValue);
-                REQUIRE(scp.mEnvs.size() == 1);
-
-                // Update round leader to v1
-                scp.mPriorityLookup = [&](NodeID const& n) {
-                    return (n == v1NodeID) ? 1000 : 1;
-                };
-
-                SCPEnvelope nom1 = makeNominate(v1SecretKey, qSetHash, 0,
-                                                {yValue, zValue}, {yValue});
-
-                SECTION("receive accepted before timeout")
-                {
-                    // nothing more happens, v0 is leader
-                    scp.receiveEnvelope(nom1);
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // Update round leaders, vote for accepted value (y)
-                    REQUIRE(scp.nominate(0, xValue, true));
-                    REQUIRE(scp.mEnvs.size() == 2);
-                }
-                SECTION("receive accepted after timeout")
-                {
-                    REQUIRE(!scp.nominate(0, xValue, true));
-                    REQUIRE(scp.mEnvs.size() == 1);
-
-                    // Vote for accepted value (y)
-                    scp.receiveEnvelope(nom1);
-                    REQUIRE(scp.mEnvs.size() == 2);
-                }
-
-                std::vector<Value> votesXY;
-                votesXY.emplace_back(xValue);
-                votesXY.emplace_back(yValue);
-
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
-                               {});
-
-                SCPEnvelope nom2 =
-                    makeNominate(v1SecretKey, qSetHash, 0,
-                                 {yValue, zValue, zzValue}, {yValue});
-                scp.receiveEnvelope(nom2);
-                // Nothing happens, as v0 already voted for the accepted value
-                // (y)
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
-                               {});
-            }
-        }
-        SECTION("self nominates 'x', others nominate y -> prepare y")
-        {
-            std::vector<Value> myVotes, accepted;
-            myVotes.emplace_back(xValue);
-
-            scp.mExpectedCandidates.emplace(xValue);
-            scp.mCompositeValue = xValue;
-            REQUIRE(scp.nominate(0, xValue, false));
-
-            REQUIRE(scp.mEnvs.size() == 1);
-            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, myVotes,
-                           accepted);
-
-            std::vector<Value> votes;
-            votes.emplace_back(yValue);
-
-            std::vector<Value> acceptedY = accepted;
-
-            acceptedY.emplace_back(yValue);
-
-            SECTION("others only vote for y")
-            {
-                SCPEnvelope nom1 =
-                    makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope nom2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope nom3 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-                SCPEnvelope nom4 =
-                    makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
-
-                // nothing happens yet
-                scp.receiveEnvelope(nom1);
-                scp.receiveEnvelope(nom2);
-                scp.receiveEnvelope(nom3);
-                REQUIRE(scp.mEnvs.size() == 1);
-
-                // 'y' is accepted (quorum)
-                scp.receiveEnvelope(nom4);
-                REQUIRE(scp.mEnvs.size() == 2);
-                myVotes.emplace_back(yValue);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, myVotes,
-                               acceptedY);
-            }
-            SECTION("others accepted y")
-            {
-                SCPEnvelope acc1 =
-                    makeNominate(v1SecretKey, qSetHash, 0, votes, acceptedY);
-                SCPEnvelope acc2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, votes, acceptedY);
-                SCPEnvelope acc3 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votes, acceptedY);
-                SCPEnvelope acc4 =
-                    makeNominate(v4SecretKey, qSetHash, 0, votes, acceptedY);
-
-                scp.receiveEnvelope(acc1);
-                REQUIRE(scp.mEnvs.size() == 1);
-
-                // this causes 'y' to be accepted (v-blocking)
-                scp.receiveEnvelope(acc2);
-                REQUIRE(scp.mEnvs.size() == 2);
-
-                myVotes.emplace_back(yValue);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, myVotes,
-                               acceptedY);
-
-                scp.mExpectedCandidates.clear();
-                scp.mExpectedCandidates.insert(yValue);
-                scp.mCompositeValue = yValue;
-                // this causes the node to send a prepare message (quorum)
-                scp.receiveEnvelope(acc3);
-                REQUIRE(scp.mEnvs.size() == 3);
-
-                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
-                              SCPBallot(1, yValue));
-
-                scp.receiveEnvelope(acc4);
-                REQUIRE(scp.mEnvs.size() == 3);
-            }
-        }
+        testTimeouts(scp, test);
     }
     SECTION("v1 is top node")
     {
         TestSCP scp(v0SecretKey.getPublicKey(), qSet);
-        uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
-        scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-        scp.mPriorityLookup = [&](NodeID const& n) {
-            return (n == v1NodeID) ? 1000 : 1;
-        };
+        auto test = [&](TestSCP& scp) {
+            uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+            scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-        std::vector<Value> votesX, votesY, votesK, votesXY, votesYK, votesXK,
-            emptyV;
-        votesX.emplace_back(xValue);
-        votesY.emplace_back(yValue);
-        votesK.emplace_back(kValue);
+            scp.mPriorityLookup = [&](NodeID const& n) {
+                return (n == v1NodeID) ? 1000 : 1;
+            };
 
-        votesXY.emplace_back(xValue);
-        votesXY.emplace_back(yValue);
+            std::vector<Value> votesX, votesY, votesK, votesXY, votesYK,
+                votesXK, emptyV;
+            votesX.emplace_back(xValue);
+            votesY.emplace_back(yValue);
+            votesK.emplace_back(kValue);
 
-        votesYK.emplace_back(yValue);
-        votesYK.emplace_back(kValue);
-        std::sort(votesYK.begin(), votesYK.end());
+            votesXY.emplace_back(xValue);
+            votesXY.emplace_back(yValue);
 
-        votesXK.emplace_back(xValue);
-        votesXK.emplace_back(kValue);
-        std::sort(votesXK.begin(), votesXK.end());
+            votesYK.emplace_back(yValue);
+            votesYK.emplace_back(kValue);
+            std::sort(votesYK.begin(), votesYK.end());
 
-        std::vector<Value> valuesHash;
-        valuesHash.emplace_back(xValue);
-        valuesHash.emplace_back(yValue);
-        valuesHash.emplace_back(kValue);
-        std::sort(valuesHash.begin(), valuesHash.end());
+            votesXK.emplace_back(xValue);
+            votesXK.emplace_back(kValue);
+            std::sort(votesXK.begin(), votesXK.end());
 
-        scp.mHashValueCalculator = [&](Value const& v) {
-            auto pos = std::find(valuesHash.begin(), valuesHash.end(), v);
-            if (pos == valuesHash.end())
-            {
-                abort();
-            }
-            return 1 + std::distance(valuesHash.begin(), pos);
-        };
+            std::vector<Value> valuesHash;
+            valuesHash.emplace_back(xValue);
+            valuesHash.emplace_back(yValue);
+            valuesHash.emplace_back(kValue);
+            std::sort(valuesHash.begin(), valuesHash.end());
 
-        SCPEnvelope nom1 =
-            makeNominate(v1SecretKey, qSetHash, 0, votesXY, emptyV);
-        SCPEnvelope nom2 =
-            makeNominate(v2SecretKey, qSetHash, 0, votesXK, emptyV);
+            scp.mHashValueCalculator = [&](Value const& v) {
+                auto pos = std::find(valuesHash.begin(), valuesHash.end(), v);
+                if (pos == valuesHash.end())
+                {
+                    abort();
+                }
+                return 1 + std::distance(valuesHash.begin(), pos);
+            };
 
-        SECTION("value from v1 is a candidate, self should not introduce new "
+            SCPEnvelope nom1 =
+                makeNominate(v1SecretKey, qSetHash, 0, votesXY, emptyV);
+            SCPEnvelope nom2 =
+                makeNominate(v2SecretKey, qSetHash, 0, votesXK, emptyV);
+
+            SECTION(
+                "value from v1 is a candidate, self should not introduce new "
                 "value on timeout")
-        {
-            REQUIRE(!scp.nominate(0, xValue, false));
-            checkLeaders(scp, {v1SecretKey.getPublicKey()});
-
-            REQUIRE(scp.mEnvs.size() == 0);
-            nom1 = makeNominate(v1SecretKey, qSetHash, 0, votesX, emptyV);
-            nom2 = makeNominate(v2SecretKey, qSetHash, 0, votesX, emptyV);
-            SCPEnvelope nom3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votesX, emptyV);
-
-            // Receive `x` from v1, vote for it
-            scp.receiveEnvelope(nom1);
-            REQUIRE(scp.mEnvs.size() == 1);
-            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesX,
-                           emptyV);
-
-            scp.receiveEnvelope(nom2);
-            scp.receiveEnvelope(nom3);
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesX,
-                           votesX);
-
-            SCPEnvelope acc1 =
-                makeNominate(v1SecretKey, qSetHash, 0, votesX, votesX);
-            SCPEnvelope acc2 =
-                makeNominate(v2SecretKey, qSetHash, 0, votesX, votesX);
-            SCPEnvelope acc3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votesX, votesX);
-
-            scp.receiveEnvelope(acc1);
-            scp.receiveEnvelope(acc2);
-            REQUIRE(scp.mEnvs.size() == 2);
-
-            // Receive accept from quorum, ratify and generate a candidate value
-            REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) !=
-                    scp.mTimers.end());
-            scp.mCompositeValue = xValue;
-            scp.mExpectedCandidates.emplace(xValue);
-            scp.receiveEnvelope(acc3);
-            REQUIRE(scp.mEnvs.size() == 3);
-            // Timer is cancelled
-            REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) ==
-                    scp.mTimers.end());
-
-            // v0 is the new leader, but we already have a candidate
-            scp.mPriorityLookup = [&](NodeID const& n) {
-                return (n == v0NodeID) ? 1000 : 1;
-            };
-            REQUIRE(!scp.nominate(0, kValue, true));
-        }
-        SECTION("nomination waits for v1")
-        {
-            REQUIRE(!scp.nominate(0, xValue, false));
-
-            checkLeaders(scp, {v1SecretKey.getPublicKey()});
-
-            REQUIRE(scp.mEnvs.size() == 0);
-
-            SCPEnvelope nom4 =
-                makeNominate(v4SecretKey, qSetHash, 0, votesXK, emptyV);
-
-            // nothing happens with non top nodes
-            scp.receiveEnvelope(nom2);
-            // (note: don't receive anything from node3 - we want to pick
-            // another dead node)
-            REQUIRE(scp.mEnvs.size() == 0);
-
-            // v1 is leader -> nominate the first value from its message
-            // that's "y"
-            scp.receiveEnvelope(nom1);
-            REQUIRE(scp.mEnvs.size() == 1);
-            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesY,
-                           emptyV);
-
-            scp.receiveEnvelope(nom4);
-            REQUIRE(scp.mEnvs.size() == 1);
-
-            // "timeout -> pick another value from v1"
-            scp.mExpectedCandidates.emplace(xValue);
-            scp.mCompositeValue = xValue;
-
-            // allows to pick another leader,
-            // pick another dead node v3 as to force picking up
-            // a new value from v1
-            scp.mPriorityLookup = [&](NodeID const& n) {
-                return (n == v3NodeID) ? 1000 : 1;
-            };
-
-            // note: value passed in here should be ignored
-            REQUIRE(scp.nominate(0, kValue, true));
-            // picks up 'x' from v1 (as we already have 'y')
-            // which also happens to causes 'x' to be accepted
-            REQUIRE(scp.mEnvs.size() == 2);
-            verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
-                           votesX);
-        }
-        SECTION("v1 dead, timeout")
-        {
-            REQUIRE(!scp.nominate(0, xValue, false));
-
-            REQUIRE(scp.mEnvs.size() == 0);
-
-            scp.receiveEnvelope(nom2);
-            REQUIRE(scp.mEnvs.size() == 0);
-
-            checkLeaders(scp, {v1SecretKey.getPublicKey()});
-
-            SECTION("v0 is new top node")
             {
-                scp.mPriorityLookup = [&](NodeID const& n) {
-                    return (n == v0NodeID) ? 1000 : 1;
-                };
+                REQUIRE(!scp.nominate(0, xValue, false));
+                checkLeaders(scp, {v1SecretKey.getPublicKey()});
 
-                REQUIRE(scp.nominate(0, xValue, true));
-                checkLeaders(scp, {v0SecretKey.getPublicKey(),
-                                   v1SecretKey.getPublicKey()});
+                REQUIRE(scp.mEnvs.size() == 0);
+                nom1 = makeNominate(v1SecretKey, qSetHash, 0, votesX, emptyV);
+                nom2 = makeNominate(v2SecretKey, qSetHash, 0, votesX, emptyV);
+                SCPEnvelope nom3 =
+                    makeNominate(v3SecretKey, qSetHash, 0, votesX, emptyV);
 
+                // Receive `x` from v1, vote for it
+                scp.receiveEnvelope(nom1);
                 REQUIRE(scp.mEnvs.size() == 1);
                 verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesX,
                                emptyV);
-            }
-            SECTION("v2 is new top node")
-            {
+
+                scp.receiveEnvelope(nom2);
+                scp.receiveEnvelope(nom3);
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesX,
+                               votesX);
+
+                SCPEnvelope acc1 =
+                    makeNominate(v1SecretKey, qSetHash, 0, votesX, votesX);
+                SCPEnvelope acc2 =
+                    makeNominate(v2SecretKey, qSetHash, 0, votesX, votesX);
+                SCPEnvelope acc3 =
+                    makeNominate(v3SecretKey, qSetHash, 0, votesX, votesX);
+
+                scp.receiveEnvelope(acc1);
+                scp.receiveEnvelope(acc2);
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                // Receive accept from quorum, ratify and generate a candidate
+                // value
+                REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) !=
+                        scp.mTimers.end());
+                scp.mCompositeValue = xValue;
+                scp.mExpectedCandidates.emplace(xValue);
+                scp.receiveEnvelope(acc3);
+                REQUIRE(scp.mEnvs.size() == 3);
+                // Timer is cancelled
+                REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) ==
+                        scp.mTimers.end());
+
+                // v0 is the new leader, but we already have a candidate
                 scp.mPriorityLookup = [&](NodeID const& n) {
-                    return (n == v2NodeID) ? 1000 : 1;
+                    return (n == v0NodeID) ? 1000 : 1;
                 };
-
-                REQUIRE(scp.nominate(0, xValue, true));
-                checkLeaders(scp, {v1SecretKey.getPublicKey(),
-                                   v2SecretKey.getPublicKey()});
-
-                REQUIRE(scp.mEnvs.size() == 1);
-                // v2 votes for XK, but nomination only picks the highest value
-                std::vector<Value> v2Top;
-                v2Top.emplace_back(std::max(xValue, kValue));
-                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, v2Top,
-                               emptyV);
+                REQUIRE(!scp.nominate(0, kValue, true));
             }
-            SECTION("v3 is new top node")
+            SECTION("nomination waits for v1")
             {
+                REQUIRE(!scp.nominate(0, xValue, false));
+
+                checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
+                REQUIRE(scp.mEnvs.size() == 0);
+
+                SCPEnvelope nom4 =
+                    makeNominate(v4SecretKey, qSetHash, 0, votesXK, emptyV);
+
+                // nothing happens with non top nodes
+                scp.receiveEnvelope(nom2);
+                // (note: don't receive anything from node3 - we want to pick
+                // another dead node)
+                REQUIRE(scp.mEnvs.size() == 0);
+
+                // v1 is leader -> nominate the first value from its message
+                // that's "y"
+                scp.receiveEnvelope(nom1);
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesY,
+                               emptyV);
+
+                scp.receiveEnvelope(nom4);
+                REQUIRE(scp.mEnvs.size() == 1);
+
+                // "timeout -> pick another value from v1"
+                scp.mExpectedCandidates.emplace(xValue);
+                scp.mCompositeValue = xValue;
+
+                // allows to pick another leader,
+                // pick another dead node v3 as to force picking up
+                // a new value from v1
                 scp.mPriorityLookup = [&](NodeID const& n) {
                     return (n == v3NodeID) ? 1000 : 1;
                 };
-                // nothing happens, we don't have any message for v3
-                REQUIRE(!scp.nominate(0, xValue, true));
-                checkLeaders(scp, {v1SecretKey.getPublicKey(),
-                                   v3SecretKey.getPublicKey()});
+
+                // note: value passed in here should be ignored
+                REQUIRE(scp.nominate(0, kValue, true));
+                // picks up 'x' from v1 (as we already have 'y')
+                // which also happens to causes 'x' to be accepted
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
+                               votesX);
+            }
+            SECTION("v1 dead, timeout")
+            {
+                REQUIRE(!scp.nominate(0, xValue, false));
 
                 REQUIRE(scp.mEnvs.size() == 0);
+
+                scp.receiveEnvelope(nom2);
+                REQUIRE(scp.mEnvs.size() == 0);
+
+                checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
+                SECTION("v0 is new top node")
+                {
+                    scp.mPriorityLookup = [&](NodeID const& n) {
+                        return (n == v0NodeID) ? 1000 : 1;
+                    };
+
+                    REQUIRE(scp.nominate(0, xValue, true));
+                    checkLeaders(scp, {v0SecretKey.getPublicKey(),
+                                       v1SecretKey.getPublicKey()});
+
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                   votesX, emptyV);
+                }
+                SECTION("v2 is new top node")
+                {
+                    scp.mPriorityLookup = [&](NodeID const& n) {
+                        return (n == v2NodeID) ? 1000 : 1;
+                    };
+
+                    REQUIRE(scp.nominate(0, xValue, true));
+                    checkLeaders(scp, {v1SecretKey.getPublicKey(),
+                                       v2SecretKey.getPublicKey()});
+
+                    REQUIRE(scp.mEnvs.size() == 1);
+                    // v2 votes for XK, but nomination only picks the highest
+                    // value
+                    std::vector<Value> v2Top;
+                    v2Top.emplace_back(std::max(xValue, kValue));
+                    verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                   v2Top, emptyV);
+                }
+                SECTION("v3 is new top node")
+                {
+                    scp.mPriorityLookup = [&](NodeID const& n) {
+                        return (n == v3NodeID) ? 1000 : 1;
+                    };
+                    // nothing happens, we don't have any message for v3
+                    REQUIRE(!scp.nominate(0, xValue, true));
+                    checkLeaders(scp, {v1SecretKey.getPublicKey(),
+                                       v3SecretKey.getPublicKey()});
+
+                    REQUIRE(scp.mEnvs.size() == 0);
+                }
             }
-        }
+        };
+
+        testTimeouts(scp, test);
     }
 }
 }

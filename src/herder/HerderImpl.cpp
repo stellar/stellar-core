@@ -1222,12 +1222,13 @@ HerderImpl::setupTriggerNextLedger()
     // if we're in sync, we setup mTriggerTimer
     // it may get cancelled if a more recent ledger externalizes
 
-    auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
+    std::chrono::milliseconds milliseconds =
+        mLedgerManager.getExpectedLedgerCloseTime();
 
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last
     auto now = mApp.getClock().now();
-    auto lastBallotStart = now - seconds;
+    auto lastBallotStart = now - milliseconds;
     auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
     if (lastStart)
     {
@@ -1236,7 +1237,7 @@ HerderImpl::setupTriggerNextLedger()
 
     // Adjust trigger time in case node's clock has drifted.
     // This ensures that next value to nominate is valid
-    auto triggerTime = lastBallotStart + seconds;
+    auto triggerTime = lastBallotStart + milliseconds;
 
     if (triggerTime < now)
     {
