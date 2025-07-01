@@ -295,6 +295,13 @@ InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
     return false;
 }
 
+bool
+InMemorySorobanState::isEmpty() const
+{
+    return mContractDataEntries.empty() && mContractCodeEntries.empty() &&
+           mPendingTTLs.empty();
+}
+
 std::shared_ptr<LedgerEntry const>
 InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 {
@@ -485,4 +492,15 @@ InMemorySorobanState::checkUpdateInvariants() const
     // No TTLs should be orphaned after finishing an update
     releaseAssertOrThrow(mPendingTTLs.empty());
 }
+
+#ifdef BUILD_TESTS
+void
+InMemorySorobanState::clearForTesting()
+{
+    mContractDataEntries.clear();
+    mContractCodeEntries.clear();
+    mPendingTTLs.clear();
+    mLastClosedLedgerSeq = 0;
+}
+#endif
 }

@@ -12,6 +12,7 @@
 #include "ledger/NetworkConfig.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
+#include "main/ApplicationImpl.h"
 #include "main/PersistentState.h"
 #include "rust/RustBridge.h"
 #include "transactions/ParallelApplyStage.h"
@@ -113,7 +114,7 @@ class LedgerManagerImpl : public LedgerManager
         size_t const mNumCompilationThreads;
 
         // In-memory map of live Soroban state for the current ledger.
-        std::unique_ptr<InMemorySorobanState> mInMemorySorobanState;
+        InMemorySorobanState mInMemorySorobanState;
 
         // Kicks off (on auxiliary threads) compilation of all contracts in the
         // provided snapshot, for ledger protocols starting at minLedgerVersion
@@ -133,6 +134,10 @@ class LedgerManagerImpl : public LedgerManager
         // thread for read-only purposes
         InMemorySorobanState const& getInMemorySorobanState() const;
 
+#ifdef BUILD_TESTS
+        InMemorySorobanState& getInMemorySorobanStateForTesting();
+#endif
+
         std::shared_ptr<SorobanNetworkConfig const>
         getSorobanNetworkConfig() const;
 
@@ -145,9 +150,6 @@ class LedgerManagerImpl : public LedgerManager
 
         // Non-const mutating methods, must always be called from the applying
         // thread (either main or parallel apply thread).
-        void setInMemorySorobanState(
-            std::unique_ptr<InMemorySorobanState> inMemorySorobanState);
-
         void setSorobanNetworkConfig(
             std::shared_ptr<SorobanNetworkConfig> sorobanNetworkConfig);
 
@@ -340,6 +342,19 @@ class LedgerManagerImpl : public LedgerManager
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
+    // Friend declaration for App LedgerTxnRoot initialization
+    friend void ApplicationImpl::initialize(bool createNewDB,
+                                            bool forceRebuild);
+
+    std::unique_ptr<LedgerTxnRoot>
+    createLedgerTxnRoot(Application& app, size_t entryCacheSize,
+                        size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                        ,
+                        bool bestOfferDebuggingEnabled
+#endif
+                        ) override;
+
   public:
     LedgerManagerImpl(Application& app);
 
@@ -425,7 +440,6 @@ class LedgerManagerImpl : public LedgerManager
         return mCurrentlyApplyingLedger;
     }
     ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
-    InMemorySorobanState const& getInMemorySorobanState() const override;
 
 #ifdef BUILD_TESTS
     friend class BucketTestUtils::LedgerManagerForBucketTests;

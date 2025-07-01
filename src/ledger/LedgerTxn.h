@@ -178,6 +178,8 @@
 namespace stellar
 {
 
+class InMemorySorobanState;
+
 /* LedgerEntryPtr holds a shared_ptr to a InternalLedgerEntry along with
   information about the state of the entry (or lack thereof)
 
@@ -884,8 +886,9 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     LedgerHeader const& getHeader() const override;
 
   public:
-    explicit LedgerTxnRoot(Application& app, size_t entryCacheSize,
-                           size_t prefetchBatchSize
+    explicit LedgerTxnRoot(Application& app,
+                           InMemorySorobanState const& inMemorySorobanState,
+                           size_t entryCacheSize, size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                            ,
                            bool bestOfferDebuggingEnabled

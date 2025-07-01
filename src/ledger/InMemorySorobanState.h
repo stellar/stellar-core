@@ -268,8 +268,10 @@ struct InternalContractDataEntryHash
 // - During initialization, TTLs may arrive before their corresponding data
 //   entries, so mPendingTTLs temporarily holds these orphaned TTLs
 //
-// This class is NOT thread-safe and should only be accessed and populated from
-// the apply thread.
+// This class is NOT thread-safe by default. While multiple threads may call
+// const methods concurrently, there is no synchronization or locks. It is the
+// caller's responsibility to ensure that no thread is reading state when any
+// non-const function is called.
 class InMemorySorobanState : public NonMovableOrCopyable
 {
 #ifdef BUILD_TESTS
@@ -312,7 +314,22 @@ class InMemorySorobanState : public NonMovableOrCopyable
     std::shared_ptr<LedgerEntry const> getTTL(LedgerKey const& ledgerKey) const;
 
   public:
+    // These following functions are read-only and may be called concurrently so
+    // long as no updates are occurring.
     static bool isInMemoryType(LedgerKey const& ledgerKey);
+
+    // Returns true if the given TTL entry exists in the map. LedgerKey must
+    // be of type TTL.
+    bool hasTTL(LedgerKey const& ledgerKey) const;
+
+    bool isEmpty() const;
+
+    // Returns the entry for the given key, or nullptr if not found.
+    std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
+
+    // The following functions are not read-only and must never be called
+    // concurrently. It is the caller's responsibility to ensure that no thread
+    // is reading state when these functions are called.
 
     // Creates new TTL entry. Throws if a non-zero TTL value at the key already
     // exists. LedgerEntry must be of type TTL.
@@ -338,9 +355,6 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // CONTRACT_DATA.
     void deleteContractData(LedgerKey const& ledgerKey);
 
-    // Returns the entry for the given key, or nullptr if not found.
-    std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
-
     // Creates new ContractCode entry. Throws if key already exists.
     void createContractCodeEntry(LedgerEntry const& ledgerEntry);
 
@@ -351,10 +365,6 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // Evicts a ContractCode entry from the map. LedgerKey must be of type
     // CONTRACT_CODE.
     void deleteContractCode(LedgerKey const& ledgerKey);
-
-    // Returns true if the given TTL entry exists in the map. LedgerKey must
-    // be of type TTL.
-    bool hasTTL(LedgerKey const& ledgerKey) const;
 
     // Initialize the map from a bucket list snapshot
     void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap);
@@ -368,5 +378,9 @@ class InMemorySorobanState : public NonMovableOrCopyable
 
     // Should only be called in manual ledger close paths.
     void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
+
+#ifdef BUILD_TESTS
+    void clearForTesting();
+#endif
 };
 }

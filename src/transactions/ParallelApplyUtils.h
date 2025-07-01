@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
@@ -12,6 +13,9 @@
 
 namespace stellar
 {
+
+class InMemorySorobanState;
+class GlobalParallelApplyLedgerState;
 
 class ParallelLedgerInfo
 {
@@ -61,77 +65,16 @@ class ParallelLedgerInfo
     Hash networkID;
 };
 
-class ThreadParallelApplyLedgerState;
-class GlobalParallelApplyLedgerState
-{
-
-    // Contains the hot archive state from the start of the ledger close. If a
-    // key is in here, it is "evicted". An invariant is that if a key is in here
-    // it is _not_ in the live snapshot.
-    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
-
-    // Contains the live soroban state from the start of the ledger close. If a
-    // key is in here, it is either "archived" or "live", depending on its TTL.
-    // Classic entries are always live, soroban entries always have an
-    // associated TTL entry and if the TTL is in the past the entry is
-    // "archived", otherwise "live". An invariant is that if a key is in here it
-    // is _not_ in the hot archive snapshot.
-    SearchableSnapshotConstPtr mLiveSnapshot;
-
-    // Contains restorations that happened during each stage of the parallel
-    // soroban phase. As with mGlobalEntryMap, this is propagated stage to stage
-    // by being split into per-thread maps and re-merged at the end of the
-    // stage, before begin committed to the ltx at the end of the phase. As with
-    // restorations inside the thread, these entries are the restored values _at
-    // their time of restoration_ which may be further overridden by
-    // mGlobalEntryMap.
-    RestoredEntries mGlobalRestoredEntries;
-
-    // Contains two different sets of entries:
-    //
-    //  - Classic entries modified during earlier sequential phases that are
-    //    read during the parallel soroban phase. These are copied out of the
-    //    ltx before the parallel soroban phase begins.
-    //
-    //  - Dirty entries resulting from each stage of the parallel soroban phase.
-    //    These are propagated from stage to stage of the parallel soroban phase
-    //    -- split into disjoint per-thread maps during execution and merged
-    //    after -- as well as written back to the ltx at the phase's end.
-    ParallelApplyEntryMap mGlobalEntryMap;
-
-    void
-    commitChangeFromThread(LedgerKey const& key,
-                           ParallelApplyEntry const& parEntry,
-                           std::unordered_set<LedgerKey> const& readWriteSet);
-
-    void commitChangesFromThread(AppConnector& app,
-                                 ThreadParallelApplyLedgerState const& thread,
-                                 ApplyStage const& stage);
-
-  public:
-    GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
-                                   std::vector<ApplyStage> const& stages);
-
-    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
-    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
-    void eraseEntry(LedgerKey const& key);
-
-    RestoredEntries const& getRestoredEntries() const;
-
-    void commitChangesFromThreads(
-        AppConnector& app,
-        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
-            threads,
-        ApplyStage const& stage);
-
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
-};
-
 class ThreadParallelApplyLedgerState
 {
     // Copies of snapshots from the global state.
     SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
     SearchableSnapshotConstPtr mLiveSnapshot;
+
+    // Reference to the live in-memory Soroban state. For Soroban entries
+    // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
+    // of mLiveSnapshot.
+    InMemorySorobanState const& mInMemorySorobanState;
 
     // Contains entries restored by any tx/op in the current thread's tx cluster
     // from the current stage of the parallel apply phase. Any entry should only
@@ -212,6 +155,85 @@ class ThreadParallelApplyLedgerState
 
     void commitChangesFromSuccessfulOp(ParallelTxReturnVal const& res,
                                        TxBundle const& txBundle);
+};
+
+class GlobalParallelApplyLedgerState
+{
+    // Contains the hot archive state from the start of the ledger close. If a
+    // key is in here, it is "evicted". An invariant is that if a key is in here
+    // it is _not_ in the live snapshot.
+    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
+
+    // Contains the live soroban state from the start of the ledger close. If a
+    // key is in here, it is either "archived" or "live", depending on its TTL.
+    // Classic entries are always live, soroban entries always have an
+    // associated TTL entry and if the TTL is in the past the entry is
+    // "archived", otherwise "live". An invariant is that if a key is in here it
+    // is _not_ in the hot archive snapshot.
+    // Note that only classic entries should be queried from mLiveSnapshot. For
+    // Soroban entries query mInMemorySorobanState instead.
+    SearchableSnapshotConstPtr mLiveSnapshot;
+
+    // Contains an exact one-to-one in-memory mapping of the live snapshot for
+    // CONTRACT_DATA, CONTRACT_CODE, and TTL entries. For these entry types,
+    // only mInMemorySorobanState should be queried. If the in-memory state
+    // returns null for a key, it does NOT indicate a "cache miss," rather the
+    // key does not exist as part of the live state.
+    InMemorySorobanState const& mInMemorySorobanState;
+
+    // Contains restorations that happened during each stage of the parallel
+    // soroban phase. As with mGlobalEntryMap, this is propagated stage to stage
+    // by being split into per-thread maps and re-merged at the end of the
+    // stage, before begin committed to the ltx at the end of the phase. As with
+    // restorations inside the thread, these entries are the restored values _at
+    // their time of restoration_ which may be further overridden by
+    // mGlobalEntryMap.
+    RestoredEntries mGlobalRestoredEntries;
+
+    // Contains two different sets of entries:
+    //
+    //  - Classic entries modified during earlier sequential phases that are
+    //    read during the parallel soroban phase. These are copied out of the
+    //    ltx before the parallel soroban phase begins.
+    //
+    //  - Dirty entries resulting from each stage of the parallel soroban phase.
+    //    These are propagated from stage to stage of the parallel soroban phase
+    //    -- split into disjoint per-thread maps during execution and merged
+    //    after -- as well as written back to the ltx at the phase's end.
+    ParallelApplyEntryMap mGlobalEntryMap;
+
+    void
+    commitChangeFromThread(LedgerKey const& key,
+                           ParallelApplyEntry const& parEntry,
+                           std::unordered_set<LedgerKey> const& readWriteSet);
+
+    void commitChangesFromThread(AppConnector& app,
+                                 ThreadParallelApplyLedgerState const& thread,
+                                 ApplyStage const& stage);
+
+  public:
+    GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
+                                   std::vector<ApplyStage> const& stages,
+                                   InMemorySorobanState const& inMemoryState);
+
+    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+    void eraseEntry(LedgerKey const& key);
+
+    RestoredEntries const& getRestoredEntries() const;
+
+    void commitChangesFromThreads(
+        AppConnector& app,
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
+            threads,
+        ApplyStage const& stage);
+
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+
+    // Constructor requires access to mInMemorySorobanState
+    friend ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
+        AppConnector& app, GlobalParallelApplyLedgerState const& global,
+        Cluster const& cluster);
 };
 
 class OpParallelApplyLedgerState

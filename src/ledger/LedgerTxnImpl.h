@@ -21,6 +21,7 @@
 namespace stellar
 {
 
+class InMemorySorobanState;
 class SearchableLiveBucketListSnapshot;
 
 class EntryIterator::AbstractImpl
@@ -641,6 +642,7 @@ class LedgerTxnRoot::Impl
     size_t const mMaxBestOffersBatchSize;
 
     Application& mApp;
+    InMemorySorobanState const& mInMemorySorobanState;
     std::unique_ptr<SessionWrapper> mSession;
 
     std::unique_ptr<LedgerHeader> mHeader;
@@ -720,7 +722,8 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Application& app, size_t entryCacheSize, size_t prefetchBatchSize
+    Impl(Application& app, InMemorySorobanState const& inMemorySorobanState,
+         size_t entryCacheSize, size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
          ,
          bool bestOfferDebuggingEnabled
