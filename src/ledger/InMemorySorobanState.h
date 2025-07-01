@@ -22,18 +22,37 @@
 namespace stellar
 {
 
+// TTLData stores both liveUntilLedgerSeq and lastModifiedLedgerSeq for TTL
+// entries. This allows us to construct a LedgerEntry for TTLs without having to
+// redundantly store the keyHash.
+struct TTLData
+{
+    uint32_t liveUntilLedgerSeq;
+    uint32_t lastModifiedLedgerSeq;
+
+    TTLData(uint32_t liveUntilLedgerSeq, uint32_t lastModifiedLedgerSeq)
+        : liveUntilLedgerSeq(liveUntilLedgerSeq)
+        , lastModifiedLedgerSeq(lastModifiedLedgerSeq)
+    {
+    }
+
+    TTLData() : liveUntilLedgerSeq(0), lastModifiedLedgerSeq(0)
+    {
+    }
+
+    bool isDefault() const;
+};
+
 // ContractDataMapEntryT stores a ContractData LedgerEntry and its TTL. TTL is
 // stored directly with the data to avoid an additional lookup and save memory.
 struct ContractDataMapEntryT
 {
     std::shared_ptr<LedgerEntry const> const ledgerEntry;
-    uint32_t const liveUntilLedgerSeq;
+    TTLData const ttlData;
 
     explicit ContractDataMapEntryT(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry,
-        uint32_t liveUntilLedgerSeq)
-        : ledgerEntry(std::move(ledgerEntry))
-        , liveUntilLedgerSeq(liveUntilLedgerSeq)
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
+        : ledgerEntry(std::move(ledgerEntry)), ttlData(ttlData)
     {
     }
 };
@@ -42,13 +61,11 @@ struct ContractDataMapEntryT
 struct ContractCodeMapEntryT
 {
     std::shared_ptr<LedgerEntry const> ledgerEntry;
-    uint32_t liveUntilLedgerSeq;
+    TTLData ttlData;
 
     explicit ContractCodeMapEntryT(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry,
-        uint32_t liveUntilLedgerSeq)
-        : ledgerEntry(std::move(ledgerEntry))
-        , liveUntilLedgerSeq(liveUntilLedgerSeq)
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
+        : ledgerEntry(std::move(ledgerEntry)), ttlData(ttlData)
     {
     }
 };
@@ -111,8 +128,8 @@ class InternalContractDataMapEntry
 
       public:
         ValueEntry(std::shared_ptr<LedgerEntry const>&& ledgerEntry,
-                   uint32_t liveUntilLedgerSeq)
-            : entry(std::move(ledgerEntry), liveUntilLedgerSeq)
+                   TTLData ttlData)
+            : entry(std::move(ledgerEntry), ttlData)
         {
         }
 
@@ -174,19 +191,16 @@ class InternalContractDataMapEntry
   public:
     // Creates a ValueEntry from a LedgerEntry (copies the entry)
     InternalContractDataMapEntry(LedgerEntry const& ledgerEntry,
-                                 uint32_t liveUntilLedgerSeq)
+                                 TTLData ttlData)
         : impl(std::make_unique<ValueEntry>(
-              std::make_shared<LedgerEntry const>(ledgerEntry),
-              liveUntilLedgerSeq))
+              std::make_shared<LedgerEntry const>(ledgerEntry), ttlData))
     {
     }
 
     // Creates a ValueEntry from a shared_ptr (avoids copying)
     InternalContractDataMapEntry(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry,
-        uint32_t liveUntilLedgerSeq)
-        : impl(std::make_unique<ValueEntry>(std::move(ledgerEntry),
-                                            liveUntilLedgerSeq))
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
+        : impl(std::make_unique<ValueEntry>(std::move(ledgerEntry), ttlData))
     {
     }
 
@@ -277,7 +291,7 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // Temporary storage for orphaned TTLs that arrive before their
     // corresponding data entries during initialization. After initialization,
     // this should be empty.
-    std::unordered_map<uint256, uint32_t> mPendingTTLs;
+    std::unordered_map<LedgerKey, LedgerEntry> mPendingTTLs;
 
     // ledgerSeq which the InMemorySorobanState currently "snapshots".
     uint32_t mLastClosedLedgerSeq = 0;
@@ -287,13 +301,19 @@ class InMemorySorobanState : public NonMovableOrCopyable
     void updateContractDataTTL(
         std::unordered_set<InternalContractDataMapEntry,
                            InternalContractDataEntryHash>::iterator dataIt,
-        uint32_t newLiveUntilLedgerSeq);
+        TTLData newTtlData);
 
     // Should be called after initialization/updates finish to check consistency
     // invariants.
     void checkUpdateInvariants() const;
 
+    // Returns the TTL entry for the given key, or nullptr if not found.
+    // LedgerKey must be of type TTL.
+    std::shared_ptr<LedgerEntry const> getTTL(LedgerKey const& ledgerKey) const;
+
   public:
+    static bool isInMemoryType(LedgerKey const& ledgerKey);
+
     // Creates new TTL entry. Throws if a non-zero TTL value at the key already
     // exists. LedgerEntry must be of type TTL.
     void createTTL(LedgerEntry const& ttlEntry);
@@ -318,10 +338,8 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // CONTRACT_DATA.
     void deleteContractData(LedgerKey const& ledgerKey);
 
-    // Returns nullopt if the entry is not in the map. LedgerKey must be of
-    // type CONTRACT_DATA.
-    std::optional<ContractDataMapEntryT>
-    getContractDataEntry(LedgerKey const& ledgerKey) const;
+    // Returns the entry for the given key, or nullptr if not found.
+    std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
 
     // Creates new ContractCode entry. Throws if key already exists.
     void createContractCodeEntry(LedgerEntry const& ledgerEntry);
@@ -333,11 +351,6 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // Evicts a ContractCode entry from the map. LedgerKey must be of type
     // CONTRACT_CODE.
     void deleteContractCode(LedgerKey const& ledgerKey);
-
-    // Returns nullopt if the entry is not in the map. LedgerKey must be of
-    // type CONTRACT_CODE.
-    std::optional<ContractCodeMapEntryT>
-    getContractCodeEntry(LedgerKey const& ledgerKey) const;
 
     // Returns true if the given TTL entry exists in the map. LedgerKey must
     // be of type TTL.

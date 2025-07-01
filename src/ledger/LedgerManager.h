@@ -326,6 +326,8 @@ class LedgerManager
     virtual SorobanMetrics& getSorobanMetrics() = 0;
     virtual ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() = 0;
 
+    virtual InMemorySorobanState const& getInMemorySorobanState() const = 0;
+
     virtual ~LedgerManager()
     {
     }

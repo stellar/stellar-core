@@ -353,6 +353,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
         entryToRestoreTTL.data.ttl().keyHash =
             getTTLKey(*entryToRestore).ttl().keyHash;
         entryToRestoreTTL.data.ttl().liveUntilLedgerSeq = restoredTTL;
+        entryToRestoreTTL.lastModifiedLedgerSeq =
+            modifiedEntry.lastModifiedLedgerSeq;
 
         // Make a new TTL such that live entry becomes archived
         LedgerEntry entryToArchiveTTL;
@@ -360,6 +362,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
         entryToArchiveTTL.data.ttl().keyHash =
             getTTLKey(*entryToArchive).ttl().keyHash;
         entryToArchiveTTL.data.ttl().liveUntilLedgerSeq = oldLedger - 1;
+        entryToArchiveTTL.lastModifiedLedgerSeq =
+            modifiedEntry.lastModifiedLedgerSeq;
 
         lm.setNextLedgerEntryBatchForBucketTesting(
             {newEntry}, {entryToArchiveTTL, entryToRestoreTTL, modifiedEntry},

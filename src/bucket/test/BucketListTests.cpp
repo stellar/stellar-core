@@ -1022,6 +1022,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
                 ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL);
             sesLE.data.configSetting().stateArchivalSettings() =
                 stateArchivalSettings;
+            sesLE.lastModifiedLedgerSeq = ledgerSeq;
             result.emplace_back(sesLE);
 
             LedgerEntry iterLE;
@@ -1029,6 +1030,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
             iterLE.data.configSetting().configSettingID(
                 ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR);
             iterLE.data.configSetting().evictionIterator() = evictionIter;
+            iterLE.lastModifiedLedgerSeq = ledgerSeq;
             result.emplace_back(iterLE);
 
             return result;
@@ -1084,6 +1086,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
             TTLEntry.data.type(TTL);
             TTLEntry.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
             TTLEntry.data.ttl().liveUntilLedgerSeq = ledgerSeq + 1;
+            TTLEntry.lastModifiedLedgerSeq = e.lastModifiedLedgerSeq;
 
             entries.emplace_back(e);
             entries.emplace_back(TTLEntry);
@@ -1309,6 +1312,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
             ttlLe.data.type(TTL);
             ttlLe.data.ttl().keyHash = ttlKey.ttl().keyHash;
             ttlLe.data.ttl().liveUntilLedgerSeq = ledgerSeq + 1;
+            ttlLe.lastModifiedLedgerSeq = ledgerSeq;
 
             lm.setNextLedgerEntryBatchForBucketTesting({}, {ttlLe}, {});
             closeLedger(*app);

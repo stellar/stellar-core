@@ -10,17 +10,32 @@
 namespace stellar
 {
 
+bool
+TTLData::isDefault() const
+{
+    if (liveUntilLedgerSeq == 0)
+    {
+        releaseAssert(lastModifiedLedgerSeq == 0);
+        return true;
+    }
+    else
+    {
+        releaseAssert(lastModifiedLedgerSeq != 0);
+        return false;
+    }
+}
+
 void
 InMemorySorobanState::updateContractDataTTL(
     std::unordered_set<InternalContractDataMapEntry,
                        InternalContractDataEntryHash>::iterator dataIt,
-    uint32_t newLiveUntilLedgerSeq)
+    TTLData newTtlData)
 {
     // Since entries are immutable, we must erase and re-insert
     auto ledgerEntryPtr = dataIt->get().ledgerEntry;
     mContractDataEntries.erase(dataIt);
-    mContractDataEntries.emplace(InternalContractDataMapEntry(
-        std::move(ledgerEntryPtr), newLiveUntilLedgerSeq));
+    mContractDataEntries.emplace(
+        InternalContractDataMapEntry(std::move(ledgerEntryPtr), newTtlData));
 }
 
 void
@@ -29,14 +44,15 @@ InMemorySorobanState::updateTTL(LedgerEntry const& ttlEntry)
     releaseAssertOrThrow(ttlEntry.data.type() == TTL);
 
     auto lk = LedgerEntryKey(ttlEntry);
-    auto newLiveUntilLedgerSeq = ttlEntry.data.ttl().liveUntilLedgerSeq;
+    auto newTtlData = TTLData(ttlEntry.data.ttl().liveUntilLedgerSeq,
+                              ttlEntry.lastModifiedLedgerSeq);
 
     // TTL updates can apply to either ContractData or ContractCode entries.
     // First check if this TTL belongs to a stored ContractData entry.
     auto dataIt = mContractDataEntries.find(InternalContractDataMapEntry(lk));
     if (dataIt != mContractDataEntries.end())
     {
-        updateContractDataTTL(dataIt, newLiveUntilLedgerSeq);
+        updateContractDataTTL(dataIt, newTtlData);
     }
     else
     {
@@ -44,7 +60,7 @@ InMemorySorobanState::updateTTL(LedgerEntry const& ttlEntry)
         // to a contract code entry.
         auto codeIt = mContractCodeEntries.find(lk.ttl().keyHash);
         releaseAssertOrThrow(codeIt != mContractCodeEntries.end());
-        codeIt->second.liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+        codeIt->second.ttlData = newTtlData;
     }
 }
 
@@ -59,7 +75,7 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     releaseAssertOrThrow(dataIt != mContractDataEntries.end());
 
     // Preserve the existing TTL while updating the data
-    auto preservedTTL = dataIt->get().liveUntilLedgerSeq;
+    auto preservedTTL = dataIt->get().ttlData;
     mContractDataEntries.erase(dataIt);
     mContractDataEntries.emplace(
         InternalContractDataMapEntry(ledgerEntry, preservedTTL));
@@ -78,19 +94,27 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
     // Check if we've already seen this entry's TTL (can happen during
     // initialization when TTL is written before the data)
     auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
-    uint32_t liveUntilLedgerSeq = 0;
+    auto ttlData = TTLData();
 
-    auto ttlIt = mPendingTTLs.find(ttlKey.ttl().keyHash);
+    auto ttlIt = mPendingTTLs.find(ttlKey);
     if (ttlIt != mPendingTTLs.end())
     {
         // Found orphaned TTL - adopt it and remove from temporary storage
-        liveUntilLedgerSeq = ttlIt->second;
+        ttlData = TTLData(ttlIt->second.data.ttl().liveUntilLedgerSeq,
+                          ttlIt->second.lastModifiedLedgerSeq);
         mPendingTTLs.erase(ttlIt);
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
 
     mContractDataEntries.emplace(
-        InternalContractDataMapEntry(ledgerEntry, liveUntilLedgerSeq));
+        InternalContractDataMapEntry(ledgerEntry, ttlData));
+}
+
+bool
+InMemorySorobanState::isInMemoryType(LedgerKey const& ledgerKey)
+{
+    return ledgerKey.type() == CONTRACT_DATA ||
+           ledgerKey.type() == CONTRACT_CODE || ledgerKey.type() == TTL;
 }
 
 void
@@ -99,7 +123,8 @@ InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
     releaseAssertOrThrow(ttlEntry.data.type() == TTL);
 
     auto lk = LedgerEntryKey(ttlEntry);
-    auto newLiveUntilLedgerSeq = ttlEntry.data.ttl().liveUntilLedgerSeq;
+    auto newTtlData = TTLData(ttlEntry.data.ttl().liveUntilLedgerSeq,
+                              ttlEntry.lastModifiedLedgerSeq);
 
     // Check if the corresponding ContractData entry already exists
     // (can happen during initialization when entries arrive out of order)
@@ -108,9 +133,8 @@ InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
     {
         // ContractData exists but has no TTL yet - update it
         // Verify TTL hasn't been set yet (should be default initialized)
-        releaseAssertOrThrow(dataIt->get().liveUntilLedgerSeq == 0);
-
-        updateContractDataTTL(dataIt, newLiveUntilLedgerSeq);
+        releaseAssertOrThrow(dataIt->get().ttlData.isDefault());
+        updateContractDataTTL(dataIt, newTtlData);
     }
     else
     {
@@ -121,14 +145,13 @@ InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
         {
             // ContractCode exists but has no TTL yet - update it
             // Verify TTL hasn't been set yet (should be default initialized)
-            releaseAssertOrThrow(codeIt->second.liveUntilLedgerSeq == 0);
-            codeIt->second.liveUntilLedgerSeq = newLiveUntilLedgerSeq;
+            releaseAssertOrThrow(codeIt->second.ttlData.isDefault());
+            codeIt->second.ttlData = newTtlData;
         }
         else
         {
             // No ContractData or ContractCode yet - store TTL for later
-            auto [_, inserted] =
-                mPendingTTLs.emplace(lk.ttl().keyHash, newLiveUntilLedgerSeq);
+            auto [_, inserted] = mPendingTTLs.emplace(lk, ttlEntry);
             releaseAssertOrThrow(inserted);
         }
     }
@@ -142,19 +165,38 @@ InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
                              InternalContractDataMapEntry(ledgerKey)) == 1);
 }
 
-std::optional<ContractDataMapEntryT>
-InMemorySorobanState::getContractDataEntry(LedgerKey const& ledgerKey) const
+std::shared_ptr<LedgerEntry const>
+InMemorySorobanState::get(LedgerKey const& ledgerKey) const
 {
-    releaseAssertOrThrow(ledgerKey.type() == LedgerEntryType::CONTRACT_DATA);
-
-    auto it =
-        mContractDataEntries.find(InternalContractDataMapEntry(ledgerKey));
-    if (it == mContractDataEntries.end())
+    switch (ledgerKey.type())
     {
-        return std::nullopt;
+    case CONTRACT_DATA:
+    {
+        auto it =
+            mContractDataEntries.find(InternalContractDataMapEntry(ledgerKey));
+        if (it == mContractDataEntries.end())
+        {
+            return nullptr;
+        }
+        return it->get().ledgerEntry;
     }
+    case CONTRACT_CODE:
+    {
+        auto ttlKey = getTTLKey(ledgerKey);
+        auto keyHash = ttlKey.ttl().keyHash;
+        auto it = mContractCodeEntries.find(keyHash);
+        if (it == mContractCodeEntries.end())
+        {
+            return nullptr;
+        }
 
-    return it->get();
+        return it->second.ledgerEntry;
+    }
+    case TTL:
+        return getTTL(ledgerKey);
+    default:
+        throw std::runtime_error("InMemorySorobanState::get: invalid key type");
+    }
 }
 
 void
@@ -172,13 +214,14 @@ InMemorySorobanState::createContractCodeEntry(LedgerEntry const& ledgerEntry)
 
     // Check if we've already seen this entry's TTL (can happen during
     // initialization when TTL is written before the code)
-    uint32_t liveUntilLedgerSeq = 0;
+    auto ttlData = TTLData();
 
-    auto ttlIt = mPendingTTLs.find(keyHash);
+    auto ttlIt = mPendingTTLs.find(ttlKey);
     if (ttlIt != mPendingTTLs.end())
     {
         // Found orphaned TTL - adopt it and remove from temporary storage
-        liveUntilLedgerSeq = ttlIt->second;
+        ttlData = TTLData(ttlIt->second.data.ttl().liveUntilLedgerSeq,
+                          ttlIt->second.lastModifiedLedgerSeq);
         mPendingTTLs.erase(ttlIt);
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
@@ -186,7 +229,7 @@ InMemorySorobanState::createContractCodeEntry(LedgerEntry const& ledgerEntry)
     mContractCodeEntries.emplace(
         keyHash,
         ContractCodeMapEntryT(std::make_shared<LedgerEntry const>(ledgerEntry),
-                              liveUntilLedgerSeq));
+                              ttlData));
 }
 
 void
@@ -201,9 +244,10 @@ InMemorySorobanState::updateContractCode(LedgerEntry const& ledgerEntry)
     releaseAssertOrThrow(codeIt != mContractCodeEntries.end());
 
     // Preserve the existing TTL while updating the code
-    auto ttl = codeIt->second.liveUntilLedgerSeq;
+    auto ttlData = codeIt->second.ttlData;
+    releaseAssertOrThrow(!ttlData.isDefault());
     codeIt->second = ContractCodeMapEntryT(
-        std::make_shared<LedgerEntry const>(ledgerEntry), ttl);
+        std::make_shared<LedgerEntry const>(ledgerEntry), ttlData);
 }
 
 void
@@ -216,30 +260,13 @@ InMemorySorobanState::deleteContractCode(LedgerKey const& ledgerKey)
     releaseAssertOrThrow(mContractCodeEntries.erase(keyHash) == 1);
 }
 
-std::optional<ContractCodeMapEntryT>
-InMemorySorobanState::getContractCodeEntry(LedgerKey const& ledgerKey) const
-{
-    releaseAssertOrThrow(ledgerKey.type() == LedgerEntryType::CONTRACT_CODE);
-
-    auto ttlKey = getTTLKey(ledgerKey);
-    auto keyHash = ttlKey.ttl().keyHash;
-
-    auto it = mContractCodeEntries.find(keyHash);
-    if (it == mContractCodeEntries.end())
-    {
-        return std::nullopt;
-    }
-
-    return it->second;
-}
-
 bool
 InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
 {
     releaseAssertOrThrow(ledgerKey.type() == TTL);
 
     // Check if this is a pending TTL
-    if (mPendingTTLs.find(ledgerKey.ttl().keyHash) != mPendingTTLs.end())
+    if (mPendingTTLs.find(ledgerKey) != mPendingTTLs.end())
     {
         return true;
     }
@@ -250,8 +277,9 @@ InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
     if (dataIt != mContractDataEntries.end())
     {
         // Only return true if TTL has been set (non-zero)
-        // During initialization, entries may exist with TTL == 0
-        return dataIt->get().liveUntilLedgerSeq != 0;
+        // During initialization, entries may exist with default constructed
+        // TTLs
+        return !dataIt->get().ttlData.isDefault();
     }
 
     // Check if this is a ContractCode TTL (stored with the code)
@@ -259,11 +287,48 @@ InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
     if (codeIt != mContractCodeEntries.end())
     {
         // Only return true if TTL has been set (non-zero)
-        // During initialization, entries may exist with TTL == 0
-        return codeIt->second.liveUntilLedgerSeq != 0;
+        // During initialization, entries may exist with default constructed
+        // TTLs
+        return !codeIt->second.ttlData.isDefault();
     }
 
     return false;
+}
+
+std::shared_ptr<LedgerEntry const>
+InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
+{
+    releaseAssertOrThrow(ledgerKey.type() == TTL);
+
+    // This should never be called when we are mid-update
+    releaseAssertOrThrow(mPendingTTLs.empty());
+
+    auto constructTTLEntry = [&ledgerKey](TTLData const& ttlData) {
+        releaseAssertOrThrow(!ttlData.isDefault());
+        auto ttlEntry = std::make_shared<LedgerEntry>();
+        ttlEntry->data.type(TTL);
+        ttlEntry->data.ttl().keyHash = ledgerKey.ttl().keyHash;
+        ttlEntry->data.ttl().liveUntilLedgerSeq = ttlData.liveUntilLedgerSeq;
+        ttlEntry->lastModifiedLedgerSeq = ttlData.lastModifiedLedgerSeq;
+        return ttlEntry;
+    };
+
+    // Since the TTL key is the hash of the associated LedgerKey, we don't know
+    // which map it could belong in, so check both.
+    auto dataIt =
+        mContractDataEntries.find(InternalContractDataMapEntry(ledgerKey));
+    if (dataIt != mContractDataEntries.end())
+    {
+        return constructTTLEntry(dataIt->get().ttlData);
+    }
+
+    auto codeIt = mContractCodeEntries.find(ledgerKey.ttl().keyHash);
+    if (codeIt != mContractCodeEntries.end())
+    {
+        return constructTTLEntry(codeIt->second.ttlData);
+    }
+
+    return nullptr;
 }
 
 void
@@ -298,7 +363,7 @@ InMemorySorobanState::initializeStateFromSnapshot(
         }
 
         auto lk = LedgerEntryKey(be.liveEntry());
-        if (!getContractDataEntry(lk))
+        if (!get(lk))
         {
             createContractDataEntry(be.liveEntry());
         }
@@ -328,7 +393,7 @@ InMemorySorobanState::initializeStateFromSnapshot(
         }
 
         auto lk = LedgerEntryKey(be.liveEntry());
-        if (!getContractCodeEntry(lk))
+        if (!get(lk))
         {
             createContractCodeEntry(be.liveEntry());
         }

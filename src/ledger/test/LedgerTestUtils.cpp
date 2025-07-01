@@ -498,6 +498,11 @@ static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
         le.lastModifiedLedgerSeq = le.lastModifiedLedgerSeq & INT32_MAX;
+        if (le.lastModifiedLedgerSeq == 0)
+        {
+            le.lastModifiedLedgerSeq = 1;
+        }
+
         switch (led.type())
         {
         case ACCOUNT:

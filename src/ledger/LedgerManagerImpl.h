@@ -425,6 +425,7 @@ class LedgerManagerImpl : public LedgerManager
         return mCurrentlyApplyingLedger;
     }
     ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
+    InMemorySorobanState const& getInMemorySorobanState() const override;
 
 #ifdef BUILD_TESTS
     friend class BucketTestUtils::LedgerManagerForBucketTests;

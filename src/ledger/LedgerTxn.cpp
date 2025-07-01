@@ -7,6 +7,8 @@
 #include "bucket/SearchableBucketList.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
+#include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -3542,16 +3544,22 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             ++mPrefetchMisses;
         }
 
-        std::shared_ptr<LedgerEntry const> entry;
+        std::shared_ptr<LedgerEntry const> entry = nullptr;
         try
         {
-            if (key.type() != OFFER)
+            if (InMemorySorobanState::isInMemoryType(key))
             {
-                entry = getSearchableLiveBucketListSnapshot().load(key);
+                auto const& sorobanStateCache =
+                    mApp.getLedgerManager().getInMemorySorobanState();
+                entry = sorobanStateCache.get(key);
+            }
+            else if (key.type() == OFFER)
+            {
+                entry = loadOffer(key);
             }
             else
             {
-                entry = loadOffer(key);
+                entry = getSearchableLiveBucketListSnapshot().load(key);
             }
         }
         catch (std::exception& e)
