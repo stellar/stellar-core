@@ -195,8 +195,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         // Otherwise default to current ledger
         else
         {
-            loadedKeys = bl.loadKeysWithLimits(orderedKeys, "query",
-                                               /*lkMeter=*/nullptr);
+            loadedKeys = bl.loadKeys(orderedKeys, "query");
             root["ledgerSeq"] = bl.getLedgerSeq();
         }
 

@@ -544,9 +544,7 @@ class LedgerTxn::Impl
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
 
-    uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys);
-    uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
-                             LedgerKeyMeter* lkMeter);
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
 
@@ -720,9 +718,6 @@ class LedgerTxnRoot::Impl
     SearchableLiveBucketListSnapshot const&
     getSearchableLiveBucketListSnapshot() const;
 
-    uint32_t prefetchInternal(UnorderedSet<LedgerKey> const& keys,
-                              LedgerKeyMeter* lkMeter = nullptr);
-
   public:
     // Constructor has the strong exception safety guarantee
     Impl(Application& app, size_t entryCacheSize, size_t prefetchBatchSize
@@ -815,10 +810,8 @@ class LedgerTxnRoot::Impl
 
     // Prefetch some or all of given keys in batches. Note that no prefetching
     // could occur if the cache is at its fill ratio. Returns number of keys
-    // prefetched.
-    uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys);
-    uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
-                             LedgerKeyMeter* lkMeter);
+    // prefetched. Throws if any key is a Soroban key.
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
 

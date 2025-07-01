@@ -1882,7 +1882,7 @@ LedgerManagerImpl::prefetchTxSourceIds(AbstractLedgerTxnParent& ltx,
                 tx->insertKeysForFeeProcessing(keys);
             }
         }
-        ltx.prefetchClassic(keys);
+        ltx.prefetch(keys);
     }
 }
 
@@ -1894,31 +1894,15 @@ LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
     ZoneScoped;
     if (config.PREFETCH_BATCH_SIZE > 0 && !config.allBucketsInMemory())
     {
-        UnorderedSet<LedgerKey> sorobanKeys;
-        auto lkMeter = make_unique<LedgerKeyMeter>();
-        UnorderedSet<LedgerKey> classicKeys;
+        UnorderedSet<LedgerKey> keysToPreFetch;
         for (auto const& phase : txSet.getPhases())
         {
             for (auto const& tx : phase)
             {
-                if (tx->isSoroban())
-                {
-                    tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
-                }
-                else
-                {
-                    tx->insertKeysForTxApply(classicKeys, nullptr);
-                }
+                tx->insertKeysForTxApply(keysToPreFetch);
             }
         }
-        // Prefetch classic and soroban keys separately for greater
-        // visibility into the performance of each mode.
-        if (!sorobanKeys.empty())
-        {
-            ltx.prefetchSoroban(sorobanKeys, lkMeter.get());
-        }
-
-        ltx.prefetchClassic(classicKeys);
+        ltx.prefetch(keysToPreFetch);
     }
 }
 

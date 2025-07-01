@@ -241,8 +241,7 @@ class TransactionFrame : public TransactionFrameBase
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                              LedgerKeyMeter* lkMeter) const override;
+    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
     MutableTxResultPtr

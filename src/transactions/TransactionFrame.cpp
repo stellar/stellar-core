@@ -1707,8 +1707,7 @@ TransactionFrame::insertKeysForFeeProcessing(
 }
 
 void
-TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                                       LedgerKeyMeter* lkMeter) const
+TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 {
     for (auto const& op : mOperations)
     {
@@ -1717,27 +1716,6 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
             keys.emplace(accountKey(op->getSourceID()));
         }
         op->insertLedgerKeysToPrefetch(keys);
-    }
-
-    if (lkMeter)
-    {
-        auto const& resources = sorobanResources();
-        keys.insert(resources.footprint.readOnly.begin(),
-                    resources.footprint.readOnly.end());
-        keys.insert(resources.footprint.readWrite.begin(),
-                    resources.footprint.readWrite.end());
-        auto insertTTLKey = [&](LedgerKey const& lk) {
-            if (lk.type() == CONTRACT_DATA || lk.type() == CONTRACT_CODE)
-            {
-                keys.insert(getTTLKey(lk));
-            }
-        };
-        // TTL keys must be prefetched for soroban entries.
-        std::for_each(resources.footprint.readOnly.begin(),
-                      resources.footprint.readOnly.end(), insertTTLKey);
-        std::for_each(resources.footprint.readWrite.begin(),
-                      resources.footprint.readWrite.end(), insertTTLKey);
-        lkMeter->addTxn(resources);
     }
 }
 

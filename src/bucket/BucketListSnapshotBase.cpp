@@ -132,7 +132,7 @@ template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq) const
+    std::optional<uint32_t> ledgerSeq) const
 {
     ZoneScoped;
 
@@ -140,7 +140,7 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     auto keys = inKeys;
     std::vector<typename BucketT::LoadT> entries;
     auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(keys, entries, lkMeter);
+        b.loadKeys(keys, entries);
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
@@ -169,7 +169,7 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysFromLedger(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     uint32_t ledgerSeq) const
 {
-    return loadKeysInternal(inKeys, /*lkMeter=*/nullptr, ledgerSeq);
+    return loadKeysInternal(inKeys, ledgerSeq);
 }
 
 template <class BucketT>

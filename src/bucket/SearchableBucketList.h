@@ -27,8 +27,8 @@ class SearchableLiveBucketListSnapshot
                                                       int64_t minBalance) const;
 
     std::vector<LedgerEntry>
-    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       std::string const& label, LedgerKeyMeter* lkMeter) const;
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+             std::string const& label) const;
 
     std::unique_ptr<EvictionResultCandidates> scanForEviction(
         uint32_t ledgerSeq, EvictionCounters& counters, EvictionIterator iter,

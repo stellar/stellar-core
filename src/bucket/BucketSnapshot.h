@@ -19,7 +19,6 @@ namespace stellar
 {
 
 struct EvictionResultEntry;
-class LedgerKeyMeter;
 class SearchableLiveBucketListSnapshot;
 
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
@@ -63,12 +62,8 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
 
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.
-    // If a pointer to a LedgerKeyMeter is provided, a key will only be loaded
-    // if the meter has a transaction with sufficient read quota for the key.
-    // If Bucket is not of type LiveBucket, lkMeter is ignored.
     void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                  std::vector<typename BucketT::LoadT>& result,
-                  LedgerKeyMeter* lkMeter) const;
+                  std::vector<typename BucketT::LoadT>& result) const;
 };
 
 class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>

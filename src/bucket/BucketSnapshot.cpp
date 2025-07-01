@@ -115,7 +115,7 @@ template <class BucketT>
 void
 BucketSnapshotBase<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-    std::vector<typename BucketT::LoadT>& result, LedgerKeyMeter* lkMeter) const
+    std::vector<typename BucketT::LoadT>& result) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -171,16 +171,6 @@ BucketSnapshotBase<BucketT>::loadKeys(
                 if constexpr (std::is_same_v<BucketT, LiveBucket>)
                 {
                     bool addEntry = true;
-                    if (lkMeter)
-                    {
-                        // Here, we are metering after the entry has been
-                        // loaded. This is because we need to know the size
-                        // of the entry to meter it. Future work will add
-                        // metering at the xdr level.
-                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
-                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
-                    }
                     if (addEntry)
                     {
                         result.push_back(entryOp->liveEntry());
@@ -243,8 +233,7 @@ LiveBucketSnapshot::scanForEviction(
 
     auto processQueue = [&]() {
         auto loadResult = populateLoadedEntries(
-            keysToSearch,
-            bl.loadKeysWithLimits(keysToSearch, "eviction", nullptr));
+            keysToSearch, bl.loadKeys(keysToSearch, "eviction"));
         for (auto& e : maybeEvictQueue)
         {
             // If TTL entry has not yet been deleted

@@ -14,7 +14,6 @@
 
 namespace stellar
 {
-class LedgerKeyMeter;
 bool isLive(LedgerEntry const& e, uint32_t cutoffLedger);
 
 LedgerKey getTTLKey(LedgerEntry const& e);
@@ -26,8 +25,7 @@ LedgerEntry getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl);
 template <typename KeySetT>
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries,
-                      LedgerKeyMeter* lkMeter = nullptr)
+                      std::vector<LedgerEntry> const& entries)
 {
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
 
@@ -47,10 +45,9 @@ populateLoadedEntries(KeySetT const& keys,
 
     for (auto const& key : keys)
     {
-        // If the key was not loaded (but not due to metering), we should put
-        // a nullptr entry in the result.
-        if (res.find(key) == res.end() &&
-            (!lkMeter || !lkMeter->loadFailed(key)))
+        // If the key was not loaded, we should put a nullptr entry in the
+        // result.
+        if (res.find(key) == res.end())
         {
             res.emplace(key, nullptr);
         }
