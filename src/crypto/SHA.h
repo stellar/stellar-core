@@ -16,6 +16,10 @@ namespace stellar
 // Plain SHA256
 uint256 sha256(ByteSlice const& bin);
 
+// SHA256 of existing seed and a counter, used for
+// sub-seeding per-transaction PRNGs in soroban.
+Hash subSha256(ByteSlice const& seed, uint64_t counter);
+
 // SHA256 in incremental mode, for large inputs.
 class SHA256
 {

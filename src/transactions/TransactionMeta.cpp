@@ -353,26 +353,22 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
 }
 
 void
-OperationMetaBuilder::setLedgerChangesFromEntryMaps(
-    SearchableSnapshotConstPtr liveSnapshot,
-    ParallelApplyEntryMap const& initialEntryMap,
-    OpModifiedEntryMap const& opModifiedEntryMap,
-    UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
-    UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
-    uint32_t ledgerSeq)
+OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
+    ThreadParallelApplyLedgerState const& threadState,
+    ParallelTxReturnVal const& res, uint32_t ledgerSeq)
 {
     if (!mEnabled)
     {
         return;
     }
+    auto const& hotArchiveRestores = res.getRestoredEntries().hotArchive;
+    auto const& liveRestores = res.getRestoredEntries().liveBucketList;
 
     LedgerEntryChanges changes;
-    for (auto const& newUpdates : opModifiedEntryMap)
+    for (auto const& [lk, le] : res.getModifiedEntryMap())
     {
-        auto const& lk = newUpdates.first;
-        auto const& le = newUpdates.second;
 
-        auto prevLe = getLiveEntry(lk, liveSnapshot, initialEntryMap);
+        auto prevLe = threadState.getLiveEntryOpt(lk);
 
         if (prevLe)
         {

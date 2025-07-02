@@ -10,6 +10,7 @@
 #include "main/AppConnector.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionFrameBase.h"
+#include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <fmt/core.h>
@@ -230,107 +231,6 @@ ttl(std::optional<LedgerEntry> const& le)
     return ttl(le.value());
 }
 
-// For every soroban LE in `txBundle`s RW footprint, ensure we've flushed any
-// buffered RO TTL bumps stored in `roTTLBumps` to the `entryMap`.
-//
-// We do so because this tx that does an RW access to the LE:
-//
-//   - _Will_ be clustered with all other RO and RW txs touching the LE, so we
-//     don't need to worry about other clusters touching this LE or bumping its
-//     TTL in parallel. This LE and its TTL are sequentialized in this cluster.
-//
-//   - _Might_ be clustered with an earlier tx that did an RO TTL bump of the
-//     LE, which could have changed the cost of the LE write happening in this
-//     tx. We do have to worry about that!
-//
-// So: for correct accounting of the write happening in this tx, we have to
-// flush any pending RO TTL bumps that interfere with its RW footprint.
-void
-flushRoTTLBumpsRequiredByTx(SearchableSnapshotConstPtr liveSnapshot,
-                            ParallelApplyEntryMap& entryMap,
-                            UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                            TxBundle const& txBundle)
-{
-    auto const& readWrite =
-        txBundle.getTx()->sorobanResources().footprint.readWrite;
-
-    for (auto const& lk : readWrite)
-    {
-        if (!isSorobanEntry(lk))
-        {
-            continue;
-        }
-
-        auto const& ttlKey = getTTLKey(lk);
-        auto b = roTTLBumps.find(ttlKey);
-        if (b != roTTLBumps.end())
-        {
-            // If we have residual RO TTL bumps for this key,
-            // the entry must exist. If it was deleted, we would've
-            // erased the TTL key from roTTLBumps.
-
-            // "Commit" max RO bump now that the key is in a
-            // readWrite set
-            auto e = entryMap.find(ttlKey);
-            if (e != entryMap.end())
-            {
-                releaseAssert(e->second.mLedgerEntry);
-                releaseAssert(ttl(e->second.mLedgerEntry) <= b->second);
-
-                ttl(e->second.mLedgerEntry) = b->second;
-
-                // Mark as dirty so this entry gets written.
-                e->second.mIsDirty = true;
-            }
-            else
-            {
-                // The entry being must be in the liveSnapshot
-                // if it is not in the entryMap.
-                auto snapshotEntry = liveSnapshot->load(ttlKey);
-                releaseAssert(snapshotEntry);
-
-                auto le = *snapshotEntry;
-                releaseAssert(ttl(le) <= b->second);
-
-                ttl(le) = b->second;
-                entryMap.emplace(ttlKey, ParallelApplyEntry{le, true});
-            }
-            roTTLBumps.erase(b);
-        }
-    }
-}
-
-// Ensure that for each remaining RO TTL bump in `roTTLBumps`, the
-// TTL entry is present in the `entryMap` and is >= the bump TTL.
-void
-flushResidualRoTTLBumps(SearchableSnapshotConstPtr liveSnapshot,
-                        ParallelApplyEntryMap& entryMap,
-                        UnorderedMap<LedgerKey, uint32_t> const& roTTLBumps)
-{
-    for (auto const& [lk, ttlBump] : roTTLBumps)
-    {
-        auto entryOpt = getLiveEntry(lk, liveSnapshot, entryMap);
-
-        // The entry should always exist. If the entry was deleted,
-        // then we would've erased the TTL key from roTTLBumps.
-        releaseAssert(entryOpt);
-        if (ttl(entryOpt) < ttlBump)
-        {
-            auto it = entryMap.find(lk);
-            if (it == entryMap.end())
-            {
-                ttl(entryOpt) = ttlBump;
-                entryMap.emplace(lk, ParallelApplyEntry{*entryOpt, true});
-            }
-            else
-            {
-                ttl(it->second.mLedgerEntry) = ttlBump;
-                it->second.mIsDirty = true;
-            }
-        }
-    }
-}
-
 // Construct a set of all the TTL keys associated with all RO soroban
 // (code-or-data) keys named in the footprint of the `txBundle`. Note
 // that since RO and RW footprints are disjoint, we only have to look
@@ -369,68 +269,6 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
 
 namespace stellar
 {
-
-void
-setDelta(SearchableSnapshotConstPtr liveSnapshot,
-         ParallelApplyEntryMap const& entryMap,
-         OpModifiedEntryMap const& opModifiedEntryMap,
-         UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
-         ParallelLedgerInfo const& ledgerInfo, TxEffects& effects)
-{
-    for (auto const& newUpdates : opModifiedEntryMap)
-    {
-        auto const& lk = newUpdates.first;
-        auto const& le = newUpdates.second;
-
-        auto prevLe = getLiveEntry(lk, liveSnapshot, entryMap);
-
-        LedgerTxnDelta::EntryDelta entryDelta;
-        if (prevLe)
-        {
-            entryDelta.previous =
-                std::make_shared<InternalLedgerEntry>(*prevLe);
-        }
-        else
-        {
-            // If the entry was not found in the live snapshot, we check if it
-            // was restored from the hot archive instead.
-            auto it = hotArchiveRestores.find(lk);
-            if (it != hotArchiveRestores.end())
-            {
-                entryDelta.previous =
-                    std::make_shared<InternalLedgerEntry>(it->second);
-            }
-        }
-
-        if (le)
-        {
-            auto deltaLe = *le;
-            // This is for the invariants check in LedgerManager
-            deltaLe.lastModifiedLedgerSeq = ledgerInfo.getLedgerSeq();
-
-            entryDelta.current = std::make_shared<InternalLedgerEntry>(deltaLe);
-        }
-        releaseAssertOrThrow(entryDelta.current || entryDelta.previous);
-        effects.setDeltaEntry(lk, entryDelta);
-    }
-}
-
-std::optional<LedgerEntry>
-getLiveEntry(LedgerKey const& lk, SearchableSnapshotConstPtr liveSnapshot,
-             ParallelApplyEntryMap const& entryMap)
-{
-    // TODO: These copies aren't ideal.
-    auto entryIter = entryMap.find(lk);
-    if (entryIter != entryMap.end())
-    {
-        return entryIter->second.mLedgerEntry;
-    }
-    else
-    {
-        auto res = liveSnapshot->load(lk);
-        return res ? std::make_optional(*res) : std::nullopt;
-    }
-}
 
 PreV23LedgerAccessHelper::PreV23LedgerAccessHelper(AbstractLedgerTxn& ltx)
     : mLtx(ltx)
@@ -765,15 +603,49 @@ void
 ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
     const TxBundle& txBundle)
 {
+    auto const& readWrite =
+        txBundle.getTx()->sorobanResources().footprint.readWrite;
 
-    flushRoTTLBumpsRequiredByTx(mLiveSnapshot, mThreadEntryMap, mRoTTLBumps,
-                                txBundle);
+    for (auto const& lk : readWrite)
+    {
+        if (!isSorobanEntry(lk))
+        {
+            continue;
+        }
+
+        auto const& ttlKey = getTTLKey(lk);
+        auto b = mRoTTLBumps.find(ttlKey);
+        if (b != mRoTTLBumps.end())
+        {
+            // If we have residual RO TTL bumps for this key,
+            // the entry must exist. If it was deleted, we would've
+            // erased the TTL key from mRoTTLBumps.
+            auto ttlEntry = getLiveEntryOpt(ttlKey);
+            releaseAssert(ttlEntry);
+            releaseAssert(ttl(ttlEntry) <= b->second);
+            ttl(ttlEntry) = b->second;
+            upsertEntry(ttlKey, ttlEntry.value());
+            mRoTTLBumps.erase(b);
+        }
+    }
 }
 
 void
 ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
 {
-    flushResidualRoTTLBumps(mLiveSnapshot, mThreadEntryMap, mRoTTLBumps);
+    for (auto const& [lk, ttlBump] : mRoTTLBumps)
+    {
+        auto entryOpt = getLiveEntryOpt(lk);
+        // The entry should always exist. If the entry was deleted,
+        // then we would've erased the TTL key from roTTLBumps.
+        releaseAssert(entryOpt);
+        if (ttl(entryOpt) < ttlBump)
+        {
+            auto updated = entryOpt.value();
+            ttl(updated) = ttlBump;
+            upsertEntry(lk, updated);
+        }
+    }
 }
 
 ParallelApplyEntryMap const&
@@ -845,6 +717,47 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
     else
     {
         eraseEntry(key);
+    }
+}
+
+void
+ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
+    ParallelTxReturnVal const& res, ParallelLedgerInfo const& ledgerInfo,
+    TxEffects& effects) const
+{
+    releaseAssert(res.getSuccess());
+    for (auto const& [lk, le] : res.getModifiedEntryMap())
+    {
+        auto prevLe = getLiveEntryOpt(lk);
+        LedgerTxnDelta::EntryDelta entryDelta;
+        if (prevLe)
+        {
+            entryDelta.previous =
+                std::make_shared<InternalLedgerEntry>(*prevLe);
+        }
+        else
+        {
+            // If the entry was not found in the live snapshot, we check if it
+            // was restored from the hot archive instead.
+            auto const& hotArchiveRestores =
+                res.getRestoredEntries().hotArchive;
+            auto it = hotArchiveRestores.find(lk);
+            if (it != hotArchiveRestores.end())
+            {
+                entryDelta.previous =
+                    std::make_shared<InternalLedgerEntry>(it->second);
+            }
+        }
+
+        if (le)
+        {
+            auto deltaLe = *le;
+            // This is for the invariants check in LedgerManager
+            deltaLe.lastModifiedLedgerSeq = ledgerInfo.getLedgerSeq();
+            entryDelta.current = std::make_shared<InternalLedgerEntry>(deltaLe);
+        }
+        releaseAssertOrThrow(entryDelta.current || entryDelta.previous);
+        effects.setDeltaEntry(lk, entryDelta);
     }
 }
 

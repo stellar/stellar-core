@@ -22,15 +22,11 @@ class OperationMetaBuilder
     // ledger transaction used for this operation.
     void setLedgerChanges(AbstractLedgerTxn& opLtx, uint32_t ledgerSeq);
 
-    // Similar to the above function, but used during parallel apply,
-    // which uses maps to track entry changes.
-    void setLedgerChangesFromEntryMaps(
-        SearchableSnapshotConstPtr liveSnapshot,
-        ParallelApplyEntryMap const& entryMap,
-        OpModifiedEntryMap const& opModifiedEntryMap,
-        UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
-        UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
-        uint32_t ledgerSeq);
+    // Similar to the above function, but used during parallel apply, which uses
+    // thread state and return value maps to track entry changes.
+    void setLedgerChangesFromSuccessfulOp(
+        ThreadParallelApplyLedgerState const& threadState,
+        ParallelTxReturnVal const& res, uint32_t ledgerSeq);
 
     // Sets the return value for a Soroban operation.
     void setSorobanReturnValue(SCVal const& val);

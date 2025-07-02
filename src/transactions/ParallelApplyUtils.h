@@ -61,17 +61,6 @@ class ParallelLedgerInfo
     Hash networkID;
 };
 
-// sets LedgerTxnDelta within effects
-void setDelta(SearchableSnapshotConstPtr liveSnapshot,
-              ParallelApplyEntryMap const& entryMap,
-              OpModifiedEntryMap const& opModifiedEntryMap,
-              UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
-              ParallelLedgerInfo const& ledgerInfo, TxEffects& effects);
-
-std::optional<LedgerEntry> getLiveEntry(LedgerKey const& lk,
-                                        SearchableSnapshotConstPtr liveSnapshot,
-                                        ParallelApplyEntryMap const& entryMap);
-
 class ThreadParallelApplyLedgerState;
 class GlobalParallelApplyLedgerState
 {
@@ -185,8 +174,29 @@ class ThreadParallelApplyLedgerState
                                    GlobalParallelApplyLedgerState const& global,
                                    Cluster const& cluster);
 
+    // For every soroban LE in `txBundle`s RW footprint, ensure we've flushed
+    // any buffered RO TTL bumps stored in `mRoTTLBumps` to the
+    // `mThreadEntryMap`.
+    //
+    // We do so because this tx that does an RW access to the LE:
+    //
+    //   - _Will_ be clustered with all other RO and RW txs touching the LE, so
+    //   we
+    //     don't need to worry about other clusters touching this LE or bumping
+    //     its TTL in parallel. This LE and its TTL are sequentialized in this
+    //     cluster.
+    //
+    //   - _Might_ be clustered with an earlier tx that did an RO TTL bump of
+    //   the
+    //     LE, which could have changed the cost of the LE write happening in
+    //     this tx. We do have to worry about that!
+    //
+    // So: for correct accounting of the write happening in this tx, we have to
+    // flush any pending RO TTL bumps that interfere with its RW footprint.
     void flushRoTTLBumpsInTxWriteFootprint(const TxBundle& txBundle);
 
+    // Ensure that for each remaining RO TTL bump in `mRoTTLBumps`, the
+    // TTL entry is present in the `mThreadEntryMap` and is >= the bump TTL.
     void flushRemainingRoTTLBumps();
 
     ParallelApplyEntryMap const& getEntryMap() const;
@@ -195,6 +205,10 @@ class ThreadParallelApplyLedgerState
 
     std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
+
+    void setEffectsDeltaFromSuccessfulOp(ParallelTxReturnVal const& res,
+                                         ParallelLedgerInfo const& ledgerInfo,
+                                         TxEffects& effects) const;
 
     void commitChangesFromSuccessfulOp(ParallelTxReturnVal const& res,
                                        TxBundle const& txBundle);
