@@ -60,8 +60,8 @@ TxQueueLimiter::size() const
 Resource
 TxQueueLimiter::maxScaledLedgerResources(bool isSoroban) const
 {
-    return multiplyByDouble(mLedgerManager.maxLedgerResources(isSoroban),
-                            mPoolLedgerMultiplier);
+    return saturatedMultiplyByDouble(
+        mLedgerManager.maxLedgerResources(isSoroban), mPoolLedgerMultiplier);
 }
 
 void

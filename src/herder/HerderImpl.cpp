@@ -1165,7 +1165,8 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
 }
 
 void
-HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
+HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
+                                      bool upgradeApplied)
 {
     releaseAssert(threadIsMain());
 
@@ -1176,8 +1177,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
     maybeHandleUpgrade();
 
     // In order to update the transaction queue we need to get the
-    // applied transactions.
-    updateTransactionQueue(txSet);
+    // applied transactions. If a protocol or network config setting upgrade
+    // occurred, we will need to rebuild the queue, as limits may have changed.
+    updateTransactionQueue(txSet, upgradeApplied);
 
     // If we're in sync and there are no buffered ledgers to apply, trigger next
     // ledger
@@ -2421,7 +2423,8 @@ HerderImpl::trackingHeartBeat()
 }
 
 void
-HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
+HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
+                                   bool queueRebuildNeeded)
 {
     ZoneScoped;
     if (externalizedTxSet == nullptr)
@@ -2435,9 +2438,14 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
 
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
 
-    auto updateQueue = [&](auto& queue, auto const& applied) {
+    auto updateQueue = [&](auto& queue, auto const& applied, bool isSoroban) {
         queue.removeApplied(applied);
         queue.shift();
+
+        if (isSoroban && queueRebuildNeeded)
+        {
+            mSorobanTransactionQueue->resetAndRebuild();
+        }
 
         auto txs = queue.getTransactions(lhhe.header);
 
@@ -2451,7 +2459,8 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
     if (txsPerPhase.size() > static_cast<size_t>(TxSetPhase::CLASSIC))
     {
         updateQueue(mTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)]);
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)],
+                    false);
     }
 
     // Even if we're in protocol 20, still check for number of phases, in case
@@ -2461,7 +2470,8 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
         txsPerPhase.size() > static_cast<size_t>(TxSetPhase::SOROBAN))
     {
         updateQueue(*mSorobanTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)]);
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)],
+                    true);
     }
 }
 

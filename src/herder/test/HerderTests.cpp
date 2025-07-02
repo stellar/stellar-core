@@ -995,8 +995,8 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
     modifySorobanNetworkConfig(*app, [max](SorobanNetworkConfig& cfg) {
         cfg.mLedgerMaxTxCount = max;
-        cfg.mledgerMaxDiskReadEntries = max;
-        cfg.mledgerMaxDiskReadBytes = max;
+        cfg.mLedgerMaxDiskReadEntries = max;
+        cfg.mLedgerMaxDiskReadBytes = max;
         cfg.mLedgerMaxWriteLedgerEntries = max;
         cfg.mLedgerMaxWriteBytes = max;
         cfg.mLedgerMaxTransactionsSizeBytes = max;
@@ -3072,8 +3072,8 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                     cfg.mLedgerMaxTxCount = mx;
                     cfg.mLedgerMaxInstructions = mx;
                     cfg.mLedgerMaxTransactionsSizeBytes = mx;
-                    cfg.mledgerMaxDiskReadEntries = mx;
-                    cfg.mledgerMaxDiskReadBytes = mx;
+                    cfg.mLedgerMaxDiskReadEntries = mx;
+                    cfg.mLedgerMaxDiskReadBytes = mx;
                     cfg.mLedgerMaxWriteLedgerEntries = mx;
                     cfg.mLedgerMaxWriteBytes = mx;
                     tweakSorobanConfig(cfg);
@@ -3223,7 +3223,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     // SECTION("read entries")
     // {
     //     auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
-    //         cfg.mledgerMaxDiskReadEntries = static_cast<uint32>(
+    //         cfg.mLedgerMaxDiskReadEntries = static_cast<uint32>(
     //             baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
     //             cfg.mTxMaxDiskReadEntries);
     //     };
@@ -3248,7 +3248,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
         uint32_t constexpr txMaxDiskReadBytes = 100 * 1024;
         auto tweakSorobanConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mTxMaxDiskReadBytes = txMaxDiskReadBytes;
-            cfg.mledgerMaxDiskReadBytes =
+            cfg.mLedgerMaxDiskReadBytes =
                 static_cast<uint32>(desiredTxRate * cfg.mTxMaxDiskReadBytes);
         };
         test(tweakSorobanConfig, idTweakAppConfig);
@@ -4629,8 +4629,8 @@ TEST_CASE("do not flood too many soroban transactions",
             setSorobanNetworkConfigForTest(cfg);
             // Update read entries to allow flooding at most 1 tx per broadcast
             // interval.
-            cfg.mledgerMaxDiskReadEntries = 40;
-            cfg.mledgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes;
+            cfg.mLedgerMaxDiskReadEntries = 40;
+            cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes;
         },
         simulation);
 

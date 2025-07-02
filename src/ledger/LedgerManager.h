@@ -306,10 +306,14 @@ class LedgerManager
     // `calledViaExternalize` false in this case).
     virtual void applyLedger(LedgerCloseData const& ledgerData,
                              bool calledViaExternalize) = 0;
-    virtual void advanceLedgerStateAndPublish(
-        uint32_t ledgerSeq, bool calledViaExternalize,
-        LedgerCloseData const& ledgerData,
-        CompleteConstLedgerStatePtr newLedgerState) = 0;
+
+    // upgradeApplied should be true if a protocol or network config setting
+    // upgrade occurred during the ledger close.
+    virtual void
+    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
+                                 LedgerCloseData const& ledgerData,
+                                 CompleteConstLedgerStatePtr newLedgerState,
+                                 bool upgradeApplied) = 0;
 #ifdef BUILD_TESTS
     void
     applyLedger(LedgerCloseData const& ledgerData)

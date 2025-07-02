@@ -1246,6 +1246,44 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
     }
 }
 
+void
+SorobanTransactionQueue::resetAndRebuild()
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+
+    CLOG_DEBUG(Herder, "Resetting Soroban transaction queue due to upgrade");
+
+    // Extract all current transactions before clearing state
+    std::vector<TransactionFrameBasePtr> existingTxs;
+    for (auto const& [accountID, accountState] : mAccountStates)
+    {
+        if (accountState.mTransaction)
+        {
+            existingTxs.emplace_back(accountState.mTransaction->mTx);
+        }
+    }
+
+    // Clear all relevant queue state. mArbitrageFloodDamping and
+    // mBannedTransactions cannot be invalidated by a protocol upgrade.
+    mAccountStates.clear();
+    mKnownTxHashes.clear();
+
+    auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    mTxQueueLimiter->reset(lhhe.header.ledgerVersion);
+
+    // Re-add all existing transactions
+    // The surge pricing logic in tryAdd will handle sorting and evictions
+    // based on the new limits
+    for (auto const& tx : existingTxs)
+    {
+        // For simplicity assume no TXs in the queue are submitted from self. We
+        // might lose some metrics here but this is only called on network
+        // upgrades.
+        tryAdd(tx, /*submittedFromSelf=*/false);
+    }
+}
+
 bool
 ClassicTransactionQueue::broadcastSome()
 {

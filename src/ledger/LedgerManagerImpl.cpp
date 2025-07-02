@@ -1112,7 +1112,8 @@ getMetaIOContext(Application& app)
 
 void
 LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
-                                       LedgerCloseData const& ledgerData)
+                                       LedgerCloseData const& ledgerData,
+                                       bool upgradeApplied)
 {
     // We just finished applying `lcl`, maybe change LM's state
     // Also notify Herder so it can trigger next ledger.
@@ -1150,8 +1151,8 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
     if (calledViaExternalize)
     {
         // New ledger(s) got closed, notify Herder
-        mApp.getHerder().lastClosedLedgerIncreased(appliedLatest,
-                                                   ledgerData.getTxSet());
+        mApp.getHerder().lastClosedLedgerIncreased(
+            appliedLatest, ledgerData.getTxSet(), upgradeApplied);
     }
 }
 
@@ -1159,7 +1160,7 @@ void
 LedgerManagerImpl::advanceLedgerStateAndPublish(
     uint32_t ledgerSeq, bool calledViaExternalize,
     LedgerCloseData const& ledgerData,
-    CompleteConstLedgerStatePtr newLedgerState)
+    CompleteConstLedgerStatePtr newLedgerState, bool upgradeApplied)
 {
 #ifdef BUILD_TESTS
     if (mAdvanceLedgerStateAndPublishOverride)
@@ -1190,7 +1191,8 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
 
     // Maybe set LedgerManager into synced state, maybe let
     // Herder trigger next ledger
-    ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData);
+    ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData,
+                        upgradeApplied);
     CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
 }
 
@@ -1389,6 +1391,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
     // was validated before upgrades
+    bool upgradeApplied = false;
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
@@ -1427,6 +1430,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                 uem.changes = changes;
             }
             ltxUpgrade.commit();
+            upgradeApplied = true;
         }
         catch (std::runtime_error& e)
         {
@@ -1437,6 +1441,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             CLOG_ERROR(Ledger, "Unknown exception during upgrade");
         }
     }
+
     auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
@@ -1531,16 +1536,17 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     if (threadIsMain())
     {
         advanceLedgerStateAndPublish(ledgerSeq, calledViaExternalize,
-                                     ledgerData, std::move(appliedLedgerState));
+                                     ledgerData, std::move(appliedLedgerState),
+                                     upgradeApplied);
     }
     else
     {
         auto cb = [this, ledgerSeq, calledViaExternalize, ledgerData,
-                   appliedLedgerState =
-                       std::move(appliedLedgerState)]() mutable {
-            advanceLedgerStateAndPublish(ledgerSeq, calledViaExternalize,
-                                         ledgerData,
-                                         std::move(appliedLedgerState));
+                   appliedLedgerState = std::move(appliedLedgerState),
+                   upgradeApplied]() mutable {
+            advanceLedgerStateAndPublish(
+                ledgerSeq, calledViaExternalize, ledgerData,
+                std::move(appliedLedgerState), upgradeApplied);
         };
         mApp.postOnMainThread(std::move(cb), "advanceLedgerStateAndPublish");
     }

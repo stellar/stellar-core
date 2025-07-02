@@ -403,12 +403,14 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
-    void advanceLedgerStateAndPublish(
-        uint32_t ledgerSeq, bool calledViaExternalize,
-        LedgerCloseData const& ledgerData,
-        CompleteConstLedgerStatePtr newLedgerState) override;
+    void
+    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
+                                 LedgerCloseData const& ledgerData,
+                                 CompleteConstLedgerStatePtr newLedgerState,
+                                 bool queueRebuildNeeded) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
-                             LedgerCloseData const& ledgerData);
+                             LedgerCloseData const& ledgerData,
+                             bool queueRebuildNeeded);
     void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
 

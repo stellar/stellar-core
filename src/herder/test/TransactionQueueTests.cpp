@@ -3037,3 +3037,201 @@ TEST_CASE("arbitrage tx identification benchmark",
     LOG_INFO(DEFAULT_LOG, "executed 100 loop-checks of 600-op tx loop in {}",
              ch::duration_cast<ch::milliseconds>(end - start));
 }
+
+TEST_CASE("TransactionQueue reset and rebuild on upgrades",
+          "[herder][transactionqueue][upgrades]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& sorobanQueue = herder.getSorobanTransactionQueue();
+
+    // Create test accounts
+    auto root = app->getRoot();
+    std::vector<TestAccount> accounts;
+    for (size_t i = 0; i < 10; ++i)
+    {
+        accounts.emplace_back(root->create(std::to_string(i), 1000000000));
+    }
+
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxTxCount = 10;
+
+        cfg.mTxMaxInstructions = 10'000'000;
+        cfg.mTxMaxDiskReadBytes = 10000;
+        cfg.mTxMaxWriteBytes = 10000;
+        cfg.mTxMaxDiskReadEntries = 10;
+        cfg.mTxMaxWriteLedgerEntries = 10;
+        cfg.mTxMaxFootprintEntries = 40;
+        cfg.mTxMaxSizeBytes = 10000;
+
+        cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
+        cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
+        cfg.mLedgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
+        cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
+
+        cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
+        cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
+    });
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto defaultUploadWasmResources =
+        txtest::defaultUploadWasmResourcesWithoutFootprint(
+            rust_bridge::get_test_wasm_add_i32(),
+            lm.getLastClosedLedgerHeader().header.ledgerVersion);
+
+    // Make 9 small TXs, one large TX
+    std::vector<TransactionFrameBasePtr> smallTxs;
+    for (auto i = 0; i < 9; ++i)
+    {
+        auto& acc = accounts[i];
+        auto tx = txtest::makeSorobanWasmUploadTx(
+            *app, acc, wasm, defaultUploadWasmResources, 100 + i);
+        smallTxs.push_back(tx);
+    }
+
+    // Create a TX with much larger instruction resources, right at the limit
+    auto largeResources = defaultUploadWasmResources;
+    largeResources.instructions = 10'000'000;
+    auto largeTx = txtest::makeSorobanWasmUploadTx(*app, accounts[9], wasm,
+                                                   largeResources, 1000);
+
+    auto populateQueue = [&]() {
+        for (auto& tx : smallTxs)
+        {
+            REQUIRE(herder.recvTransaction(tx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        }
+
+        REQUIRE(herder.recvTransaction(largeTx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+    };
+
+    auto executeUpgrade = [&](auto const& upgradeCfg, auto const& upgrade) {
+        auto lclHeader = lm.getLastClosedLedgerHeader();
+        TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
+
+        app->getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
+                                          lclHeader.header.ledgerSeq + 1,
+                                          closeTime, {upgrade});
+        app->getRoot()->loadSequenceNumber();
+
+        // Check that the upgrade was actually applied.
+        auto postUpgradeCfg = lm.getLastClosedSorobanNetworkConfig();
+        releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
+    };
+
+    SECTION("ledger limit decreases")
+    {
+        // We need to prepare the upgrade first before adding to the TX queue,
+        // since this takes a few ledgers and our queue would get stale or
+        // included. After writing and arming the upgrade, we populate the queue
+        // then execute the upgrade.
+        auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
+            *app, [](SorobanNetworkConfig& cfg) { cfg.mLedgerMaxTxCount = 4; });
+        populateQueue();
+        executeUpgrade(upgradeCfg, upgrade);
+
+        // 2 TXs should be dropped since we only keep up to 2 ledgers worth of
+        // TXs
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 8);
+    }
+
+    SECTION("transaction limit decreases")
+    {
+        auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
+            *app, [](SorobanNetworkConfig& cfg) {
+                cfg.mTxMaxInstructions = 9'000'000;
+            });
+        populateQueue();
+        executeUpgrade(upgradeCfg, upgrade);
+
+        // Large TX should be dropped since it exceeds instruction limit
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 9);
+        REQUIRE(!sorobanQueue.getTx(largeTx->getFullHash()));
+        for (auto& tx : smallTxs)
+        {
+            REQUIRE(sorobanQueue.getTx(tx->getFullHash()));
+        }
+    }
+
+    SECTION("Increasing limits does not drop TXs")
+    {
+        auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
+            *app, [](SorobanNetworkConfig& cfg) {
+                cfg.mLedgerMaxTxCount = 11;
+                cfg.mTxMaxInstructions = 11'000'000;
+            });
+        populateQueue();
+        executeUpgrade(upgradeCfg, upgrade);
+
+        // All TXs should be kept since we increased the limits
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+    }
+}
+
+// Sanity check that no TXs are invalidated on protocol upgrades, since
+// limits aren't decreasing
+TEST_CASE("TXs not evicted from queue on protocol upgrade",
+          "[herder][transactionqueue][upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto startingProtocol = Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = startingProtocol;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& sorobanQueue = herder.getSorobanTransactionQueue();
+
+    overrideSorobanNetworkConfigForTest(*app);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion ==
+            startingProtocol);
+
+    auto root = app->getRoot();
+    std::vector<TestAccount> accounts;
+    for (size_t i = 0; i < 10; ++i)
+    {
+        accounts.emplace_back(root->create(std::to_string(i), 1000000000));
+    }
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto defaultUploadWasmResources =
+        txtest::defaultUploadWasmResourcesWithoutFootprint(
+            wasm, lm.getLastClosedLedgerHeader().header.ledgerVersion);
+
+    std::vector<TransactionFrameBasePtr> txs;
+    for (auto i = 0; i < 10; ++i)
+    {
+        auto& acc = accounts[i];
+        auto tx = txtest::makeSorobanWasmUploadTx(
+            *app, acc, wasm, defaultUploadWasmResources, 100 + i);
+        txs.push_back(tx);
+    }
+
+    for (auto& tx : txs)
+    {
+        REQUIRE(herder.recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    // Verify queue has all transactions before upgrade
+    REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+
+    // Execute the protocol upgrade
+    LedgerUpgrade protocolUpgrade{LEDGER_UPGRADE_VERSION};
+    protocolUpgrade.newLedgerVersion() =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    ::executeUpgrade(*app, protocolUpgrade);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion ==
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
+    // Verify queue still has all transactions after protocol upgrade
+    REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+    for (auto& tx : txs)
+    {
+        REQUIRE(sorobanQueue.getTx(tx->getFullHash()));
+    }
+}

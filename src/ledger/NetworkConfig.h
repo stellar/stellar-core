@@ -479,8 +479,8 @@ class SorobanNetworkConfig
     uint32_t mTxMemoryLimit{};
 
     // Ledger access settings for contracts.
-    uint32_t mledgerMaxDiskReadEntries{};
-    uint32_t mledgerMaxDiskReadBytes{};
+    uint32_t mLedgerMaxDiskReadEntries{};
+    uint32_t mLedgerMaxDiskReadBytes{};
     uint32_t mLedgerMaxWriteLedgerEntries{};
     uint32_t mLedgerMaxWriteBytes{};
     uint32_t mLedgerMaxTxCount{};
@@ -488,7 +488,7 @@ class SorobanNetworkConfig
     uint32_t mTxMaxDiskReadBytes{};
     uint32_t mTxMaxWriteLedgerEntries{};
     uint32_t mTxMaxWriteBytes{};
-    int64_t mfeeDiskReadLedgerEntry{};
+    int64_t mFeeDiskReadLedgerEntry{};
     int64_t mFeeWriteLedgerEntry{};
     int64_t mFeeDiskRead1KB{};
     int64_t mFeeRent1KB{};

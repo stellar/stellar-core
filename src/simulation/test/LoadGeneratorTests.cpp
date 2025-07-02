@@ -54,8 +54,8 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
             cfg.mLedgerMaxTxCount = mx;
             cfg.mLedgerMaxInstructions = mx;
             cfg.mLedgerMaxTransactionsSizeBytes = mx;
-            cfg.mledgerMaxDiskReadEntries = mx;
-            cfg.mledgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxDiskReadEntries = mx;
+            cfg.mLedgerMaxDiskReadBytes = mx;
             cfg.mLedgerMaxWriteLedgerEntries = mx;
             cfg.mLedgerMaxWriteBytes = mx;
         },
@@ -622,9 +622,9 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             // Allow every TX to have the maximum TX resources
             cfg.mLedgerMaxInstructions =
                 cfg.mTxMaxInstructions * cfg.mLedgerMaxTxCount;
-            cfg.mledgerMaxDiskReadEntries =
+            cfg.mLedgerMaxDiskReadEntries =
                 cfg.mTxMaxDiskReadEntries * cfg.mLedgerMaxTxCount;
-            cfg.mledgerMaxDiskReadBytes =
+            cfg.mLedgerMaxDiskReadBytes =
                 cfg.mTxMaxDiskReadBytes * cfg.mLedgerMaxTxCount;
             cfg.mLedgerMaxWriteLedgerEntries =
                 cfg.mTxMaxWriteLedgerEntries * cfg.mLedgerMaxTxCount;

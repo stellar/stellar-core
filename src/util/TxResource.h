@@ -134,6 +134,7 @@ class Resource
     bool canAdd(Resource const& other) const;
 
     friend Resource multiplyByDouble(Resource const& res, double m);
+    friend Resource saturatedMultiplyByDouble(Resource const& res, double m);
     friend Resource bigDivideOrThrow(Resource const& res, int64_t B, int64_t C,
                                      Rounding rounding);
     friend Resource operator+(Resource const& lhs, Resource const& rhs);

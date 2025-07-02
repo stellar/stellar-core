@@ -115,8 +115,11 @@ class Herder
     // restores Herder's state from disk
     virtual void start() = 0;
 
+    // If a protocol or network config setting upgrade occurred during the
+    // ledger close, `upgradeApplied` will be true.
     virtual void lastClosedLedgerIncreased(bool latest,
-                                           TxSetXDRFrameConstPtr txSet) = 0;
+                                           TxSetXDRFrameConstPtr txSet,
+                                           bool upgradeApplied) = 0;
 
     // Setup Herder's state to fully participate in consensus
     virtual void setTrackingSCPState(uint64_t index, StellarValue const& value,

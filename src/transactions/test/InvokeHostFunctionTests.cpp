@@ -1426,7 +1426,7 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
     for_versions_from(20, *app, [&] {
         auto cfgModifyFn = [&](SorobanNetworkConfig& cfg) {
             cfg.mFeeRatePerInstructionsIncrement = 1000;
-            cfg.mfeeDiskReadLedgerEntry = 2000;
+            cfg.mFeeDiskReadLedgerEntry = 2000;
             cfg.mFeeWriteLedgerEntry = 3000;
             cfg.mFeeDiskRead1KB = 4000;
             cfg.mFeeHistorical1KB = 6000;
@@ -4891,7 +4891,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod = 1;
         // These are required to allow for an upgrade of all settings at once.
         cfg.mMaxContractDataEntrySizeBytes = 5000;
-        cfg.mledgerMaxDiskReadBytes = 5000;
+        cfg.mLedgerMaxDiskReadBytes = 5000;
         cfg.mLedgerMaxWriteBytes = 5000;
         cfg.mTxMaxDiskReadBytes = 5000;
         cfg.mTxMaxWriteBytes = 5000;

@@ -44,6 +44,7 @@ anyLessThan(Resource const& lhs, Resource const& rhs)
     return false;
 }
 
+// Throws if multiplication result overflows int64_t
 Resource
 multiplyByDouble(Resource const& res, double m)
 {
@@ -55,6 +56,29 @@ multiplyByDouble(Resource const& res, double m)
         releaseAssertOrThrow(tempResultDbl >= 0.0);
         releaseAssertOrThrow(isRepresentableAsInt64(tempResultDbl));
         resource = static_cast<int64_t>(tempResultDbl);
+    }
+
+    return newRes;
+}
+
+// Saturating multiply: cap at int64_t::max if result would overflow
+Resource
+saturatedMultiplyByDouble(Resource const& res, double m)
+{
+    auto newRes = res;
+    for (auto& resource : newRes.mResources)
+    {
+        auto tempResultDbl = resource * m;
+        releaseAssertOrThrow(tempResultDbl >= 0.0);
+
+        if (isRepresentableAsInt64(tempResultDbl))
+        {
+            resource = static_cast<int64_t>(tempResultDbl);
+        }
+        else
+        {
+            resource = std::numeric_limits<int64_t>::max();
+        }
     }
 
     return newRes;
