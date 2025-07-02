@@ -85,9 +85,12 @@ class LedgerManagerImpl : public LedgerManager
     // Any state that apply needs to access through the app connector should go
     // here, at very least just to make it clear what is being accessed by which
     // threads. We may try to further encapsulate it.
-    struct ApplyState
+    class ApplyState
     {
+      private:
         LedgerApplyMetrics mMetrics;
+
+        AppConnector& mAppConnector;
 
         // Latest Soroban config during apply (should not be used outside of
         // application, as it may be in half-valid state). Note that access to
@@ -107,7 +110,7 @@ class LedgerManagerImpl : public LedgerManager
         std::vector<uint32_t> mModuleCacheProtocols;
 
         // Number of threads to use for compilation (cached from config).
-        size_t mNumCompilationThreads;
+        size_t const mNumCompilationThreads;
 
         // In-memory map of live Soroban state for the current ledger.
         std::unique_ptr<InMemorySorobanState> mInMemorySorobanState;
@@ -119,6 +122,42 @@ class LedgerManagerImpl : public LedgerManager
         void startCompilingAllContracts(SearchableSnapshotConstPtr snap,
                                         uint32_t minLedgerVersion);
 
+      public:
+        LedgerApplyMetrics& getMetrics();
+
+        ApplyState(Application& app);
+
+        void threadInvariant() const;
+
+        // The following methods are const getters, and can be accessed from any
+        // thread for read-only purposes
+        InMemorySorobanState const& getInMemorySorobanState() const;
+
+        std::shared_ptr<SorobanNetworkConfig const>
+        getSorobanNetworkConfig() const;
+
+        SorobanNetworkConfig& getSorobanNetworkConfigToModify();
+
+        ::rust::Box<rust_bridge::SorobanModuleCache> const&
+        getModuleCache() const;
+
+        bool isCompilationRunning() const;
+
+        // Non-const mutating methods, must always be called from the applying
+        // thread (either main or parallel apply thread).
+        void setInMemorySorobanState(
+            std::unique_ptr<InMemorySorobanState> inMemorySorobanState);
+
+        void setSorobanNetworkConfig(
+            std::shared_ptr<SorobanNetworkConfig> sorobanNetworkConfig);
+
+        void
+        updateInMemorySorobanState(std::vector<LedgerEntry> const& initEntries,
+                                   std::vector<LedgerEntry> const& liveEntries,
+                                   std::vector<LedgerKey> const& deadEntries,
+                                   LedgerHeader const& lh);
+
+        void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
         // Finishes a compilation started by `startCompilingAllContracts`.
         void finishPendingCompilation();
 
@@ -147,8 +186,6 @@ class LedgerManagerImpl : public LedgerManager
         // Populates all live Soroban state into the cache from the provided
         // snapshot.
         void populateInMemorySorobanState(SearchableSnapshotConstPtr snap);
-
-        ApplyState(Application& app);
     };
 
     // This state is private to the apply thread and holds work-in-progress
@@ -344,7 +381,7 @@ class LedgerManagerImpl : public LedgerManager
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
     std::function<void()> mAdvanceLedgerStateAndPublishOverride;
-    InMemorySorobanState& getInMemorySorobanStateForTesting() override;
+    InMemorySorobanState const& getInMemorySorobanStateForTesting() override;
     void rebuildInMemorySorobanStateForTesting() override;
 #endif
 
