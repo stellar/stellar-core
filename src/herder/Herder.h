@@ -115,8 +115,11 @@ class Herder
     // restores Herder's state from disk
     virtual void start() = 0;
 
+    // If a protocol or network config setting upgrade occurred during the
+    // ledger close, `upgradeApplied` will be true.
     virtual void lastClosedLedgerIncreased(bool latest,
-                                           TxSetXDRFrameConstPtr txSet) = 0;
+                                           TxSetXDRFrameConstPtr txSet,
+                                           bool upgradeApplied) = 0;
 
     // Setup Herder's state to fully participate in consensus
     virtual void setTrackingSCPState(uint64_t index, StellarValue const& value,
@@ -229,9 +232,6 @@ class Herder
     virtual size_t getMaxQueueSizeOps() const = 0;
     virtual size_t getMaxQueueSizeSorobanOps() const = 0;
     virtual void maybeHandleUpgrade() = 0;
-
-    // Schedule transaction queue rebuild after protocol/network config upgrades
-    virtual void scheduleQueueRebuild() = 0;
 
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;

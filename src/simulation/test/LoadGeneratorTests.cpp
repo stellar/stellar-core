@@ -54,8 +54,8 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
             cfg.mLedgerMaxTxCount = mx;
             cfg.mLedgerMaxInstructions = mx;
             cfg.mLedgerMaxTransactionsSizeBytes = mx;
-            cfg.mledgerMaxDiskReadEntries = mx;
-            cfg.mledgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxDiskReadEntries = mx;
+            cfg.mLedgerMaxDiskReadBytes = mx;
             cfg.mLedgerMaxWriteLedgerEntries = mx;
             cfg.mLedgerMaxWriteBytes = mx;
         },

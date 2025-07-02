@@ -3123,7 +3123,7 @@ TEST_CASE("TransactionQueue reset and rebuild on upgrades",
         releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
     };
 
-    SECTION("TX size decreases")
+    SECTION("ledger limit decreases")
     {
         // We need to prepare the upgrade first before adding to the TX queue,
         // since this takes a few ledgers and our queue would get stale or
@@ -3139,7 +3139,7 @@ TEST_CASE("TransactionQueue reset and rebuild on upgrades",
         REQUIRE(sorobanQueue.getQueueSizeOps() == 8);
     }
 
-    SECTION("Soroban limit decreases")
+    SECTION("transaction limit decreases")
     {
         auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
             *app, [](SorobanNetworkConfig& cfg) {
@@ -3172,21 +3172,23 @@ TEST_CASE("TransactionQueue reset and rebuild on upgrades",
     }
 }
 
-// Sanity check that no TXs are invalidated on protocol 23 upgrade, since
+// Sanity check that no TXs are invalidated on protocol upgrades, since
 // limits aren't decreasing
-TEST_CASE("TXs not evicted from queue on protocol 23 upgrade",
+TEST_CASE("TXs not evicted from queue on protocol upgrade",
           "[herder][transactionqueue][upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
+    auto startingProtocol = Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = startingProtocol;
     auto app = createTestApplication(clock, cfg);
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& lm = app->getLedgerManager();
     auto& sorobanQueue = herder.getSorobanTransactionQueue();
 
     overrideSorobanNetworkConfigForTest(*app);
-    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion == 22);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion ==
+            startingProtocol);
 
     auto root = app->getRoot();
     std::vector<TestAccount> accounts;
@@ -3220,9 +3222,11 @@ TEST_CASE("TXs not evicted from queue on protocol 23 upgrade",
 
     // Execute the protocol upgrade
     LedgerUpgrade protocolUpgrade{LEDGER_UPGRADE_VERSION};
-    protocolUpgrade.newLedgerVersion() = 23;
+    protocolUpgrade.newLedgerVersion() =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     ::executeUpgrade(*app, protocolUpgrade);
-    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion == 23);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion ==
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
     // Verify queue still has all transactions after protocol upgrade
     REQUIRE(sorobanQueue.getQueueSizeOps() == 10);

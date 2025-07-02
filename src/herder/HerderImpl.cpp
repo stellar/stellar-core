@@ -1165,7 +1165,8 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
 }
 
 void
-HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
+HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
+                                      bool upgradeApplied)
 {
     releaseAssert(threadIsMain());
 
@@ -1176,8 +1177,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
     maybeHandleUpgrade();
 
     // In order to update the transaction queue we need to get the
-    // applied transactions.
-    updateTransactionQueue(txSet);
+    // applied transactions. If a protocol or network config setting upgrade
+    // occurred, we will need to rebuild the queue, as limits may have changed.
+    updateTransactionQueue(txSet, upgradeApplied);
 
     // If we're in sync and there are no buffered ledgers to apply, trigger next
     // ledger
@@ -2421,7 +2423,8 @@ HerderImpl::trackingHeartBeat()
 }
 
 void
-HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
+HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
+                                   bool queueRebuildNeeded)
 {
     ZoneScoped;
     if (externalizedTxSet == nullptr)
@@ -2439,13 +2442,9 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
         queue.removeApplied(applied);
         queue.shift();
 
-        // Check if queue rebuild was scheduled due to upgrades. Do this
-        // after removing applied transactions, but before checking for invalid
-        // TXs so we can use the most up to date limits for the validity check.
-        if (isSoroban && mQueueRebuildNeeded)
+        if (isSoroban && queueRebuildNeeded)
         {
             mSorobanTransactionQueue->resetAndRebuild();
-            mQueueRebuildNeeded = false;
         }
 
         auto txs = queue.getTransactions(lhhe.header);
@@ -2474,12 +2473,6 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
                     txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)],
                     true);
     }
-}
-
-void
-HerderImpl::scheduleQueueRebuild()
-{
-    mQueueRebuildNeeded = true;
 }
 
 void
