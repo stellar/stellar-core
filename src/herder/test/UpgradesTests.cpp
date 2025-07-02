@@ -31,6 +31,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
 #include <chrono>
@@ -3489,4 +3490,99 @@ TEST_CASE("protocol 23 upgrade sets default SCP timing values", "[upgrades]")
     REQUIRE(scpDriver.computeTimeout(5, false) == ballotTimeout5);
     REQUIRE(scpDriver.computeTimeout(1, true) == nomTimeout1);
     REQUIRE(scpDriver.computeTimeout(5, true) == nomTimeout5);
+}
+
+TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+
+    SorobanTest test(cfg);
+    auto& app = test.getApp();
+    auto const& lm = test.getApp().getLedgerManager();
+
+    auto networkConfig = [&]() {
+        return lm.getLastClosedSorobanNetworkConfig();
+    };
+
+    auto getStateSizeWindow = [&]() {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+
+        LedgerKey key(CONFIG_SETTING);
+        key.configSetting().configSettingID =
+            ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+        auto txle = ltx.loadWithoutRecord(key);
+        releaseAssert(txle);
+        return txle.current().data.configSetting().liveSorobanStateSizeWindow();
+    };
+
+    // Write some data to the ledger
+    auto& contract =
+        test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
+
+    // TODO: Update this to calculate the write amount once Dima's PR is merged
+    // in?
+    auto expectedInMemorySize = 7996;
+
+    REQUIRE(getStateSizeWindow().size() ==
+            InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
+
+    uint32_t windowSize = networkConfig()
+                              .stateArchivalSettings()
+                              .liveSorobanStateSizeWindowSampleSize;
+    std::deque<uint64_t> correctWindow;
+    for (auto i = 0u; i < windowSize - 1; ++i)
+    {
+        correctWindow.push_back(0);
+    }
+    correctWindow.push_back(expectedInMemorySize);
+
+    auto check = [&]() {
+        uint64_t sum = 0;
+        for (auto e : correctWindow)
+        {
+            sum += e;
+        }
+
+        uint64_t correctAverage = sum / correctWindow.size();
+
+        REQUIRE(networkConfig().getAverageBucketListSize() == correctAverage);
+
+        std::vector<uint64_t> correctWindowVec(correctWindow.begin(),
+                                               correctWindow.end());
+        REQUIRE(correctWindowVec == getStateSizeWindow());
+    };
+
+    // Make sure next snapshot is taken
+    while (test.getLCLSeq() % networkConfig()
+                                  .stateArchivalSettings()
+                                  .liveSorobanStateSizeWindowSamplePeriod !=
+           0)
+    {
+        closeLedger(app);
+    }
+
+    // Check window before upgrade
+    check();
+
+    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize = 11;
+    });
+
+    auto newWindowSize = networkConfig()
+                             .stateArchivalSettings()
+                             .liveSorobanStateSizeWindowSampleSize;
+    REQUIRE(newWindowSize == 11);
+
+    correctWindow.clear();
+
+    for (auto i = 0u; i < newWindowSize - 1; ++i)
+    {
+        correctWindow.push_back(0);
+    }
+    correctWindow.push_back(expectedInMemorySize);
+
+    // Check window after upgrade
+    check();
 }
