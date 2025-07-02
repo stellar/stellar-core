@@ -249,6 +249,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     }
 
     mDatabase = createDatabase();
+    mAppConnector = std::make_unique<AppConnector>(*this);
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
@@ -262,7 +263,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
-    mAppConnector = std::make_unique<AppConnector>(*this);
 
     if (mConfig.ENTRY_CACHE_SIZE < 20000)
     {

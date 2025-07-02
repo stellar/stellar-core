@@ -1102,7 +1102,8 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
         auto dataEntries = test.getContractDataEntries();
 
         auto testCache = [&]() {
-            auto& inMemorySorobanState = lm.getInMemorySorobanStateForTesting();
+            auto const& inMemorySorobanState =
+                lm.getInMemorySorobanStateForTesting();
 
             auto snapshot = test.getBM()
                                 .getBucketSnapshotManager()

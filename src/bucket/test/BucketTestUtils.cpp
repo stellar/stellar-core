@@ -298,7 +298,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                                                  mTestLiveEntries);
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
-        mApplyState.mInMemorySorobanState->updateState(
+        mApplyState.updateInMemorySorobanState(
             mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh);
 
         mUseTestEntries = false;

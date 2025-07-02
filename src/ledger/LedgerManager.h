@@ -268,7 +268,7 @@ class LedgerManager
     virtual std::optional<LedgerCloseMetaFrame> const&
     getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
-    virtual InMemorySorobanState& getInMemorySorobanStateForTesting() = 0;
+    virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
     virtual void rebuildInMemorySorobanStateForTesting() = 0;
 #endif
 
