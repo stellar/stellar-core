@@ -455,7 +455,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
         {
             auto it =
                 mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
-            releaseAssert(it != mGlobalRestoredEntries.hotArchive.end());
+            releaseAssertOrThrow(it != mGlobalRestoredEntries.hotArchive.end());
             ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
         }
     }
@@ -482,7 +482,7 @@ GlobalParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     // Invariant check: if an entry is not in mGlobalEntryMap it should also not
     // be in the restored map.
-    releaseAssert(!mGlobalRestoredEntries.entryWasRestored(key));
+    releaseAssertOrThrow(!mGlobalRestoredEntries.entryWasRestored(key));
 
     // Check InMemorySorobanState cache for soroban types
     std::shared_ptr<LedgerEntry const> res;
@@ -652,8 +652,8 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
             // the entry must exist. If it was deleted, we would've
             // erased the TTL key from mRoTTLBumps.
             auto ttlEntry = getLiveEntryOpt(ttlKey);
-            releaseAssert(ttlEntry);
-            releaseAssert(ttl(ttlEntry) <= b->second);
+            releaseAssertOrThrow(ttlEntry);
+            releaseAssertOrThrow(ttl(ttlEntry) <= b->second);
             ttl(ttlEntry) = b->second;
             upsertEntry(ttlKey, ttlEntry.value());
             mRoTTLBumps.erase(b);
@@ -669,7 +669,7 @@ ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
         auto entryOpt = getLiveEntryOpt(lk);
         // The entry should always exist. If the entry was deleted,
         // then we would've erased the TTL key from roTTLBumps.
-        releaseAssert(entryOpt);
+        releaseAssertOrThrow(entryOpt);
         if (ttl(entryOpt) < ttlBump)
         {
             auto updated = entryOpt.value();
@@ -706,12 +706,12 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     // associated entry was live-restored.
     if (key.type() == TTL)
     {
-        releaseAssert(!mThreadRestoredEntries.entryWasRestoredFromMap(
+        releaseAssertOrThrow(!mThreadRestoredEntries.entryWasRestoredFromMap(
             key, mThreadRestoredEntries.hotArchive));
     }
     else
     {
-        releaseAssert(!mThreadRestoredEntries.entryWasRestored(key));
+        releaseAssertOrThrow(!mThreadRestoredEntries.entryWasRestored(key));
     }
 
     // Check InMemorySorobanState cache for soroban types
@@ -749,7 +749,7 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
     if (entryOpt && oldEntryOpt && roTTLSet.find(key) != roTTLSet.end())
     {
         // Accumulate RO bumps instead of writing them to the entryMap.
-        releaseAssert(ttl(entryOpt) >= ttl(oldEntryOpt));
+        releaseAssertOrThrow(ttl(entryOpt) >= ttl(oldEntryOpt));
         updateMaxOfRoTTLBump(mRoTTLBumps, key, entryOpt);
     }
     else if (entryOpt)
@@ -767,7 +767,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
     ParallelTxReturnVal const& res, ParallelLedgerInfo const& ledgerInfo,
     TxEffects& effects) const
 {
-    releaseAssert(res.getSuccess());
+    releaseAssertOrThrow(res.getSuccess());
     for (auto const& [lk, le] : res.getModifiedEntryMap())
     {
         auto prevLe = getLiveEntryOpt(lk);
@@ -807,7 +807,7 @@ void
 ThreadParallelApplyLedgerState::commitChangesFromSuccessfulOp(
     ParallelTxReturnVal const& res, TxBundle const& txBundle)
 {
-    releaseAssert(res.getSuccess());
+    releaseAssertOrThrow(res.getSuccess());
     auto roTTLSet = buildRoTTLSet(txBundle);
     for (auto const& [key, entryOpt] : res.getModifiedEntryMap())
     {
