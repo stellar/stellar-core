@@ -1415,7 +1415,8 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
         networkConfig.loadFromLedger(
             ltx, app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
             mLedgerVersion);
-        networkConfig.writeliveSorobanStateSizeWindow(ltx);
+
+        networkConfig.maybeUpdateBucketListWindowSize(ltx);
     }
 }
 

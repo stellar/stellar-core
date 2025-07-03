@@ -373,6 +373,12 @@ class SorobanNetworkConfig
     void maybeSnapshotBucketListSize(uint32_t currLedger,
                                      AbstractLedgerTxn& ltx, Application& app);
 
+    // If newSize is different than the current BucketList size sliding window,
+    // update the window. If newSize < currSize, pop entries off window. If
+    // newSize > currSize, add as many copies of the current BucketList size to
+    // window until it has newSize entries.
+    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
+
     // Returns the average of all BucketList size snapshots in the sliding
     // window.
     uint64_t getAverageBucketListSize() const;
@@ -449,11 +455,6 @@ class SorobanNetworkConfig
     void loadSCPTimingConfig(LedgerTxnReadOnly const& roLtx);
     void computeRentWriteFee(uint32_t configMaxProtocol,
                              uint32_t protocolVersion);
-    // If newSize is different than the current BucketList size sliding window,
-    // update the window. If newSize < currSize, pop entries off window. If
-    // newSize > currSize, add as many copies of the current BucketList size to
-    // window until it has newSize entries.
-    void maybeUpdateBucketListWindowSize(LedgerTxnReadOnly const& roLtx);
 
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.

@@ -1352,8 +1352,7 @@ SorobanNetworkConfig::loadFromLedger(LedgerTxnReadOnly const& roLtx,
     loadExecutionLanesSettings(roLtx);
     loadliveSorobanStateSizeWindow(roLtx);
     loadEvictionIterator(roLtx);
-    // NB: this should follow loading state archival settings
-    maybeUpdateBucketListWindowSize(roLtx);
+
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
     {
         loadParallelComputeConfig(roLtx);
@@ -1870,13 +1869,12 @@ SorobanNetworkConfig::ledgerMaxTxCount() const
 }
 
 void
-SorobanNetworkConfig::maybeUpdateBucketListWindowSize(
-    LedgerTxnReadOnly const& roLtx)
+SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
 
     // // Check if BucketList size window should exist
-    if (protocolVersionIsBefore(roLtx.getLedgerHeader().current().ledgerVersion,
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 SOROBAN_PROTOCOL_VERSION))
     {
         return;
@@ -1908,6 +1906,8 @@ SorobanNetworkConfig::maybeUpdateBucketListWindowSize(
     }
 
     updateBucketListSizeAverage();
+
+    writeliveSorobanStateSizeWindow(ltx);
 }
 
 void
