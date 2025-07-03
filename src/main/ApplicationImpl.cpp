@@ -35,6 +35,7 @@
 #include "invariant/SponsorshipCountIsValid.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTxn.h"
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
@@ -271,7 +272,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
                     "of 20000",
                     mConfig.ENTRY_CACHE_SIZE);
     }
-    mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
+    mLedgerTxnRoot = getLedgerManager().createLedgerTxnRoot(
         *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
 #ifdef BEST_OFFER_DEBUGGING
         ,

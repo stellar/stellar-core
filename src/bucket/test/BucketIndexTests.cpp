@@ -123,6 +123,7 @@ class BucketIndexTest
 
                     // Entry should never expire
                     ttl.data.ttl().liveUntilLedgerSeq = ledger + 10'000;
+                    ttl.lastModifiedLedgerSeq = ledger;
 
                     // Add TTL key to mGeneratedKeys to maintain uniqueness
                     auto ttlKey = LedgerEntryKey(ttl);
@@ -1114,36 +1115,40 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
                     inMemorySorobanState.mContractCodeEntries.size());
             for (auto const& [k, v] : codeEntries)
             {
-                auto inMemoryEntry =
-                    inMemorySorobanState.getContractCodeEntry(k);
+                auto inMemoryEntry = inMemorySorobanState.get(k);
                 REQUIRE(inMemoryEntry);
 
                 auto liveEntry = snapshot->load(k);
                 REQUIRE(liveEntry);
-                REQUIRE(*liveEntry == *inMemoryEntry->ledgerEntry);
+                REQUIRE(*liveEntry == *inMemoryEntry);
 
-                auto ttlEntry = snapshot->load(getTTLKey(k));
+                auto ttlKey = getTTLKey(k);
+                auto ttlEntry = snapshot->load(ttlKey);
                 REQUIRE(ttlEntry);
-                REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq ==
-                        inMemoryEntry->liveUntilLedgerSeq);
+
+                auto inMemoryTTL = inMemorySorobanState.get(ttlKey);
+                REQUIRE(inMemoryTTL);
+                REQUIRE(*inMemoryTTL == *ttlEntry);
             }
 
             REQUIRE(dataEntries.size() ==
                     inMemorySorobanState.mContractDataEntries.size());
             for (auto const& [k, v] : dataEntries)
             {
-                auto inMemoryEntry =
-                    inMemorySorobanState.getContractDataEntry(k);
+                auto inMemoryEntry = inMemorySorobanState.get(k);
                 REQUIRE(inMemoryEntry);
 
                 auto liveEntry = snapshot->load(k);
                 REQUIRE(liveEntry);
-                REQUIRE(*liveEntry == *inMemoryEntry->ledgerEntry);
+                REQUIRE(*liveEntry == *inMemoryEntry);
 
-                auto ttlEntry = snapshot->load(getTTLKey(k));
+                auto ttlKey = getTTLKey(k);
+                auto ttlEntry = snapshot->load(ttlKey);
                 REQUIRE(ttlEntry);
-                REQUIRE(ttlEntry->data.ttl().liveUntilLedgerSeq ==
-                        inMemoryEntry->liveUntilLedgerSeq);
+
+                auto inMemoryTTL = inMemorySorobanState.get(ttlKey);
+                REQUIRE(inMemoryTTL);
+                REQUIRE(*inMemoryTTL == *ttlEntry);
             }
         };
 

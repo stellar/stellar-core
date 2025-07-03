@@ -8,6 +8,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/NetworkConfig.h"
+#include "main/ApplicationImpl.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionMeta.h"
 #include <memory>
@@ -157,6 +158,18 @@ class InMemorySorobanState;
 // thread.
 class LedgerManager
 {
+
+  protected:
+    friend void ApplicationImpl::initialize(bool createNewDB,
+                                            bool forceRebuild);
+    virtual std::unique_ptr<LedgerTxnRoot>
+    createLedgerTxnRoot(Application& app, size_t entryCacheSize,
+                        size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                        ,
+                        bool bestOfferDebuggingEnabled
+#endif
+                        ) = 0;
   public:
     static const uint32_t GENESIS_LEDGER_SEQ;
     static const uint32_t GENESIS_LEDGER_VERSION;

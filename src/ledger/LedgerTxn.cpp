@@ -7,6 +7,8 @@
 #include "bucket/SearchableBucketList.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
+#include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -2604,14 +2606,16 @@ LedgerTxn::Impl::EntryIteratorImpl::clone() const
 // Implementation of LedgerTxnRoot ------------------------------------------
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
-LedgerTxnRoot::LedgerTxnRoot(Application& app, size_t entryCacheSize,
-                             size_t prefetchBatchSize
+LedgerTxnRoot::LedgerTxnRoot(Application& app,
+                             InMemorySorobanState const& inMemorySorobanState,
+                             size_t entryCacheSize, size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                              ,
                              bool bestOfferDebuggingEnabled
 #endif
                              )
-    : mImpl(std::make_unique<Impl>(app, entryCacheSize, prefetchBatchSize
+    : mImpl(std::make_unique<Impl>(app, inMemorySorobanState, entryCacheSize,
+                                   prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                                    ,
                                    bestOfferDebuggingEnabled
@@ -2620,8 +2624,9 @@ LedgerTxnRoot::LedgerTxnRoot(Application& app, size_t entryCacheSize,
 {
 }
 
-LedgerTxnRoot::Impl::Impl(Application& app, size_t entryCacheSize,
-                          size_t prefetchBatchSize
+LedgerTxnRoot::Impl::Impl(Application& app,
+                          InMemorySorobanState const& inMemorySorobanState,
+                          size_t entryCacheSize, size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                           ,
                           bool bestOfferDebuggingEnabled
@@ -2631,6 +2636,7 @@ LedgerTxnRoot::Impl::Impl(Application& app, size_t entryCacheSize,
           std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
                    getMaxOffersToCross()))
     , mApp(app)
+    , mInMemorySorobanState(inMemorySorobanState)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
@@ -3542,16 +3548,20 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             ++mPrefetchMisses;
         }
 
-        std::shared_ptr<LedgerEntry const> entry;
+        std::shared_ptr<LedgerEntry const> entry = nullptr;
         try
         {
-            if (key.type() != OFFER)
+            if (InMemorySorobanState::isInMemoryType(key))
             {
-                entry = getSearchableLiveBucketListSnapshot().load(key);
+                entry = mInMemorySorobanState.get(key);
+            }
+            else if (key.type() == OFFER)
+            {
+                entry = loadOffer(key);
             }
             else
             {
-                entry = loadOffer(key);
+                entry = getSearchableLiveBucketListSnapshot().load(key);
             }
         }
         catch (std::exception& e)

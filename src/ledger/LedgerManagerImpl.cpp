@@ -230,20 +230,19 @@ LedgerManagerImpl::ApplyState::getMetrics()
     return mMetrics;
 }
 
-void
-LedgerManagerImpl::ApplyState::setInMemorySorobanState(
-    std::unique_ptr<InMemorySorobanState> inMemorySorobanState)
-{
-    threadInvariant();
-    mInMemorySorobanState = std::move(inMemorySorobanState);
-}
-
 InMemorySorobanState const&
 LedgerManagerImpl::ApplyState::getInMemorySorobanState() const
 {
-    releaseAssert(mInMemorySorobanState);
-    return *mInMemorySorobanState;
+    return mInMemorySorobanState;
 }
+
+#ifdef BUILD_TESTS
+InMemorySorobanState&
+LedgerManagerImpl::ApplyState::getInMemorySorobanStateForTesting()
+{
+    return mInMemorySorobanState;
+}
+#endif
 
 void
 LedgerManagerImpl::ApplyState::threadInvariant() const
@@ -300,9 +299,8 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
     std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh)
 {
     threadInvariant();
-    releaseAssert(mInMemorySorobanState);
-    mInMemorySorobanState->updateState(initEntries, liveEntries, deadEntries,
-                                       lh);
+    mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries,
+                                      lh);
 }
 
 void
@@ -310,8 +308,7 @@ LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
     LedgerHeader const& lh)
 {
     threadInvariant();
-    releaseAssert(mInMemorySorobanState);
-    mInMemorySorobanState->manuallyAdvanceLedgerHeader(lh);
+    mInMemorySorobanState.manuallyAdvanceLedgerHeader(lh);
 }
 
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
@@ -456,11 +453,6 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
-
-    // mInMemorySorobanState is expected to exist when we go through the ledger
-    // close flow, so initialize empty in-memory state.
-    mApplyState.setInMemorySorobanState(
-        std::make_unique<InMemorySorobanState>());
 
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(ltx, /*ledgerCloseMeta*/ nullptr,
@@ -789,12 +781,13 @@ LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 InMemorySorobanState const&
 LedgerManagerImpl::getInMemorySorobanStateForTesting()
 {
-    return mApplyState.getInMemorySorobanState();
+    return mApplyState.getInMemorySorobanStateForTesting();
 }
 
 void
 LedgerManagerImpl::rebuildInMemorySorobanStateForTesting()
 {
+    mApplyState.getInMemorySorobanStateForTesting().clearForTesting();
     mApplyState.populateInMemorySorobanState(
         mLastClosedLedgerState->getBucketSnapshot());
 }
@@ -804,6 +797,25 @@ SorobanMetrics&
 LedgerManagerImpl::getSorobanMetrics()
 {
     return mApplyState.getMetrics().mSorobanMetrics;
+}
+
+std::unique_ptr<LedgerTxnRoot>
+LedgerManagerImpl::createLedgerTxnRoot(Application& app, size_t entryCacheSize,
+                                       size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                                       ,
+                                       bool bestOfferDebuggingEnabled
+#endif
+)
+{
+    return std::make_unique<LedgerTxnRoot>(
+        app, mApplyState.getInMemorySorobanState(), entryCacheSize,
+        prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+        ,
+        bestOfferDebuggingEnabled
+#endif
+    );
 }
 
 ::rust::Box<rust_bridge::SorobanModuleCache>
@@ -846,8 +858,7 @@ LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
     SearchableSnapshotConstPtr snap)
 {
     threadInvariant();
-    mInMemorySorobanState = std::make_unique<InMemorySorobanState>();
-    mInMemorySorobanState->initializeStateFromSnapshot(snap);
+    mInMemorySorobanState.initializeStateFromSnapshot(snap);
 }
 
 void
@@ -2157,7 +2168,8 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                                       std::vector<ApplyStage> const& stages,
                                       Hash const& sorobanBasePrngSeed)
 {
-    GlobalParallelApplyLedgerState globalParState(app, ltx, stages);
+    GlobalParallelApplyLedgerState globalParState(
+        app, ltx, stages, mApplyState.getInMemorySorobanState());
     // LedgerTxn is not passed into applySorobanStage, so there's no risk
     // of the header being updated while we apply the stages.
     auto const& header = ltx.loadHeader().current();

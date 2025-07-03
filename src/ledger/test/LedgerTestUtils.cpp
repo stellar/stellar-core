@@ -498,6 +498,13 @@ static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
         le.lastModifiedLedgerSeq = le.lastModifiedLedgerSeq & INT32_MAX;
+
+        // InMemorySorobanState expects lastModifiedLedgerSeq to be non-zero
+        if (le.lastModifiedLedgerSeq == 0)
+        {
+            le.lastModifiedLedgerSeq = 1;
+        }
+
         switch (led.type())
         {
         case ACCOUNT:

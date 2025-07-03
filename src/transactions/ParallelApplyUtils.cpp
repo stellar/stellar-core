@@ -383,9 +383,11 @@ ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages)
+    std::vector<ApplyStage> const& stages,
+    InMemorySorobanState const& inMemoryState)
     : mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mInMemorySorobanState(inMemoryState)
 {
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
@@ -465,7 +467,17 @@ GlobalParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     // Invariant check: if an entry is not in mGlobalEntryMap it should also not
     // be in the restored map.
     releaseAssert(!mGlobalRestoredEntries.entryWasRestored(key));
-    auto res = mLiveSnapshot->load(key);
+
+    // Check InMemorySorobanState cache for soroban types
+    std::shared_ptr<LedgerEntry const> res;
+    if (InMemorySorobanState::isInMemoryType(key))
+    {
+        res = mInMemorySorobanState.get(key);
+    }
+    else
+    {
+        res = mLiveSnapshot->load(key);
+    }
     return res ? std::make_optional(*res) : std::nullopt;
 }
 
@@ -594,6 +606,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     // pointer copy is not safe, the snapshot objects are not threadsafe.
     : mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mInMemorySorobanState(global.mInMemorySorobanState)
 {
     mPreviouslyRestoredEntries.addRestoresFrom(global.getRestoredEntries());
     collectClusterFootprintEntriesFromGlobal(app, global, cluster);
@@ -682,7 +695,18 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     {
         releaseAssert(!mThreadRestoredEntries.entryWasRestored(key));
     }
-    auto res = mLiveSnapshot->load(key);
+
+    // Check InMemorySorobanState cache for soroban types
+    std::shared_ptr<LedgerEntry const> res;
+    if (InMemorySorobanState::isInMemoryType(key))
+    {
+        res = mInMemorySorobanState.get(key);
+    }
+    else
+    {
+        res = mLiveSnapshot->load(key);
+    }
+
     return res ? std::make_optional(*res) : std::nullopt;
 }
 
