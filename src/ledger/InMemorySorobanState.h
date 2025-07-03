@@ -324,6 +324,8 @@ class InMemorySorobanState : public NonMovableOrCopyable
 
     bool isEmpty() const;
 
+    uint32_t getLedgerSeq() const;
+
     // Returns the entry for the given key, or nullptr if not found.
     std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
 

@@ -287,8 +287,7 @@ class RestoreFootprintParallelApplyHelper
         OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame)
         : RestoreFootprintApplyHelper(app, res, refundableFeeTracker, opMeta,
                                       opFrame)
-        , ParallelLedgerAccessHelper(threadState, ledgerInfo,
-                                     app.copySearchableLiveBucketListSnapshot())
+        , ParallelLedgerAccessHelper(threadState, ledgerInfo)
         , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
     {
     }
