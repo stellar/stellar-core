@@ -92,7 +92,7 @@ class InMemorySorobanState;
 // therefore trivially threadsafe, but may be lagging behind the newest
 // bucketlist formed by the apply thread.
 //
-// In more precise terms, 4 points on the diagram are labeled: L, Q, A, and LCL.
+// In more precise terms, 4 points on the diagram are labeled: H, Q, A, and LCL.
 // These are points where we can identify and relate some state variables and an
 // invariant order between them:
 //

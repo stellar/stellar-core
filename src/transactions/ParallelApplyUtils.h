@@ -155,6 +155,10 @@ class ThreadParallelApplyLedgerState
 
     void commitChangesFromSuccessfulOp(ParallelTxReturnVal const& res,
                                        TxBundle const& txBundle);
+
+    // The snapshot ledger sequence number is one less than the
+    // applying ledger sequence number.
+    uint32_t getSnapshotLedgerSeq() const;
 };
 
 class GlobalParallelApplyLedgerState
@@ -230,6 +234,10 @@ class GlobalParallelApplyLedgerState
 
     void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
 
+    // The snapshot ledger sequence number is one less than the
+    // applying ledger sequence number.
+    uint32_t getSnapshotLedgerSeq() const;
+
     // Constructor requires access to mInMemorySorobanState
     friend ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
@@ -275,6 +283,7 @@ class OpParallelApplyLedgerState
                                   LedgerEntry const& ttlEntry);
     ParallelTxReturnVal takeSuccess();
     ParallelTxReturnVal takeFailure();
+    uint32_t getSnapshotLedgerSeq() const;
 };
 
 class LedgerAccessHelper
@@ -323,8 +332,7 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
   protected:
     ParallelLedgerAccessHelper(
         ThreadParallelApplyLedgerState const& threadState,
-        ParallelLedgerInfo const& ledgerInfo,
-        SearchableSnapshotConstPtr liveSnapshot);
+        ParallelLedgerInfo const& ledgerInfo);
 
     ParallelLedgerInfo const& mLedgerInfo;
     OpParallelApplyLedgerState mOpState;

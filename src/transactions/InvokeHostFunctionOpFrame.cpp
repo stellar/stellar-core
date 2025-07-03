@@ -1066,8 +1066,7 @@ class InvokeHostFunctionParallelApplyHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
                                         refundableFeeTracker, opMeta, opFrame)
-        , ParallelLedgerAccessHelper(threadState, ledgerInfo,
-                                     app.copySearchableLiveBucketListSnapshot())
+        , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         // Initialize the autorestore lookup vector
         auto const& resourceExt = mOpFrame.getResourcesExt();

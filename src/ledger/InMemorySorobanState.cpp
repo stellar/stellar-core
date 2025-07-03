@@ -6,6 +6,7 @@
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
+#include <cstdint>
 
 namespace stellar
 {
@@ -300,6 +301,12 @@ InMemorySorobanState::isEmpty() const
 {
     return mContractDataEntries.empty() && mContractCodeEntries.empty() &&
            mPendingTTLs.empty();
+}
+
+uint32_t
+InMemorySorobanState::getLedgerSeq() const
+{
+    return mLastClosedLedgerSeq;
 }
 
 std::shared_ptr<LedgerEntry const>

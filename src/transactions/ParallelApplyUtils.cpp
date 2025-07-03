@@ -329,10 +329,11 @@ PreV23LedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 
 ParallelLedgerAccessHelper::ParallelLedgerAccessHelper(
     ThreadParallelApplyLedgerState const& threadState,
-    ParallelLedgerInfo const& ledgerInfo,
-    SearchableSnapshotConstPtr liveSnapshot)
+    ParallelLedgerInfo const& ledgerInfo)
     : mLedgerInfo(ledgerInfo), mOpState(threadState)
 {
+    releaseAssertOrThrow(ledgerInfo.getLedgerSeq() ==
+                         threadState.getSnapshotLedgerSeq() + 1);
 }
 
 std::optional<LedgerEntry>
@@ -344,7 +345,9 @@ ParallelLedgerAccessHelper::getLedgerEntryOpt(LedgerKey const& key)
 uint32_t
 ParallelLedgerAccessHelper::getLedgerSeq()
 {
-    return mLedgerInfo.getLedgerSeq();
+    auto applySeq = mLedgerInfo.getLedgerSeq();
+    releaseAssertOrThrow(applySeq == mOpState.getSnapshotLedgerSeq() + 1);
+    return applySeq;
 }
 
 uint32_t
@@ -389,6 +392,9 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
     , mInMemorySorobanState(inMemoryState)
 {
+    releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
+                         getSnapshotLedgerSeq() + 1);
+
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
     // load into the globalEntryMap any classic entries that have been modified
@@ -454,6 +460,16 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
         }
     }
     ltxInner.commit();
+}
+
+uint32_t
+GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
+{
+    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
+                         mHotArchiveSnapshot->getLedgerSeq());
+    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
+                         mInMemorySorobanState.getLedgerSeq());
+    return mLiveSnapshot->getLedgerSeq();
 }
 
 std::optional<LedgerEntry>
@@ -608,6 +624,8 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
     , mInMemorySorobanState(global.mInMemorySorobanState)
 {
+    releaseAssertOrThrow(global.getSnapshotLedgerSeq() ==
+                         getSnapshotLedgerSeq());
     mPreviouslyRestoredEntries.addRestoresFrom(global.getRestoredEntries());
     collectClusterFootprintEntriesFromGlobal(app, global, cluster);
 }
@@ -805,6 +823,16 @@ ThreadParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
            mPreviouslyRestoredEntries.entryWasRestored(key);
 }
 
+uint32_t
+ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
+{
+    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
+                         mHotArchiveSnapshot->getLedgerSeq());
+    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
+                         mInMemorySorobanState.getLedgerSeq());
+    return mLiveSnapshot->getLedgerSeq();
+}
+
 OpParallelApplyLedgerState::OpParallelApplyLedgerState(
     ThreadParallelApplyLedgerState const& parent)
     : mThreadState(parent)
@@ -941,4 +969,9 @@ OpParallelApplyLedgerState::takeFailure()
     return ParallelTxReturnVal{false, {}};
 }
 
+uint32_t
+OpParallelApplyLedgerState::getSnapshotLedgerSeq() const
+{
+    return mThreadState.getSnapshotLedgerSeq();
+}
 }

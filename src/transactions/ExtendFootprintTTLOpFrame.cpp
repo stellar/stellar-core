@@ -241,8 +241,7 @@ class ExtendFootprintTTLParallelApplyHelper
         OperationMetaBuilder& opMeta, ExtendFootprintTTLOpFrame const& opFrame)
         : ExtendFootprintTTLApplyHelper(app, res, refundableFeeTracker, opMeta,
                                         opFrame)
-        , ParallelLedgerAccessHelper(threadState, ledgerInfo,
-                                     app.copySearchableLiveBucketListSnapshot())
+        , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
     }
     virtual bool

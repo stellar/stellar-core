@@ -69,10 +69,7 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
 //
 // Any thread that needs to perform BucketList lookups should retrieve
 // a single SearchableBucketListSnapshot instance from
-// BucketListSnapshotManager. On each lookup, the SearchableBucketListSnapshot
-// instance will check that the current snapshot is up to date via the
-// BucketListSnapshotManager and will be refreshed accordingly. Callers can
-// assume SearchableBucketListSnapshot is always up to date.
+// BucketListSnapshotManager.
 template <class BucketT>
 class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 {
