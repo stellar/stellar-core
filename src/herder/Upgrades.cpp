@@ -359,7 +359,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
             throw std::runtime_error("config upgrade set is no longer valid");
         }
         CLOG_INFO(Ledger, "Applying config upgrade: {}", cfgUpgrade->toJson());
-        cfgUpgrade->applyTo(ltx);
+        cfgUpgrade->applyTo(ltx, app);
         break;
     }
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
@@ -1388,14 +1388,35 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
 }
 
 void
-ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx) const
+ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
 {
+    bool writeLiveSorobanStateSizeWindow = false;
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         auto const id = updatedEntry.configSettingID();
         key.configSetting().configSettingID = id;
-        ltx.load(key).current().data.configSetting() = updatedEntry;
+        auto& currentEntry = ltx.load(key).current().data.configSetting();
+        if (currentEntry.configSettingID() ==
+                ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL &&
+            currentEntry.stateArchivalSettings()
+                    .liveSorobanStateSizeWindowSampleSize !=
+                updatedEntry.stateArchivalSettings()
+                    .liveSorobanStateSizeWindowSampleSize)
+        {
+            writeLiveSorobanStateSizeWindow = true;
+        }
+        currentEntry = updatedEntry;
+    }
+
+    if (writeLiveSorobanStateSizeWindow)
+    {
+        SorobanNetworkConfig networkConfig;
+        networkConfig.loadFromLedger(
+            ltx, app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+            mLedgerVersion);
+
+        networkConfig.maybeUpdateBucketListWindowSize(ltx);
     }
 }
 

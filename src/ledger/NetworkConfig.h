@@ -15,6 +15,7 @@ namespace stellar
 {
 
 class Application;
+class LedgerTxnReadOnly;
 
 // Defines the minimum values allowed for the network configuration
 // settings during upgrades. An upgrade that does not follow the minimums
@@ -288,8 +289,8 @@ class SorobanNetworkConfig
     initializeGenesisLedgerForTesting(uint32_t genesisLedgerProtocol,
                                       AbstractLedgerTxn& ltx, Application& app);
 
-    void loadFromLedger(AbstractLedgerTxn& ltx, uint32_t configMaxProtocol,
-                        uint32_t protocolVersion);
+    void loadFromLedger(LedgerTxnReadOnly const& roLtx,
+                        uint32_t configMaxProtocol, uint32_t protocolVersion);
     // Maximum allowed size of the contract Wasm that can be uploaded (in
     // bytes).
     uint32_t maxContractSizeBytes() const;
@@ -372,6 +373,12 @@ class SorobanNetworkConfig
     void maybeSnapshotBucketListSize(uint32_t currLedger,
                                      AbstractLedgerTxn& ltx, Application& app);
 
+    // If newSize is different than the current BucketList size sliding window,
+    // update the window. If newSize < currSize, pop entries off window. If
+    // newSize > currSize, add as many copies of the current BucketList size to
+    // window until it has newSize entries.
+    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
+
     // Returns the average of all BucketList size snapshots in the sliding
     // window.
     uint64_t getAverageBucketListSize() const;
@@ -429,30 +436,25 @@ class SorobanNetworkConfig
     bool operator==(SorobanNetworkConfig const& other) const;
 
   private:
-    void loadMaxContractSize(AbstractLedgerTxn& ltx);
-    void loadMaxContractDataKeySize(AbstractLedgerTxn& ltx);
-    void loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx);
-    void loadComputeSettings(AbstractLedgerTxn& ltx);
-    void loadLedgerAccessSettings(AbstractLedgerTxn& ltx);
-    void loadHistoricalSettings(AbstractLedgerTxn& ltx);
-    void loadContractEventsSettings(AbstractLedgerTxn& ltx);
-    void loadBandwidthSettings(AbstractLedgerTxn& ltx);
-    void loadCpuCostParams(AbstractLedgerTxn& ltx);
-    void loadMemCostParams(AbstractLedgerTxn& ltx);
-    void loadStateArchivalSettings(AbstractLedgerTxn& ltx);
-    void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
-    void loadliveSorobanStateSizeWindow(AbstractLedgerTxn& ltx);
-    void loadEvictionIterator(AbstractLedgerTxn& ltx);
-    void loadParallelComputeConfig(AbstractLedgerTxn& ltx);
-    void loadLedgerCostExtConfig(AbstractLedgerTxn& ltx);
-    void loadSCPTimingConfig(AbstractLedgerTxn& ltx);
+    void loadMaxContractSize(LedgerTxnReadOnly const& roLtx);
+    void loadMaxContractDataKeySize(LedgerTxnReadOnly const& roLtx);
+    void loadMaxContractDataEntrySize(LedgerTxnReadOnly const& roLtx);
+    void loadComputeSettings(LedgerTxnReadOnly const& roLtx);
+    void loadLedgerAccessSettings(LedgerTxnReadOnly const& roLtx);
+    void loadHistoricalSettings(LedgerTxnReadOnly const& roLtx);
+    void loadContractEventsSettings(LedgerTxnReadOnly const& roLtx);
+    void loadBandwidthSettings(LedgerTxnReadOnly const& roLtx);
+    void loadCpuCostParams(LedgerTxnReadOnly const& roLtx);
+    void loadMemCostParams(LedgerTxnReadOnly const& roLtx);
+    void loadStateArchivalSettings(LedgerTxnReadOnly const& roLtx);
+    void loadExecutionLanesSettings(LedgerTxnReadOnly const& roLtx);
+    void loadliveSorobanStateSizeWindow(LedgerTxnReadOnly const& roLtx);
+    void loadEvictionIterator(LedgerTxnReadOnly const& roLtx);
+    void loadParallelComputeConfig(LedgerTxnReadOnly const& roLtx);
+    void loadLedgerCostExtConfig(LedgerTxnReadOnly const& roLtx);
+    void loadSCPTimingConfig(LedgerTxnReadOnly const& roLtx);
     void computeRentWriteFee(uint32_t configMaxProtocol,
                              uint32_t protocolVersion);
-    // If newSize is different than the current BucketList size sliding window,
-    // update the window. If newSize < currSize, pop entries off window. If
-    // newSize > currSize, add as many copies of the current BucketList size to
-    // window until it has newSize entries.
-    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
 
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.

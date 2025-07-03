@@ -159,7 +159,7 @@ class ConfigUpgradeSetFrame
 
     bool upgradeNeeded(LedgerSnapshot const& ls) const;
 
-    void applyTo(AbstractLedgerTxn& ltx) const;
+    void applyTo(AbstractLedgerTxn& ltx, Application& app) const;
 
     bool isConsistentWith(
         ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;
