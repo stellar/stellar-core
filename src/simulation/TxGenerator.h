@@ -27,6 +27,8 @@ struct SorobanUpgradeConfig
     std::optional<int64_t> txMaxInstructions{};
     std::optional<int64_t> feeRatePerInstructionsIncrement{};
     std::optional<uint32_t> txMemoryLimit{};
+    std::optional<ContractCostParams> cpuCostParams{};
+    std::optional<ContractCostParams> memCostParams{};
 
     // Ledger access settings for contracts.
     std::optional<uint32_t> ledgerMaxDiskReadEntries{};

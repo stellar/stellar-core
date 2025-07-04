@@ -299,8 +299,17 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
     std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh)
 {
     threadInvariant();
-    mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries,
-                                      lh);
+    mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries, lh,
+                                      mSorobanNetworkConfig.get());
+}
+
+uint64_t
+LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
+{
+    // This is not strictly necessary, but we don't really want to access the
+    // state size outside of the snapshotting process during the apply stage.
+    threadInvariant();
+    return mInMemorySorobanState.getSize();
 }
 
 void
@@ -403,6 +412,12 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     {
         SorobanNetworkConfig::initializeGenesisLedgerForTesting(
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION, ltx, mApp);
+        if (protocolVersionStartsFrom(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                SOROBAN_PROTOCOL_VERSION))
+        {
+            updateSorobanNetworkConfigForApply(ltx);
+        }
     }
 
     LedgerEntry rootEntry;
@@ -570,7 +585,8 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
     mApplyState.compileAllContractsInLedger(snapshot,
                                             latestLedgerHeader->ledgerVersion);
-    mApplyState.populateInMemorySorobanState(snapshot);
+    mApplyState.populateInMemorySorobanState(snapshot,
+                                             latestLedgerHeader->ledgerVersion);
 }
 
 Database&
@@ -713,6 +729,12 @@ LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
     return mLastClosedLedgerState->hasSorobanConfig();
 }
 
+uint64_t
+LedgerManagerImpl::getSorobanInMemoryStateSize() const
+{
+    return mApplyState.getSorobanInMemoryStateSize();
+}
+
 std::chrono::milliseconds
 LedgerManagerImpl::getExpectedLedgerCloseTime() const
 {
@@ -785,11 +807,11 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
 }
 
 void
-LedgerManagerImpl::rebuildInMemorySorobanStateForTesting()
+LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
 {
     mApplyState.getInMemorySorobanStateForTesting().clearForTesting();
     mApplyState.populateInMemorySorobanState(
-        mLastClosedLedgerState->getBucketSnapshot());
+        mLastClosedLedgerState->getBucketSnapshot(), ledgerVersion);
 }
 #endif
 
@@ -829,6 +851,38 @@ LedgerManagerImpl::getModuleCache()
 }
 
 void
+LedgerManagerImpl::handleUpgradeAffectingSorobanInMemoryStateSize(
+    AbstractLedgerTxn& upgradeLtx)
+{
+    mApplyState.handleUpgradeAffectingSorobanInMemoryStateSize(upgradeLtx);
+}
+
+void
+LedgerManagerImpl::ApplyState::handleUpgradeAffectingSorobanInMemoryStateSize(
+    AbstractLedgerTxn& upgradeLtx)
+{
+    threadInvariant();
+
+    // Load the current network from the ledger. It might be in some
+    // intermediate state, which is fine, because we call this only after
+    // a relevant section has been upgraded and all the remaining sections
+    // are not relevant for the size computation.
+    SorobanNetworkConfig currentConfig;
+    currentConfig.loadFromLedger(upgradeLtx);
+    auto upgradeLedgerVersion = upgradeLtx.loadHeader().current().ledgerVersion;
+    mInMemorySorobanState.recomputeContractCodeSize(currentConfig,
+                                                    upgradeLedgerVersion);
+
+    // We need to record the updated size, but only when we're in p23+, as
+    // before that we store BL size instead.
+    if (protocolVersionStartsFrom(upgradeLedgerVersion, ProtocolVersion::V_23))
+    {
+        currentConfig.updateRecomputedSorobanStateSize(
+            mInMemorySorobanState.getSize(), upgradeLtx);
+    }
+}
+
+void
 LedgerManagerImpl::ApplyState::finishPendingCompilation()
 {
     threadInvariant();
@@ -855,10 +909,11 @@ LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
 
 void
 LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
-    SearchableSnapshotConstPtr snap)
+    SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
     threadInvariant();
-    mInMemorySorobanState.initializeStateFromSnapshot(snap);
+    mInMemorySorobanState.initializeStateFromSnapshot(
+        snap, mSorobanNetworkConfig.get(), ledgerVersion);
 }
 
 void
@@ -1365,7 +1420,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         auto numOps = txSet->sizeOpTotalForLogging();
 
         // Force-deactivate header in overlay only mode; in normal mode, this is
-        // done by `applyTransactions`
+        // done by `processFeesSeqNums`
         ltx.deactivateHeaderTestOnly();
         mApplyState.getMetrics().mTransactionCount.Update(
             static_cast<int64_t>(numTxs));
@@ -1381,11 +1436,10 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // first, prefetch source accounts for txset, then charge fees
         prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
                             mApp.getConfig());
-        auto const mutableTxResults = processFeesSeqNums(
-            *applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
-
         // Subtle: after this call, `header` is invalidated, and is not safe
         // to use
+        auto const mutableTxResults = processFeesSeqNums(
+            *applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
         txResultSet = applyTransactions(*applicableTxSet, mutableTxResults, ltx,
                                         ledgerCloseMeta);
     }
@@ -1591,8 +1645,8 @@ LedgerManagerImpl::setLastClosedLedger(
         advanceBucketListSnapshotAndMakeLedgerState(lastClosed.header, has);
     advanceLastClosedLedgerState(output);
 
-    auto lv = lastClosed.header.ledgerVersion;
-    maybeLoadSorobanNetworkConfig(lv);
+    auto ledgerVersion = lastClosed.header.ledgerVersion;
+    maybeLoadSorobanNetworkConfig(ledgerVersion);
     // This should not be additionally conditionalized on lv >= anything,
     // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
     //
@@ -1601,8 +1655,8 @@ LedgerManagerImpl::setLastClosedLedger(
     // case we will prime the tx-apply-state's soroban module cache using
     // a snapshot _from_ the LCL state.
     auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
-    mApplyState.compileAllContractsInLedger(snapshot, lv);
-    mApplyState.populateInMemorySorobanState(snapshot);
+    mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
+    mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
 }
 
 void
@@ -1845,9 +1899,7 @@ LedgerManagerImpl::updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx)
             mApplyState.setSorobanNetworkConfig(
                 std::make_shared<SorobanNetworkConfig>());
         }
-        mApplyState.getSorobanNetworkConfigToModify().loadFromLedger(
-            ltx, mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-            ledgerVersion);
+        mApplyState.getSorobanNetworkConfigToModify().loadFromLedger(ltx);
         publishSorobanMetrics();
     }
     else
@@ -2588,8 +2640,15 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
             ltxEvictions.commit();
         }
 
+        // Subtle: we snapshot the state size *before* flushing the updated
+        // entries into in-memory state (doing that after would be really
+        // tricky, as we seal LTX before flushing). So the snapshot taken at
+        // ledger `N` will have the state size for ledger `N - 1`. That doesn't
+        // really change anything for the size accounting, but is important to
+        // maintain as a protocol implementation detail.
         mApplyState.getSorobanNetworkConfigToModify()
-            .maybeSnapshotBucketListSize(lh.ledgerSeq, ltx, mApp);
+            .maybeSnapshotSorobanStateSize(
+                lh.ledgerSeq, getSorobanInMemoryStateSize(), ltx, mApp);
     }
 
     // NB: getAllEntries seals the ltx.

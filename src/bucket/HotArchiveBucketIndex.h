@@ -94,7 +94,7 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     uint32_t
     getPageSize() const
     {
-        return mDiskIndex.getPageSize();
+        return static_cast<uint32_t>(mDiskIndex.getPageSize());
     }
 
     IterT

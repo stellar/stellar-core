@@ -169,7 +169,7 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
                     /*entryLiveUntilLedger=*/
                     ttlLe.data.ttl().liveUntilLedgerSeq,
                     /*newLiveUntilLedger=*/newLiveUntilLedgerSeq, ledgerVersion,
-                    mAppConfig, mSorobanConfig));
+                    mSorobanConfig));
 
             ttlLe.data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
 
@@ -179,7 +179,7 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
         // This may throw, but only in case of the Core version
         // misconfiguration.
         int64_t rentFee = rust_bridge::compute_rent_fee(
-            mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
             rustEntryRentChanges,
             mSorobanConfig.rustBridgeRentFeeConfiguration(), getLedgerSeq());
         if (!mRefundableFeeTracker->consumeRefundableSorobanResources(

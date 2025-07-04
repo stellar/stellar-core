@@ -261,7 +261,8 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     // Get current network config.
     auto cfg = nodes[0]->getLedgerManager().getLastClosedSorobanNetworkConfig();
     modifyFn(cfg);
-    createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(cfg);
+    createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(
+        nodes[0]->getLedgerManager().getLastClosedSorobanNetworkConfig(), cfg);
     auto upgradeSetKey = lg.getConfigUpgradeSetKey(
         createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
     lg.generateLoad(createUpgradeLoadGenConfig);
@@ -370,7 +371,7 @@ prepareSorobanNetworkConfigUpgrade(
         app.getLedgerManager().getLastClosedSorobanNetworkConfig();
     modifyFn(upgradeCfg);
     createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(
-        upgradeCfg);
+        app.getLedgerManager().getLastClosedSorobanNetworkConfig(), upgradeCfg);
 
     auto sorobanUpgradeCfg =
         createUpgradeLoadGenConfig.getSorobanUpgradeConfig();

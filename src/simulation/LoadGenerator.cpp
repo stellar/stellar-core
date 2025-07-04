@@ -1655,86 +1655,108 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
 
 void
 GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
-    SorobanNetworkConfig const& cfg)
+    SorobanNetworkConfig const& baseConfig,
+    SorobanNetworkConfig const& updatedConfig)
 {
+    // TODO: this whole function has to be rewritten to only set the upgrades
+    // when there is a diff between base and updated configs. Moreover,
+    // `upgradeCfg` should store whole XDR structs instead of individual
+    // fields, as upgrade is performed on the entire struct.
     releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
     auto& upgradeCfg = getMutSorobanUpgradeConfig();
 
-    upgradeCfg.maxContractSizeBytes = cfg.maxContractSizeBytes();
-    upgradeCfg.maxContractDataKeySizeBytes = cfg.maxContractDataKeySizeBytes();
+    upgradeCfg.maxContractSizeBytes = updatedConfig.maxContractSizeBytes();
+    upgradeCfg.maxContractDataKeySizeBytes =
+        updatedConfig.maxContractDataKeySizeBytes();
     upgradeCfg.maxContractDataEntrySizeBytes =
-        cfg.maxContractDataEntrySizeBytes();
+        updatedConfig.maxContractDataEntrySizeBytes();
 
-    upgradeCfg.ledgerMaxInstructions = cfg.ledgerMaxInstructions();
-    upgradeCfg.txMaxInstructions = cfg.txMaxInstructions();
+    upgradeCfg.ledgerMaxInstructions = updatedConfig.ledgerMaxInstructions();
+    upgradeCfg.txMaxInstructions = updatedConfig.txMaxInstructions();
     upgradeCfg.feeRatePerInstructionsIncrement =
-        cfg.feeRatePerInstructionsIncrement();
-    upgradeCfg.txMemoryLimit = cfg.txMemoryLimit();
+        updatedConfig.feeRatePerInstructionsIncrement();
+    upgradeCfg.txMemoryLimit = updatedConfig.txMemoryLimit();
+    if (baseConfig.cpuCostParams() != updatedConfig.cpuCostParams())
+    {
+        upgradeCfg.cpuCostParams = updatedConfig.cpuCostParams();
+    }
+    if (baseConfig.memCostParams() != updatedConfig.memCostParams())
+    {
+        upgradeCfg.memCostParams = updatedConfig.memCostParams();
+    }
 
-    upgradeCfg.ledgerMaxDiskReadEntries = cfg.ledgerMaxDiskReadEntries();
-    upgradeCfg.ledgerMaxDiskReadBytes = cfg.ledgerMaxDiskReadBytes();
-    upgradeCfg.ledgerMaxWriteLedgerEntries = cfg.ledgerMaxWriteLedgerEntries();
-    upgradeCfg.ledgerMaxWriteBytes = cfg.ledgerMaxWriteBytes();
-    upgradeCfg.ledgerMaxTxCount = cfg.ledgerMaxTxCount();
-    upgradeCfg.feeDiskReadLedgerEntry = cfg.feeDiskReadLedgerEntry();
-    upgradeCfg.feeWriteLedgerEntry = cfg.feeWriteLedgerEntry();
-    upgradeCfg.feeDiskRead1KB = cfg.feeDiskRead1KB();
-    upgradeCfg.feeFlatRateWrite1KB = cfg.feeFlatRateWrite1KB();
-    upgradeCfg.txMaxDiskReadEntries = cfg.txMaxDiskReadEntries();
-    upgradeCfg.txMaxFootprintEntries = cfg.txMaxFootprintEntries();
-    upgradeCfg.txMaxDiskReadBytes = cfg.txMaxDiskReadBytes();
-    upgradeCfg.txMaxWriteLedgerEntries = cfg.txMaxWriteLedgerEntries();
-    upgradeCfg.txMaxWriteBytes = cfg.txMaxWriteBytes();
+    upgradeCfg.ledgerMaxDiskReadEntries =
+        updatedConfig.ledgerMaxDiskReadEntries();
+    upgradeCfg.ledgerMaxDiskReadBytes = updatedConfig.ledgerMaxDiskReadBytes();
+    upgradeCfg.ledgerMaxWriteLedgerEntries =
+        updatedConfig.ledgerMaxWriteLedgerEntries();
+    upgradeCfg.ledgerMaxWriteBytes = updatedConfig.ledgerMaxWriteBytes();
+    upgradeCfg.ledgerMaxTxCount = updatedConfig.ledgerMaxTxCount();
+    upgradeCfg.feeDiskReadLedgerEntry = updatedConfig.feeDiskReadLedgerEntry();
+    upgradeCfg.feeWriteLedgerEntry = updatedConfig.feeWriteLedgerEntry();
+    upgradeCfg.feeDiskRead1KB = updatedConfig.feeDiskRead1KB();
+    upgradeCfg.feeFlatRateWrite1KB = updatedConfig.feeFlatRateWrite1KB();
+    upgradeCfg.txMaxDiskReadEntries = updatedConfig.txMaxDiskReadEntries();
+    upgradeCfg.txMaxFootprintEntries = updatedConfig.txMaxFootprintEntries();
+    upgradeCfg.txMaxDiskReadBytes = updatedConfig.txMaxDiskReadBytes();
+    upgradeCfg.txMaxWriteLedgerEntries =
+        updatedConfig.txMaxWriteLedgerEntries();
+    upgradeCfg.txMaxWriteBytes = updatedConfig.txMaxWriteBytes();
 
-    upgradeCfg.feeHistorical1KB = cfg.feeHistorical1KB();
+    upgradeCfg.feeHistorical1KB = updatedConfig.feeHistorical1KB();
 
     upgradeCfg.txMaxContractEventsSizeBytes =
-        cfg.txMaxContractEventsSizeBytes();
+        updatedConfig.txMaxContractEventsSizeBytes();
 
     upgradeCfg.ledgerMaxTransactionsSizeBytes =
-        cfg.ledgerMaxTransactionSizesBytes();
-    upgradeCfg.txMaxSizeBytes = cfg.txMaxSizeBytes();
-    upgradeCfg.feeTransactionSize1KB = cfg.feeTransactionSize1KB();
+        updatedConfig.ledgerMaxTransactionSizesBytes();
+    upgradeCfg.txMaxSizeBytes = updatedConfig.txMaxSizeBytes();
+    upgradeCfg.feeTransactionSize1KB = updatedConfig.feeTransactionSize1KB();
 
-    upgradeCfg.maxEntryTTL = cfg.stateArchivalSettings().maxEntryTTL;
-    upgradeCfg.minTemporaryTTL = cfg.stateArchivalSettings().minTemporaryTTL;
-    upgradeCfg.minPersistentTTL = cfg.stateArchivalSettings().minPersistentTTL;
+    upgradeCfg.maxEntryTTL = updatedConfig.stateArchivalSettings().maxEntryTTL;
+    upgradeCfg.minTemporaryTTL =
+        updatedConfig.stateArchivalSettings().minTemporaryTTL;
+    upgradeCfg.minPersistentTTL =
+        updatedConfig.stateArchivalSettings().minPersistentTTL;
     upgradeCfg.persistentRentRateDenominator =
-        cfg.stateArchivalSettings().persistentRentRateDenominator;
+        updatedConfig.stateArchivalSettings().persistentRentRateDenominator;
     upgradeCfg.tempRentRateDenominator =
-        cfg.stateArchivalSettings().tempRentRateDenominator;
+        updatedConfig.stateArchivalSettings().tempRentRateDenominator;
     upgradeCfg.maxEntriesToArchive =
-        cfg.stateArchivalSettings().maxEntriesToArchive;
+        updatedConfig.stateArchivalSettings().maxEntriesToArchive;
     upgradeCfg.liveSorobanStateSizeWindowSampleSize =
-        cfg.stateArchivalSettings().liveSorobanStateSizeWindowSampleSize;
+        updatedConfig.stateArchivalSettings()
+            .liveSorobanStateSizeWindowSampleSize;
     upgradeCfg.liveSorobanStateSizeWindowSamplePeriod =
-        cfg.stateArchivalSettings().liveSorobanStateSizeWindowSamplePeriod;
-    upgradeCfg.evictionScanSize = cfg.stateArchivalSettings().evictionScanSize;
+        updatedConfig.stateArchivalSettings()
+            .liveSorobanStateSizeWindowSamplePeriod;
+    upgradeCfg.evictionScanSize =
+        updatedConfig.stateArchivalSettings().evictionScanSize;
     upgradeCfg.startingEvictionScanLevel =
-        cfg.stateArchivalSettings().startingEvictionScanLevel;
+        updatedConfig.stateArchivalSettings().startingEvictionScanLevel;
 
     upgradeCfg.rentFee1KBSorobanStateSizeLow =
-        cfg.rentFee1KBSorobanStateSizeLow();
+        updatedConfig.rentFee1KBSorobanStateSizeLow();
     upgradeCfg.rentFee1KBSorobanStateSizeHigh =
-        cfg.rentFee1KBSorobanStateSizeHigh();
+        updatedConfig.rentFee1KBSorobanStateSizeHigh();
 
     upgradeCfg.ledgerMaxDependentTxClusters =
-        cfg.ledgerMaxDependentTxClusters();
+        updatedConfig.ledgerMaxDependentTxClusters();
 
     upgradeCfg.ledgerTargetCloseTimeMilliseconds =
-        cfg.ledgerTargetCloseTimeMilliseconds();
+        updatedConfig.ledgerTargetCloseTimeMilliseconds();
     upgradeCfg.nominationTimeoutInitialMilliseconds =
-        cfg.nominationTimeoutInitialMilliseconds();
+        updatedConfig.nominationTimeoutInitialMilliseconds();
     upgradeCfg.nominationTimeoutIncrementMilliseconds =
-        cfg.nominationTimeoutIncrementMilliseconds();
+        updatedConfig.nominationTimeoutIncrementMilliseconds();
     upgradeCfg.ballotTimeoutInitialMilliseconds =
-        cfg.ballotTimeoutInitialMilliseconds();
+        updatedConfig.ballotTimeoutInitialMilliseconds();
     upgradeCfg.ballotTimeoutIncrementMilliseconds =
-        cfg.ballotTimeoutIncrementMilliseconds();
+        updatedConfig.ballotTimeoutIncrementMilliseconds();
     upgradeCfg.nominationTimeoutInitialMilliseconds =
-        cfg.nominationTimeoutInitialMilliseconds();
+        updatedConfig.nominationTimeoutInitialMilliseconds();
     upgradeCfg.nominationTimeoutIncrementMilliseconds =
-        cfg.nominationTimeoutIncrementMilliseconds();
+        updatedConfig.nominationTimeoutIncrementMilliseconds();
 }
 
 GeneratedLoadConfig

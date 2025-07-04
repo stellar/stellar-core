@@ -85,4 +85,8 @@ isPersistentEntry(T const& e)
            (e.type() == CONTRACT_DATA &&
             e.contractData().durability == PERSISTENT);
 }
+
+uint32_t ledgerEntrySizeForRent(LedgerEntry const& entry, uint32_t entryXdrSize,
+                                uint32_t ledgerVersion,
+                                SorobanNetworkConfig const& sorobanConfig);
 }

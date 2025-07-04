@@ -62,10 +62,19 @@ struct ContractCodeMapEntryT
 {
     std::shared_ptr<LedgerEntry const> ledgerEntry;
     TTLData ttlData;
+    // We store the current in-memory size for the contract code (including
+    // its parsed module that is stored in the ModuleCache) in order to both
+    // make the contract code updates faster, and also make them more
+    // resilient to protocol and config upgrades (otherwise we would need to
+    // always pass two configs for any update of the code entry).
+    uint32_t sizeBytes;
 
     explicit ContractCodeMapEntryT(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
-        : ledgerEntry(std::move(ledgerEntry)), ttlData(ttlData)
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData,
+        uint32_t sizeBytes)
+        : ledgerEntry(std::move(ledgerEntry))
+        , ttlData(ttlData)
+        , sizeBytes(sizeBytes)
     {
     }
 };
@@ -298,6 +307,13 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // ledgerSeq which the InMemorySorobanState currently "snapshots".
     uint32_t mLastClosedLedgerSeq = 0;
 
+    // Total size of the in-memory state in bytes as defined by the protocol (
+    // including using the in-memory module size for the ContractCode entries).
+    // Note, that this is int64 and not uint64 even though we store this in
+    // ledger as uint64 - neither of the type limits is realistically
+    // reachable, but signed int makes math simpler and safer.
+    int64_t mStateSize = 0;
+
     // Helper to update an existing ContractData entry's TTL without changing
     // data
     void updateContractDataTTL(
@@ -309,29 +325,12 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // invariants.
     void checkUpdateInvariants() const;
 
+    void updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
+                                      uint32_t newEntrySize);
+
     // Returns the TTL entry for the given key, or nullptr if not found.
     // LedgerKey must be of type TTL.
     std::shared_ptr<LedgerEntry const> getTTL(LedgerKey const& ledgerKey) const;
-
-  public:
-    // These following functions are read-only and may be called concurrently so
-    // long as no updates are occurring.
-    static bool isInMemoryType(LedgerKey const& ledgerKey);
-
-    // Returns true if the given TTL entry exists in the map. LedgerKey must
-    // be of type TTL.
-    bool hasTTL(LedgerKey const& ledgerKey) const;
-
-    bool isEmpty() const;
-
-    uint32_t getLedgerSeq() const;
-
-    // Returns the entry for the given key, or nullptr if not found.
-    std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
-
-    // The following functions are not read-only and must never be called
-    // concurrently. It is the caller's responsibility to ensure that no thread
-    // is reading state when these functions are called.
 
     // Creates new TTL entry. Throws if a non-zero TTL value at the key already
     // exists. LedgerEntry must be of type TTL.
@@ -358,28 +357,71 @@ class InMemorySorobanState : public NonMovableOrCopyable
     void deleteContractData(LedgerKey const& ledgerKey);
 
     // Creates new ContractCode entry. Throws if key already exists.
-    void createContractCodeEntry(LedgerEntry const& ledgerEntry);
+    void createContractCodeEntry(LedgerEntry const& ledgerEntry,
+                                 SorobanNetworkConfig const& sorobanConfig,
+                                 uint32_t ledgerVersion);
 
     // Updates an existing ContractCode entry. Throws if the key does
     // not exist. LedgerEntry must be of type CONTRACT_CODE.
-    void updateContractCode(LedgerEntry const& ledgerEntry);
+    void updateContractCode(LedgerEntry const& ledgerEntry,
+                            SorobanNetworkConfig const& sorobanConfig,
+                            uint32_t ledgerVersion);
 
     // Evicts a ContractCode entry from the map. LedgerKey must be of type
     // CONTRACT_CODE.
     void deleteContractCode(LedgerKey const& ledgerKey);
 
+  public:
+    // These following functions are read-only and may be called concurrently so
+    // long as no updates are occurring.
+    static bool isInMemoryType(LedgerKey const& ledgerKey);
+
+    // Returns true if the given TTL entry exists in the map. LedgerKey must
+    // be of type TTL.
+    bool hasTTL(LedgerKey const& ledgerKey) const;
+
+    bool isEmpty() const;
+
+    uint32_t getLedgerSeq() const;
+
+    // Returns the total size of the in-memory Soroban state to be used for the
+    // rent fee computation purposes.
+    // Note, that this size depends on in-memory cost for ContractCode entries.
+    // Thus it has to be updated via `recomputeContractCodeSize` when the
+    // memory config settings have been changed, or protocol version has been
+    // updated.
+    uint64_t getSize() const;
+
+    // Returns the entry for the given key, or nullptr if not found.
+    std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
+
+    // The following functions are not read-only and must never be called
+    // concurrently. It is the caller's responsibility to ensure that no thread
+    // is reading state when these functions are called.
+
     // Initialize the map from a bucket list snapshot
-    void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap);
+    void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap,
+                                     SorobanNetworkConfig const* sorobanConfig,
+                                     uint32_t ledgerVersion);
 
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.
     void updateState(std::vector<LedgerEntry> const& initEntries,
                      std::vector<LedgerEntry> const& liveEntries,
                      std::vector<LedgerKey> const& deadEntries,
-                     LedgerHeader const& lh);
+                     LedgerHeader const& lh,
+                     SorobanNetworkConfig const* sorobanConfig);
 
     // Should only be called in manual ledger close paths.
     void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
+
+    // Recomputes the size of all the stored ContractCode entries and updates
+    // the state size accordingly.
+    // Note, that while this should be *reasonably* fast to be done every once
+    // in a while during the protocol upgrades, we shouldn't call this 'just in
+    // case' in order to avoid unnecessary performance overhead.
+    void recomputeContractCodeSize(SorobanNetworkConfig const& sorobanConfig,
+                                   uint32_t ledgerVersion);
 
 #ifdef BUILD_TESTS
     void clearForTesting();

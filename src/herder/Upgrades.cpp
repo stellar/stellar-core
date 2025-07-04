@@ -1182,16 +1182,16 @@ void
 Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
                               uint32_t newVersion)
 {
-    auto header = ltx.loadHeader();
-    uint32_t prevVersion = header.current().ledgerVersion;
+    uint32_t prevVersion = ltx.loadHeader().current().ledgerVersion;
 
-    header.current().ledgerVersion = newVersion;
+    ltx.loadHeader().current().ledgerVersion = newVersion;
     if (needUpgradeToVersion(ProtocolVersion::V_10, prevVersion, newVersion))
     {
+        auto header = ltx.loadHeader();
         prepareLiabilities(ltx, header);
     }
-    if (protocolVersionEquals(header.current().ledgerVersion,
-                              ProtocolVersion::V_16) &&
+
+    if (protocolVersionEquals(newVersion, ProtocolVersion::V_16) &&
         protocolVersionEquals(prevVersion, ProtocolVersion::V_15))
     {
         upgradeFromProtocol15To16(ltx);
@@ -1212,6 +1212,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         }
 #endif
     }
+
     if (needUpgradeToVersion(ProtocolVersion::V_21, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
@@ -1223,6 +1224,15 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     if (needUpgradeToVersion(ProtocolVersion::V_23, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
+    }
+
+    // Starting from protocol 23 we need to fully override the Soroban in-memory
+    // state size on upgrade, as before protocol 23 bucket list size has bene
+    // used.
+    if (protocolVersionStartsFrom(newVersion, ProtocolVersion::V_23))
+    {
+        app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
+            ltx);
     }
 }
 
@@ -1391,14 +1401,14 @@ void
 ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
 {
     bool writeLiveSorobanStateSizeWindow = false;
+    bool hasMemorySettingsUpgrade = false;
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         auto const id = updatedEntry.configSettingID();
         key.configSetting().configSettingID = id;
         auto& currentEntry = ltx.load(key).current().data.configSetting();
-        if (currentEntry.configSettingID() ==
-                ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL &&
+        if (id == ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL &&
             currentEntry.stateArchivalSettings()
                     .liveSorobanStateSizeWindowSampleSize !=
                 updatedEntry.stateArchivalSettings()
@@ -1406,17 +1416,27 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
         {
             writeLiveSorobanStateSizeWindow = true;
         }
+        if (id ==
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
+        {
+            hasMemorySettingsUpgrade = true;
+        }
         currentEntry = updatedEntry;
     }
-
+    // If there was an upgrade for the Soroban state size window, we need to
+    // truncate or increase the size snapshot window respectively.
     if (writeLiveSorobanStateSizeWindow)
     {
         SorobanNetworkConfig networkConfig;
-        networkConfig.loadFromLedger(
-            ltx, app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-            mLedgerVersion);
-
-        networkConfig.maybeUpdateBucketListWindowSize(ltx);
+        networkConfig.loadFromLedger(ltx);
+        networkConfig.maybeUpdateSorobanStateSizeWindowSize(ltx);
+    }
+    // If there was an upgrade for the memory cost settings, we need to
+    // recompute the current state size and override the old sizes.
+    if (hasMemorySettingsUpgrade)
+    {
+        app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
+            ltx);
     }
 }
 

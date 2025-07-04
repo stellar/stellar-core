@@ -405,7 +405,7 @@ class ContractStorageTestClient
 
     TestContract& getContract() const;
 
-    SorobanInvocationSpec defaultSpecWithoutFootprint() const;
+    static SorobanInvocationSpec defaultSpecWithoutFootprint();
 
     SorobanInvocationSpec readKeySpec(std::string const& key,
                                       ContractDataDurability durability) const;
@@ -416,6 +416,11 @@ class ContractStorageTestClient
     uint32_t getTTL(std::string const& key, ContractDataDurability durability);
     bool isEntryLive(std::string const& key, ContractDataDurability durability,
                      uint32_t ledgerSeq);
+
+    TestContract::Invocation
+    putInvocation(std::string const& key, ContractDataDurability durability,
+                  uint64_t val,
+                  std::optional<SorobanInvocationSpec> spec = std::nullopt);
 
     InvokeHostFunctionResultCode
     put(std::string const& key, ContractDataDurability durability, uint64_t val,
@@ -431,6 +436,10 @@ class ContractStorageTestClient
         std::optional<bool> expectHas,
         std::optional<SorobanInvocationSpec> spec = std::nullopt);
 
+    TestContract::Invocation
+    delInvocation(std::string const& key, ContractDataDurability durability,
+                  std::optional<SorobanInvocationSpec> spec = std::nullopt);
+
     InvokeHostFunctionResultCode
     del(std::string const& key, ContractDataDurability durability,
         std::optional<SorobanInvocationSpec> spec = std::nullopt);
@@ -440,6 +449,10 @@ class ContractStorageTestClient
            uint32_t threshold, uint32_t extendTo,
            std::optional<SorobanInvocationSpec> spec = std::nullopt);
 
+    TestContract::Invocation resizeStorageAndExtendInvocation(
+        std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
+        uint32_t extendTo,
+        std::optional<SorobanInvocationSpec> spec = std::nullopt);
     InvokeHostFunctionResultCode resizeStorageAndExtend(
         std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
         uint32_t extendTo,

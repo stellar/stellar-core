@@ -213,7 +213,7 @@ class RestoreFootprintApplyHelper : virtual public LedgerAccessHelper
                     entry, entrySize,
                     /*entryLiveUntilLedger=*/std::nullopt,
                     /*newLiveUntilLedger=*/restoredLiveUntilLedger,
-                    ledgerVersion, mAppConfig, mSorobanConfig));
+                    ledgerVersion, mSorobanConfig));
 
             restoreEntry(lk, entry, ttlKey, ttlLeOpt, restoredLiveUntilLedger);
         }

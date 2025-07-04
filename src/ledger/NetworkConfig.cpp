@@ -1332,12 +1332,9 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
 }
 
 void
-SorobanNetworkConfig::loadFromLedger(LedgerTxnReadOnly const& roLtx,
-                                     uint32_t configMaxProtocol,
-                                     uint32_t protocolVersion)
+SorobanNetworkConfig::loadFromLedger(LedgerTxnReadOnly const& roLtx)
 {
     ZoneScoped;
-
     loadMaxContractSize(roLtx);
     loadMaxContractDataKeySize(roLtx);
     loadMaxContractDataEntrySize(roLtx);
@@ -1353,15 +1350,16 @@ SorobanNetworkConfig::loadFromLedger(LedgerTxnReadOnly const& roLtx,
     loadliveSorobanStateSizeWindow(roLtx);
     loadEvictionIterator(roLtx);
 
+    auto protocolVersion = roLtx.getLedgerHeader().current().ledgerVersion;
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
     {
         loadParallelComputeConfig(roLtx);
         loadLedgerCostExtConfig(roLtx);
         loadSCPTimingConfig(roLtx);
     }
-    // NB: this should follow loading/updating bucket list window
+    // NB: this should follow loading/updating state size window
     // size and state archival settings
-    computeRentWriteFee(configMaxProtocol, protocolVersion);
+    computeRentWriteFee(protocolVersion);
 }
 
 void
@@ -1558,13 +1556,12 @@ SorobanNetworkConfig::loadliveSorobanStateSizeWindow(
     releaseAssert(txle);
     auto const& leVector =
         txle.current().data.configSetting().liveSorobanStateSizeWindow();
-    mBucketListSizeSnapshots.clear();
+    mSorobanStateSizeSnapshots.clear();
     for (auto e : leVector)
     {
-        mBucketListSizeSnapshots.push_back(e);
+        mSorobanStateSizeSnapshots.push_back(e);
     }
-
-    updateBucketListSizeAverage();
+    updateSorobanStateSizeAverage();
 }
 
 void
@@ -1628,13 +1625,13 @@ SorobanNetworkConfig::loadSCPTimingConfig(LedgerTxnReadOnly const& roLtx)
 }
 
 void
-SorobanNetworkConfig::writeliveSorobanStateSizeWindow(
+SorobanNetworkConfig::writeLiveSorobanStateSizeWindow(
     AbstractLedgerTxn& ltxRoot) const
 {
     ZoneScoped;
 
     // Check that the window is loaded and the number of snapshots is correct
-    releaseAssert(mBucketListSizeSnapshots.size() ==
+    releaseAssert(mSorobanStateSizeSnapshots.size() ==
                   mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize);
 
     // Load outdated snapshot entry from DB
@@ -1649,7 +1646,7 @@ SorobanNetworkConfig::writeliveSorobanStateSizeWindow(
     auto& leVector =
         txle.current().data.configSetting().liveSorobanStateSizeWindow();
     leVector.clear();
-    for (auto e : mBucketListSizeSnapshots)
+    for (auto e : mSorobanStateSizeSnapshots)
     {
         leVector.push_back(e);
     }
@@ -1658,18 +1655,27 @@ SorobanNetworkConfig::writeliveSorobanStateSizeWindow(
 }
 
 void
-SorobanNetworkConfig::updateBucketListSizeAverage()
+SorobanNetworkConfig::updateSorobanStateSizeAverage()
 {
     ZoneScoped;
 
-    releaseAssert(!mBucketListSizeSnapshots.empty());
+    releaseAssert(!mSorobanStateSizeSnapshots.empty());
     uint64_t sizeSum = 0;
-    for (auto const& size : mBucketListSizeSnapshots)
+    for (uint64_t size : mSorobanStateSizeSnapshots)
     {
-        sizeSum += size;
+        // This is just a sanity check, as both the number of the snapshots
+        // and the value of every snapshotted size are rather small.
+        if (sizeSum >= std::numeric_limits<uint64_t>::max() - size)
+        {
+            sizeSum = std::numeric_limits<uint64_t>::max();
+        }
+        else
+        {
+            sizeSum += size;
+        }
     }
 
-    mAverageBucketListSize = sizeSum / mBucketListSizeSnapshots.size();
+    mAverageSorobanStateSize = sizeSum / mSorobanStateSizeSnapshots.size();
 }
 
 uint32_t
@@ -1869,17 +1875,16 @@ SorobanNetworkConfig::ledgerMaxTxCount() const
 }
 
 void
-SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(
+    AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
+    // We may only call this past Soroban protocol, because the config setting
+    // upgrades are not possible before that.
+    releaseAssertOrThrow(protocolVersionStartsFrom(
+        ltx.loadHeader().current().ledgerVersion, SOROBAN_PROTOCOL_VERSION));
 
-    // // Check if BucketList size window should exist
-    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    auto currSize = mBucketListSizeSnapshots.size();
+    auto currSize = mSorobanStateSizeSnapshots.size();
     auto newSize = stateArchivalSettings().liveSorobanStateSizeWindowSampleSize;
     if (newSize == currSize)
     {
@@ -1889,31 +1894,31 @@ SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 
     if (newSize < currSize)
     {
-        while (mBucketListSizeSnapshots.size() != newSize)
+        while (mSorobanStateSizeSnapshots.size() != newSize)
         {
-            mBucketListSizeSnapshots.pop_front();
+            mSorobanStateSizeSnapshots.pop_front();
         }
     }
     // If newSize > currSize, backfill new slots with oldest value in window
     // such that they are the first to get replaced by new values
     else
     {
-        auto oldestSize = mBucketListSizeSnapshots.front();
-        while (mBucketListSizeSnapshots.size() != newSize)
+        auto oldestSize = mSorobanStateSizeSnapshots.front();
+        while (mSorobanStateSizeSnapshots.size() != newSize)
         {
-            mBucketListSizeSnapshots.push_front(oldestSize);
+            mSorobanStateSizeSnapshots.push_front(oldestSize);
         }
     }
 
-    updateBucketListSizeAverage();
-
-    writeliveSorobanStateSizeWindow(ltx);
+    updateSorobanStateSizeAverage();
+    writeLiveSorobanStateSizeWindow(ltx);
 }
 
 void
-SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
-                                                  AbstractLedgerTxn& ltx,
-                                                  Application& app)
+SorobanNetworkConfig::maybeSnapshotSorobanStateSize(uint32_t currLedger,
+                                                    uint64_t inMemoryStateSize,
+                                                    AbstractLedgerTxn& ltx,
+                                                    Application& app)
 {
     ZoneScoped;
 
@@ -1925,25 +1930,46 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
     }
 
     if (currLedger %
-            mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod ==
+            mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod !=
         0)
     {
-        // Update in memory snapshots
-        mBucketListSizeSnapshots.pop_front();
-        mBucketListSizeSnapshots.push_back(
-            app.getBucketManager().getLiveBucketList().getSize());
-
-        writeliveSorobanStateSizeWindow(ltx);
-        updateBucketListSizeAverage();
-        computeRentWriteFee(app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                            ledgerVersion);
+        return;
     }
+    uint64_t sorobanStateSize = 0;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
+    {
+        sorobanStateSize = app.getBucketManager().getLiveBucketList().getSize();
+    }
+    else
+    {
+        sorobanStateSize = inMemoryStateSize;
+    }
+
+    // Update in memory snapshots
+    mSorobanStateSizeSnapshots.pop_front();
+    mSorobanStateSizeSnapshots.push_back(sorobanStateSize);
+
+    writeLiveSorobanStateSizeWindow(ltx);
+    updateSorobanStateSizeAverage();
+    computeRentWriteFee(ledgerVersion);
+}
+
+void
+SorobanNetworkConfig::updateRecomputedSorobanStateSize(uint64_t newSize,
+                                                       AbstractLedgerTxn& ltx)
+{
+    ZoneScoped;
+    for (auto& size : mSorobanStateSizeSnapshots)
+    {
+        size = newSize;
+    }
+    writeLiveSorobanStateSizeWindow(ltx);
 }
 
 uint64_t
-SorobanNetworkConfig::getAverageBucketListSize() const
+SorobanNetworkConfig::getAverageSorobanStateSize() const
 {
-    return mAverageBucketListSize;
+    return mAverageSorobanStateSize;
 }
 
 ContractCostParams const&
@@ -2259,8 +2285,7 @@ SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
 }
 
 void
-SorobanNetworkConfig::computeRentWriteFee(uint32_t configMaxProtocol,
-                                          uint32_t protocolVersion)
+SorobanNetworkConfig::computeRentWriteFee(uint32_t protocolVersion)
 {
     ZoneScoped;
 
@@ -2272,7 +2297,8 @@ SorobanNetworkConfig::computeRentWriteFee(uint32_t configMaxProtocol,
     feeConfig.rent_fee_1kb_state_size_high = mRentFee1KBSorobanStateSizeHigh;
     // This may throw, but only if core is mis-configured.
     mFeeRent1KB = rust_bridge::compute_rent_write_fee_per_1kb(
-        configMaxProtocol, protocolVersion, mAverageBucketListSize, feeConfig);
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion,
+        mAverageSorobanStateSize, feeConfig);
 }
 
 bool

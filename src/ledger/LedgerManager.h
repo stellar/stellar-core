@@ -272,6 +272,8 @@ class LedgerManager
     virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
     virtual std::chrono::milliseconds getExpectedLedgerCloseTime() const = 0;
 
+    virtual uint64_t getSorobanInMemoryStateSize() const = 0;
+
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
     virtual void mutateSorobanNetworkConfigForApply(
@@ -282,7 +284,8 @@ class LedgerManager
     getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
     virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
-    virtual void rebuildInMemorySorobanStateForTesting() = 0;
+    virtual void
+    rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
@@ -348,5 +351,11 @@ class LedgerManager
     }
 
     virtual bool isApplying() const = 0;
+
+    // Recomputes the size of the in-memory Soroban state (specifically, the
+    // unstable contract code size part of it), and fully overrides all the
+    // state size snapshots with the recomputed state size.
+    virtual void handleUpgradeAffectingSorobanInMemoryStateSize(
+        AbstractLedgerTxn& upgradeLtx) = 0;
 };
 }

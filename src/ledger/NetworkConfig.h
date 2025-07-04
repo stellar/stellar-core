@@ -289,8 +289,7 @@ class SorobanNetworkConfig
     initializeGenesisLedgerForTesting(uint32_t genesisLedgerProtocol,
                                       AbstractLedgerTxn& ltx, Application& app);
 
-    void loadFromLedger(LedgerTxnReadOnly const& roLtx,
-                        uint32_t configMaxProtocol, uint32_t protocolVersion);
+    void loadFromLedger(LedgerTxnReadOnly const& roLtx);
     // Maximum allowed size of the contract Wasm that can be uploaded (in
     // bytes).
     uint32_t maxContractSizeBytes() const;
@@ -370,18 +369,29 @@ class SorobanNetworkConfig
 
     // If currLedger is a ledger when we should snapshot, add a new snapshot to
     // the sliding window and write it to disk.
-    void maybeSnapshotBucketListSize(uint32_t currLedger,
-                                     AbstractLedgerTxn& ltx, Application& app);
+    // TODO(https://github.com/stellar/stellar-core/issues/4815): This and the
+    // following functions should probably be moved out the config struct into
+    // free functions.
+    void maybeSnapshotSorobanStateSize(uint32_t currLedger,
+                                       uint64_t inMemoryStateSize,
+                                       AbstractLedgerTxn& ltx,
+                                       Application& app);
+
+    // Rewrite all the the Soroban live state size snapshots with the newSize.
+    // This should be used after recomputing the Soroban state size due to
+    // configuration or protocol upgrade.
+    void updateRecomputedSorobanStateSize(uint64_t newSize,
+                                          AbstractLedgerTxn& ltx);
 
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
     // newSize > currSize, add as many copies of the current BucketList size to
     // window until it has newSize entries.
-    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
+    void maybeUpdateSorobanStateSizeWindowSize(AbstractLedgerTxn& ltx);
 
     // Returns the average of all BucketList size snapshots in the sliding
     // window.
-    uint64_t getAverageBucketListSize() const;
+    uint64_t getAverageSorobanStateSize() const;
 
     static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                                           uint32_t ledgerVersion);
@@ -453,8 +463,7 @@ class SorobanNetworkConfig
     void loadParallelComputeConfig(LedgerTxnReadOnly const& roLtx);
     void loadLedgerCostExtConfig(LedgerTxnReadOnly const& roLtx);
     void loadSCPTimingConfig(LedgerTxnReadOnly const& roLtx);
-    void computeRentWriteFee(uint32_t configMaxProtocol,
-                             uint32_t protocolVersion);
+    void computeRentWriteFee(uint32_t protocolVersion);
 
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.
@@ -467,8 +476,8 @@ class SorobanNetworkConfig
   public:
 #endif
 
-    void writeliveSorobanStateSizeWindow(AbstractLedgerTxn& ltxRoot) const;
-    void updateBucketListSizeAverage();
+    void writeLiveSorobanStateSizeWindow(AbstractLedgerTxn& ltxRoot) const;
+    void updateSorobanStateSizeAverage();
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -512,8 +521,8 @@ class SorobanNetworkConfig
     int64_t mFeeTransactionSize1KB{};
 
     // FIFO queue, push_back/pop_front
-    std::deque<uint64_t> mBucketListSizeSnapshots;
-    uint64_t mAverageBucketListSize{};
+    std::deque<uint64_t> mSorobanStateSizeSnapshots;
+    int64_t mAverageSorobanStateSize{};
 
     // Host cost params
     ContractCostParams mCpuCostParams{};
