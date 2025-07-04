@@ -475,65 +475,6 @@ computeLaneBaseFee(TxSetPhase phase, LedgerHeader const& ledgerHeader,
     return laneBaseFee;
 }
 
-std::shared_ptr<SurgePricingLaneConfig>
-createSurgePricingLangeConfig(TxSetPhase phase, Application& app)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    releaseAssert(!app.getLedgerManager().isApplying());
-
-    auto const& lclHeader =
-        app.getLedgerManager().getLastClosedLedgerHeader().header;
-    std::vector<bool> hadTxNotFittingLane;
-    std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig;
-    if (phase == TxSetPhase::CLASSIC)
-    {
-        auto maxOps = Resource(
-            {static_cast<uint32_t>(
-                 app.getLedgerManager().getLastMaxTxSetSizeOps()),
-             static_cast<uint32_t>(app.getConfig().getClassicByteAllowance())});
-        std::optional<Resource> dexOpsLimit;
-        if (app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET)
-        {
-            // DEX operations limit implies that DEX transactions should
-            // compete with each other in in a separate fee lane, which
-            // is only possible with generalized tx set.
-            dexOpsLimit =
-                Resource({*app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET,
-                          MAX_CLASSIC_BYTE_ALLOWANCE});
-        }
-
-        surgePricingLaneConfig =
-            std::make_shared<DexLimitingLaneConfig>(maxOps, dexOpsLimit);
-    }
-    else
-    {
-        releaseAssert(phase == TxSetPhase::SOROBAN);
-
-        auto limits = app.getLedgerManager().maxLedgerResources(
-            /* isSoroban */ true);
-        // When building Soroban tx sets with parallel execution support,
-        // instructions are accounted for by the build logic, not by the surge
-        // pricing config, so we need to relax the instruction limit in surge
-        // pricing logic.
-        if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
-                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
-        {
-            limits.setVal(Resource::Type::INSTRUCTIONS,
-                          std::numeric_limits<int64_t>::max());
-        }
-
-        auto byteLimit = std::min(
-            static_cast<int64_t>(app.getConfig().getSorobanByteAllowance()),
-            limits.getVal(Resource::Type::TX_BYTE_SIZE));
-        limits.setVal(Resource::Type::TX_BYTE_SIZE, byteLimit);
-
-        surgePricingLaneConfig =
-            std::make_shared<SorobanGenericLaneConfig>(limits);
-    }
-    return surgePricingLaneConfig;
-}
-
 TxFrameList
 buildSurgePricedSequentialPhase(
     TxFrameList const& txs,
@@ -556,7 +497,7 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
 )
 {
     ZoneScoped;
-    auto surgePricingLaneConfig = createSurgePricingLangeConfig(phase, app);
+    auto surgePricingLaneConfig = createSurgePricingLaneConfig(phase, app);
     std::vector<bool> hadTxNotFittingLane;
     uint32_t ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
@@ -751,6 +692,74 @@ checkFeeMap(InclusionFeeMap const& feeMap, LedgerHeader const& lclHeader)
 }
 
 } // namespace
+
+std::shared_ptr<SurgePricingLaneConfig>
+createSurgePricingLaneConfig(TxSetPhase phase, Application& app
+#ifdef BUILD_TESTS
+                             ,
+                             bool forceParallel
+#endif
+)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(!app.getLedgerManager().isApplying());
+
+    auto const& lclHeader =
+        app.getLedgerManager().getLastClosedLedgerHeader().header;
+    std::vector<bool> hadTxNotFittingLane;
+    std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig;
+    if (phase == TxSetPhase::CLASSIC)
+    {
+        auto maxOps = Resource(
+            {static_cast<uint32_t>(
+                 app.getLedgerManager().getLastMaxTxSetSizeOps()),
+             static_cast<uint32_t>(app.getConfig().getClassicByteAllowance())});
+        std::optional<Resource> dexOpsLimit;
+        if (app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET)
+        {
+            // DEX operations limit implies that DEX transactions should
+            // compete with each other in in a separate fee lane, which
+            // is only possible with generalized tx set.
+            dexOpsLimit =
+                Resource({*app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET,
+                          MAX_CLASSIC_BYTE_ALLOWANCE});
+        }
+
+        surgePricingLaneConfig =
+            std::make_shared<DexLimitingLaneConfig>(maxOps, dexOpsLimit);
+    }
+    else
+    {
+        releaseAssert(phase == TxSetPhase::SOROBAN);
+
+        auto limits = app.getLedgerManager().maxLedgerResources(
+            /* isSoroban */ true);
+        // When building Soroban tx sets with parallel execution support,
+        // instructions are accounted for by the build logic, not by the surge
+        // pricing config, so we need to relax the instruction limit in surge
+        // pricing logic.
+        if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+#ifdef BUILD_TESTS
+            || forceParallel
+#endif
+        )
+        {
+            limits.setVal(Resource::Type::INSTRUCTIONS,
+                          std::numeric_limits<int64_t>::max());
+        }
+
+        auto byteLimit = std::min(
+            static_cast<int64_t>(app.getConfig().getSorobanByteAllowance()),
+            limits.getVal(Resource::Type::TX_BYTE_SIZE));
+        limits.setVal(Resource::Type::TX_BYTE_SIZE, byteLimit);
+
+        surgePricingLaneConfig =
+            std::make_shared<SorobanGenericLaneConfig>(limits);
+    }
+    return surgePricingLaneConfig;
+}
 
 TxSetXDRFrame::TxSetXDRFrame(TransactionSet const& xdrTxSet)
     : mXDRTxSet(xdrTxSet)
@@ -1650,6 +1659,12 @@ bool
 TxSetPhaseFrame::isParallel() const
 {
     return mIsParallel;
+}
+
+bool
+TxSetPhaseFrame::isSoroban() const
+{
+    return mPhase == TxSetPhase::SOROBAN;
 }
 
 TxStageFrameList const&
