@@ -103,6 +103,14 @@ makeTxSetFromTransactions(
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
 #endif
 
+std::shared_ptr<SurgePricingLaneConfig>
+createSurgePricingLaneConfig(TxSetPhase phase, Application& app
+#ifdef BUILD_TESTS
+                             ,
+                             bool forceParallel = false
+#endif
+);
+
 // `TxSetFrame` is a wrapper around `TransactionSet` or
 // `GeneralizedTransactionSet` XDR.
 //
