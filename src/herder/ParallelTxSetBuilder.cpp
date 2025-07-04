@@ -24,6 +24,11 @@ struct ParallelPartitionConfig
         , mInstructionsPerCluster(sorobanCfg.ledgerMaxInstructions() /
                                   mStageCount)
     {
+        CLOG_DEBUG(Herder,
+                   "ParallelPartitionConfig: stages={}, clusters/stage={}, "
+                   "instructions/cluster={}, total max instructions={}",
+                   mStageCount, mClustersPerStage, mInstructionsPerCluster,
+                   sorobanCfg.ledgerMaxInstructions());
     }
 
     uint64_t
@@ -108,10 +113,17 @@ class Stage
         // exceed the theoretical limit of instructions per stage.
         if (mInstructions + tx.mInstructions > mConfig.instructionsPerStage())
         {
+            CLOG_DEBUG(Herder,
+                       "Tx {} rejected from stage: would exceed instruction "
+                       "limit ({} + {} > {})",
+                       tx.mId, mInstructions, tx.mInstructions,
+                       mConfig.instructionsPerStage());
             return false;
         }
         // First, find all clusters that conflict with the new transaction.
         auto conflictingClusters = getConflictingClusters(tx);
+        CLOG_DEBUG(Herder, "Tx {} has {} conflicting clusters", tx.mId,
+                   conflictingClusters.size());
 
         // Then, try creating new clusters by merging the conflicting clusters
         // together and adding the new transaction to the resulting cluster.
@@ -122,6 +134,9 @@ class Stage
         // stage and thus no new clusters could be created.
         if (!newClusters)
         {
+            CLOG_DEBUG(Herder,
+                       "Tx {} rejected: cluster would be too large after merge",
+                       tx.mId);
             return false;
         }
         // If it's possible to pack the newly-created cluster into one of the
@@ -175,6 +190,9 @@ class Stage
         // the required number of bins.
         if (!newPacking)
         {
+            CLOG_DEBUG(Herder,
+                       "Tx {} rejected: bin packing failed after rebuild",
+                       tx.mId);
             return false;
         }
         mClusters = std::move(newClusters.value());
@@ -399,21 +417,29 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
 
     // Visit the transactions in the surge pricing queue and try to add them to
     // at least one of the stages.
-    auto visitor = [&stages,
-                    &builderTxForTx](TransactionFrameBaseConstPtr const& tx) {
+    size_t processedCount = 0;
+    size_t rejectedCount = 0;
+    auto visitor = [&stages, &builderTxForTx, &processedCount,
+                    &rejectedCount](TransactionFrameBaseConstPtr const& tx) {
         bool added = false;
         auto builderTxIt = builderTxForTx.find(tx);
         releaseAssert(builderTxIt != builderTxForTx.end());
+
+        size_t stageNum = 0;
         for (auto& stage : stages)
         {
             if (stage.tryAdd(*builderTxIt->second))
             {
                 added = true;
+                CLOG_DEBUG(Herder, "Transaction {} added to stage {}",
+                           builderTxIt->second->mId, stageNum);
                 break;
             }
+            stageNum++;
         }
         if (added)
         {
+            processedCount++;
             return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
         }
         // If a transaction didn't fit into any of the stages, we consider it
@@ -421,6 +447,10 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         // surge pricing queue that surge pricing should be triggered (
         // REJECTED imitates the behavior for exceeding the resource limit
         // within the queue itself).
+        rejectedCount++;
+        CLOG_DEBUG(Herder,
+                   "Transaction {} rejected - couldn't fit in any stage",
+                   builderTxIt->second->mId);
         return SurgePricingPriorityQueue::VisitTxResult::REJECTED;
     };
 
@@ -428,6 +458,12 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     std::vector<Resource> laneLeftUntilLimitUnused;
     queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
                     result.mHadTxNotFittingLane, ledgerVersion);
+
+    CLOG_DEBUG(
+        Herder,
+        "Stage building complete: {} processed, {} rejected, stage count {}",
+        processedCount, rejectedCount, stageCount);
+
     // There is only a single fee lane for Soroban, so there is only a single
     // flag that indicates whether there was a transaction that didn't fit into
     // lane (and thus all transactions are surge priced at once).
@@ -464,14 +500,24 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         {
             releaseAssert(!cluster.empty());
         }
+        CLOG_DEBUG(Herder, "Stage {} has {} clusters", stages.size() - 1,
+                   resStage.size());
     }
     // Ensure we don't return any empty stages, which is prohibited by the
     // protocol. The algorithm builds the stages such that the stages are
     // populated from first to last.
+    size_t emptyStagesRemoved = 0;
     while (!result.mStages.empty() && result.mStages.back().empty())
     {
         result.mStages.pop_back();
+        emptyStagesRemoved++;
     }
+
+    CLOG_DEBUG(Herder,
+               "Final result: {} stages, {} empty stages removed, total fee {}",
+               result.mStages.size(), emptyStagesRemoved,
+               result.mTotalInclusionFee);
+
     for (auto const& stage : result.mStages)
     {
         releaseAssert(!stage.empty());
@@ -490,6 +536,9 @@ buildSurgePricedParallelSorobanPhase(
     std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
+    CLOG_DEBUG(Herder, "Building parallel Soroban phase with {} transactions",
+               txFrames.size());
+
     // We prefer the transaction sets that are well utilized, but we also want
     // to lower the stage count when possible. Thus we will nominate a tx set
     // that has the lowest amount of stages while still being within
@@ -507,6 +556,8 @@ buildSurgePricedParallelSorobanPhase(
         auto const& txFrame = txFrames[i];
         builderTxs.emplace_back(std::make_unique<BuilderTx>(i, *txFrame));
         builderTxForTx.emplace(txFrame, builderTxs.back().get());
+        CLOG_DEBUG(Herder, "Transaction {} has {} instructions", i,
+                   txFrame->sorobanResources().instructions);
     }
 
     // Before trying to include any transactions, find all the pairs of the
@@ -542,6 +593,11 @@ buildSurgePricedParallelSorobanPhase(
         }
     }
 
+    CLOG_DEBUG(Herder,
+               "Found {} RO keys and {} RW keys across all transactions",
+               txsWithRoKey.size(), txsWithRwKey.size());
+
+    size_t totalConflicts = 0;
     for (auto const& [key, rwTxIds] : txsWithRwKey)
     {
         // RW-RW conflicts
@@ -551,6 +607,7 @@ buildSurgePricedParallelSorobanPhase(
             {
                 builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                 builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
+                totalConflicts += 1;
             }
         }
         // RO-RW conflicts
@@ -564,10 +621,14 @@ buildSurgePricedParallelSorobanPhase(
                 {
                     builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                     builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
+                    totalConflicts += 2;
                 }
             }
         }
     }
+
+    CLOG_DEBUG(Herder, "Found {} total conflicts between transactions",
+               totalConflicts);
 
     // Process the transactions in the surge pricing (decreasing fee) order.
     // This also automatically ensures that the resource limits are respected
@@ -575,6 +636,10 @@ buildSurgePricedParallelSorobanPhase(
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+
+    CLOG_DEBUG(Herder, "Adding {} transactions to surge pricing queue",
+               txFrames.size());
+
     for (auto const& tx : txFrames)
     {
         queue.add(tx, ledgerVersion);
@@ -585,6 +650,10 @@ buildSurgePricedParallelSorobanPhase(
     uint32_t stageCountOptions = cfg.SOROBAN_PHASE_MAX_STAGE_COUNT -
                                  cfg.SOROBAN_PHASE_MIN_STAGE_COUNT + 1;
     std::vector<ParallelPhaseBuildResult> results(stageCountOptions);
+
+    CLOG_DEBUG(Herder, "Creating {} threads for stage counts {} to {}",
+               stageCountOptions, cfg.SOROBAN_PHASE_MIN_STAGE_COUNT,
+               cfg.SOROBAN_PHASE_MAX_STAGE_COUNT);
 
     for (uint32_t stageCount = cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
          stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
@@ -611,6 +680,12 @@ buildSurgePricedParallelSorobanPhase(
             std::max(maxTotalInclusionFee, result.mTotalInclusionFee);
     }
     maxTotalInclusionFee *= MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT;
+
+    CLOG_DEBUG(Herder, "Max total inclusion fee: {}, tolerance threshold: {}",
+               maxTotalInclusionFee /
+                   MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT,
+               maxTotalInclusionFee);
+
     std::optional<size_t> bestResultIndex = std::nullopt;
     for (size_t i = 0; i < results.size(); ++i)
     {
@@ -620,17 +695,31 @@ buildSurgePricedParallelSorobanPhase(
                    results[i].mStages.size(), results[i].mTotalInclusionFee);
         if (results[i].mTotalInclusionFee < maxTotalInclusionFee)
         {
+            CLOG_DEBUG(Herder, "Skipping result {} - fee {} below threshold {}",
+                       i, results[i].mTotalInclusionFee, maxTotalInclusionFee);
             continue;
         }
         if (!bestResultIndex ||
             results[i].mStages.size() <
                 results[bestResultIndex.value()].mStages.size())
         {
+            CLOG_DEBUG(Herder, "New best result: index {} with {} stages", i,
+                       results[i].mStages.size());
             bestResultIndex = std::make_optional(i);
         }
     }
-    releaseAssert(bestResultIndex.has_value());
+
+    if (!bestResultIndex.has_value())
+    {
+        CLOG_ERROR(Herder, "No valid parallel phase result found!");
+        releaseAssert(false);
+    }
+
     auto& bestResult = results[bestResultIndex.value()];
+    CLOG_DEBUG(Herder, "Selected result {} with {} stages and {} total fee",
+               bestResultIndex.value(), bestResult.mStages.size(),
+               bestResult.mTotalInclusionFee);
+
     hadTxNotFittingLane = std::move(bestResult.mHadTxNotFittingLane);
     return std::move(bestResult.mStages);
 }

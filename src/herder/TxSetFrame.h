@@ -103,6 +103,14 @@ makeTxSetFromTransactions(
     txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
 #endif
 
+std::shared_ptr<SurgePricingLaneConfig>
+createSurgePricingLaneConfig(TxSetPhase phase, Application& app
+#ifdef BUILD_TESTS
+                             ,
+                             bool forceParallel = false
+#endif
+);
+
 // `TxSetFrame` is a wrapper around `TransactionSet` or
 // `GeneralizedTransactionSet` XDR.
 //
@@ -249,6 +257,8 @@ class TxSetPhaseFrame
     // Currently only Soroban phase can be parallel, and only starting from
     // PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION protocol
     bool isParallel() const;
+
+    bool isSoroban() const;
 
     // Returns the parallel stages of this phase.
     //
