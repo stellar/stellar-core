@@ -307,6 +307,26 @@ class LedgerManagerImpl : public LedgerManager
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
     std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
+
+    // Test re-execution methods
+    void maybeReExecuteTransactionsAsParallel(
+        ApplicableTxSetFrame const& txSet,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet const& originalTxResultSet,
+        Hash const& sorobanBasePrngSeed,
+        std::vector<TxSetPhaseFrame> const& originalPhases);
+
+    void compareParallelExecutionResults(TransactionResultSet const& sequential,
+                                         TransactionResultSet const& parallel);
+
+    bool compareTransactionResults(TransactionResultSet const& result1,
+                                   TransactionResultSet const& result2) const;
+
+    std::unique_ptr<ApplicableTxSetFrame>
+    transformToParallelTxSet(ApplicableTxSetFrame const& originalTxSet,
+                             AbstractLedgerTxn& ltx);
 #endif
 
     void setState(State s);
