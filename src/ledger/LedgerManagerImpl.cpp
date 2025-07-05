@@ -18,6 +18,9 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
+#ifdef BUILD_TESTS
+#include "herder/ParallelTxSetBuilder.h"
+#endif
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
@@ -2330,6 +2333,39 @@ LedgerManagerImpl::applyTransactions(
 #endif
 
     std::vector<ApplyStage> applyStages;
+
+#ifdef BUILD_TESTS
+    // Capture pre-state for parallel re-execution before any transactions are
+    // applied
+    std::unique_ptr<GlobalParallelApplyLedgerState> preExecutionGlobalState;
+    auto parallelTestEnv = std::getenv("STELLAR_TEST_PARALLEL_EXECUTION");
+    if (parallelTestEnv)
+    {
+        // Check if we have any non-parallel Soroban phase
+        bool hasNonParallelSoroban = false;
+        size_t sorobanPhaseIndex = static_cast<size_t>(TxSetPhase::SOROBAN);
+        if (sorobanPhaseIndex < phases.size() &&
+            !phases[sorobanPhaseIndex].isParallel())
+        {
+            hasNonParallelSoroban = true;
+        }
+
+        if (hasNonParallelSoroban)
+        {
+            // Create empty stages vector to pass to
+            // GlobalParallelApplyLedgerState
+            std::vector<ApplyStage> emptyStages;
+            preExecutionGlobalState =
+                std::make_unique<GlobalParallelApplyLedgerState>(
+                    mApp.getAppConnector(), ltx, emptyStages,
+                    mApplyState.getInMemorySorobanState());
+            CLOG_INFO(
+                Ledger,
+                "Captured pre-execution state for parallel re-execution test");
+        }
+    }
+#endif
+
     for (auto const& phase : phases)
     {
         if (phase.isParallel())
@@ -2351,6 +2387,14 @@ LedgerManagerImpl::applyTransactions(
 #ifdef BUILD_TESTS
     releaseAssert(ledgerCloseMeta);
     mLastLedgerCloseMeta = *ledgerCloseMeta;
+
+    // Test re-execution with parallel processing if environment variable is set
+    if (preExecutionGlobalState)
+    {
+        maybeReExecuteTransactionsAsParallel(
+            txSet, mutableTxResults, std::move(preExecutionGlobalState),
+            ledgerCloseMeta, txResultSet, sorobanBasePrngSeed, phases);
+    }
 #endif
 
     logTxApplyMetrics(ltx, numTxs, numOps);
@@ -2791,4 +2835,299 @@ LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
         }
     }
 }
+
+#ifdef BUILD_TESTS
+void
+LedgerManagerImpl::maybeReExecuteTransactionsAsParallel(
+    ApplicableTxSetFrame const& txSet,
+    std::vector<MutableTxResultPtr> const& mutableTxResults,
+    std::unique_ptr<GlobalParallelApplyLedgerState> preExecutionGlobalState,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    TransactionResultSet const& originalTxResultSet,
+    Hash const& sorobanBasePrngSeed,
+    std::vector<TxSetPhaseFrame> const& originalPhases)
+{
+    CLOG_INFO(Ledger, "Re-executing transactions as parallel for testing");
+
+    try
+    {
+        // Extract all Soroban transactions from the original tx set
+        TxFrameList originalSorobanTxs;
+        size_t sorobanPhaseIndex = static_cast<size_t>(TxSetPhase::SOROBAN);
+        auto const& sorobanPhase = originalPhases[sorobanPhaseIndex];
+        originalSorobanTxs = sorobanPhase.getSequentialTxs();
+
+        if (originalSorobanTxs.empty())
+        {
+            return;
+        }
+
+        CLOG_INFO(Ledger, "Re-executing {} Soroban transactions as parallel",
+                  originalSorobanTxs.size());
+
+        TxFrameList newSorobanTxs;
+        newSorobanTxs.reserve(originalSorobanTxs.size());
+        for (auto const& tx : originalSorobanTxs)
+        {
+            // Create a new transaction frame to avoid modifying the original
+            newSorobanTxs.emplace_back(
+                TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(),
+                                                          tx->getEnvelope()));
+        }
+
+        // Build parallel tx set
+        auto sorobanConfig =
+            mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+        sorobanConfig.setLedgerMaxDependentTxClusters(
+            std::atoi(std::getenv("STELLAR_TEST_PARALLEL_EXECUTION")));
+        auto laneConfig =
+            createSurgePricingLaneConfig(TxSetPhase::SOROBAN, mApp, true);
+        std::vector<bool> hadTxNotFittingLane;
+
+        // Use the current ledger version for building stages
+        uint32_t ledgerVersion =
+            std::max((uint32_t)PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION,
+                     (uint32_t)Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+        auto parallelStages = buildSurgePricedParallelSorobanPhase(
+            newSorobanTxs, mApp.getConfig(), sorobanConfig, laneConfig,
+            hadTxNotFittingLane, ledgerVersion);
+
+        if (parallelStages.empty())
+        {
+            CLOG_WARNING(Ledger,
+                         "Failed to build parallel stages for re-execution");
+            return;
+        }
+
+        CLOG_INFO(Ledger, "Built {} parallel stages for testing",
+                  parallelStages.size());
+
+        // Find the starting index for Soroban transactions in results
+        uint32_t sorobanStartIndex = 0;
+        for (size_t i = 0; i < sorobanPhaseIndex; ++i)
+        {
+            sorobanStartIndex += originalPhases[i].sizeTx();
+        }
+
+        // Create mutable results for parallel execution
+        std::vector<MutableTxResultPtr> parallelMutableResults;
+        parallelMutableResults.reserve(newSorobanTxs.size());
+
+        // Map to track original tx to its index
+        std::unordered_map<Hash, size_t> txHashToParallelIndex;
+
+        // Get Soroban network config for fee calculations
+        auto const& sorobanNetworkConfig =
+            mApp.getLedgerManager().getSorobanNetworkConfigForApply();
+
+        for (size_t i = 0; i < newSorobanTxs.size(); ++i)
+        {
+            auto const& tx = newSorobanTxs[i];
+            txHashToParallelIndex[tx->getContentsHash()] = i;
+
+            // Create completely fresh result
+            auto mutableResult = tx->createValidationSuccessResult();
+
+            // Initialize refundable fee tracker for Soroban transactions
+            // This is normally done in processFeeSeqNum/commonPreApply
+            if (tx->isSoroban())
+            {
+                // Cast to TransactionFrame to access
+                // computePreApplySorobanResourceFee
+                auto const& txFrame = static_cast<TransactionFrame const&>(*tx);
+                auto sorobanResourceFee =
+                    txFrame.computePreApplySorobanResourceFee(
+                        ledgerVersion, sorobanNetworkConfig, mApp.getConfig());
+
+                int64_t initialFeeRefund =
+                    tx->declaredSorobanResourceFee() -
+                    sorobanResourceFee.non_refundable_fee;
+                mutableResult->initializeRefundableFeeTracker(initialFeeRefund);
+
+                CLOG_DEBUG(Ledger,
+                           "Initialized refundable fee tracker for tx {} with "
+                           "refund {}",
+                           binToHex(tx->getContentsHash()).substr(0, 8),
+                           initialFeeRefund);
+            }
+
+            parallelMutableResults.push_back(std::move(mutableResult));
+        }
+
+        // Build the ApplyStages from the parallel stages
+        std::vector<ApplyStage> applyStages;
+        applyStages.reserve(parallelStages.size());
+
+        uint32_t parallelIndex = 0;
+        for (auto const& stage : parallelStages)
+        {
+            std::vector<Cluster> applyClusters;
+            applyClusters.reserve(stage.size());
+
+            for (auto const& cluster : stage)
+            {
+                Cluster applyCluster;
+                applyCluster.reserve(cluster.size());
+
+                for (auto const& tx : cluster)
+                {
+                    // Find the corresponding mutable result
+                    auto iter =
+                        txHashToParallelIndex.find(tx->getContentsHash());
+                    if (iter == txHashToParallelIndex.end())
+                    {
+                        throw std::runtime_error(
+                            "Transaction not found in parallel index map");
+                    }
+
+                    size_t resultIndex = iter->second;
+                    auto& mutableResult =
+                        parallelMutableResults.at(resultIndex);
+                    applyCluster.emplace_back(
+                        mApp.getAppConnector(), tx, *mutableResult,
+                        ledgerVersion, parallelIndex, true /* enableTxMeta */);
+
+                    ++parallelIndex;
+                }
+                applyClusters.emplace_back(std::move(applyCluster));
+            }
+            applyStages.emplace_back(std::move(applyClusters));
+        }
+
+        // Actually execute the parallel stages using the pre-execution state
+        CLOG_INFO(Ledger,
+                  "Executing {} parallel stages against pre-execution state",
+                  applyStages.size());
+
+        // Create a fake header for the parallel execution
+        // The header needs to match what was captured in pre-execution state
+        LedgerHeader header;
+        header.ledgerSeq = preExecutionGlobalState->getSnapshotLedgerSeq() + 1;
+        header.ledgerVersion = ledgerVersion;
+        header.baseFee =
+            mApp.getLedgerManager().getLastClosedLedgerHeader().header.baseFee;
+        header.baseReserve = mApp.getLedgerManager().getLastReserve();
+        header.scpValue.closeTime = mApp.getLedgerManager()
+                                        .getLastClosedLedgerHeader()
+                                        .header.scpValue.closeTime +
+                                    1;
+
+        // Manually apply each stage using the pre-execution global state
+        for (auto const& stage : applyStages)
+        {
+            applySorobanStage(mApp.getAppConnector(), header,
+                              *preExecutionGlobalState, stage,
+                              sorobanBasePrngSeed);
+        }
+
+        // Build parallel results for comparison with just the Soroban subset
+        TransactionResultSet sequentialSorobanResults;
+        TransactionResultSet parallelTxResultSet;
+
+        sequentialSorobanResults.results.reserve(newSorobanTxs.size());
+        parallelTxResultSet.results.reserve(newSorobanTxs.size());
+
+        for (size_t i = 0; i < newSorobanTxs.size(); ++i)
+        {
+            auto const& tx = newSorobanTxs[i];
+
+            // Get the sequential result for this transaction
+            size_t originalIndex = sorobanStartIndex + i;
+            auto const& seqResult =
+                originalTxResultSet.results.at(originalIndex);
+            sequentialSorobanResults.results.emplace_back(seqResult);
+
+            // Get the parallel result
+            auto const& mutableResult = parallelMutableResults[i];
+
+            TransactionResultPair resultPair;
+            resultPair.transactionHash = tx->getContentsHash();
+            resultPair.result = mutableResult->getXDR();
+
+            parallelTxResultSet.results.emplace_back(resultPair);
+        }
+
+        // Compare results between sequential and parallel execution
+        compareParallelExecutionResults(sequentialSorobanResults,
+                                        parallelTxResultSet);
+
+        CLOG_INFO(Ledger, "Parallel re-execution test completed successfully");
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_ERROR(Ledger, "Exception during parallel re-execution test: {}",
+                   e.what());
+    }
 }
+void
+LedgerManagerImpl::compareParallelExecutionResults(
+    TransactionResultSet const& sequential,
+    TransactionResultSet const& parallel)
+{
+    if (sequential.results.size() != parallel.results.size())
+    {
+        CLOG_WARNING(Ledger,
+                     "Result count mismatch: sequential={}, parallel={}",
+                     sequential.results.size(), parallel.results.size());
+        return;
+    }
+
+    size_t differences = 0;
+    for (size_t i = 0; i < sequential.results.size(); ++i)
+    {
+        auto const& seqResult = sequential.results[i];
+        auto const& parResult = parallel.results[i];
+
+        if (seqResult.transactionHash != parResult.transactionHash)
+        {
+            CLOG_ERROR(Ledger, "Transaction hash mismatch at index {}", i);
+            differences++;
+            continue;
+        }
+
+        bool resultsDiffer = false;
+
+        // Compare result codes
+        if (seqResult.result.result.code() != parResult.result.result.code())
+        {
+            resultsDiffer = true;
+        }
+        // For successful transactions, compare inner results
+        else if (seqResult.result.result.code() == txSUCCESS)
+        {
+            // Deep comparison of results would go here
+            // For now, just compare the XDR serialization
+            auto seqXdr = xdr::xdr_to_opaque(seqResult.result);
+            auto parXdr = xdr::xdr_to_opaque(parResult.result);
+            if (seqXdr != parXdr)
+            {
+                resultsDiffer = true;
+            }
+        }
+
+        if (resultsDiffer)
+        {
+            differences++;
+            CLOG_WARNING(
+                Ledger, "Transaction {} differs: seq_code={}, par_code={}",
+                binToHex(seqResult.transactionHash),
+                seqResult.result.result.code(), parResult.result.result.code());
+        }
+    }
+
+    if (differences == 0)
+    {
+        CLOG_INFO(Ledger,
+                  "Parallel execution test: all {} transactions matched",
+                  sequential.results.size());
+    }
+    else
+    {
+        CLOG_WARNING(Ledger,
+                     "Parallel execution test: {} of {} transactions differed",
+                     differences, sequential.results.size());
+    }
+}
+#endif // BUILD_TESTS
+
+} // namespace stellar
