@@ -2878,7 +2878,8 @@ LedgerManagerImpl::maybeReExecuteTransactionsAsParallel(
         // Build parallel tx set
         auto sorobanConfig =
             mApp.getLedgerManager().getSorobanNetworkConfigForApply();
-        sorobanConfig.setLedgerMaxDependentTxClusters(1);
+        sorobanConfig.setLedgerMaxDependentTxClusters(
+            std::atoi(std::getenv("STELLAR_TEST_PARALLEL_EXECUTION")));
         auto laneConfig =
             createSurgePricingLaneConfig(TxSetPhase::SOROBAN, mApp, true);
         std::vector<bool> hadTxNotFittingLane;
