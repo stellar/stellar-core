@@ -418,7 +418,7 @@ class LedgerManagerImpl : public LedgerManager
     void maybeReExecuteTransactionsAsParallel(
         ApplicableTxSetFrame const& txSet,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
-        AbstractLedgerTxn& ltx,
+        std::unique_ptr<GlobalParallelApplyLedgerState> preExecutionGlobalState,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet const& originalTxResultSet,
         Hash const& sorobanBasePrngSeed,
