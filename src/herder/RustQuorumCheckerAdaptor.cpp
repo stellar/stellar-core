@@ -500,6 +500,11 @@ runQuorumIntersectionCheckAsync(
         exe, quorumMapFile, ll, qicResultJson, timeLimitMs, memoryLimitBytes,
         analyzeCriticalGroups ? "--analyze-critical-groups" : "");
     auto evt = pm.runProcess(cmdline, qicOutFile).lock();
+    if (!evt)
+    {
+        CLOG_ERROR(SCP, "Failed to start quorum intersection check process");
+        return;
+    }
 
     evt->async_wait([numNodes, ledger, curr, qicOutFile, qicResultJson,
                      hState](asio::error_code ec) {
