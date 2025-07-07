@@ -478,7 +478,7 @@ runQuorumIntersectionCheckAsync(
     ZoneScoped;
 
     std::string quorumMapFile(fmt::format("{}/quorum_map.json", tmpDirName));
-    std::string qicOutFile(fmt::format("{}/out.txt", tmpDirName)); // for stdout
+
     std::string qicResultJson(
         fmt::format("{}/result.json", tmpDirName)); // for result
 
@@ -499,14 +499,14 @@ runQuorumIntersectionCheckAsync(
         "--time-limit-ms {} --memory-limit-bytes {} {}",
         exe, quorumMapFile, ll, qicResultJson, timeLimitMs, memoryLimitBytes,
         analyzeCriticalGroups ? "--analyze-critical-groups" : "");
-    auto evt = pm.runProcess(cmdline, qicOutFile).lock();
+    auto evt = pm.runProcess(cmdline, "").lock();
     if (!evt)
     {
         CLOG_ERROR(SCP, "Failed to start quorum intersection check process");
         return;
     }
 
-    evt->async_wait([numNodes, ledger, curr, qicOutFile, qicResultJson,
+    evt->async_wait([numNodes, ledger, curr, qicResultJson,
                      hState](asio::error_code ec) {
         auto hStateSP = hState.lock();
         if (hStateSP == nullptr)
@@ -526,9 +526,8 @@ runQuorumIntersectionCheckAsync(
         CLOG_DEBUG(SCP,
                    "Processing quorum intersection check result: numNodes={}, "
                    "ledger={}, "
-                   "hash={}, outFile='{}', resultJson='{}', errorCode = {}",
-                   numNodes, ledger, binToHex(curr), qicOutFile, qicResultJson,
-                   ecode);
+                   "hash={}, resultJson='{}', errorCode = {}",
+                   numNodes, ledger, binToHex(curr), qicResultJson, ecode);
 
         if (ecode == static_cast<int>(QuorumCheckerStatus::UNSAT) ||
             ecode == static_cast<int>(QuorumCheckerStatus::SAT) ||
