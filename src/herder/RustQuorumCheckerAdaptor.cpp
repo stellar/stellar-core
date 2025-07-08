@@ -470,8 +470,8 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
 
 void
 runQuorumIntersectionCheckAsync(
-    Hash const curr, uint32 ledger, std::string const& tmpDirName,
-    QuorumTracker::QuorumMap const& qmap,
+    Application& app, Hash const curr, uint32 ledger,
+    std::string const& tmpDirName, QuorumTracker::QuorumMap const& qmap,
     std::weak_ptr<QuorumMapIntersectionState> hState, ProcessManager& pm,
     uint64_t timeLimitMs, size_t memoryLimitBytes, bool analyzeCriticalGroups)
 {
@@ -501,8 +501,19 @@ runQuorumIntersectionCheckAsync(
         analyzeCriticalGroups ? "--analyze-critical-groups" : "");
     auto evt = pm.runProcess(cmdline, qicOutFile).lock();
 
-    evt->async_wait([numNodes, ledger, curr, qicOutFile, qicResultJson,
-                     hState](asio::error_code ec) {
+    if (!evt)
+    {
+        CLOG_ERROR(SCP, "Failed to start quorum intersection check process");
+        auto hStateSP = hState.lock();
+        if (hStateSP)
+        {
+            hStateSP->reset(app);
+        }
+        return;
+    }
+
+    evt->async_wait([numNodes, ledger, curr, qicOutFile, qicResultJson, hState,
+                     &app](asio::error_code ec) {
         auto hStateSP = hState.lock();
         if (hStateSP == nullptr)
         {
@@ -565,8 +576,7 @@ runQuorumIntersectionCheckAsync(
             CLOG_ERROR(SCP, "quorum intersection command failed, rc = {}",
                        ecode);
         }
-        hStateSP->mRecalculating = false;
-        hStateSP->mCheckingQuorumMapHash = Hash{};
+        hStateSP->reset(app);
     });
 }
 

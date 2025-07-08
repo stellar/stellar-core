@@ -55,12 +55,8 @@ struct QuorumMapIntersectionState
         return mLastCheckLedger == mLastGoodLedger;
     }
 
-    QuorumMapIntersectionState(TmpDir&& tmpDir,
-                               medida::MetricsRegistry& metrics)
-        : mTmpDir(std::make_unique<TmpDir>(std::move(tmpDir)))
-        , mMetrics(metrics)
-    {
-    }
+    void reset(Application& app);
+    QuorumMapIntersectionState(Application& app);
 };
 
 class QuorumIntersectionChecker

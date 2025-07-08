@@ -6,6 +6,7 @@
 #include "QuorumIntersectionChecker.h"
 #include "herder/HerderUtils.h"
 
+#include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -790,6 +791,24 @@ groupString(std::optional<Config> const& cfg, std::set<NodeID> const& group)
 
 namespace stellar
 {
+
+void
+QuorumMapIntersectionState::reset(Application& app)
+{
+    // NB: this deletes any existing tmp dir before creating a new one.
+    mTmpDir =
+        std::make_unique<TmpDir>(app.getTmpDirManager().tmpDir("qic-tmp"));
+    mRecalculating = false;
+    mInterruptFlag = false;
+    mCheckingQuorumMapHash = Hash{};
+}
+
+QuorumMapIntersectionState::QuorumMapIntersectionState(Application& app)
+    : mMetrics(app.getMetrics())
+{
+    reset(app);
+}
+
 std::shared_ptr<QuorumIntersectionChecker>
 QuorumIntersectionChecker::create(
     QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
