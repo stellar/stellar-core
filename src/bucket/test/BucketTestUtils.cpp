@@ -237,7 +237,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
                         ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
                         mApp.getLedgerManager()
-                            .getSorobanNetworkConfigForApply());
+                            .getMutableSorobanNetworkConfigForApply());
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::
@@ -277,8 +277,9 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                 .getMutableSorobanNetworkConfigForApply()
                 .maybeSnapshotSorobanStateSize(
                     lh.ledgerSeq,
-                    mApp.getLedgerManager().getSorobanInMemoryStateSize(), ltx,
-                    mApp);
+                    mApp.getLedgerManager()
+                        .getSorobanInMemoryStateSizeForTesting(),
+                    ltx, mApp);
         }
 
         ltx.getAllEntries(init, live, dead);

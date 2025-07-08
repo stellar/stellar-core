@@ -233,6 +233,8 @@ LedgerManagerImpl::ApplyState::getMetrics()
 InMemorySorobanState const&
 LedgerManagerImpl::ApplyState::getInMemorySorobanState() const
 {
+    releaseAssert(mPhase == Phase::APPLYING ||
+                  mPhase == Phase::SETTING_UP_STATE);
     return mInMemorySorobanState;
 }
 
@@ -241,6 +243,18 @@ InMemorySorobanState&
 LedgerManagerImpl::ApplyState::getInMemorySorobanStateForTesting()
 {
     return mInMemorySorobanState;
+}
+
+::rust::Box<rust_bridge::SorobanModuleCache> const&
+LedgerManagerImpl::ApplyState::getModuleCacheForTesting()
+{
+    return mModuleCache;
+}
+
+uint64_t
+LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSizeForTesting() const
+{
+    return mInMemorySorobanState.getSize();
 }
 #endif
 
@@ -259,23 +273,48 @@ LedgerManagerImpl::ApplyState::threadInvariant() const
 }
 
 std::shared_ptr<SorobanNetworkConfig const>
-LedgerManagerImpl::ApplyState::getSorobanNetworkConfig() const
+LedgerManagerImpl::ApplyState::getSorobanNetworkConfigForApply() const
 {
+    releaseAssert(mPhase == Phase::APPLYING);
     return mSorobanNetworkConfig;
 }
 
 SorobanNetworkConfig&
-LedgerManagerImpl::ApplyState::getSorobanNetworkConfigToModify()
+LedgerManagerImpl::ApplyState::getSorobanNetworkConfigForCommit(
+#ifdef BUILD_TESTS
+    bool skipPhaseCheck
+#endif
+)
 {
-    threadInvariant();
+#ifdef BUILD_TESTS
+    if (!skipPhaseCheck)
+#endif
+    {
+        assertWritablePhase();
+    }
+
     releaseAssert(mSorobanNetworkConfig);
     return *mSorobanNetworkConfig;
+}
+
+bool
+LedgerManagerImpl::ApplyState::hasSorobanNetworkConfigForCommit() const
+{
+    assertWritablePhase();
+    return static_cast<bool>(mSorobanNetworkConfig);
 }
 
 ::rust::Box<rust_bridge::SorobanModuleCache> const&
 LedgerManagerImpl::ApplyState::getModuleCache() const
 {
+    releaseAssert(mPhase == Phase::APPLYING);
     return mModuleCache;
+}
+
+void
+LedgerManagerImpl::markApplyStateReset()
+{
+    mApplyState.resetToSetupPhase();
 }
 
 bool
@@ -285,11 +324,13 @@ LedgerManagerImpl::ApplyState::isCompilationRunning() const
 }
 
 void
-LedgerManagerImpl::ApplyState::setSorobanNetworkConfig(
-    std::shared_ptr<SorobanNetworkConfig> sorobanNetworkConfig)
+LedgerManagerImpl::ApplyState::maybeInitializeSorobanNetworkConfig()
 {
-    threadInvariant();
-    mSorobanNetworkConfig = sorobanNetworkConfig;
+    assertWritablePhase();
+    if (!mSorobanNetworkConfig)
+    {
+        mSorobanNetworkConfig = std::make_shared<SorobanNetworkConfig>();
+    }
 }
 
 void
@@ -298,7 +339,7 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
     std::vector<LedgerEntry> const& liveEntries,
     std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh)
 {
-    threadInvariant();
+    assertWritablePhase();
     mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries, lh,
                                       mSorobanNetworkConfig.get());
 }
@@ -306,9 +347,10 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
 uint64_t
 LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
 {
-    // This is not strictly necessary, but we don't really want to access the
-    // state size outside of the snapshotting process during the apply stage.
-    threadInvariant();
+    // This assert is not strictly necessary, but we don't really want to
+    // access the state size outside of the snapshotting process during the
+    // LEDGER_CLOSE or SETTING_UP_STATE phase.
+    assertWritablePhase();
     return mInMemorySorobanState.getSize();
 }
 
@@ -316,7 +358,7 @@ void
 LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
     LedgerHeader const& lh)
 {
-    threadInvariant();
+    assertCommittingPhase();
     mInMemorySorobanState.manuallyAdvanceLedgerHeader(lh);
 }
 
@@ -401,6 +443,7 @@ LedgerManager::genesisLedger()
 void
 LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 {
+    mApplyState.assertSetupPhase();
     auto ledgerTime = mApplyState.getMetrics().mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
@@ -416,7 +459,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                 SOROBAN_PROTOCOL_VERSION))
         {
-            updateSorobanNetworkConfigForApply(ltx);
+            updateSorobanNetworkConfigForCommit(ltx);
         }
     }
 
@@ -475,6 +518,10 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     advanceLastClosedLedgerState(output);
 
     ltx.commit();
+
+    // Note: We're still not done with LedgerManager initialization here, as we
+    // still need to call setLastClosedLedger to properly initialize
+    // LedgerManager after creating the genesis ledger.
 }
 
 void
@@ -497,6 +544,7 @@ void
 LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
 {
     ZoneScoped;
+    mApplyState.assertSetupPhase();
 
     // Step 1. Load LCL state from the DB and extract latest ledger hash
     string lastLedger = mApp.getPersistentState().getState(
@@ -587,6 +635,7 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
                                             latestLedgerHeader->ledgerVersion);
     mApplyState.populateInMemorySorobanState(snapshot,
                                              latestLedgerHeader->ledgerVersion);
+    mApplyState.markEndOfSetupPhase();
 }
 
 Database&
@@ -717,8 +766,8 @@ LedgerManagerImpl::getLastClosedSorobanNetworkConfig() const
 SorobanNetworkConfig const&
 LedgerManagerImpl::getSorobanNetworkConfigForApply()
 {
-    releaseAssert(mApplyState.getSorobanNetworkConfig());
-    return *mApplyState.getSorobanNetworkConfig();
+    releaseAssert(mApplyState.getSorobanNetworkConfigForApply());
+    return *mApplyState.getSorobanNetworkConfigForApply();
 }
 
 bool
@@ -727,12 +776,6 @@ LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->hasSorobanConfig();
-}
-
-uint64_t
-LedgerManagerImpl::getSorobanInMemoryStateSize() const
-{
-    return mApplyState.getSorobanInMemoryStateSize();
 }
 
 std::chrono::milliseconds
@@ -766,19 +809,20 @@ SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfigForApply()
 {
     releaseAssert(threadIsMain());
-    return mApplyState.getSorobanNetworkConfigToModify();
+    return mApplyState.getSorobanNetworkConfigForCommit(
+        /*skipPhaseCheck*/ true);
 }
 void
 LedgerManagerImpl::mutateSorobanNetworkConfigForApply(
     std::function<void(SorobanNetworkConfig&)> const& f)
 {
     releaseAssert(threadIsMain());
-    f(mApplyState.getSorobanNetworkConfigToModify());
+    f(mApplyState.getSorobanNetworkConfigForCommit(/*skipPhaseCheck*/ true));
     mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
         mApp.getBucketManager()
             .getBucketSnapshotManager()
             .copySearchableLiveBucketListSnapshot(),
-        mApplyState.getSorobanNetworkConfigToModify(),
+        mApplyState.getSorobanNetworkConfigForCommit(/*skipPhaseCheck*/ true),
         getLastClosedLedgerHeader(), getLastClosedLedgerHAS());
 }
 
@@ -809,9 +853,24 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
 void
 LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
 {
+    mApplyState.resetToSetupPhase();
     mApplyState.getInMemorySorobanStateForTesting().clearForTesting();
     mApplyState.populateInMemorySorobanState(
         mLastClosedLedgerState->getBucketSnapshot(), ledgerVersion);
+    mApplyState.markEndOfSetupPhase();
+}
+
+::rust::Box<rust_bridge::SorobanModuleCache>
+LedgerManagerImpl::getModuleCacheForTesting()
+{
+    releaseAssert(!mApplyState.isCompilationRunning());
+    return mApplyState.getModuleCacheForTesting()->shallow_clone();
+}
+
+uint64_t
+LedgerManagerImpl::getSorobanInMemoryStateSizeForTesting()
+{
+    return mApplyState.getSorobanInMemoryStateSizeForTesting();
 }
 #endif
 
@@ -861,7 +920,7 @@ void
 LedgerManagerImpl::ApplyState::handleUpgradeAffectingSorobanInMemoryStateSize(
     AbstractLedgerTxn& upgradeLtx)
 {
-    threadInvariant();
+    assertCommittingPhase();
 
     // Load the current network from the ledger. It might be in some
     // intermediate state, which is fine, because we call this only after
@@ -885,7 +944,7 @@ LedgerManagerImpl::ApplyState::handleUpgradeAffectingSorobanInMemoryStateSize(
 void
 LedgerManagerImpl::ApplyState::finishPendingCompilation()
 {
-    threadInvariant();
+    assertWritablePhase();
     releaseAssert(mCompiler);
     auto newCache = mCompiler->wait();
     getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.set_count(
@@ -902,7 +961,7 @@ void
 LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
     SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
 {
-    threadInvariant();
+    assertSetupPhase();
     startCompilingAllContracts(snap, minLedgerVersion);
     finishPendingCompilation();
 }
@@ -911,9 +970,62 @@ void
 LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
     SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
-    threadInvariant();
+    assertSetupPhase();
     mInMemorySorobanState.initializeStateFromSnapshot(
         snap, mSorobanNetworkConfig.get(), ledgerVersion);
+}
+
+void
+LedgerManagerImpl::ApplyState::assertCommittingPhase() const
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::COMMITTING);
+}
+
+void
+LedgerManagerImpl::ApplyState::markStartOfApplying()
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::READY_TO_APPLY);
+    mPhase = Phase::APPLYING;
+}
+
+void
+LedgerManagerImpl::ApplyState::markStartOfCommitting()
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::APPLYING);
+    mPhase = Phase::COMMITTING;
+}
+
+void
+LedgerManagerImpl::ApplyState::markEndOfCommitting()
+{
+    assertCommittingPhase();
+    mPhase = Phase::READY_TO_APPLY;
+}
+
+void
+LedgerManagerImpl::ApplyState::markEndOfSetupPhase()
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE);
+    mPhase = Phase::READY_TO_APPLY;
+}
+
+void
+LedgerManagerImpl::ApplyState::resetToSetupPhase()
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::READY_TO_APPLY);
+    mPhase = Phase::SETTING_UP_STATE;
+}
+
+void
+LedgerManagerImpl::ApplyState::assertSetupPhase() const
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE);
 }
 
 void
@@ -938,10 +1050,18 @@ LedgerManagerImpl::ApplyState::startCompilingAllContracts(
 }
 
 void
+LedgerManagerImpl::ApplyState::assertWritablePhase() const
+{
+    threadInvariant();
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
+                  mPhase == Phase::COMMITTING);
+}
+
+void
 LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
 {
-    threadInvariant();
+    assertCommittingPhase();
 
     // There is (currently) a grow-only arena underlying the module cache, so as
     // entries are uploaded and evicted that arena will still grow. To cap this
@@ -1001,7 +1121,7 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
 void
 LedgerManagerImpl::publishSorobanMetrics()
 {
-    auto const& conf = getSorobanNetworkConfigForApply();
+    auto const& conf = mApplyState.getSorobanNetworkConfigForCommit();
     auto& m = getSorobanMetrics();
     // first publish the network config limits
     m.mConfigContractDataKeySizeBytes.set_count(
@@ -1220,6 +1340,8 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
         mApp.getHerder().lastClosedLedgerIncreased(
             appliedLatest, ledgerData.getTxSet(), upgradeApplied);
     }
+
+    mApplyState.markEndOfCommitting();
 }
 
 void
@@ -1288,6 +1410,8 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     mLastLedgerCloseMeta.reset();
 #endif
     ZoneScoped;
+    mApplyState.markStartOfApplying();
+
     auto ledgerTime = mApplyState.getMetrics().mLedgerClose.TimeScope();
     LogSlowExecution applyLedgerTime{"applyLedger",
                                      LogSlowExecution::Mode::MANUAL, "",
@@ -1455,7 +1579,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
-    // was validated before upgrades
+    // was validated before upgrades. At this point, we've finished executing
+    // transactions and are beginning to commit ledger phase.
+    mApplyState.markStartOfCommitting();
     bool upgradeApplied = false;
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
@@ -1511,7 +1637,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        updateSorobanNetworkConfigForApply(ltx);
+        updateSorobanNetworkConfigForCommit(ltx);
     }
 
     auto appliedLedgerState = sealLedgerTxnAndStoreInBucketsAndDB(
@@ -1593,7 +1719,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     {
         mApp.getBucketManager().startBackgroundEvictionScan(
             ledgerSeq + 1, initialLedgerVers,
-            getSorobanNetworkConfigForApply());
+            mApplyState.getSorobanNetworkConfigForCommit());
     }
 
     // Steps 5, 6, 7 are done in `advanceLedgerStateAndPublish`
@@ -1634,6 +1760,8 @@ LedgerManagerImpl::setLastClosedLedger(
     // transaction-apply, it's like "load any bucket state into the DB").
     ZoneScoped;
     releaseAssert(threadIsMain());
+    mApplyState.assertSetupPhase();
+
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
@@ -1657,6 +1785,7 @@ LedgerManagerImpl::setLastClosedLedger(
     auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
     mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
     mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
+    mApplyState.markEndOfSetupPhase();
 }
 
 void
@@ -1670,9 +1799,14 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     }
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
+
+    // No TXs to apply when manually advancing ledger header
+    mApplyState.markStartOfApplying();
+    mApplyState.markStartOfCommitting();
     mApplyState.manuallyAdvanceLedgerHeader(header);
     advanceLastClosedLedgerState(
         advanceBucketListSnapshotAndMakeLedgerState(header, has));
+    mApplyState.markEndOfCommitting();
 }
 
 void
@@ -1837,16 +1971,16 @@ LedgerManagerImpl::maybeLoadSorobanNetworkConfig(uint32_t ledgerVersion)
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        updateSorobanNetworkConfigForApply(ltx);
-        releaseAssert(mApplyState.getSorobanNetworkConfig());
+        updateSorobanNetworkConfigForCommit(ltx);
+        releaseAssert(mApplyState.hasSorobanNetworkConfigForCommit());
         releaseAssert(mLastClosedLedgerState);
 
         mLastClosedLedgerState = std::make_shared<CompleteConstLedgerState>(
             mApp.getBucketManager()
                 .getBucketSnapshotManager()
                 .copySearchableLiveBucketListSnapshot(),
-            *mApplyState.getSorobanNetworkConfig(), getLastClosedLedgerHeader(),
-            getLastClosedLedgerHAS());
+            mApplyState.getSorobanNetworkConfigForCommit(),
+            getLastClosedLedgerHeader(), getLastClosedLedgerHAS());
     }
 }
 
@@ -1870,12 +2004,12 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 
-    if (mApplyState.getSorobanNetworkConfig())
+    if (mApplyState.hasSorobanNetworkConfigForCommit())
     {
         return std::make_shared<CompleteConstLedgerState const>(
             bm.getBucketSnapshotManager()
                 .copySearchableLiveBucketListSnapshot(),
-            *mApplyState.getSorobanNetworkConfig(), lcl, has);
+            mApplyState.getSorobanNetworkConfigForCommit(), lcl, has);
     }
     else
     {
@@ -1887,19 +2021,17 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
 }
 
 void
-LedgerManagerImpl::updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::updateSorobanNetworkConfigForCommit(AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        if (!mApplyState.getSorobanNetworkConfig())
-        {
-            mApplyState.setSorobanNetworkConfig(
-                std::make_shared<SorobanNetworkConfig>());
-        }
-        mApplyState.getSorobanNetworkConfigToModify().loadFromLedger(ltx);
+        // Make sure network config is initialized so we can populate it with
+        // the correct settings from disk.
+        mApplyState.maybeInitializeSorobanNetworkConfig();
+        mApplyState.getSorobanNetworkConfigForCommit().loadFromLedger(ltx);
         publishSorobanMetrics();
     }
     else
@@ -2608,7 +2740,7 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
             auto evictedState =
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
                     ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
-                    *mApplyState.getSorobanNetworkConfig());
+                    mApplyState.getSorobanNetworkConfigForCommit());
 
             if (protocolVersionStartsFrom(
                     initialLedgerVers,
@@ -2646,9 +2778,10 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
         // ledger `N` will have the state size for ledger `N - 1`. That doesn't
         // really change anything for the size accounting, but is important to
         // maintain as a protocol implementation detail.
-        mApplyState.getSorobanNetworkConfigToModify()
+        mApplyState.getSorobanNetworkConfigForCommit()
             .maybeSnapshotSorobanStateSize(
-                lh.ledgerSeq, getSorobanInMemoryStateSize(), ltx, mApp);
+                lh.ledgerSeq, mApplyState.getSorobanInMemoryStateSize(), ltx,
+                mApp);
     }
 
     // NB: getAllEntries seals the ltx.
@@ -2702,7 +2835,7 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         ledgerCloseMeta->setNetworkConfiguration(
-            getSorobanNetworkConfigForApply(),
+            mApplyState.getSorobanNetworkConfigForCommit(),
             mApp.getConfig().EMIT_LEDGER_CLOSE_META_EXT_V1);
     }
 
@@ -2730,7 +2863,7 @@ LedgerManagerImpl::ApplyState::evictFromModuleCache(
     uint32_t ledgerVersion, EvictedStateVectors const& evictedState)
 {
     ZoneScoped;
-    threadInvariant();
+    assertCommittingPhase();
     std::vector<Hash> keys;
     for (auto const& key : evictedState.deletedKeys)
     {
@@ -2766,7 +2899,7 @@ LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
     uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
 {
     ZoneScoped;
-    threadInvariant();
+    assertWritablePhase();
     for (auto const& e : le)
     {
         if (e.data.type() == CONTRACT_CODE)

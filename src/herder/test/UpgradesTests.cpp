@@ -1048,8 +1048,9 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
 
     std::vector<LedgerKey> addedKeys;
 
-    uint64_t lastInMemorySize =
-        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+    uint64_t lastInMemorySize = test.getApp()
+                                    .getLedgerManager()
+                                    .getSorobanInMemoryStateSizeForTesting();
     auto ensureInMemorySizeIncreased = [&]() {
         // We only increase the state by either generating lots of
         // transactions, or by multiplicatively increasing the memory cost, so
@@ -1059,11 +1060,12 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
         int64_t diff =
             static_cast<int64_t>(test.getApp()
                                      .getLedgerManager()
-                                     .getSorobanInMemoryStateSize()) -
+                                     .getSorobanInMemoryStateSizeForTesting()) -
             static_cast<int64_t>(lastInMemorySize);
         REQUIRE(diff >= minIncrease);
-        lastInMemorySize =
-            test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        lastInMemorySize = test.getApp()
+                               .getLedgerManager()
+                               .getSorobanInMemoryStateSizeForTesting();
     };
     auto generateTxs = [&](int untilLedger) {
         // Make sure we start on odd ledger, so that we finish generation 1
@@ -1088,7 +1090,9 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
     // We accumulate a small error in the expected state size estimation due
     // to upgrades. It's tracked in `expectedInMemorySizeDelta` variable.
     int64_t expectedInMemorySizeDelta =
-        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        test.getApp()
+            .getLedgerManager()
+            .getSorobanInMemoryStateSizeForTesting();
     auto getExpectedInMemorySize = [&]() {
         LedgerSnapshot ls(test.getApp());
         auto res = expectedInMemorySizeDelta;
@@ -1149,7 +1153,7 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
         int64_t diff =
             static_cast<int64_t>(test.getApp()
                                      .getLedgerManager()
-                                     .getSorobanInMemoryStateSize()) -
+                                     .getSorobanInMemoryStateSizeForTesting()) -
             static_cast<int64_t>(getExpectedInMemorySize());
         if (maxDiff >= 0)
         {
@@ -1225,8 +1229,9 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
     executeUpgrade(test.getApp(), makeProtocolVersionUpgrade(23));
     // In-memory size shouldn't have changed as it has been computed with p23
     // logic.
-    REQUIRE(test.getApp().getLedgerManager().getSorobanInMemoryStateSize() ==
-            lastInMemorySize);
+    REQUIRE(test.getApp()
+                .getLedgerManager()
+                .getSorobanInMemoryStateSizeForTesting() == lastInMemorySize);
     auto const p23MemorySize = lastInMemorySize;
     // State size window now contains only the current in-memory size.
     expectSingleValueStateSizeWindow(p23MemorySize);
@@ -1297,14 +1302,15 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
         int64_t stateSizeDecrease =
             static_cast<int64_t>(test.getApp()
                                      .getLedgerManager()
-                                     .getSorobanInMemoryStateSize()) -
+                                     .getSorobanInMemoryStateSizeForTesting()) -
             static_cast<int64_t>(lastInMemorySize);
         REQUIRE(stateSizeDecrease <= -10'000'000);
         // The state size is now smaller than expected because the upgrade
         // contract had its memory cost decreased.
         verifyExpectedInMemorySize(-300'000);
-        lastInMemorySize =
-            test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        lastInMemorySize = test.getApp()
+                               .getLedgerManager()
+                               .getSorobanInMemoryStateSizeForTesting();
         expectSingleValueStateSizeWindow(lastInMemorySize);
         verifyAverageStateSize(lastInMemorySize, lastInMemorySize);
     }
