@@ -99,8 +99,7 @@ HerderImpl::HerderImpl(Application& app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
     , mLastQuorumMapIntersectionState(
-          std::make_shared<QuorumMapIntersectionState>(
-              app.getTmpDirManager().tmpDir("herder-qic"), app.getMetrics()))
+          std::make_shared<QuorumMapIntersectionState>(app))
     , mState(Herder::HERDER_BOOTING_STATE)
 {
     auto ln = getSCP().getLocalNode();
@@ -1916,10 +1915,11 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
 
     CLOG_INFO(Herder,
               "Transitive closure of quorum has changed, re-analyzing.");
+    mLastQuorumMapIntersectionState->reset(mApp);
     mLastQuorumMapIntersectionState->mRecalculating = true;
     mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
     quorum_checker::runQuorumIntersectionCheckAsync(
-        curr, trackingConsensusLedgerIndex(),
+        mApp, curr, trackingConsensusLedgerIndex(),
         mLastQuorumMapIntersectionState->mTmpDir->getName(), qmap,
         mLastQuorumMapIntersectionState, mApp.getProcessManager(),
         mApp.getConfig().QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
@@ -1979,9 +1979,9 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
 
         auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
-        auto& hState = mLastQuorumMapIntersectionState;
+        auto hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
-        auto worker = [curr, ledger, nNodes, qmap, cfg, seed, &app, &hState] {
+        auto worker = [curr, ledger, nNodes, qmap, cfg, seed, &app, hState] {
             try
             {
                 ZoneScoped;
@@ -2011,13 +2011,12 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                             toQuorumIntersectionMap(qmap), cfg, cb);
                 }
                 app.postOnMainThread(
-                    [ok, curr, ledger, nNodes, split, critical, &hState] {
-                        hState->mRecalculating = false;
-                        hState->mInterruptFlag = false;
+                    [ok, curr, ledger, nNodes, split, critical, hState, &app] {
+                        hState->reset(app);
+
                         hState->mNumNodes = nNodes;
                         hState->mLastCheckLedger = ledger;
                         hState->mLastCheckQuorumMapHash = curr;
-                        hState->mCheckingQuorumMapHash = Hash{};
                         hState->mPotentialSplit = split;
                         hState->mIntersectionCriticalNodes = critical;
                         if (ok)
@@ -2031,13 +2030,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
             {
                 CLOG_DEBUG(Herder,
                            "Quorum transitive closure analysis interrupted.");
-                app.postOnMainThread(
-                    [&hState] {
-                        hState->mRecalculating = false;
-                        hState->mInterruptFlag = false;
-                        hState->mCheckingQuorumMapHash = Hash{};
-                    },
-                    "QuorumIntersectionChecker interrupted");
+                app.postOnMainThread([hState, &app] { hState->reset(app); },
+                                     "QuorumIntersectionChecker interrupted");
             }
             catch (const RustQuorumCheckerError& e)
             {
@@ -2045,13 +2039,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                            "Quorum transitive closure analysis failed due to "
                            "Rust solver error: {}",
                            e.what());
-                app.postOnMainThread(
-                    [&hState] {
-                        hState->mRecalculating = false;
-                        hState->mInterruptFlag = false;
-                        hState->mCheckingQuorumMapHash = Hash{};
-                    },
-                    "QuorumIntersectionChecker rust error");
+                app.postOnMainThread([hState, &app] { hState->reset(app); },
+                                     "QuorumIntersectionChecker rust error");
             }
         };
         mApp.postOnBackgroundThread(worker, "QuorumIntersectionChecker");

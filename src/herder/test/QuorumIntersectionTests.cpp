@@ -30,7 +30,7 @@ using std::make_shared;
 
 void
 quorumIntersectionCheckerV2Wrapper(
-    std::shared_ptr<QuorumMapIntersectionState> const& state,
+    Application& app, std::shared_ptr<QuorumMapIntersectionState> const& state,
     QuorumTracker::QuorumMap const& qmap, ProcessManager& pm,
     VirtualClock& clock, bool analyzeCriticalGroups, uint32_t timeLimit,
     uint32_t memoryLimit)
@@ -50,7 +50,7 @@ quorumIntersectionCheckerV2Wrapper(
     auto resultPotentialSplitCountBefore = resultPotentialSplitCounter.count();
 
     quorum_checker::runQuorumIntersectionCheckAsync(
-        curr, testLedgerNo, state->mTmpDir->getName(), qmap, state, pm,
+        app, curr, testLedgerNo, state->mTmpDir->getName(), qmap, state, pm,
         timeLimit, memoryLimit, analyzeCriticalGroups);
 
     while (state->mRecalculating && !clock.getIOContext().stopped())
@@ -101,11 +101,10 @@ networkEnjoysQuorumIntersectionV2Wrapper(QuorumTracker::QuorumMap const& qmap,
 {
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    auto state = std::make_shared<QuorumMapIntersectionState>(
-        app->getTmpDirManager().tmpDir("qic-test"), app->getMetrics());
+    auto state = std::make_shared<QuorumMapIntersectionState>(*app);
     state->mRecalculating = true;
     quorumIntersectionCheckerV2Wrapper(
-        state, qmap, app->getProcessManager(), clock, false,
+        *app, state, qmap, app->getProcessManager(), clock, false,
         cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
         cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
     return state->mStatus == QuorumCheckerStatus::UNSAT;
@@ -117,11 +116,10 @@ runIntersectionCriticalGroupsCheckV2(QuorumTracker::QuorumMap const& qmap,
 {
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    auto state = std::make_shared<QuorumMapIntersectionState>(
-        app->getTmpDirManager().tmpDir("qic-test"), app->getMetrics());
+    auto state = std::make_shared<QuorumMapIntersectionState>(*app);
     state->mRecalculating = true;
     quorumIntersectionCheckerV2Wrapper(
-        state, qmap, app->getProcessManager(), clock, true,
+        *app, state, qmap, app->getProcessManager(), clock, true,
         cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
         cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
     return state->mIntersectionCriticalNodes;
@@ -141,6 +139,44 @@ runIntersectionCriticalGroupsCheck(QuorumTracker::QuorumMap const& initQmap,
     };
     return QuorumIntersectionChecker::getIntersectionCriticalGroups(
         toQuorumIntersectionMap(initQmap), config, qic);
+}
+
+TEST_CASE("new QIC on same app run multiple times in a row",
+          "[herder][quorumintersection]")
+{
+    QuorumTracker::QuorumMap qm;
+
+    PublicKey pkA = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkB = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkC = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkD = SecretKey::pseudoRandomForTesting().getPublicKey();
+
+    qm[pkA] = QuorumTracker::NodeInfo{
+        make_shared<QS>(2, VK({pkB, pkC, pkD}), VQ{}), 0};
+    qm[pkB] = QuorumTracker::NodeInfo{
+        make_shared<QS>(2, VK({pkA, pkC, pkD}), VQ{}), 0};
+    qm[pkC] = QuorumTracker::NodeInfo{
+        make_shared<QS>(2, VK({pkA, pkB, pkD}), VQ{}), 0};
+    qm[pkD] = QuorumTracker::NodeInfo{
+        make_shared<QS>(2, VK({pkA, pkB, pkC}), VQ{}), 0};
+
+    Config cfg(getTestConfig());
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto state = std::make_shared<QuorumMapIntersectionState>(*app);
+    for (int i = 0; i < 10; ++i)
+    {
+        // reset state before each run
+        state->reset(*app);
+        state->mRecalculating = true;
+        state->mStatus = QuorumCheckerStatus::UNKNOWN;
+        quorumIntersectionCheckerV2Wrapper(
+            *app, state, qm, app->getProcessManager(), clock, false,
+            cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
+            cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
+        REQUIRE(state->mStatus == QuorumCheckerStatus::UNSAT);
+    }
 }
 
 TEST_CASE("quorum intersection basic 4-node", "[herder][quorumintersection]")

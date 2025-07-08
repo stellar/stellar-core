@@ -79,8 +79,8 @@ QuorumCheckerStatus networkEnjoysQuorumIntersection(
 // analysis. Results are read from the output JSON file and propagated back to
 // the main process through the provided QuorumMapIntersectionState.
 void runQuorumIntersectionCheckAsync(
-    Hash const curr, uint32 ledger, std::string const& tmpDirName,
-    QuorumTracker::QuorumMap const& qmap,
+    Application& app, Hash const curr, uint32 ledger,
+    std::string const& tmpDirName, QuorumTracker::QuorumMap const& qmap,
     std::weak_ptr<QuorumMapIntersectionState> hState, ProcessManager& pm,
     uint64_t timeLimitMs, size_t memoryLimitBytes, bool analyzeCriticalGroups);
 
