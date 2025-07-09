@@ -1661,6 +1661,12 @@ TxSetPhaseFrame::isParallel() const
     return mIsParallel;
 }
 
+bool
+TxSetPhaseFrame::isSoroban() const
+{
+    return mPhase == TxSetPhase::SOROBAN;
+}
+
 TxStageFrameList const&
 TxSetPhaseFrame::getParallelStages() const
 {

@@ -65,6 +65,15 @@ TransactionTestFrame::addSignature(DecoratedSignature const& signature)
     txbridge::getSignatures(getMutableEnvelope()).push_back(signature);
 }
 
+FeePair
+TransactionTestFrame::computePreApplySorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg) const
+{
+    return mTransactionFrame->computePreApplySorobanResourceFee(
+        protocolVersion, sorobanConfig, cfg);
+}
+
 bool
 TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                             TransactionMetaBuilder& meta,

@@ -53,6 +53,14 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
+#ifdef BUILD_TESTS
+  public:
+#endif
+    FeePair
+    computePreApplySorobanResourceFee(uint32_t protocolVersion,
+                                      SorobanNetworkConfig const& sorobanConfig,
+                                      Config const& cfg) const override;
+
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope);

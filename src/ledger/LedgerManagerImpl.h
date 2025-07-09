@@ -9,6 +9,7 @@
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
@@ -340,6 +341,12 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
+    void buildParallelApplyStages(
+        TxStageFrameList const& txSetStages,
+        std::vector<stellar::ApplyStage>& applyStages,
+        std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
+        uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta);
+
     void
     applyParallelPhase(TxSetPhaseFrame const& phase,
                        std::vector<ApplyStage>& applyStages,
@@ -352,6 +359,11 @@ class LedgerManagerImpl : public LedgerManager
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
         Hash const& sorobanBasePrngSeed,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet& txResultSet);
+
+    void processPostTxSetApplyForParallelStages(
+        std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
 
@@ -415,44 +427,38 @@ class LedgerManagerImpl : public LedgerManager
     std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
 
     // Test re-execution methods
-    void maybeReExecuteTransactionsAsParallel(
-        ApplicableTxSetFrame const& txSet,
-        std::vector<MutableTxResultPtr> const& mutableTxResults,
-        std::unique_ptr<GlobalParallelApplyLedgerState> preExecutionGlobalState,
-        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        TransactionResultSet const& originalTxResultSet,
-        Hash const& sorobanBasePrngSeed,
-        std::vector<TxSetPhaseFrame> const& originalPhases);
+    std::unique_ptr<GlobalParallelApplyLedgerState>
+    maybeCaptureStateForParallelReExec(
+        AbstractLedgerTxn& ltx, TxSetPhaseFrame const& seqPhase,
+        uint32_t const phaseStartIndex,
+        std::vector<ApplyStage>& newParApplyStages,
+        std::vector<MutableTxResultPtr>& newParResults,
+        LedgerHeader& parHeader);
 
-    // Structure to capture comprehensive execution state for comparison
-    struct ExecutionCapture
+    void maybeDoParallelReExec(
+        LedgerTxn& ltx, GlobalParallelApplyLedgerState& preSeqPhaseState,
+        LedgerHeader const& parHeader, std::vector<ApplyStage>& parApplyStages,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        Hash const& sorobanBasePrngSeed);
+
+    // Structure to capture and analyze differences in the results of
+    // (re)running a phase sequentially vs. in parallel.
+    class ExecutionCapture
     {
-        TransactionResultSet txResultSet;
-        std::vector<TransactionMetaFrame> txMetas;
-        std::map<LedgerKey, LedgerEntry> affectedEntries;
-        std::vector<int64_t> refundableFees;
-        std::vector<xdr::xvector<ContractEvent>> sorobanEvents;
-        std::vector<std::optional<SCVal>> sorobanReturnValues;
+        std::string mName;
+        std::vector<TransactionResult> mTxResults;
+        std::vector<TransactionMeta> mTxMetas;
+
+      public:
+        ExecutionCapture(std::string const& name) : mName(name)
+        {
+        }
+        void capture(std::vector<MutableTxResultPtr> const& mutableTxResults,
+                     std::unique_ptr<LedgerCloseMetaFrame> const& lcm,
+                     uint32_t phaseStartIndex, uint32_t phaseEndIndex);
+        void compare(ExecutionCapture const& other);
     };
 
-    ExecutionCapture captureExecutionState(
-        ApplicableTxSetFrame const& txSet,
-        std::vector<MutableTxResultPtr> const& mutableTxResults,
-        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        std::vector<TxSetPhaseFrame> const& phases, size_t phaseIndex) const;
-
-    void compareParallelExecutionResults(ExecutionCapture const& sequential,
-                                         ExecutionCapture const& parallel);
-
-    void compareParallelExecutionResults(TransactionResultSet const& sequential,
-                                         TransactionResultSet const& parallel);
-
-    bool compareTransactionResults(TransactionResultSet const& result1,
-                                   TransactionResultSet const& result2) const;
-
-    std::unique_ptr<ApplicableTxSetFrame>
-    transformToParallelTxSet(ApplicableTxSetFrame const& originalTxSet,
-                             AbstractLedgerTxn& ltx);
 #endif
 
     void setState(State s);

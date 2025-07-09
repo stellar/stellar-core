@@ -258,6 +258,8 @@ class TxSetPhaseFrame
     // PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION protocol
     bool isParallel() const;
 
+    bool isSoroban() const;
+
     // Returns the parallel stages of this phase.
     //
     // This may only be called when `isParallel()` is true.

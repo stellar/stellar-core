@@ -80,6 +80,15 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 }
 #endif
 
+FeePair
+FeeBumpTransactionFrame::computePreApplySorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg) const
+{
+    return mInnerTx->computePreApplySorobanResourceFee(protocolVersion,
+                                                       sorobanConfig, cfg);
+}
+
 void
 FeeBumpTransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,

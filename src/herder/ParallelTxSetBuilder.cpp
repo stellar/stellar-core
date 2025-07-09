@@ -607,7 +607,7 @@ buildSurgePricedParallelSorobanPhase(
             {
                 builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                 builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
-                totalConflicts += 2;
+                totalConflicts += 1;
             }
         }
         // RO-RW conflicts
