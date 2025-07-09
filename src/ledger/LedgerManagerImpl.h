@@ -424,6 +424,26 @@ class LedgerManagerImpl : public LedgerManager
         Hash const& sorobanBasePrngSeed,
         std::vector<TxSetPhaseFrame> const& originalPhases);
 
+    // Structure to capture comprehensive execution state for comparison
+    struct ExecutionCapture
+    {
+        TransactionResultSet txResultSet;
+        std::vector<TransactionMetaFrame> txMetas;
+        std::map<LedgerKey, LedgerEntry> affectedEntries;
+        std::vector<int64_t> refundableFees;
+        std::vector<xdr::xvector<ContractEvent>> sorobanEvents;
+        std::vector<std::optional<SCVal>> sorobanReturnValues;
+    };
+
+    ExecutionCapture captureExecutionState(
+        ApplicableTxSetFrame const& txSet,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        std::vector<TxSetPhaseFrame> const& phases, size_t phaseIndex) const;
+
+    void compareParallelExecutionResults(ExecutionCapture const& sequential,
+                                         ExecutionCapture const& parallel);
+
     void compareParallelExecutionResults(TransactionResultSet const& sequential,
                                          TransactionResultSet const& parallel);
 

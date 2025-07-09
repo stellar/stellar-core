@@ -48,6 +48,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
@@ -3180,9 +3181,140 @@ LedgerManagerImpl::maybeReExecuteTransactionsAsParallel(
             parallelTxResultSet.results.emplace_back(resultPair);
         }
 
-        // Compare results between sequential and parallel execution
-        compareParallelExecutionResults(sequentialSorobanResults,
-                                        parallelTxResultSet);
+        // Capture sequential execution state for comprehensive comparison
+        ExecutionCapture sequentialCapture;
+        sequentialCapture.txResultSet = sequentialSorobanResults;
+
+        // Extract sequential metadata and fees from original ledger close meta
+        if (ledgerCloseMeta)
+        {
+            size_t sorobanPhaseIndex = static_cast<size_t>(TxSetPhase::SOROBAN);
+            uint32_t sorobanStartIndex = 0;
+            for (size_t i = 0; i < sorobanPhaseIndex; ++i)
+            {
+                sorobanStartIndex += originalPhases[i].sizeTx();
+            }
+
+            for (size_t i = 0; i < newSorobanTxs.size(); ++i)
+            {
+                size_t globalIndex = sorobanStartIndex + i;
+                if (globalIndex <
+                    ledgerCloseMeta->getTransactionResultMetaCount())
+                {
+                    sequentialCapture.txMetas.emplace_back(
+                        ledgerCloseMeta->getTransactionMeta(globalIndex));
+
+                    // Extract affected entries from meta
+                    auto const& meta = sequentialCapture.txMetas.back();
+                    auto changesBefore = meta.getChangesBefore();
+                    auto changesAfter = meta.getChangesAfter();
+
+                    // Capture pre-state entries
+                    for (auto const& change : changesBefore)
+                    {
+                        if (change.type() == LEDGER_ENTRY_STATE)
+                        {
+                            auto const& entry = change.state();
+                            sequentialCapture
+                                .affectedEntries[LedgerEntryKey(entry)] = entry;
+                        }
+                    }
+
+                    // Capture post-state entries (overwrites pre-state)
+                    for (auto const& change : changesAfter)
+                    {
+                        if (change.type() == LEDGER_ENTRY_STATE ||
+                            change.type() == LEDGER_ENTRY_CREATED)
+                        {
+                            auto const& entry =
+                                (change.type() == LEDGER_ENTRY_STATE)
+                                    ? change.state()
+                                    : change.created();
+                            sequentialCapture
+                                .affectedEntries[LedgerEntryKey(entry)] = entry;
+                        }
+                        else if (change.type() == LEDGER_ENTRY_REMOVED)
+                        {
+                            sequentialCapture.affectedEntries.erase(
+                                change.removed());
+                        }
+                    }
+
+                    // Extract refundable fees from results
+                    auto const& result = mutableTxResults.at(i);
+                    if (result->getRefundableFeeTracker())
+                    {
+                        sequentialCapture.refundableFees.push_back(
+                            result->getRefundableFeeTracker()->getFeeRefund());
+                    }
+                    else
+                    {
+                        sequentialCapture.refundableFees.push_back(0);
+                    }
+
+                    // Extract Soroban events and return values
+                    if (newSorobanTxs[i]->isSoroban() &&
+                        meta.eventsAreSupported())
+                    {
+                        sequentialCapture.sorobanEvents.emplace_back(
+                            meta.getSorobanContractEvents());
+
+                        // Always try to get return value - it may contain error
+                        // info
+                        try
+                        {
+                            sequentialCapture.sorobanReturnValues.emplace_back(
+                                meta.getReturnValue());
+                        }
+                        catch (...)
+                        {
+                            // Even on failure, we want to know that return
+                            // value extraction failed
+                            sequentialCapture.sorobanReturnValues.emplace_back(
+                                std::nullopt);
+                        }
+                    }
+                    else
+                    {
+                        sequentialCapture.sorobanEvents.emplace_back();
+                        sequentialCapture.sorobanReturnValues.emplace_back(
+                            std::nullopt);
+                    }
+                }
+            }
+        }
+
+        // Capture parallel execution state
+        ExecutionCapture parallelCapture;
+        parallelCapture.txResultSet = parallelTxResultSet;
+
+        // Build transaction metadata for parallel execution
+        for (size_t i = 0; i < newSorobanTxs.size(); ++i)
+        {
+            auto const& tx = newSorobanTxs[i];
+            auto const& mutableResult = parallelMutableResults[i];
+
+            // Create a transaction meta builder to capture metadata
+            TransactionMetaBuilder tmBuilder(true, *tx, ledgerVersion,
+                                             mApp.getAppConnector());
+
+            // Extract refundable fees
+            if (mutableResult->getRefundableFeeTracker())
+            {
+                parallelCapture.refundableFees.push_back(
+                    mutableResult->getRefundableFeeTracker()->getFeeRefund());
+            }
+            else
+            {
+                parallelCapture.refundableFees.push_back(0);
+            }
+
+            // TODO: Properly extract parallel execution metadata
+            // For now, we'll just compare results and fees
+        }
+
+        // Compare sequential and parallel execution comprehensively
+        compareParallelExecutionResults(sequentialCapture, parallelCapture);
 
         CLOG_INFO(Ledger, "Parallel re-execution test completed successfully");
     }
@@ -3259,6 +3391,284 @@ LedgerManagerImpl::compareParallelExecutionResults(
         CLOG_WARNING(Ledger,
                      "Parallel execution test: {} of {} transactions differed",
                      differences, sequential.results.size());
+    }
+}
+
+// New comprehensive comparison implementation
+void
+LedgerManagerImpl::compareParallelExecutionResults(
+    ExecutionCapture const& sequential, ExecutionCapture const& parallel)
+{
+    CLOG_INFO(Ledger,
+              "=== Starting comprehensive parallel execution comparison ===");
+
+    bool hasAnyDifference = false;
+
+    // 1. Compare transaction counts
+    if (sequential.txResultSet.results.size() !=
+        parallel.txResultSet.results.size())
+    {
+        CLOG_ERROR(Ledger,
+                   "MISMATCH: Result count differs: sequential={}, parallel={}",
+                   sequential.txResultSet.results.size(),
+                   parallel.txResultSet.results.size());
+        hasAnyDifference = true;
+        return;
+    }
+
+    size_t txCount = sequential.txResultSet.results.size();
+    CLOG_INFO(Ledger, "Comparing {} transactions", txCount);
+
+    // 2. Compare each transaction in detail
+    for (size_t i = 0; i < txCount; ++i)
+    {
+        auto const& seqResult = sequential.txResultSet.results[i];
+        auto const& parResult = parallel.txResultSet.results[i];
+
+        bool txDiffers = false;
+        std::string diffDetails;
+
+        // Check transaction hash
+        if (seqResult.transactionHash != parResult.transactionHash)
+        {
+            CLOG_ERROR(Ledger, "TX[{}] CRITICAL: Transaction hash mismatch", i);
+            hasAnyDifference = true;
+            continue;
+        }
+
+        std::string txHashStr =
+            binToHex(seqResult.transactionHash).substr(0, 8);
+
+        // Compare transaction result codes
+        auto seqCode = seqResult.result.result.code();
+        auto parCode = parResult.result.result.code();
+
+        if (seqCode != parCode)
+        {
+            txDiffers = true;
+            diffDetails += fmt::format(
+                "result_code({} vs {})",
+                xdr::xdr_traits<TransactionResultCode>::enum_name(seqCode),
+                xdr::xdr_traits<TransactionResultCode>::enum_name(parCode));
+        }
+
+        // For both success AND failure cases, compare detailed results
+        if (seqCode == parCode)
+        {
+            // Compare the full result XDR
+            auto seqXdr = xdr::xdr_to_opaque(seqResult.result);
+            auto parXdr = xdr::xdr_to_opaque(parResult.result);
+
+            if (seqXdr != parXdr)
+            {
+                txDiffers = true;
+                if (!diffDetails.empty())
+                    diffDetails += ", ";
+
+                // Try to provide more specific info about what differs
+                if (seqCode == txSUCCESS)
+                {
+                    auto const& seqOps =
+                        seqResult.result.result.results().size();
+                    auto const& parOps =
+                        parResult.result.result.results().size();
+
+                    if (seqOps != parOps)
+                    {
+                        diffDetails +=
+                            fmt::format("op_count({} vs {})", seqOps, parOps);
+                    }
+                    else
+                    {
+                        // Check each operation result
+                        for (size_t opIdx = 0; opIdx < seqOps; ++opIdx)
+                        {
+                            auto const& seqOpResult =
+                                seqResult.result.result.results()[opIdx];
+                            auto const& parOpResult =
+                                parResult.result.result.results()[opIdx];
+
+                            if (seqOpResult.code() != parOpResult.code())
+                            {
+                                diffDetails += fmt::format(
+                                    "op[{}]_code({} vs {})", opIdx,
+                                    xdr::xdr_traits<OperationResultCode>::
+                                        enum_name(seqOpResult.code()),
+                                    xdr::xdr_traits<OperationResultCode>::
+                                        enum_name(parOpResult.code()));
+                            }
+                        }
+                    }
+                }
+                else if (seqCode == txFAILED)
+                {
+                    // For failed transactions, results() exists but check the
+                    // details
+                    diffDetails += "failed_op_results_differ";
+                }
+                else
+                {
+                    diffDetails +=
+                        fmt::format("result_xdr_differs({})", seqCode);
+                }
+            }
+        }
+
+        // Compare refundable fees
+        if (i < sequential.refundableFees.size() &&
+            i < parallel.refundableFees.size())
+        {
+            if (sequential.refundableFees[i] != parallel.refundableFees[i])
+            {
+                txDiffers = true;
+                if (!diffDetails.empty())
+                    diffDetails += ", ";
+                diffDetails += fmt::format("refundable_fee({} vs {})",
+                                           sequential.refundableFees[i],
+                                           parallel.refundableFees[i]);
+            }
+        }
+
+        // Compare Soroban return values
+        if (i < sequential.sorobanReturnValues.size() &&
+            i < parallel.sorobanReturnValues.size())
+        {
+            auto const& seqRetVal = sequential.sorobanReturnValues[i];
+            auto const& parRetVal = parallel.sorobanReturnValues[i];
+
+            if (seqRetVal.has_value() != parRetVal.has_value())
+            {
+                txDiffers = true;
+                if (!diffDetails.empty())
+                    diffDetails += ", ";
+                diffDetails +=
+                    fmt::format("return_value_presence({} vs {})",
+                                seqRetVal.has_value() ? "present" : "absent",
+                                parRetVal.has_value() ? "present" : "absent");
+            }
+            else if (seqRetVal.has_value() && parRetVal.has_value())
+            {
+                auto seqValXdr = xdr::xdr_to_opaque(*seqRetVal);
+                auto parValXdr = xdr::xdr_to_opaque(*parRetVal);
+                if (seqValXdr != parValXdr)
+                {
+                    txDiffers = true;
+                    if (!diffDetails.empty())
+                        diffDetails += ", ";
+                    diffDetails += "return_value_differs";
+                }
+            }
+        }
+
+        // Compare Soroban events
+        if (i < sequential.sorobanEvents.size() &&
+            i < parallel.sorobanEvents.size())
+        {
+            auto const& seqEvents = sequential.sorobanEvents[i];
+            auto const& parEvents = parallel.sorobanEvents[i];
+
+            if (seqEvents.size() != parEvents.size())
+            {
+                txDiffers = true;
+                if (!diffDetails.empty())
+                    diffDetails += ", ";
+                diffDetails += fmt::format("event_count({} vs {})",
+                                           seqEvents.size(), parEvents.size());
+            }
+            else
+            {
+                // Compare individual events
+                for (size_t eventIdx = 0; eventIdx < seqEvents.size();
+                     ++eventIdx)
+                {
+                    auto seqEventXdr = xdr::xdr_to_opaque(seqEvents[eventIdx]);
+                    auto parEventXdr = xdr::xdr_to_opaque(parEvents[eventIdx]);
+                    if (seqEventXdr != parEventXdr)
+                    {
+                        txDiffers = true;
+                        if (!diffDetails.empty())
+                            diffDetails += ", ";
+                        diffDetails +=
+                            fmt::format("event[{}]_differs", eventIdx);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Log transaction comparison result
+        if (txDiffers)
+        {
+            hasAnyDifference = true;
+            CLOG_WARNING(Ledger, "TX[{}] {} MISMATCH: {}", i, txHashStr,
+                         diffDetails);
+        }
+        else
+        {
+            CLOG_DEBUG(Ledger, "TX[{}] {} OK", i, txHashStr);
+        }
+    }
+
+    // 3. Compare affected ledger entries
+    CLOG_INFO(
+        Ledger, "Comparing affected ledger entries: sequential={}, parallel={}",
+        sequential.affectedEntries.size(), parallel.affectedEntries.size());
+
+    // Find entries only in sequential
+    for (auto const& [key, entry] : sequential.affectedEntries)
+    {
+        if (parallel.affectedEntries.find(key) ==
+            parallel.affectedEntries.end())
+        {
+            hasAnyDifference = true;
+            CLOG_WARNING(
+                Ledger, "ENTRY MISMATCH: Entry {} only in sequential execution",
+                xdr::xdr_to_string(key));
+        }
+    }
+
+    // Find entries only in parallel
+    for (auto const& [key, entry] : parallel.affectedEntries)
+    {
+        if (sequential.affectedEntries.find(key) ==
+            sequential.affectedEntries.end())
+        {
+            hasAnyDifference = true;
+            CLOG_WARNING(Ledger,
+                         "ENTRY MISMATCH: Entry {} only in parallel execution",
+                         xdr::xdr_to_string(key));
+        }
+    }
+
+    // Compare common entries
+    for (auto const& [key, seqEntry] : sequential.affectedEntries)
+    {
+        auto parIt = parallel.affectedEntries.find(key);
+        if (parIt != parallel.affectedEntries.end())
+        {
+            auto seqXdr = xdr::xdr_to_opaque(seqEntry);
+            auto parXdr = xdr::xdr_to_opaque(parIt->second);
+
+            if (seqXdr != parXdr)
+            {
+                hasAnyDifference = true;
+                CLOG_WARNING(
+                    Ledger,
+                    "ENTRY MISMATCH: Entry {} differs between executions",
+                    xdr::xdr_to_string(key));
+            }
+        }
+    }
+
+    // 4. Summary
+    if (!hasAnyDifference)
+    {
+        CLOG_INFO(Ledger, "=== PARALLEL EXECUTION MATCHES SEQUENTIAL ===");
+    }
+    else
+    {
+        CLOG_ERROR(Ledger,
+                   "=== PARALLEL EXECUTION DIFFERS FROM SEQUENTIAL ===");
     }
 }
 #endif // BUILD_TESTS
