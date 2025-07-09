@@ -497,19 +497,6 @@ GlobalParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     return res ? std::make_optional(*res) : std::nullopt;
 }
 
-void
-GlobalParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
-                                            LedgerEntry const& entry)
-{
-    mGlobalEntryMap[key] = ParallelApplyEntry::dirtyPopulated(entry);
-}
-
-void
-GlobalParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
-{
-    mGlobalEntryMap[key] = ParallelApplyEntry::dirtyEmpty();
-}
-
 RestoredEntries const&
 GlobalParallelApplyLedgerState::getRestoredEntries() const
 {
