@@ -7765,6 +7765,59 @@ TEST_CASE("delete non existent entry with parallel apply",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
+// TODO: Add test where first stage deletes entry, and second stage tries to
+// extend it.
+
+TEST_CASE_VERSIONS("merge account then do SAC payment to the merged account",
+                   "[tx][soroban][parallelapply]")
+{
+    Config cfg = getTestConfig();
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        AssetContractTestClient assetClient(test, txtest::makeNativeAsset());
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        auto a1 = test.getRoot().create("A", startingBalance);
+        auto b1 = test.getRoot().create("B", startingBalance);
+        auto c1 = test.getRoot().create("C", startingBalance);
+
+        // Classic transaction: merge account a1 into b1
+        auto classicTx = a1.tx({accountMerge(b1.getPublicKey())});
+
+        // Soroban transaction: SAC payment to the merged account (a1) - this
+        // should fail
+        auto a1Addr = makeAccountAddress(a1.getPublicKey());
+        auto sacTx =
+            assetClient.getTransferTx(c1, a1Addr, 50, true /*sourceIsRoot*/);
+
+        std::vector<TransactionFrameBasePtr> txs = {classicTx, sacTx};
+        auto r = closeLedger(test.getApp(), txs);
+        REQUIRE(r.results.size() == 2);
+
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txFAILED);
+
+        // Verify that a1 no longer exists after the merge
+        LedgerSnapshot ls(test.getApp());
+        REQUIRE(!ls.getAccount(a1.getPublicKey()));
+
+        // Verify that b1 received a1's balance (minus merge fee)
+        auto expectedBalance =
+            startingBalance +
+            (startingBalance - r.results.at(0).result.feeCharged);
+        REQUIRE(b1.getBalance() == expectedBalance);
+
+        // Verify that c1's balance remains unchanged
+        REQUIRE(c1.getBalance() == startingBalance);
+    });
+}
+
 TEST_CASE("create in first stage delete in second stage",
           "[tx][soroban][parallelapply]")
 {

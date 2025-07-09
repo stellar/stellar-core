@@ -596,6 +596,17 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                             ParallelApplyEntry::cleanPopulated(ttlOpt.value()));
                     }
                 }
+                else
+                {
+                    mThreadEntryMap.emplace(key,
+                                            ParallelApplyEntry::cleanEmpty());
+                    if (isSorobanEntry(key))
+                    {
+                        auto ttlKey = getTTLKey(key);
+                        mThreadEntryMap.emplace(
+                            ttlKey, ParallelApplyEntry::cleanEmpty());
+                    }
+                }
             }
         }
     }
