@@ -7999,6 +7999,65 @@ TEST_CASE("parallel restore and extend op", "[tx][soroban][parallelapply]")
     checkTx(1, r, txSUCCESS);
 }
 
+TEST_CASE("read-only bumps across threads", "[tx][soroban][parallelapply]")
+{
+    auto cfg = getTestConfig();
+
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxInstructions = 20'000'000;
+        cfg.mTxMaxInstructions = 20'000'000;
+        cfg.mLedgerMaxDependentTxClusters = 2;
+    });
+
+    ContractStorageTestClient client(test);
+    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+    auto& lm = test.getApp().getLedgerManager();
+    const int64_t startingBalance = lm.getLastMinBalance(50);
+
+    auto& root = test.getRoot();
+
+    REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 0) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+
+    auto keySpec = client.readKeySpec("key", ContractDataDurability::TEMPORARY);
+
+    // Each tx is 4M instructions, so we can fit 5 txs in a single cluster.
+    // 10 txs will be split across 2 clusters.
+    std::vector<TestAccount> accounts;
+    for (size_t i = 0; i < 10; ++i)
+    {
+        accounts.emplace_back(
+            root.create("a" + std::to_string(i), startingBalance));
+    }
+
+    uint32_t maxExtension = 0;
+    stellar::uniform_int_distribution<uint32_t> dist(100, 1000);
+
+    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+    for (auto& account : accounts)
+    {
+        auto extendTo = dist(gRandomEngine);
+        maxExtension = std::max(maxExtension, extendTo);
+
+        auto inv = client.getContract().prepareInvocation(
+            "extend_temporary",
+            {makeSymbolSCVal("key"), makeU32SCVal(extendTo),
+             makeU32SCVal(extendTo)},
+            keySpec);
+        auto tx = inv.withExactNonRefundableResourceFee().createTx(&account);
+        sorobanTxs.emplace_back(tx);
+    }
+
+    auto r = closeLedger(test.getApp(), sorobanTxs);
+    REQUIRE(r.results.size() == sorobanTxs.size());
+    checkResults(r, sorobanTxs.size(), 0);
+
+    REQUIRE(test.getTTL(client.getContract().getDataKey(
+                makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY)) ==
+            maxExtension + test.getLCLSeq());
+}
+
 TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
