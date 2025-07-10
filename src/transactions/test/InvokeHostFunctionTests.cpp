@@ -7765,6 +7765,59 @@ TEST_CASE("delete non existent entry with parallel apply",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
+// TODO: Add test where first stage deletes entry, and second stage tries to
+// extend it.
+
+TEST_CASE_VERSIONS("merge account then do SAC payment to the merged account",
+                   "[tx][soroban][parallelapply]")
+{
+    Config cfg = getTestConfig();
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        AssetContractTestClient assetClient(test, txtest::makeNativeAsset());
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        auto a1 = test.getRoot().create("A", startingBalance);
+        auto b1 = test.getRoot().create("B", startingBalance);
+        auto c1 = test.getRoot().create("C", startingBalance);
+
+        // Classic transaction: merge account a1 into b1
+        auto classicTx = a1.tx({accountMerge(b1.getPublicKey())});
+
+        // Soroban transaction: SAC payment to the merged account (a1) - this
+        // should fail
+        auto a1Addr = makeAccountAddress(a1.getPublicKey());
+        auto sacTx =
+            assetClient.getTransferTx(c1, a1Addr, 50, true /*sourceIsRoot*/);
+
+        std::vector<TransactionFrameBasePtr> txs = {classicTx, sacTx};
+        auto r = closeLedger(test.getApp(), txs);
+        REQUIRE(r.results.size() == 2);
+
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txFAILED);
+
+        // Verify that a1 no longer exists after the merge
+        LedgerSnapshot ls(test.getApp());
+        REQUIRE(!ls.getAccount(a1.getPublicKey()));
+
+        // Verify that b1 received a1's balance (minus merge fee)
+        auto expectedBalance =
+            startingBalance +
+            (startingBalance - r.results.at(0).result.feeCharged);
+        REQUIRE(b1.getBalance() == expectedBalance);
+
+        // Verify that c1's balance remains unchanged
+        REQUIRE(c1.getBalance() == startingBalance);
+    });
+}
+
 TEST_CASE("create in first stage delete in second stage",
           "[tx][soroban][parallelapply]")
 {
@@ -7997,6 +8050,65 @@ TEST_CASE("parallel restore and extend op", "[tx][soroban][parallelapply]")
 
     checkTx(0, r, txSUCCESS);
     checkTx(1, r, txSUCCESS);
+}
+
+TEST_CASE("read-only bumps across threads", "[tx][soroban][parallelapply]")
+{
+    auto cfg = getTestConfig();
+
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxInstructions = 20'000'000;
+        cfg.mTxMaxInstructions = 20'000'000;
+        cfg.mLedgerMaxDependentTxClusters = 2;
+    });
+
+    ContractStorageTestClient client(test);
+    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+    auto& lm = test.getApp().getLedgerManager();
+    const int64_t startingBalance = lm.getLastMinBalance(50);
+
+    auto& root = test.getRoot();
+
+    REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 0) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+
+    auto keySpec = client.readKeySpec("key", ContractDataDurability::TEMPORARY);
+
+    // Each tx is 4M instructions, so we can fit 5 txs in a single cluster.
+    // 10 txs will be split across 2 clusters.
+    std::vector<TestAccount> accounts;
+    for (size_t i = 0; i < 10; ++i)
+    {
+        accounts.emplace_back(
+            root.create("a" + std::to_string(i), startingBalance));
+    }
+
+    uint32_t maxExtension = 0;
+    stellar::uniform_int_distribution<uint32_t> dist(100, 1000);
+
+    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+    for (auto& account : accounts)
+    {
+        auto extendTo = dist(gRandomEngine);
+        maxExtension = std::max(maxExtension, extendTo);
+
+        auto inv = client.getContract().prepareInvocation(
+            "extend_temporary",
+            {makeSymbolSCVal("key"), makeU32SCVal(extendTo),
+             makeU32SCVal(extendTo)},
+            keySpec);
+        auto tx = inv.withExactNonRefundableResourceFee().createTx(&account);
+        sorobanTxs.emplace_back(tx);
+    }
+
+    auto r = closeLedger(test.getApp(), sorobanTxs);
+    REQUIRE(r.results.size() == sorobanTxs.size());
+    checkResults(r, sorobanTxs.size(), 0);
+
+    REQUIRE(test.getTTL(client.getContract().getDataKey(
+                makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY)) ==
+            maxExtension + test.getLCLSeq());
 }
 
 TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")

@@ -221,9 +221,6 @@ class GlobalParallelApplyLedgerState
                                    InMemorySorobanState const& inMemoryState);
 
     std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
-    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
-    void eraseEntry(LedgerKey const& key);
-
     RestoredEntries const& getRestoredEntries() const;
 
     void commitChangesFromThreads(

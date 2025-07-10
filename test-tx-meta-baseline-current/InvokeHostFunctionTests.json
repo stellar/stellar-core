@@ -2184,6 +2184,10 @@
 	],
 	"ledger entry size limit enforced" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"loadgen Wasm executes properly" : [ "+cR3oq2qY0I=" ],
+	"merge account then do SAC payment to the merged account|protocol version 20" : [ "bKDF6V5IzTo=", "4qTJp8JmPaQ=", "TZsMI+VIqms=", "OPJp6Z6eHjY=" ],
+	"merge account then do SAC payment to the merged account|protocol version 21" : [ "bKDF6V5IzTo=", "4qTJp8JmPaQ=", "TZsMI+VIqms=", "OPJp6Z6eHjY=" ],
+	"merge account then do SAC payment to the merged account|protocol version 22" : [ "bKDF6V5IzTo=", "nZaHaZaWjPM=", "ank7hDEdE90=", "UhTmVoE7E10=" ],
+	"merge account then do SAC payment to the merged account|protocol version 23" : [ "+cR3oq2qY0I=", "kDMMDQdWWBg=", "XgQ36O588Cw=", "AeLB0v5FV3E=" ],
 	"multiple soroban ops in a tx|protocol version 20" : [ "bKDF6V5IzTo=", "n9Sc/mMA2VA=", "bKDF6V5IzTo=", "n9Sc/mMA2VA=" ],
 	"multiple soroban ops in a tx|protocol version 20|with fee bump" : [ "nfyrGO2ZGaM=" ],
 	"multiple soroban ops in a tx|protocol version 21" : [ "bKDF6V5IzTo=", "SStJyt3nT/c=", "bKDF6V5IzTo=", "SStJyt3nT/c=" ],
@@ -2767,6 +2771,20 @@
 		"RH+UShPLOJY="
 	],
 	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|restore, delete, restore" : [ "qkHKGYYnCSI=", "bxv547+A4zA=" ],
+	"read-only bumps across threads" : 
+	[
+		"+cR3oq2qY0I=",
+		"hFmIG0TZzKk=",
+		"07gXFzPdYd8=",
+		"qLimGbOITx8=",
+		"Ailk5Wavd1Y=",
+		"DhlYrpLW8OY=",
+		"T9nnMuwBnIo=",
+		"ewn8a2qomCo=",
+		"q008p8qGHIs=",
+		"+M8i+OyobEE=",
+		"RD4SbL+fpW4="
+	],
 	"refund account merged|protocol version 20" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=", "51g/NdOY708=", "qBAN8h2uYsI=" ],
