@@ -4449,8 +4449,47 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                 auto restoreTx =
                     test.createRestoreTx(restoreResources, 1'000, resourceFee);
 
+                SECTION("same stage")
+                {
+                    // Restore and extend in the same stage
+                    auto r = closeLedger(test.getApp(), {restoreTx, extendTx},
+                                         /*strictOrder=*/true);
+                    REQUIRE(r.results.size() == 2);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    // Require that the restore went through and the entry could
+                    // be bumped in the subsequent TX
+                    REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+                }
+                SECTION("across stages")
+                {
+                    auto r = closeLedger(test.getApp(), {restoreTx, extendTx},
+                                         {{{0}}, {{1}}});
+                    REQUIRE(r.results.size() == 2);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    // Require that the restore went through and the entry could
+                    // be bumped in the subsequent TX
+                    REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+                }
+            }
+
+            SECTION("manual restore across stages")
+            {
+                SorobanResources restoreResources;
+                restoreResources.footprint.readWrite = {lk};
+                restoreResources.instructions = 0;
+                restoreResources.diskReadBytes = 10'000;
+                restoreResources.writeBytes = 10'000;
+
+                auto resourceFee = 300'000 + 40'000;
+                auto restoreTx =
+                    test.createRestoreTx(restoreResources, 1'000, resourceFee);
+
                 closeLedger(test.getApp(), {restoreTx, extendTx},
-                            /*strictOrder=*/true);
+                            {{{0}}, {{1}}});
 
                 // Require that the restore went through and the entry could be
                 // bumped in the subsequent TX
@@ -4470,12 +4509,29 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                     writeInvocation.withExactNonRefundableResourceFee()
                         .createTx();
 
-                closeLedger(test.getApp(), {writeTx, extendTx},
-                            /*strictOrder=*/true);
+                SECTION("same stage")
+                {
+                    auto r = closeLedger(test.getApp(), {writeTx, extendTx},
+                                         /*strictOrder=*/true);
+                    REQUIRE(r.results.size() == 2);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
 
-                // Require that the write TX restored the entry which could be
-                // bumped in the subsequent TX
-                REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+                    // Require that the write TX restored the entry which could
+                    // be bumped in the subsequent TX
+                    REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+                }
+                SECTION("across stages")
+                {
+                    auto r = closeLedger(test.getApp(), {writeTx, extendTx},
+                                         {{{0}}, {{1}}});
+                    REQUIRE(r.results.size() == 2);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+                    // Require that the write TX restored the entry which could
+                    // be bumped in the subsequent TX
+                    REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
+                }
             }
             SECTION("autorestore then delete")
             {
@@ -4500,15 +4556,32 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                     writeInvocation.withExactNonRefundableResourceFee()
                         .createTx();
 
-                auto r = closeLedger(test.getApp(), {delTx, writeTx},
-                                     /*strictOrder=*/true);
-                REQUIRE(r.results.size() == 2);
+                SECTION("same stage")
+                {
+                    auto r = closeLedger(test.getApp(), {delTx, writeTx},
+                                         /*strictOrder=*/true);
+                    REQUIRE(r.results.size() == 2);
 
-                checkTx(0, r, txSUCCESS);
-                checkTx(1, r, txSUCCESS);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
 
-                REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
-                                   true) == INVOKE_HOST_FUNCTION_SUCCESS);
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       true) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+                SECTION("across stages")
+                {
+                    auto r = closeLedger(test.getApp(), {delTx, writeTx},
+                                         {{{0}}, {{1}}});
+                    REQUIRE(r.results.size() == 2);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       true) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
             }
 
             SECTION("restore, delete, restore")
@@ -4530,17 +4603,66 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                 auto restoreTx2 = test.createRestoreTx(
                     restoreResources, 1'000, 400'000, &restore1SrcAccount);
 
-                auto r =
-                    closeLedger(test.getApp(), {restoreTx1, delTx, restoreTx2},
-                                /*strictOrder=*/true);
-                REQUIRE(r.results.size() == 3);
+                SECTION("same stage")
+                {
+                    auto r = closeLedger(test.getApp(),
+                                         {restoreTx1, delTx, restoreTx2},
+                                         /*strictOrder=*/true);
+                    REQUIRE(r.results.size() == 3);
 
-                checkTx(0, r, txSUCCESS);
-                checkTx(1, r, txSUCCESS);
-                checkTx(2, r, txSUCCESS);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+                    checkTx(2, r, txSUCCESS);
 
-                REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
-                                   false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+                SECTION("across stages")
+                {
+                    auto r = closeLedger(test.getApp(),
+                                         {restoreTx1, delTx, restoreTx2},
+                                         {{{0}}, {{1}}, {{2}}});
+                    REQUIRE(r.results.size() == 3);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+                    checkTx(2, r, txSUCCESS);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+                SECTION("delete in same stage as first restore")
+                {
+                    auto r = closeLedger(test.getApp(),
+                                         {restoreTx1, delTx, restoreTx2},
+                                         {{{0, 1}}, {{2}}});
+                    REQUIRE(r.results.size() == 3);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+                    checkTx(2, r, txSUCCESS);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+                SECTION("delete in same stage as second restore")
+                {
+                    auto r = closeLedger(test.getApp(),
+                                         {restoreTx1, delTx, restoreTx2},
+                                         {{{0}}, {{1, 2}}});
+                    REQUIRE(r.results.size() == 3);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+                    checkTx(2, r, txSUCCESS);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
             }
         }
     };
@@ -7765,9 +7887,6 @@ TEST_CASE("delete non existent entry with parallel apply",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
-// TODO: Add test where first stage deletes entry, and second stage tries to
-// extend it.
-
 TEST_CASE_VERSIONS("merge account then do SAC payment to the merged account",
                    "[tx][soroban][parallelapply]")
 {
@@ -7822,27 +7941,11 @@ TEST_CASE("create in first stage delete in second stage",
           "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-
-    // This is required because we're setting the min stage count above one,
-    // which will reduce the per-stage instruction count too low to run the
-    // settings upgrade transactions.
-    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
-    cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 2;
 
     SorobanTest test(cfg);
     ContractStorageTestClient client(test);
 
     auto& app = test.getApp();
-    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
-        cfg.mLedgerMaxInstructions = 10'000'000;
-        cfg.mTxMaxInstructions = 10'000'000;
-        cfg.mLedgerMaxTxCount = 500;
-        cfg.mLedgerMaxDependentTxClusters = 1;
-    });
 
     auto& lm = app.getLedgerManager();
     const int64_t startingBalance = lm.getLastMinBalance(50);
@@ -7856,7 +7959,7 @@ TEST_CASE("create in first stage delete in second stage",
     auto i1 = client.getContract().prepareInvocation(
         "put_persistent", {makeSymbolSCVal("key1"), makeU64SCVal(1)},
         i1Spec.setInclusionFee(i1Spec.getInclusionFee() + 1));
-    auto tx = i1.withExactNonRefundableResourceFee().createTx(&a1);
+    auto tx1 = i1.withExactNonRefundableResourceFee().createTx(&a1);
 
     auto i2Spec =
         client.writeKeySpec("key1", ContractDataDurability::PERSISTENT);
@@ -7865,12 +7968,102 @@ TEST_CASE("create in first stage delete in second stage",
         i2Spec.setInclusionFee(i2Spec.getInclusionFee() + 2));
     auto tx2 = i2.withExactNonRefundableResourceFee().createTx(&b1);
 
-    auto r = closeLedger(test.getApp(), {tx, tx2});
+    auto r = closeLedger(test.getApp(), {tx1, tx2}, {{{0}}, {{1}}});
     REQUIRE(r.results.size() == 2);
     checkTx(0, r, txSUCCESS);
     checkTx(1, r, txSUCCESS);
 
     REQUIRE(client.has("key1", ContractDataDurability::PERSISTENT, false) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+}
+
+TEST_CASE("delete in first stage extend in second stage",
+          "[tx][soroban][parallelapply]")
+{
+    auto cfg = getTestConfig();
+
+    SorobanTest test(cfg);
+    ContractStorageTestClient client(test);
+
+    auto& app = test.getApp();
+
+    auto& lm = app.getLedgerManager();
+    const int64_t startingBalance = lm.getLastMinBalance(50);
+
+    auto& root = test.getRoot();
+    auto a1 = root.create("a1", startingBalance);
+    auto b1 = root.create("b", startingBalance);
+
+    // First create the entry so we can delete it
+    REQUIRE(client.put("key", ContractDataDurability::PERSISTENT, 1) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+
+    // First stage: delete the entry
+    auto i1Spec =
+        client.writeKeySpec("key", ContractDataDurability::PERSISTENT);
+    auto i1 = client.getContract().prepareInvocation(
+        "del_persistent", {makeSymbolSCVal("key")},
+        i1Spec.setInclusionFee(i1Spec.getInclusionFee() + 1));
+    auto tx1 = i1.withExactNonRefundableResourceFee().createTx(&a1);
+
+    // Second stage: try to extend the deleted entry - this should fail
+    auto i2Spec = client.readKeySpec("key", ContractDataDurability::PERSISTENT);
+    auto i2 = client.getContract().prepareInvocation(
+        "extend_persistent",
+        {makeSymbolSCVal("key"), makeU32SCVal(1000), makeU32SCVal(1000)},
+        i2Spec.setInclusionFee(i2Spec.getInclusionFee() + 2));
+    auto tx2 = i2.withExactNonRefundableResourceFee().createTx(&b1);
+
+    auto r = closeLedger(test.getApp(), {tx1, tx2}, {{{0}}, {{1}}});
+    REQUIRE(r.results.size() == 2);
+
+    checkTx(0, r, txSUCCESS);
+    checkTx(1, r, txFAILED);
+
+    // Verify the entry is indeed deleted
+    REQUIRE(client.has("key", ContractDataDurability::PERSISTENT, false) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+}
+
+TEST_CASE("put in first stage and then update value in second stage",
+          "[tx][soroban][parallelapply]")
+{
+    auto cfg = getTestConfig();
+
+    SorobanTest test(cfg);
+    ContractStorageTestClient client(test);
+
+    auto& app = test.getApp();
+
+    auto& lm = app.getLedgerManager();
+    const int64_t startingBalance = lm.getLastMinBalance(50);
+
+    auto& root = test.getRoot();
+    auto a1 = root.create("a1", startingBalance);
+    auto b1 = root.create("b", startingBalance);
+
+    // First stage: put initial value
+    auto i1Spec =
+        client.writeKeySpec("key", ContractDataDurability::PERSISTENT);
+    auto i1 = client.getContract().prepareInvocation(
+        "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(100)}, i1Spec);
+    auto tx1 = i1.withExactNonRefundableResourceFee().createTx(&a1);
+
+    // Second stage: put updated value
+    auto i2Spec =
+        client.writeKeySpec("key", ContractDataDurability::PERSISTENT);
+    auto i2 = client.getContract().prepareInvocation(
+        "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(200)}, i2Spec);
+    auto tx2 = i2.withExactNonRefundableResourceFee().createTx(&b1);
+
+    auto r = closeLedger(test.getApp(), {tx1, tx2}, {{{0}}, {{1}}});
+    REQUIRE(r.results.size() == 2);
+
+    checkTx(0, r, txSUCCESS);
+    checkTx(1, r, txSUCCESS);
+
+    // Verify the entry has the updated value from the second stage
+    REQUIRE(client.get("key", ContractDataDurability::PERSISTENT, 200) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
