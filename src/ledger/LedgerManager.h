@@ -260,7 +260,8 @@ class LedgerManager
 
     virtual Resource maxLedgerResources(bool isSoroban) = 0;
     virtual Resource maxSorobanTransactionResources() = 0;
-    virtual void updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx) = 0;
+    virtual void
+    updateSorobanNetworkConfigForCommit(AbstractLedgerTxn& ltx) = 0;
     // Return the network config for Soroban.
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
@@ -271,8 +272,6 @@ class LedgerManager
 
     virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
     virtual std::chrono::milliseconds getExpectedLedgerCloseTime() const = 0;
-
-    virtual uint64_t getSorobanInMemoryStateSize() const = 0;
 
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
@@ -286,6 +285,9 @@ class LedgerManager
     virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
     virtual void
     rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) = 0;
+    virtual ::rust::Box<rust_bridge::SorobanModuleCache>
+    getModuleCacheForTesting() = 0;
+    virtual uint64_t getSorobanInMemoryStateSizeForTesting() = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
@@ -351,6 +353,12 @@ class LedgerManager
     }
 
     virtual bool isApplying() const = 0;
+
+    // Sets apply state phase to SETTING_UP_STATE. This only changes the phase,
+    // but does not actually reset any state. This should be called when
+    // anything related to ApplyState, such as the LedgerState database, is
+    // modified outside of the regular ledgerClose path (i.e. BucketApply).
+    virtual void markApplyStateReset() = 0;
 
     // Recomputes the size of the in-memory Soroban state (specifically, the
     // unstable contract code size part of it), and fully overrides all the

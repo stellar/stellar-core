@@ -975,8 +975,8 @@ TEST_CASE_VERSIONS("network config snapshots Soroban state size", "[soroban]")
                                                   .header.ledgerVersion,
                                               ProtocolVersion::V_23))
                 {
-                    sizeSnapshot =
-                        app->getLedgerManager().getSorobanInMemoryStateSize();
+                    sizeSnapshot = app->getLedgerManager()
+                                       .getSorobanInMemoryStateSizeForTesting();
                 }
                 else
                 {

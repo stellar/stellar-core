@@ -6505,7 +6505,7 @@ makeAddTx(TestContract const& contract, int64_t instructions,
 static bool
 wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
 {
-    auto moduleCache = app.getLedgerManager().getModuleCache();
+    auto moduleCache = app.getLedgerManager().getModuleCacheForTesting();
     for (auto const& wasm : wasms)
     {
         if (!moduleCache->contains_module(
@@ -6839,7 +6839,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
     {
         closeLedger(test.getApp());
     }
-    auto moduleCache = lm.getModuleCache();
+    auto moduleCache = lm.getModuleCacheForTesting();
     auto const wasmHash = sha256(wasm);
     REQUIRE(!moduleCache->contains_module(
         proto, ::rust::Slice{wasmHash.data(), wasmHash.size()}));
@@ -7912,7 +7912,7 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
     auto& root = test.getRoot();
     const int64_t startingBalance = lm.getLastMinBalance(50);
 
-    auto const& sorobanConfig = lm.getSorobanNetworkConfigForApply();
+    auto const& sorobanConfig = lm.getMutableSorobanNetworkConfigForApply();
     std::vector<TestAccount> accounts;
     for (size_t i = 0; i < sorobanConfig.ledgerMaxTxCount(); ++i)
     {
@@ -8316,7 +8316,9 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
     // Initial network config has a higher persistent TTL, so we don't expect
     // this state to expire.
     auto const stateSizeAfterUpgrade =
-        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        test.getApp()
+            .getLedgerManager()
+            .getSorobanInMemoryStateSizeForTesting();
 
     std::vector<TestAccount> accounts;
 
@@ -8329,8 +8331,9 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
     ContractStorageTestClient client(test);
 
     auto const initialContractsCreatedLedgerSeq = test.getLCLSeq();
-    auto baseStateSize =
-        test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+    auto baseStateSize = test.getApp()
+                             .getLedgerManager()
+                             .getSorobanInMemoryStateSizeForTesting();
 
     std::vector<std::pair<std::string, ContractDataDurability>> dataKeys;
 
@@ -8355,8 +8358,9 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
                 expectedSize += xdr::xdr_size(le.current());
             }
         }
-        auto actualSize =
-            test.getApp().getLedgerManager().getSorobanInMemoryStateSize();
+        auto actualSize = test.getApp()
+                              .getLedgerManager()
+                              .getSorobanInMemoryStateSizeForTesting();
         REQUIRE(actualSize == expectedSize);
         // Make sure there actually were some live contract data entries.
         REQUIRE(actualSize > baseStateSize);
@@ -8490,8 +8494,9 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
         {
             closeLedger(test.getApp());
         }
-        REQUIRE(
-            test.getApp().getLedgerManager().getSorobanInMemoryStateSize() ==
-            stateSizeAfterUpgrade);
+        REQUIRE(test.getApp()
+                    .getLedgerManager()
+                    .getSorobanInMemoryStateSizeForTesting() ==
+                stateSizeAfterUpgrade);
     }
 }

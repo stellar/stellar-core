@@ -4184,7 +4184,8 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
             auto headerBefore =
                 app->getLedgerManager().getLastClosedLedgerHeader();
             auto configBeforeApply =
-                app->getLedgerManager().getSorobanNetworkConfigForApply();
+                app->getLedgerManager()
+                    .getMutableSorobanNetworkConfigForApply();
             auto configBefore =
                 app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             auto hasBefore = app->getLedgerManager().getLastClosedLedgerHAS();
@@ -4207,7 +4208,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
                 newListener->getLedgerManager().getLastClosedLedgerHeader());
             REQUIRE(configBeforeApply ==
                     newListener->getLedgerManager()
-                        .getSorobanNetworkConfigForApply());
+                        .getMutableSorobanNetworkConfigForApply());
             REQUIRE(configBefore == newListener->getLedgerManager()
                                         .getLastClosedSorobanNetworkConfig());
             REQUIRE(hasBefore.toString() == newListener->getLedgerManager()
@@ -4325,7 +4326,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
             for (auto const& node : sim->getNodes())
             {
                 auto& lm = node->getLedgerManager();
-                auto applyConfig = lm.getSorobanNetworkConfigForApply();
+                auto applyConfig = lm.getMutableSorobanNetworkConfigForApply();
                 auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
                 REQUIRE(!(applyConfig == prevConfig));
                 REQUIRE(prevConfig == configBeforeUpgrade);
@@ -4355,7 +4356,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
             for (auto const& node : sim->getNodes())
             {
                 auto& lm = node->getLedgerManager();
-                auto applyConfig = lm.getSorobanNetworkConfigForApply();
+                auto applyConfig = lm.getMutableSorobanNetworkConfigForApply();
                 auto prevConfig = lm.getLastClosedSorobanNetworkConfig();
                 REQUIRE(applyConfig == prevConfig);
                 REQUIRE(!(prevConfig == configBeforeUpgrade));
