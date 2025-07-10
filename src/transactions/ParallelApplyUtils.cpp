@@ -480,9 +480,14 @@ GlobalParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     {
         return it0->second.mLedgerEntry;
     }
-    // Invariant check: if an entry is not in mGlobalEntryMap it should also not
-    // be in the restored map.
-    releaseAssertOrThrow(!mGlobalRestoredEntries.entryWasRestored(key));
+    // Invariant check: If an entry was restored from the live state, then it's
+    // possible that the global entry map does not have that key (because live
+    // restores only update the ttl), but if the entry was restored from the hot
+    // archive, both the ttl entry and the entry itself are updated. So if the
+    // key is missing from the global entry map, it could not have been
+    // previously restored from the hot archive.
+    releaseAssertOrThrow(!mGlobalRestoredEntries.entryWasRestoredFromMap(
+        key, mGlobalRestoredEntries.hotArchive));
 
     // Check InMemorySorobanState cache for soroban types
     std::shared_ptr<LedgerEntry const> res;
