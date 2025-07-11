@@ -1087,7 +1087,7 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
 
 std::optional<LedgerEntryWrapper>
 TransactionFrame::commonValidPreSeqNum(
-    AppConnector& app, std::optional<SorobanNetworkConfig> const& cfg,
+    AppConnector& app, SorobanNetworkConfig const* cfg,
     LedgerSnapshot const& ls, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<FeePair> sorobanResourceFee,
@@ -1158,9 +1158,8 @@ TransactionFrame::commonValidPreSeqNum(
             return std::nullopt;
         }
 
-        releaseAssert(cfg);
-        if (!checkSorobanResources(cfg.value(), ledgerVersion,
-                                   diagnosticEvents))
+        releaseAssertOrThrow(cfg);
+        if (!checkSorobanResources(*cfg, ledgerVersion, diagnosticEvents))
         {
             txResult.setInnermostError(txSOROBAN_INVALID);
             return std::nullopt;
@@ -1403,7 +1402,7 @@ TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
 
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(AppConnector& app,
-                              std::optional<SorobanNetworkConfig> const& cfg,
+                              SorobanNetworkConfig const* cfg,
                               SignatureChecker& signatureChecker,
                               LedgerSnapshot const& ls, SequenceNumber current,
                               bool applying, bool chargeFee,
@@ -1656,15 +1655,15 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         getSignatures(mEnvelope)};
 
     std::optional<FeePair> sorobanResourceFee;
-    std::optional<SorobanNetworkConfig> sorobanConfig;
+    SorobanNetworkConfig const* sorobanConfig = nullptr;
     if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION) &&
         isSoroban())
     {
         sorobanConfig =
-            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+            &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
         sorobanResourceFee = computePreApplySorobanResourceFee(
-            ls.getLedgerHeader().current().ledgerVersion, sorobanConfig.value(),
+            ls.getLedgerHeader().current().ledgerVersion, *sorobanConfig,
             app.getConfig());
     }
     if (commonValid(app, sorobanConfig, signatureChecker, ls, current, false,
@@ -1761,13 +1760,15 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 
 #ifdef BUILD_TESTS
 bool
-TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                        MutableTransactionResultBase& txResult,
-                        Hash const& sorobanBasePrngSeed) const
+TransactionFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed) const
 {
     TransactionMetaBuilder tm(true, *this,
                               ltx.loadHeader().current().ledgerVersion, app);
-    return apply(app, ltx, tm, txResult, sorobanBasePrngSeed);
+    return apply(app, ltx, tm, txResult, sorobanConfig, sorobanBasePrngSeed);
 }
 #endif
 
@@ -1786,10 +1787,10 @@ maybeTriggerTestInternalError(TransactionEnvelope const& env)
 #endif
 
 std::unique_ptr<SignatureChecker>
-TransactionFrame::commonPreApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                 TransactionMetaBuilder& meta,
-                                 MutableTransactionResultBase& txResult,
-                                 bool chargeFee) const
+TransactionFrame::commonPreApply(
+    bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const* sorobanConfig) const
 {
     mCachedAccountPreProtocol8.reset();
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
@@ -1816,11 +1817,9 @@ TransactionFrame::commonPreApply(AppConnector& app, AbstractLedgerTxn& ltx,
     //  we'll skip trying to apply operations but we'll still
     //  process the sequence number if needed
     std::optional<FeePair> sorobanResourceFee;
-    std::optional<SorobanNetworkConfig> sorobanConfig;
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
         isSoroban())
     {
-        sorobanConfig = app.getSorobanNetworkConfigForApply();
         sorobanResourceFee = computePreApplySorobanResourceFee(
             ledgerVersion, *sorobanConfig, app.getConfig());
 
@@ -1859,16 +1858,17 @@ TransactionFrame::commonPreApply(AppConnector& app, AbstractLedgerTxn& ltx,
 void
 TransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload) const
+    MutableTransactionResultBase& resPayload,
+    SorobanNetworkConfig const& sorobanConfig) const
 {
-    preParallelApply(app, ltx, meta, resPayload, true);
+    preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig);
 }
 
 void
-TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                   TransactionMetaBuilder& meta,
-                                   MutableTransactionResultBase& txResult,
-                                   bool chargeFee) const
+TransactionFrame::preParallelApply(
+    bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
@@ -1878,7 +1878,7 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
         releaseAssertOrThrow(isSoroban());
 
         auto signatureChecker =
-            commonPreApply(app, ltx, meta, txResult, chargeFee);
+            commonPreApply(chargeFee, app, ltx, meta, txResult, &sorobanConfig);
         bool ok = signatureChecker != nullptr;
         if (ok)
         {
@@ -1889,9 +1889,8 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
             // Pre parallel soroban, OperationFrame::checkValid is called right
             // before OperationFrame::doApply, but we do it here instead to
             // avoid making OperationFrame::checkValid thread safe.
-            auto const& cfg = app.getSorobanNetworkConfigForApply();
             ok = mOperations.front()->checkValid(
-                app, *signatureChecker, cfg, ltx, true, opResult,
+                app, *signatureChecker, &sorobanConfig, ltx, true, opResult,
                 meta.getDiagnosticEventManager());
             if (!ok)
             {
@@ -1919,8 +1918,7 @@ TransactionFrame::preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
 ParallelTxReturnVal
 TransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, SorobanNetworkConfig const& sorobanConfig,
-    ParallelLedgerInfo const& ledgerInfo,
+    Config const& config, ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
     Hash const& txPrngSeed, TxEffects& effects) const
 {
@@ -1960,8 +1958,8 @@ TransactionFrame::parallelApply(
         auto& opMeta = effects.getMeta().getOperationMetaBuilderAt(0);
 
         auto res = op->parallelApply(
-            app, threadState, config, sorobanConfig, ledgerInfo, sorobanMetrics,
-            opResult, txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
+            app, threadState, config, ledgerInfo, sorobanMetrics, opResult,
+            txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
 
 #ifdef BUILD_TESTS
         maybeTriggerTestInternalError(mEnvelope);
@@ -2023,11 +2021,12 @@ TransactionFrame::parallelApply(
 }
 
 bool
-TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
-                                  AppConnector& app, AbstractLedgerTxn& ltx,
-                                  TransactionMetaBuilder& outerMeta,
-                                  MutableTransactionResultBase& txResult,
-                                  Hash const& sorobanBasePrngSeed) const
+TransactionFrame::applyOperations(
+    SignatureChecker& signatureChecker, AppConnector& app,
+    AbstractLedgerTxn& ltx, TransactionMetaBuilder& outerMeta,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed) const
 {
     ZoneScoped;
     if (!maybeAdoptFailedReplayResult(txResult))
@@ -2071,8 +2070,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             ++opNum;
             auto& opMeta = outerMeta.getOperationMetaBuilderAt(i);
             bool txRes =
-                op->apply(app, signatureChecker, ltxOp, subSeed, opResult,
-                          txResult.getRefundableFeeTracker(), opMeta);
+                op->apply(app, signatureChecker, ltxOp, sorobanConfig, subSeed,
+                          opResult, txResult.getRefundableFeeTracker(), opMeta);
 #ifdef BUILD_TESTS
             maybeTriggerTestInternalError(mEnvelope);
 #endif
@@ -2211,16 +2210,18 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 }
 
 bool
-TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                        TransactionMetaBuilder& meta,
-                        MutableTransactionResultBase& txResult, bool chargeFee,
-                        Hash const& sorobanBasePrngSeed) const
+TransactionFrame::apply(
+    bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed) const
 {
     ZoneScoped;
     try
     {
         auto signatureChecker =
-            commonPreApply(app, ltx, meta, txResult, chargeFee);
+            commonPreApply(chargeFee, app, ltx, meta, txResult,
+                           sorobanConfig ? &sorobanConfig.value() : nullptr);
         bool ok = signatureChecker != nullptr;
         try
         {
@@ -2234,8 +2235,9 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                     updateSorobanMetrics(app);
                 }
 
-                ok = applyOperations(*signatureChecker, app, ltx, meta,
-                                     txResult, sorobanBasePrngSeed);
+                ok =
+                    applyOperations(*signatureChecker, app, ltx, meta, txResult,
+                                    sorobanConfig, sorobanBasePrngSeed);
             }
             return ok;
         }
@@ -2263,12 +2265,14 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
 }
 
 bool
-TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                        TransactionMetaBuilder& meta,
-                        MutableTransactionResultBase& txResult,
-                        Hash const& sorobanBasePrngSeed) const
+TransactionFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed) const
 {
-    return apply(app, ltx, meta, txResult, true, sorobanBasePrngSeed);
+    return apply(true, app, ltx, meta, txResult, sorobanConfig,
+                 sorobanBasePrngSeed);
 }
 
 void

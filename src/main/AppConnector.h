@@ -59,7 +59,6 @@ class AppConnector
     bool
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
     SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() const;
-    SorobanNetworkConfig const& getSorobanNetworkConfigForApply() const;
     bool threadIsType(Application::ThreadType type) const;
 
     medida::MetricsRegistry& getMetrics() const;

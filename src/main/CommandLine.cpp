@@ -2209,7 +2209,8 @@ handleCommandLine(int argc, char* const* argv)
         fmt::format(FMT_STRING("{0} {1}"), exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
                                 adjustedCommandLine.second};
-    if (command->name() == "run" || command->name() == "fuzz")
+    if (command->name() == "run" || command->name() == "fuzz" ||
+        command->name() == "test")
     {
         // run outside of catch block so that we properly capture crashes
         return command->run(args);

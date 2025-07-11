@@ -1427,9 +1427,7 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
     // truncate or increase the size snapshot window respectively.
     if (writeLiveSorobanStateSizeWindow)
     {
-        SorobanNetworkConfig networkConfig;
-        networkConfig.loadFromLedger(ltx);
-        networkConfig.maybeUpdateSorobanStateSizeWindowSize(ltx);
+        SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(ltx);
     }
     // If there was an upgrade for the memory cost settings, we need to
     // recompute the current state size and override the old sizes.

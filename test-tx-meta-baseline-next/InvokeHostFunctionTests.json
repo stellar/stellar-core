@@ -1292,56 +1292,11 @@
 		"+cR3oq2qY0I=",
 		"D6gZiurAyn8="
 	],
-	"Soroban non-refundable resource fees are stable|protocol version 20" : 
-	[
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo="
-	],
-	"Soroban non-refundable resource fees are stable|protocol version 21" : 
-	[
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo="
-	],
-	"Soroban non-refundable resource fees are stable|protocol version 22" : 
-	[
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo="
-	],
-	"Soroban non-refundable resource fees are stable|protocol version 23" : 
-	[
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I="
-	],
-	"Soroban non-refundable resource fees are stable|protocol version 24" : 
-	[
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I=",
-		"+cR3oq2qY0I="
-	],
+	"Soroban non-refundable resource fees are stable|protocol version 20" : [ "bKDF6V5IzTo=" ],
+	"Soroban non-refundable resource fees are stable|protocol version 21" : [ "bKDF6V5IzTo=" ],
+	"Soroban non-refundable resource fees are stable|protocol version 22" : [ "bKDF6V5IzTo=" ],
+	"Soroban non-refundable resource fees are stable|protocol version 23" : [ "+cR3oq2qY0I=" ],
+	"Soroban non-refundable resource fees are stable|protocol version 24" : [ "+cR3oq2qY0I=" ],
 	"Stellar asset contract transfer with CAP-67 address types" : 
 	[
 		"+cR3oq2qY0I=",

@@ -83,7 +83,8 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 void
 FeeBumpTransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& txResult) const
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig) const
 {
     try
     {
@@ -103,7 +104,8 @@ FeeBumpTransactionFrame::preParallelApply(
 
     try
     {
-        mInnerTx->preParallelApply(app, ltx, meta, txResult, false);
+        mInnerTx->preParallelApply(/*chargeFee=*/false, app, ltx, meta,
+                                   txResult, sorobanConfig);
     }
     catch (std::exception& e)
     {
@@ -118,8 +120,7 @@ FeeBumpTransactionFrame::preParallelApply(
 ParallelTxReturnVal
 FeeBumpTransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, SorobanNetworkConfig const& sorobanConfig,
-    ParallelLedgerInfo const& ledgerInfo,
+    Config const& config, ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
     Hash const& txPrngSeed, TxEffects& effects) const
 {
@@ -130,9 +131,9 @@ FeeBumpTransactionFrame::parallelApply(
         // Note that even after updateResult is called here, feeCharged will not
         // be accurate for Soroban transactions until
         // FeeBumpTransactionFrame::processPostApply is called.
-        auto res = mInnerTx->parallelApply(app, threadState, config,
-                                           sorobanConfig, ledgerInfo, txResult,
-                                           sorobanMetrics, txPrngSeed, effects);
+        auto res = mInnerTx->parallelApply(app, threadState, config, ledgerInfo,
+                                           txResult, sorobanMetrics, txPrngSeed,
+                                           effects);
         return res;
     }
     catch (std::exception& e)
@@ -148,10 +149,11 @@ FeeBumpTransactionFrame::parallelApply(
 }
 
 bool
-FeeBumpTransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                               TransactionMetaBuilder& meta,
-                               MutableTransactionResultBase& txResult,
-                               Hash const& sorobanBasePrngSeed) const
+FeeBumpTransactionFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed) const
 {
     try
     {
@@ -176,7 +178,7 @@ FeeBumpTransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
     {
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
-        return mInnerTx->apply(app, ltx, meta, txResult, false,
+        return mInnerTx->apply(false, app, ltx, meta, txResult, sorobanConfig,
                                sorobanBasePrngSeed);
     }
     catch (std::exception& e)
