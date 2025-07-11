@@ -343,11 +343,10 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsCpuInsns();
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
 
     // Resize to fit the last cost type added in v21
     params.resize(
@@ -447,11 +446,10 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsCpuInsns();
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
@@ -706,11 +704,10 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsMemBytes();
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
 
     // Resize to fit the last cost type added in v21
     params.resize(
@@ -811,11 +808,10 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsMemBytes();
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
@@ -994,9 +990,10 @@ updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
-
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
     auto& ledgerCostSettings =
-        ltx.load(key).current().data.configSetting().contractLedgerCost();
+        txle.current().data.configSetting().contractLedgerCost();
     ledgerCostSettings.sorobanStateTargetSizeBytes =
         Protcol23UpgradedConfig::SOROBAN_STATE_TARGET_SIZE_BYTES;
     ledgerCostSettings.rentFee1KBSorobanStateSizeLow =
@@ -1007,10 +1004,10 @@ updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
     LedgerKey archivalKey(CONFIG_SETTING);
     archivalKey.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-    auto& archivalSettings = ltx.load(archivalKey)
-                                 .current()
-                                 .data.configSetting()
-                                 .stateArchivalSettings();
+    auto archivalTxle = ltx.load(archivalKey);
+    releaseAssert(archivalTxle);
+    auto& archivalSettings =
+        archivalTxle.current().data.configSetting().stateArchivalSettings();
     archivalSettings.persistentRentRateDenominator =
         Protcol23UpgradedConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
     archivalSettings.tempRentRateDenominator =
@@ -1284,12 +1281,13 @@ SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
-    auto const& ledgerCostSetting =
-        le.data.configSetting().contractLedgerCost();
-    createConfigSettingEntry(
-        initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
-        static_cast<uint32_t>(ProtocolVersion::V_23));
+    auto txMaxReadEntries = ltx.loadWithoutRecord(key)
+                                .current()
+                                .data.configSetting()
+                                .contractLedgerCost()
+                                .txMaxDiskReadEntries;
+    createConfigSettingEntry(initialLedgerCostExtEntry(txMaxReadEntries), ltx,
+                             static_cast<uint32_t>(ProtocolVersion::V_23));
 
     updateRentCostParamsForV23(ltx);
 }
@@ -1370,7 +1368,9 @@ SorobanNetworkConfig::loadMaxContractSize(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     mMaxContractSizeBytes = le.data.configSetting().contractMaxSizeBytes();
 }
 
@@ -1382,7 +1382,9 @@ SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     mMaxContractDataKeySizeBytes =
         le.data.configSetting().contractDataKeySizeBytes();
 }
@@ -1396,7 +1398,9 @@ SorobanNetworkConfig::loadMaxContractDataEntrySize(
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     mMaxContractDataEntrySizeBytes =
         le.data.configSetting().contractDataEntrySizeBytes();
 }
@@ -1409,7 +1413,9 @@ SorobanNetworkConfig::loadComputeSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting = le.data.configSetting().contractCompute();
     mLedgerMaxInstructions = configSetting.ledgerMaxInstructions;
     mTxMaxInstructions = configSetting.txMaxInstructions;
@@ -1426,7 +1432,9 @@ SorobanNetworkConfig::loadLedgerAccessSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting = le.data.configSetting().contractLedgerCost();
     mLedgerMaxDiskReadEntries = configSetting.ledgerMaxDiskReadEntries;
     mLedgerMaxDiskReadBytes = configSetting.ledgerMaxDiskReadBytes;
@@ -1454,9 +1462,11 @@ SorobanNetworkConfig::loadLedgerAccessSettings(LedgerTxnReadOnly const& roLtx)
         LedgerKey key(CONFIG_SETTING);
         key.configSetting().configSettingID =
             ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
-        auto le = roLtx.load(key).current();
+        auto costTxle = roLtx.load(key);
+        releaseAssert(costTxle);
+        auto const& costLe = costTxle.current();
         auto const& configSetting =
-            le.data.configSetting().contractLedgerCostExt();
+            costLe.data.configSetting().contractLedgerCostExt();
         mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
         mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
     }
@@ -1470,7 +1480,9 @@ SorobanNetworkConfig::loadHistoricalSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting =
         le.data.configSetting().contractHistoricalData();
     mFeeHistorical1KB = configSetting.feeHistorical1KB;
@@ -1484,7 +1496,9 @@ SorobanNetworkConfig::loadContractEventsSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting = le.data.configSetting().contractEvents();
     mFeeContractEvents1KB = configSetting.feeContractEvents1KB;
     mTxMaxContractEventsSizeBytes = configSetting.txMaxContractEventsSizeBytes;
@@ -1498,7 +1512,9 @@ SorobanNetworkConfig::loadBandwidthSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting = le.data.configSetting().contractBandwidth();
     mLedgerMaxTransactionsSizeBytes = configSetting.ledgerMaxTxsSizeBytes;
     mTxMaxSizeBytes = configSetting.txMaxSizeBytes;
@@ -1513,7 +1529,9 @@ SorobanNetworkConfig::loadCpuCostParams(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     mCpuCostParams = le.data.configSetting().contractCostParamsCpuInsns();
 }
 
@@ -1525,7 +1543,9 @@ SorobanNetworkConfig::loadMemCostParams(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
 }
 
@@ -1537,7 +1557,9 @@ SorobanNetworkConfig::loadExecutionLanesSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting =
         le.data.configSetting().contractExecutionLanes();
     mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
@@ -1584,7 +1606,9 @@ SorobanNetworkConfig::loadParallelComputeConfig(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting =
         le.data.configSetting().contractParallelCompute();
     mLedgerMaxDependentTxClusters = configSetting.ledgerMaxDependentTxClusters;
@@ -1597,7 +1621,9 @@ SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting = le.data.configSetting().contractLedgerCostExt();
     mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
     mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
@@ -1610,7 +1636,9 @@ SorobanNetworkConfig::loadSCPTimingConfig(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_SCP_TIMING;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     auto const& configSetting = le.data.configSetting().contractSCPTiming();
     mLedgerTargetCloseTimeMilliseconds =
         configSetting.ledgerTargetCloseTimeMilliseconds;
@@ -1704,7 +1732,9 @@ SorobanNetworkConfig::loadStateArchivalSettings(LedgerTxnReadOnly const& roLtx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-    auto le = roLtx.load(key).current();
+    auto txle = roLtx.load(key);
+    releaseAssert(txle);
+    auto const& le = txle.current();
     mStateArchivalSettings = le.data.configSetting().stateArchivalSettings();
 }
 
@@ -2098,11 +2128,10 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-
-    auto& cpuParams = ltx.load(key)
-                          .current()
-                          .data.configSetting()
-                          .contractCostParamsCpuInsns();
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+    auto& cpuParams =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
 
     for (size_t val = 0; val < cpuParams.size(); ++val)
     {
@@ -2182,11 +2211,10 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     LedgerKey memKey(CONFIG_SETTING);
     memKey.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-
-    auto& memParams = ltx.load(memKey)
-                          .current()
-                          .data.configSetting()
-                          .contractCostParamsMemBytes();
+    auto memTxle = ltx.load(memKey);
+    releaseAssert(memTxle);
+    auto& memParams =
+        memTxle.current().data.configSetting().contractCostParamsMemBytes();
     for (size_t val = 0; val < memParams.size(); ++val)
     {
         switch (val)
