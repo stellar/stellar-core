@@ -15,7 +15,7 @@ namespace stellar
 {
 
 class Application;
-class LedgerTxnReadOnly;
+class LedgerSnapshot;
 
 // Defines the minimum values allowed for the network configuration
 // settings during upgrades. An upgrade that does not follow the minimums
@@ -260,6 +260,17 @@ struct TestOverrideSorobanNetworkConfig
 class SorobanNetworkConfig
 {
   public:
+    // Static factory function to create a SorobanNetworkConfig from ledger
+    static SorobanNetworkConfig loadFromLedger(LedgerSnapshot const& ls);
+    static SorobanNetworkConfig
+    loadFromLedger(SearchableSnapshotConstPtr snapshot);
+    static SorobanNetworkConfig loadFromLedger(AbstractLedgerTxn& ltx);
+
+#ifdef BUILD_TESTS
+    // Helper for a few tests that manually create a config.
+    static SorobanNetworkConfig emptyConfig();
+#endif
+
     // Creates the initial contract configuration entries for protocol v20.
     // This should happen once during the correspondent protocol version
     // upgrade.
@@ -289,7 +300,30 @@ class SorobanNetworkConfig
     initializeGenesisLedgerForTesting(uint32_t genesisLedgerProtocol,
                                       AbstractLedgerTxn& ltx, Application& app);
 
-    void loadFromLedger(LedgerTxnReadOnly const& roLtx);
+    // If currLedger is a ledger when we should snapshot, add a new snapshot to
+    // the sliding window config ledger entry.
+    static void maybeSnapshotSorobanStateSize(uint32_t currLedger,
+                                              uint64_t inMemoryStateSize,
+                                              AbstractLedgerTxn& ltxRoot,
+                                              Application& app);
+
+    // Rewrite all the the Soroban live state size snapshots with the newSize.
+    // This should be used after recomputing the Soroban state size due to
+    // configuration or protocol upgrade.
+    static void updateRecomputedSorobanStateSize(uint64_t newSize,
+                                                 AbstractLedgerTxn& ltx);
+
+    // If the Soroban state size snapshot window size setting has been changed,
+    // update the contents of the snapshot window. This should be called when
+    // the window size setting is changed via a config or protocol upgrade.
+    // If newSize < currSize, pop entries off window. If newSize > currSize,
+    // add the oldest snapshotted size to the window until it has newSize
+    // entries.
+    static void maybeUpdateSorobanStateSizeWindowSize(AbstractLedgerTxn& ltx);
+
+    static void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
+                                       EvictionIterator const& newIter);
+
     // Maximum allowed size of the contract Wasm that can be uploaded (in
     // bytes).
     uint32_t maxContractSizeBytes() const;
@@ -367,28 +401,6 @@ class SorobanNetworkConfig
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
 
-    // If currLedger is a ledger when we should snapshot, add a new snapshot to
-    // the sliding window and write it to disk.
-    // TODO(https://github.com/stellar/stellar-core/issues/4815): This and the
-    // following functions should probably be moved out the config struct into
-    // free functions.
-    void maybeSnapshotSorobanStateSize(uint32_t currLedger,
-                                       uint64_t inMemoryStateSize,
-                                       AbstractLedgerTxn& ltx,
-                                       Application& app);
-
-    // Rewrite all the the Soroban live state size snapshots with the newSize.
-    // This should be used after recomputing the Soroban state size due to
-    // configuration or protocol upgrade.
-    void updateRecomputedSorobanStateSize(uint64_t newSize,
-                                          AbstractLedgerTxn& ltx);
-
-    // If newSize is different than the current BucketList size sliding window,
-    // update the window. If newSize < currSize, pop entries off window. If
-    // newSize > currSize, add as many copies of the current BucketList size to
-    // window until it has newSize entries.
-    void maybeUpdateSorobanStateSizeWindowSize(AbstractLedgerTxn& ltx);
-
     // Returns the average of all BucketList size snapshots in the sliding
     // window.
     uint64_t getAverageSorobanStateSize() const;
@@ -415,9 +427,6 @@ class SorobanNetworkConfig
     StateArchivalSettings const& stateArchivalSettings() const;
     EvictionIterator const& evictionIterator() const;
 
-    void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
-                                EvictionIterator const& newIter) const;
-
     // Parallel execution settings
     uint32_t ledgerMaxDependentTxClusters() const;
 
@@ -431,8 +440,6 @@ class SorobanNetworkConfig
     uint32_t ballotTimeoutIncrementMilliseconds() const;
 
 #ifdef BUILD_TESTS
-    StateArchivalSettings& stateArchivalSettings();
-    EvictionIterator& evictionIterator();
     // Update the protocol 20 cost types to match the real network
     // configuration.
     // Protocol 20 cost types were imprecise and were re-calibrated shortly
@@ -447,39 +454,37 @@ class SorobanNetworkConfig
 #endif
 
   private:
-    void loadMaxContractSize(LedgerTxnReadOnly const& roLtx);
-    void loadMaxContractDataKeySize(LedgerTxnReadOnly const& roLtx);
-    void loadMaxContractDataEntrySize(LedgerTxnReadOnly const& roLtx);
-    void loadComputeSettings(LedgerTxnReadOnly const& roLtx);
-    void loadLedgerAccessSettings(LedgerTxnReadOnly const& roLtx);
-    void loadHistoricalSettings(LedgerTxnReadOnly const& roLtx);
-    void loadContractEventsSettings(LedgerTxnReadOnly const& roLtx);
-    void loadBandwidthSettings(LedgerTxnReadOnly const& roLtx);
-    void loadCpuCostParams(LedgerTxnReadOnly const& roLtx);
-    void loadMemCostParams(LedgerTxnReadOnly const& roLtx);
-    void loadStateArchivalSettings(LedgerTxnReadOnly const& roLtx);
-    void loadExecutionLanesSettings(LedgerTxnReadOnly const& roLtx);
-    void loadliveSorobanStateSizeWindow(LedgerTxnReadOnly const& roLtx);
-    void loadEvictionIterator(LedgerTxnReadOnly const& roLtx);
-    void loadParallelComputeConfig(LedgerTxnReadOnly const& roLtx);
-    void loadLedgerCostExtConfig(LedgerTxnReadOnly const& roLtx);
-    void loadSCPTimingConfig(LedgerTxnReadOnly const& roLtx);
+    SorobanNetworkConfig() = default;
+
+    void loadMaxContractSize(LedgerSnapshot const& ls);
+    void loadMaxContractDataKeySize(LedgerSnapshot const& ls);
+    void loadMaxContractDataEntrySize(LedgerSnapshot const& ls);
+    void loadComputeSettings(LedgerSnapshot const& ls);
+    void loadLedgerAccessSettings(LedgerSnapshot const& ls);
+    void loadHistoricalSettings(LedgerSnapshot const& ls);
+    void loadContractEventsSettings(LedgerSnapshot const& ls);
+    void loadBandwidthSettings(LedgerSnapshot const& ls);
+    void loadCpuCostParams(LedgerSnapshot const& ls);
+    void loadMemCostParams(LedgerSnapshot const& ls);
+    void loadStateArchivalSettings(LedgerSnapshot const& ls);
+    void loadExecutionLanesSettings(LedgerSnapshot const& ls);
+    void loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls);
+    void loadEvictionIterator(LedgerSnapshot const& ls);
+    void loadParallelComputeConfig(LedgerSnapshot const& ls);
+    void loadLedgerCostExtConfig(LedgerSnapshot const& ls);
+    void loadSCPTimingConfig(LedgerSnapshot const& ls);
     void computeRentWriteFee(uint32_t protocolVersion);
 
-// Expose all the fields for testing overrides in order to avoid using
-// special test-only field setters.
-// Access this via
-// `app.getLedgerManager().getMutableSorobanNetworkConfig()`.
-// Important: any manual updates to this will be overwritten in case of
-// **any** network upgrade - tests that perform updates should only update
-// settings via upgrades as well.
 #ifdef BUILD_TESTS
   public:
 #endif
-
-    void writeLiveSorobanStateSizeWindow(AbstractLedgerTxn& ltxRoot) const;
-    void updateSorobanStateSizeAverage();
-
+    // Expose all the fields for testing overrides in order to avoid using
+    // special test-only field setters.
+    // Access this via
+    // `app.getLedgerManager().getMutableSorobanNetworkConfig()`.
+    // Important: any manual updates to this will be overwritten in case of
+    // **any** network upgrade - tests that perform updates should only update
+    // settings via upgrades as well.
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
     uint32_t mMaxContractDataEntrySizeBytes{};
@@ -521,8 +526,6 @@ class SorobanNetworkConfig
     uint32_t mTxMaxSizeBytes{};
     int64_t mFeeTransactionSize1KB{};
 
-    // FIFO queue, push_back/pop_front
-    std::deque<uint64_t> mSorobanStateSizeSnapshots;
     int64_t mAverageSorobanStateSize{};
 
     // Host cost params
@@ -531,7 +534,7 @@ class SorobanNetworkConfig
 
     // State archival settings
     StateArchivalSettings mStateArchivalSettings{};
-    mutable EvictionIterator mEvictionIterator{};
+    EvictionIterator mEvictionIterator{};
 
     // Parallel execution settings
     uint32_t mLedgerMaxDependentTxClusters{};
@@ -549,5 +552,11 @@ class SorobanNetworkConfig
     uint32_t mBallotTimeoutInitialMilliseconds{};
     uint32_t mBallotTimeoutIncrementMilliseconds{};
 };
+
+#ifdef BUILD_TESTS
+void updateStateSizeWindowSetting(
+    AbstractLedgerTxn& ltxRoot,
+    std::function<void(xdr::xvector<uint64>& window)> updateFn);
+#endif
 
 }

@@ -267,7 +267,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         AppConnector& app, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
+        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
+        SorobanNetworkConfig const& sorobanConfig)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -275,7 +276,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mOpFrame(opFrame)
         , mSorobanBasePrngSeed(sorobanBasePrngSeed)
         , mResources(mOpFrame.mParentTx.sorobanResources())
-        , mSorobanConfig(app.getSorobanNetworkConfigForApply())
+        , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics())
         , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
@@ -905,9 +906,11 @@ class InvokeHostFunctionPreV23ApplyHelper
         AppConnector& app, AbstractLedgerTxn& ltx,
         Hash const& sorobanBasePrngSeed, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
+        OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
+        SorobanNetworkConfig const& sorobanConfig)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
-                                        refundableFeeTracker, opMeta, opFrame)
+                                        refundableFeeTracker, opMeta, opFrame,
+                                        sorobanConfig)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1067,7 +1070,8 @@ class InvokeHostFunctionParallelApplyHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
-                                        refundableFeeTracker, opMeta, opFrame)
+                                        refundableFeeTracker, opMeta, opFrame,
+                                        threadState.getSorobanConfig())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         // Initialize the autorestore lookup vector
@@ -1122,8 +1126,9 @@ InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-InvokeHostFunctionOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+InvokeHostFunctionOpFrame::doApplyForSoroban(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
@@ -1137,16 +1142,25 @@ InvokeHostFunctionOpFrame::doApply(
     // Create ApplyHelper and delegate processing to it
     InvokeHostFunctionPreV23ApplyHelper helper(app, ltx, sorobanBasePrngSeed,
                                                res, refundableFeeTracker,
-                                               opMeta, *this);
+                                               opMeta, *this, sorobanConfig);
     return helper.apply();
+}
+
+bool
+InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                   OperationResult& res,
+                                   OperationMetaBuilder& opMeta) const
+{
+    throw std::runtime_error(
+        "InvokeHostFunctionOpFrame may only be applied via doApplyForSoroban");
 }
 
 ParallelTxReturnVal
 InvokeHostFunctionOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
-    Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
-    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    Config const& appConfig, Hash const& txPrngSeed,
+    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {

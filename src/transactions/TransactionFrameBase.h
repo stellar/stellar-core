@@ -133,20 +133,21 @@ class TransactionFrameBase
     makeTransactionFromWire(Hash const& networkID,
                             TransactionEnvelope const& env);
 
-    virtual bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                       TransactionMetaBuilder& meta,
-                       MutableTransactionResultBase& txResult,
-                       Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
+    virtual bool
+    apply(AppConnector& app, AbstractLedgerTxn& ltx,
+          TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+          std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+          Hash const& sorobanBasePrngSeed) const = 0;
 
     virtual void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                      TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload) const = 0;
+                     MutableTransactionResultBase& txResult,
+                     SorobanNetworkConfig const& sorobanConfig) const = 0;
 
     virtual ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, SorobanNetworkConfig const& sorobanConfig,
-        ParallelLedgerInfo const& ledgerInfo,
+        Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
         SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const = 0;
