@@ -7321,9 +7321,8 @@ readParallelMeta(std::string const& metaPath)
     return res;
 }
 
-TEST_CASE_VERSIONS(
-    "source account account of first tx is in second txs footprint",
-    "[tx][soroban][parallelapply]")
+TEST_CASE_VERSIONS("source account of first tx is in second txs footprint",
+                   "[tx][soroban][parallelapply]")
 {
     Config cfg = getTestConfig();
     cfg.EMIT_CLASSIC_EVENTS = true;

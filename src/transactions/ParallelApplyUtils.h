@@ -221,7 +221,7 @@ class GlobalParallelApplyLedgerState
                                    std::vector<ApplyStage> const& stages,
                                    InMemorySorobanState const& inMemoryState);
 
-    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    ParallelApplyEntryMap const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
 
     void commitChangesFromThreads(
