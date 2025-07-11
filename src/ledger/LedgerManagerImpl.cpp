@@ -53,6 +53,7 @@
 #include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include "util/XDRCompare.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
@@ -2251,6 +2252,8 @@ LedgerManagerImpl::applyThread(
 ParallelLedgerInfo
 getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
 {
+    CLOG_INFO(Ledger, "capturing ParallelLedgerInfo from header with seq={}",
+              lh.ledgerSeq);
     return {lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
             lh.scpValue.closeTime, app.getNetworkID()};
 }
@@ -2488,7 +2491,8 @@ LedgerManagerImpl::applyTransactions(
     uint32_t seqPhaseStartIndex, seqPhaseEndIndex;
     std::unique_ptr<GlobalParallelApplyLedgerState> parReExecGlobalState;
     std::unique_ptr<LedgerCloseMetaFrame> parReExecLedgerCloseMeta;
-    ExecutionCapture seqCapture("sequential"), parCapture("parallel re-exec");
+    ExecutionCapture parCapture("1st parallel pre-exec"),
+        seqCapture("2nd sequential exec");
 #endif
     for (auto const& phase : phases)
     {
@@ -2502,24 +2506,27 @@ LedgerManagerImpl::applyTransactions(
         else
         {
 #ifdef BUILD_TESTS
-            parReExecGlobalState = maybeCaptureStateForParallelReExec(
-                ltx, phase, index, parReExecApplyStages, parReExecResults,
-                parReExecHeader);
-            if (parReExecGlobalState)
             {
-                seqPhaseStartIndex = index;
                 LedgerTxn ltxTmp(ltx);
-                parReExecLedgerCloseMeta =
-                    std::make_unique<LedgerCloseMetaFrame>(
-                        parReExecHeader.ledgerVersion);
-                for (auto i = 0; i < numTxs; ++i)
+                parReExecGlobalState = maybeCaptureStateForParallelReExec(
+                    ltxTmp, phase, index, parReExecApplyStages,
+                    parReExecResults, parReExecHeader);
+                if (parReExecGlobalState)
                 {
-                    parReExecLedgerCloseMeta->pushTxProcessingEntry();
+                    seqPhaseStartIndex = index;
+                    parReExecLedgerCloseMeta =
+                        std::make_unique<LedgerCloseMetaFrame>(
+                            parReExecHeader.ledgerVersion);
+                    for (auto i = 0; i < numTxs; ++i)
+                    {
+                        parReExecLedgerCloseMeta->pushTxProcessingEntry();
+                    }
+                    maybeDoParallelReExec(ltxTmp, *parReExecGlobalState,
+                                          parReExecHeader, parReExecApplyStages,
+                                          parReExecLedgerCloseMeta,
+                                          sorobanBasePrngSeed);
                 }
-                maybeDoParallelReExec(ltxTmp, *parReExecGlobalState,
-                                      parReExecHeader, parReExecApplyStages,
-                                      parReExecLedgerCloseMeta,
-                                      sorobanBasePrngSeed);
+                ltxTmp.rollback();
             }
 #endif
             applySequentialPhase(phase, mutableTxResults, index, ltx,
@@ -2533,7 +2540,7 @@ LedgerManagerImpl::applyTransactions(
                                    seqPhaseStartIndex, seqPhaseEndIndex);
                 seqCapture.capture(mutableTxResults, ledgerCloseMeta,
                                    seqPhaseStartIndex, seqPhaseEndIndex);
-                seqCapture.compare(parCapture);
+                parCapture.compare(seqCapture);
                 parReExecGlobalState.reset();
             }
 #endif
@@ -3036,6 +3043,10 @@ LedgerManagerImpl::maybeCaptureStateForParallelReExec(
         // snapshot header for par exec. force it to at least the
         // parallel-exec version.
         parHeader = ltx.loadHeader().current();
+        CLOG_INFO(Ledger,
+                  "capturing ltx header for parellel exec with ledgerSeq={}",
+                  parHeader.ledgerSeq);
+
         parHeader.ledgerVersion =
             std::max((uint32_t)PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION,
                      (uint32_t)parHeader.ledgerVersion);
@@ -3140,18 +3151,56 @@ LedgerManagerImpl::ExecutionCapture::capture(
     std::unique_ptr<LedgerCloseMetaFrame> const& lcm, uint32_t phaseStartIndex,
     uint32_t phaseEndIndex)
 {
+    mPhaseStartIndex = phaseStartIndex;
+    mPhaseEndIndex = phaseEndIndex;
     for (auto i = phaseStartIndex; i < phaseEndIndex; ++i)
     {
         mTxResults.emplace_back(mutableTxResults.at(i)->getXDR());
     }
     if (lcm)
     {
-        for (auto i = 0; i < lcm->getTransactionResultMetaCount(); ++i)
+        for (auto i = phaseStartIndex; i < phaseEndIndex; ++i)
         {
+            releaseAssertOrThrow(i < lcm->getTransactionResultMetaCount());
             mTxMetas.emplace_back(lcm->getTransactionMeta(i));
         }
     }
 }
+
+// Helper functions for more focused comparison output
+namespace
+{
+
+using namespace stellar::xdrcomp;
+
+// Check if two TransactionResults differ only in fees
+static bool
+differOnlyInFees(TransactionResult const& res1, TransactionResult const& res2)
+{
+    if (res1.feeCharged == res2.feeCharged)
+    {
+        return false;
+    }
+
+    // Create copies and equalize fees
+    TransactionResult res1Copy = res1;
+    TransactionResult res2Copy = res2;
+    res1Copy.feeCharged = res2Copy.feeCharged;
+
+    // For fee-bump transactions, also equalize inner fees
+    if ((res1Copy.result.code() == txFEE_BUMP_INNER_SUCCESS ||
+         res1Copy.result.code() == txFEE_BUMP_INNER_FAILED) &&
+        (res2Copy.result.code() == txFEE_BUMP_INNER_SUCCESS ||
+         res2Copy.result.code() == txFEE_BUMP_INNER_FAILED))
+    {
+        res1Copy.result.innerResultPair().result.feeCharged =
+            res2Copy.result.innerResultPair().result.feeCharged;
+    }
+
+    return res1Copy == res2Copy;
+}
+
+} // anonymous namespace
 
 void
 LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other)
@@ -3165,9 +3214,21 @@ LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other)
             auto const& ores = other.mTxResults.at(i);
             if (!(res == ores))
             {
-                CLOG_ERROR(Ledger, "tx result {} differs: {} {} vs. {} {}", i,
-                           mName, xdr::xdr_to_string(res), other.mName,
-                           xdr::xdr_to_string(ores));
+                // First check if they differ only in fees
+                if (differOnlyInFees(res, ores))
+                {
+                    CLOG_ERROR(
+                        Ledger,
+                        "tx result {} differs only in fees: {} {} vs {} {}", i,
+                        mName, res.feeCharged, other.mName, ores.feeCharged);
+                }
+                else
+                {
+                    // Full comparison for other differences
+                    CLOG_ERROR(Ledger, "tx result {} differs: {} {} vs. {} {}",
+                               i, mName, xdr::xdr_to_string(res), other.mName,
+                               xdr::xdr_to_string(ores));
+                }
             }
         }
     }
@@ -3181,15 +3242,15 @@ LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other)
     {
         if (mTxMetas.size() == other.mTxMetas.size())
         {
-            for (auto i = 0; i < mTxResults.size(); ++i)
+            for (auto i = mPhaseStartIndex;
+                 i < std::min(mPhaseEndIndex, (uint32_t)mTxMetas.size()); ++i)
             {
-                auto const& res = mTxMetas.at(i);
-                auto const& ores = other.mTxMetas.at(i);
-                if (!(res == ores))
+                auto const& meta = mTxMetas.at(i);
+                auto const& ometa = other.mTxMetas.at(i);
+                if (!(meta == ometa))
                 {
-                    CLOG_ERROR(Ledger, "tx meta {} differs: {} {} vs. {} {}", i,
-                               mName, xdr::xdr_to_string(res), other.mName,
-                               xdr::xdr_to_string(ores));
+                    xdrcomp::compareTransactionMeta(mName, other.mName, meta,
+                                                    ometa, i);
                 }
             }
         }

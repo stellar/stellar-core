@@ -445,6 +445,8 @@ class LedgerManagerImpl : public LedgerManager
     // (re)running a phase sequentially vs. in parallel.
     class ExecutionCapture
     {
+        uint32_t mPhaseStartIndex{0};
+        uint32_t mPhaseEndIndex{0};
         std::string mName;
         std::vector<TransactionResult> mTxResults;
         std::vector<TransactionMeta> mTxMetas;
