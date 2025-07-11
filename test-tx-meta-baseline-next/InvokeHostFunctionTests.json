@@ -2230,7 +2230,8 @@
 		"+cR3oq2qY0I="
 	],
 	"contract storage|protocol version 24|footprint|unused readWrite key" : [ "DoR65weeeAk=" ],
-	"create in first stage delete in second stage" : [ "+cR3oq2qY0I=", "qJ8KIK1AUN8=", "n9rcCNu1Ve4=" ],
+	"create in first stage delete in second stage" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=", "9ztD9SE/Uek=" ],
+	"delete in first stage extend in second stage" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=", "9ztD9SE/Uek=" ],
 	"delete non existent entry with parallel apply" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=" ],
 	"failure diagnostics" : [ "+cR3oq2qY0I=" ],
 	"fee bump refund account merged|protocol version 20" : 
@@ -2825,6 +2826,13 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
 	"persistent entry archival|eviction|key accessible after restore in same ledger" : 
@@ -2838,11 +2846,42 @@
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
 		"RH+UShPLOJY="
 	],
-	"persistent entry archival|eviction|key accessible after restore in same ledger|restore, delete, restore" : [ "qkHKGYYnCSI=", "bxv547+A4zA=" ],
+	"persistent entry archival|eviction|key accessible after restore in same ledger|restore, delete, restore" : 
+	[
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA=",
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA=",
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA=",
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA="
+	],
 	"persistent entry archival|expiration without eviction" : 
 	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -2863,9 +2902,34 @@
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
 		"RH+UShPLOJY="
 	],
-	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|restore, delete, restore" : [ "qkHKGYYnCSI=", "bxv547+A4zA=" ],
+	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|restore, delete, restore" : 
+	[
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA=",
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA=",
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA=",
+		"qkHKGYYnCSI=",
+		"bxv547+A4zA="
+	],
+	"put in first stage and then update value in second stage" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=", "9ztD9SE/Uek=" ],
 	"read-only bumps across threads" : 
 	[
 		"+cR3oq2qY0I=",
