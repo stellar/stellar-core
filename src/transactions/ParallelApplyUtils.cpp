@@ -148,7 +148,8 @@ void
 preParallelApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
-    ParallelApplyEntryMap& globalEntryMap)
+    ParallelApplyEntryMap& globalEntryMap,
+    SorobanNetworkConfig const& sorobanConfig)
 {
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
@@ -188,9 +189,9 @@ preParallelApplyAndCollectModifiedClassicEntries(
         {
             // Make sure to call preParallelApply on all txs because this will
             // modify the fee source accounts sequence numbers.
-            txBundle.getTx()->preParallelApply(app, ltx,
-                                               txBundle.getEffects().getMeta(),
-                                               txBundle.getResPayload());
+            txBundle.getTx()->preParallelApply(
+                app, ltx, txBundle.getEffects().getMeta(),
+                txBundle.getResPayload(), sorobanConfig);
         }
     }
 
@@ -387,10 +388,12 @@ class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     AppConnector& app, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
-    InMemorySorobanState const& inMemoryState)
+    InMemorySorobanState const& inMemoryState,
+    SorobanNetworkConfig const& sorobanConfig)
     : mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
     , mInMemorySorobanState(inMemoryState)
+    , mSorobanConfig(sorobanConfig)
 {
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
                          getSnapshotLedgerSeq() + 1);
@@ -404,8 +407,8 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     // had their sequence numbers bumped and fees charged. preParallelApply will
     // update sequence numbers so it needs to be called before we check
     // LedgerTxn.
-    preParallelApplyAndCollectModifiedClassicEntries(app, ltx, stages,
-                                                     mGlobalEntryMap);
+    preParallelApplyAndCollectModifiedClassicEntries(
+        app, ltx, stages, mGlobalEntryMap, mSorobanConfig);
 }
 
 void
@@ -593,6 +596,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     : mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
     , mInMemorySorobanState(global.mInMemorySorobanState)
+    , mSorobanConfig(global.mSorobanConfig)
 {
     releaseAssertOrThrow(global.getSnapshotLedgerSeq() ==
                          getSnapshotLedgerSeq());
@@ -803,6 +807,12 @@ ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
     releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
                          mInMemorySorobanState.getLedgerSeq());
     return mLiveSnapshot->getLedgerSeq();
+}
+
+SorobanNetworkConfig const&
+ThreadParallelApplyLedgerState::getSorobanConfig() const
+{
+    return mSorobanConfig;
 }
 
 OpParallelApplyLedgerState::OpParallelApplyLedgerState(

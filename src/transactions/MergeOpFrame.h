@@ -34,8 +34,7 @@ class MergeOpFrame : public OperationFrame
     MergeOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                 OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;

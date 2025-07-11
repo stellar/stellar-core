@@ -3022,7 +3022,7 @@ TEST_CASE("parallel tx set building benchmark",
 
     // Only per-ledger limits matter for tx set building, as we don't perform
     // any validation.
-    SorobanNetworkConfig sorobanCfg;
+    auto sorobanCfg = SorobanNetworkConfig::emptyConfig();
     sorobanCfg.mLedgerMaxTransactionsSizeBytes =
         MEAN_INCLUDED_TX_COUNT * MEAN_TX_SIZE;
     sorobanCfg.mLedgerMaxInstructions =

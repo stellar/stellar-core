@@ -258,7 +258,7 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxTxCount = ledgerMaxTxCount;
-            cfg.stateArchivalSettings().liveSorobanStateSizeWindowSampleSize =
+            cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize =
                 liveSorobanStateSizeWindowSampleSize;
         },
         simulation);

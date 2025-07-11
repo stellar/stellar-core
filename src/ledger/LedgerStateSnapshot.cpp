@@ -287,22 +287,15 @@ CompleteConstLedgerState::checkInvariant() const
 
 CompleteConstLedgerState::CompleteConstLedgerState(
     SearchableSnapshotConstPtr searchableSnapshot,
-    SorobanNetworkConfig const& sorobanConfig,
     LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
     HistoryArchiveState const& lastClosedHistoryArchiveState)
     : mBucketSnapshot(searchableSnapshot)
-    , mSorobanConfig(sorobanConfig)
-    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
-    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
-{
-    checkInvariant();
-}
-
-CompleteConstLedgerState::CompleteConstLedgerState(
-    SearchableSnapshotConstPtr searchableSnapshot,
-    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
-    HistoryArchiveState const& lastClosedHistoryArchiveState)
-    : mBucketSnapshot(searchableSnapshot)
+    , mSorobanConfig(
+          protocolVersionStartsFrom(lastClosedLedgerHeader.header.ledgerVersion,
+                                    SOROBAN_PROTOCOL_VERSION)
+              ? std::make_optional(
+                    SorobanNetworkConfig::loadFromLedger(searchableSnapshot))
+              : std::nullopt)
     , mLastClosedLedgerHeader(lastClosedLedgerHeader)
     , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
 {

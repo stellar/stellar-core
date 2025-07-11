@@ -9,7 +9,6 @@
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/NetworkConfig.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
 #include "main/ApplicationImpl.h"
@@ -155,12 +154,6 @@ class LedgerManagerImpl : public LedgerManager
 
         AppConnector& mAppConnector;
 
-        // Latest Soroban config during apply (should not be used outside of
-        // application, as it may be in half-valid state). Note that access to
-        // this variable is not synchronized, since it should only be used by
-        // one thread (main or ledger close).
-        std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
-
         // The current reusable / inter-ledger soroban module cache.
         ::rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
 
@@ -214,38 +207,22 @@ class LedgerManagerImpl : public LedgerManager
         uint64_t getSorobanInMemoryStateSizeForTesting() const;
 #endif
 
-        std::shared_ptr<SorobanNetworkConfig const>
-        getSorobanNetworkConfigForApply() const;
-
         ::rust::Box<rust_bridge::SorobanModuleCache> const&
         getModuleCache() const;
 
         bool isCompilationRunning() const;
 
-        // Non-const mutating methods, must always be called from the primary
-        // apply thread (either main or parallel apply thread) during the
-        // COMMITTING phase.
-        SorobanNetworkConfig& getSorobanNetworkConfigForCommit(
-#ifdef BUILD_TESTS
-            bool skipPhaseCheck = false
-#endif
-        );
-
-        bool hasSorobanNetworkConfigForCommit() const;
-
-        // Initializes an empty SorobanNetworkConfig if it's not already set.
-        void maybeInitializeSorobanNetworkConfig();
-
-        void
-        updateInMemorySorobanState(std::vector<LedgerEntry> const& initEntries,
-                                   std::vector<LedgerEntry> const& liveEntries,
-                                   std::vector<LedgerKey> const& deadEntries,
-                                   LedgerHeader const& lh);
+        // Non-const mutating methods, must always be called from the applying
+        // thread (either main or parallel apply thread).
+        void updateInMemorySorobanState(
+            std::vector<LedgerEntry> const& initEntries,
+            std::vector<LedgerEntry> const& liveEntries,
+            std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+            std::optional<SorobanNetworkConfig const> const& sorobanConfig);
 
         // Note: These are const getters, but should still only be called in the
         // COMMITTING phase.
         uint64_t getSorobanInMemoryStateSize() const;
-        void reportInMemoryMetrics(SorobanMetrics& metrics) const;
 
         void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
         // Finishes a compilation started by `startCompilingAllContracts`.
@@ -341,17 +318,18 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
-    void
-    applyParallelPhase(TxSetPhaseFrame const& phase,
-                       std::vector<ApplyStage>& applyStages,
-                       std::vector<MutableTxResultPtr> const& mutableTxResults,
-                       uint32_t& index, AbstractLedgerTxn& ltx,
-                       bool enableTxMeta, Hash const& sorobanBasePrngSeed);
+    void applyParallelPhase(
+        TxSetPhaseFrame const& phase, std::vector<ApplyStage>& applyStages,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
+        SorobanNetworkConfig const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed);
 
     void applySequentialPhase(
         TxSetPhaseFrame const& phase,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
         Hash const& sorobanBasePrngSeed,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
@@ -366,7 +344,6 @@ class LedgerManagerImpl : public LedgerManager
     applyThread(AppConnector& app,
                 std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
                 Cluster const& cluster, Config const& config,
-                SorobanNetworkConfig const& sorobanConfig,
                 ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
 
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
@@ -374,7 +351,6 @@ class LedgerManagerImpl : public LedgerManager
         AppConnector& app, ApplyStage const& stage,
         GlobalParallelApplyLedgerState const& globalState,
         Hash const& sorobanBasePrngSeed, Config const& config,
-        SorobanNetworkConfig const& sorobanConfig,
         ParallelLedgerInfo const& ledgerInfo);
 
     void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
@@ -389,6 +365,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                             std::vector<ApplyStage> const& stages,
+                            SorobanNetworkConfig const& sorobanConfig,
                             Hash const& sorobanBasePrngSeed);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
@@ -428,10 +405,6 @@ class LedgerManagerImpl : public LedgerManager
     void
     advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
 
-    // Helper function to conditionally load Soroban network config based on
-    // protocol version. Populates both the apply state and the LCL state.
-    void maybeLoadSorobanNetworkConfig(uint32_t ledgerVersion);
-
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -444,7 +417,7 @@ class LedgerManagerImpl : public LedgerManager
     virtual void sealLedgerTxnAndTransferEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        LedgerHeader lh, uint32_t initialLedgerVers);
+        uint32_t initialLedgerVers);
 
     // Update bucket list snapshot, and construct LedgerState return
     // value, which contains all information relevant to ledger state (HAS,
@@ -471,10 +444,6 @@ class LedgerManagerImpl : public LedgerManager
   public:
     LedgerManagerImpl(Application& app);
 
-    // Reloads the network configuration from the ledger.
-    // This needs to be called every time a ledger is closed.
-    // This call is read-only and hence `ltx` can be read-only.
-    void updateSorobanNetworkConfigForCommit(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
     void beginApply() override;
     State getState() const override;
@@ -493,15 +462,11 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastClosedLedgerNum() const override;
     SorobanNetworkConfig const&
     getLastClosedSorobanNetworkConfig() const override;
-    SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
 
     bool hasLastClosedSorobanNetworkConfig() const override;
     std::chrono::milliseconds getExpectedLedgerCloseTime() const override;
 
 #ifdef BUILD_TESTS
-    SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
-    void mutateSorobanNetworkConfigForApply(
-        std::function<void(SorobanNetworkConfig&)> const& f) override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     std::optional<LedgerCloseMetaFrame> const&

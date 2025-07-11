@@ -76,6 +76,10 @@ class ThreadParallelApplyLedgerState
     // of mLiveSnapshot.
     InMemorySorobanState const& mInMemorySorobanState;
 
+    // Reference to the Soroban configuration common for all the transactions
+    // and thus common for all the threads.
+    SorobanNetworkConfig const& mSorobanConfig;
+
     // Contains entries restored by any tx/op in the current thread's tx cluster
     // from the current stage of the parallel apply phase. Any entry should only
     // be in one of the two sub-maps here, live or hot. The entry in the map is
@@ -160,6 +164,8 @@ class ThreadParallelApplyLedgerState
     // The snapshot ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
+
+    SorobanNetworkConfig const& getSorobanConfig() const;
 };
 
 class GlobalParallelApplyLedgerState
@@ -186,13 +192,17 @@ class GlobalParallelApplyLedgerState
     // key does not exist as part of the live state.
     InMemorySorobanState const& mInMemorySorobanState;
 
+    // Reference to the common global Soroban configuration to use during the
+    // transaction application.
+    SorobanNetworkConfig const& mSorobanConfig;
+
     // Contains restorations that happened during each stage of the parallel
-    // soroban phase. As with mGlobalEntryMap, this is propagated stage to stage
-    // by being split into per-thread maps and re-merged at the end of the
-    // stage, before begin committed to the ltx at the end of the phase. As with
-    // restorations inside the thread, these entries are the restored values _at
-    // their time of restoration_ which may be further overridden by
-    // mGlobalEntryMap.
+    // soroban phase. As with mGlobalEntryMap, this is propagated stage to
+    // stage by being split into per-thread maps and re-merged at the end of
+    // the stage, before begin committed to the ltx at the end of the phase.
+    // As with restorations inside the thread, these entries are the
+    // restored values _at their time of restoration_ which may be further
+    // overridden by mGlobalEntryMap.
     RestoredEntries mGlobalRestoredEntries;
 
     // Contains two different sets of entries:
@@ -219,7 +229,8 @@ class GlobalParallelApplyLedgerState
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages,
-                                   InMemorySorobanState const& inMemoryState);
+                                   InMemorySorobanState const& inMemoryState,
+                                   SorobanNetworkConfig const& sorobanConfig);
 
     ParallelApplyEntryMap const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
