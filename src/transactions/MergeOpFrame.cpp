@@ -62,9 +62,7 @@ MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
 // move the XLM to the new account
 bool
 MergeOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                      Hash const& sorobanBasePrngSeed, OperationResult& res,
-                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const
+                      OperationResult& res, OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 

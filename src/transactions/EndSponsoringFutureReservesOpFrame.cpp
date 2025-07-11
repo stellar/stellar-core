@@ -27,11 +27,10 @@ EndSponsoringFutureReservesOpFrame::isOpSupported(
 }
 
 bool
-EndSponsoringFutureReservesOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+EndSponsoringFutureReservesOpFrame::doApply(AppConnector& app,
+                                            AbstractLedgerTxn& ltx,
+                                            OperationResult& res,
+                                            OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "EndSponsoringFutureReservesOpFrame apply", true);
 

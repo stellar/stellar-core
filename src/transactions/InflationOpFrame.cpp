@@ -29,11 +29,9 @@ InflationOpFrame::InflationOpFrame(Operation const& op,
 }
 
 bool
-InflationOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                          OperationResult& res,
+                          OperationMetaBuilder& opMeta) const
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();

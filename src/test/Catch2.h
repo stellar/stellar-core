@@ -11,6 +11,12 @@
 // Define any StringMaker specialzations here for pretty printing the custom
 // types.
 
+// Note: Define the macro below to disable Catch2's default exception handler.
+// This helps quickly finding the unexpected exception source (via breaking
+// the debugger on the exception), but can't be enabled permanently as it
+// messes up the REQUIRE failure reporting.
+// #define CATCH_CONFIG_DISABLE_EXCEPTIONS
+
 #include "lib/catch.hpp"
 #include "util/XDRCereal.h"
 #include "xdr/Stellar-SCP.h"
