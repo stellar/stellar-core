@@ -38,9 +38,15 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
+    bool
+    doApplyForSoroban(AppConnector& app, AbstractLedgerTxn& ltx,
+                      SorobanNetworkConfig const& sorobanConfig,
+                      Hash const& sorobanBasePrngSeed, OperationResult& res,
+                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                      OperationMetaBuilder& opMeta) const override;
+
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                 OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
 
     bool doCheckValidForSoroban(
@@ -50,13 +56,14 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    ParallelTxReturnVal doParallelApply(
-        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
-        Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
-        SorobanMetrics& sorobanMetrics, OperationResult& res,
-        std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta) const override;
+    ParallelTxReturnVal
+    doParallelApply(AppConnector& app,
+                    ThreadParallelApplyLedgerState const& threadState,
+                    Config const& appConfig, Hash const& txPrngSeed,
+                    ParallelLedgerInfo const& ledgerInfo,
+                    SorobanMetrics& sorobanMetrics, OperationResult& res,
+                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                    OperationMetaBuilder& opMeta) const override;
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

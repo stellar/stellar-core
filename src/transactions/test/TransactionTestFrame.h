@@ -36,6 +36,8 @@ class TransactionTestFrame : public TransactionFrameBase
     // Test only functions
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig =
+                   std::nullopt,
                Hash const& sorobanBasePrngSeed = Hash{});
 
     bool checkValidForTesting(AppConnector& app, AbstractLedgerTxn& ltxOuter,
@@ -57,6 +59,8 @@ class TransactionTestFrame : public TransactionFrameBase
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,
                MutableTransactionResultBase& txResult,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig =
+                   std::nullopt,
                Hash const& sorobanBasePrngSeed = Hash{}) const override;
 
     MutableTxResultPtr checkValid(AppConnector& app,
@@ -128,20 +132,15 @@ class TransactionTestFrame : public TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
-    void preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaBuilder& meta,
-                          MutableTransactionResultBase& resPayload,
-                          bool chargeFee) const;
-
     void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                      TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload) const override;
+                     MutableTransactionResultBase& resPayload,
+                     SorobanNetworkConfig const& sorobanConfig) const override;
 
     ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, SorobanNetworkConfig const& sorobanConfig,
-        ParallelLedgerInfo const& ledgerInfo,
+        Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
         SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const override;

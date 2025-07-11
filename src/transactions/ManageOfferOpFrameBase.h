@@ -44,8 +44,7 @@ class ManageOfferOpFrameBase : public OperationFrame
                       OperationResult& res) const override;
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                 OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
 
     bool isDexOperation() const override;

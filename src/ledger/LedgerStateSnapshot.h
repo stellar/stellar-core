@@ -204,11 +204,6 @@ class CompleteConstLedgerState : public NonMovableOrCopyable
   public:
     CompleteConstLedgerState(
         SearchableSnapshotConstPtr searchableSnapshot,
-        SorobanNetworkConfig const& sorobanConfig,
-        LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
-        HistoryArchiveState const& lastClosedHistoryArchiveState);
-    CompleteConstLedgerState(
-        SearchableSnapshotConstPtr searchableSnapshot,
         LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
         HistoryArchiveState const& lastClosedHistoryArchiveState);
 

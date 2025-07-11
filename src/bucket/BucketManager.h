@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
@@ -39,7 +40,6 @@ class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
 enum class LedgerEntryTypeAndDurability : uint32_t;
-class SorobanNetworkConfig;
 
 struct HistoryArchiveState;
 

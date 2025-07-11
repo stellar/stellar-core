@@ -76,12 +76,12 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                      TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload) const override;
+                     MutableTransactionResultBase& txResult,
+                     SorobanNetworkConfig const& sorobanConfig) const override;
 
     ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, SorobanNetworkConfig const& sorobanConfig,
-        ParallelLedgerInfo const& ledgerInfo,
+        Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
         SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const override;
@@ -89,7 +89,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,
                MutableTransactionResultBase& txResult,
-
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                Hash const& sorobanBasePrngSeed) const override;
 
     void

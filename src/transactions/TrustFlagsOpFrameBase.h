@@ -41,8 +41,7 @@ class TrustFlagsOpFrameBase : public OperationFrame
                           TransactionFrame const& parentTx);
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                 OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
 };
 

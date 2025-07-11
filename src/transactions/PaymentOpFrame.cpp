@@ -25,11 +25,9 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op,
 }
 
 bool
-PaymentOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                        OperationResult& res,
+                        OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -74,8 +72,7 @@ PaymentOpFrame::doApply(
     PathPaymentStrictReceiveOpFrame ppayment(op, mParentTx);
 
     if (!ppayment.doCheckValid(ledgerVersion, ppRes) ||
-        !ppayment.doApply(app, ltx, sorobanBasePrngSeed, ppRes,
-                          refundableFeeTracker, opMeta))
+        !ppayment.doApply(app, ltx, ppRes, opMeta))
     {
         if (ppRes.code() != opINNER)
         {

@@ -375,6 +375,8 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // CONTRACT_CODE.
     void deleteContractCode(LedgerKey const& ledgerKey);
 
+    void reportMetrics(SorobanMetrics& metrics) const;
+
   public:
     // These following functions are read-only and may be called concurrently so
     // long as no updates are occurring.
@@ -396,8 +398,6 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // updated.
     uint64_t getSize() const;
 
-    void reportMetrics(SorobanMetrics& metrics) const;
-
     // Returns the entry for the given key, or nullptr if not found.
     std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
 
@@ -407,16 +407,17 @@ class InMemorySorobanState : public NonMovableOrCopyable
 
     // Initialize the map from a bucket list snapshot
     void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap,
-                                     SorobanNetworkConfig const* sorobanConfig,
                                      uint32_t ledgerVersion);
 
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.
-    void updateState(std::vector<LedgerEntry> const& initEntries,
-                     std::vector<LedgerEntry> const& liveEntries,
-                     std::vector<LedgerKey> const& deadEntries,
-                     LedgerHeader const& lh,
-                     SorobanNetworkConfig const* sorobanConfig);
+    void
+    updateState(std::vector<LedgerEntry> const& initEntries,
+                std::vector<LedgerEntry> const& liveEntries,
+                std::vector<LedgerKey> const& deadEntries,
+                LedgerHeader const& lh,
+                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                SorobanMetrics& metrics);
 
     // Should only be called in manual ledger close paths.
     void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
