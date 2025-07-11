@@ -91,6 +91,10 @@ closeLedger(Application& app,
             xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
 
 TransactionResultSet
+closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
+            ParallelSorobanOrder const& parallelSorobanOrder);
+
+TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
@@ -99,7 +103,8 @@ TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false,
-              xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
+              xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
+              ParallelSorobanOrder const& parallelSorobanOrder = {});
 
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 

@@ -497,7 +497,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
     return closeLedgerOn(app, ledgerSeq, getTestDate(day, month, year), txs,
-                         strictOrder);
+                         strictOrder, emptyUpgradeSteps);
 }
 
 TransactionResultSet
@@ -506,7 +506,21 @@ closeLedgerOn(Application& app, int day, int month, int year,
 {
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
     return closeLedgerOn(app, nextLedgerSeq, getTestDate(day, month, year), txs,
-                         strictOrder);
+                         strictOrder, emptyUpgradeSteps);
+}
+
+TransactionResultSet
+closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
+            ParallelSorobanOrder const& parallelSorobanOrder)
+{
+    auto lastCloseTime = app.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+
+    auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, true,
+                         emptyUpgradeSteps, parallelSorobanOrder);
 }
 
 TransactionResultSet
@@ -526,8 +540,12 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
-              xdr::xvector<UpgradeType, 6> const& upgrades)
+              xdr::xvector<UpgradeType, 6> const& upgrades,
+              ParallelSorobanOrder const& parallelSorobanOrder)
 {
+    // Ensure that parallelSorobanOrder is only used with strictOrder
+    REQUIRE((parallelSorobanOrder.empty() || strictOrder));
+
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.scpValue.closeTime;
@@ -539,7 +557,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
     if (strictOrder)
     {
-        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true);
+        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true,
+                                          parallelSorobanOrder);
     }
     else
     {

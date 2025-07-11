@@ -550,7 +550,8 @@ std::pair<std::variant<TxFrameList, TxStageFrameList>,
 applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
 #ifdef BUILD_TESTS
                   ,
-                  bool enforceTxsApplyOrder
+                  bool enforceTxsApplyOrder,
+                  txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
 )
 {
@@ -572,7 +573,27 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
             TxStageFrameList frameList;
             if (!txs.empty())
             {
-                frameList = {{txs}};
+                for (auto const& stageIndexes : parallelSorobanOrder)
+                {
+                    TxStageFrame stage;
+                    for (auto const& threadIndexes : stageIndexes)
+                    {
+                        TxFrameList threadTxs;
+                        for (auto const& txIndex : threadIndexes)
+                        {
+                            threadTxs.push_back(txs.at(txIndex));
+                        }
+                        stage.emplace_back(std::move(threadTxs));
+                    }
+                    frameList.emplace_back(std::move(stage));
+                }
+
+                // If the order is empty, we default to a single
+                // thread with all transactions in it.
+                if (parallelSorobanOrder.empty())
+                {
+                    frameList = {{txs}};
+                }
             }
             includedTxs = frameList;
 
@@ -772,12 +793,13 @@ TxSetXDRFrame::makeFromStoredTxSet(StoredTransactionSet const& storedSet)
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
-                          Application& app, uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset
+makeTxSetFromTransactions(
+    PerPhaseTransactionList const& txPhases, Application& app,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset
 #ifdef BUILD_TESTS
-                          ,
-                          bool skipValidation
+    ,
+    bool skipValidation,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
 )
 {
@@ -787,19 +809,20 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
                                      upperBoundCloseTimeOffset, invalidTxs
 #ifdef BUILD_TESTS
                                      ,
-                                     skipValidation
+                                     skipValidation, parallelSorobanOrder
 #endif
     );
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
-                          Application& app, uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset,
-                          PerPhaseTransactionList& invalidTxs
+makeTxSetFromTransactions(
+    PerPhaseTransactionList const& txPhases, Application& app,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    PerPhaseTransactionList& invalidTxs
 #ifdef BUILD_TESTS
-                          ,
-                          bool skipValidation
+    ,
+    bool skipValidation,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
 )
 {
@@ -843,7 +866,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
             applySurgePricing(phaseType, validatedTxs, app
 #ifdef BUILD_TESTS
                               ,
-                              skipValidation
+                              skipValidation, parallelSorobanOrder
 #endif
             );
         auto inclusionFeeMap = inclusionFeeMapBinding;
@@ -966,22 +989,23 @@ TxSetXDRFrame::makeFromHistoryTransactions(Hash const& previousLedgerHash,
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-makeTxSetFromTransactions(TxFrameList txs, Application& app,
-                          uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset,
-                          bool enforceTxsApplyOrder)
+makeTxSetFromTransactions(
+    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder)
 {
     TxFrameList invalid;
-    return makeTxSetFromTransactions(txs, app, lowerBoundCloseTimeOffset,
-                                     upperBoundCloseTimeOffset, invalid,
-                                     enforceTxsApplyOrder);
+    return makeTxSetFromTransactions(
+        txs, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, invalid,
+        enforceTxsApplyOrder, parallelSorobanOrder);
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-makeTxSetFromTransactions(TxFrameList txs, Application& app,
-                          uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset,
-                          TxFrameList& invalidTxs, bool enforceTxsApplyOrder)
+makeTxSetFromTransactions(
+    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
+    bool enforceTxsApplyOrder,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
@@ -1006,7 +1030,7 @@ makeTxSetFromTransactions(TxFrameList txs, Application& app,
     invalid.resize(perPhaseTxs.size());
     auto res = makeTxSetFromTransactions(
         perPhaseTxs, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        invalid, enforceTxsApplyOrder);
+        invalid, enforceTxsApplyOrder, parallelSorobanOrder);
     if (enforceTxsApplyOrder)
     {
         auto const& resPhases = res.second->getPhases();
