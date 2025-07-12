@@ -20,6 +20,8 @@
 #include "herder/Upgrades.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "transactions/ParallelApplyStage.h"
+#include "xdr/Stellar-types.h"
+#include <unordered_map>
 #ifdef BUILD_TESTS
 #include "herder/ParallelTxSetBuilder.h"
 #endif
@@ -2491,6 +2493,7 @@ LedgerManagerImpl::applyTransactions(
     uint32_t seqPhaseStartIndex, seqPhaseEndIndex;
     std::unique_ptr<GlobalParallelApplyLedgerState> parReExecGlobalState;
     std::unique_ptr<LedgerCloseMetaFrame> parReExecLedgerCloseMeta;
+    std::vector<size_t> parToSeqIndexMap;
     ExecutionCapture parCapture("1st parallel pre-exec"),
         seqCapture("2nd sequential exec");
 #endif
@@ -2507,10 +2510,24 @@ LedgerManagerImpl::applyTransactions(
         {
 #ifdef BUILD_TESTS
             {
+                //   sequential txs are organized in a single vector and
+                //   numbered by the indexing loop 0..N-1.
+                //
+                //   parallel txs are organized into stages and clusters, and
+                //   numbered by the indexing loop 0..N-1 across stages and
+                //   clusters. this order is _not_ the same order as the txs in
+                //   the sequential phase.
+                //
+                //   we have a "tx number" in both cases but to map from one to
+                //   the other we can't just look at the structure of the stages
+                //   and clusters -- the elements don't say where they came from.
+                //   instead we have to build a content-based map from tx to its
+                //   sequential index, and renumber them when comparing metas.
+                //   
                 LedgerTxn ltxTmp(ltx);
                 parReExecGlobalState = maybeCaptureStateForParallelReExec(
                     ltxTmp, phase, index, parReExecApplyStages,
-                    parReExecResults, parReExecHeader);
+                    parReExecResults, parReExecHeader, parToSeqIndexMap);
                 if (parReExecGlobalState)
                 {
                     seqPhaseStartIndex = index;
@@ -2540,7 +2557,7 @@ LedgerManagerImpl::applyTransactions(
                                    seqPhaseStartIndex, seqPhaseEndIndex);
                 seqCapture.capture(mutableTxResults, ledgerCloseMeta,
                                    seqPhaseStartIndex, seqPhaseEndIndex);
-                parCapture.compare(seqCapture);
+                parCapture.compare(seqCapture, parToSeqIndexMap);
                 parReExecGlobalState.reset();
             }
 #endif
@@ -2587,6 +2604,8 @@ LedgerManagerImpl::buildParallelApplyStages(
                     ltx.loadHeader().current().ledgerVersion, index,
                     enableTxMeta);
 
+                CLOG_INFO(Ledger, "Parallel tx #{} = {}", index, hexAbbrev(tx->getFullHash()));
+                
                 // Use txBundle.getTxNum() to get this transactions
                 // index from now on
                 ++index;
@@ -2667,6 +2686,7 @@ LedgerManagerImpl::applySequentialPhase(
             subSeed =
                 subSha256(sorobanBasePrngSeed, static_cast<uint64_t>(index));
         }
+        CLOG_INFO(Ledger, "Sequential tx #{} = {}", index, hexAbbrev(tx->getFullHash()));
 
         tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult, subSeed);
         tx->processPostApply(mApp.getAppConnector(), ltx, tm, mutableTxResult);
@@ -3018,7 +3038,8 @@ std::unique_ptr<GlobalParallelApplyLedgerState>
 LedgerManagerImpl::maybeCaptureStateForParallelReExec(
     AbstractLedgerTxn& ltxParent, TxSetPhaseFrame const& seqPhase,
     uint32_t const phaseStartIndex, std::vector<ApplyStage>& newParApplyStages,
-    std::vector<MutableTxResultPtr>& newParResults, LedgerHeader& parHeader)
+    std::vector<MutableTxResultPtr>& newParResults, LedgerHeader& parHeader,
+    std::vector<size_t> &parToSeqIndexMap)
 {
     try
     {
@@ -3054,11 +3075,13 @@ LedgerManagerImpl::maybeCaptureStateForParallelReExec(
         auto seqTxns = seqPhase.getSequentialTxs();
         TxFrameList parTxns;
         parTxns.reserve(seqTxns.size());
+        std::unordered_map<Hash, size_t> txHashToSeqIdx;
         for (auto const& tx : seqTxns)
         {
             // Create a new transaction frame to avoid modifying the original
             parTxns.emplace_back(TransactionFrameBase::makeTransactionFromWire(
                 mApp.getNetworkID(), tx->getEnvelope()));
+            txHashToSeqIdx.emplace(tx->getFullHash(), txHashToSeqIdx.size());
         }
         SorobanNetworkConfig sCfg = getSorobanNetworkConfigForApply();
         sCfg.setLedgerMaxDependentTxClusters(parallelism);
@@ -3078,6 +3101,7 @@ LedgerManagerImpl::maybeCaptureStateForParallelReExec(
         CLOG_INFO(Ledger, "Built {} parallel stages for testing",
                   parStages.size());
 
+
         // We make a result vector that has the same size as the prefix of
         // results plus the current phase. This makes our parallel re-exec txns
         // all have the same txnum / index as the sequential txs, but means we
@@ -3088,10 +3112,18 @@ LedgerManagerImpl::maybeCaptureStateForParallelReExec(
         {
             newParResults.emplace_back(nullptr);
         }
-        for (auto const& tx : parTxns)
-        {
-            // Create completely fresh result
-            newParResults.emplace_back(tx->createValidationSuccessResult());
+
+        for (auto const& stage : parStages) {
+            for (auto const& cluster: stage) {
+                for (auto const& tx : cluster) {
+                    // Create completely fresh result
+                    newParResults.emplace_back(tx->createValidationSuccessResult());
+                    // Save the par-to-seq index mapping
+                    auto i = txHashToSeqIdx.find(tx->getFullHash());
+                    releaseAssertOrThrow(i != txHashToSeqIdx.end());
+                    parToSeqIndexMap.emplace_back(i->second);
+                }
+            }
         }
 
         newParApplyStages.clear();
@@ -3203,7 +3235,8 @@ differOnlyInFees(TransactionResult const& res1, TransactionResult const& res2)
 } // anonymous namespace
 
 void
-LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other)
+LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other,
+                            std::vector<size_t> const& selfToOtherIndexMap)
 {
     CLOG_INFO(Ledger, "=== BEGIN ExecutionCapture::compare ===");
     if (mTxResults.size() == other.mTxResults.size())
@@ -3211,7 +3244,9 @@ LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other)
         for (auto i = 0; i < mTxResults.size(); ++i)
         {
             auto const& res = mTxResults.at(i);
-            auto const& ores = other.mTxResults.at(i);
+            auto j = selfToOtherIndexMap.at(i);
+            CLOG_INFO(Ledger, "result mapping {} tx {} => {} tx {}", mName, i, other.mName, j);
+            auto const& ores = other.mTxResults.at(j);
             if (!(res == ores))
             {
                 // First check if they differ only in fees
@@ -3238,28 +3273,26 @@ LedgerManagerImpl::ExecutionCapture::compare(ExecutionCapture const& other)
                    mName, mTxResults.size(), other.mName,
                    other.mTxResults.size());
     }
-    if (std::getenv("STELLAR_TEST_PARALLEL_EXECUTION_COMPARE_META"))
+    if (mTxMetas.size() == other.mTxMetas.size())
     {
-        if (mTxMetas.size() == other.mTxMetas.size())
+        for (auto i = 0; i < mTxMetas.size(); ++i)
         {
-            for (auto i = mPhaseStartIndex;
-                 i < std::min(mPhaseEndIndex, (uint32_t)mTxMetas.size()); ++i)
+            auto const& meta = mTxMetas.at(i);
+            auto j = selfToOtherIndexMap.at(i);
+            CLOG_INFO(Ledger, "meta mapping {} tx {} => {} tx {}", mName, i, other.mName, j);
+            auto const& ometa = other.mTxMetas.at(j);
+            if (!(meta == ometa))
             {
-                auto const& meta = mTxMetas.at(i);
-                auto const& ometa = other.mTxMetas.at(i);
-                if (!(meta == ometa))
-                {
-                    xdrcomp::compareTransactionMeta(mName, other.mName, meta,
-                                                    ometa, i);
-                }
+                xdrcomp::compareTransactionMeta(mName, other.mName, meta,
+                                                ometa, i);
             }
         }
-        else
-        {
-            CLOG_ERROR(Ledger, "number of tx metas differ: {} {} vs. {} {}",
-                       mName, mTxMetas.size(), other.mName,
-                       other.mTxMetas.size());
-        }
+    }
+    else
+    {
+        CLOG_ERROR(Ledger, "number of tx metas differ: {} {} vs. {} {}",
+                   mName, mTxMetas.size(), other.mName,
+                   other.mTxMetas.size());
     }
     CLOG_INFO(Ledger, "=== END ExecutionCapture::compare ===");
 }

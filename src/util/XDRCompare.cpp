@@ -1276,7 +1276,7 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 {
                     compareLedgerEntryChanges(
                         name1, name2, op1.changes, op2.changes,
-                        fmt::format("tx {} v0.operations[{}]", txIndex, i));
+                        fmt::format("tx meta {} v0.operations[{}]", txIndex, i));
                 }
             });
         break;
@@ -1287,7 +1287,7 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
         auto const& v1_2 = meta2.v1();
 
         compareLedgerEntryChanges(name1, name2, v1_1.txChanges, v1_2.txChanges,
-                                  fmt::format("tx {} v1.txChanges", txIndex));
+                                  fmt::format("tx meta {} v1.txChanges", txIndex));
 
         compareVector(
             name1, name2, v1_1.operations, v1_2.operations,
@@ -1297,7 +1297,7 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 {
                     compareLedgerEntryChanges(
                         name1, name2, op1.changes, op2.changes,
-                        fmt::format("tx {} v1.operations[{}]", txIndex, i));
+                        fmt::format("tx meta {} v1.operations[{}]", txIndex, i));
                 }
             });
     }
@@ -1310,7 +1310,7 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
 
         compareLedgerEntryChanges(
             name1, name2, v2_1.txChangesBefore, v2_2.txChangesBefore,
-            fmt::format("tx {} v2.txChangesBefore", txIndex));
+            fmt::format("tx meta {} v2.txChangesBefore", txIndex));
 
         compareVector(
             name1, name2, v2_1.operations, v2_2.operations,
@@ -1320,13 +1320,13 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 {
                     compareLedgerEntryChanges(
                         name1, name2, op1.changes, op2.changes,
-                        fmt::format("tx {} v2.operations[{}]", txIndex, i));
+                        fmt::format("tx meta {} v2.operations[{}]", txIndex, i));
                 }
             });
 
         compareLedgerEntryChanges(
             name1, name2, v2_1.txChangesAfter, v2_2.txChangesAfter,
-            fmt::format("tx {} v2.txChangesAfter", txIndex));
+            fmt::format("tx meta {} v2.txChangesAfter", txIndex));
     }
     break;
 
@@ -1338,7 +1338,7 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
         // Compare extension
         if (v3_1.ext.v() != v3_2.ext.v())
         {
-            CLOG_ERROR(Ledger, "tx {} v3 ext version differs: {} {} vs {} {}",
+            CLOG_ERROR(Ledger, "tx meta {} v3 ext version differs: {} {} vs {} {}",
                        txIndex, name1, v3_1.ext.v(), name2, v3_2.ext.v());
         }
         // TransactionMetaV3 has ExtensionPoint, not a versioned extension
@@ -1365,66 +1365,66 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 compareValue(
                     name1, name2, v1ext1.totalNonRefundableResourceFeeCharged,
                     v1ext2.totalNonRefundableResourceFeeCharged,
-                    fmt::format("tx {} soroban non-refundable fee", txIndex));
+                    fmt::format("tx meta {} soroban non-refundable fee", txIndex));
 
                 compareValue(
                     name1, name2, v1ext1.totalRefundableResourceFeeCharged,
                     v1ext2.totalRefundableResourceFeeCharged,
-                    fmt::format("tx {} soroban refundable fee", txIndex));
+                    fmt::format("tx meta {} soroban refundable fee", txIndex));
 
                 compareValue(name1, name2, v1ext1.rentFeeCharged,
                              v1ext2.rentFeeCharged,
-                             fmt::format("tx {} soroban rent fee", txIndex));
+                             fmt::format("tx meta {} soroban rent fee", txIndex));
             }
 
             // Compare events
             compareVector(
                 name1, name2, sm1.events, sm2.events,
-                fmt::format("tx {} soroban event", txIndex),
+                fmt::format("tx meta {} soroban event", txIndex),
                 [&](ContractEvent const& event1, ContractEvent const& event2,
                     size_t i) {
                     compareContractEvent(
                         name1, name2, event1, event2,
-                        fmt::format("tx {} soroban event[{}]", txIndex, i));
+                        fmt::format("tx meta {} soroban event[{}]", txIndex, i));
                 });
 
             // Compare return value
             if (!(sm1.returnValue == sm2.returnValue))
             {
-                CLOG_ERROR(Ledger, "tx {} soroban return value differs",
+                CLOG_ERROR(Ledger, "tx meta {} soroban return value differs",
                            txIndex);
             }
 
             // Compare diagnostic events
             compareVector(
                 name1, name2, sm1.diagnosticEvents, sm2.diagnosticEvents,
-                fmt::format("tx {} soroban diagnostic event", txIndex),
+                fmt::format("tx meta {} soroban diagnostic event", txIndex),
                 [&](DiagnosticEvent const& diag1, DiagnosticEvent const& diag2,
                     size_t i) {
                     compareValue(
                         name1, name2, diag1.inSuccessfulContractCall,
                         diag2.inSuccessfulContractCall,
                         fmt::format(
-                            "tx {} soroban diagnostic event[{}] success flag",
+                            "tx meta {} soroban diagnostic event[{}] success flag",
                             txIndex, i));
 
                     compareContractEvent(
                         name1, name2, diag1.event, diag2.event,
-                        fmt::format("tx {} soroban diagnostic event[{}]",
+                        fmt::format("tx meta {} soroban diagnostic event[{}]",
                                     txIndex, i));
                 });
         }
         else if (v3_1.sorobanMeta || v3_2.sorobanMeta)
         {
             CLOG_ERROR(Ledger,
-                       "tx {} soroban meta presence differs: {} {} vs {} {}",
+                       "tx meta {} soroban meta presence differs: {} {} vs {} {}",
                        txIndex, name1, static_cast<bool>(v3_1.sorobanMeta),
                        name2, static_cast<bool>(v3_2.sorobanMeta));
         }
 
         compareLedgerEntryChanges(
             name1, name2, v3_1.txChangesBefore, v3_2.txChangesBefore,
-            fmt::format("tx {} v3.txChangesBefore", txIndex));
+            fmt::format("tx meta {} v3.txChangesBefore", txIndex));
 
         compareVector(
             name1, name2, v3_1.operations, v3_2.operations,
@@ -1434,13 +1434,13 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 {
                     compareLedgerEntryChanges(
                         name1, name2, op1.changes, op2.changes,
-                        fmt::format("tx {} v3.operations[{}]", txIndex, i));
+                        fmt::format("tx meta {} v3.operations[{}]", txIndex, i));
                 }
             });
 
         compareLedgerEntryChanges(
             name1, name2, v3_1.txChangesAfter, v3_2.txChangesAfter,
-            fmt::format("tx {} v3.txChangesAfter", txIndex));
+            fmt::format("tx meta {} v3.txChangesAfter", txIndex));
     }
     break;
 
@@ -1451,7 +1451,7 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
 
         compareLedgerEntryChanges(
             name1, name2, v4_1.txChangesBefore, v4_2.txChangesBefore,
-            fmt::format("tx {} v4.txChangesBefore", txIndex));
+            fmt::format("tx meta {} v4.txChangesBefore", txIndex));
 
         compareVector(
             name1, name2, v4_1.operations, v4_2.operations,
@@ -1462,13 +1462,13 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 {
                     compareLedgerEntryChanges(
                         name1, name2, op1.changes, op2.changes,
-                        fmt::format("tx {} v4.operations[{}]", txIndex, i));
+                        fmt::format("tx meta {} v4.operations[{}]", txIndex, i));
                 }
             });
 
         compareLedgerEntryChanges(
             name1, name2, v4_1.txChangesAfter, v4_2.txChangesAfter,
-            fmt::format("tx {} v4.txChangesAfter", txIndex));
+            fmt::format("tx meta {} v4.txChangesAfter", txIndex));
 
         // Check Soroban meta presence
         if (v4_1.sorobanMeta && v4_2.sorobanMeta)
@@ -1487,60 +1487,60 @@ compareTransactionMeta(std::string const& name1, std::string const& name2,
                 compareValue(
                     name1, name2, v1ext1.totalNonRefundableResourceFeeCharged,
                     v1ext2.totalNonRefundableResourceFeeCharged,
-                    fmt::format("tx {} soroban non-refundable fee", txIndex));
+                    fmt::format("tx meta {} soroban non-refundable fee", txIndex));
 
                 compareValue(
                     name1, name2, v1ext1.totalRefundableResourceFeeCharged,
                     v1ext2.totalRefundableResourceFeeCharged,
-                    fmt::format("tx {} soroban refundable fee", txIndex));
+                    fmt::format("tx meta {} soroban refundable fee", txIndex));
 
                 compareValue(name1, name2, v1ext1.rentFeeCharged,
                              v1ext2.rentFeeCharged,
-                             fmt::format("tx {} soroban rent fee", txIndex));
+                             fmt::format("tx meta {} soroban rent fee", txIndex));
             }
 
             // Compare optional return value
             compareOptional(name1, name2, sm1.returnValue, sm2.returnValue,
-                            fmt::format("tx {} soroban return value", txIndex));
+                            fmt::format("tx meta {} soroban return value", txIndex));
 
             // Compare events
             compareVector(
                 name1, name2, v4_1.events, v4_2.events,
-                fmt::format("tx {} transaction event", txIndex),
+                fmt::format("tx meta {} transaction event", txIndex),
                 [&](TransactionEvent const& event1,
                     TransactionEvent const& event2, size_t i) {
                     compareValue(
                         name1, name2, static_cast<int>(event1.stage),
                         static_cast<int>(event2.stage),
-                        fmt::format("tx {} transaction event[{}] stage",
+                        fmt::format("tx meta {} transaction event[{}] stage",
                                     txIndex, i));
 
                     compareContractEvent(
                         name1, name2, event1.event, event2.event,
-                        fmt::format("tx {} transaction event[{}]", txIndex, i));
+                        fmt::format("tx meta {} transaction event[{}]", txIndex, i));
                 });
 
             // Compare diagnostic events
             compareVector(
                 name1, name2, v4_1.diagnosticEvents, v4_2.diagnosticEvents,
-                fmt::format("tx {} diagnostic event", txIndex),
+                fmt::format("tx meta {} diagnostic event", txIndex),
                 [&](DiagnosticEvent const& diag1, DiagnosticEvent const& diag2,
                     size_t i) {
                     compareValue(
                         name1, name2, diag1.inSuccessfulContractCall,
                         diag2.inSuccessfulContractCall,
-                        fmt::format("tx {} diagnostic event[{}] success flag",
+                        fmt::format("tx meta {} diagnostic event[{}] success flag",
                                     txIndex, i));
 
                     compareContractEvent(
                         name1, name2, diag1.event, diag2.event,
-                        fmt::format("tx {} diagnostic event[{}]", txIndex, i));
+                        fmt::format("tx meta {} diagnostic event[{}]", txIndex, i));
                 });
         }
         else if (v4_1.sorobanMeta || v4_2.sorobanMeta)
         {
             CLOG_ERROR(Ledger,
-                       "tx {} soroban meta presence differs: {} {} vs {} {}",
+                       "tx meta {} soroban meta presence differs: {} {} vs {} {}",
                        txIndex, name1, static_cast<bool>(v4_1.sorobanMeta),
                        name2, static_cast<bool>(v4_2.sorobanMeta));
         }

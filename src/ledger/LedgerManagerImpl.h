@@ -433,7 +433,7 @@ class LedgerManagerImpl : public LedgerManager
         uint32_t const phaseStartIndex,
         std::vector<ApplyStage>& newParApplyStages,
         std::vector<MutableTxResultPtr>& newParResults,
-        LedgerHeader& parHeader);
+        LedgerHeader& parHeader, std::vector<size_t> &parToSeqIndexMap);
 
     void maybeDoParallelReExec(
         LedgerTxn& ltx, GlobalParallelApplyLedgerState& preSeqPhaseState,
@@ -458,7 +458,8 @@ class LedgerManagerImpl : public LedgerManager
         void capture(std::vector<MutableTxResultPtr> const& mutableTxResults,
                      std::unique_ptr<LedgerCloseMetaFrame> const& lcm,
                      uint32_t phaseStartIndex, uint32_t phaseEndIndex);
-        void compare(ExecutionCapture const& other);
+        void compare(ExecutionCapture const& other,
+                     std::vector<size_t> const& selfToOtherIndexMap);
     };
 
 #endif
