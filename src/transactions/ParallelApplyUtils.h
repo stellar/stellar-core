@@ -268,7 +268,11 @@ class OpParallelApplyLedgerState
   public:
     OpParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent);
     std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
-    bool upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+
+    // Upsert the entry and sets the lastModifiedLedgerSeq to the given ledger
+    // sequence number.
+    bool upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
+                     uint32_t ledgerSeq);
     bool eraseEntryIfExists(LedgerKey const& key);
     bool entryWasRestored(LedgerKey const& key) const;
     void addHotArchiveRestore(LedgerKey const& key, LedgerEntry const& entry,

@@ -3649,13 +3649,22 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             }
 
             // Helper for dual-transaction restore+update scenarios. If
-            // wasDeleted is true, first TX is expected to autorestore then
-            // delete the restored key. Otherwise, first TX is expected to
+            // wasDeletedByFirstTx is true, first TX is expected to autorestore
+            // then delete the restored key. Otherwise, first TX is expected to
             // restore the entry. The 2nd transaction is expected to update the
-            // key to updatedValue.
+            // key to updatedValue, or delete it if wasDeletedBySecondTx is
+            // true.
             auto verifyRestoreAndUpdate = [&](uint32_t updatedValue,
                                               bool restoreRequiresDataWrite,
-                                              bool wasDeleted) {
+                                              bool wasDeletedByFirstTx,
+                                              bool wasDeletedBySecondTx =
+                                                  false) {
+                if (wasDeletedByFirstTx && wasDeletedBySecondTx)
+                {
+                    throw std::runtime_error(
+                        "Cannot delete in both first and second transaction");
+                }
+
                 auto targetLedger = test.getLCLSeq();
 
                 // If restore does not require a write, the data entry should
@@ -3666,8 +3675,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                              : originalLastModifiedLedgerSeq;
                 uint32_t expectedTTLRestoreLastModified = targetLedger;
 
-                // First TX will restore the entry and delete it if wasDeleted
-                // is true.
+                // First TX will restore the entry and delete it if
+                // wasDeletedByFirstTx is true.
                 auto verifyRestoreTx = [&](TransactionMetaFrame const&
                                                restoreTx) {
                     auto const& restoreChanges =
@@ -3675,7 +3684,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     LedgerKeySet keysToRestore = {persistentKey,
                                                   getTTLKey(persistentKey)};
                     LedgerKeySet keysToDelete =
-                        wasDeleted ? keysToRestore : LedgerKeySet{};
+                        wasDeletedByFirstTx ? keysToRestore : LedgerKeySet{};
 
                     for (auto const& change : restoreChanges)
                     {
@@ -3715,18 +3724,38 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     REQUIRE(keysToDelete.empty());
                 };
 
-                // Second TX will recreate the entry if wasDeleted is true, or
-                // update the entry if wasDeleted is false.
+                // Second TX will recreate the entry if wasDeletedByFirstTx is
+                // true, delete it if wasDeletedBySecondTx is true, or update
+                // the entry otherwise.
                 auto verifyUpdateTx = [&](TransactionMetaFrame const&
                                               updateTx) {
-                    LedgerKeySet keysToCreate =
-                        wasDeleted ? LedgerKeySet{persistentKey,
-                                                  getTTLKey(persistentKey)}
-                                   : LedgerKeySet{};
-                    LedgerKeySet keysToUpdate =
-                        wasDeleted ? LedgerKeySet{}
-                                   : LedgerKeySet{persistentKey};
-                    LedgerKeySet expectedStateKeys = keysToUpdate;
+                    LedgerKeySet keysToCreate;
+                    LedgerKeySet keysToUpdate;
+                    LedgerKeySet keysToDelete;
+                    LedgerKeySet expectedStateKeys;
+
+                    if (wasDeletedByFirstTx)
+                    {
+                        // First TX deleted the entry, so second TX must
+                        // recreate it
+                        releaseAssert(wasDeletedBySecondTx == false);
+                        keysToCreate = {persistentKey,
+                                        getTTLKey(persistentKey)};
+                    }
+                    else if (wasDeletedBySecondTx)
+                    {
+                        // First TX restored the entry, second TX will delete it
+                        keysToDelete = {persistentKey,
+                                        getTTLKey(persistentKey)};
+                        expectedStateKeys = keysToDelete;
+                    }
+                    else
+                    {
+                        // Neither TX deletes - first TX restores, second TX
+                        // updates
+                        keysToUpdate = {persistentKey};
+                        expectedStateKeys = keysToUpdate;
+                    }
 
                     auto const& updateChanges =
                         updateTx.getLedgerEntryChangesAtOp(0);
@@ -3762,10 +3791,27 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                             auto le = change.state();
                             REQUIRE(expectedStateKeys.erase(
                                         LedgerEntryKey(le)) == 1);
-                            REQUIRE(le.lastModifiedLedgerSeq ==
-                                    expectedDataRestoreLastModified);
-                            REQUIRE(le.data.contractData().val ==
-                                    makeU64SCVal(kOldValue));
+                            if (LedgerEntryKey(le).type() == CONTRACT_DATA)
+                            {
+                                REQUIRE(le.lastModifiedLedgerSeq ==
+                                        expectedDataRestoreLastModified);
+                                REQUIRE(le.data.contractData().val ==
+                                        makeU64SCVal(kOldValue));
+                            }
+                            else
+                            {
+                                // We should only see TTL state here if we are
+                                // deleting the entry.
+                                REQUIRE(wasDeletedBySecondTx);
+                                REQUIRE(le.lastModifiedLedgerSeq ==
+                                        expectedTTLRestoreLastModified);
+                            }
+                        }
+                        else if (change.type() ==
+                                 LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
+                        {
+                            auto lk = change.removed();
+                            REQUIRE(keysToDelete.erase(lk) == 1);
                         }
                         else
                         {
@@ -3776,6 +3822,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     // Check that we saw all expected keys
                     REQUIRE(keysToUpdate.empty());
                     REQUIRE(keysToCreate.empty());
+                    REQUIRE(keysToDelete.empty());
                 };
 
                 verifyDualTxMeta(targetLedger, verifyRestoreTx, verifyUpdateTx);
@@ -3884,6 +3931,19 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     .setWriteBytes(5000)
                     .setRefundableResourceFee(1'000'000);
 
+            auto createRestoreTx = [&](const LedgerKey& keyToRestore,
+                                       TestAccount* sourceAccount = nullptr) {
+                SorobanResources resources;
+                resources.footprint.readWrite = {keyToRestore};
+                resources.instructions = 0;
+                resources.diskReadBytes = 10'000;
+                resources.writeBytes = 10'000;
+
+                auto resourceFee = 300'000 + 40'000;
+                return test.createRestoreTx(resources, 1'000, resourceFee,
+                                            sourceAccount);
+            };
+
             // Helper to run common restore test cases (used by both evicted
             // and non-evicted sections)
             auto runRestoreTestCases = [&](bool wasEvicted) {
@@ -3940,15 +4000,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                     .setWriteBytes(5000)
                                     .setRefundableResourceFee(1'000'000);
 
-                    SorobanResources resources;
-                    resources.footprint.readWrite = {persistentKey};
-                    resources.instructions = 0;
-                    resources.diskReadBytes = 10'000;
-                    resources.writeBytes = 10'000;
-
-                    auto resourceFee = 300'000 + 40'000;
-                    auto restoreTx =
-                        test.createRestoreTx(resources, 1'000, resourceFee);
+                    auto restoreTx = createRestoreTx(persistentKey);
 
                     auto updateTx =
                         client.getContract()
@@ -3959,13 +4011,32 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                             .withExactNonRefundableResourceFee()
                             .createTx(&acc1);
 
-                    closeLedger(test.getApp(), {restoreTx, updateTx},
-                                /*strictOrder=*/true);
+                    SECTION("same stage")
+                    {
+                        closeLedger(test.getApp(), {restoreTx, updateTx},
+                                    /*strictOrder=*/true);
+                        verifyRestoreAndUpdate(
+                            kUpdatedValue,
+                            /*restoreRequiresDataWrite=*/wasEvicted,
+                            /*wasDeletedByFirstTx=*/false,
+                            /*wasDeletedBySecondTx=*/false);
+                    }
 
-                    verifyRestoreAndUpdate(
-                        kUpdatedValue,
-                        /*restoreRequiresDataWrite=*/wasEvicted,
-                        /*wasDeleted=*/false);
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                    {
+                        SECTION("across stages")
+                        {
+                            closeLedger(test.getApp(), {restoreTx, updateTx},
+                                        {{{0}}, {{1}}});
+                            verifyRestoreAndUpdate(
+                                kUpdatedValue,
+                                /*restoreRequiresDataWrite=*/wasEvicted,
+                                /*wasDeletedByFirstTx=*/false,
+                                /*wasDeletedBySecondTx=*/false);
+                        }
+                    }
                 }
 
                 SECTION("autorestore with delete")
@@ -4005,13 +4076,137 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 spec, /* addContractKeys */ false);
                         auto createTx = createInvocation.createTx(&acc1);
 
-                        closeLedger(test.getApp(), {deleteTx, createTx},
-                                    /*strictOrder=*/true);
+                        SECTION("same stage")
+                        {
+                            closeLedger(test.getApp(), {deleteTx, createTx},
+                                        /*strictOrder=*/true);
 
+                            verifyRestoreAndUpdate(
+                                kUpdatedValue,
+                                /*restoreRequiresDataWrite=*/true,
+                                /*wasDeletedByFirstTx=*/true,
+                                /*wasDeletedBySecondTx=*/false);
+                        }
+
+                        SECTION("across stages")
+                        {
+                            closeLedger(test.getApp(), {deleteTx, createTx},
+                                        {{{0}}, {{1}}});
+
+                            verifyRestoreAndUpdate(
+                                kUpdatedValue,
+                                /*restoreRequiresDataWrite=*/true,
+                                /*wasDeletedByFirstTx=*/true,
+                                /*wasDeletedBySecondTx=*/false);
+                        }
+                    }
+                }
+
+                SECTION("restore, delete value in next tx")
+                {
+                    auto spec = client.defaultSpecWithoutFootprint()
+                                    .setReadWriteFootprint({persistentKey})
+                                    .setReadOnlyFootprint(
+                                        client.getContract().getKeys())
+                                    .setReadBytes(5000)
+                                    .setWriteBytes(5000)
+                                    .setRefundableResourceFee(1'000'000);
+
+                    auto restoreTx = createRestoreTx(persistentKey);
+
+                    auto deleteTx =
+                        client.getContract()
+                            .prepareInvocation("del_persistent",
+                                               {makeSymbolSCVal("key")}, spec,
+                                               false)
+                            .withExactNonRefundableResourceFee()
+                            .createTx(&acc1);
+
+                    SECTION("same stage")
+                    {
+                        closeLedger(test.getApp(), {restoreTx, deleteTx},
+                                    /*strictOrder=*/true);
                         verifyRestoreAndUpdate(
                             kUpdatedValue,
-                            /*restoreRequiresDataWrite=*/true,
-                            /*wasDeleted=*/true);
+                            /*restoreRequiresDataWrite=*/wasEvicted,
+                            /*wasDeletedByFirstTx=*/false,
+                            /*wasDeletedBySecondTx=*/true);
+                    }
+
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                    {
+                        SECTION("across stages")
+                        {
+                            closeLedger(test.getApp(), {restoreTx, deleteTx},
+                                        {{{0}}, {{1}}});
+                            verifyRestoreAndUpdate(
+                                kUpdatedValue,
+                                /*restoreRequiresDataWrite=*/wasEvicted,
+                                /*wasDeletedByFirstTx=*/false,
+                                /*wasDeletedBySecondTx=*/true);
+                        }
+                    }
+                }
+
+                SECTION("autorestore, delete value in next tx")
+                {
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            AUTO_RESTORE_PROTOCOL_VERSION))
+                    {
+                        auto autorestoreInvocation =
+                            client.getContract().prepareInvocation(
+                                "has_persistent", {makeSymbolSCVal("key")},
+                                spec, /* addContractKeys */ false);
+                        auto autorestoreTx =
+                            autorestoreInvocation
+                                .withExactNonRefundableResourceFee()
+                                .createTx();
+
+                        auto deleteSpec =
+                            client.defaultSpecWithoutFootprint()
+                                .setReadWriteFootprint({persistentKey})
+                                .setReadOnlyFootprint(
+                                    client.getContract().getKeys())
+                                .setReadBytes(5000)
+                                .setWriteBytes(5000)
+                                .setRefundableResourceFee(1'000'000);
+
+                        auto deleteInvocation =
+                            client.getContract().prepareInvocation(
+                                "del_persistent", {makeSymbolSCVal("key")},
+                                deleteSpec, /* addContractKeys */ false);
+                        auto deleteTx =
+                            deleteInvocation.withExactNonRefundableResourceFee()
+                                .createTx(&acc1);
+
+                        SECTION("same stage")
+                        {
+                            closeLedger(test.getApp(),
+                                        {autorestoreTx, deleteTx},
+                                        /*strictOrder=*/true);
+
+                            verifyRestoreAndUpdate(
+                                kUpdatedValue,
+                                /*restoreRequiresDataWrite=*/true,
+                                /*wasDeletedByFirstTx=*/false,
+                                /*wasDeletedBySecondTx=*/true);
+                        }
+
+                        SECTION("across stages")
+                        {
+                            closeLedger(test.getApp(),
+                                        {autorestoreTx, deleteTx},
+                                        {{{0}}, {{1}}});
+
+                            verifyRestoreAndUpdate(
+                                kUpdatedValue,
+                                /*restoreRequiresDataWrite=*/true,
+                                /*wasDeletedByFirstTx=*/false,
+                                /*wasDeletedBySecondTx=*/true);
+                        }
                     }
                 }
             };
@@ -7424,52 +7619,67 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
             {makeSymbolSCVal("recreate"), makeU64SCVal(5)}, writeSpec);
         auto tx2 = i2.withExactNonRefundableResourceFee().createTx(&a3);
 
-        auto r = closeLedger(test.getApp(), {tx1, tx2}, true);
-        REQUIRE(r.results.size() == 2);
+        auto check = [&](auto const& r) {
+            REQUIRE(r.results.size() == 2);
 
-        // Make sure the del_temporary tx is first
-        REQUIRE(r.results.at(0).transactionHash == tx1->getContentsHash());
+            // Make sure the del_temporary tx is first
+            REQUIRE(r.results.at(0).transactionHash == tx1->getContentsHash());
 
-        checkResults(r, 2, 0);
+            auto metaMap = readParallelMeta(metaPath);
+            REQUIRE(metaMap.count(test.getLCLSeq()));
 
-        auto metaMap = readParallelMeta(metaPath);
-        REQUIRE(metaMap.count(test.getLCLSeq()));
+            auto& lcm = metaMap[test.getLCLSeq()];
+            normalizeMeta(lcm);
+            REQUIRE(lcm.v2().txProcessing.size() == 2);
 
-        auto& lcm = metaMap[test.getLCLSeq()];
-        normalizeMeta(lcm);
-        REQUIRE(lcm.v2().txProcessing.size() == 2);
+            // Make sure meta looks looks correct
+            // tx1 removes two entries (contract data and ttl), and then tx2
+            // creates them.
+            auto tx1OpChanges = lcm.v2()
+                                    .txProcessing.at(0)
+                                    .txApplyProcessing.v4()
+                                    .operations.at(0)
+                                    .changes;
+            REQUIRE(tx1OpChanges.at(0).type() == LEDGER_ENTRY_STATE);
+            REQUIRE(tx1OpChanges.at(1).type() == LEDGER_ENTRY_REMOVED);
+            REQUIRE(tx1OpChanges.at(2).type() == LEDGER_ENTRY_STATE);
+            REQUIRE(tx1OpChanges.at(3).type() == LEDGER_ENTRY_REMOVED);
 
-        // Make sure meta looks looks correct
-        // tx1 removes two entries (contract data and ttl), and then tx2 creates
-        // them.
-        auto tx1OpChanges = lcm.v2()
-                                .txProcessing.at(0)
-                                .txApplyProcessing.v4()
-                                .operations.at(0)
-                                .changes;
-        REQUIRE(tx1OpChanges.at(0).type() == LEDGER_ENTRY_STATE);
-        REQUIRE(tx1OpChanges.at(1).type() == LEDGER_ENTRY_REMOVED);
-        REQUIRE(tx1OpChanges.at(2).type() == LEDGER_ENTRY_STATE);
-        REQUIRE(tx1OpChanges.at(3).type() == LEDGER_ENTRY_REMOVED);
+            auto tx2OpChanges = lcm.v2()
+                                    .txProcessing.at(1)
+                                    .txApplyProcessing.v4()
+                                    .operations.at(0)
+                                    .changes;
+            REQUIRE(tx2OpChanges.at(0).type() == LEDGER_ENTRY_CREATED);
+            REQUIRE(tx2OpChanges.at(0).type() == LEDGER_ENTRY_CREATED);
 
-        auto tx2OpChanges = lcm.v2()
-                                .txProcessing.at(1)
-                                .txApplyProcessing.v4()
-                                .operations.at(0)
-                                .changes;
-        REQUIRE(tx2OpChanges.at(0).type() == LEDGER_ENTRY_CREATED);
-        REQUIRE(tx2OpChanges.at(0).type() == LEDGER_ENTRY_CREATED);
-
-        auto minTTL =
-            isPersistent
-                ? test.getNetworkCfg().stateArchivalSettings().minPersistentTTL
-                : test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL;
-        auto recreatedTTL = minTTL + test.getLCLSeq() - 1;
-        REQUIRE(tx2OpChanges.at(1).created().data.ttl().liveUntilLedgerSeq ==
+            auto minTTL = isPersistent ? test.getNetworkCfg()
+                                             .stateArchivalSettings()
+                                             .minPersistentTTL
+                                       : test.getNetworkCfg()
+                                             .stateArchivalSettings()
+                                             .minTemporaryTTL;
+            auto recreatedTTL = minTTL + test.getLCLSeq() - 1;
+            REQUIRE(
+                tx2OpChanges.at(1).created().data.ttl().liveUntilLedgerSeq ==
                 recreatedTTL);
 
-        REQUIRE(test.getTTL(client.getContract().getDataKey(
-                    makeSymbolSCVal("recreate"), durability)) == recreatedTTL);
+            REQUIRE(test.getTTL(client.getContract().getDataKey(
+                        makeSymbolSCVal("recreate"), durability)) ==
+                    recreatedTTL);
+        };
+
+        SECTION("same stage")
+        {
+            auto r = closeLedger(test.getApp(), {tx1, tx2}, true);
+            check(r);
+        }
+
+        SECTION("across stages")
+        {
+            auto r = closeLedger(test.getApp(), {tx1, tx2}, {{{0}}, {{1}}});
+            check(r);
+        }
     };
 
     SECTION("delete and re-create persistent entry with lower TTL")

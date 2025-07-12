@@ -323,10 +323,10 @@ class RestoreFootprintParallelApplyHelper
             // No TTL entry opt
             //   => we are _not_ doing a live restore
             //   => we _are_ doing a hot archive restore
-            mOpState.upsertEntry(lk, entry);
+            mOpState.upsertEntry(lk, entry, mLedgerInfo.getLedgerSeq());
             LedgerEntry ttlEntry =
                 getTTLEntryForTTLKey(ttlKey, restoredLiveUntilLedger);
-            mOpState.upsertEntry(ttlKey, ttlEntry);
+            mOpState.upsertEntry(ttlKey, ttlEntry, mLedgerInfo.getLedgerSeq());
             mOpState.addHotArchiveRestore(lk, entry, ttlKey, ttlEntry);
         }
         else
@@ -336,7 +336,7 @@ class RestoreFootprintParallelApplyHelper
             //   => just upsert the updated TTL
             LedgerEntry ttlEntry = ttlEntryOpt.value();
             ttlEntry.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
-            mOpState.upsertEntry(ttlKey, ttlEntry);
+            mOpState.upsertEntry(ttlKey, ttlEntry, mLedgerInfo.getLedgerSeq());
             mOpState.addLiveBucketlistRestore(lk, entry, ttlKey, ttlEntry);
         }
     }
