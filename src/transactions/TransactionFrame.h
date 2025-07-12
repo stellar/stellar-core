@@ -152,7 +152,7 @@ class TransactionFrame : public TransactionFrameBase
     FeePair
     computePreApplySorobanResourceFee(uint32_t protocolVersion,
                                       SorobanNetworkConfig const& sorobanConfig,
-                                      Config const& cfg) const;
+                                      Config const& cfg) const override;
 
   public:
     TransactionFrame(Hash const& networkID,

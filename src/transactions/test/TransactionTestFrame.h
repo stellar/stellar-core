@@ -53,6 +53,11 @@ class TransactionTestFrame : public TransactionFrameBase
     TransactionFrame const& getRawTransactionFrame() const;
     TransactionFrameBasePtr getTxFramePtr() const;
 
+    FeePair
+    computePreApplySorobanResourceFee(uint32_t protocolVersion,
+                                      SorobanNetworkConfig const& sorobanConfig,
+                                      Config const& cfg) const override;
+
     // Redefinitions of TransactionFrameBase functions
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,

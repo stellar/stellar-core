@@ -128,6 +128,14 @@ class ParallelTxReturnVal
 
 class TransactionFrameBase
 {
+#ifdef BUILD_TESTS
+  public:
+#endif
+    virtual FeePair
+    computePreApplySorobanResourceFee(uint32_t protocolVersion,
+                                      SorobanNetworkConfig const& sorobanConfig,
+                                      Config const& cfg) const = 0;
+
   public:
     static TransactionFrameBasePtr
     makeTransactionFromWire(Hash const& networkID,
