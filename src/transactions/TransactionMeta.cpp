@@ -379,11 +379,6 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
             {
                 changes.emplace_back(LEDGER_ENTRY_UPDATED);
                 changes.back().updated() = *le;
-                // TODO: Find a better way to set lastModifiedLedgerSeq
-                // lastModifiedLedgerSeq will be set by the ltx commit
-                // later but we need to do this here so meta is
-                // generated correctly.
-                changes.back().updated().lastModifiedLedgerSeq = ledgerSeq;
             }
             else
             {

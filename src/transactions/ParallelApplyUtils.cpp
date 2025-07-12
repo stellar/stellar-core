@@ -360,7 +360,7 @@ bool
 ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
                                               LedgerEntry const& entry)
 {
-    return mOpState.upsertEntry(key, entry);
+    return mOpState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
 }
 
 bool
@@ -864,7 +864,8 @@ OpParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
 
 bool
 OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
-                                        LedgerEntry const& entry)
+                                        LedgerEntry const& entry,
+                                        uint32_t ledgerSeq)
 {
     // There are 4 cases:
     //
@@ -896,7 +897,10 @@ OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                std::this_thread::get_id(),
                liveEntryExistedAlready ? "already-live" : "new",
                xdr::xdr_to_string(key, "key"));
-    mOpEntryMap[key] = entry;
+
+    // Weird syntax avoids redundant map lookup
+    auto& mapEntry = mOpEntryMap[key] = entry;
+    mapEntry->lastModifiedLedgerSeq = ledgerSeq;
     return !liveEntryExistedAlready;
 }
 

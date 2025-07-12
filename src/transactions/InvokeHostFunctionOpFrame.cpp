@@ -977,10 +977,11 @@ class InvokeHostFunctionParallelApplyHelper
             LedgerEntry ttlEntry;
             if (isHotArchiveEntry)
             {
-                mOpState.upsertEntry(lk, le);
+                mOpState.upsertEntry(lk, le, mLedgerInfo.getLedgerSeq());
                 ttlEntry =
                     getTTLEntryForTTLKey(ttlKey, restoredLiveUntilLedger);
-                mOpState.upsertEntry(ttlKey, ttlEntry);
+                mOpState.upsertEntry(ttlKey, ttlEntry,
+                                     mLedgerInfo.getLedgerSeq());
                 mOpState.addHotArchiveRestore(lk, le, ttlKey, ttlEntry);
             }
             else
@@ -991,7 +992,8 @@ class InvokeHostFunctionParallelApplyHelper
                 ttlEntry = *ttlLeOpt;
                 ttlEntry.data.ttl().liveUntilLedgerSeq =
                     restoredLiveUntilLedger;
-                mOpState.upsertEntry(ttlKey, ttlEntry);
+                mOpState.upsertEntry(ttlKey, ttlEntry,
+                                     mLedgerInfo.getLedgerSeq());
                 mOpState.addLiveBucketlistRestore(lk, le, ttlKey, ttlEntry);
             }
 
