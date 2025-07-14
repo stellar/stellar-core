@@ -1964,7 +1964,20 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         // There should be no change to a1's balance
         REQUIRE(a1.getBalance() == a1StartingBalance);
 
-        auto const& txEvents = test.getLastTxMeta().getTxEvents();
+        // Verify refund meta
+        auto const& txm = test.getLastTxMeta();
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : test.getLastLcm().getPostTxApplyFeeProcessing(0);
+
+        auto const& txEvents = txm.getTxEvents();
+
+        REQUIRE(refundChanges.size() == 2);
+        REQUIRE(refundChanges[1].updated().data.account().balance -
+                    refundChanges[0].state().data.account().balance ==
+                expectedRefund);
 
         REQUIRE(txEvents.size() == 2);
         validateFeeEvent(txEvents[0], feeBumper.getPublicKey(), initialFee,
@@ -8183,7 +8196,7 @@ TEST_CASE("delete non existent entry with parallel apply",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
-TEST_CASE_VERSIONS("merge account then do SAC payment to the merged account",
+TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
                    "[tx][soroban][parallelapply]")
 {
     Config cfg = getTestConfig();
@@ -8202,34 +8215,172 @@ TEST_CASE_VERSIONS("merge account then do SAC payment to the merged account",
         auto b1 = test.getRoot().create("B", startingBalance);
         auto c1 = test.getRoot().create("C", startingBalance);
 
-        // Classic transaction: merge account a1 into b1
-        auto classicTx = a1.tx({accountMerge(b1.getPublicKey())});
+        SECTION("SAC payment to the merged account")
+        {
+            // Classic transaction: merge account a1 into b1
+            auto classicTx = a1.tx({accountMerge(b1.getPublicKey())});
 
-        // Soroban transaction: SAC payment to the merged account (a1) - this
-        // should fail
-        auto a1Addr = makeAccountAddress(a1.getPublicKey());
-        auto sacTx =
-            assetClient.getTransferTx(c1, a1Addr, 50, true /*sourceIsRoot*/);
+            // Soroban transaction: SAC payment to the merged account (a1) -
+            // this should fail
+            auto a1Addr = makeAccountAddress(a1.getPublicKey());
+            auto sacTx = assetClient.getTransferTx(c1, a1Addr, 50,
+                                                   true /*sourceIsRoot*/);
 
-        std::vector<TransactionFrameBasePtr> txs = {classicTx, sacTx};
-        auto r = closeLedger(test.getApp(), txs);
-        REQUIRE(r.results.size() == 2);
+            std::vector<TransactionFrameBasePtr> txs = {classicTx, sacTx};
+            auto r = closeLedger(test.getApp(), txs);
+            REQUIRE(r.results.size() == 2);
 
-        checkTx(0, r, txSUCCESS);
-        checkTx(1, r, txFAILED);
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txFAILED);
 
-        // Verify that a1 no longer exists after the merge
-        LedgerSnapshot ls(test.getApp());
-        REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            // Verify that a1 no longer exists after the merge
+            LedgerSnapshot ls(test.getApp());
+            REQUIRE(!ls.getAccount(a1.getPublicKey()));
 
-        // Verify that b1 received a1's balance (minus merge fee)
-        auto expectedBalance =
-            startingBalance +
-            (startingBalance - r.results.at(0).result.feeCharged);
-        REQUIRE(b1.getBalance() == expectedBalance);
+            // Verify that b1 received a1's balance (minus merge fee)
+            auto expectedBalance =
+                startingBalance +
+                (startingBalance - r.results.at(0).result.feeCharged);
+            REQUIRE(b1.getBalance() == expectedBalance);
 
-        // Verify that c1's balance remains unchanged
-        REQUIRE(c1.getBalance() == startingBalance);
+            // Verify that c1's balance remains unchanged
+            REQUIRE(c1.getBalance() == startingBalance);
+        }
+
+        SECTION("SAC payment from the merged account")
+        {
+            // Classic transaction: merge account a1 into b1
+            auto classicTx = a1.tx({accountMerge(b1.getPublicKey())});
+
+            // Soroban transaction: SAC payment from the merged account (a1) to
+            // c1 with root as source - this should fail
+            auto c1Addr = makeAccountAddress(c1.getPublicKey());
+            auto sacTx = assetClient.getTransferTx(a1, c1Addr, 50,
+                                                   true /*sourceIsRoot*/);
+
+            std::vector<TransactionFrameBasePtr> txs = {classicTx, sacTx};
+            auto r = closeLedger(test.getApp(), txs);
+            REQUIRE(r.results.size() == 2);
+
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txFAILED);
+
+            // Verify that a1 no longer exists after the merge
+            LedgerSnapshot ls(test.getApp());
+            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+
+            // Verify that b1 received a1's balance (minus merge fee)
+            auto expectedBalance =
+                startingBalance +
+                (startingBalance - r.results.at(0).result.feeCharged);
+            REQUIRE(b1.getBalance() == expectedBalance);
+
+            // Verify that c1's balance remains unchanged (no payment occurred)
+            REQUIRE(c1.getBalance() == startingBalance);
+        }
+
+        SECTION("SAC payment with merged account as source")
+        {
+            // Classic transaction: merge account a1 into b1 (using a1 as
+            // source)
+            auto mergeOp = accountMerge(b1.getPublicKey());
+            mergeOp.sourceAccount.activate() =
+                toMuxedAccount(a1.getPublicKey());
+
+            auto classicMergeTx = c1.tx({mergeOp});
+            classicMergeTx->addSignature(a1.getSecretKey());
+
+            // Soroban transaction: SAC payment from the merged account (a1) to
+            // c1 with a1 as source - this should fail with txNO_ACCOUNT
+            auto c1Addr = makeAccountAddress(c1.getPublicKey());
+            auto sacTx = assetClient.getTransferTx(a1, c1Addr, 50);
+
+            std::vector<TransactionFrameBasePtr> txs = {classicMergeTx, sacTx};
+            auto r = closeLedger(test.getApp(), txs);
+            REQUIRE(r.results.size() == 2);
+
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txNO_ACCOUNT);
+
+            // Verify that a1 no longer exists after the merge
+            LedgerSnapshot ls(test.getApp());
+            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+
+            // Verify that b1 received a1's balance (minus the soroban
+            // transactions fee which a1 paid before it was merged).
+            auto expectedBalance =
+                startingBalance +
+                (startingBalance - r.results.at(1).result.feeCharged);
+            REQUIRE(b1.getBalance() == expectedBalance);
+
+            // Verify that c1's balance remains unchanged other than the fee
+            REQUIRE(c1.getBalance() ==
+                    startingBalance - r.results.at(0).result.feeCharged);
+        }
+    });
+}
+
+TEST_CASE_VERSIONS("trustline deletion then SAC payment",
+                   "[tx][soroban][parallelapply]")
+{
+    Config cfg = getTestConfig();
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+
+        // Create non-native asset
+        auto issuerKey = getAccount("issuer");
+        Asset idr = makeAsset(issuerKey, "IDR");
+        AssetContractTestClient assetClient(test, idr);
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        auto issuer = test.getRoot().create("issuer", startingBalance);
+        auto holder = test.getRoot().create("holder", startingBalance);
+        auto otherAccount = test.getRoot().create("other", startingBalance);
+        auto recipient = test.getRoot().create("recipient", startingBalance);
+
+        // Create trustline and fund it
+        holder.changeTrust(idr, 1000);
+        issuer.pay(holder, idr, 500);
+        recipient.changeTrust(idr, 1000);
+
+        REQUIRE(holder.getTrustlineBalance(idr) == 500);
+
+        auto issuerAddr = makeAccountAddress(issuer.getPublicKey());
+        auto holderAddr = makeAccountAddress(holder.getPublicKey());
+        auto recipientAddr = makeAccountAddress(recipient.getPublicKey());
+
+        // First transaction: send balance back to issuer
+        auto payTx = holder.tx({payment(issuer, idr, 500)});
+
+        // Second transaction: delete trustline (using different source
+        // account)
+        auto deleteTrustlineOp = changeTrust(idr, 0);
+        deleteTrustlineOp.sourceAccount.activate() =
+            toMuxedAccount(holder.getPublicKey());
+        auto deleteTx = otherAccount.tx({deleteTrustlineOp});
+        deleteTx->addSignature(holder.getSecretKey());
+
+        // Third transaction: Soroban SAC payment attempt from deleted
+        // trustline
+        auto sacTx = assetClient.getTransferTx(holder, recipientAddr, 50,
+                                               true /*sourceIsRoot*/);
+
+        std::vector<TransactionFrameBasePtr> txs = {payTx, deleteTx, sacTx};
+        auto r = closeLedger(test.getApp(), txs, /*strictOrder=*/true);
+        REQUIRE(r.results.size() == 3);
+
+        checkTx(0, r, txSUCCESS); // payment succeeds
+        checkTx(1, r, txSUCCESS); // trustline deletion succeeds
+        checkTx(2, r, txFAILED);  // SAC payment fails (no trustline)
+
+        REQUIRE(!holder.hasTrustLine(idr));
+        REQUIRE(recipient.getTrustlineBalance(idr) == 0);
     });
 }
 
@@ -9256,4 +9407,213 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         // The final TTL should be based on the last extend operation
         REQUIRE(test.getTTL(lk) == test.getLCLSeq() + 250);
     }
+}
+
+TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
+{
+    Config cfg = getTestConfig();
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        ContractStorageTestClient client(test);
+
+        auto& lm = test.getApp().getLedgerManager();
+        const int64_t startingBalance = lm.getLastMinBalance(50);
+        auto& root = test.getRoot();
+
+        // Create test accounts
+        auto a1 = root.create("a1", startingBalance);
+        auto a2 = root.create("a2", startingBalance);
+        auto a3 = root.create("a3", startingBalance);
+        auto a4 = root.create("a4", startingBalance);
+        auto a5 = root.create("a5", startingBalance);
+        auto a6 = root.create("a6", startingBalance);
+        auto a7 = root.create("a7", startingBalance);
+
+        REQUIRE(client.put("key2", ContractDataDurability::PERSISTENT, 50) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+
+        // Stage 0
+        auto putTx1 = client.getContract()
+                          .prepareInvocation(
+                              "put_persistent",
+                              {makeSymbolSCVal("key1"), makeU64SCVal(100)},
+                              client.writeKeySpec(
+                                  "key1", ContractDataDurability::PERSISTENT))
+                          .withExactNonRefundableResourceFee()
+                          .createTx(&a1);
+
+        auto putTx2 = client.getContract()
+                          .prepareInvocation(
+                              "put_persistent",
+                              {makeSymbolSCVal("key2"), makeU64SCVal(200)},
+                              client.writeKeySpec(
+                                  "key2", ContractDataDurability::PERSISTENT))
+                          .withExactNonRefundableResourceFee()
+                          .createTx(&a2);
+
+        auto getTx1 = client.getContract()
+                          .prepareInvocation(
+                              "get_persistent", {makeSymbolSCVal("key2")},
+                              client.readKeySpec(
+                                  "key2", ContractDataDurability::PERSISTENT))
+                          .withExactNonRefundableResourceFee()
+                          .createTx(&a3);
+
+        // Stage 1
+        auto getTx2 = client.getContract()
+                          .prepareInvocation(
+                              "get_persistent", {makeSymbolSCVal("key1")},
+                              client.readKeySpec(
+                                  "key1", ContractDataDurability::PERSISTENT))
+                          .withExactNonRefundableResourceFee()
+                          .createTx(&a4);
+
+        auto getTx3 = client.getContract()
+                          .prepareInvocation(
+                              "get_persistent", {makeSymbolSCVal("key2")},
+                              client.readKeySpec(
+                                  "key2", ContractDataDurability::PERSISTENT))
+                          .withExactNonRefundableResourceFee()
+                          .createTx(&a5);
+
+        // Stage 2
+        auto updateTx = client.getContract()
+                            .prepareInvocation(
+                                "put_persistent",
+                                {makeSymbolSCVal("key1"), makeU64SCVal(300)},
+                                client.writeKeySpec(
+                                    "key1", ContractDataDurability::PERSISTENT))
+                            .withExactNonRefundableResourceFee()
+                            .createTx(&a6);
+
+        auto getTx4 = client.getContract()
+                          .prepareInvocation(
+                              "get_persistent", {makeSymbolSCVal("key1")},
+                              client.readKeySpec(
+                                  "key1", ContractDataDurability::PERSISTENT))
+                          .withExactNonRefundableResourceFee()
+                          .createTx(&a7);
+
+        auto r = closeLedger(
+            test.getApp(),
+            {getTx1, putTx1, putTx2, getTx2, getTx3, updateTx, getTx4},
+            {{{0, 2}, {1}}, {{3}, {4}}, {{5, 6}}});
+
+        REQUIRE(r.results.size() == 7);
+        checkResults(r, 7, 0);
+
+        // Verify return values through metadata
+        auto const& txMetas = lm.getLastClosedLedgerTxMeta();
+
+        // getTx1 should return the state from the last ledger for key2
+        auto getTx1Meta = txMetas.at(0);
+        auto getTx1ReturnValue = getTx1Meta.getReturnValue();
+        REQUIRE(getTx1ReturnValue.u64() == 50);
+
+        // getTx2 should return the key1 value after it was updated
+        auto getTx2Meta = txMetas.at(3);
+        auto getTx2ReturnValue = getTx2Meta.getReturnValue();
+        REQUIRE(getTx2ReturnValue.u64() == 100);
+
+        // getTx3 should return the key2 value after it was updated
+        auto getTx3Meta = txMetas.at(4);
+        auto getTx3ReturnValue = getTx3Meta.getReturnValue();
+        REQUIRE(getTx3ReturnValue.u64() == 200);
+
+        // getTx4 should return 300 (updated key1 value)
+        auto getTx4Meta = txMetas.at(6);
+        auto getUpdatedReturnValue = getTx4Meta.getReturnValue();
+        REQUIRE(getUpdatedReturnValue.u64() == 300);
+
+        // Additional verification: Check that the storage actually contains the
+        // expected values
+        REQUIRE(client.get("key1", ContractDataDurability::PERSISTENT, 300) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+        REQUIRE(client.get("key2", ContractDataDurability::PERSISTENT, 200) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+    });
+}
+
+TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
+                   "on soroban fee bump",
+                   "[tx][soroban][merge][feebump]")
+{
+    Config cfg = getTestConfig();
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    // From 21 so we don't have to handle the feeCharged issues from v20 in this
+    // test.
+    for_versions_from(21, *app, [&] {
+        SorobanTest test(app);
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        auto innerAccount = test.getRoot().create("inner", startingBalance);
+        auto feeBumper = test.getRoot().create("feeBumper", startingBalance);
+        auto destination =
+            test.getRoot().create("destination", startingBalance);
+        auto secondFeeBumper =
+            test.getRoot().create("feeBumper2", startingBalance);
+
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, test.getLedgerVersion());
+
+        // Create classic transaction that merges innerAccount into destination
+        auto mergeOp = accountMerge(destination);
+        mergeOp.sourceAccount.activate() = toMuxedAccount(innerAccount);
+        auto classicMergeTx = destination.tx({mergeOp});
+        classicMergeTx->addSignature(innerAccount.getSecretKey());
+
+        // Fee bump the merge transaction with feeBumper
+        int64_t mergeFee = classicMergeTx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpMergeTx =
+            feeBump(test.getApp(), feeBumper, classicMergeTx, mergeFee,
+                    /*useInclusionAsFullFee=*/true);
+
+        // Create soroban transaction using the account that will be merged
+        auto sorobanTx = makeSorobanWasmUploadTx(test.getApp(), innerAccount,
+                                                 wasm, resources, 100);
+
+        // Create fee bump transaction wrapping the soroban tx with the merged
+        // account as inner
+        int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpSorobanTx =
+            feeBump(test.getApp(), secondFeeBumper, sorobanTx, feeBumpFullFee,
+                    /*useInclusionAsFullFee=*/true);
+
+        std::vector<TransactionFrameBasePtr> txs = {feeBumpMergeTx,
+                                                    feeBumpSorobanTx};
+        auto r = closeLedger(test.getApp(), txs);
+        REQUIRE(r.results.size() == 2);
+
+        checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
+        checkTx(1, r, txFEE_BUMP_INNER_FAILED);
+
+        auto const& innerRes =
+            r.results[1].result.result.innerResultPair().result;
+        REQUIRE(innerRes.result.code() == txNO_ACCOUNT);
+
+        // Verify that innerAccount no longer exists after the merge
+        LedgerSnapshot ls(test.getApp());
+        REQUIRE(!ls.getAccount(innerAccount.getPublicKey()));
+
+        auto expectedDestinationBalance = startingBalance + startingBalance;
+        REQUIRE(destination.getBalance() == expectedDestinationBalance);
+
+        // Verify feeBumper paid the fee for the merge transaction
+        REQUIRE(feeBumper.getBalance() ==
+                startingBalance - r.results.at(0).result.feeCharged);
+
+        // Verify secondFeeBumper paid the fee for the failed soroban
+        // transaction
+        REQUIRE(secondFeeBumper.getBalance() ==
+                startingBalance - r.results.at(1).result.feeCharged);
+    });
 }
