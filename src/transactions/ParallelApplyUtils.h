@@ -105,7 +105,8 @@ class ThreadParallelApplyLedgerState
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
-    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry);
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
+                     uint32_t ledgerSeq);
     void eraseEntry(LedgerKey const& key);
     void
     commitChangeFromSuccessfulOp(LedgerKey const& key,

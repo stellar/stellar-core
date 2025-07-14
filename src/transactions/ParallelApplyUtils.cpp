@@ -658,7 +658,7 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
             releaseAssertOrThrow(ttlEntry);
             releaseAssertOrThrow(ttl(ttlEntry) <= b->second);
             ttl(ttlEntry) = b->second;
-            upsertEntry(ttlKey, ttlEntry.value());
+            upsertEntry(ttlKey, ttlEntry.value(), getSnapshotLedgerSeq() + 1);
             mRoTTLBumps.erase(b);
         }
     }
@@ -677,7 +677,7 @@ ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
         {
             auto updated = entryOpt.value();
             ttl(updated) = ttlBump;
-            upsertEntry(lk, updated);
+            upsertEntry(lk, updated, getSnapshotLedgerSeq() + 1);
         }
     }
 }
@@ -733,9 +733,13 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
 
 void
 ThreadParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
-                                            LedgerEntry const& entry)
+                                            LedgerEntry const& entry,
+                                            uint32_t ledgerSeq)
 {
-    mThreadEntryMap[key] = ParallelApplyEntry::dirtyPopulated(entry);
+    // Weird syntax avoid extra map lookup
+    auto& mapEntry = mThreadEntryMap[key] =
+        ParallelApplyEntry::dirtyPopulated(entry);
+    mapEntry.mLedgerEntry->lastModifiedLedgerSeq = ledgerSeq;
 }
 void
 ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
@@ -757,7 +761,7 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
     }
     else if (entryOpt)
     {
-        upsertEntry(key, entryOpt.value());
+        upsertEntry(key, entryOpt.value(), getSnapshotLedgerSeq() + 1);
     }
     else
     {

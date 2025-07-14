@@ -4671,26 +4671,6 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                 }
             }
 
-            SECTION("manual restore across stages")
-            {
-                SorobanResources restoreResources;
-                restoreResources.footprint.readWrite = {lk};
-                restoreResources.instructions = 0;
-                restoreResources.diskReadBytes = 10'000;
-                restoreResources.writeBytes = 10'000;
-
-                auto resourceFee = 300'000 + 40'000;
-                auto restoreTx =
-                    test.createRestoreTx(restoreResources, 1'000, resourceFee);
-
-                closeLedger(test.getApp(), {restoreTx, extendTx},
-                            {{{0}}, {{1}}});
-
-                // Require that the restore went through and the entry could be
-                // bumped in the subsequent TX
-                REQUIRE(test.getTTL(lk) == bumpLedgers + test.getLCLSeq());
-            }
-
             SECTION("autorestore")
             {
                 auto writeInvocation = client.getContract().prepareInvocation(
@@ -4857,6 +4837,112 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                     REQUIRE(client.has("key",
                                        ContractDataDurability::PERSISTENT,
                                        false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+            }
+
+            SECTION("failed auto restores and manual restores across stages")
+            {
+                auto autoRestoreSrcAccount =
+                    test.getRoot().create("autoRestore", 500000000);
+                auto manualRestoreSrcAccount =
+                    test.getRoot().create("manualRestore", 500000000);
+                auto manualRestore2SrcAccount =
+                    test.getRoot().create("manualRestore2", 500000000);
+
+                // Create an auto restore transaction with intentionally low
+                // refundable fee
+                auto autoRestoreSpec =
+                    client
+                        .writeKeySpec("key", ContractDataDurability::PERSISTENT)
+                        .setArchivedIndexes({0})
+                        .setRefundableResourceFee(79084); // Too low
+                auto autoRestoreInvocation =
+                    client.getContract().prepareInvocation(
+                        "put_persistent",
+                        {makeSymbolSCVal("key"), makeU64SCVal(456)},
+                        autoRestoreSpec);
+                auto autoRestoreTx =
+                    autoRestoreInvocation.createTx(&autoRestoreSrcAccount);
+
+                // Create a manual restore transaction with intentionally low
+                // refundable fee
+                SorobanResources manualRestoreResources;
+                manualRestoreResources.footprint.readWrite = {lk};
+                manualRestoreResources.instructions = 0;
+                manualRestoreResources.diskReadBytes = 10'000;
+                manualRestoreResources.writeBytes = 10'000;
+
+                auto manualRestoreTx = test.createRestoreTx(
+                    manualRestoreResources, 69'500, 69'477,
+                    &manualRestoreSrcAccount); // resourceFee = 1 (too low)
+                auto manualRestoreTx2 = test.createRestoreTx(
+                    manualRestoreResources, 200'000, 100'000,
+                    &manualRestore2SrcAccount); // resourceFee = 1 (too low)
+
+                SECTION("two failed restores across stages")
+                {
+                    auto r = closeLedger(test.getApp(),
+                                         {autoRestoreTx, manualRestoreTx},
+                                         {{{0}}, {{1}}});
+                    REQUIRE(r.results.size() == 2);
+
+                    checkTx(0, r, txFAILED);
+                    checkTx(1, r, txFAILED);
+
+                    REQUIRE(r.results[0]
+                                .result.result.results()[0]
+                                .tr()
+                                .invokeHostFunctionResult()
+                                .code() ==
+                            INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
+
+                    REQUIRE(r.results[1]
+                                .result.result.results()[0]
+                                .tr()
+                                .restoreFootprintResult()
+                                .code() ==
+                            RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
+
+                    // Verify the key is still archived after failed restore
+                    // attempts
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       std::nullopt) ==
+                            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                }
+                SECTION("two failed restores and a successful restore in the "
+                        "same stage")
+                {
+                    // Test failed transactions across stages
+                    auto r = closeLedger(
+                        test.getApp(),
+                        {autoRestoreTx, manualRestoreTx, manualRestoreTx2},
+                        {{{0, 1, 2}}});
+                    REQUIRE(r.results.size() == 3);
+
+                    // Both transactions should fail due to insufficient
+                    // refundable fee
+                    checkTx(0, r, txFAILED);
+                    checkTx(1, r, txFAILED);
+                    checkTx(2, r, txSUCCESS);
+
+                    REQUIRE(r.results[0]
+                                .result.result.results()[0]
+                                .tr()
+                                .invokeHostFunctionResult()
+                                .code() ==
+                            INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
+
+                    REQUIRE(r.results[1]
+                                .result.result.results()[0]
+                                .tr()
+                                .restoreFootprintResult()
+                                .code() ==
+                            RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       true) == INVOKE_HOST_FUNCTION_SUCCESS);
                 }
             }
         }
@@ -8901,5 +8987,273 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
                     .getLedgerManager()
                     .getSorobanInMemoryStateSizeForTesting() ==
                 stateSizeAfterUpgrade);
+    }
+}
+
+TEST_CASE("readonly ttl bumps across threads and stages",
+          "[tx][soroban][archival]")
+{
+    auto cfg = getTestConfig();
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.stateArchivalSettings().minPersistentTTL = 100;
+        cfg.stateArchivalSettings().maxEntriesToArchive = 100;
+    });
+
+    ContractStorageTestClient client(test);
+
+    // Extend contract keys to ensure they don't expire during test
+    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+    // Create a single persistent entry that all operations will target
+    client.put("key", ContractDataDurability::PERSISTENT, 100);
+
+    auto lk = client.getContract().getDataKey(
+        makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+    auto verifyTTLMeta = [&](int txIndex, uint32_t expectedStateTTL,
+                             uint32_t expectedUpdatedTTL,
+                             uint32_t expectedStateLastModified) {
+        auto& lm = test.getApp().getLedgerManager();
+        auto opMeta = lm.getLastClosedLedgerTxMeta()
+                          .at(txIndex)
+                          .getLedgerEntryChangesAtOp(0);
+        REQUIRE(opMeta.at(0).state().data.ttl().liveUntilLedgerSeq ==
+                expectedStateTTL);
+        REQUIRE(opMeta.at(0).state().lastModifiedLedgerSeq ==
+                expectedStateLastModified);
+        REQUIRE(opMeta.at(1).updated().data.ttl().liveUntilLedgerSeq ==
+                expectedUpdatedTTL);
+        REQUIRE(opMeta.at(1).updated().lastModifiedLedgerSeq ==
+                test.getLCLSeq());
+    };
+
+    SECTION("multiple readonly ttl bumps same stage")
+    {
+        // Create multiple extend operations targeting the same key with
+        // readonly footprints
+        auto a1 = test.getRoot().create("extend1", 500000000);
+        auto a2 = test.getRoot().create("extend2", 500000000);
+        auto a3 = test.getRoot().create("extend3", 500000000);
+
+        SorobanResources extendResources;
+        extendResources.footprint.readOnly = {lk};
+        extendResources.instructions = 0;
+        extendResources.diskReadBytes = 1000;
+
+        auto extendTx1 =
+            test.createExtendOpTx(extendResources, 500, 1'000, 50'000, &a1);
+        auto extendTx2 =
+            test.createExtendOpTx(extendResources, 600, 1'000, 50'000, &a2);
+        auto extendTx3 =
+            test.createExtendOpTx(extendResources, 700, 1'000, 50'000, &a3);
+
+        auto startingTTL = test.getTTL(lk);
+
+        // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
+        LedgerSnapshot ls(test.getApp());
+        auto ttlKey = getTTLKey(lk);
+        auto ttlEntry = ls.load(ttlKey);
+        REQUIRE(ttlEntry);
+        uint32_t ttlLastModifiedBeforeTx =
+            ttlEntry.current().lastModifiedLedgerSeq;
+
+        // Execute all extends in the same stage
+        auto r = closeLedger(test.getApp(), {extendTx1, extendTx2, extendTx3},
+                             /*strictOrder=*/true);
+        REQUIRE(r.results.size() == 3);
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txSUCCESS);
+        checkTx(2, r, txSUCCESS);
+
+        // Verify TTL meta for each transaction
+        // All transactions in same stage see the same starting state
+        verifyTTLMeta(0, startingTTL, test.getLCLSeq() + 500,
+                      ttlLastModifiedBeforeTx);
+        verifyTTLMeta(1, startingTTL, test.getLCLSeq() + 600,
+                      ttlLastModifiedBeforeTx);
+        verifyTTLMeta(2, startingTTL, test.getLCLSeq() + 700,
+                      ttlLastModifiedBeforeTx);
+
+        // The final TTL should be based on the last extend operation
+        REQUIRE(test.getTTL(lk) == test.getLCLSeq() + 700);
+    }
+
+    SECTION("multiple readonly ttl bumps across stages")
+    {
+        auto a1 = test.getRoot().create("extend1", 500000000);
+        auto a2 = test.getRoot().create("extend2", 500000000);
+        auto a3 = test.getRoot().create("extend3", 500000000);
+
+        SorobanResources extendResources;
+        extendResources.footprint.readOnly = {lk};
+        extendResources.instructions = 0;
+        extendResources.diskReadBytes = 1000;
+
+        auto extendTx1 =
+            test.createExtendOpTx(extendResources, 800, 1'000, 50'000, &a1);
+        auto extendTx2 =
+            test.createExtendOpTx(extendResources, 900, 1'000, 50'000, &a2);
+        auto extendTx3 =
+            test.createExtendOpTx(extendResources, 1000, 1'000, 50'000, &a3);
+
+        auto startingTTL = test.getTTL(lk);
+
+        // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
+        LedgerSnapshot ls(test.getApp());
+        auto ttlKey = getTTLKey(lk);
+        auto ttlEntry = ls.load(ttlKey);
+        REQUIRE(ttlEntry);
+        uint32_t ttlLastModifiedBeforeTx =
+            ttlEntry.current().lastModifiedLedgerSeq;
+
+        // Execute extends across different stages
+        auto r = closeLedger(test.getApp(), {extendTx1, extendTx2, extendTx3},
+                             {{{0}}, {{1}}, {{2}}});
+        REQUIRE(r.results.size() == 3);
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txSUCCESS);
+        checkTx(2, r, txSUCCESS);
+
+        // Verify TTL meta for each stage
+        // Stage 0: sees original state
+        verifyTTLMeta(0, startingTTL, test.getLCLSeq() + 800,
+                      ttlLastModifiedBeforeTx);
+        // Stage 1: sees state modified by stage 0
+        verifyTTLMeta(1, test.getLCLSeq() + 800, test.getLCLSeq() + 900,
+                      test.getLCLSeq());
+        // Stage 2: sees state modified by stage 1
+        verifyTTLMeta(2, test.getLCLSeq() + 900, test.getLCLSeq() + 1000,
+                      test.getLCLSeq());
+
+        // The final TTL should be based on the last extend operation
+        REQUIRE(test.getTTL(lk) == test.getLCLSeq() + 1000);
+    }
+
+    SECTION("readonly ttl bumps with mixed stages")
+    {
+        auto a1 = test.getRoot().create("extend1", 500000000);
+        auto a2 = test.getRoot().create("extend2", 500000000);
+        auto a3 = test.getRoot().create("extend3", 500000000);
+        auto a4 = test.getRoot().create("extend4", 500000000);
+
+        SorobanResources extendResources;
+        extendResources.footprint.readOnly = {lk};
+        extendResources.instructions = 0;
+        extendResources.diskReadBytes = 1000;
+
+        auto extendTx1 =
+            test.createExtendOpTx(extendResources, 200, 1'000, 50'000, &a1);
+        auto extendTx2 =
+            test.createExtendOpTx(extendResources, 250, 1'000, 50'000, &a2);
+        auto extendTx3 =
+            test.createExtendOpTx(extendResources, 300, 1'000, 50'000, &a3);
+        auto extendTx4 =
+            test.createExtendOpTx(extendResources, 350, 1'000, 50'000, &a4);
+
+        auto startingTTL = test.getTTL(lk);
+
+        // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
+        LedgerSnapshot ls(test.getApp());
+        auto ttlKey = getTTLKey(lk);
+        auto ttlEntry = ls.load(ttlKey);
+        REQUIRE(ttlEntry);
+        uint32_t ttlLastModifiedBeforeTx =
+            ttlEntry.current().lastModifiedLedgerSeq;
+
+        // Execute with mixed staging: some in same stage, some across stages
+        auto r = closeLedger(test.getApp(),
+                             {extendTx1, extendTx2, extendTx3, extendTx4},
+                             {{{0, 1}}, {{2}}, {{3}}});
+        REQUIRE(r.results.size() == 4);
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txSUCCESS);
+        checkTx(2, r, txSUCCESS);
+        checkTx(3, r, txSUCCESS);
+
+        // Verify TTL meta for mixed stages
+        // First stage: tx0 and tx1 in same stage - both see original state
+        verifyTTLMeta(0, startingTTL, test.getLCLSeq() + 200,
+                      ttlLastModifiedBeforeTx);
+        verifyTTLMeta(1, startingTTL, test.getLCLSeq() + 250,
+                      ttlLastModifiedBeforeTx);
+
+        // Second stage: tx2 alone - sees state from stage 0 (tx1's update)
+        verifyTTLMeta(2, test.getLCLSeq() + 250, test.getLCLSeq() + 300,
+                      test.getLCLSeq());
+
+        // Third stage: tx3 alone - sees state from stage 1
+        verifyTTLMeta(3, test.getLCLSeq() + 300, test.getLCLSeq() + 350,
+                      test.getLCLSeq());
+
+        // The final TTL should be based on the last extend operation
+        REQUIRE(test.getTTL(lk) == test.getLCLSeq() + 350);
+    }
+
+    SECTION("extend_persistent contract function across stages")
+    {
+        auto a1 = test.getRoot().create("extend1", 500000000);
+        auto a2 = test.getRoot().create("extend2", 500000000);
+        auto a3 = test.getRoot().create("extend3", 500000000);
+
+        // Use contract's extend_persistent function on the same key
+        auto extendSpec =
+            client.readKeySpec("key", ContractDataDurability::PERSISTENT);
+
+        auto extendInvocation1 = client.getContract().prepareInvocation(
+            "extend_persistent",
+            {makeSymbolSCVal("key"), makeU32SCVal(150), makeU32SCVal(150)},
+            extendSpec);
+        auto extendTx1 =
+            extendInvocation1.withExactNonRefundableResourceFee().createTx(&a1);
+
+        auto extendInvocation2 = client.getContract().prepareInvocation(
+            "extend_persistent",
+            {makeSymbolSCVal("key"), makeU32SCVal(200), makeU32SCVal(200)},
+            extendSpec);
+        auto extendTx2 =
+            extendInvocation2.withExactNonRefundableResourceFee().createTx(&a2);
+
+        auto extendInvocation3 = client.getContract().prepareInvocation(
+            "extend_persistent",
+            {makeSymbolSCVal("key"), makeU32SCVal(250), makeU32SCVal(250)},
+            extendSpec);
+        auto extendTx3 =
+            extendInvocation3.withExactNonRefundableResourceFee().createTx(&a3);
+
+        auto startingTTL = test.getTTL(lk);
+
+        // Execute across stages
+        auto r = closeLedger(test.getApp(), {extendTx1, extendTx2, extendTx3},
+                             {{{0}}, {{1}}, {{2}}});
+        REQUIRE(r.results.size() == 3);
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txSUCCESS);
+        checkTx(2, r, txSUCCESS);
+
+        // Verify liveUntilLedgerSeq in meta for each stage
+        auto& lm = test.getApp().getLedgerManager();
+        auto opMeta0 =
+            lm.getLastClosedLedgerTxMeta().at(0).getLedgerEntryChangesAtOp(0);
+        REQUIRE(opMeta0.at(0).state().data.ttl().liveUntilLedgerSeq ==
+                startingTTL);
+        REQUIRE(opMeta0.at(1).updated().data.ttl().liveUntilLedgerSeq ==
+                test.getLCLSeq() + 150);
+
+        auto opMeta1 =
+            lm.getLastClosedLedgerTxMeta().at(1).getLedgerEntryChangesAtOp(0);
+        REQUIRE(opMeta1.at(0).state().data.ttl().liveUntilLedgerSeq ==
+                test.getLCLSeq() + 150);
+        REQUIRE(opMeta1.at(1).updated().data.ttl().liveUntilLedgerSeq ==
+                test.getLCLSeq() + 200);
+
+        auto opMeta2 =
+            lm.getLastClosedLedgerTxMeta().at(2).getLedgerEntryChangesAtOp(0);
+        REQUIRE(opMeta2.at(0).state().data.ttl().liveUntilLedgerSeq ==
+                test.getLCLSeq() + 200);
+        REQUIRE(opMeta2.at(1).updated().data.ttl().liveUntilLedgerSeq ==
+                test.getLCLSeq() + 250);
+
+        // The final TTL should be based on the last extend operation
+        REQUIRE(test.getTTL(lk) == test.getLCLSeq() + 250);
     }
 }

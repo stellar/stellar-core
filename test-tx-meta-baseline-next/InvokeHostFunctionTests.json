@@ -2927,6 +2927,7 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
 	"persistent entry archival|eviction|key accessible after restore in same ledger" : 
@@ -2954,7 +2955,18 @@
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
 		"RH+UShPLOJY="
+	],
+	"persistent entry archival|eviction|key accessible after restore in same ledger|failed auto restores and manual restores across stages" : 
+	[
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU=",
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU="
 	],
 	"persistent entry archival|eviction|key accessible after restore in same ledger|restore, delete, restore" : 
 	[
@@ -2969,6 +2981,7 @@
 	],
 	"persistent entry archival|expiration without eviction" : 
 	[
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -3010,7 +3023,18 @@
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
 		"RH+UShPLOJY="
+	],
+	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|failed auto restores and manual restores across stages" : 
+	[
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU=",
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU="
 	],
 	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|restore, delete, restore" : 
 	[
@@ -3038,6 +3062,11 @@
 		"+M8i+OyobEE=",
 		"RD4SbL+fpW4="
 	],
+	"readonly ttl bumps across threads and stages" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
+	"readonly ttl bumps across threads and stages|extend_persistent contract function across stages" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=" ],
+	"readonly ttl bumps across threads and stages|multiple readonly ttl bumps across stages" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=" ],
+	"readonly ttl bumps across threads and stages|multiple readonly ttl bumps same stage" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=" ],
+	"readonly ttl bumps across threads and stages|readonly ttl bumps with mixed stages" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=", "1z01ayx4NdE=" ],
 	"refund account merged|protocol version 20" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=", "51g/NdOY708=", "qBAN8h2uYsI=" ],
