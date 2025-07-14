@@ -1922,10 +1922,18 @@
 		"bKDF6V5IzTo=",
 		"wHnFsqIZex8=",
 		"bKDF6V5IzTo=",
+		"wHnFsqIZex8=",
+		"bKDF6V5IzTo=",
+		"wHnFsqIZex8=",
+		"bKDF6V5IzTo=",
 		"wHnFsqIZex8="
 	],
 	"archival meta|protocol version 21" : 
 	[
+		"bKDF6V5IzTo=",
+		"qpvzBs5wFko=",
+		"bKDF6V5IzTo=",
+		"qpvzBs5wFko=",
 		"bKDF6V5IzTo=",
 		"qpvzBs5wFko=",
 		"bKDF6V5IzTo=",
@@ -1960,10 +1968,38 @@
 		"bKDF6V5IzTo=",
 		"bAX2uwEsPw4=",
 		"bKDF6V5IzTo=",
+		"bAX2uwEsPw4=",
+		"bKDF6V5IzTo=",
+		"bAX2uwEsPw4=",
+		"bKDF6V5IzTo=",
 		"bAX2uwEsPw4="
 	],
 	"archival meta|protocol version 23" : 
 	[
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
+		"+cR3oq2qY0I=",
+		"r3U4qZ7R8sM=",
 		"+cR3oq2qY0I=",
 		"r3U4qZ7R8sM=",
 		"+cR3oq2qY0I=",
@@ -2709,6 +2745,40 @@
 		"K5euAZIPqlA=",
 		"knTj8/Uykt4=",
 		"TDg83d6C6hU=",
+		"nma/L4t62rI=",
+		"+cR3oq2qY0I=",
+		"khwTU9QseD4=",
+		"fejf20mHLME=",
+		"7YbVy1S0Dv4=",
+		"JHnzuVC1mQs=",
+		"K7J0ieYLfnI=",
+		"lMJ8RKwFNao=",
+		"0WuN3VGWIA4=",
+		"EjgHqfKm4y0=",
+		"F4aM+VuIC3w=",
+		"Chb79P2Lqyw=",
+		"q6Un3Dw/jIE=",
+		"2k4ZcjIAuU0=",
+		"K5euAZIPqlA=",
+		"knTj8/Uykt4=",
+		"TDg83d6C6hU=",
+		"nma/L4t62rI=",
+		"+cR3oq2qY0I=",
+		"khwTU9QseD4=",
+		"fejf20mHLME=",
+		"7YbVy1S0Dv4=",
+		"JHnzuVC1mQs=",
+		"K7J0ieYLfnI=",
+		"lMJ8RKwFNao=",
+		"0WuN3VGWIA4=",
+		"EjgHqfKm4y0=",
+		"F4aM+VuIC3w=",
+		"Chb79P2Lqyw=",
+		"q6Un3Dw/jIE=",
+		"2k4ZcjIAuU0=",
+		"K5euAZIPqlA=",
+		"knTj8/Uykt4=",
+		"TDg83d6C6hU=",
 		"nma/L4t62rI="
 	],
 	"parallel txs hit declared readBytes" : 
@@ -2724,6 +2794,7 @@
 	],
 	"persistent entry archival|eviction" : 
 	[
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -2765,7 +2836,18 @@
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
 		"RH+UShPLOJY="
+	],
+	"persistent entry archival|eviction|key accessible after restore in same ledger|failed auto restores and manual restores across stages" : 
+	[
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU=",
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU="
 	],
 	"persistent entry archival|eviction|key accessible after restore in same ledger|restore, delete, restore" : 
 	[
@@ -2780,6 +2862,7 @@
 	],
 	"persistent entry archival|expiration without eviction" : 
 	[
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -2821,7 +2904,18 @@
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
 		"RH+UShPLOJY="
+	],
+	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|failed auto restores and manual restores across stages" : 
+	[
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU=",
+		"PNtHDHajXz4=",
+		"wHoV3BY03HQ=",
+		"DL1g7Vel8yU="
 	],
 	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger|restore, delete, restore" : 
 	[
@@ -2849,6 +2943,11 @@
 		"+M8i+OyobEE=",
 		"RD4SbL+fpW4="
 	],
+	"readonly ttl bumps across threads and stages" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
+	"readonly ttl bumps across threads and stages|extend_persistent contract function across stages" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=" ],
+	"readonly ttl bumps across threads and stages|multiple readonly ttl bumps across stages" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=" ],
+	"readonly ttl bumps across threads and stages|multiple readonly ttl bumps same stage" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=" ],
+	"readonly ttl bumps across threads and stages|readonly ttl bumps with mixed stages" : [ "kWYr7JsyOAA=", "cWjuJ/NVUEM=", "W1s8kYSi65Q=", "1z01ayx4NdE=" ],
 	"refund account merged|protocol version 20" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=", "51g/NdOY708=", "qBAN8h2uYsI=" ],

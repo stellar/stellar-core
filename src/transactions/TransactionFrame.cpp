@@ -1919,8 +1919,9 @@ TransactionFrame::parallelApply(
             ledgerInfo.getLedgerVersion() >=
             config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
 
-        auto& opTimer =
-            app.getMetrics().NewTimer({"ledger", "operation", "apply"});
+        auto opTimer = app.getMetrics()
+                           .NewTimer({"ledger", "operation", "apply"})
+                           .TimeScope();
 
         releaseAssertOrThrow(mOperations.size() == 1);
 
