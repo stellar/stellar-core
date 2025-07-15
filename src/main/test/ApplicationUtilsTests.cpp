@@ -85,6 +85,7 @@ class SimulationHelper
         mMainCfg.MAX_SLOTS_TO_REMEMBER = 50;
         mMainCfg.USE_CONFIG_FOR_GENESIS = false;
         mMainCfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
+        mMainCfg.GENESIS_TEST_ACCOUNT_COUNT = 50;
 
         mTestCfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         mTestCfg.NODE_IS_VALIDATOR = false;
@@ -155,21 +156,11 @@ class SimulationHelper
         uint32_t selectedLedger = 0;
         std::string selectedHash;
 
-        auto& loadGen = mMainNode->getLoadGenerator();
-        auto& loadGenDone = mMainNode->getMetrics().NewMeter(
-            {"loadgen", "run", "complete"}, "run");
-
-        loadGen.generateLoad(
-            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 50,
-                                                    /* txRate */ 1));
-        auto currLoadGenCount = loadGenDone.count();
-
         auto checkpoint = HistoryManager::getCheckpointFrequency(mMainCfg);
 
         // Make sure validator publishes something
         mSimulation->crankUntil(
             [&]() {
-                bool loadDone = loadGenDone.count() > currLoadGenCount;
                 auto lcl =
                     mMainNode->getLedgerManager().getLastClosedLedgerHeader();
                 // Pick some ledger in the selected checkpoint to run
@@ -182,9 +173,8 @@ class SimulationHelper
 
                 // Validator should publish up to and including the selected
                 // checkpoint
-                return loadDone &&
-                       mSimulation->haveAllExternalized(
-                           (selectedCheckpoint + 1) * checkpoint, 5);
+                return mSimulation->haveAllExternalized(
+                    (selectedCheckpoint + 1) * checkpoint, 5);
             },
             50 * mSimulation->getExpectedLedgerCloseTime(), false);
 
