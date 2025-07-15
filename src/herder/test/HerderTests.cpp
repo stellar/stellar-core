@@ -3058,6 +3058,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                     cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {mid};
                     cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {1};
                     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                    cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                     tweakAppCfg(cfg);
                     return cfg;
                 });
@@ -3081,18 +3082,11 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 simulation);
             auto& loadGen = nodes[0]->getLoadGenerator();
 
-            // Generate some accounts
             auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
                 {"loadgen", "run", "complete"}, "run");
             auto currLoadGenCount = loadGenDone.count();
-            loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-                numAccounts, baseTxRate));
-            simulation->crankUntil(
-                [&]() { return loadGenDone.count() > currLoadGenCount; },
-                10 * simulation->getExpectedLedgerCloseTime(), false);
 
             // Setup invoke
-            currLoadGenCount = loadGenDone.count();
             loadGen.generateLoad(
                 GeneratedLoadConfig::createSorobanInvokeSetupLoad(
                     /* nAccounts */ numAccounts, /* nInstances */ 10,
@@ -3277,6 +3271,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
                 auto cfg = getTestConfig(i);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
                 cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                 return cfg;
             });
     }
@@ -3290,6 +3285,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
                 cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                 cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                 return cfg;
             });
     }
@@ -3306,6 +3302,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(500);
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                 return cfg;
             });
     }
@@ -3324,16 +3321,9 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
         simulation);
     auto& loadGen = nodes[0]->getLoadGenerator();
 
-    // Generate some accounts
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
-    uint32_t const numAccounts = 100;
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto& secondLoadGen = nodes[1]->getLoadGenerator();
     auto& secondLoadGenDone =
@@ -3377,6 +3367,7 @@ TEST_CASE("soroban txs accepted by the network",
         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
             return cfg;
         });
     simulation->startAllNodes();
@@ -3406,15 +3397,9 @@ TEST_CASE("soroban txs accepted by the network",
     auto& sorobanTxsFailed = nodes[0]->getMetrics().NewCounter(
         {"ledger", "apply-soroban", "failure"});
 
-    // Generate some accounts
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     uint64_t lastSorobanSucceeded = sorobanTxsSucceeded.count();
     uint64_t lastSucceeded = txsSucceeded.count();
