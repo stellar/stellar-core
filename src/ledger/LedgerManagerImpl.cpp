@@ -783,14 +783,12 @@ LedgerManagerImpl::getExpectedLedgerCloseTime() const
 {
     releaseAssert(threadIsMain());
 
-#ifdef BUILD_TESTS
     auto const& cfg = mApp.getConfig();
     if (auto overrideOp = cfg.getExpectedLedgerCloseTimeTestingOverride();
         overrideOp.has_value())
     {
         return *overrideOp;
     }
-#endif
 
     auto const& lcl = getLastClosedLedgerHeader();
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,

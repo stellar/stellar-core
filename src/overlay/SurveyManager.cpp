@@ -79,13 +79,11 @@ getSurveyThrottleTimeoutMs(Application& app)
     auto estimatedCloseTime =
         Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
 
-#ifdef BUILD_TESTS
     if (auto overrideOp = cfg.getExpectedLedgerCloseTimeTestingOverride();
         overrideOp.has_value())
     {
         estimatedCloseTime = *overrideOp;
     }
-#endif
 
     return estimatedCloseTime * SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT;
 }
