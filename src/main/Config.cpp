@@ -2660,6 +2660,8 @@ Config::generateQuorumSetForTesting(
     setValidatorWeightConfig(validators);
 }
 
+#endif // BUILD_TESTS
+
 std::optional<std::chrono::milliseconds>
 Config::getExpectedLedgerCloseTimeTestingOverride() const
 {
@@ -2676,7 +2678,6 @@ Config::getExpectedLedgerCloseTimeTestingOverride() const
 
     return std::nullopt;
 }
-#endif // BUILD_TESTS
 
 std::string const Config::STDIN_SPECIAL_NAME = "stdin";
 }

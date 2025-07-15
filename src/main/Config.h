@@ -850,11 +850,12 @@ class Config : public std::enable_shared_from_this<Config>
     void
     generateQuorumSetForTesting(std::vector<ValidatorEntry> const& validators);
 
+#endif
+
     // Returns ledger close time if an override value is currently set for
     // testing. Otherwise returns nullopt.
     std::optional<std::chrono::milliseconds>
     getExpectedLedgerCloseTimeTestingOverride() const;
-#endif
 
 #ifdef BEST_OFFER_DEBUGGING
     bool BEST_OFFER_DEBUGGING_ENABLED;
