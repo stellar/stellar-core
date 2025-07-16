@@ -562,6 +562,12 @@ class LedgerManagerImpl : public LedgerManager
     void handleUpgradeAffectingSorobanInMemoryStateSize(
         AbstractLedgerTxn& upgradeLtx) override;
 
+    void
+    assertSetupPhase() const override
+    {
+        mApplyState.assertSetupPhase();
+    }
+
 #ifdef BUILD_TESTS
     friend class BucketTestUtils::LedgerManagerForBucketTests;
 #endif
