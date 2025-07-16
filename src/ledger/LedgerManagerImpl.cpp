@@ -24,6 +24,7 @@
 #include <unordered_map>
 #ifdef BUILD_TESTS
 #include "herder/ParallelTxSetBuilder.h"
+#include <fmt/chrono.h>
 #endif
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
@@ -2436,11 +2437,33 @@ class ExecutionCapture
     std::string mName;
     std::vector<TransactionResult> mTxResults;
     std::vector<TransactionMeta> mTxMetas;
+    std::chrono::steady_clock::time_point mExecBegin;
+    std::chrono::steady_clock::time_point mExecEnd;
 
   public:
     ExecutionCapture(std::string const& name) : mName(name)
     {
     }
+
+    void
+    markBegin()
+    {
+        mExecBegin = std::chrono::steady_clock::now();
+    }
+
+    void
+    markEnd()
+    {
+        mExecEnd = std::chrono::steady_clock::now();
+    }
+
+    std::chrono::milliseconds
+    getDuration() const
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            mExecEnd - mExecBegin);
+    }
+
     void
     capture(std::vector<MutableTxResultPtr> const& mutableTxResults,
             std::unique_ptr<LedgerCloseMetaFrame> const& lcm,
@@ -2460,11 +2483,15 @@ class ExecutionCapture
         }
     }
     void
-    compare(uint32_t ledgerSeq, TxSetPhaseFrame const& seqPhase,
-            ExecutionCapture const& other,
+    compare(uint32_t ledgerSeq, TxFrameList const& selfTxs,
+            TxFrameList const& otherTxs, ExecutionCapture const& other,
             std::vector<size_t> const& selfToOtherIndexMap)
     {
         CLOG_INFO(Ledger, "=== BEGIN ExecutionCapture::compare ===");
+
+        CLOG_INFO(Ledger, "exec times: {} took {}, {} took {}, difference: {}",
+                  mName, getDuration(), other.mName, other.getDuration(),
+                  getDuration() - other.getDuration());
 
         if (mTxResults.size() == other.mTxResults.size())
         {
@@ -2506,8 +2533,9 @@ class ExecutionCapture
                 auto const& diffs = comp.getDifferences();
                 if (!diffs.empty())
                 {
-                    auto dir = std::filesystem::path(fmt::format(
-                        "parallel-tx-diffs/ledger-{}/tx-{}", ledgerSeq, i));
+                    auto dir = std::filesystem::path(
+                        fmt::format("parallel-tx-diffs/ledger-{}/{}-tx-{}",
+                                    ledgerSeq, mName, i));
                     CLOG_ERROR(Ledger, "writing tx diffs to {}", dir);
                     fs::mkpath(dir);
                     std::ofstream summary(dir / "summary.txt");
@@ -2515,14 +2543,31 @@ class ExecutionCapture
                     {
                         summary << line << std::endl;
                     }
-                    std::ofstream tx(dir / "tx-envelope.json");
-                    tx << xdr::xdr_to_string(
-                        seqPhase.getSequentialTxs().at(i)->getEnvelope());
-                    std::ofstream selfmeta(dir /
-                                           fmt::format("meta-{}.json", mName));
+
+                    for (auto txId = 0; txId <= i; ++txId)
+                    {
+                        std::ofstream tx(
+                            dir /
+                            fmt::format("{}-tx-{}-envelope.json", mName, txId));
+                        tx << xdr::xdr_to_string(
+                            selfTxs.at(txId)->getEnvelope());
+                    }
+
+                    for (auto txId = 0; txId <= j; ++txId)
+                    {
+                        std::ofstream tx(dir /
+                                         fmt::format("{}-tx-{}-envelope.json",
+                                                     other.mName, txId));
+                        tx << xdr::xdr_to_string(
+                            otherTxs.at(txId)->getEnvelope());
+                    }
+
+                    std::ofstream selfmeta(
+                        dir / fmt::format("{}-tx-{}-meta.json", mName, i));
                     selfmeta << xdr::xdr_to_string(meta);
                     std::ofstream othermeta(
-                        dir / fmt::format("meta-{}.json", other.mName));
+                        dir /
+                        fmt::format("{}-tx-{}-meta.json", other.mName, j));
                     othermeta << xdr::xdr_to_string(ometa);
                 }
             }
@@ -2700,6 +2745,7 @@ class ParallelTestExecutor
         TxStageFrameList parStages =
             makeFakeParallelTxStageFrameList(parHeader, seqPhase, parallelism);
 
+        mParCapture.markBegin();
         // These effect state variables because we want that state
         // to stick around in the class, for later capture & comparison.
         buildParResults(parStages);
@@ -2707,6 +2753,7 @@ class ParallelTestExecutor
         buildParLCM(parHeader);
 
         executeStagesInParallel(ltx, parHeader, sorobanBasePrngSeed);
+        mParCapture.markEnd();
     }
 
     void
@@ -2714,6 +2761,18 @@ class ParallelTestExecutor
     {
         mParCapture.capture(mParResults, mParLCM, mPhaseStartIndex,
                             phaseEndIndex);
+    }
+
+    void
+    markSequentialBegin()
+    {
+        mSeqCapture.markBegin();
+    }
+
+    void
+    markSequentialEnd()
+    {
+        mSeqCapture.markEnd();
     }
 
     void
@@ -2729,7 +2788,16 @@ class ParallelTestExecutor
     void
     compareCaptures(uint32_t ledgerSeq, TxSetPhaseFrame const& seqPhase)
     {
-        mParCapture.compare(ledgerSeq, seqPhase, mSeqCapture,
+        TxFrameList partiallyOrderedParTxs;
+        for (auto const& stage : mParApplyStages)
+        {
+            for (auto const& txBundle : stage)
+            {
+                partiallyOrderedParTxs.emplace_back(txBundle.getTx());
+            }
+        }
+        mParCapture.compare(ledgerSeq, partiallyOrderedParTxs,
+                            seqPhase.getSequentialTxs(), mSeqCapture,
                             mParToSeqIndexMap);
     }
 
@@ -2849,10 +2917,12 @@ LedgerManagerImpl::applyTransactions(
         else
         {
 #ifdef BUILD_TESTS
+            parTestExec =
+                ParallelTestExecutor::maybePreExecuteSequentialPhaseInParallel(
+                    *this, ltx, phase, index, numTxs, sorobanBasePrngSeed);
+            if (parTestExec)
             {
-                parTestExec = ParallelTestExecutor::
-                    maybePreExecuteSequentialPhaseInParallel(
-                        *this, ltx, phase, index, numTxs, sorobanBasePrngSeed);
+                parTestExec->markSequentialBegin();
             }
 #endif
             applySequentialPhase(phase, mutableTxResults, index, ltx,
@@ -2861,6 +2931,7 @@ LedgerManagerImpl::applyTransactions(
 #ifdef BUILD_TESTS
             if (parTestExec)
             {
+                parTestExec->markSequentialEnd();
                 parTestExec->captureParallel(index);
                 parTestExec->captureSequential(mutableTxResults,
                                                ledgerCloseMeta, index);
