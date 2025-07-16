@@ -61,12 +61,11 @@ enum DifferenceType : uint64_t
 // Comparator for structured output
 class Comparator
 {
-    std::string name1;
-    std::string name2;
-    std::vector<std::string> pathStack;
-    bool collectDifferences = false;
-    std::vector<std::string> differences;
-    uint64_t toleratedDifferences;
+    std::string mName1;
+    std::string mName2;
+    std::vector<std::string> mPathStack;
+    std::vector<std::string> mDifferences;
+    uint64_t mToleratedDifferences;
 
     std::string getCurrentPath() const;
     void pushPath(std::string const& component);
@@ -75,14 +74,14 @@ class Comparator
     bool
     isDifferenceTolerated(DifferenceType type) const
     {
-        return (toleratedDifferences & type) != 0;
+        return (mToleratedDifferences & type) != 0;
     }
 
     bool
     isInToleratedSection() const
     {
         // Check if we're in txChangesBefore or txChangesAfter sections
-        for (auto const& path : pathStack)
+        for (auto const& path : mPathStack)
         {
             if (path == "txChangesBefore" &&
                 isDifferenceTolerated(DIFF_TX_CHANGES_BEFORE))
@@ -98,6 +97,9 @@ class Comparator
             if (path == "diagnosticEvents" &&
                 isDifferenceTolerated(DIFF_DIAGNOSTIC_EVENTS))
                 return true;
+            if (path == "returnValue" &&
+                isDifferenceTolerated(DIFF_SOROBAN_RETURN_VALUE))
+                return true;
         }
         return false;
     }
@@ -111,7 +113,7 @@ class Comparator
         bool inAccount = false;
         bool inBalance = false;
 
-        for (auto const& path : pathStack)
+        for (auto const& path : mPathStack)
         {
             if (path == "txChangesBefore" || path == "txChangesAfter")
                 inBeforeAfter = true;
@@ -130,8 +132,16 @@ class Comparator
 
   public:
     Comparator(std::string const& n1, std::string const& n2)
-        : name1(n1), name2(n2), toleratedDifferences(getToleratedDifferences())
+        : mName1(n1)
+        , mName2(n2)
+        , mToleratedDifferences(getToleratedDifferences())
     {
+    }
+
+    std::vector<std::string> const&
+    getDifferences()
+    {
+        return mDifferences;
     }
 
     // Comparison methods

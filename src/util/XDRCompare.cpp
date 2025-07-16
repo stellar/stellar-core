@@ -27,7 +27,7 @@ std::string
 Comparator::getCurrentPath() const
 {
     std::string path;
-    for (auto const& component : pathStack)
+    for (auto const& component : mPathStack)
     {
         if (!path.empty())
             path += ".";
@@ -39,14 +39,14 @@ Comparator::getCurrentPath() const
 void
 Comparator::pushPath(std::string const& component)
 {
-    pathStack.push_back(component);
+    mPathStack.push_back(component);
 }
 
 void
 Comparator::popPath()
 {
-    if (!pathStack.empty())
-        pathStack.pop_back();
+    if (!mPathStack.empty())
+        mPathStack.pop_back();
 }
 
 void
@@ -60,14 +60,8 @@ Comparator::reportDifference(std::string const& message)
     }
 
     std::string fullMessage = getCurrentPath() + ": " + message;
-    if (collectDifferences)
-    {
-        differences.push_back(fullMessage);
-    }
-    else
-    {
-        CLOG_ERROR(Ledger, "{} vs {}: {}", name1, name2, fullMessage);
-    }
+    mDifferences.push_back(fullMessage);
+    CLOG_ERROR(Ledger, "{} vs {}: {}", mName1, mName2, fullMessage);
 }
 
 void
@@ -1414,12 +1408,9 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1_in,
                 });
 
             // Compare return value
-            if (!(sm1.returnValue == sm2.returnValue))
-            {
-                pushPath("returnValue");
-                reportDifference("value differs", DIFF_SOROBAN_RETURN_VALUE);
-                popPath();
-            }
+            pushPath("returnValue");
+            compareSCVal(sm1.returnValue, sm2.returnValue);
+            popPath();
 
             // Compare diagnostic events
             compareVector("diagnosticEvents", sm1.diagnosticEvents,

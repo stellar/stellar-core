@@ -2460,17 +2460,17 @@ class ExecutionCapture
         }
     }
     void
-    compare(ExecutionCapture const& other,
+    compare(uint32_t ledgerSeq, TxSetPhaseFrame const& seqPhase,
+            ExecutionCapture const& other,
             std::vector<size_t> const& selfToOtherIndexMap)
     {
         CLOG_INFO(Ledger, "=== BEGIN ExecutionCapture::compare ===");
-
-        xdrcomp::Comparator comp(mName, other.mName);
 
         if (mTxResults.size() == other.mTxResults.size())
         {
             for (auto i = 0; i < mTxResults.size(); ++i)
             {
+                xdrcomp::Comparator comp(mName, other.mName);
                 auto const& res = mTxResults.at(i);
                 auto j = selfToOtherIndexMap.at(i);
                 CLOG_DEBUG(Ledger, "result mapping {} tx {} => {} tx {}", mName,
@@ -2493,6 +2493,7 @@ class ExecutionCapture
         {
             for (auto i = 0; i < mTxMetas.size(); ++i)
             {
+                xdrcomp::Comparator comp(mName, other.mName);
                 auto const& meta = mTxMetas.at(i);
                 auto j = selfToOtherIndexMap.at(i);
                 CLOG_DEBUG(Ledger, "meta mapping {} tx {} => {} tx {}", mName,
@@ -2501,6 +2502,28 @@ class ExecutionCapture
                 if (!(meta == ometa))
                 {
                     comp.compareTransactionMeta(meta, ometa, i);
+                }
+                auto const& diffs = comp.getDifferences();
+                if (!diffs.empty())
+                {
+                    auto dir = std::filesystem::path(fmt::format(
+                        "parallel-tx-diffs/ledger-{}/tx-{}", ledgerSeq, i));
+                    CLOG_ERROR(Ledger, "writing tx diffs to {}", dir);
+                    fs::mkpath(dir);
+                    std::ofstream summary(dir / "summary.txt");
+                    for (auto line : diffs)
+                    {
+                        summary << line << std::endl;
+                    }
+                    std::ofstream tx(dir / "tx-envelope.json");
+                    tx << xdr::xdr_to_string(
+                        seqPhase.getSequentialTxs().at(i)->getEnvelope());
+                    std::ofstream selfmeta(dir /
+                                           fmt::format("meta-{}.json", mName));
+                    selfmeta << xdr::xdr_to_string(meta);
+                    std::ofstream othermeta(
+                        dir / fmt::format("meta-{}.json", other.mName));
+                    othermeta << xdr::xdr_to_string(ometa);
                 }
             }
         }
@@ -2704,9 +2727,10 @@ class ParallelTestExecutor
     }
 
     void
-    compareCaptures()
+    compareCaptures(uint32_t ledgerSeq, TxSetPhaseFrame const& seqPhase)
     {
-        mParCapture.compare(mSeqCapture, mParToSeqIndexMap);
+        mParCapture.compare(ledgerSeq, seqPhase, mSeqCapture,
+                            mParToSeqIndexMap);
     }
 
     static std::unique_ptr<ParallelTestExecutor>
@@ -2840,7 +2864,8 @@ LedgerManagerImpl::applyTransactions(
                 parTestExec->captureParallel(index);
                 parTestExec->captureSequential(mutableTxResults,
                                                ledgerCloseMeta, index);
-                parTestExec->compareCaptures();
+                parTestExec->compareCaptures(
+                    ltx.loadHeader().current().ledgerSeq, phase);
                 parTestExec.reset();
             }
 #endif
