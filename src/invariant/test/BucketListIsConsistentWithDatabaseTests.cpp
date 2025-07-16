@@ -58,6 +58,7 @@ struct BucketListGenerator
     {
         std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
         auto has = getHistoryArchiveState(app);
+        app->getLedgerManager().markApplyStateReset();
         auto& wm = app->getWorkScheduler();
         wm.executeWork<T>(buckets, has,
                           app->getConfig().LEDGER_PROTOCOL_VERSION,

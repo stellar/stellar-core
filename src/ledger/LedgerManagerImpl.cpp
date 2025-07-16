@@ -1338,8 +1338,6 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
         mApp.getHerder().lastClosedLedgerIncreased(
             appliedLatest, ledgerData.getTxSet(), upgradeApplied);
     }
-
-    mApplyState.markEndOfCommitting();
 }
 
 void
@@ -1719,6 +1717,12 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             ledgerSeq + 1, initialLedgerVers,
             mApplyState.getSorobanNetworkConfigForCommit());
     }
+
+    // At this point, we've committed all changes to the Apply State for this
+    // ledger. While the following functions will publish this state to other
+    // subsystems, that's not relevant for Apply State phases since ApplyState
+    // is only accessed by LedgerManager's apply threads.
+    mApplyState.markEndOfCommitting();
 
     // Steps 5, 6, 7 are done in `advanceLedgerStateAndPublish`
     // NB: appliedLedgerState is invalidated after this call.
