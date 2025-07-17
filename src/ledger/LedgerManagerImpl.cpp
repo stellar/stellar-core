@@ -25,6 +25,7 @@
 #ifdef BUILD_TESTS
 #include "herder/ParallelTxSetBuilder.h"
 #include <fmt/chrono.h>
+#include <fmt/ranges.h>
 #endif
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
@@ -2644,19 +2645,46 @@ class ParallelTestExecutor
                 mApp.getNetworkID(), tx->getEnvelope()));
             mTxHashToSeqIdx.emplace(tx->getFullHash(), mTxHashToSeqIdx.size());
         }
-        SorobanNetworkConfig sCfg = mLm.getSorobanNetworkConfigForApply();
-        sCfg.setLedgerMaxDependentTxClusters(parallelism);
 
-        std::shared_ptr<SurgePricingLaneConfig> laneConfig =
-            createSurgePricingLaneConfig(TxSetPhase::SOROBAN, mApp, true);
-        std::vector<bool> noFits;
-        TxStageFrameList parStages = buildSurgePricedParallelSorobanPhase(
-            parTxns, mApp.getConfig(), sCfg, laneConfig, noFits,
-            parHeader.ledgerVersion);
+        // For now we do not use this code: it rebuilds using fake surge
+        // pricing queue and bin packing, which seems like it's more willing
+        // to alter the input order we are trying to preserve for comparison.
+        //
+        // SorobanNetworkConfig sCfg = mLm.getSorobanNetworkConfigForApply();
+        // sCfg.setLedgerMaxDependentTxClusters(parallelism);
+        // std::shared_ptr<SurgePricingLaneConfig> laneConfig =
+        //     createSurgePricingLaneConfig(TxSetPhase::SOROBAN, mApp, true);
+        // std::vector<bool> noFits;
+        // TxStageFrameList parStages = buildSurgePricedParallelSorobanPhase(
+        //     parTxns, mApp.getConfig(), sCfg, laneConfig, noFits,
+        //     parHeader.ledgerVersion);
+
+        size_t targetStageCount = 3;
+        TxStageFrameList parStages =
+            buildSimpleParallelTxStages(parTxns, parallelism, targetStageCount);
 
         releaseAssertOrThrow(!parStages.empty());
-        CLOG_DEBUG(Ledger, "Built {} parallel stages for testing",
-                   parStages.size());
+        std::vector<size_t> stageSizes;
+        for (auto const& s : parStages)
+        {
+            stageSizes.push_back(s.size());
+        }
+        CLOG_INFO(Ledger,
+                  "Built {} parallel stages for testing, with parallel cluster "
+                  "counts [{}] "
+                  " (aiming for {} stages each with {} clusters)",
+                  parStages.size(), fmt::join(stageSizes, ", "),
+                  targetStageCount, parallelism);
+        for (size_t i = 0; i < parStages.size(); ++i)
+        {
+            std::vector<size_t> clusterSizes;
+            for (auto const& c : parStages.at(i))
+            {
+                clusterSizes.push_back(c.size());
+            }
+            CLOG_INFO(Ledger, "stage {} cluster lengths: [{}]", i,
+                      fmt::join(clusterSizes, ", "));
+        }
         return parStages;
     }
 

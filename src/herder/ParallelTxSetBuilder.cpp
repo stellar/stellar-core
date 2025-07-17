@@ -7,6 +7,7 @@
 #include "herder/TxSetFrame.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/BitSet.h"
+#include "util/Logging.h"
 
 #include <unordered_set>
 
@@ -621,7 +622,7 @@ buildSurgePricedParallelSorobanPhase(
                 {
                     builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                     builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
-                    totalConflicts += 2;
+                    totalConflicts += 1;
                 }
             }
         }
@@ -723,5 +724,311 @@ buildSurgePricedParallelSorobanPhase(
     hadTxNotFittingLane = std::move(bestResult.mHadTxNotFittingLane);
     return std::move(bestResult.mStages);
 }
+
+#ifdef BUILD_TESTS
+
+// This next section provides a test-oriented "simple" builder that does not
+// attempt bin-packing, does not use the txqueue, and will not drop or reorder
+// dependent txs across stages: if dependent txs i < j are in the input, the
+// stage structure that goes out should still have i executing before j, either
+// in a single cluster or across stages. This exists entirely for the parallel
+// pre-execution code in LedgerManagerImpl.cpp that synthesizes parallel
+// schedules to match sequential ones online during testing.
+namespace
+{
+// Represents a cluster of transaction indices that must execute sequentially
+struct IndexCluster
+{
+    BitSet mTxIds;     // Set of transaction IDs in this cluster
+    BitSet mConflicts; // Union of all conflict sets of txs in cluster
+};
+
+// Core algorithm that works with indices and BitSets
+std::vector<std::vector<std::vector<size_t>>>
+buildSimpleParallelStagesFromIndices(std::vector<BitSet> const& conflictSets,
+                                     uint32_t clustersPerStage,
+                                     uint32_t targetStageCount)
+{
+
+    if (conflictSets.empty() || targetStageCount == 0 || clustersPerStage == 0)
+    {
+        return {};
+    }
+
+    std::vector<std::vector<std::vector<size_t>>> result;
+    std::vector<size_t> buffer;
+    std::vector<size_t> nextBuffer;
+    size_t inputIndex = 0;
+    size_t inputEnd = conflictSets.size();
+
+    // Calculate target transactions per stage
+    size_t targetTxsPerStage = conflictSets.size() / targetStageCount;
+    if (targetTxsPerStage == 0)
+    {
+        targetTxsPerStage = 1;
+    }
+
+    // Build stages until all transactions are processed
+    while (inputIndex < inputEnd || !buffer.empty())
+    {
+        std::vector<IndexCluster> stageClusters;
+        size_t txsProcessedInStage = 0;
+
+        // Helper to check invariant: no two clusters should conflict
+        auto checkNonConflictingInvariant = [&]() {
+            for (size_t i = 0; i < stageClusters.size(); ++i)
+            {
+                for (size_t j = i + 1; j < stageClusters.size(); ++j)
+                {
+                    if (stageClusters[i].mTxIds.intersectionCount(
+                            stageClusters[j].mConflicts) > 0 ||
+                        stageClusters[j].mTxIds.intersectionCount(
+                            stageClusters[i].mConflicts) > 0)
+                    {
+                        throw std::runtime_error(
+                            "Invariant violated: clusters conflict");
+                    }
+                }
+            }
+        };
+
+        // Process a transaction
+        auto processTx = [&](size_t txId) -> bool {
+            CLOG_DEBUG(Herder, "processing txid {}", txId);
+            // Find all clusters that this tx conflicts with
+            std::vector<size_t> conflictingClusters;
+            for (size_t i = 0; i < stageClusters.size(); ++i)
+            {
+                auto& cluster = stageClusters[i];
+                // Check if this tx conflicts with the cluster
+                if (cluster.mTxIds.intersectionCount(conflictSets[txId]) > 0 ||
+                    cluster.mConflicts.get(txId))
+                {
+                    CLOG_DEBUG(Herder, "txid {} conflicts with cluster {}",
+                               txId, i);
+                    conflictingClusters.push_back(i);
+                }
+            }
+
+            // If no conflicts and we have room for a new cluster
+            if (conflictingClusters.empty() &&
+                stageClusters.size() < clustersPerStage)
+            {
+                CLOG_DEBUG(Herder, "forming new cluster with txid {}", txId);
+                IndexCluster newCluster;
+                newCluster.mTxIds.set(txId);
+                newCluster.mConflicts = conflictSets[txId];
+                stageClusters.push_back(std::move(newCluster));
+                txsProcessedInStage++;
+                checkNonConflictingInvariant();
+                return true;
+            }
+
+            // If we have conflicts, merge all conflicting clusters
+            if (!conflictingClusters.empty())
+            {
+                CLOG_DEBUG(Herder, "merging {} conflicting clusters",
+                           conflictingClusters.size());
+                // Build the merged cluster
+                IndexCluster mergedCluster;
+                for (size_t clusterIdx : conflictingClusters)
+                {
+                    auto& cluster = stageClusters[clusterIdx];
+                    mergedCluster.mTxIds.inplaceUnion(cluster.mTxIds);
+                    mergedCluster.mConflicts.inplaceUnion(cluster.mConflicts);
+                }
+
+                // Add new transaction at the end
+                mergedCluster.mTxIds.set(txId);
+                mergedCluster.mConflicts.inplaceUnion(conflictSets[txId]);
+
+                // Remove all conflicting clusters (in reverse order)
+                for (auto it = conflictingClusters.rbegin();
+                     it != conflictingClusters.rend(); ++it)
+                {
+                    stageClusters.erase(stageClusters.begin() + *it);
+                }
+
+                // Add the merged cluster
+                stageClusters.push_back(std::move(mergedCluster));
+
+                txsProcessedInStage++;
+
+                checkNonConflictingInvariant();
+                return true;
+            }
+
+            // Couldn't place in stage, buffer for next stage
+            CLOG_DEBUG(Herder,
+                       "unable to place txid {}, buffering to next stage",
+                       txId);
+            return false;
+        };
+
+        // Process _incoming_ buffered txs from previous stage first
+        CLOG_DEBUG(Herder, "incoming buffered txs: {}", buffer.size());
+        for (size_t txId : buffer)
+        {
+            if (!processTx(txId))
+            {
+                nextBuffer.push_back(txId);
+            }
+        }
+
+        // Assuming we drained the incoming buffer (which should almost always
+        // happen) process new transactions from input
+        if (nextBuffer.empty())
+        {
+            CLOG_DEBUG(
+                Herder,
+                "incoming buffered txs all assigned, proceeding with input");
+            while (inputIndex < inputEnd &&
+                   txsProcessedInStage < targetTxsPerStage)
+            {
+                // Try to process the transaction
+                if (!processTx(inputIndex))
+                {
+                    nextBuffer.push_back(inputIndex);
+                }
+                inputIndex++;
+            }
+        }
+
+        // Convert stage clusters to result format
+        if (!stageClusters.empty())
+        {
+            std::vector<std::vector<size_t>> stage;
+            for (auto& cluster : stageClusters)
+            {
+                if (!cluster.mTxIds.empty())
+                {
+                    std::vector<size_t> clu;
+                    for (size_t i = 0; cluster.mTxIds.nextSet(i); ++i)
+                    {
+                        clu.push_back(i);
+                    }
+                    stage.push_back(clu);
+                }
+            }
+            if (!stage.empty())
+            {
+                CLOG_DEBUG(Herder, "formed stage with {} clusters",
+                           stage.size());
+                result.push_back(std::move(stage));
+            }
+        }
+
+        // Swap buffers for next iteration
+        buffer = std::move(nextBuffer);
+        nextBuffer.clear();
+    }
+
+    return result;
+}
+} // namespace
+
+// Test function that builds a simple TxStageFrameList with fixed parallelism
+// This function ignores resource limits and surge pricing
+TxStageFrameList
+buildSimpleParallelTxStages(TxFrameList const& txFrames,
+                            uint32_t clustersPerStage,
+                            uint32_t targetStageCount)
+{
+    ZoneScoped;
+    CLOG_DEBUG(Herder,
+               "Building simple parallel stages: {} txs, target {} stages, {} "
+               "clusters/stage",
+               txFrames.size(), targetStageCount, clustersPerStage);
+
+    if (txFrames.empty() || targetStageCount == 0 || clustersPerStage == 0)
+    {
+        return {};
+    }
+
+    // Build conflict map similar to the main function
+    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRoKey;
+    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRwKey;
+    std::vector<BitSet> conflictSets(txFrames.size());
+
+    for (size_t i = 0; i < txFrames.size(); ++i)
+    {
+        auto const& txFrame = txFrames[i];
+        auto const& footprint = txFrame->sorobanResources().footprint;
+        for (auto const& key : footprint.readOnly)
+        {
+            txsWithRoKey[key].push_back(i);
+        }
+        for (auto const& key : footprint.readWrite)
+        {
+            txsWithRwKey[key].push_back(i);
+        }
+    }
+
+    // Mark conflicts
+    for (auto const& [key, rwTxIds] : txsWithRwKey)
+    {
+        // RW-RW conflicts
+        for (size_t i = 0; i < rwTxIds.size(); ++i)
+        {
+            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
+            {
+                conflictSets[rwTxIds[i]].set(rwTxIds[j]);
+                conflictSets[rwTxIds[j]].set(rwTxIds[i]);
+            }
+        }
+        // RO-RW conflicts
+        auto roIt = txsWithRoKey.find(key);
+        if (roIt != txsWithRoKey.end())
+        {
+            auto const& roTxIds = roIt->second;
+            for (size_t i = 0; i < roTxIds.size(); ++i)
+            {
+                for (size_t j = 0; j < rwTxIds.size(); ++j)
+                {
+                    conflictSets[roTxIds[i]].set(rwTxIds[j]);
+                    conflictSets[rwTxIds[j]].set(roTxIds[i]);
+                }
+            }
+        }
+    }
+
+    // Use the core algorithm
+    auto indexStages = buildSimpleParallelStagesFromIndices(
+        conflictSets, clustersPerStage, targetStageCount);
+
+    // Convert index stages to TxStageFrameList
+    TxStageFrameList result;
+    for (auto const& indexStage : indexStages)
+    {
+        TxStageFrame stage;
+        for (auto const& indexCluster : indexStage)
+        {
+            TxFrameList cluster;
+            for (size_t txId : indexCluster)
+            {
+                cluster.push_back(txFrames[txId]);
+            }
+            stage.push_back(std::move(cluster));
+        }
+        result.push_back(std::move(stage));
+    }
+
+    CLOG_DEBUG(Herder, "Built {} stages from {} transactions", result.size(),
+               txFrames.size());
+
+    return result;
+}
+
+// Export the core algorithm for testing
+std::vector<std::vector<std::vector<size_t>>>
+testBuildSimpleParallelStagesFromIndices(
+    std::vector<BitSet> const& conflictSets, uint32_t clustersPerStage,
+    uint32_t targetStageCount)
+{
+    return buildSimpleParallelStagesFromIndices(conflictSets, clustersPerStage,
+                                                targetStageCount);
+}
+
+#endif // BUILD_TESTS
 
 } // namespace stellar
