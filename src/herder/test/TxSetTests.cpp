@@ -3251,5 +3251,217 @@ TEST_CASE("parallel tx set building benchmark",
     runBenchmark(10, 10, 10);
     runBenchmark(50, 50, 5);
 }
+
+TEST_CASE("simple parallel tx stage building", "[txset]")
+{
+    using Indices = std::vector<std::vector<std::vector<size_t>>>;
+
+    SECTION("no conflicts - all parallel")
+    {
+        // 6 transactions, no conflicts
+        std::vector<BitSet> conflicts(6);
+
+        auto stages = testBuildSimpleParallelStagesFromIndices(conflicts, 3, 2);
+
+        // Should create 2 stages with 3 txs each
+        REQUIRE(stages.size() == 2);
+        REQUIRE(stages[0].size() == 3);
+        REQUIRE(stages[1].size() == 3);
+
+        // Each cluster should have 1 tx
+        for (auto& stage : stages)
+        {
+            for (auto& cluster : stage)
+            {
+                REQUIRE(cluster.size() == 1);
+            }
+        }
+    }
+
+    SECTION("simple chain conflict")
+    {
+        // 4 transactions: 0->1, 1->2, 2->3 (chain)
+        std::vector<BitSet> conflicts(4);
+        conflicts[0].set(1);
+        conflicts[1].set(0);
+        conflicts[1].set(2);
+        conflicts[2].set(1);
+        conflicts[2].set(3);
+        conflicts[3].set(2);
+
+        auto stages = testBuildSimpleParallelStagesFromIndices(conflicts, 2, 1);
+
+        // Should create 1 stage with 1 cluster containing all 4
+        REQUIRE(stages.size() == 1);
+        REQUIRE(stages[0].size() == 1);
+        REQUIRE(stages[0][0] == std::vector<size_t>{0, 1, 2, 3});
+    }
+
+    SECTION("two independent chains")
+    {
+        // 6 transactions: two chains 0->1->2 and 3->4->5
+        std::vector<BitSet> conflicts(6);
+        // First chain
+        conflicts[0].set(1);
+        conflicts[1].set(0);
+        conflicts[1].set(2);
+        conflicts[2].set(1);
+        // Second chain
+        conflicts[3].set(4);
+        conflicts[4].set(3);
+        conflicts[4].set(5);
+        conflicts[5].set(4);
+
+        auto stages = testBuildSimpleParallelStagesFromIndices(conflicts, 2, 1);
+
+        // Should create 1 stage with 2 clusters
+        REQUIRE(stages.size() == 1);
+        REQUIRE(stages[0].size() == 2);
+
+        // Check clusters contain the right transactions
+        std::set<std::vector<size_t>> clusters;
+        for (auto& cluster : stages[0])
+        {
+            clusters.insert(cluster);
+        }
+        REQUIRE(clusters.count({0, 1, 2}) == 1);
+        REQUIRE(clusters.count({3, 4, 5}) == 1);
+    }
+
+    SECTION("conflict forces merge")
+    {
+        // 5 transactions: 0 independent, 1->2 chain, 3->4 chain, then 5
+        // conflicts with both
+        std::vector<BitSet> conflicts(6);
+        // First chain
+        conflicts[1].set(2);
+        conflicts[2].set(1);
+        // Second chain
+        conflicts[3].set(4);
+        conflicts[4].set(3);
+        // Transaction 5 conflicts with both chains
+        conflicts[5].set(2);
+        conflicts[5].set(4);
+        conflicts[2].set(5);
+        conflicts[4].set(5);
+
+        auto stages = testBuildSimpleParallelStagesFromIndices(conflicts, 3, 1);
+
+        // All 6 txs should fit in stage 0
+        REQUIRE(stages.size() >= 1);
+
+        // Stage 0 should have tx 0 in its own cluster, and txs 1-5 merged
+        bool found0 = false;
+        bool found1to5 = false;
+
+        for (auto& cluster : stages[0])
+        {
+            std::sort(cluster.begin(), cluster.end());
+            if (cluster == std::vector<size_t>{0})
+            {
+                found0 = true;
+            }
+            else if (cluster == std::vector<size_t>{1, 2, 3, 4, 5})
+            {
+                found1to5 = true;
+            }
+        }
+
+        REQUIRE(found0);
+        REQUIRE(found1to5);
+    }
+
+    SECTION("buffer spillover")
+    {
+        // 8 transactions with conflicts that force spillover
+        std::vector<BitSet> conflicts(8);
+
+        // Create 4 conflict pairs that can't all fit in 2 clusters
+        for (int i = 0; i < 8; i += 2)
+        {
+            conflicts[i].set(i + 1);
+            conflicts[i + 1].set(i);
+        }
+
+        auto stages = testBuildSimpleParallelStagesFromIndices(conflicts, 2, 1);
+
+        // Should create multiple stages since we can only fit 2 clusters per
+        // stage
+        REQUIRE(stages.size() >= 2);
+
+        // Count total transactions placed
+        size_t totalTxs = 0;
+        for (auto& stage : stages)
+        {
+            for (auto& cluster : stage)
+            {
+                totalTxs += cluster.size();
+            }
+        }
+        REQUIRE(totalTxs == 8);
+    }
+
+    SECTION("complex merge scenario")
+    {
+        // Start with 3 independent clusters, then add txs that merge them
+        std::vector<BitSet> conflicts(7);
+
+        // Cluster 1: 0->1
+        conflicts[0].set(1);
+        conflicts[1].set(0);
+
+        // Cluster 2: 2->3
+        conflicts[2].set(3);
+        conflicts[3].set(2);
+
+        // Cluster 3: just 4
+
+        // Tx 5 merges clusters 1 and 2
+        conflicts[5].set(1);
+        conflicts[5].set(3);
+        conflicts[1].set(5);
+        conflicts[3].set(5);
+
+        // Tx 6 merges all three
+        conflicts[6].set(5);
+        conflicts[6].set(4);
+        conflicts[5].set(6);
+        conflicts[4].set(6);
+
+        auto stages = testBuildSimpleParallelStagesFromIndices(conflicts, 3, 1);
+
+        REQUIRE(stages.size() == 1);
+        REQUIRE(stages[0].size() == 1);
+        // All transactions should be in one cluster
+        REQUIRE(stages[0][0].size() == 7);
+
+        // Check that all transactions are present
+        std::vector<size_t> sorted = stages[0][0];
+        std::sort(sorted.begin(), sorted.end());
+        REQUIRE(sorted == std::vector<size_t>{0, 1, 2, 3, 4, 5, 6});
+
+        // Check partial order is maintained
+        auto& cluster = stages[0][0];
+        auto indexOf = [&cluster](size_t tx) -> size_t {
+            auto it = std::find(cluster.begin(), cluster.end(), tx);
+            REQUIRE(it != cluster.end());
+            return std::distance(cluster.begin(), it);
+        };
+
+        // Tx 0 conflicts with 1, so 0 must come before 1
+        REQUIRE(indexOf(0) < indexOf(1));
+
+        // Tx 2 conflicts with 3, so 2 must come before 3
+        REQUIRE(indexOf(2) < indexOf(3));
+
+        // Tx 5 conflicts with 1 and 3, so both must come before 5
+        REQUIRE(indexOf(1) < indexOf(5));
+        REQUIRE(indexOf(3) < indexOf(5));
+
+        // Tx 6 conflicts with 4 and 5, so both must come before 6
+        REQUIRE(indexOf(4) < indexOf(6));
+        REQUIRE(indexOf(5) < indexOf(6));
+    }
+}
 } // namespace
 } // namespace stellar
