@@ -4,9 +4,9 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/Tracker.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 

@@ -4,8 +4,8 @@
 
 #include "SorobanTxTestUtils.h"
 #include "ledger/LedgerTypeUtils.h"
-#include "lib/catch.hpp"
 #include "rust/RustBridge.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"

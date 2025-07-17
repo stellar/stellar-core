@@ -28,7 +28,7 @@
 #endif
 
 #ifdef BUILD_TESTS
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #endif
 
 namespace stellar

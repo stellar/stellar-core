@@ -4,10 +4,10 @@
 
 #include "herder/HerderImpl.h"
 #include "herder/QuorumTracker.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "scp/SCP.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "xdr/Stellar-ledger.h"

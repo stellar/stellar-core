@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
 #include "util/numeric128.h"

@@ -26,7 +26,7 @@
 #include "bucket/BucketOutputIterator.h"
 #include "catchup/LedgerApplyManager.h"
 #include "ledger/CheckpointRange.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include <random>
 
 namespace stellar

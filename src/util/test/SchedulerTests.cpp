@@ -4,7 +4,7 @@
 
 #include "util/Scheduler.h"
 
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <chrono>

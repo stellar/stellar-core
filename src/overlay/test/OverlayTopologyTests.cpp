@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/KeyUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
 

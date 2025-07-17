@@ -5,9 +5,9 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "main/Config.h"
 #include "scp/QuorumSetUtils.h"
+#include "test/Catch2.h"
 #include "xdr/Stellar-SCP.h"
 #include <algorithm>
 

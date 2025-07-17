@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 

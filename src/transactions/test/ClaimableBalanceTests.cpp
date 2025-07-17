@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"

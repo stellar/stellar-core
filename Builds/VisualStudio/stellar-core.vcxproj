@@ -873,7 +873,7 @@ exit /b 0
     <ClCompile Include="..\..\src\test\TestAccount.cpp" />
     <ClCompile Include="..\..\src\test\TestExceptions.cpp" />
     <ClCompile Include="..\..\src\test\TestMarket.cpp" />
-    <ClCompile Include="..\..\src\test\TestPrinter.cpp" />
+    <ClCompile Include="..\..\src\test\Catch2.cpp" />
     <ClCompile Include="..\..\src\test\TestUtils.cpp" />
     <ClCompile Include="..\..\src\test\TxTests.cpp" />
     <ClCompile Include="..\..\lib\util\crc16.cpp" />
@@ -1231,7 +1231,7 @@ exit /b 0
     <ClInclude Include="..\..\src\test\TestAccount.h" />
     <ClInclude Include="..\..\src\test\TestExceptions.h" />
     <ClInclude Include="..\..\src\test\TestMarket.h" />
-    <ClInclude Include="..\..\src\test\TestPrinter.h" />
+    <ClInclude Include="..\..\src\test\Catch2.h" />
     <ClInclude Include="..\..\src\test\TestUtils.h" />
     <ClInclude Include="..\..\src\test\TxTests.h" />
     <ClInclude Include="..\..\src\util\Algorithm.h" />

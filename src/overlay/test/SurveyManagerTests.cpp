@@ -3,12 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/Curve25519.h"
-#include "lib/catch.hpp"
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "simulation/Simulation.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"

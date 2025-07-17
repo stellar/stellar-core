@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "medida/histogram.h"
 #include "medida/stats/ckms_sample.h"
 #include "medida/stats/sliding_window_sample.h"
 #include "medida/stats/snapshot.h"
+#include "test/Catch2.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include <deque>

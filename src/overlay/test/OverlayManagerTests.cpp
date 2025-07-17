@@ -7,12 +7,12 @@
 #include "main/Config.h"
 
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "overlay/FlowControl.h"
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/TxAdverts.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"

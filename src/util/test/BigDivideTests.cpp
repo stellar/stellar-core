@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "util/numeric128.h"
 #include "util/types.h"
 #include <functional>

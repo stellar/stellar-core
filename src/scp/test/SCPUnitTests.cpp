@@ -1,8 +1,8 @@
-#include "lib/catch.hpp"
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
+#include "test/Catch2.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
