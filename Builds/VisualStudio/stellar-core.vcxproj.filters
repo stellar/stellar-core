@@ -1414,6 +1414,9 @@
     <ClCompile Include="..\..\src\ledger\InMemorySorobanState.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ParallelApplyTest.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
