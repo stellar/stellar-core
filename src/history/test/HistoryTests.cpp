@@ -709,6 +709,37 @@ TEST_CASE("History publish with restart", "[history][publish]")
                     checkpointLedger);
             }
 
+            SECTION("rebuild ledger")
+            {
+                catchupSimulation.ensureOfflineCatchupPossible(
+                    checkpointLedger);
+
+                auto lcl = catchupSimulation.getApp()
+                               .getLedgerManager()
+                               .getLastClosedLedgerHeader()
+                               .hash;
+                auto bucketHash = catchupSimulation.getApp()
+                                      .getBucketManager()
+                                      .getLiveBucketList()
+                                      .getHash();
+
+                // `setRebuildForOfferTable` will
+                // force rebuilding the ledger on startup.
+                auto& ps = catchupSimulation.getApp().getPersistentState();
+                ps.setRebuildForOfferTable();
+
+                // Check we correctly rebuild state after restart.
+                catchupSimulation.restartApp();
+                REQUIRE(catchupSimulation.getApp()
+                            .getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash == lcl);
+                REQUIRE(catchupSimulation.getApp()
+                            .getBucketManager()
+                            .getLiveBucketList()
+                            .getHash() == bucketHash);
+            }
+
             // Now catchup to ensure published checkpoints are valid
             auto app = catchupSimulation.createCatchupApplication(
                 std::numeric_limits<uint32_t>::max(),
