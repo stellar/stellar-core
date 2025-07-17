@@ -2498,6 +2498,54 @@ class ExecutionCapture
             }
         }
     }
+
+    std::filesystem::path
+    ensure_diff_directory(uint32_t ledgerSeq, size_t txId)
+    {
+        auto path = std::filesystem::path(fmt::format(
+            "parallel-tx-diffs/ledger-{}/{}-tx-{}", ledgerSeq, mName, txId));
+        if (!std::filesystem::exists(path))
+        {
+            CLOG_ERROR(Ledger, "writing diffs to {}", path);
+            fs::mkpath(path);
+        }
+        return path;
+    }
+
+    void
+    dump_diff_summary(std::filesystem::path const& dir, std::string const& name,
+                      std::vector<std::string> const& diffs)
+    {
+        std::ofstream summary(dir / fmt::format("{}-diff-summary.txt", name));
+        for (auto line : diffs)
+        {
+            summary << line << std::endl;
+        }
+    }
+
+    template <typename T>
+    void
+    dump_xdr_for_tx(std::filesystem::path const& dir,
+                    std::string const& captureName,
+                    std::string const& xdrTypeName, size_t txId, T const& xdr)
+    {
+        std::ofstream stream(dir / fmt::format("{}-tx-{}-{}.json", captureName,
+                                               txId, xdrTypeName));
+        stream << xdr::xdr_to_string(xdr);
+    }
+
+    void
+    dump_predecessor_txn_envelopes(std::filesystem::path const& dir,
+                                   std::string const& name,
+                                   TxFrameList const& txs, size_t currTxId)
+    {
+        for (auto txId = 0; txId <= currTxId; ++txId)
+        {
+            dump_xdr_for_tx(dir, mName, "envelope", txId,
+                            txs.at(txId)->getEnvelope());
+        }
+    }
+
     void
     compare(uint32_t ledgerSeq, TxFrameList const& selfTxs,
             TxFrameList const& otherTxs, ExecutionCapture const& other,
@@ -2522,6 +2570,17 @@ class ExecutionCapture
                 if (!(res == ores))
                 {
                     comp.compareTransactionResult(res, ores);
+                }
+                auto const& diffs = comp.getDifferences();
+                if (!diffs.empty())
+                {
+                    auto dir = ensure_diff_directory(ledgerSeq, i);
+                    dump_diff_summary(dir, "result", diffs);
+                    dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
+                    dump_predecessor_txn_envelopes(dir, other.mName, otherTxs,
+                                                   j);
+                    dump_xdr_for_tx(dir, mName, "result", i, res);
+                    dump_xdr_for_tx(dir, other.mName, "result", j, ores);
                 }
             }
         }
@@ -2549,42 +2608,13 @@ class ExecutionCapture
                 auto const& diffs = comp.getDifferences();
                 if (!diffs.empty())
                 {
-                    auto dir = std::filesystem::path(
-                        fmt::format("parallel-tx-diffs/ledger-{}/{}-tx-{}",
-                                    ledgerSeq, mName, i));
-                    CLOG_ERROR(Ledger, "writing tx diffs to {}", dir);
-                    fs::mkpath(dir);
-                    std::ofstream summary(dir / "summary.txt");
-                    for (auto line : diffs)
-                    {
-                        summary << line << std::endl;
-                    }
-
-                    for (auto txId = 0; txId <= i; ++txId)
-                    {
-                        std::ofstream tx(
-                            dir /
-                            fmt::format("{}-tx-{}-envelope.json", mName, txId));
-                        tx << xdr::xdr_to_string(
-                            selfTxs.at(txId)->getEnvelope());
-                    }
-
-                    for (auto txId = 0; txId <= j; ++txId)
-                    {
-                        std::ofstream tx(dir /
-                                         fmt::format("{}-tx-{}-envelope.json",
-                                                     other.mName, txId));
-                        tx << xdr::xdr_to_string(
-                            otherTxs.at(txId)->getEnvelope());
-                    }
-
-                    std::ofstream selfmeta(
-                        dir / fmt::format("{}-tx-{}-meta.json", mName, i));
-                    selfmeta << xdr::xdr_to_string(meta);
-                    std::ofstream othermeta(
-                        dir /
-                        fmt::format("{}-tx-{}-meta.json", other.mName, j));
-                    othermeta << xdr::xdr_to_string(ometa);
+                    auto dir = ensure_diff_directory(ledgerSeq, i);
+                    dump_diff_summary(dir, "meta", diffs);
+                    dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
+                    dump_predecessor_txn_envelopes(dir, other.mName, otherTxs,
+                                                   j);
+                    dump_xdr_for_tx(dir, mName, "meta", i, meta);
+                    dump_xdr_for_tx(dir, other.mName, "meta", j, ometa);
                 }
             }
         }
