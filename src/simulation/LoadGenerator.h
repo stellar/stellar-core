@@ -218,6 +218,9 @@ class LoadGenerator
 
     void stop();
 
+    // Get the current status of load generation including any error information
+    Json::Value getLoadGenStatus() const;
+
   private:
     struct TxMetrics
     {
@@ -321,6 +324,9 @@ class LoadGenerator
     bool mStarted{false};
     bool mInitialAccountsCreated{false};
 
+    // Store the last error message for status reporting
+    std::string mLastErrorMessage;
+
     uint32_t mWaitTillCompleteForLedgers{0};
 
     // Mode used for last mixed transaction in MIX_CLASSIC_SOROBAN mode
@@ -376,6 +382,10 @@ class LoadGenerator
     void cleanupAccounts();
 
     void start(GeneratedLoadConfig& cfg);
+
+    // Indicate load generation run failed. Set `resetSoroban` to `true` to
+    // reset soroban state.
+    void emitFailure(bool resetSoroban, std::string const& errorMessage = "");
 
     // Indicate load generation run failed. Set `resetSoroban` to `true` to
     // reset soroban state.
