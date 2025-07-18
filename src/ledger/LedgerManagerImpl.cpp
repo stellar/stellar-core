@@ -2446,6 +2446,87 @@ LedgerManagerImpl::processResultAndMeta(
 }
 
 #ifdef BUILD_TESTS
+
+// Helper function to check if this is a special case where we should ignore
+// differences: parallel succeeded, sequential failed with resource limit
+// exceeded on a soroban operation (either directly or as inner tx of fee bump)
+static bool
+isSorobanResourceLimitSpecialCase(TransactionFrameBase const& tx,
+                                  TransactionResult const& parResult,
+                                  TransactionResult const& seqResult)
+{
+    // Check if parallel succeeded
+    if (parResult.result.code() == txSUCCESS &&
+        parResult.result.code() != txFEE_BUMP_INNER_SUCCESS)
+    {
+        return false;
+    }
+
+    auto const& opFrames = tx.getOperationFrames();
+
+    // Soroban ops only occur in single-op transactions
+    if (opFrames.size() != 1)
+    {
+        return false;
+    }
+
+    auto opType = opFrames.at(0)->getOperation().body.type();
+    bool isSorobanOp =
+        (opType == INVOKE_HOST_FUNCTION || opType == EXTEND_FOOTPRINT_TTL ||
+         opType == RESTORE_FOOTPRINT);
+
+    if (!isSorobanOp)
+    {
+        return false;
+    }
+
+    // Helper to check if a result indicates resource limit exceeded
+    auto isResourceLimitExceeded = [](OperationResult const& opRes) {
+        if (opRes.code() != opINNER)
+        {
+            return false;
+        }
+        switch (opRes.tr().type())
+        {
+        case INVOKE_HOST_FUNCTION:
+            return opRes.tr().invokeHostFunctionResult().code() ==
+                   INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED;
+        case EXTEND_FOOTPRINT_TTL:
+            return opRes.tr().extendFootprintTTLResult().code() ==
+                   EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED;
+        case RESTORE_FOOTPRINT:
+            return opRes.tr().restoreFootprintResult().code() ==
+                   RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED;
+        default:
+            return false;
+        }
+    };
+
+    // Check sequential result for failure
+    if (seqResult.result.code() == txFAILED)
+    {
+        // Direct transaction failure - check the single op result
+        if (!seqResult.result.results().empty() &&
+            isResourceLimitExceeded(seqResult.result.results().at(0)))
+        {
+            return true;
+        }
+    }
+    else if (seqResult.result.code() == txFEE_BUMP_INNER_FAILED)
+    {
+        // Fee bump inner transaction failure - check inner results
+        auto const& innerRes = seqResult.result.innerResultPair().result;
+        if (innerRes.result.code() == txFAILED &&
+            !innerRes.result.results().empty() &&
+            isResourceLimitExceeded(innerRes.result.results().at(0)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Structure to capture and analyze differences in the results of
 // (re)running a phase sequentially vs. in parallel.
 class ExecutionCapture
@@ -2536,12 +2617,12 @@ class ExecutionCapture
 
     void
     dump_predecessor_txn_envelopes(std::filesystem::path const& dir,
-                                   std::string const& name,
+                                   std::string const& captureName,
                                    TxFrameList const& txs, size_t currTxId)
     {
         for (auto txId = 0; txId <= currTxId; ++txId)
         {
-            dump_xdr_for_tx(dir, mName, "envelope", txId,
+            dump_xdr_for_tx(dir, captureName, "envelope", txId,
                             txs.at(txId)->getEnvelope());
         }
     }
@@ -2557,6 +2638,8 @@ class ExecutionCapture
                   mName, getDuration(), other.mName, other.getDuration(),
                   getDuration() - other.getDuration());
 
+        bool hitSpecialCaseThatPerturbsBalances = false;
+
         if (mTxResults.size() == other.mTxResults.size())
         {
             for (auto i = 0; i < mTxResults.size(); ++i)
@@ -2567,6 +2650,17 @@ class ExecutionCapture
                 CLOG_DEBUG(Ledger, "result mapping {} tx {} => {} tx {}", mName,
                            i, other.mName, j);
                 auto const& ores = other.mTxResults.at(j);
+                if (isSorobanResourceLimitSpecialCase(*selfTxs[i], res, ores))
+                {
+                    CLOG_WARNING(
+                        Ledger,
+                        "Hit special case in tx {}: parallel succeeded, "
+                        "sequential failed with RESOURCE_LIMIT_EXCEEDED "
+                        "on Soroban operation; stopping ledger comparison",
+                        i);
+                    hitSpecialCaseThatPerturbsBalances = true;
+                    break;
+                }
                 if (!(res == ores))
                 {
                     comp.compareTransactionResult(res, ores);
@@ -2591,38 +2685,41 @@ class ExecutionCapture
                        other.mTxResults.size());
         }
 
-        if (mTxMetas.size() == other.mTxMetas.size())
+        if (!hitSpecialCaseThatPerturbsBalances)
         {
-            for (auto i = 0; i < mTxMetas.size(); ++i)
+            if (mTxMetas.size() == other.mTxMetas.size())
             {
-                xdrcomp::Comparator comp(mName, other.mName);
-                auto const& meta = mTxMetas.at(i);
-                auto j = selfToOtherIndexMap.at(i);
-                CLOG_DEBUG(Ledger, "meta mapping {} tx {} => {} tx {}", mName,
-                           i, other.mName, j);
-                auto const& ometa = other.mTxMetas.at(j);
-                if (!(meta == ometa))
+                for (auto i = 0; i < mTxMetas.size(); ++i)
                 {
-                    comp.compareTransactionMeta(meta, ometa, i);
-                }
-                auto const& diffs = comp.getDifferences();
-                if (!diffs.empty())
-                {
-                    auto dir = ensure_diff_directory(ledgerSeq, i);
-                    dump_diff_summary(dir, "meta", diffs);
-                    dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
-                    dump_predecessor_txn_envelopes(dir, other.mName, otherTxs,
-                                                   j);
-                    dump_xdr_for_tx(dir, mName, "meta", i, meta);
-                    dump_xdr_for_tx(dir, other.mName, "meta", j, ometa);
+                    xdrcomp::Comparator comp(mName, other.mName);
+                    auto const& meta = mTxMetas.at(i);
+                    auto j = selfToOtherIndexMap.at(i);
+                    CLOG_DEBUG(Ledger, "meta mapping {} tx {} => {} tx {}",
+                               mName, i, other.mName, j);
+                    auto const& ometa = other.mTxMetas.at(j);
+                    if (!(meta == ometa))
+                    {
+                        comp.compareTransactionMeta(meta, ometa, i);
+                    }
+                    auto const& diffs = comp.getDifferences();
+                    if (!diffs.empty())
+                    {
+                        auto dir = ensure_diff_directory(ledgerSeq, i);
+                        dump_diff_summary(dir, "meta", diffs);
+                        dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
+                        dump_predecessor_txn_envelopes(dir, other.mName,
+                                                       otherTxs, j);
+                        dump_xdr_for_tx(dir, mName, "meta", i, meta);
+                        dump_xdr_for_tx(dir, other.mName, "meta", j, ometa);
+                    }
                 }
             }
-        }
-        else
-        {
-            CLOG_ERROR(Ledger, "number of tx metas differ: {} {} vs. {} {}",
-                       mName, mTxMetas.size(), other.mName,
-                       other.mTxMetas.size());
+            else
+            {
+                CLOG_ERROR(Ledger, "number of tx metas differ: {} {} vs. {} {}",
+                           mName, mTxMetas.size(), other.mName,
+                           other.mTxMetas.size());
+            }
         }
         CLOG_INFO(Ledger, "=== END ExecutionCapture::compare ===");
     }
