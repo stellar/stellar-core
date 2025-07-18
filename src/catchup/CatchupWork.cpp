@@ -220,6 +220,11 @@ CatchupWork::downloadApplyBuckets()
             CLOG_ERROR(History, "Malformed HAS: invalid buckets");
             return false;
         }
+
+        // Next step after verifying the HAS is to ApplyBuckets to DB. This
+        // invalidates the curent LedgerState, so we need to reset to the setup
+        // LedgerManager phase.
+        app.getLedgerManager().markApplyStateReset();
         return true;
     };
     auto verifyHAS = std::make_shared<WorkWithCallback>(mApp, "verify-has",

@@ -190,14 +190,14 @@ ApplyBucketsWork::doWork()
 {
     ZoneScoped;
 
-    // Step 0: Applying Buckets resets DB state, so we need to reset
-    // LedgerManager apply state phase to `SETTING_UP_STATE`. We'll do this with
+    // Step 0: Applying Buckets resets DB state, so we need to make sure
+    // LedgerManager apply state phase == `SETTING_UP_STATE`. We'll do this with
     // step 1 below for convience.
 
     // Step 1: index live buckets. Step 2: apply buckets. Step 3: assume state
     if (!mIndexBucketsWork)
     {
-        mApp.getLedgerManager().markApplyStateReset();
+        mApp.getLedgerManager().assertSetupPhase();
 
         // Spawn indexing work for the first time. Hot Archive buckets aren't
         // needed for apply (since we only store live state in SQL tables), so

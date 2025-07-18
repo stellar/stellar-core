@@ -4342,8 +4342,35 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
 
                 // Apply state got committed, but has not yet been propagated to
                 // read-only state
-                LedgerTxn ltx(node->getLedgerTxnRoot());
-                REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 1);
+                LedgerHeaderHistoryEntry lhe;
+                {
+                    LedgerTxn ltx(node->getLedgerTxnRoot());
+                    auto header = ltx.loadHeader().current();
+                    REQUIRE(header.ledgerSeq == lcl + 1);
+                    lhe.header = header;
+                    lhe.hash = header.previousLedgerHash;
+                }
+
+                // This test excerises a race where we start applying ledger N +
+                // 1 before we publish the result of N. This shouldn't violate
+                // any ApplyState invariants. ApplyState should already be
+                // commited and up to date via the apply thread, even if the
+                // main thread has not yet published the result to the rest of
+                // core.
+                if (enableParallelApply)
+                {
+                    auto txSet = TxSetXDRFrame::makeEmpty(lhe);
+
+                    // close this ledger
+                    StellarValue sv = node->getHerder().makeStellarValue(
+                        txSet->getContentsHash(), 1, emptyUpgradeSteps,
+                        node->getConfig().NODE_SEED);
+                    LedgerCloseData ledgerData(lcl + 1, txSet, sv);
+                    lm.applyLedger(ledgerData);
+
+                    LedgerTxn ltx(node->getLedgerTxnRoot());
+                    REQUIRE(ltx.loadHeader().current().ledgerSeq == lcl + 2);
+                }
             }
         }
         SECTION("read-only state gets updated post apply")

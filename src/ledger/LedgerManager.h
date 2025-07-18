@@ -332,6 +332,8 @@ class LedgerManager
                                  LedgerCloseData const& ledgerData,
                                  CompleteConstLedgerStatePtr newLedgerState,
                                  bool upgradeApplied) = 0;
+
+    virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
     void
     applyLedger(LedgerCloseData const& ledgerData)
