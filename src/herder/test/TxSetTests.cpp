@@ -1819,7 +1819,10 @@ TEST_CASE("txset nomination", "[txset]")
             LedgerUpgrade ledgerUpgrade(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
             ledgerUpgrade.newMaxTxSetSize() = txCountDistr(rng);
 
-            app->getMutableConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET =
+            // For this test, we need to temporarily modify the config to test different scenarios
+            // Since mConfig is now const, we need to use a different approach
+            // We'll modify the MAX_DEX_TX_OPERATIONS_IN_TX_SET via direct access to the config
+            const_cast<Config&>(app->getConfig()).MAX_DEX_TX_OPERATIONS_IN_TX_SET =
                 stellar::uniform_int_distribution<>(0, classicOpsCount)(rng);
 
             auto v = xdr::xdr_to_opaque(ledgerUpgrade);
