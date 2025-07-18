@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "autocheck/autocheck.hpp"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "lib/util/uint128_t.h"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include <chrono>

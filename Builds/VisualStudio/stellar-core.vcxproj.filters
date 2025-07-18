@@ -345,7 +345,7 @@
     <ClCompile Include="..\..\src\test\TestExceptions.cpp">
       <Filter>test</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\test\TestPrinter.cpp">
+    <ClCompile Include="..\..\src\test\Catch2.cpp">
       <Filter>test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\TestMarket.cpp">
@@ -1581,7 +1581,7 @@
     <ClInclude Include="..\..\src\util\SociNoWarnings.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\TestPrinter.h">
+    <ClInclude Include="..\..\src\test\Catch2.h">
       <Filter>test</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\TestMarket.h">

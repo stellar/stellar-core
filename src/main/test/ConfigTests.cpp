@@ -4,10 +4,10 @@
 
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Config.h"
 #include "scp/QuorumSetUtils.h"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Math.h"
 #include <fmt/format.h>

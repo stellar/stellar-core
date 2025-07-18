@@ -2,9 +2,9 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "lib/catch.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"

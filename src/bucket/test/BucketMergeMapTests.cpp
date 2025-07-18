@@ -5,8 +5,8 @@
 #include "bucket/BucketMergeMap.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 

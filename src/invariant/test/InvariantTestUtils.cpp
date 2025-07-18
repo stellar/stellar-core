@@ -9,8 +9,8 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "transactions/TransactionUtils.h"
 #include <numeric>
 

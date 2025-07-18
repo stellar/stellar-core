@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"

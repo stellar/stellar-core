@@ -4,9 +4,9 @@
 
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"

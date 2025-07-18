@@ -12,7 +12,7 @@
 #include "crypto/SignerKey.h"
 #include "crypto/StrKey.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-types.h"

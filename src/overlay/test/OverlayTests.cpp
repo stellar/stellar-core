@@ -4,7 +4,6 @@
 
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/BanManager.h"
@@ -16,6 +15,7 @@
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"

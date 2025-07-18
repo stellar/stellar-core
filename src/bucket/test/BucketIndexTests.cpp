@@ -15,9 +15,9 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/test.h"
 
 #include "util/GlobalChecks.h"
