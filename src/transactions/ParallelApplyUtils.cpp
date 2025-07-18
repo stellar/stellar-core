@@ -800,10 +800,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
 
         if (le)
         {
-            auto deltaLe = *le;
-            // This is for the invariants check in LedgerManager
-            deltaLe.lastModifiedLedgerSeq = ledgerInfo.getLedgerSeq();
-            entryDelta.current = std::make_shared<InternalLedgerEntry>(deltaLe);
+            entryDelta.current = std::make_shared<InternalLedgerEntry>(*le);
         }
         releaseAssertOrThrow(entryDelta.current || entryDelta.previous);
         effects.setDeltaEntry(lk, entryDelta);

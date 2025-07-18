@@ -407,7 +407,6 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
             {
                 changes.emplace_back(LEDGER_ENTRY_CREATED);
                 changes.back().created() = *le;
-                changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
             }
         }
     }
