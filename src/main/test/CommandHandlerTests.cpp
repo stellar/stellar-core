@@ -574,3 +574,34 @@ TEST_CASE("toggleoverlayonlymode", "[commandhandler]")
         REQUIRE(root["overlay_only_mode"].asBool() == expectedMode);
     }
 }
+
+TEST_CASE("generateload status command", "[commandhandler]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+    auto app = createTestApplication(clock, cfg);
+    auto& ch = app->getCommandHandler();
+
+    // Test status command when no load generation has started
+    std::string retStr;
+    ch.generateLoad("mode=status", retStr);
+
+    Json::Value root;
+    Json::Reader reader;
+    REQUIRE(reader.parse(retStr, root));
+    
+    // Check that status response has required fields
+    REQUIRE(root.isMember("running"));
+    REQUIRE(root.isMember("failed"));
+    REQUIRE(root.isMember("total_submitted"));
+    
+    // Initially should not be running and have no errors
+    REQUIRE(!root["running"].asBool());
+    REQUIRE(!root["failed"].asBool());
+    REQUIRE(root["total_submitted"].asInt64() == 0);
+    
+    // Test stop command (should not fail even if nothing is running)
+    ch.generateLoad("mode=stop", retStr);
+    REQUIRE(retStr == "Stopped load generation");
+}

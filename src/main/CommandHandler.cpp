@@ -1173,6 +1173,14 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             retStr = "Stopped load generation";
             return;
         }
+        
+        // Check if requesting status information
+        if (modeStr == "status")
+        {
+            Json::Value status = mApp.getLoadGenerator().getLoadGenStatus();
+            retStr = status.toStyledString();
+            return;
+        }
 
         GeneratedLoadConfig cfg;
         cfg.mode = LoadGenerator::getMode(modeStr);

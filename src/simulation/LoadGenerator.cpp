@@ -277,6 +277,7 @@ LoadGenerator::reset()
     mFailed = false;
     mStarted = false;
     mInitialAccountsCreated = false;
+    mLastErrorMessage.clear();
     mPreLoadgenApplySorobanSuccess = 0;
     mPreLoadgenApplySorobanFailure = 0;
     mTransactionsAppliedAtTheStart = 0;
@@ -901,6 +902,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             {
                 CLOG_ERROR(LoadGen, "Exception while submitting tx: {}",
                            e.what());
+                mLastErrorMessage = fmt::format("Exception while submitting transaction: {}", e.what());
                 mFailed = true;
                 break;
             }
@@ -960,6 +962,8 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
             status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
             // Failed to submit the step of load
+            mLastErrorMessage = fmt::format("Failed to submit transaction after {} tries, status: {}", 
+                                          numTries, static_cast<int>(status));
             mFailed = true;
             return 0;
         }
@@ -1015,6 +1019,8 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
             status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR ||
             cfg.mode == LoadGenMode::PAY_PREGENERATED)
         {
+            mLastErrorMessage = fmt::format("Failed to submit transaction after {} tries, status: {}", 
+                                          numTries, static_cast<int>(status));
             mFailed = true;
             return false;
         }
@@ -1429,7 +1435,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
             // In this case the soroban setup phase executed successfully (as
             // indicated by the lack of entries in `sorobanInconsistencies`), so
             // the soroban persistent state does not need to be reset.
-            emitFailure(false);
+            emitFailure(false, "Failed to meet minimum success rate for soroban transactions");
         }
         return;
     }
@@ -1438,7 +1444,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     {
         if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
         {
-            emitFailure(!sorobanIsDone);
+            emitFailure(!sorobanIsDone, "Timed out waiting for transactions to complete");
             return;
         }
 
@@ -1465,15 +1471,29 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 }
 
 void
-LoadGenerator::emitFailure(bool resetSoroban)
+LoadGenerator::emitFailure(bool resetSoroban, std::string const& errorMessage)
 {
-    CLOG_INFO(LoadGen, "Load generation failed.");
+    if (!errorMessage.empty())
+    {
+        mLastErrorMessage = errorMessage;
+        CLOG_INFO(LoadGen, "Load generation failed: {}", errorMessage);
+    }
+    else
+    {
+        CLOG_INFO(LoadGen, "Load generation failed.");
+    }
     mLoadgenFail.Mark();
     reset();
     if (resetSoroban)
     {
         resetSorobanState();
     }
+}
+
+void
+LoadGenerator::emitFailure(bool resetSoroban)
+{
+    emitFailure(resetSoroban, "");
 }
 
 void
@@ -1984,5 +2004,31 @@ LoadGenerator::readTransactionFromFile(GeneratedLoadConfig const& cfg)
 
     // Do not provide an account
     return std::make_pair(nullptr, txFrame);
+}
+
+Json::Value
+LoadGenerator::getLoadGenStatus() const
+{
+    Json::Value status;
+    status["running"] = mStarted;
+    status["failed"] = mFailed;
+    
+    if (!mLastErrorMessage.empty())
+    {
+        status["error"] = mLastErrorMessage;
+    }
+    
+    // Add some basic stats
+    status["total_submitted"] = static_cast<Json::Int64>(mTotalSubmitted);
+    
+    if (mStartTime)
+    {
+        auto now = mApp.getClock().now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+            now - *mStartTime);
+        status["duration_seconds"] = static_cast<Json::Int64>(duration.count());
+    }
+    
+    return status;
 }
 }
