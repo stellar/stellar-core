@@ -442,6 +442,11 @@ class SorobanNetworkConfig
     // to have more accurage modelled CPU and memory costs in tests and
     // especially the benchmarks.
     static void updateRecalibratedCostTypesForV20(AbstractLedgerTxn& ltx);
+    void
+    setLedgerMaxDependentTxClusters(uint32_t maxClusters)
+    {
+        mLedgerMaxDependentTxClusters = maxClusters;
+    }
 #endif
     bool operator==(SorobanNetworkConfig const& other) const;
 

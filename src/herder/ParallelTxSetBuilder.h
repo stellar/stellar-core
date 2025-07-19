@@ -8,6 +8,7 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
+#include "util/BitSet.h"
 
 namespace stellar
 {
@@ -25,5 +26,25 @@ TxStageFrameList buildSurgePricedParallelSorobanPhase(
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
     std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+
+#ifdef BUILD_TESTS
+// Test function that builds a simple TxStageFrameList with fixed parallelism
+// and target number of stages, ignoring resource limits and surge pricing.
+// - txFrames: input transactions to partition
+// - clustersPerStage: fixed number of clusters per stage
+// - targetStageCount: target number of stages (actual may be more if txs spill
+// over) Assigns transactions to non-conflicting clusters sequentially,
+// buffering any that don't fit due to conflicts for the next stage.
+TxStageFrameList buildSimpleParallelTxStages(TxFrameList const& txFrames,
+                                             uint32_t clustersPerStage,
+                                             uint32_t targetStageCount);
+
+// Test-only export of the core algorithm that works with indices
+// Returns stages[stage][cluster][tx_index]
+std::vector<std::vector<std::vector<size_t>>>
+testBuildSimpleParallelStagesFromIndices(
+    std::vector<BitSet> const& conflictSets, uint32_t clustersPerStage,
+    uint32_t targetStageCount);
+#endif
 
 } // namespace stellar

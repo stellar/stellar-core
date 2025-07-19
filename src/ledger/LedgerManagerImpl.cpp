@@ -18,6 +18,16 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
+#include "ledger/LedgerCloseMetaFrame.h"
+#include "transactions/ParallelApplyStage.h"
+#include "xdr/Stellar-contract.h"
+#include "xdr/Stellar-types.h"
+#include <unordered_map>
+#ifdef BUILD_TESTS
+#include "herder/ParallelTxSetBuilder.h"
+#include <fmt/chrono.h>
+#include <fmt/ranges.h>
+#endif
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
@@ -45,13 +55,16 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include "util/XDRCompare.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
+#include "xdrpp/types.h"
 
 #include <cstdint>
 #include <fmt/format.h>
@@ -2246,6 +2259,8 @@ LedgerManagerImpl::applyThread(
 ParallelLedgerInfo
 getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
 {
+    CLOG_DEBUG(Ledger, "capturing ParallelLedgerInfo from header with seq={}",
+               lh.ledgerSeq);
     return {lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
             lh.scpValue.closeTime, app.getNetworkID()};
 }
@@ -2337,7 +2352,7 @@ LedgerManagerImpl::applySorobanStage(
     Hash const& sorobanBasePrngSeed)
 {
     auto const& config = app.getConfig();
-    auto const& sorobanConfig = getSorobanNetworkConfigForApply();
+    auto const& sorobanConfig = app.getSorobanNetworkConfigForApply();
     auto ledgerInfo = getParallelLedgerInfo(app, header);
 
     auto threadStates = applySorobanStageClustersInParallel(
@@ -2418,6 +2433,635 @@ LedgerManagerImpl::processResultAndMeta(
     }
 }
 
+#ifdef BUILD_TESTS
+
+static bool
+isResourceLimitExceededResult(TransactionResult const& res)
+{
+    // Helper to check if a result indicates resource limit exceeded
+    auto isResourceLimitExceeded = [](OperationResult const& opRes) {
+        if (opRes.code() != opINNER)
+        {
+            return false;
+        }
+        switch (opRes.tr().type())
+        {
+        case INVOKE_HOST_FUNCTION:
+            return opRes.tr().invokeHostFunctionResult().code() ==
+                   INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED;
+        case EXTEND_FOOTPRINT_TTL:
+            return opRes.tr().extendFootprintTTLResult().code() ==
+                   EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED;
+        case RESTORE_FOOTPRINT:
+            return opRes.tr().restoreFootprintResult().code() ==
+                   RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED;
+        default:
+            return false;
+        }
+    };
+
+    // Check sequential result for failure
+    if (res.result.code() == txFAILED)
+    {
+        // Direct transaction failure - check the single op result
+        if (!res.result.results().empty() &&
+            isResourceLimitExceeded(res.result.results().at(0)))
+        {
+            return true;
+        }
+    }
+    else if (res.result.code() == txFEE_BUMP_INNER_FAILED)
+    {
+        // Fee bump inner transaction failure - check inner results
+        auto const& innerRes = res.result.innerResultPair().result;
+        if (innerRes.result.code() == txFAILED &&
+            !innerRes.result.results().empty() &&
+            isResourceLimitExceeded(innerRes.result.results().at(0)))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Helper function to check if this is a special case where we should ignore
+// differences: parallel succeeded, sequential failed with resource limit
+// exceeded on a soroban operation (either directly or as inner tx of fee bump)
+static bool
+isSpecialCaseSeqStopsFailingDueToCosts(TransactionFrameBase const& tx,
+                                       TransactionResult const& parResult,
+                                       TransactionResult const& seqResult)
+{
+    // Check if parallel succeeded
+    if (parResult.result.code() == txSUCCESS &&
+        parResult.result.code() != txFEE_BUMP_INNER_SUCCESS)
+    {
+        return false;
+    }
+
+    auto const& opFrames = tx.getOperationFrames();
+
+    // Soroban ops only occur in single-op transactions
+    if (opFrames.size() != 1)
+    {
+        return false;
+    }
+
+    auto opType = opFrames.at(0)->getOperation().body.type();
+    bool isSorobanOp =
+        (opType == INVOKE_HOST_FUNCTION || opType == EXTEND_FOOTPRINT_TTL ||
+         opType == RESTORE_FOOTPRINT);
+
+    if (!isSorobanOp)
+    {
+        return false;
+    }
+
+    return isResourceLimitExceededResult(seqResult);
+}
+
+static bool
+isSpecialCaseKaleTractor(TransactionFrameBase const& tx,
+                         TransactionResult const& parResult,
+                         TransactionResult const& seqResult)
+{
+    // bulk farming kale contract,
+    // CBGSBKYMYO6OMGHQXXNOBRGVUDFUDVC2XLC3SXON5R2SNXILR7XCKKY3 a.k.a.
+    // https://kalefail.elliotfriend.com/tractor
+    //
+    // has the unusual behaviour of taking a vector of inputs and calling
+    // another contract with each; txs submitted are designed to stay "just
+    // under limits" and unfortunately with p23 we increase the amount of memory
+    // used per event (the new topic) so the bulk txs of this contract start
+    // failing under p23.
+
+    // Check if sequential succeeded
+    if (seqResult.result.code() == txSUCCESS &&
+        seqResult.result.code() != txFEE_BUMP_INNER_SUCCESS)
+    {
+        return false;
+    }
+
+    auto const& t = tx.getEnvelope();
+    if (t.type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
+        t.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX)
+    {
+        Transaction const& i = t.feeBump().tx.innerTx.v1().tx;
+        if (i.operations.size() == 1)
+        {
+            auto const& b = i.operations.at(0).body;
+            if (b.type() == INVOKE_HOST_FUNCTION)
+            {
+                HostFunction const& hf = b.invokeHostFunctionOp().hostFunction;
+                if (hf.type() == HOST_FUNCTION_TYPE_INVOKE_CONTRACT &&
+                    hf.invokeContract().functionName == "harvest")
+                {
+                    SCAddress const& c = hf.invokeContract().contractAddress;
+                    if (c.type() == SC_ADDRESS_TYPE_CONTRACT)
+                    {
+                        ContractID const& id = c.contractId();
+                        if (id ==
+                            hexToBin256("4d20ab0cc3bce618f0bddae0c4d5a0cb41d45a"
+                                        "bac5b95dcdec7526dd0b8fee25"))
+                        {
+                            return isResourceLimitExceededResult(parResult);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+// Structure to capture and analyze differences in the results of
+// (re)running a phase sequentially vs. in parallel.
+class ExecutionCapture
+{
+    std::string mName;
+    std::vector<TransactionResult> mTxResults;
+    std::vector<TransactionMeta> mTxMetas;
+    std::chrono::steady_clock::time_point mExecBegin;
+    std::chrono::steady_clock::time_point mExecEnd;
+
+  public:
+    ExecutionCapture(std::string const& name) : mName(name)
+    {
+    }
+
+    void
+    markBegin()
+    {
+        mExecBegin = std::chrono::steady_clock::now();
+    }
+
+    void
+    markEnd()
+    {
+        mExecEnd = std::chrono::steady_clock::now();
+    }
+
+    std::chrono::milliseconds
+    getDuration() const
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            mExecEnd - mExecBegin);
+    }
+
+    void
+    capture(std::vector<MutableTxResultPtr> const& mutableTxResults,
+            std::unique_ptr<LedgerCloseMetaFrame> const& lcm,
+            uint32_t phaseStartIndex, uint32_t phaseEndIndex)
+    {
+        for (auto i = phaseStartIndex; i < phaseEndIndex; ++i)
+        {
+            mTxResults.emplace_back(mutableTxResults.at(i)->getXDR());
+        }
+        if (lcm)
+        {
+            for (auto i = phaseStartIndex; i < phaseEndIndex; ++i)
+            {
+                releaseAssertOrThrow(i < lcm->getTransactionResultMetaCount());
+                mTxMetas.emplace_back(lcm->getTransactionMeta(i));
+            }
+        }
+    }
+
+    std::filesystem::path
+    ensure_diff_directory(uint32_t ledgerSeq, size_t txId)
+    {
+        auto path = std::filesystem::path(fmt::format(
+            "parallel-tx-diffs/ledger-{}/{}-tx-{}", ledgerSeq, mName, txId));
+        if (!std::filesystem::exists(path))
+        {
+            CLOG_ERROR(Ledger, "writing diffs to {}", path);
+            fs::mkpath(path);
+        }
+        return path;
+    }
+
+    void
+    dump_diff_summary(std::filesystem::path const& dir, std::string const& name,
+                      std::vector<std::string> const& diffs)
+    {
+        std::ofstream summary(dir / fmt::format("{}-diff-summary.txt", name));
+        for (auto line : diffs)
+        {
+            summary << line << std::endl;
+        }
+    }
+
+    template <typename T>
+    void
+    dump_xdr_for_tx(std::filesystem::path const& dir,
+                    std::string const& captureName,
+                    std::string const& xdrTypeName, size_t txId, T const& xdr)
+    {
+        std::ofstream stream(dir / fmt::format("{}-tx-{}-{}.json", captureName,
+                                               txId, xdrTypeName));
+        stream << xdr::xdr_to_string(xdr);
+    }
+
+    void
+    dump_predecessor_txn_envelopes(std::filesystem::path const& dir,
+                                   std::string const& captureName,
+                                   TxFrameList const& txs, size_t currTxId)
+    {
+        for (auto txId = 0; txId <= currTxId; ++txId)
+        {
+            dump_xdr_for_tx(dir, captureName, "envelope", txId,
+                            txs.at(txId)->getEnvelope());
+        }
+    }
+
+    void
+    compare(uint32_t ledgerSeq, TxFrameList const& selfTxs,
+            TxFrameList const& otherTxs, ExecutionCapture const& other,
+            std::vector<size_t> const& selfToOtherIndexMap)
+    {
+        CLOG_INFO(Ledger, "=== BEGIN ExecutionCapture::compare ===");
+
+        CLOG_INFO(Ledger, "exec times: {} took {}, {} took {}, difference: {}",
+                  mName, getDuration(), other.mName, other.getDuration(),
+                  getDuration() - other.getDuration());
+
+        bool hitSpecialCaseThatPerturbsBalances = false;
+
+        if (mTxResults.size() == other.mTxResults.size())
+        {
+            for (auto i = 0; i < mTxResults.size(); ++i)
+            {
+                xdrcomp::Comparator comp(mName, other.mName);
+                auto const& res = mTxResults.at(i);
+                auto j = selfToOtherIndexMap.at(i);
+                CLOG_DEBUG(Ledger, "result mapping {} tx {} => {} tx {}", mName,
+                           i, other.mName, j);
+                auto const& ores = other.mTxResults.at(j);
+                if (isSpecialCaseSeqStopsFailingDueToCosts(*selfTxs[i], res,
+                                                           ores) ||
+                    isSpecialCaseKaleTractor(*selfTxs[i], res, ores))
+                {
+                    CLOG_WARNING(Ledger,
+                                 "Hit special case in tx {}: pass/fail "
+                                 "perturbations around RESOURCE_LIMIT_EXCEEDED"
+                                 "; skipping rest of ledger comparison",
+                                 i);
+                    hitSpecialCaseThatPerturbsBalances = true;
+                    break;
+                }
+                if (!(res == ores))
+                {
+                    comp.compareTransactionResult(res, ores);
+                }
+                auto const& diffs = comp.getDifferences();
+                if (!diffs.empty())
+                {
+                    auto dir = ensure_diff_directory(ledgerSeq, i);
+                    dump_diff_summary(dir, "result", diffs);
+                    dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
+                    dump_predecessor_txn_envelopes(dir, other.mName, otherTxs,
+                                                   j);
+                    dump_xdr_for_tx(dir, mName, "result", i, res);
+                    dump_xdr_for_tx(dir, other.mName, "result", j, ores);
+                }
+            }
+        }
+        else
+        {
+            CLOG_ERROR(Ledger, "number of tx results differ: {} {} vs. {} {}",
+                       mName, mTxResults.size(), other.mName,
+                       other.mTxResults.size());
+        }
+
+        if (!hitSpecialCaseThatPerturbsBalances)
+        {
+            if (mTxMetas.size() == other.mTxMetas.size())
+            {
+                for (auto i = 0; i < mTxMetas.size(); ++i)
+                {
+                    xdrcomp::Comparator comp(mName, other.mName);
+                    auto const& meta = mTxMetas.at(i);
+                    auto j = selfToOtherIndexMap.at(i);
+                    CLOG_DEBUG(Ledger, "meta mapping {} tx {} => {} tx {}",
+                               mName, i, other.mName, j);
+                    auto const& ometa = other.mTxMetas.at(j);
+                    if (!(meta == ometa))
+                    {
+                        comp.compareTransactionMeta(meta, ometa, i);
+                    }
+                    auto const& diffs = comp.getDifferences();
+                    if (!diffs.empty())
+                    {
+                        auto dir = ensure_diff_directory(ledgerSeq, i);
+                        dump_diff_summary(dir, "meta", diffs);
+                        dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
+                        dump_predecessor_txn_envelopes(dir, other.mName,
+                                                       otherTxs, j);
+                        dump_xdr_for_tx(dir, mName, "meta", i, meta);
+                        dump_xdr_for_tx(dir, other.mName, "meta", j, ometa);
+                    }
+                }
+            }
+            else
+            {
+                CLOG_ERROR(Ledger, "number of tx metas differ: {} {} vs. {} {}",
+                           mName, mTxMetas.size(), other.mName,
+                           other.mTxMetas.size());
+            }
+        }
+        CLOG_INFO(Ledger, "=== END ExecutionCapture::compare ===");
+    }
+};
+
+class ParallelTestExecutor
+{
+    LedgerManagerImpl& mLm;
+    Application& mApp;
+    std::vector<ApplyStage> mParApplyStages;
+    std::vector<MutableTxResultPtr> mParResults;
+    std::unique_ptr<LedgerCloseMetaFrame> mParLCM;
+
+    uint32_t mPhaseStartIndex;
+    uint32_t mNumTxsInLedger;
+    std::unordered_map<Hash, size_t> mTxHashToSeqIdx;
+    std::vector<size_t> mParToSeqIndexMap;
+
+    ExecutionCapture mParCapture;
+    ExecutionCapture mSeqCapture;
+
+    LedgerHeader
+    makeFakeParHeader(LedgerTxn& ltx)
+    {
+        // snapshot header for par exec. force it to at least the
+        // parallel-exec version.
+        LedgerHeader parHeader = ltx.loadHeader().current();
+        CLOG_DEBUG(Ledger,
+                   "capturing ltx header for parellel exec with ledgerSeq={}",
+                   parHeader.ledgerSeq);
+
+        parHeader.ledgerVersion =
+            std::max((uint32_t)PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION,
+                     (uint32_t)parHeader.ledgerVersion);
+        return parHeader;
+    }
+
+    TxStageFrameList
+    makeFakeParallelTxStageFrameList(LedgerHeader const& parHeader,
+                                     TxSetPhaseFrame const& seqPhase,
+                                     uint32_t parallelism)
+    {
+        auto seqTxns = seqPhase.getSequentialTxs();
+        TxFrameList parTxns;
+        parTxns.reserve(seqTxns.size());
+        for (auto const& tx : seqTxns)
+        {
+            // Create a new transaction frame to avoid modifying the original
+            parTxns.emplace_back(TransactionFrameBase::makeTransactionFromWire(
+                mApp.getNetworkID(), tx->getEnvelope()));
+            mTxHashToSeqIdx.emplace(tx->getFullHash(), mTxHashToSeqIdx.size());
+        }
+
+        // For now we do not use this code: it rebuilds using fake surge
+        // pricing queue and bin packing, which seems like it's more willing
+        // to alter the input order we are trying to preserve for comparison.
+        //
+        // SorobanNetworkConfig sCfg = mLm.getSorobanNetworkConfigForApply();
+        // sCfg.setLedgerMaxDependentTxClusters(parallelism);
+        // std::shared_ptr<SurgePricingLaneConfig> laneConfig =
+        //     createSurgePricingLaneConfig(TxSetPhase::SOROBAN, mApp, true);
+        // std::vector<bool> noFits;
+        // TxStageFrameList parStages = buildSurgePricedParallelSorobanPhase(
+        //     parTxns, mApp.getConfig(), sCfg, laneConfig, noFits,
+        //     parHeader.ledgerVersion);
+
+        size_t targetStageCount = 3;
+        TxStageFrameList parStages =
+            buildSimpleParallelTxStages(parTxns, parallelism, targetStageCount);
+
+        releaseAssertOrThrow(!parStages.empty());
+        std::vector<size_t> stageSizes;
+        for (auto const& s : parStages)
+        {
+            stageSizes.push_back(s.size());
+        }
+        CLOG_INFO(Ledger,
+                  "Built {} parallel stages for testing, with parallel cluster "
+                  "counts [{}] "
+                  " (aiming for {} stages each with {} clusters)",
+                  parStages.size(), fmt::join(stageSizes, ", "),
+                  targetStageCount, parallelism);
+        for (size_t i = 0; i < parStages.size(); ++i)
+        {
+            std::vector<size_t> clusterSizes;
+            for (auto const& c : parStages.at(i))
+            {
+                clusterSizes.push_back(c.size());
+            }
+            CLOG_INFO(Ledger, "stage {} cluster lengths: [{}]", i,
+                      fmt::join(clusterSizes, ", "));
+        }
+        return parStages;
+    }
+
+    void
+    buildParResults(TxStageFrameList const& parStages)
+    {
+        // We make a result vector that has the same size as the prefix of
+        // results plus the current phase. This makes our parallel fake txns
+        // all have the same txnum / index as the sequential txs, but means we
+        // put a bunch of nullptrs in the result-vector prefix.
+        mParResults.clear();
+        for (auto i = 0; i < mPhaseStartIndex; ++i)
+        {
+            mParResults.emplace_back(nullptr);
+        }
+
+        for (auto const& stage : parStages)
+        {
+            for (auto const& cluster : stage)
+            {
+                for (auto const& tx : cluster)
+                {
+                    // Create completely fresh result
+                    mParResults.emplace_back(
+                        tx->createValidationSuccessResult());
+                    // Save the par-to-seq index mapping
+                    auto i = mTxHashToSeqIdx.find(tx->getFullHash());
+                    releaseAssertOrThrow(i != mTxHashToSeqIdx.end());
+                    mParToSeqIndexMap.emplace_back(i->second);
+                }
+            }
+        }
+    }
+
+    void
+    buildParApplyStages(LedgerTxn& ltx, TxStageFrameList const& parStages)
+    {
+
+        mParApplyStages.clear();
+        mParApplyStages.reserve(parStages.size());
+        uint32_t index = mPhaseStartIndex;
+        mLm.buildParallelApplyStages(parStages, mParApplyStages, mParResults,
+                                     index, ltx,
+                                     /*enableTxMeta=*/true);
+    }
+
+    void
+    buildParLCM(LedgerHeader const& parHeader)
+    {
+        mParLCM =
+            std::make_unique<LedgerCloseMetaFrame>(parHeader.ledgerVersion);
+        for (auto i = 0; i < mNumTxsInLedger; ++i)
+        {
+            mParLCM->pushTxProcessingEntry();
+        }
+    }
+
+    void
+    executeStagesInParallel(LedgerTxn& ltx, LedgerHeader const& parHeader,
+                            Hash const& sorobanBasePrngSeed)
+    {
+
+        GlobalParallelApplyLedgerState preSeqPhaseState(
+            mApp.getAppConnector(), ltx, mParApplyStages,
+            mLm.mApplyState.getInMemorySorobanState());
+
+        CLOG_INFO(Ledger,
+                  "Executing {} parallel stages against pre-execution state",
+                  mParApplyStages.size());
+        // Manually apply each stage using the captured pre-execution global
+        // state
+        for (auto const& stage : mParApplyStages)
+        {
+            mLm.applySorobanStage(mApp.getAppConnector(), parHeader,
+                                  preSeqPhaseState, stage, sorobanBasePrngSeed);
+        }
+
+        // Finalize the stages using a throwaway helper TRS.
+        TransactionResultSet txResultSet;
+        mLm.processPostTxSetApplyForParallelStages(mParApplyStages, ltx,
+                                                   mParLCM, txResultSet);
+    }
+
+  public:
+    ParallelTestExecutor(LedgerManagerImpl& lm, AbstractLedgerTxn& ltxParent,
+                         TxSetPhaseFrame const& seqPhase,
+                         uint32_t const phaseStartIndex,
+                         size_t const numTxsInLedger,
+                         Hash const& sorobanBasePrngSeed, uint32_t parallelism)
+        : mLm(lm)
+        , mApp(lm.mApp)
+        , mPhaseStartIndex(phaseStartIndex)
+        , mNumTxsInLedger(numTxsInLedger)
+        , mParCapture("parallel")
+        , mSeqCapture("sequential")
+    {
+        // Use a temporary ltx that we will not commit.
+        LedgerTxn ltx(ltxParent);
+
+        LedgerHeader parHeader = makeFakeParHeader(ltx);
+        TxStageFrameList parStages =
+            makeFakeParallelTxStageFrameList(parHeader, seqPhase, parallelism);
+
+        mParCapture.markBegin();
+        // These effect state variables because we want that state
+        // to stick around in the class, for later capture & comparison.
+        buildParResults(parStages);
+        buildParApplyStages(ltx, parStages);
+        buildParLCM(parHeader);
+
+        executeStagesInParallel(ltx, parHeader, sorobanBasePrngSeed);
+        mParCapture.markEnd();
+    }
+
+    void
+    captureParallel(uint32_t phaseEndIndex)
+    {
+        mParCapture.capture(mParResults, mParLCM, mPhaseStartIndex,
+                            phaseEndIndex);
+    }
+
+    void
+    markSequentialBegin()
+    {
+        mSeqCapture.markBegin();
+    }
+
+    void
+    markSequentialEnd()
+    {
+        mSeqCapture.markEnd();
+    }
+
+    void
+    captureSequential(
+        const std::vector<MutableTxResultPtr>& mutableTxResults,
+        const std::unique_ptr<LedgerCloseMetaFrame>& ledgerCloseMeta,
+        uint32_t phaseEndIndex)
+    {
+        mSeqCapture.capture(mutableTxResults, ledgerCloseMeta, mPhaseStartIndex,
+                            phaseEndIndex);
+    }
+
+    void
+    compareCaptures(uint32_t ledgerSeq, TxSetPhaseFrame const& seqPhase)
+    {
+        TxFrameList partiallyOrderedParTxs;
+        for (auto const& stage : mParApplyStages)
+        {
+            for (auto const& txBundle : stage)
+            {
+                partiallyOrderedParTxs.emplace_back(txBundle.getTx());
+            }
+        }
+        mParCapture.compare(ledgerSeq, partiallyOrderedParTxs,
+                            seqPhase.getSequentialTxs(), mSeqCapture,
+                            mParToSeqIndexMap);
+    }
+
+    static std::unique_ptr<ParallelTestExecutor>
+    maybePreExecuteSequentialPhaseInParallel(LedgerManagerImpl& lm,
+                                             AbstractLedgerTxn& ltx,
+                                             TxSetPhaseFrame const& seqPhase,
+                                             uint32_t const phaseStartIndex,
+                                             size_t const numTxs,
+                                             Hash const& sorobanBasePrngSeed)
+    {
+        try
+        {
+            if (seqPhase.empty() || seqPhase.isParallel() ||
+                !seqPhase.isSoroban())
+            {
+                return nullptr;
+            }
+
+            uint32_t parallelism = 0;
+            char* env = std::getenv("STELLAR_TEST_PARALLEL_EXECUTION");
+            if (env)
+            {
+                parallelism = (uint32_t)atoi(env);
+            }
+            if (parallelism == 0)
+            {
+                return nullptr;
+            }
+
+            return std::make_unique<ParallelTestExecutor>(
+                lm, ltx, seqPhase, phaseStartIndex, numTxs, sorobanBasePrngSeed,
+                parallelism);
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_ERROR(
+                Ledger,
+                "Exception during parallel re-execution state capture: {}",
+                e.what());
+            return nullptr;
+        }
+    }
+};
+#endif
+
 TransactionResultSet
 LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
@@ -2463,19 +3107,57 @@ LedgerManagerImpl::applyTransactions(
     enableTxMeta = true;
 #endif
 
+    // NB: In the present organization of this code, there can only be one
+    // parallel phase. More than one will overwrite the applyStages vector used
+    // in the previous parallel phase. This happens because we need to preserve
+    // some of the parallel-phase state until `processPostTxSetApply` which does
+    // post-txset work issuing refunds. Even though this happens immediately
+    // after the per-phase loop here and the parallel phase is the last, so we
+    // could sink `processPostTxSetApply` into the parallel-phase branch of the
+    // per-phase loop here, we keep `processPostTxSetApply` as a separate
+    // per-phase loop to maintain the logical separation of "post-txset"
+    // actions, in case they become observably separate from this loop in the
+    // future (eg. if there is ever some third phase).
+    bool didParallelPhase = false;
     std::vector<ApplyStage> applyStages;
+#ifdef BUILD_TESTS
+    std::unique_ptr<ParallelTestExecutor> parTestExec;
+#endif
     for (auto const& phase : phases)
     {
         if (phase.isParallel())
         {
+            releaseAssertOrThrow(!didParallelPhase);
             applyParallelPhase(phase, applyStages, mutableTxResults, index, ltx,
                                enableTxMeta, sorobanBasePrngSeed);
+            didParallelPhase = true;
         }
         else
         {
+#ifdef BUILD_TESTS
+            parTestExec =
+                ParallelTestExecutor::maybePreExecuteSequentialPhaseInParallel(
+                    *this, ltx, phase, index, numTxs, sorobanBasePrngSeed);
+            if (parTestExec)
+            {
+                parTestExec->markSequentialBegin();
+            }
+#endif
             applySequentialPhase(phase, mutableTxResults, index, ltx,
                                  enableTxMeta, sorobanBasePrngSeed,
                                  ledgerCloseMeta, txResultSet);
+#ifdef BUILD_TESTS
+            if (parTestExec)
+            {
+                parTestExec->markSequentialEnd();
+                parTestExec->captureParallel(index);
+                parTestExec->captureSequential(mutableTxResults,
+                                               ledgerCloseMeta, index);
+                parTestExec->compareCaptures(
+                    ltx.loadHeader().current().ledgerSeq, phase);
+                parTestExec.reset();
+            }
+#endif
         }
     }
 
@@ -2492,14 +3174,12 @@ LedgerManagerImpl::applyTransactions(
 }
 
 void
-LedgerManagerImpl::applyParallelPhase(
-    TxSetPhaseFrame const& phase, std::vector<stellar::ApplyStage>& applyStages,
+LedgerManagerImpl::buildParallelApplyStages(
+    TxStageFrameList const& txSetStages,
+    std::vector<stellar::ApplyStage>& applyStages,
     std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
-    uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
-    Hash const& sorobanBasePrngSeed)
+    uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta)
 {
-
-    auto const& txSetStages = phase.getParallelStages();
 
     applyStages.reserve(txSetStages.size());
 
@@ -2520,6 +3200,9 @@ LedgerManagerImpl::applyParallelPhase(
                     mApp.getAppConnector(), tx, *mutableTxResult,
                     ltx.loadHeader().current().ledgerVersion, index,
                     enableTxMeta);
+
+                CLOG_DEBUG(Ledger, "Parallel tx #{} = {}", index,
+                           hexAbbrev(tx->getFullHash()));
 
                 // Use txBundle.getTxNum() to get this transactions
                 // index from now on
@@ -2542,7 +3225,19 @@ LedgerManagerImpl::applyParallelPhase(
         }
         applyStages.emplace_back(std::move(applyClusters));
     }
+}
 
+void
+LedgerManagerImpl::applyParallelPhase(
+    TxSetPhaseFrame const& phase, std::vector<stellar::ApplyStage>& applyStages,
+    std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
+    uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
+    Hash const& sorobanBasePrngSeed)
+{
+
+    auto const& txSetStages = phase.getParallelStages();
+    buildParallelApplyStages(txSetStages, applyStages, mutableTxResults, index,
+                             ltx, enableTxMeta);
     applySorobanStages(mApp.getAppConnector(), ltx, applyStages,
                        sorobanBasePrngSeed);
 
@@ -2589,6 +3284,8 @@ LedgerManagerImpl::applySequentialPhase(
             subSeed =
                 subSha256(sorobanBasePrngSeed, static_cast<uint64_t>(index));
         }
+        CLOG_DEBUG(Ledger, "Sequential tx #{} = {}", index,
+                   hexAbbrev(tx->getFullHash()));
 
         tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult, subSeed);
         tx->processPostApply(mApp.getAppConnector(), ltx, tm, mutableTxResult);
@@ -2606,6 +3303,40 @@ LedgerManagerImpl::applySequentialPhase(
 }
 
 void
+LedgerManagerImpl::processPostTxSetApplyForParallelStages(
+    std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    TransactionResultSet& txResultSet)
+{
+    for (auto const& stage : applyStages)
+    {
+        for (auto const& txBundle : stage)
+        {
+            {
+                LedgerTxn ltxInner(ltx);
+                txBundle.getTx()->processPostTxSetApply(
+                    mApp.getAppConnector(), ltxInner, txBundle.getResPayload(),
+                    txBundle.getEffects().getMeta().getTxEventManager());
+
+                if (ledgerCloseMeta)
+                {
+                    ledgerCloseMeta->setPostTxApplyFeeProcessing(
+                        ltxInner.getChanges(), txBundle.getTxNum());
+                }
+                ltxInner.commit();
+            }
+
+            // setPostTxApplyFeeProcessing can update the feeCharged in
+            // the result, so this needs to be done after
+            processResultAndMeta(ledgerCloseMeta, txBundle.getTxNum(),
+                                 txBundle.getEffects().getMeta(),
+                                 *txBundle.getTx(), txBundle.getResPayload(),
+                                 txResultSet);
+        }
+    }
+}
+
+void
 LedgerManagerImpl::processPostTxSetApply(
     std::vector<TxSetPhaseFrame> const& phases,
     std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
@@ -2616,35 +3347,8 @@ LedgerManagerImpl::processPostTxSetApply(
     {
         if (phase.isParallel())
         {
-            for (auto const& stage : applyStages)
-            {
-                for (auto const& txBundle : stage)
-                {
-                    {
-                        LedgerTxn ltxInner(ltx);
-                        txBundle.getTx()->processPostTxSetApply(
-                            mApp.getAppConnector(), ltxInner,
-                            txBundle.getResPayload(),
-                            txBundle.getEffects()
-                                .getMeta()
-                                .getTxEventManager());
-
-                        if (ledgerCloseMeta)
-                        {
-                            ledgerCloseMeta->setPostTxApplyFeeProcessing(
-                                ltxInner.getChanges(), txBundle.getTxNum());
-                        }
-                        ltxInner.commit();
-                    }
-
-                    // setPostTxApplyFeeProcessing can update the feeCharged in
-                    // the result, so this needs to be done after
-                    processResultAndMeta(ledgerCloseMeta, txBundle.getTxNum(),
-                                         txBundle.getEffects().getMeta(),
-                                         *txBundle.getTx(),
-                                         txBundle.getResPayload(), txResultSet);
-                }
-            }
+            processPostTxSetApplyForParallelStages(
+                applyStages, ltx, ledgerCloseMeta, txResultSet);
         }
         // setPostTxApplyFeeProcessing is not used in the non-parallel
         // path, so we don't need to call it here, but we will need to add
@@ -2926,4 +3630,4 @@ LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
         }
     }
 }
-}
+} // namespace stellar
