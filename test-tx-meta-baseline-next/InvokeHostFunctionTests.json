@@ -2294,6 +2294,38 @@
 	"delete in first stage extend in second stage" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=", "9ztD9SE/Uek=" ],
 	"delete non existent entry with parallel apply" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=" ],
 	"failure diagnostics" : [ "+cR3oq2qY0I=" ],
+	"fee bump inner account merged then used as inner account on soroban fee bump|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"08XkqM/inmk=",
+		"jKPDZb7S+to=",
+		"jagCvq2T+n0=",
+		"qFLvLAnUelc="
+	],
+	"fee bump inner account merged then used as inner account on soroban fee bump|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"LQDabpuAeyE=",
+		"unke/Zbf7QQ=",
+		"j8BiaEQG07U=",
+		"OFY4I7dpXag="
+	],
+	"fee bump inner account merged then used as inner account on soroban fee bump|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"BKc5Rrh5e2Y=",
+		"GdHrnqOgZkE=",
+		"4wVGUgmORrk=",
+		"9/RHd8t1ab4="
+	],
+	"fee bump inner account merged then used as inner account on soroban fee bump|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"BKc5Rrh5e2Y=",
+		"GdHrnqOgZkE=",
+		"4wVGUgmORrk=",
+		"9/RHd8t1ab4="
+	],
 	"fee bump refund account merged|protocol version 20" : 
 	[
 		"NTGGdj1offM=",
@@ -2336,11 +2368,81 @@
 	],
 	"ledger entry size limit enforced" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"loadgen Wasm executes properly" : [ "+cR3oq2qY0I=" ],
-	"merge account then do SAC payment to the merged account|protocol version 20" : [ "bKDF6V5IzTo=", "4qTJp8JmPaQ=", "TZsMI+VIqms=", "OPJp6Z6eHjY=" ],
-	"merge account then do SAC payment to the merged account|protocol version 21" : [ "bKDF6V5IzTo=", "4qTJp8JmPaQ=", "TZsMI+VIqms=", "OPJp6Z6eHjY=" ],
-	"merge account then do SAC payment to the merged account|protocol version 22" : [ "bKDF6V5IzTo=", "nZaHaZaWjPM=", "ank7hDEdE90=", "UhTmVoE7E10=" ],
-	"merge account then do SAC payment to the merged account|protocol version 23" : [ "+cR3oq2qY0I=", "kDMMDQdWWBg=", "XgQ36O588Cw=", "AeLB0v5FV3E=" ],
-	"merge account then do SAC payment to the merged account|protocol version 24" : [ "+cR3oq2qY0I=", "kDMMDQdWWBg=", "XgQ36O588Cw=", "AeLB0v5FV3E=" ],
+	"merge account then SAC payment scenarios|protocol version 20" : 
+	[
+		"bKDF6V5IzTo=",
+		"4qTJp8JmPaQ=",
+		"TZsMI+VIqms=",
+		"OPJp6Z6eHjY=",
+		"bKDF6V5IzTo=",
+		"4qTJp8JmPaQ=",
+		"TZsMI+VIqms=",
+		"OPJp6Z6eHjY=",
+		"bKDF6V5IzTo=",
+		"4qTJp8JmPaQ=",
+		"TZsMI+VIqms=",
+		"OPJp6Z6eHjY="
+	],
+	"merge account then SAC payment scenarios|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"4qTJp8JmPaQ=",
+		"TZsMI+VIqms=",
+		"OPJp6Z6eHjY=",
+		"bKDF6V5IzTo=",
+		"4qTJp8JmPaQ=",
+		"TZsMI+VIqms=",
+		"OPJp6Z6eHjY=",
+		"bKDF6V5IzTo=",
+		"4qTJp8JmPaQ=",
+		"TZsMI+VIqms=",
+		"OPJp6Z6eHjY="
+	],
+	"merge account then SAC payment scenarios|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"nZaHaZaWjPM=",
+		"ank7hDEdE90=",
+		"UhTmVoE7E10=",
+		"bKDF6V5IzTo=",
+		"nZaHaZaWjPM=",
+		"ank7hDEdE90=",
+		"UhTmVoE7E10=",
+		"bKDF6V5IzTo=",
+		"nZaHaZaWjPM=",
+		"ank7hDEdE90=",
+		"UhTmVoE7E10="
+	],
+	"merge account then SAC payment scenarios|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E=",
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E=",
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E="
+	],
+	"merge account then SAC payment scenarios|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E=",
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E=",
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E="
+	],
 	"multiple soroban ops in a tx|protocol version 20" : [ "bKDF6V5IzTo=", "n9Sc/mMA2VA=", "bKDF6V5IzTo=", "n9Sc/mMA2VA=" ],
 	"multiple soroban ops in a tx|protocol version 20|with fee bump" : [ "nfyrGO2ZGaM=" ],
 	"multiple soroban ops in a tx|protocol version 21" : [ "bKDF6V5IzTo=", "SStJyt3nT/c=", "bKDF6V5IzTo=", "SStJyt3nT/c=" ],
@@ -3323,5 +3425,115 @@
 		"+cR3oq2qY0I="
 	],
 	"transaction validation diagnostics" : [ "+cR3oq2qY0I=" ],
+	"trustline deletion then SAC payment|protocol version 20" : 
+	[
+		"bKDF6V5IzTo=",
+		"2kvpGl8FKko=",
+		"uvPfydb9+TI=",
+		"pRsQvWb6EaY=",
+		"TUUL7DeDAlw=",
+		"55+aeIAaxRc=",
+		"fTMtMdMEa3c=",
+		"BZmpLZTGOlo="
+	],
+	"trustline deletion then SAC payment|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"2kvpGl8FKko=",
+		"uvPfydb9+TI=",
+		"pRsQvWb6EaY=",
+		"TUUL7DeDAlw=",
+		"55+aeIAaxRc=",
+		"fTMtMdMEa3c=",
+		"BZmpLZTGOlo="
+	],
+	"trustline deletion then SAC payment|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"Gbh2DliO9As=",
+		"sgxX7GC1uk0=",
+		"e9BB0gCBtD0=",
+		"WKqJIbgel1k=",
+		"55+aeIAaxRc=",
+		"fTMtMdMEa3c=",
+		"BZmpLZTGOlo="
+	],
+	"trustline deletion then SAC payment|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"g6QB9gqh5xo=",
+		"TKzkuxMfH18=",
+		"b3iiNQt8Cb0=",
+		"r2H4hw9Ij8A=",
+		"8+WGK0Ogv8k=",
+		"T452ExvJRU0=",
+		"U3cl0rcrkIE="
+	],
+	"trustline deletion then SAC payment|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"g6QB9gqh5xo=",
+		"TKzkuxMfH18=",
+		"b3iiNQt8Cb0=",
+		"r2H4hw9Ij8A=",
+		"8+WGK0Ogv8k=",
+		"T452ExvJRU0=",
+		"U3cl0rcrkIE="
+	],
+	"validate return values|protocol version 20" : 
+	[
+		"bKDF6V5IzTo=",
+		"n9Sc/mMA2VA=",
+		"lTHrlpHjiNw=",
+		"G+kLAOxwyVM=",
+		"aQhOvlFVMU8=",
+		"kVBdQnjnQqY=",
+		"BePhclRpumk=",
+		"KZ0R+45j9ls="
+	],
+	"validate return values|protocol version 21" : 
+	[
+		"bKDF6V5IzTo=",
+		"SStJyt3nT/c=",
+		"EqdsgJnS8Ig=",
+		"CpQQVjzXelY=",
+		"/3zIecQnprk=",
+		"LPYjX4j57ZY=",
+		"CGGirmMJRJ0=",
+		"kLvmO78c7Rs="
+	],
+	"validate return values|protocol version 22" : 
+	[
+		"bKDF6V5IzTo=",
+		"KZKP7yAORQ0=",
+		"+ji0lpzjuUM=",
+		"9rAmnEI5j1I=",
+		"Cw/seTy8xjE=",
+		"FcyVY+18W8Q=",
+		"oprdXHHpyqk=",
+		"Tk7Z7LgjVIM="
+	],
+	"validate return values|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"dVqD6K4nmbM=",
+		"uoPEAi87aTU=",
+		"CsReMTmwolg=",
+		"hNENG/eaDPo=",
+		"AtSaF+1Mu20=",
+		"q25JLYe6/DE=",
+		"n3yV5IX7urw="
+	],
+	"validate return values|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"dVqD6K4nmbM=",
+		"uoPEAi87aTU=",
+		"CsReMTmwolg=",
+		"hNENG/eaDPo=",
+		"AtSaF+1Mu20=",
+		"q25JLYe6/DE=",
+		"n3yV5IX7urw="
+	],
 	"version test" : [ "766L+TYsWqA=" ]
 }
