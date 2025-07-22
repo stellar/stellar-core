@@ -5372,13 +5372,13 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     std::vector<TransactionEnvelope> txsToSign;
 
     auto uploadRes =
-        getUploadTx(a1.getPublicKey(), a1.getLastSequenceNumber() + 1);
+        getUploadTx(a1.getPublicKey(), a1.getLastSequenceNumber() + 1, 0);
     txsToSign.emplace_back(uploadRes.first);
     auto const& contractCodeLedgerKey = uploadRes.second;
 
     auto createRes =
         getCreateTx(a1.getPublicKey(), contractCodeLedgerKey,
-                    cfg.NETWORK_PASSPHRASE, a1.getLastSequenceNumber() + 2);
+                    cfg.NETWORK_PASSPHRASE, a1.getLastSequenceNumber() + 2, 0);
     txsToSign.emplace_back(std::get<0>(createRes));
     auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
     auto const& contractID = std::get<2>(createRes);
@@ -5622,7 +5622,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
     auto invokeRes = getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
                                  contractSourceRefLedgerKey, contractID,
-                                 upgradeSet, a1.getLastSequenceNumber() + 3);
+                                 upgradeSet, a1.getLastSequenceNumber() + 3, 0);
     txsToSign.emplace_back(invokeRes.first);
     auto const& upgradeSetKey = invokeRes.second;
 
@@ -5695,7 +5695,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto invokeRes2 =
             getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
                         contractSourceRefLedgerKey, contractID, upgradeSet2,
-                        a1.getLastSequenceNumber() + 4);
+                        a1.getLastSequenceNumber() + 4, 0);
 
         auto const& upgradeSetKey2 = invokeRes2.second;
 
@@ -5824,7 +5824,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             REQUIRE_THROWS_AS(
                 getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
                             contractSourceRefLedgerKey, contractID, upgradeSet,
-                            a1.getLastSequenceNumber() + 3),
+                            a1.getLastSequenceNumber() + 3, 0),
                 std::runtime_error);
         }
     }

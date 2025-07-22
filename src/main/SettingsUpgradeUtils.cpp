@@ -8,14 +8,14 @@ namespace stellar
 {
 
 std::pair<TransactionEnvelope, LedgerKey>
-getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
+getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum,
+                 int64_t addResourceFee)
 {
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -47,20 +47,22 @@ getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = restoreResources;
-    tx.ext.sorobanData().resourceFee = 55'000'000;
+    tx.ext.sorobanData().resourceFee = 55'000'000 + addResourceFee;
+
+    tx.fee = 100'000'000 + tx.ext.sorobanData().resourceFee;
 
     return {txEnv, contractCodeLedgerKey};
 }
 
 std::pair<TransactionEnvelope, LedgerKey>
-getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
+getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum,
+            int64_t addResourceFee)
 {
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -94,21 +96,22 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 55'000'000;
+    tx.ext.sorobanData().resourceFee = 55'000'000 + addResourceFee;
+    tx.fee = 100'000'000 + tx.ext.sorobanData().resourceFee;
 
     return {txEnv, contractCodeLedgerKey};
 }
 
 std::tuple<TransactionEnvelope, LedgerKey, Hash>
 getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
-            std::string const& networkPassphrase, SequenceNumber seqNum)
+            std::string const& networkPassphrase, SequenceNumber seqNum,
+            int64_t addResourceFee)
 {
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 25'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -178,8 +181,8 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 15'000'000;
-
+    tx.ext.sorobanData().resourceFee = 15'000'000 + addResourceFee;
+    tx.fee = 25'000'000 + tx.ext.sorobanData().resourceFee;
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
 
@@ -211,7 +214,8 @@ validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
 std::pair<TransactionEnvelope, ConfigUpgradeSetKey>
 getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
             LedgerKey const& contractSourceRefLedgerKey, Hash const& contractID,
-            ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum)
+            ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum,
+            int64_t addResourceFee)
 {
 
     validateConfigUpgradeSet(upgradeSet);
@@ -221,7 +225,6 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -273,7 +276,9 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;
-    tx.ext.sorobanData().resourceFee = 95'000'000;
+    tx.ext.sorobanData().resourceFee = 95'000'000 + addResourceFee;
+
+    tx.fee = 100'000'000 + tx.ext.sorobanData().resourceFee;
 
     ConfigUpgradeSetKey key;
     key.contentHash = upgradeHash;

@@ -1233,11 +1233,15 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
 
     int64_t seqNum;
     std::string upgradeFile;
+    int64_t additionalResourceFee = 0;
 
     bool signTxs = false;
 
     auto signTxnOption =
         clara::Opt{signTxs}["--signtxs"]("sign all transactions");
+    auto additionalResourceFeeOption = clara::Opt(
+        additionalResourceFee, "ADD-RESOURCE-FEE")["--add-resource-fee"](
+        "additional resource fee for all the transactions");
 
     auto netIdOption = clara::Opt(netId, "NETWORK-PASSPHRASE")["--netid"](
                            "network ID used for signing")
@@ -1264,7 +1268,7 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
         args,
         {requiredArgParser(id, "PublicKey"), seqNumParser,
          requiredArgParser(netId, "NetworkPassphrase"), base64Parser,
-         signTxnOption},
+         signTxnOption, additionalResourceFeeOption},
         [&] {
             ConfigUpgradeSet upgradeSet;
             std::vector<uint8_t> binBlob;
@@ -1274,22 +1278,23 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
             PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
 
             std::vector<TransactionEnvelope> txsToSign;
-            auto restoreRes = getWasmRestoreTx(pk, seqNum + 1);
+            auto restoreRes =
+                getWasmRestoreTx(pk, seqNum + 1, additionalResourceFee);
             txsToSign.emplace_back(restoreRes.first);
 
-            auto uploadRes = getUploadTx(pk, seqNum + 2);
+            auto uploadRes = getUploadTx(pk, seqNum + 2, 0);
             txsToSign.emplace_back(uploadRes.first);
             auto const& contractCodeLedgerKey = uploadRes.second;
 
-            auto createRes =
-                getCreateTx(pk, contractCodeLedgerKey, netId, seqNum + 3);
+            auto createRes = getCreateTx(pk, contractCodeLedgerKey, netId,
+                                         seqNum + 3, additionalResourceFee);
             txsToSign.emplace_back(std::get<0>(createRes));
             auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
             auto const& contractID = std::get<2>(createRes);
 
-            auto invokeRes = getInvokeTx(pk, contractCodeLedgerKey,
-                                         contractSourceRefLedgerKey, contractID,
-                                         upgradeSet, seqNum + 4);
+            auto invokeRes = getInvokeTx(
+                pk, contractCodeLedgerKey, contractSourceRefLedgerKey,
+                contractID, upgradeSet, seqNum + 4, additionalResourceFee);
             txsToSign.emplace_back(invokeRes.first);
             auto const& upgradeSetKey = invokeRes.second;
 

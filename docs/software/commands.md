@@ -111,6 +111,7 @@ apply.
   `stellar-core get-settings-upgrade-txs GAUQW73V52I2WLIPKCKYXZBHIYFTECS7UPSG4OSVUHNDXEZJJWFXZG56 73014444032  "Standalone Network ; February 2017" --xdr AAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= --signtxs`.<br>
 
   Option **--signtxs** will prompt for a secret key and sign the TransactionEnvelopes.<br>
+* Option **--add-resource-fee** will add the specified value to the resource fee of all the transactions.<br>
 
   Output format by line - 
   1. Base64 wasm restore tx envelope XDR

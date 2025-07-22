@@ -1,5 +1,5 @@
 #!/bin/sh
-# Usage: `bash settings-helper.sh <ACCOUNT_SECRET_KEY> <pubnet|testnet> <path_to_settings.json>
+# Usage: `bash settings-helper.sh <ACCOUNT_SECRET_KEY> <pubnet|testnet|futurenet> <path_to_settings.json> <ADDITIONAL_RESOURCE_FEE>
 set -e
 
 SECRET_KEY="$1"
@@ -11,6 +11,9 @@ PUBNET_PASSPHRASE="Public Global Stellar Network ; September 2015"
 
 TESTNET_HORIZON="https://horizon-testnet.stellar.org/accounts"
 TESTNET_PASSPHRASE="Test SDF Network ; September 2015"
+
+FUTURENET_HORIZON="https://horizon-futurenet.stellar.org/accounts"
+FUTURENET_PASSPHRASE="Test SDF Future Network ; October 2022"
 
 HORIZON=""
 PASSPHRASE=""
@@ -24,6 +27,10 @@ elif [ "$2" == "testnet" ]
 then
 HORIZON=$TESTNET_HORIZON
 PASSPHRASE=$TESTNET_PASSPHRASE
+elif [ "$2" == "futurenet" ]
+then
+HORIZON=$FUTURENET_HORIZON
+PASSPHRASE=$FUTURENET_PASSPHRASE
 else
 echo "invalid passphrase"
 fi
@@ -35,9 +42,10 @@ if ! [[ $SEQ_NUM =~ $re ]] ; then
    echo "Error: SEQ_NUM not retrieved. Your account might not be funded, or Horizon might be down. Hardcode the SEQ_NUM below and remove the horizon code." >&2; exit 1
 fi
 
-OUTPUT="$(echo $SECRET_KEY | ./stellar-core get-settings-upgrade-txs "$PUBLIC_KEY" "$SEQ_NUM" "$PASSPHRASE" --xdr $(stellar-xdr encode --type ConfigUpgradeSet $3) --signtxs)"
+OUTPUT="$(echo $SECRET_KEY | ./stellar-core get-settings-upgrade-txs "$PUBLIC_KEY" "$SEQ_NUM" "$PASSPHRASE" --xdr $(stellar-xdr encode --type ConfigUpgradeSet $3) --signtxs --add-resource-fee $4)"
 
-echo "----- TX #1 -----"
+
+echo "----- TX #1 -----" 
 echo "curl -G 'http://localhost:11626/tx' --data-urlencode 'blob=$(echo "$OUTPUT" | sed -n '1p')'"
 
 echo "----- TX #2 -----"
