@@ -1126,11 +1126,6 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
-Config&
-ApplicationImpl::getMutableConfig()
-{
-    return mConfig;
-}
 
 std::shared_ptr<TestAccount>
 ApplicationImpl::getRoot()
