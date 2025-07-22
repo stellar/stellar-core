@@ -1271,15 +1271,9 @@ Comparator::compareTTLEntry(TTLEntry const& ttl1, TTLEntry const& ttl2)
 }
 
 void
-Comparator::compareTransactionMeta(TransactionMeta const& meta1_in,
-                                   TransactionMeta const& meta2_in,
-                                   size_t txIndex)
+Comparator::compareTransactionMeta(TransactionMeta const& meta1,
+                                   TransactionMeta const& meta2, size_t txIndex)
 {
-    auto meta1 = meta1_in;
-    auto meta2 = meta2_in;
-    normalizeMeta(meta1);
-    normalizeMeta(meta2);
-
     pushPath(fmt::format("tx[{}]", txIndex));
 
     if (meta1.v() != meta2.v())
