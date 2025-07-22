@@ -2558,6 +2558,62 @@ isSpecialCasePassFailDiffsDueToFeesOrLimits(TransactionFrameBase const& tx,
     return false;
 }
 
+static bool
+isSpecialCaseKaleTractor(TransactionFrameBase const& tx,
+                         TransactionResult const& parResult,
+                         TransactionResult const& seqResult)
+{
+    // bulk farming kale contract,
+    // CBGSBKYMYO6OMGHQXXNOBRGVUDFUDVC2XLC3SXON5R2SNXILR7XCKKY3 a.k.a.
+    // https://kalefail.elliotfriend.com/tractor
+    //
+    // has the unusual behaviour of taking a vector of inputs and calling
+    // another contract with each; txs submitted are designed to stay "just
+    // under limits" and unfortunately with p23 we increase the amount of memory
+    // used per event (the new topic) so the bulk txs of this contract start
+    // failing under p23. sometimes this fails with a resource exhaustion
+    // error, other times with a trap code. For now we're just going to
+    // allow all such seq/par success mismatches on this contract.
+
+    auto seqOk = resultIsSuccess(seqResult);
+    auto parOk = resultIsSuccess(parResult);
+    if (seqOk == parOk)
+    {
+        return false;
+    }
+
+    auto const& t = tx.getEnvelope();
+    if (t.type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
+        t.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX)
+    {
+        Transaction const& i = t.feeBump().tx.innerTx.v1().tx;
+        if (i.operations.size() == 1)
+        {
+            auto const& b = i.operations.at(0).body;
+            if (b.type() == INVOKE_HOST_FUNCTION)
+            {
+                HostFunction const& hf = b.invokeHostFunctionOp().hostFunction;
+                if (hf.type() == HOST_FUNCTION_TYPE_INVOKE_CONTRACT &&
+                    hf.invokeContract().functionName == "harvest")
+                {
+                    SCAddress const& c = hf.invokeContract().contractAddress;
+                    if (c.type() == SC_ADDRESS_TYPE_CONTRACT)
+                    {
+                        ContractID const& id = c.contractId();
+                        if (id ==
+                            hexToBin256("4d20ab0cc3bce618f0bddae0c4d5a0cb41d45a"
+                                        "bac5b95dcdec7526dd0b8fee25"))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 // Structure to capture and analyze differences in the results of
 // (re)running a phase sequentially vs. in parallel.
 class ExecutionCapture
@@ -2687,7 +2743,8 @@ class ExecutionCapture
                            i, other.mName, j);
                 auto const& ores = other.mTxResults.at(j);
                 if (isSpecialCasePassFailDiffsDueToFeesOrLimits(*selfTxs[i],
-                                                                res, ores))
+                                                                res, ores) ||
+                    isSpecialCaseKaleTractor(*selfTxs[i], res, ores))
                 {
                     CLOG_WARNING(Ledger,
                                  "Hit special case in tx {}: pass/fail "
