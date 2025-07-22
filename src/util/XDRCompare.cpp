@@ -131,6 +131,8 @@ Comparator::getToleratedDifferences()
                 toleratedDiffs |= DIFF_TX_CHANGES_BEFORE;
             else if (option == "tx_changes_after")
                 toleratedDiffs |= DIFF_TX_CHANGES_AFTER;
+            else if (option == "ttl_live_until_ledger_by_one")
+                toleratedDiffs |= DIFF_TTL_LIVE_UNTIL_LEDGER_BY_ONE;
             else if (option == "fee_changes" || option == "fees")
             {
                 // Convenience option to tolerate all fee-related changes
@@ -1286,8 +1288,29 @@ Comparator::compareTTLEntry(TTLEntry const& ttl1, TTLEntry const& ttl2)
         popPath();
     }
 
-    compareValue("liveUntilLedgerSeq", ttl1.liveUntilLedgerSeq,
-                 ttl2.liveUntilLedgerSeq);
+    // Check if liveUntilLedgerSeq differs by exactly 1
+    if (ttl1.liveUntilLedgerSeq != ttl2.liveUntilLedgerSeq)
+    {
+        uint32_t diff =
+            (ttl1.liveUntilLedgerSeq > ttl2.liveUntilLedgerSeq)
+                ? (ttl1.liveUntilLedgerSeq - ttl2.liveUntilLedgerSeq)
+                : (ttl2.liveUntilLedgerSeq - ttl1.liveUntilLedgerSeq);
+
+        if (diff == 1 &&
+            isDifferenceTolerated(DIFF_TTL_LIVE_UNTIL_LEDGER_BY_ONE))
+        {
+            // Difference of exactly 1 ledger is tolerated, don't report
+            return;
+        }
+        else
+        {
+            pushPath("liveUntilLedgerSeq");
+            reportDifference(fmt::format("value differs: {} vs {}",
+                                         ttl1.liveUntilLedgerSeq,
+                                         ttl2.liveUntilLedgerSeq));
+            popPath();
+        }
+    }
 }
 
 void
