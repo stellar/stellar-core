@@ -565,7 +565,15 @@ Comparator::compareAccountEntry(AccountEntry const& acc1,
         popPath();
     }
 
-    compareValue("balance", acc1.balance, acc2.balance, DIFF_BALANCE);
+    // Check if this account is involved in fees
+    bool isFeeInvolvedAccount = mFeeInvolvedAddresses.find(acc1.accountID) !=
+                                mFeeInvolvedAddresses.end();
+    // If we're looking at a fee-involved account and are tolerating fee diffs,
+    // skip looking at the balance.
+    if (!(isFeeInvolvedAccount && isDifferenceTolerated(DIFF_FEE_CHARGED)))
+    {
+        compareValue("balance", acc1.balance, acc2.balance, DIFF_BALANCE);
+    }
     compareValue("seqNum", acc1.seqNum, acc2.seqNum, DIFF_SEQUENCE_NUMBER);
     compareValue("numSubEntries", acc1.numSubEntries, acc2.numSubEntries,
                  DIFF_NUM_SUB_ENTRIES);
@@ -734,18 +742,20 @@ Comparator::compareTrustLineEntry(TrustLineEntry const& tl1,
 
 void
 Comparator::compareLedgerEntryChanges(LedgerEntryChanges const& changes1,
-                                      LedgerEntryChanges const& changes2)
+                                      LedgerEntryChanges const& changes2,
+                                      bool collectFeeAddresses)
 {
     compareVector(
         "changes", changes1, changes2,
         [&](LedgerEntryChange const& c1, LedgerEntryChange const& c2) {
-            compareLedgerEntryChange(c1, c2);
+            compareLedgerEntryChange(c1, c2, collectFeeAddresses);
         });
 }
 
 void
 Comparator::compareLedgerEntryChange(LedgerEntryChange const& change1,
-                                     LedgerEntryChange const& change2)
+                                     LedgerEntryChange const& change2,
+                                     bool collectFeeAddresses)
 {
     if (change1.type() != change2.type())
     {
@@ -759,12 +769,22 @@ Comparator::compareLedgerEntryChange(LedgerEntryChange const& change1,
     {
     case LEDGER_ENTRY_CREATED:
         pushPath("created");
+        if (collectFeeAddresses && change1.created().data.type() == ACCOUNT)
+        {
+            mFeeInvolvedAddresses.insert(
+                change1.created().data.account().accountID);
+        }
         compareLedgerEntry(change1.created(), change2.created());
         popPath();
         break;
 
     case LEDGER_ENTRY_UPDATED:
         pushPath("updated");
+        if (collectFeeAddresses && change1.updated().data.type() == ACCOUNT)
+        {
+            mFeeInvolvedAddresses.insert(
+                change1.updated().data.account().accountID);
+        }
         compareLedgerEntry(change1.updated(), change2.updated());
         popPath();
         break;
@@ -1292,7 +1312,7 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
                           if (!(op1 == op2))
                           {
                               compareLedgerEntryChanges(op1.changes,
-                                                        op2.changes);
+                                                        op2.changes, false);
                           }
                       });
         break;
@@ -1304,7 +1324,7 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
 
         pushPath("v1");
         pushPath("txChanges");
-        compareLedgerEntryChanges(v1_1.txChanges, v1_2.txChanges);
+        compareLedgerEntryChanges(v1_1.txChanges, v1_2.txChanges, true);
         popPath();
 
         compareVector("operations", v1_1.operations, v1_2.operations,
@@ -1312,7 +1332,7 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
                           if (!(op1 == op2))
                           {
                               compareLedgerEntryChanges(op1.changes,
-                                                        op2.changes);
+                                                        op2.changes, false);
                           }
                       });
         popPath();
@@ -1326,7 +1346,8 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
 
         pushPath("v2");
         pushPath("txChangesBefore");
-        compareLedgerEntryChanges(v2_1.txChangesBefore, v2_2.txChangesBefore);
+        compareLedgerEntryChanges(v2_1.txChangesBefore, v2_2.txChangesBefore,
+                                  true);
         popPath();
 
         compareVector("operations", v2_1.operations, v2_2.operations,
@@ -1334,12 +1355,13 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
                           if (!(op1 == op2))
                           {
                               compareLedgerEntryChanges(op1.changes,
-                                                        op2.changes);
+                                                        op2.changes, false);
                           }
                       });
 
         pushPath("txChangesAfter");
-        compareLedgerEntryChanges(v2_1.txChangesAfter, v2_2.txChangesAfter);
+        compareLedgerEntryChanges(v2_1.txChangesAfter, v2_2.txChangesAfter,
+                                  true);
         popPath();
         popPath();
     }
@@ -1433,7 +1455,8 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
         }
 
         pushPath("txChangesBefore");
-        compareLedgerEntryChanges(v3_1.txChangesBefore, v3_2.txChangesBefore);
+        compareLedgerEntryChanges(v3_1.txChangesBefore, v3_2.txChangesBefore,
+                                  true);
         popPath();
 
         compareVector("operations", v3_1.operations, v3_2.operations,
@@ -1441,12 +1464,13 @@ Comparator::compareTransactionMeta(TransactionMeta const& meta1,
                           if (!(op1 == op2))
                           {
                               compareLedgerEntryChanges(op1.changes,
-                                                        op2.changes);
+                                                        op2.changes, false);
                           }
                       });
 
         pushPath("txChangesAfter");
-        compareLedgerEntryChanges(v3_1.txChangesAfter, v3_2.txChangesAfter);
+        compareLedgerEntryChanges(v3_1.txChangesAfter, v3_2.txChangesAfter,
+                                  true);
         popPath();
 
         popPath();
