@@ -31,6 +31,7 @@ namespace xdrcomp
 // soroban_diagnostic_events
 // - contract_events, transaction_result_code, operation_result_code
 // - fee_charged, tx_changes_before, tx_changes_after
+// - ttl_live_until_ledger_by_one
 // - fees (alias for fee_charged,tx_changes_before,tx_changes_after)
 // Example: export STELLAR_COMPARISON_TOLERANCE="fees,balance"
 enum DifferenceType : uint64_t
@@ -56,6 +57,7 @@ enum DifferenceType : uint64_t
     DIFF_FEE_CHARGED = 1ULL << 15,
     DIFF_TX_CHANGES_BEFORE = 1ULL << 16,
     DIFF_TX_CHANGES_AFTER = 1ULL << 17,
+    DIFF_TTL_LIVE_UNTIL_LEDGER_BY_ONE = 1ULL << 18,
     // Add more difference types as needed up to bit 63
 };
 
