@@ -12,6 +12,7 @@
 #include "xdr/Stellar-transaction.h"
 #include <fmt/format.h>
 #include <functional>
+#include <set>
 #include <string>
 #include <vector>
 namespace stellar
@@ -66,6 +67,7 @@ class Comparator
     std::vector<std::string> mPathStack;
     std::vector<std::string> mDifferences;
     uint64_t mToleratedDifferences;
+    std::set<AccountID>& mFeeInvolvedAddresses;
 
     std::string getCurrentPath() const;
     void pushPath(std::string const& component);
@@ -131,10 +133,12 @@ class Comparator
     static uint64_t getToleratedDifferences();
 
   public:
-    Comparator(std::string const& n1, std::string const& n2)
+    Comparator(std::string const& n1, std::string const& n2,
+               std::set<AccountID>& feeInvolvedAddresses)
         : mName1(n1)
         , mName2(n2)
         , mToleratedDifferences(getToleratedDifferences())
+        , mFeeInvolvedAddresses(feeInvolvedAddresses)
     {
     }
 
@@ -159,9 +163,11 @@ class Comparator
     void compareTrustLineEntry(TrustLineEntry const& tl1,
                                TrustLineEntry const& tl2);
     void compareLedgerEntryChanges(LedgerEntryChanges const& changes1,
-                                   LedgerEntryChanges const& changes2);
+                                   LedgerEntryChanges const& changes2,
+                                   bool collectFeeAddresses = false);
     void compareLedgerEntryChange(LedgerEntryChange const& change1,
-                                  LedgerEntryChange const& change2);
+                                  LedgerEntryChange const& change2,
+                                  bool collectFeeAddresses = false);
     void compareTrustLineAsset(TrustLineAsset const& asset1,
                                TrustLineAsset const& asset2);
     void compareAsset(Asset const& asset1, Asset const& asset2);
