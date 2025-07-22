@@ -2452,34 +2452,45 @@ LedgerManagerImpl::processResultAndMeta(
 #ifdef BUILD_TESTS
 
 static bool
-isResourceLimitExceededResult(TransactionResult const& res)
+failedWithSorobanCodes(OperationResult const& opRes,
+                       InvokeHostFunctionResultCode invokeFailCode,
+                       ExtendFootprintTTLResultCode extendFailCode,
+                       RestoreFootprintResultCode restoreFailCode)
+{
+    if (opRes.code() != opINNER)
+    {
+        return false;
+    }
+    switch (opRes.tr().type())
+    {
+    case INVOKE_HOST_FUNCTION:
+        return opRes.tr().invokeHostFunctionResult().code() == invokeFailCode;
+    case EXTEND_FOOTPRINT_TTL:
+        return opRes.tr().extendFootprintTTLResult().code() == extendFailCode;
+    case RESTORE_FOOTPRINT:
+        return opRes.tr().restoreFootprintResult().code() == restoreFailCode;
+    default:
+        return false;
+    }
+}
+
+static bool
+resultIsFailureDueToFeesOrLimits(TransactionResult const& res)
 {
     // Helper to check if a result indicates resource limit exceeded
     auto isResourceLimitExceeded = [](OperationResult const& opRes) {
-        if (opRes.code() != opINNER)
-        {
-            return false;
-        }
-        switch (opRes.tr().type())
-        {
-        case INVOKE_HOST_FUNCTION:
-            return opRes.tr().invokeHostFunctionResult().code() ==
-                   INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED;
-        case EXTEND_FOOTPRINT_TTL:
-            return opRes.tr().extendFootprintTTLResult().code() ==
-                   EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED;
-        case RESTORE_FOOTPRINT:
-            return opRes.tr().restoreFootprintResult().code() ==
-                   RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED;
-        default:
-            return false;
-        }
+        return failedWithSorobanCodes(
+                   opRes, INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED,
+                   EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED,
+                   RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED) ||
+               failedWithSorobanCodes(
+                   opRes, INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE,
+                   EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE,
+                   RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
     };
 
-    // Check sequential result for failure
     if (res.result.code() == txFAILED)
     {
-        // Direct transaction failure - check the single op result
         if (!res.result.results().empty() &&
             isResourceLimitExceeded(res.result.results().at(0)))
         {
@@ -2488,7 +2499,6 @@ isResourceLimitExceededResult(TransactionResult const& res)
     }
     else if (res.result.code() == txFEE_BUMP_INNER_FAILED)
     {
-        // Fee bump inner transaction failure - check inner results
         auto const& innerRes = res.result.innerResultPair().result;
         if (innerRes.result.code() == txFAILED &&
             !innerRes.result.results().empty() &&
@@ -2500,17 +2510,24 @@ isResourceLimitExceededResult(TransactionResult const& res)
     return false;
 }
 
-// Helper function to check if this is a special case where we should ignore
-// differences: parallel succeeded, sequential failed with resource limit
-// exceeded on a soroban operation (either directly or as inner tx of fee bump)
 static bool
-isSpecialCaseSeqStopsFailingDueToCosts(TransactionFrameBase const& tx,
-                                       TransactionResult const& parResult,
-                                       TransactionResult const& seqResult)
+resultIsSuccess(TransactionResult const& res)
 {
-    // Check if parallel succeeded
-    if (parResult.result.code() == txSUCCESS &&
-        parResult.result.code() != txFEE_BUMP_INNER_SUCCESS)
+    return (res.result.code() == txSUCCESS ||
+            res.result.code() == txFEE_BUMP_INNER_SUCCESS);
+}
+
+// Helper function to check if this is a special case where we should ignore
+// differences: one succeeded, the other failed with either a resource limit
+// hit or a refundable fee exceeded (either directly or as inner tx of fee bump)
+static bool
+isSpecialCasePassFailDiffsDueToFeesOrLimits(TransactionFrameBase const& tx,
+                                            TransactionResult const& parResult,
+                                            TransactionResult const& seqResult)
+{
+    auto parOk = resultIsSuccess(parResult);
+    auto seqOk = resultIsSuccess(seqResult);
+    if (parOk == seqOk)
     {
         return false;
     }
@@ -2533,59 +2550,10 @@ isSpecialCaseSeqStopsFailingDueToCosts(TransactionFrameBase const& tx,
         return false;
     }
 
-    return isResourceLimitExceededResult(seqResult);
-}
-
-static bool
-isSpecialCaseKaleTractor(TransactionFrameBase const& tx,
-                         TransactionResult const& parResult,
-                         TransactionResult const& seqResult)
-{
-    // bulk farming kale contract,
-    // CBGSBKYMYO6OMGHQXXNOBRGVUDFUDVC2XLC3SXON5R2SNXILR7XCKKY3 a.k.a.
-    // https://kalefail.elliotfriend.com/tractor
-    //
-    // has the unusual behaviour of taking a vector of inputs and calling
-    // another contract with each; txs submitted are designed to stay "just
-    // under limits" and unfortunately with p23 we increase the amount of memory
-    // used per event (the new topic) so the bulk txs of this contract start
-    // failing under p23.
-
-    // Check if sequential succeeded
-    if (seqResult.result.code() == txSUCCESS &&
-        seqResult.result.code() != txFEE_BUMP_INNER_SUCCESS)
+    if ((parOk && resultIsFailureDueToFeesOrLimits(seqResult)) ||
+        (seqOk && resultIsFailureDueToFeesOrLimits(parResult)))
     {
-        return false;
-    }
-
-    auto const& t = tx.getEnvelope();
-    if (t.type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
-        t.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX)
-    {
-        Transaction const& i = t.feeBump().tx.innerTx.v1().tx;
-        if (i.operations.size() == 1)
-        {
-            auto const& b = i.operations.at(0).body;
-            if (b.type() == INVOKE_HOST_FUNCTION)
-            {
-                HostFunction const& hf = b.invokeHostFunctionOp().hostFunction;
-                if (hf.type() == HOST_FUNCTION_TYPE_INVOKE_CONTRACT &&
-                    hf.invokeContract().functionName == "harvest")
-                {
-                    SCAddress const& c = hf.invokeContract().contractAddress;
-                    if (c.type() == SC_ADDRESS_TYPE_CONTRACT)
-                    {
-                        ContractID const& id = c.contractId();
-                        if (id ==
-                            hexToBin256("4d20ab0cc3bce618f0bddae0c4d5a0cb41d45a"
-                                        "bac5b95dcdec7526dd0b8fee25"))
-                        {
-                            return isResourceLimitExceededResult(parResult);
-                        }
-                    }
-                }
-            }
-        }
+        return true;
     }
     return false;
 }
@@ -2718,14 +2686,14 @@ class ExecutionCapture
                 CLOG_DEBUG(Ledger, "result mapping {} tx {} => {} tx {}", mName,
                            i, other.mName, j);
                 auto const& ores = other.mTxResults.at(j);
-                if (isSpecialCaseSeqStopsFailingDueToCosts(*selfTxs[i], res,
-                                                           ores) ||
-                    isSpecialCaseKaleTractor(*selfTxs[i], res, ores))
+                if (isSpecialCasePassFailDiffsDueToFeesOrLimits(*selfTxs[i],
+                                                                res, ores))
                 {
                     CLOG_WARNING(Ledger,
                                  "Hit special case in tx {}: pass/fail "
-                                 "perturbations around RESOURCE_LIMIT_EXCEEDED"
-                                 "; skipping rest of ledger comparison",
+                                 "perturbations around RESOURCE_LIMIT_EXCEEDED "
+                                 "or INSUFFICIENT_REFUNDABLE_FEE; skipping "
+                                 "rest of ledger comparison",
                                  i);
                     hitSpecialCaseThatPerturbsBalances = true;
                     break;
