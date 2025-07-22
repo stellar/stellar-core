@@ -3120,10 +3120,10 @@
 		"5Dik3DGN1A4=",
 		"5Dik3DGN1A4="
 	],
-	"source account account of first tx is in second txs footprint|protocol version 20" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
-	"source account account of first tx is in second txs footprint|protocol version 21" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
-	"source account account of first tx is in second txs footprint|protocol version 22" : [ "NTGGdj1offM=", "uXD8Cnl+z1A=", "geKndLx9Dwk=", "up/hSXkPDJo=" ],
-	"source account account of first tx is in second txs footprint|protocol version 23" : [ "NTGGdj1offM=", "iA54BbkrMmc=", "KLpBGpyr9Fg=", "7yXpRaCKcqw=" ],
+	"source account of first tx is in second txs footprint|protocol version 20" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
+	"source account of first tx is in second txs footprint|protocol version 21" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
+	"source account of first tx is in second txs footprint|protocol version 22" : [ "NTGGdj1offM=", "uXD8Cnl+z1A=", "geKndLx9Dwk=", "up/hSXkPDJo=" ],
+	"source account of first tx is in second txs footprint|protocol version 23" : [ "NTGGdj1offM=", "iA54BbkrMmc=", "KLpBGpyr9Fg=", "7yXpRaCKcqw=" ],
 	"state archival operation errors|protocol version 20" : 
 	[
 		"bKDF6V5IzTo=",
