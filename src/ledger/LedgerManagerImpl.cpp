@@ -2703,11 +2703,16 @@ class ExecutionCapture
 
         bool hitSpecialCaseThatPerturbsBalances = false;
 
+        // Create a persistent set to track fee-involved addresses across all
+        // transactions
+        std::set<AccountID> feeInvolvedAddresses;
+
         if (mTxResults.size() == other.mTxResults.size())
         {
             for (auto i = 0; i < mTxResults.size(); ++i)
             {
-                xdrcomp::Comparator comp(mName, other.mName);
+                xdrcomp::Comparator comp(mName, other.mName,
+                                         feeInvolvedAddresses);
                 auto const& res = mTxResults.at(i);
                 auto j = selfToOtherIndexMap.at(i);
                 CLOG_DEBUG(Ledger, "result mapping {} tx {} => {} tx {}", mName,
@@ -2755,7 +2760,8 @@ class ExecutionCapture
             {
                 for (auto i = 0; i < mTxMetas.size(); ++i)
                 {
-                    xdrcomp::Comparator comp(mName, other.mName);
+                    xdrcomp::Comparator comp(mName, other.mName,
+                                             feeInvolvedAddresses);
                     auto meta = mTxMetas.at(i);
                     auto j = selfToOtherIndexMap.at(i);
                     CLOG_DEBUG(Ledger, "meta mapping {} tx {} => {} tx {}",
