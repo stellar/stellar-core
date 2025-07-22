@@ -756,8 +756,6 @@ buildSimpleParallelStagesFromIndices(std::vector<BitSet> const& conflictSets,
     }
 
     std::vector<std::vector<std::vector<size_t>>> result;
-    std::vector<size_t> buffer;
-    std::vector<size_t> nextBuffer;
     size_t inputIndex = 0;
     size_t inputEnd = conflictSets.size();
 
@@ -769,7 +767,7 @@ buildSimpleParallelStagesFromIndices(std::vector<BitSet> const& conflictSets,
     }
 
     // Build stages until all transactions are processed
-    while (inputIndex < inputEnd || !buffer.empty())
+    while (inputIndex < inputEnd)
     {
         std::vector<IndexCluster> stageClusters;
         size_t txsProcessedInStage = 0;
@@ -858,38 +856,37 @@ buildSimpleParallelStagesFromIndices(std::vector<BitSet> const& conflictSets,
                 return true;
             }
 
-            // Couldn't place in stage, buffer for next stage
-            CLOG_DEBUG(Herder,
-                       "unable to place txid {}, buffering to next stage",
-                       txId);
-            return false;
+            if (stageClusters.empty())
+            {
+                return false;
+            }
+
+            // No reason to add it to any cluster in particular; just add it to
+            // the smallest one.
+            size_t smallest = 0;
+            for (size_t i = 0; i < stageClusters.size(); ++i)
+            {
+                if (stageClusters[smallest].mTxIds.size() >
+                    stageClusters[i].mTxIds.size())
+                {
+                    smallest = i;
+                }
+            }
+            stageClusters[smallest].mTxIds.set(txId);
+            stageClusters[smallest].mConflicts.inplaceUnion(conflictSets[txId]);
+            return true;
         };
 
-        // Process _incoming_ buffered txs from previous stage first
-        CLOG_DEBUG(Herder, "incoming buffered txs: {}", buffer.size());
-        for (size_t txId : buffer)
+        while (inputIndex < inputEnd && txsProcessedInStage < targetTxsPerStage)
         {
-            if (!processTx(txId))
+            // Try to process the transaction
+            if (!processTx(inputIndex))
             {
-                nextBuffer.push_back(txId);
+                inputIndex++;
+                break;
             }
-        }
-
-        // Assuming we drained the incoming buffer (which should almost always
-        // happen) process new transactions from input
-        if (nextBuffer.empty())
-        {
-            CLOG_DEBUG(
-                Herder,
-                "incoming buffered txs all assigned, proceeding with input");
-            while (inputIndex < inputEnd &&
-                   txsProcessedInStage < targetTxsPerStage)
+            else
             {
-                // Try to process the transaction
-                if (!processTx(inputIndex))
-                {
-                    nextBuffer.push_back(inputIndex);
-                }
                 inputIndex++;
             }
         }
@@ -917,10 +914,6 @@ buildSimpleParallelStagesFromIndices(std::vector<BitSet> const& conflictSets,
                 result.push_back(std::move(stage));
             }
         }
-
-        // Swap buffers for next iteration
-        buffer = std::move(nextBuffer);
-        nextBuffer.clear();
     }
 
     return result;

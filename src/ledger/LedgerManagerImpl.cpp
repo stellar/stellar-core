@@ -2240,6 +2240,9 @@ LedgerManagerImpl::applyThread(
     SorobanNetworkConfig const& sorobanConfig, ParallelLedgerInfo ledgerInfo,
     Hash sorobanBasePrngSeed)
 {
+    static std::mutex artificialSerializeMutex;
+    std::lock_guard<std::mutex> guard(artificialSerializeMutex);
+
     for (auto const& txBundle : cluster)
     {
         // Apply timer
@@ -2753,11 +2756,13 @@ class ExecutionCapture
                 for (auto i = 0; i < mTxMetas.size(); ++i)
                 {
                     xdrcomp::Comparator comp(mName, other.mName);
-                    auto const& meta = mTxMetas.at(i);
+                    auto meta = mTxMetas.at(i);
                     auto j = selfToOtherIndexMap.at(i);
                     CLOG_DEBUG(Ledger, "meta mapping {} tx {} => {} tx {}",
                                mName, i, other.mName, j);
-                    auto const& ometa = other.mTxMetas.at(j);
+                    auto ometa = other.mTxMetas.at(j);
+                    normalizeMeta(meta);
+                    normalizeMeta(ometa);
                     if (!(meta == ometa))
                     {
                         comp.compareTransactionMeta(meta, ometa, i);
@@ -2785,6 +2790,21 @@ class ExecutionCapture
         CLOG_INFO(Ledger, "=== END ExecutionCapture::compare ===");
     }
 };
+
+static uint32_t
+getEnvInt(std::string const& envVar, uint32_t defaultInt)
+{
+    char* env = getenv(envVar.c_str());
+    if (env)
+    {
+        auto res = atoi(env);
+        if (res != 0)
+        {
+            return res;
+        }
+    }
+    return defaultInt;
+}
 
 class ParallelTestExecutor
 {
@@ -2847,7 +2867,7 @@ class ParallelTestExecutor
         //     parTxns, mApp.getConfig(), sCfg, laneConfig, noFits,
         //     parHeader.ledgerVersion);
 
-        size_t targetStageCount = 3;
+        size_t targetStageCount = getEnvInt("STELLAR_TEST_PARALLEL_STAGES", 1);
         TxStageFrameList parStages =
             buildSimpleParallelTxStages(parTxns, parallelism, targetStageCount);
 
@@ -2863,15 +2883,30 @@ class ParallelTestExecutor
                   " (aiming for {} stages each with {} clusters)",
                   parStages.size(), fmt::join(stageSizes, ", "),
                   targetStageCount, parallelism);
+        size_t parTxId = 0;
         for (size_t i = 0; i < parStages.size(); ++i)
         {
             std::vector<size_t> clusterSizes;
-            for (auto const& c : parStages.at(i))
+            auto const& stage = parStages.at(i);
+            for (auto const& c : stage)
             {
                 clusterSizes.push_back(c.size());
             }
             CLOG_INFO(Ledger, "stage {} cluster lengths: [{}]", i,
                       fmt::join(clusterSizes, ", "));
+            for (size_t j = 0; j < stage.size(); ++j)
+            {
+                auto const& cluster = stage.at(j);
+                std::vector<std::string> txs;
+                for (auto const& tx : cluster)
+                {
+                    auto seqTxId = mTxHashToSeqIdx[tx->getFullHash()];
+                    txs.push_back(fmt::format("s{}:s{}", parTxId, seqTxId));
+                    ++parTxId;
+                }
+                CLOG_INFO(Ledger, "stage {} cluster {}: [{}]", i, j,
+                          fmt::join(txs, ", "));
+            }
         }
         return parStages;
     }
@@ -3048,12 +3083,8 @@ class ParallelTestExecutor
                 return nullptr;
             }
 
-            uint32_t parallelism = 0;
-            char* env = std::getenv("STELLAR_TEST_PARALLEL_EXECUTION");
-            if (env)
-            {
-                parallelism = (uint32_t)atoi(env);
-            }
+            uint32_t parallelism =
+                getEnvInt("STELLAR_TEST_PARALLEL_EXECUTION", 0);
             if (parallelism == 0)
             {
                 return nullptr;
