@@ -863,6 +863,25 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             // non-configurable settings
             archivalInfo["average_bucket_list_size"] =
                 static_cast<Json::UInt64>(conf.getAverageSorobanStateSize());
+
+            // SCP timing settings
+            if (protocolVersionStartsFrom(
+                    lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                    ProtocolVersion::V_23))
+            {
+                auto& scpSettings = res["scp"];
+                scpSettings["ledger_close_time_ms"] =
+                    conf.ledgerTargetCloseTimeMilliseconds();
+                scpSettings["nomination_timeout_ms"] =
+                    conf.nominationTimeoutInitialMilliseconds();
+                scpSettings["nomination_timeout_inc_ms"] =
+                    conf.nominationTimeoutIncrementMilliseconds();
+                scpSettings["ballot_timeout_ms"] =
+                    conf.ballotTimeoutInitialMilliseconds();
+                scpSettings["ballot_timeout_inc_ms"] =
+                    conf.ballotTimeoutIncrementMilliseconds();
+            }
+
             retStr = res.toStyledString();
         }
         else if (format == "detailed")
