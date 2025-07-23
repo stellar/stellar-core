@@ -308,38 +308,14 @@ validateSorobanMemo(TransactionFrameBasePtr tx)
         return true;
     }
 
-    bool isSourceAccountAuthOnly = true;
-
-    auto const& auth = op.body.invokeHostFunctionOp().auth;
-    for (auto const& authEntry : auth)
-    {
-        if (authEntry.credentials.type() !=
-            SorobanCredentialsType::SOROBAN_CREDENTIALS_SOURCE_ACCOUNT)
-        {
-            isSourceAccountAuthOnly = false;
-            break;
-        }
-    }
-
-    if (isSourceAccountAuthOnly)
-    {
-        return true;
-    }
-
-    // If tx has a memo or the source account is muxed
     if (txEnv.tx.memo.type() != MemoType::MEMO_NONE ||
-        txEnv.tx.sourceAccount.type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519)
+        txEnv.tx.sourceAccount.type() ==
+            CryptoKeyType::KEY_TYPE_MUXED_ED25519 ||
+        (op.sourceAccount &&
+         op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519))
     {
         return false;
     }
-
-    // If op source account is muxed
-    if (op.sourceAccount &&
-        op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519)
-    {
-        return false;
-    }
-
     return true;
 }
 

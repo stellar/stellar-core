@@ -1187,7 +1187,7 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
             uploadResourceFee + 100, uploadResourceFee, "memo");
 
         REQUIRE(app->getHerder().recvTransaction(txWithMemo, false).code ==
-                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     }
 
     SECTION("non-source auth tx with memo")
