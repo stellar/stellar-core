@@ -47,7 +47,7 @@ struct QuorumCheckerMetrics
 // writes results to an output JSON file. If analyzeCriticalGroups is true,
 // performs additional analysis to identify critical node groups.
 //
-// Resoruces limits:
+// Resources limits:
 // - The time limit applies across all runs (all loops during criticality
 //   analysis), and is enforced by the Rust implementation, which returns an
 //   `Err` if exceeded.
