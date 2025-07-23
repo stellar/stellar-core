@@ -2703,6 +2703,69 @@ class ExecutionCapture
     }
 
     void
+    write_lk_to_keyhash_file(std::filesystem::path const& dir,
+                             LedgerKey const& lk)
+    {
+        auto keyhash = xdrSha256(lk);
+        std::ofstream stream(dir /
+                             fmt::format("key-{}.json", binToHex(keyhash)));
+        stream << xdr::xdr_to_string(lk);
+    }
+
+    void
+    write_keyhash_files(std::filesystem::path const& dir,
+                        TransactionMeta const& meta)
+    {
+        if (meta.v() != 3)
+        {
+            return;
+        }
+        for (auto const& le_change : meta.v3().operations.at(0).changes)
+        {
+            switch (le_change.type())
+            {
+            case LEDGER_ENTRY_CREATED:
+                write_lk_to_keyhash_file(dir,
+                                         LedgerEntryKey(le_change.created()));
+                break;
+            case LEDGER_ENTRY_UPDATED:
+                write_lk_to_keyhash_file(dir,
+                                         LedgerEntryKey(le_change.updated()));
+                break;
+            case LEDGER_ENTRY_REMOVED:
+                write_lk_to_keyhash_file(dir, le_change.removed());
+                break;
+            case LEDGER_ENTRY_STATE:
+                write_lk_to_keyhash_file(dir,
+                                         LedgerEntryKey(le_change.state()));
+                break;
+            case LEDGER_ENTRY_RESTORED:
+                write_lk_to_keyhash_file(dir,
+                                         LedgerEntryKey(le_change.restored()));
+                break;
+            }
+        }
+    }
+
+    void
+    write_keyhash_files(std::filesystem::path const& dir,
+                        TransactionEnvelope const& tx)
+    {
+        if (tx.type() == ENVELOPE_TYPE_TX && tx.v1().tx.ext.v() == 1)
+        {
+            auto const& foot = tx.v1().tx.ext.sorobanData().resources.footprint;
+            for (auto const& key : foot.readOnly)
+            {
+                write_lk_to_keyhash_file(dir, key);
+            }
+            for (auto const& key : foot.readWrite)
+            {
+                write_lk_to_keyhash_file(dir, key);
+            }
+        }
+    }
+
+    void
     dump_predecessor_txn_envelopes(std::filesystem::path const& dir,
                                    std::string const& captureName,
                                    TxFrameList const& txs, size_t currTxId)
@@ -2711,6 +2774,7 @@ class ExecutionCapture
         {
             dump_xdr_for_tx(dir, captureName, "envelope", txId,
                             txs.at(txId)->getEnvelope());
+            write_keyhash_files(dir, txs.at(txId)->getEnvelope());
         }
     }
 
@@ -2808,6 +2872,8 @@ class ExecutionCapture
                                                        otherTxs, j);
                         dump_xdr_for_tx(dir, mName, "meta", i, meta);
                         dump_xdr_for_tx(dir, other.mName, "meta", j, ometa);
+                        write_keyhash_files(dir, meta);
+                        write_keyhash_files(dir, ometa);
                     }
                 }
             }
