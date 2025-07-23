@@ -297,7 +297,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                     int constexpr ITERATIONS = 100;
                     for (auto i = ITERATIONS; i != 0; --i)
                     {
-                        // first, check that we're at the begining of an
+                        // first, check that we're at the beginning of an
                         // iteration
                         auto askCountBefore1 =
                             std::count(asked.begin(), asked.end(), peer1);
