@@ -2560,6 +2560,19 @@ isSpecialCasePassFailDiffsDueToFeesOrLimits(TransactionFrameBase const& tx,
     return false;
 }
 
+Transaction const&
+getTxOrBumpInnerTx(TransactionEnvelope const& e)
+{
+    if (e.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
+    {
+        return e.feeBump().tx.innerTx.v1().tx;
+    }
+    else
+    {
+        return e.v1().tx;
+    }
+}
+
 static bool
 isSpecialCaseKaleTractor(TransactionFrameBase const& tx,
                          TransactionResult const& parResult,
@@ -2585,29 +2598,25 @@ isSpecialCaseKaleTractor(TransactionFrameBase const& tx,
     }
 
     auto const& t = tx.getEnvelope();
-    if (t.type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
-        t.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX)
+    Transaction const& i = getTxOrBumpInnerTx(t);
+    if (i.operations.size() == 1)
     {
-        Transaction const& i = t.feeBump().tx.innerTx.v1().tx;
-        if (i.operations.size() == 1)
+        auto const& b = i.operations.at(0).body;
+        if (b.type() == INVOKE_HOST_FUNCTION)
         {
-            auto const& b = i.operations.at(0).body;
-            if (b.type() == INVOKE_HOST_FUNCTION)
+            HostFunction const& hf = b.invokeHostFunctionOp().hostFunction;
+            if (hf.type() == HOST_FUNCTION_TYPE_INVOKE_CONTRACT &&
+                hf.invokeContract().functionName == "harvest")
             {
-                HostFunction const& hf = b.invokeHostFunctionOp().hostFunction;
-                if (hf.type() == HOST_FUNCTION_TYPE_INVOKE_CONTRACT &&
-                    hf.invokeContract().functionName == "harvest")
+                SCAddress const& c = hf.invokeContract().contractAddress;
+                if (c.type() == SC_ADDRESS_TYPE_CONTRACT)
                 {
-                    SCAddress const& c = hf.invokeContract().contractAddress;
-                    if (c.type() == SC_ADDRESS_TYPE_CONTRACT)
+                    ContractID const& id = c.contractId();
+                    if (id ==
+                        hexToBin256("4d20ab0cc3bce618f0bddae0c4d5a0cb41d45a"
+                                    "bac5b95dcdec7526dd0b8fee25"))
                     {
-                        ContractID const& id = c.contractId();
-                        if (id ==
-                            hexToBin256("4d20ab0cc3bce618f0bddae0c4d5a0cb41d45a"
-                                        "bac5b95dcdec7526dd0b8fee25"))
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }
@@ -2698,11 +2707,9 @@ std::set<Hash>
 getReadOnlyEntryKeyHashes(TransactionEnvelope const& txEnv)
 {
     std::set<Hash> res;
-    if (txEnv.type() != ENVELOPE_TYPE_TX) {
-        return res;
-    }
-    for (auto const& lk :
-         txEnv.v1().tx.ext.sorobanData().resources.footprint.readOnly)
+    for (auto const& lk : getTxOrBumpInnerTx(txEnv)
+                              .ext.sorobanData()
+                              .resources.footprint.readOnly)
     {
         res.insert(xdrSha256(lk));
     }
