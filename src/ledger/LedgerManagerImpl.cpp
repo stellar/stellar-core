@@ -22,6 +22,8 @@
 #include "transactions/ParallelApplyStage.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-types.h"
+#include <algorithm>
+#include <iterator>
 #include <unordered_map>
 #ifdef BUILD_TESTS
 #include "herder/ParallelTxSetBuilder.h"
@@ -2614,6 +2616,154 @@ isSpecialCaseKaleTractor(TransactionFrameBase const& tx,
     return false;
 }
 
+std::optional<Hash>
+getTTLKeyHash(LedgerEntryChange const& e)
+{
+    switch (e.type())
+    {
+    case LEDGER_ENTRY_CREATED:
+        if (e.created().data.type() == TTL)
+        {
+            return e.created().data.ttl().keyHash;
+        }
+        break;
+    case LEDGER_ENTRY_UPDATED:
+        if (e.updated().data.type() == TTL)
+        {
+            return e.updated().data.ttl().keyHash;
+        }
+        break;
+    case LEDGER_ENTRY_REMOVED:
+        if (e.removed().type() == TTL)
+        {
+            return e.removed().ttl().keyHash;
+        }
+        break;
+    case LEDGER_ENTRY_STATE:
+        if (e.state().data.type() == TTL)
+        {
+            return e.state().data.ttl().keyHash;
+        }
+        break;
+    case LEDGER_ENTRY_RESTORED:
+        if (e.restored().data.type() == TTL)
+        {
+            return e.restored().data.ttl().keyHash;
+        }
+        break;
+    }
+    return nullopt;
+}
+
+std::set<Hash>
+getAnyTTLBumpKeyHashes(LedgerEntryChanges const& changes)
+{
+    std::set<Hash> ttlBumpKeyHashes;
+    for (auto const& change : changes)
+    {
+        auto kh = getTTLKeyHash(change);
+        if (kh.has_value())
+        {
+            ttlBumpKeyHashes.insert(kh.value());
+        }
+    }
+    return ttlBumpKeyHashes;
+}
+
+LedgerEntryChanges const&
+getMetaOperationChanges(TransactionMeta const& meta)
+{
+    static const LedgerEntryChanges emptyChanges;
+    if (meta.v() == 3)
+    {
+        auto const& ops = meta.v3().operations;
+        if (ops.size() == 1)
+        {
+            return ops.at(0).changes;
+        }
+    }
+    return emptyChanges;
+}
+
+std::set<Hash>
+intersect(std::set<Hash> const& a, std::set<Hash> const& b)
+{
+    std::set<Hash> c;
+    std::set_intersection(a.begin(), a.end(), b.begin(), b.end(),
+                          std::inserter(c, c.begin()));
+    return c;
+}
+
+std::set<Hash>
+getReadOnlyEntryKeyHashes(TransactionEnvelope const& txEnv)
+{
+    std::set<Hash> res;
+    for (auto const& lk :
+         txEnv.v1().tx.ext.sorobanData().resources.footprint.readOnly)
+    {
+        res.insert(xdrSha256(lk));
+    }
+    return res;
+}
+
+// In some cases we have an excess RoTTLbump in parMeta that is a duplicate that
+// occurred because of parallelism. when we see this case, we just delete it
+// from parMeta.
+void
+trimUnexpectedDuplicateRoTTLBumps(
+    std::vector<TransactionMeta> const& allParMetas,
+    TransactionEnvelope const& txEnv, size_t currParIdx,
+    TransactionMeta& parMeta, TransactionMeta const& seqMeta)
+{
+    std::set<Hash> ttlBumps, roKeys, roTTLBumps;
+
+    {
+        auto const& parChanges = getMetaOperationChanges(parMeta);
+        auto const& seqChanges = getMetaOperationChanges(seqMeta);
+        if (parChanges.empty() || seqChanges.empty() ||
+            parChanges.size() == seqChanges.size())
+        {
+            return;
+        }
+        ttlBumps = getAnyTTLBumpKeyHashes(parChanges);
+    }
+
+    roKeys = getReadOnlyEntryKeyHashes(txEnv);
+    roTTLBumps = intersect(ttlBumps, roKeys);
+    CLOG_WARNING(Ledger, "found {} RoTTLBumps in meta with mismatched changes",
+                 roTTLBumps.size());
+
+    for (auto i = 0; i < allParMetas.size(); ++i)
+    {
+        if (i == currParIdx)
+        {
+            continue;
+        }
+        auto otherParChanges = getMetaOperationChanges(allParMetas.at(i));
+        auto otherTTLBumps = getAnyTTLBumpKeyHashes(otherParChanges);
+        auto commonRoTTLBumps = intersect(roTTLBumps, otherTTLBumps);
+        if (!commonRoTTLBumps.empty())
+        {
+            CLOG_WARNING(Ledger, "trimming {} common RoTTLBumps",
+                         commonRoTTLBumps.size());
+            auto& parChangesMut = parMeta.v3().operations.at(0).changes;
+            parChangesMut.erase(
+                std::remove_if(parChangesMut.begin(), parChangesMut.end(),
+                               [&](LedgerEntryChange const& e) {
+                                   auto kh = getTTLKeyHash(e);
+                                   if (kh.has_value())
+                                   {
+                                       return commonRoTTLBumps.find(
+                                                  kh.value()) !=
+                                              commonRoTTLBumps.end();
+                                   }
+                                   return false;
+                               }),
+                parChangesMut.end());
+        }
+    }
+}
+
 // Structure to capture and analyze differences in the results of
 // (re)running a phase sequentially vs. in parallel.
 class ExecutionCapture
@@ -2858,6 +3008,10 @@ class ExecutionCapture
                     auto ometa = other.mTxMetas.at(j);
                     normalizeMeta(meta);
                     normalizeMeta(ometa);
+
+                    trimUnexpectedDuplicateRoTTLBumps(
+                        mTxMetas, selfTxs.at(i)->getEnvelope(), i, meta, ometa);
+
                     if (!(meta == ometa))
                     {
                         comp.compareTransactionMeta(meta, ometa, i);
