@@ -2683,6 +2683,9 @@ std::set<Hash>
 getReadOnlyEntryKeyHashes(TransactionEnvelope const& txEnv)
 {
     std::set<Hash> res;
+    if (txEnv.type() != ENVELOPE_TYPE_TX) {
+        return res;
+    }
     for (auto const& lk :
          txEnv.v1().tx.ext.sorobanData().resources.footprint.readOnly)
     {
