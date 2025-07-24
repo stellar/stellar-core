@@ -260,7 +260,7 @@ def analyze(args):
 
 def get_tier1_stats(augmented_directed_graph):
     '''
-    Helper function to help analyze transitive quorum. Must only be called on a graph augmented with StellarBeat info
+    Helper function to help analyze transitive quorum. Must only be called on a graph augmented with Radar info
     '''
     graph = augmented_directed_graph.to_undirected()
     tier1_nodes = [node for node, attr in graph.nodes(
@@ -273,13 +273,14 @@ def get_tier1_stats(augmented_directed_graph):
             if node != other_node:
                 dist = nx.shortest_path_length(graph, node, other_node)
                 distances.append(dist)
-        avg_for_one_node = sum(distances)/len(distances)
+        avg_for_one_node = sum(distances)/len(distances) if distances else 0
+        node_name = nx.get_node_attributes(graph, 'sb_name').get(node, node[:8] + "...")
         logger.info("Average distance from %s to everyone else in Tier1: %.2f",
-                    nx.get_node_attributes(graph, 'sb_name')[node],
+                    node_name,
                     avg_for_one_node)
         all_node_average.append(avg_for_one_node)
 
-    if len(tier1_nodes):
+    if len(tier1_nodes) and len(all_node_average):
         logger.info("Average distance between all Tier1 nodes %.2f",
               sum(all_node_average)/len(all_node_average))
 
@@ -292,12 +293,43 @@ def get_tier1_stats(augmented_directed_graph):
 
 def augment(args):
     graph = nx.read_graphml(args.graphmlInput)
-    data = get_request("https://api.stellarbeat.io/v1/nodes").json()
-    transitive_quorum = get_request(
-        "https://api.stellarbeat.io/v1/").json()["transitiveQuorumSet"]
+    
+    # Use Radar API instead of Stellarbeat (which is reaching EOL)
+    data = None
+    try:
+        data = get_request("https://radar.withobsrvr.com/api/v1/nodes").json()
+    except Exception as e:
+        logger.error("Failed to fetch nodes from Radar API: %s", e)
+        logger.info("Trying alternative endpoint...")
+        try:
+            data = get_request("https://radar.withobsrvr.com/api/nodes").json()
+        except Exception as e2:
+            logger.error("Failed to fetch nodes from alternative Radar endpoint: %s", e2)
+            logger.error("Cannot proceed without node data")
+            sys.exit(1)
+    
+    transitive_quorum = []
+    try:
+        network_data = get_request("https://radar.withobsrvr.com/api/v1/network").json()
+        # Extract transitive quorum set from network data (may be in different structure than Stellarbeat)
+        transitive_quorum = network_data.get("transitiveQuorumSet", 
+                                            network_data.get("quorumSet", []))
+    except Exception as e:
+        logger.error("Failed to fetch network data from Radar API: %s", e)
+        logger.info("Trying alternative endpoint...")
+        try:
+            root_data = get_request("https://radar.withobsrvr.com/api/v1/").json()
+            transitive_quorum = root_data.get("transitiveQuorumSet",
+                                             root_data.get("quorumSet", []))
+        except Exception as e2:
+            logger.error("Failed to fetch network data from alternative Radar endpoint: %s", e2)
+            logger.warning("Proceeding without transitive quorum set data")
+            transitive_quorum = []
 
     for obj in data:
-        if graph.has_node(obj["publicKey"]):
+        # Check if the node data uses 'publicKey' or similar field
+        node_id = obj.get("publicKey") or obj.get("id") or obj.get("nodeId")
+        if node_id and graph.has_node(node_id):
             desired_properties = ["quorumSet",
                                   "geoData",
                                   "isValidating",
@@ -315,8 +347,9 @@ def augment(args):
                         continue
                     if type(val) is dict:
                         val = json.dumps(val)
+                    # Keep the 'sb_' prefix for backward compatibility
                     prop_dict['sb_{}'.format(prop)] = val
-            graph.add_node(obj["publicKey"], **prop_dict)
+            graph.add_node(node_id, **prop_dict)
 
     # Record Tier1 nodes
     for key in transitive_quorum:
@@ -649,7 +682,7 @@ def main():
 
     parser_augment = subparsers.add_parser('augment',
                                            help="augment the master graph "
-                                                "with stellarbeat data")
+                                                "with radar data")
     parser_augment.add_argument("-gmli",
                                 "--graphmlInput",
                                 help="input master graph")
