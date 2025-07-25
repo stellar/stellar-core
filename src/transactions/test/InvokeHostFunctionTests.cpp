@@ -9,6 +9,7 @@
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"
 #include <iterator>
+#include <numeric>
 #include <stdexcept>
 #include <xdrpp/printer.h>
 
@@ -7542,9 +7543,6 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
 
     SECTION("basic test")
     {
-        // All of these put_temporary txs will have the same fee, resulting in
-        // some non-determinism when building tx set. To avoid that, use the
-        // i1Spec fee to offset the other txs inclusion fees.
         auto i1Spec =
             client.writeKeySpec("key1", ContractDataDurability::TEMPORARY);
         auto i1 = client.getContract().prepareInvocation(
@@ -7645,8 +7643,13 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
         sorobanTxs.emplace_back(tx9);
         sorobanTxs.emplace_back(transferTx1);
         sorobanTxs.emplace_back(transferTx2);
-
-        auto r = closeLedger(test.getApp(), sorobanTxs);
+        ParallelSorobanOrder order;
+        order.emplace_back();
+        order.back().emplace_back();
+        auto& clusterOrder = order.back().back();
+        clusterOrder.resize(sorobanTxs.size());
+        std::iota(clusterOrder.begin(), clusterOrder.end(), 0);
+        auto r = closeLedger(test.getApp(), sorobanTxs, order);
         REQUIRE(r.results.size() == sorobanTxs.size());
 
         // Do a sanity check on tx meta
@@ -7676,7 +7679,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
                         // is a extend op not covered by the hostFnSuccessMeter
         REQUIRE(hostFnFailureMeter.count() == 1);
 
-        REQUIRE(r.results[8]
+        REQUIRE(r.results[3]
                     .result.result.results()[0]
                     .tr()
                     .invokeHostFunctionResult()

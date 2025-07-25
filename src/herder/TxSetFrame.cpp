@@ -406,7 +406,7 @@ sortedForApplyParallel(TxStageFrameList const& stages, Hash const& txSetHash)
                   releaseAssert(!a.front().empty() && !b.front().empty());
                   return sorter(a.front().front(), b.front().front());
               });
-    return stages;
+    return sortedStages;
 }
 
 bool
