@@ -47,6 +47,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
                                               size_t pageSize) const
 {
     ZoneScoped;
+    releaseAssertOrThrow(pageSize > 0);
     if (isEmpty())
     {
         return {nullptr, false};
@@ -56,16 +57,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     stream.seek(pos);
 
     typename BucketT::EntryT be;
-    if (pageSize == 0)
-    {
-        if (stream.readOne(be))
-        {
-            auto entry = std::make_shared<typename BucketT::EntryT const>(be);
-            mBucket->getIndex().maybeAddToCache(entry);
-            return {entry, false};
-        }
-    }
-    else if (stream.readPage(be, k, pageSize))
+    if (stream.readPage(be, k, pageSize))
     {
         auto entry = std::make_shared<typename BucketT::EntryT const>(be);
         mBucket->getIndex().maybeAddToCache(entry);

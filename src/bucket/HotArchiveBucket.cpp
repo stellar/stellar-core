@@ -91,19 +91,8 @@ HotArchiveBucket::mergeCasesWithEqualKeys(
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
     uint32_t protocolVersion)
 {
-    auto const& oldEntry = inputSource.getOldEntry();
-    auto const& newEntry = inputSource.getNewEntry();
-
-    // If two identical keys have the same type, throw an error. Otherwise,
-    // take the newer key.
-    if (oldEntry.type() == newEntry.type())
-    {
-        throw std::runtime_error(
-            "Malformed Hot Archive bucket: two identical keys with "
-            "the same type.");
-    }
-
-    putFunc(newEntry);
+    // Always take the newer entry.
+    putFunc(inputSource.getNewEntry());
     inputSource.advanceNew();
     inputSource.advanceOld();
 }

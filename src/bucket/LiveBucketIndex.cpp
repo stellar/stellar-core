@@ -29,7 +29,7 @@ std::streamoff
 LiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
 {
     // Convert cfg param from MB to bytes
-    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1'000'000;
+    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1024 * 1024;
         bucketSize < cutoff)
     {
         return 0;
