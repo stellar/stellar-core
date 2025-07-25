@@ -122,8 +122,6 @@ class ApplicationImpl : public Application
 
     virtual LoadGenerator& getLoadGenerator() override;
 
-    virtual Config& getMutableConfig() override;
-
     virtual std::shared_ptr<TestAccount> getRoot() override;
 
     virtual bool getRunInOverlayOnlyMode() const override;
@@ -147,7 +145,7 @@ class ApplicationImpl : public Application
 
   private:
     VirtualClock& mVirtualClock;
-    Config mConfig;
+    Config const mConfig;
 
     // NB: The io_context should come first, then the 'manager' sub-objects,
     // then the threads. Do not reorder these fields.

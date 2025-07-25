@@ -1773,21 +1773,12 @@ TEST_CASE("txset nomination", "[txset]")
             "txs,classic_dex_txs_base_fee,soroban_ops,soroban_base_fee,"
             "insns,disk_read_bytes,write_bytes,disk_read_entries,write_"
             "entries,tx_size_bytes");
-        Config cfg(getTestConfig());
+        Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
         cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = 1;
 
         cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(54321);
-        VirtualClock clock;
-        Application::pointer app = createTestApplication(clock, cfg);
-        auto root = app->getRoot();
-        std::vector<std::pair<TestAccount, int64_t>> accounts;
-        for (int i = 0; i < 1000; ++i)
-        {
-            auto account = root->create(std::to_string(i), 1'000'000'000);
-            accounts.emplace_back(account, account.getLastSequenceNumber() + 1);
-        }
 
         stellar::uniform_int_distribution<> txCountDistr(100, 500);
 
@@ -1809,6 +1800,22 @@ TEST_CASE("txset nomination", "[txset]")
         strToAssetCode(asset1.alphaNum4().assetCode, "USD");
         Asset asset2(ASSET_TYPE_NATIVE);
 
+        // We store the `SecretKey` instead of the `TestAccount` in this vector
+        // so that we can create a vector without dangling references to `app`
+        // inside `runIteration`
+        std::vector<std::pair<SecretKey, int64_t>> accountKeys;
+        {
+            VirtualClock clock;
+            Application::pointer app = createTestApplication(clock, cfg, true);
+            auto root = app->getRoot();
+            for (int i = 0; i < 1000; ++i)
+            {
+                auto account = root->create(std::to_string(i), 1'000'000'000);
+                accountKeys.emplace_back(account,
+                                         account.getLastSequenceNumber());
+            }
+        }
+
         auto runIteration = [&]() {
             int classicOpsCount = txCountDistr(rng);
             int feeBumpFraction = feeBumpFractionDistr(rng);
@@ -1819,8 +1826,20 @@ TEST_CASE("txset nomination", "[txset]")
             LedgerUpgrade ledgerUpgrade(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
             ledgerUpgrade.newMaxTxSetSize() = txCountDistr(rng);
 
-            app->getMutableConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET =
+            cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET =
                 stellar::uniform_int_distribution<>(0, classicOpsCount)(rng);
+
+            // Note: we restart app every iteration so that the config updates
+            // apply: in particular, MAX_DEX_TX_OPERATIONS_IN_TX_SET is read at
+            // construction time by some downstream users
+            VirtualClock clock;
+            Application::pointer app = createTestApplication(clock, cfg, false);
+            std::vector<std::pair<TestAccount, int64_t>> accounts;
+            for (const auto& [key, seqNo] : accountKeys)
+            {
+                accounts.emplace_back(TestAccount{*app, key, seqNo}, seqNo + 1);
+            }
+            auto root = app->getRoot();
 
             auto v = xdr::xdr_to_opaque(ledgerUpgrade);
             upgrades.push_back(UpgradeType(v.begin(), v.end()));
