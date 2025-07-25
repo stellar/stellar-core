@@ -305,6 +305,22 @@ SurveyDataManager::fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
     return false;
 }
 
+std::optional<TimeSlicedNodeData> const&
+SurveyDataManager::getFinalNodeData()
+{
+    return mFinalNodeData;
+}
+std::vector<TimeSlicedPeerData> const&
+SurveyDataManager::getFinalInboundPeerData()
+{
+    return mFinalInboundPeerData;
+}
+std::vector<TimeSlicedPeerData> const&
+SurveyDataManager::getFinalOutboundPeerData()
+{
+    return mFinalOutboundPeerData;
+}
+
 bool
 SurveyDataManager::surveyIsActive() const
 {
