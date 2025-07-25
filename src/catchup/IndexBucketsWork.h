@@ -20,7 +20,7 @@ template <class BucketT> class IndexBucketsWork : public Work
     class IndexWork : public BasicWork
     {
         std::shared_ptr<BucketT> mBucket;
-        std::unique_ptr<typename BucketT::IndexT const> mIndex;
+        std::unique_ptr<typename BucketT::IndexT const> mIndex{nullptr};
         BasicWork::State mState{BasicWork::State::WORK_WAITING};
 
         void postWork();
