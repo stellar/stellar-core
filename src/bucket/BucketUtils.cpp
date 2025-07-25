@@ -101,6 +101,11 @@ MergeCounters::operator==(MergeCounters const& other) const
         mRunningMergeReattachments == other.mRunningMergeReattachments &&
         mFinishedMergeReattachments == other.mFinishedMergeReattachments &&
 
+        mPreShadowRemovalProtocolMerges ==
+            other.mPreShadowRemovalProtocolMerges &&
+        mPostShadowRemovalProtocolMerges ==
+            other.mPostShadowRemovalProtocolMerges &&
+
         mNewMetaEntries == other.mNewMetaEntries &&
         mNewInitEntries == other.mNewInitEntries &&
         mNewLiveEntries == other.mNewLiveEntries &&
