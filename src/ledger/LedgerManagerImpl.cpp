@@ -2926,14 +2926,19 @@ class ExecutionCapture
     }
 
     void
-    dump_predecessor_txn_envelopes(std::filesystem::path const& dir,
-                                   std::string const& captureName,
-                                   TxFrameList const& txs, size_t currTxId)
+    dump_predecessor_txns(std::filesystem::path const& dir,
+                          std::string const& captureName,
+                          TxFrameList const& txs,
+                          std::vector<TransactionMeta> const& metas,
+                          std::vector<TransactionResult> const& results,
+                          size_t currTxId)
     {
         for (auto txId = 0; txId <= currTxId; ++txId)
         {
             dump_xdr_for_tx(dir, captureName, "envelope", txId,
                             txs.at(txId)->getEnvelope());
+            dump_xdr_for_tx(dir, captureName, "meta", txId, metas.at(txId));
+            dump_xdr_for_tx(dir, captureName, "result", txId, results.at(txId));
             write_keyhash_files(dir, txs.at(txId)->getEnvelope());
         }
     }
@@ -2988,8 +2993,8 @@ class ExecutionCapture
                 {
                     auto dir = ensure_diff_directory(ledgerSeq, i);
                     dump_diff_summary(dir, "result", diffs);
-                    dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
-                    dump_predecessor_txn_envelopes(dir, other.mName, otherTxs,
+                    dump_predecessor_txns(dir, mName, selfTxs, mTxMetas, mTxResults, i);
+                    dump_predecessor_txns(dir, other.mName, otherTxs, other.mTxMetas, other.mTxResults,
                                                    j);
                     dump_xdr_for_tx(dir, mName, "result", i, res);
                     dump_xdr_for_tx(dir, other.mName, "result", j, ores);
@@ -3031,9 +3036,9 @@ class ExecutionCapture
                     {
                         auto dir = ensure_diff_directory(ledgerSeq, i);
                         dump_diff_summary(dir, "meta", diffs);
-                        dump_predecessor_txn_envelopes(dir, mName, selfTxs, i);
-                        dump_predecessor_txn_envelopes(dir, other.mName,
-                                                       otherTxs, j);
+                        dump_predecessor_txns(dir, mName, selfTxs, mTxMetas, mTxResults, i);
+                        dump_predecessor_txns(dir, other.mName,
+                                              otherTxs, other.mTxMetas, other.mTxResults, j);
                         dump_xdr_for_tx(dir, mName, "meta", i, meta);
                         dump_xdr_for_tx(dir, other.mName, "meta", j, ometa);
                         write_keyhash_files(dir, meta);
@@ -3162,7 +3167,7 @@ class ParallelTestExecutor
                 for (auto const& tx : cluster)
                 {
                     auto seqTxId = mTxHashToSeqIdx[tx->getFullHash()];
-                    txs.push_back(fmt::format("s{}:s{}", parTxId, seqTxId));
+                    txs.push_back(fmt::format("p{}:s{}", parTxId, seqTxId));
                     ++parTxId;
                 }
                 CLOG_INFO(Ledger, "stage {} cluster {}: [{}]", i, j,
