@@ -3698,6 +3698,13 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     LedgerKeySet keysToDelete =
                         wasDeletedByFirstTx ? keysToRestore : LedgerKeySet{};
 
+                    // Make sure we see init meta changes
+                    // (CREATED, RESTORED, STATE) before any other change types
+                    // for a given key. We also need to check that all meta
+                    // changes for the same key are adjacent to each other.
+                    std::unordered_set<LedgerKey> nonInitMetaChanges;
+                    std::optional<LedgerKey> nextExpectedKey = std::nullopt;
+
                     for (auto const& change : restoreChanges)
                     {
                         if (change.type() ==
@@ -3706,6 +3713,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                             auto le = change.restored();
                             auto lk = LedgerEntryKey(le);
                             REQUIRE(keysToRestore.erase(lk) == 1);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
+                            nextExpectedKey = lk;
 
                             if (lk.type() == CONTRACT_DATA)
                             {
@@ -3725,6 +3735,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                         {
                             auto lk = change.removed();
                             REQUIRE(keysToDelete.erase(lk) == 1);
+                            nonInitMetaChanges.emplace(lk);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else
                         {
@@ -3771,22 +3784,38 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
                     auto const& updateChanges =
                         updateTx.getLedgerEntryChangesAtOp(0);
+
+                    // Make sure we see init meta changes
+                    // (CREATED, RESTORED, STATE) before any other change types
+                    // for a given key. We also need to check that all meta
+                    // changes for the same key are adjacent to each other.
+                    std::unordered_set<LedgerKey> nonInitMetaChanges;
+                    std::optional<LedgerKey> nextExpectedKey = std::nullopt;
+
                     for (auto const& change : updateChanges)
                     {
                         if (change.type() ==
                             LedgerEntryChangeType::LEDGER_ENTRY_UPDATED)
                         {
                             auto le = change.updated();
+                            auto lk = LedgerEntryKey(le);
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(le.data.contractData().val ==
                                     makeU64SCVal(updatedValue));
                             REQUIRE(keysToUpdate.erase(LedgerEntryKey(le)) ==
                                     1);
                             REQUIRE(le.lastModifiedLedgerSeq == targetLedger);
+
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_CREATED)
                         {
                             auto le = change.created();
+                            auto lk = LedgerEntryKey(le);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
                             if (LedgerEntryKey(le).type() == CONTRACT_DATA)
                             {
                                 REQUIRE(le.data.contractData().val ==
@@ -3796,11 +3825,15 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                             REQUIRE(keysToCreate.erase(LedgerEntryKey(le)) ==
                                     1);
                             REQUIRE(le.lastModifiedLedgerSeq == targetLedger);
+                            nextExpectedKey = lk;
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_STATE)
                         {
                             auto le = change.state();
+                            auto lk = LedgerEntryKey(le);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
                             REQUIRE(expectedStateKeys.erase(
                                         LedgerEntryKey(le)) == 1);
                             if (LedgerEntryKey(le).type() == CONTRACT_DATA)
@@ -3818,12 +3851,16 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 REQUIRE(le.lastModifiedLedgerSeq ==
                                         expectedTTLRestoreLastModified);
                             }
+                            nextExpectedKey = lk;
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
                         {
                             auto lk = change.removed();
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(keysToDelete.erase(lk) == 1);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else
                         {
@@ -3874,6 +3911,13 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     LedgerKeySet keysToDelete =
                         deleted ? keysToRestore : LedgerKeySet{};
 
+                    // Make sure we see init meta changes
+                    // (CREATED, RESTORED, STATE) before any other change types
+                    // for a given key. We also need to check that all meta
+                    // changes for the same key are adjacent to each other.
+                    std::unordered_set<LedgerKey> nonInitMetaChanges;
+                    std::optional<LedgerKey> nextExpectedKey = std::nullopt;
+
                     for (auto const& change : changes)
                     {
                         if (change.type() ==
@@ -3881,6 +3925,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                         {
                             auto le = change.restored();
                             auto lk = LedgerEntryKey(le);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
                             REQUIRE(keysToRestore.erase(lk) == 1);
 
                             if (lk.type() == CONTRACT_DATA)
@@ -3893,22 +3939,29 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 REQUIRE(le.lastModifiedLedgerSeq ==
                                         expectedTTLLastModified);
                             }
+                            nextExpectedKey = lk;
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_UPDATED)
                         {
                             REQUIRE(updatedValue.has_value());
                             auto le = change.updated();
+                            auto lk = LedgerEntryKey(le);
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(le.data.contractData().val ==
                                     makeU64SCVal(*updatedValue));
-                            REQUIRE(keysToUpdate.erase(LedgerEntryKey(le)) ==
-                                    1);
+                            REQUIRE(keysToUpdate.erase(lk) == 1);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
                         {
                             auto lk = change.removed();
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(keysToDelete.erase(lk) == 1);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else
                         {
