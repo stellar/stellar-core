@@ -233,10 +233,10 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
         REQUIRE(client.transfer(root, accAddr, 10));
         REQUIRE(client.mint(issuer, accAddr, 10));
 
-        // Now mint by transfering from issuer
+        // Now mint by transferring from issuer
         REQUIRE(client.transfer(issuer, accAddr, 10));
 
-        // Now burn by transfering to the issuer and by using burn function
+        // Now burn by transferring to the issuer and by using burn function
         REQUIRE(client.transfer(acc, makeAccountAddress(issuer.getPublicKey()),
                                 10));
         REQUIRE(client.burn(acc, 10));
@@ -249,7 +249,7 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
         REQUIRE(client.transfer(root, contractAddr, 10));
         REQUIRE(client.mint(issuer, contractAddr, 10));
 
-        // Now mint by transfering from issuer
+        // Now mint by transferring from issuer
         REQUIRE(client.transfer(issuer, contractAddr, 10));
 
         // Now clawback
@@ -1560,7 +1560,7 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
 
         SECTION("footprint entries")
         {
-            // Fee for additonal 6 footprint entries (6 * 36 = 216 bytes)
+            // Fee for additional 6 footprint entries (6 * 36 = 216 bytes)
             // ceil(216 * 6000 / 1024) + ceil(216 * 8000 / 1024) == 2954
             const int64_t additionalTxSizeFee = 2954;
             SECTION("RO only")
@@ -2992,7 +2992,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                     test.getLCLSeq() + stateArchivalSettings.minPersistentTTL -
                     1;
 
-                // Instance should now be useable
+                // Instance should now be usable
                 REQUIRE(isSuccess(
                     client.put("temp", ContractDataDurability::TEMPORARY, 0)));
                 REQUIRE(test.getTTL(contractKeys[0]) ==
@@ -7834,7 +7834,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
             sorobanTxs.emplace_back(tx);
         }
 
-        // Save a map of tx hashs to extensions so we can do a lookup against
+        // Save a map of tx hashes to extensions so we can do a lookup against
         // the ordering of tx results to determine where the readWrite
         // transaction was applied.
         UnorderedMap<Hash, uint32_t> txHashToExtendTO;

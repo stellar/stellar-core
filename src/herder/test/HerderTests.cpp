@@ -2871,7 +2871,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& lam = static_cast<LedgerApplyManagerImpl&>(
             outOfSync->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
@@ -2898,7 +2898,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
             outOfSync2->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil(
             [&]() {
@@ -3646,7 +3646,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             if (parallelLedgerClose)
             {
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
-                // Add artifical delay to ledger close to increase chances of
+                // Add artificial delay to ledger close to increase chances of
                 // conflicts
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(delayCloseMs);
@@ -4354,7 +4354,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 // This test excerises a race where we start applying ledger N +
                 // 1 before we publish the result of N. This shouldn't violate
                 // any ApplyState invariants. ApplyState should already be
-                // commited and up to date via the apply thread, even if the
+                // committed and up to date via the apply thread, even if the
                 // main thread has not yet published the result to the rest of
                 // core.
                 if (enableParallelApply)
