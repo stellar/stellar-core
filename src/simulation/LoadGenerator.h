@@ -165,6 +165,8 @@ struct GeneratedLoadConfig
 class LoadGenerator
 {
   public:
+    static const uint64_t ROOT_ACCOUNT_ID = UINT64_MAX;
+
     LoadGenerator(Application& app);
 
     static LoadGenMode getMode(std::string const& mode);

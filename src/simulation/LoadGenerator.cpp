@@ -84,6 +84,9 @@ const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 // buffer in case loadgen is unstable and needs more accounts)
 const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
+// Special account ID to represent the root account
+const uint64_t LoadGenerator::ROOT_ACCOUNT_ID;
+
 uint32_t
 getTxCount(Application& app, bool isSoroban)
 {
@@ -375,13 +378,21 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         }
     }
 
-    if (cfg.mode != LoadGenMode::CREATE &&
-        cfg.mode != LoadGenMode::PAY_PREGENERATED)
+    if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
-        // Mark all accounts "available" as source accounts
-        for (auto i = 0u; i < cfg.nAccounts; i++)
+        // For upgrade modes, use root account (represented by special ID)
+        if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
+            cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
-            mAccountsAvailable.insert(i + cfg.offset);
+            mAccountsAvailable.insert(ROOT_ACCOUNT_ID);
+        }
+        else
+        {
+            // Mark all accounts "available" as source accounts
+            for (auto i = 0u; i < cfg.nAccounts; i++)
+            {
+                mAccountsAvailable.insert(i + cfg.offset);
+            }
         }
 
         if (cfg.modeInvokes())

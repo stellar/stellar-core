@@ -124,16 +124,14 @@ class TxGenerator
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
 
-    // If accountId is nullopt, the root test account is used.
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(
-        uint32_t ledgerNum, std::optional<uint64_t> accountId,
-        xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
+        uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
+        LedgerKey const& contractCodeLedgerKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    createContractTransaction(uint32_t ledgerNum,
-                              std::optional<uint64_t> accountId,
+    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               LedgerKey const& codeKey,
                               uint64_t contractOverheadBytes,
                               uint256 const& salt,
@@ -150,11 +148,10 @@ class TxGenerator
                                    uint64_t dataEntryCount,
                                    size_t dataEntrySize,
                                    std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<TestAccountPtr, TransactionFrameBasePtr>
     invokeSorobanCreateUpgradeTransaction(
-        uint32_t ledgerNum, std::optional<uint64_t> accountId,
-        SCBytes const& upgradeBytes, LedgerKey const& codeKey,
-        LedgerKey const& instanceKey,
+        uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
+        LedgerKey const& codeKey, LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
