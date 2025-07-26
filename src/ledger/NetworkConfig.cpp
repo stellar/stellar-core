@@ -2234,6 +2234,78 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
 
     ltx.commit();
 }
+
+bool
+SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
+{
+    return mMaxContractSizeBytes == other.maxContractSizeBytes() &&
+           mMaxContractDataKeySizeBytes ==
+               other.maxContractDataKeySizeBytes() &&
+           mMaxContractDataEntrySizeBytes ==
+               other.maxContractDataEntrySizeBytes() &&
+
+           mLedgerMaxInstructions == other.ledgerMaxInstructions() &&
+           mTxMaxInstructions == other.txMaxInstructions() &&
+           mFeeRatePerInstructionsIncrement ==
+               other.feeRatePerInstructionsIncrement() &&
+           mTxMemoryLimit == other.txMemoryLimit() &&
+
+           mLedgerMaxDiskReadEntries == other.ledgerMaxDiskReadEntries() &&
+           mLedgerMaxDiskReadBytes == other.ledgerMaxDiskReadBytes() &&
+           mLedgerMaxWriteLedgerEntries ==
+               other.ledgerMaxWriteLedgerEntries() &&
+           mLedgerMaxWriteBytes == other.ledgerMaxWriteBytes() &&
+           mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
+
+           mTxMaxDiskReadEntries == other.txMaxDiskReadEntries() &&
+           mTxMaxFootprintEntries == other.txMaxFootprintEntries() &&
+           mTxMaxDiskReadBytes == other.txMaxDiskReadBytes() &&
+           mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
+           mTxMaxWriteBytes == other.txMaxWriteBytes() &&
+           mFeeDiskReadLedgerEntry == other.feeDiskReadLedgerEntry() &&
+           mFeeWriteLedgerEntry == other.feeWriteLedgerEntry() &&
+           mFeeDiskRead1KB == other.feeDiskRead1KB() &&
+           mFeeFlatRateWrite1KB == other.feeFlatRateWrite1KB() &&
+           mSorobanStateTargetSizeBytes ==
+               other.sorobanStateTargetSizeBytes() &&
+
+           mRentFee1KBSorobanStateSizeLow ==
+               other.rentFee1KBSorobanStateSizeLow() &&
+           mRentFee1KBSorobanStateSizeHigh ==
+               other.rentFee1KBSorobanStateSizeHigh() &&
+           mSorobanStateRentFeeGrowthFactor ==
+               other.sorobanStateRentFeeGrowthFactor() &&
+
+           mFeeHistorical1KB == other.feeHistorical1KB() &&
+
+           mTxMaxContractEventsSizeBytes ==
+               other.txMaxContractEventsSizeBytes() &&
+           mFeeContractEvents1KB == other.feeContractEventsSize1KB() &&
+
+           mLedgerMaxTransactionsSizeBytes ==
+               other.ledgerMaxTransactionSizesBytes() &&
+           mTxMaxSizeBytes == other.txMaxSizeBytes() &&
+           mFeeTransactionSize1KB == other.feeTransactionSize1KB() &&
+
+           mCpuCostParams == other.cpuCostParams() &&
+           mMemCostParams == other.memCostParams() &&
+
+           mLedgerMaxDependentTxClusters ==
+               other.ledgerMaxDependentTxClusters() &&
+
+           mStateArchivalSettings == other.stateArchivalSettings() &&
+
+           mLedgerTargetCloseTimeMilliseconds ==
+               other.ledgerTargetCloseTimeMilliseconds() &&
+           mNominationTimeoutInitialMilliseconds ==
+               other.nominationTimeoutInitialMilliseconds() &&
+           mNominationTimeoutIncrementMilliseconds ==
+               other.nominationTimeoutIncrementMilliseconds() &&
+           mBallotTimeoutInitialMilliseconds ==
+               other.ballotTimeoutInitialMilliseconds() &&
+           mBallotTimeoutIncrementMilliseconds ==
+               other.ballotTimeoutIncrementMilliseconds();
+}
 #endif
 
 bool
@@ -2327,79 +2399,6 @@ SorobanNetworkConfig::computeRentWriteFee(uint32_t protocolVersion)
     mFeeRent1KB = rust_bridge::compute_rent_write_fee_per_1kb(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion,
         mAverageSorobanStateSize, feeConfig);
-}
-
-bool
-SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
-{
-    return mMaxContractSizeBytes == other.maxContractSizeBytes() &&
-           mMaxContractDataKeySizeBytes ==
-               other.maxContractDataKeySizeBytes() &&
-           mMaxContractDataEntrySizeBytes ==
-               other.maxContractDataEntrySizeBytes() &&
-
-           mLedgerMaxInstructions == other.ledgerMaxInstructions() &&
-           mTxMaxInstructions == other.txMaxInstructions() &&
-           mFeeRatePerInstructionsIncrement ==
-               other.feeRatePerInstructionsIncrement() &&
-           mTxMemoryLimit == other.txMemoryLimit() &&
-
-           mLedgerMaxDiskReadEntries == other.ledgerMaxDiskReadEntries() &&
-           mLedgerMaxDiskReadBytes == other.ledgerMaxDiskReadBytes() &&
-           mLedgerMaxWriteLedgerEntries ==
-               other.ledgerMaxWriteLedgerEntries() &&
-           mLedgerMaxWriteBytes == other.ledgerMaxWriteBytes() &&
-           mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
-
-           mTxMaxDiskReadEntries == other.txMaxDiskReadEntries() &&
-           mTxMaxFootprintEntries == other.txMaxFootprintEntries() &&
-           mTxMaxDiskReadBytes == other.txMaxDiskReadBytes() &&
-           mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
-           mTxMaxWriteBytes == other.txMaxWriteBytes() &&
-           mFeeDiskReadLedgerEntry == other.feeDiskReadLedgerEntry() &&
-           mFeeWriteLedgerEntry == other.feeWriteLedgerEntry() &&
-           mFeeDiskRead1KB == other.feeDiskRead1KB() &&
-           mFeeFlatRateWrite1KB == other.feeFlatRateWrite1KB() &&
-           mSorobanStateTargetSizeBytes ==
-               other.sorobanStateTargetSizeBytes() &&
-
-           mRentFee1KBSorobanStateSizeLow ==
-               other.rentFee1KBSorobanStateSizeLow() &&
-           mRentFee1KBSorobanStateSizeHigh ==
-               other.rentFee1KBSorobanStateSizeHigh() &&
-           mSorobanStateRentFeeGrowthFactor ==
-               other.sorobanStateRentFeeGrowthFactor() &&
-
-           mFeeHistorical1KB == other.feeHistorical1KB() &&
-
-           mTxMaxContractEventsSizeBytes ==
-               other.txMaxContractEventsSizeBytes() &&
-           mFeeContractEvents1KB == other.feeContractEventsSize1KB() &&
-
-           mLedgerMaxTransactionsSizeBytes ==
-               other.ledgerMaxTransactionSizesBytes() &&
-           mTxMaxSizeBytes == other.txMaxSizeBytes() &&
-           mFeeTransactionSize1KB == other.feeTransactionSize1KB() &&
-
-           mCpuCostParams == other.cpuCostParams() &&
-           mMemCostParams == other.memCostParams() &&
-
-           mLedgerMaxDependentTxClusters ==
-               other.ledgerMaxDependentTxClusters() &&
-
-           mStateArchivalSettings == other.stateArchivalSettings() &&
-           mEvictionIterator == other.evictionIterator() &&
-
-           mLedgerTargetCloseTimeMilliseconds ==
-               other.ledgerTargetCloseTimeMilliseconds() &&
-           mNominationTimeoutInitialMilliseconds ==
-               other.nominationTimeoutInitialMilliseconds() &&
-           mNominationTimeoutIncrementMilliseconds ==
-               other.nominationTimeoutIncrementMilliseconds() &&
-           mBallotTimeoutInitialMilliseconds ==
-               other.ballotTimeoutInitialMilliseconds() &&
-           mBallotTimeoutIncrementMilliseconds ==
-               other.ballotTimeoutIncrementMilliseconds();
 }
 
 } // namespace stellar

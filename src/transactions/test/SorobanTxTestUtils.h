@@ -68,6 +68,16 @@ makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         uint32_t inclusionFee,
                         int64_t additionalRefundableFee = 0);
 
+enum class ExpirationStatus
+{
+    NOT_FOUND,
+    LIVE,
+    EXPIRED_IN_LIVE_STATE,
+    HOT_ARCHIVE,
+};
+
+bool isExpiredStatus(ExpirationStatus status);
+
 struct ConstructorParams
 {
     enum class HostFnVersion
@@ -275,7 +285,8 @@ class SorobanTest
     void invokeArchivalOp(TransactionFrameBaseConstPtr tx,
                           int64_t expectedRefundableFeeCharged);
 
-    Hash uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources);
+    Hash uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources,
+                    int64_t additionalRefundableFee = 0);
 
     SCAddress createContract(ContractIDPreimage const& idPreimage,
                              ContractExecutable const& executable,
@@ -304,11 +315,13 @@ class SorobanTest
     TestContract& deployWasmContract(
         RustBuf const& wasm,
         std::optional<SorobanResources> uploadResources = std::nullopt,
-        std::optional<SorobanResources> createResources = std::nullopt);
+        std::optional<SorobanResources> createResources = std::nullopt,
+        int64_t additionalRefundableFee = 0);
     TestContract& deployWasmContract(
         RustBuf const& wasm, ConstructorParams const& constructorParams,
         std::optional<SorobanResources> uploadResources = std::nullopt,
-        std::optional<SorobanResources> createResources = std::nullopt);
+        std::optional<SorobanResources> createResources = std::nullopt,
+        int64_t additionalRefundableFee = 0);
 
     SCAddress nextContractID();
 
@@ -336,6 +349,8 @@ class SorobanTest
 
     uint32_t getTTL(LedgerKey const& k);
     bool isEntryLive(LedgerKey const& k, uint32_t ledgerSeq);
+
+    ExpirationStatus getEntryExpirationStatus(LedgerKey const& k);
 
     void invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
                          int64_t expectedRefundableFeeCharged);
@@ -381,7 +396,12 @@ class AssetContractTestClient
                                           SCAddress const& toAddr,
                                           int64_t amount,
                                           bool sourceIsRoot = false);
-    bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount);
+    TestContract::Invocation
+    transferInvocation(TestAccount& fromAcc, SCAddress const& maybeMuxedToAddr,
+                       int64_t amount, bool& fromIsIssuer, bool& toIsIssuer,
+                       SCAddress& toAddr);
+    bool transfer(TestAccount& fromAcc, SCAddress const& maybeMuxedToAddr,
+                  int64_t amount);
     bool mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount);
     bool burn(TestAccount& from, int64_t amount);
     bool clawback(TestAccount& admin, SCAddress const& fromAddr,
@@ -401,7 +421,8 @@ class ContractStorageTestClient
     TestContract& mContract;
 
   public:
-    ContractStorageTestClient(SorobanTest& test);
+    ContractStorageTestClient(SorobanTest& test,
+                              int64_t additionalRefundableFee = 0);
 
     TestContract& getContract() const;
 
@@ -416,7 +437,9 @@ class ContractStorageTestClient
     uint32_t getTTL(std::string const& key, ContractDataDurability durability);
     bool isEntryLive(std::string const& key, ContractDataDurability durability,
                      uint32_t ledgerSeq);
-
+    ExpirationStatus
+    getEntryExpirationStatus(std::string const& key,
+                             ContractDataDurability durability);
     TestContract::Invocation
     putInvocation(std::string const& key, ContractDataDurability durability,
                   uint64_t val,
