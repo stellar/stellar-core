@@ -205,7 +205,13 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
 
     auto crankAndValidateDrop = [&](std::string const& dropReason,
                                     bool shouldSendError) {
-        s->crankForAtLeast(std::chrono::seconds(10), false);
+        s->crankUntil(
+            [&]() {
+                // p0 should drop p1
+                return !p0->isConnectedForTesting() &&
+                       !p1->isConnectedForTesting();
+            },
+            std::chrono::seconds(10), false);
         REQUIRE(!p0->isConnectedForTesting());
         REQUIRE(!p1->isConnectedForTesting());
         REQUIRE(p1->getDropReason() == dropReason);

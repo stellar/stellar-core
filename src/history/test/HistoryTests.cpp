@@ -1249,7 +1249,7 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
     REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 7);
 }
 
-TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
+TEST_CASE("Catchup with protocol upgrade", "[catchup][history][acceptance]")
 {
     auto testUpgrade = [&](ProtocolVersion upgradeVersion) {
         uint32_t oldVersion = static_cast<uint32_t>(upgradeVersion) - 1;
@@ -1323,7 +1323,7 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
     }
 }
 
-TEST_CASE("Catchup fatal failure", "[catchup][history]")
+TEST_CASE("Catchup fatal failure", "[catchup][history][acceptance]")
 {
     CatchupSimulation catchupSimulation{};
 
@@ -1830,34 +1830,43 @@ TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
-    auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
-
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
 
     // we have 3 buffered ledgers after trigger (66, 67, and 68)
 
-    SECTION("Checkpoint and trigger in order")
+    // Checkpoint and trigger in order
     {
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 64, 65, 67, 68, 66}));
     }
 
-    SECTION("Checkpoint and trigger with gap in between")
+    // "Checkpoint and trigger with gap in between"
     {
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 64, 67, 65, 68, 66}));
     }
 
-    SECTION("Trigger and checkpoint with gap in between")
+    // "Trigger and checkpoint with gap in between"
     {
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 65, 67, 64, 68, 66}));
     }
 
-    SECTION("Reverse order")
+    // "Reverse order"
     {
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {68, 67, 66, 65, 64, 63}));
     }
