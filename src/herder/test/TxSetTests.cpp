@@ -1886,6 +1886,7 @@ TEST_CASE("txset nomination", "[txset]")
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
         cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = 1;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
 
         cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(54321);
 
@@ -1919,9 +1920,8 @@ TEST_CASE("txset nomination", "[txset]")
             auto root = app->getRoot();
             for (int i = 0; i < 1000; ++i)
             {
-                auto account = root->create(std::to_string(i), 1'000'000'000);
-                accountKeys.emplace_back(account,
-                                         account.getLastSequenceNumber());
+                auto acc = getGenesisAccount(*app, i).getSecretKey();
+                accountKeys.emplace_back(acc, 0);
             }
         }
 

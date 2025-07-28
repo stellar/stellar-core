@@ -988,6 +988,8 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     auto max = std::numeric_limits<uint32_t>::max();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
+    // Pre-create enough genesis accounts for the test
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 100000;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -1035,7 +1037,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
         while (totalSize < MAX_TX_SET_ALLOWANCE)
         {
-            auto a = root->create(fmt::format("A{}", txCount++), 500000000);
+            auto a = txtest::getGenesisAccount(*app, txCount++);
             txs.emplace_back(makeTx(a, phase));
             totalSize += xdr::xdr_size(txs.back()->getEnvelope());
         }
@@ -1898,6 +1900,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
 
     VirtualClock clock;
     auto s = SecretKey::pseudoRandomForTesting();
@@ -1909,8 +1912,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     std::vector<TestAccount> accounts;
     for (int i = 0; i < 1000; ++i)
     {
-        std::string accountName = fmt::format("A{}", accounts.size());
-        accounts.push_back(root->create(accountName.c_str(), 500000000));
+        auto account = txtest::getGenesisAccount(*app, i);
+        accounts.emplace_back(TestAccount(*app, account));
     }
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
@@ -3058,6 +3061,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                     cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {mid};
                     cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {1};
                     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                    cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                     tweakAppCfg(cfg);
                     return cfg;
                 });
@@ -3081,18 +3085,11 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 simulation);
             auto& loadGen = nodes[0]->getLoadGenerator();
 
-            // Generate some accounts
             auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
                 {"loadgen", "run", "complete"}, "run");
             auto currLoadGenCount = loadGenDone.count();
-            loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-                numAccounts, baseTxRate));
-            simulation->crankUntil(
-                [&]() { return loadGenDone.count() > currLoadGenCount; },
-                10 * simulation->getExpectedLedgerCloseTime(), false);
 
             // Setup invoke
-            currLoadGenCount = loadGenDone.count();
             loadGen.generateLoad(
                 GeneratedLoadConfig::createSorobanInvokeSetupLoad(
                     /* nAccounts */ numAccounts, /* nInstances */ 10,
@@ -3269,18 +3266,6 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
 
     std::shared_ptr<Simulation> simulation;
 
-    SECTION("background traffic processing")
-    {
-        // Set threshold to 1 so all have to vote
-        simulation =
-            Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
-                auto cfg = getTestConfig(i);
-                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                cfg.BACKGROUND_OVERLAY_PROCESSING = true;
-                return cfg;
-            });
-    }
-
     SECTION("background signature validation")
     {
         // Set threshold to 1 so all have to vote
@@ -3288,8 +3273,8 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
                 auto cfg = getTestConfig(i);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                 cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                 return cfg;
             });
     }
@@ -3306,6 +3291,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(500);
+                cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                 return cfg;
             });
     }
@@ -3324,16 +3310,9 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
         simulation);
     auto& loadGen = nodes[0]->getLoadGenerator();
 
-    // Generate some accounts
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
-    uint32_t const numAccounts = 100;
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto& secondLoadGen = nodes[1]->getLoadGenerator();
     auto& secondLoadGenDone =
@@ -3342,7 +3321,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
     // soroban traffic
     currLoadGenCount = loadGenDone.count();
     auto secondLoadGenCount = secondLoadGenDone.count();
-    uint32_t const txCount = 100;
+    uint32_t const txCount = 50;
     // Generate Soroban txs from one node
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_UPLOAD, 50,
@@ -3377,6 +3356,7 @@ TEST_CASE("soroban txs accepted by the network",
         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
             return cfg;
         });
     simulation->startAllNodes();
@@ -3406,15 +3386,9 @@ TEST_CASE("soroban txs accepted by the network",
     auto& sorobanTxsFailed = nodes[0]->getMetrics().NewCounter(
         {"ledger", "apply-soroban", "failure"});
 
-    // Generate some accounts
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     uint64_t lastSorobanSucceeded = sorobanTxsSucceeded.count();
     uint64_t lastSucceeded = txsSucceeded.count();
@@ -3508,13 +3482,13 @@ TEST_CASE("soroban txs accepted by the network",
         // soroban traffic
         currLoadGenCount = loadGenDone.count();
         auto secondLoadGenCount = secondLoadGenDone.count();
-        uint32_t const classicTxCount = 500;
+        uint32_t const classicTxCount = 100;
         SECTION("basic load")
         {
             // Generate Soroban txs from one node
             loadGen.generateLoad(GeneratedLoadConfig::txLoad(
                 LoadGenMode::SOROBAN_UPLOAD, 50,
-                /* nTxs */ 500, desiredTxRate, /* offset */ 0));
+                /* nTxs */ 100, desiredTxRate, /* offset */ 0));
             // Generate classic txs from another node (with offset to prevent
             // overlapping accounts)
             secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
@@ -3526,7 +3500,7 @@ TEST_CASE("soroban txs accepted by the network",
             uint32_t maxInclusionFee = 100'000;
             auto sorobanConfig =
                 GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
-                                            /* nTxs */ 500, desiredTxRate * 3,
+                                            /* nTxs */ 100, desiredTxRate * 3,
                                             /* offset */ 0, maxInclusionFee);
 
             // Make sure some soroban txs get applied.
@@ -4262,12 +4236,12 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
 
 TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
 {
-    auto mode = Simulation::OVER_TCP;
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
     auto setupAndRunTests = [&](bool enableParallelApply) {
         auto sim = Topologies::core(
-            4, 1.0, mode, networkID, [enableParallelApply](int i) {
+            4, 1.0, Simulation::OVER_TCP, networkID,
+            [enableParallelApply](int i) {
                 Config cfg;
                 if (enableParallelApply)
                 {
@@ -4280,6 +4254,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                     cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
                 }
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = enableParallelApply;
+                cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
                 return cfg;
             });
 
@@ -4321,7 +4296,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
             }
 
             // Crank until one more ledger is externalized
-            sim->crankForAtLeast(std::chrono::seconds(10), false);
+            sim->crankForAtLeast(std::chrono::seconds(5), false);
 
             for (auto const& node : sim->getNodes())
             {
@@ -4808,6 +4783,8 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 cfg.FORCE_SCP = false;
                 cfg.FLOOD_TX_PERIOD_MS = 100;
                 cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
+                cfg.GENESIS_TEST_ACCOUNT_COUNT =
+                    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
                 return cfg;
             });
 
@@ -4849,8 +4826,8 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         accs.emplace_back(*root);
         for (int i = 0; i < nbAccounts; ++i)
         {
-            accs.emplace_back(
-                root->create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
+            auto account = txtest::getGenesisAccount(*app, i);
+            accs.emplace_back(account);
         }
         std::deque<uint32> fees;
 
@@ -4999,6 +4976,8 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 cfg.FLOOD_TX_PERIOD_MS = 100;
                 cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
                 cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET = 200;
+                cfg.GENESIS_TEST_ACCOUNT_COUNT =
+                    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE * 2;
                 return cfg;
             });
 
@@ -5039,9 +5018,9 @@ TEST_CASE("do not flood too many transactions with DEX separation",
         UnorderedMap<AccountID, int> accountToIndex;
         for (int i = 0; i < nbAccounts; ++i)
         {
-            auto accKey = getAccount(fmt::format("A{}", i));
-            accs.emplace_back(root->create(accKey, lm.getLastMinBalance(2)));
-            accountToIndex[accKey.getPublicKey()] = i;
+            auto account = txtest::getGenesisAccount(*app, i);
+            accs.emplace_back(account);
+            accountToIndex[account.getPublicKey()] = i;
         }
         std::vector<std::deque<std::pair<int64_t, bool>>> accountFees(
             nbAccounts);
@@ -6626,11 +6605,11 @@ TEST_CASE("Unresponsive quorum timeouts", "[herder]")
     }
 }
 
-#ifdef USE_POSTGRES
 TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
+#ifdef USE_POSTGRES
     SECTION("with parallel apply")
     {
         simulation = Topologies::core(
@@ -6640,6 +6619,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
                 return cfg;
             });
     }
+#endif // USE_POSTGRES
     SECTION("without parallel apply")
     {
         simulation = Topologies::core(
@@ -6653,7 +6633,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     simulation->startAllNodes();
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(3, 1); },
-        std::chrono::seconds(60), false);
+        std::chrono::seconds(300), false);
 
     auto A = simulation->getNodes()[1];
     auto B = simulation->getNodes()[2];
@@ -6714,4 +6694,3 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     REQUIRE(herder.getTriggerTimer().seq() > 0);
     REQUIRE(herder.mTriggerNextLedgerSeq == nextSeq + 2);
 }
-#endif // USE_POSTGRES

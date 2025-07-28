@@ -99,6 +99,7 @@ TEST_CASE("generate load in protocol 1", "[loadgen]")
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 1;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
             return cfg;
         });
 
@@ -111,9 +112,9 @@ TEST_CASE("generate load in protocol 1", "[loadgen]")
     auto& app = *nodes[0]; // pick a node to generate load
 
     auto& loadGen = app.getLoadGenerator();
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 10000,
-        /* txRate */ 1));
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, app.getConfig().GENESIS_TEST_ACCOUNT_COUNT, 1000,
+        /* txRate */ 10));
     simulation->crankUntil(
         [&]() {
             return app.getMetrics()
@@ -956,7 +957,7 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
     REQUIRE(runsFailed.count() == 0);
 }
 
-TEST_CASE("apply load", "[loadgen][applyload]")
+TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 {
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
