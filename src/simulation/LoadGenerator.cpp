@@ -375,13 +375,21 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         }
     }
 
-    if (cfg.mode != LoadGenMode::CREATE &&
-        cfg.mode != LoadGenMode::PAY_PREGENERATED)
+    if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
-        // Mark all accounts "available" as source accounts
-        for (auto i = 0u; i < cfg.nAccounts; i++)
+        // For upgrade modes, use root account (represented by special ID)
+        if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
+            cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
-            mAccountsAvailable.insert(i + cfg.offset);
+            mAccountsAvailable.insert(TxGenerator::ROOT_ACCOUNT_ID);
+        }
+        else
+        {
+            // Mark all accounts "available" as source accounts
+            for (auto i = 0u; i < cfg.nAccounts; i++)
+            {
+                mAccountsAvailable.insert(i + cfg.offset);
+            }
         }
 
         if (cfg.modeInvokes())
