@@ -1,6 +1,7 @@
 #include "simulation/TxGenerator.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "simulation/LoadGenerator.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include <cmath>
@@ -11,6 +12,9 @@ namespace stellar
 
 using namespace std;
 using namespace txtest;
+
+// Definition of static const member
+uint64_t const TxGenerator::ROOT_ACCOUNT_ID = UINT64_MAX;
 
 namespace
 {
@@ -157,15 +161,23 @@ TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
     auto res = mAccounts.find(accountId);
     if (res == mAccounts.end())
     {
-        SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
-        auto name = "TestAccount-" + std::to_string(accountId);
-        newAccountPtr =
-            std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
-
-        if (!mApp.getRunInOverlayOnlyMode() && !loadAccount(newAccountPtr))
+        // Special handling for root account
+        if (accountId == TxGenerator::ROOT_ACCOUNT_ID)
         {
-            throw std::runtime_error(
-                fmt::format("Account {0} must exist in the DB.", accountId));
+            newAccountPtr = mApp.getRoot();
+        }
+        else
+        {
+            SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
+            auto name = "TestAccount-" + std::to_string(accountId);
+            newAccountPtr = std::make_shared<TestAccount>(
+                mApp, txtest::getAccount(name), sn);
+
+            if (!mApp.getRunInOverlayOnlyMode() && !loadAccount(newAccountPtr))
+            {
+                throw std::runtime_error(fmt::format(
+                    "Account {0} must exist in the DB.", accountId));
+            }
         }
         mAccounts.insert(std::pair<uint64_t, TxGenerator::TestAccountPtr>(
             accountId, newAccountPtr));
@@ -268,13 +280,12 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
-    uint32_t ledgerNum, std::optional<uint64_t> accountId,
-    xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
+    uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
+    LedgerKey const& contractCodeLedgerKey,
     std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> uploadResources)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(accountId, ledgerNum);
 
     if (!uploadResources)
     {
@@ -306,12 +317,11 @@ TxGenerator::createUploadWasmTransaction(
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createContractTransaction(
-    uint32_t ledgerNum, std::optional<uint64_t> accountId,
-    LedgerKey const& codeKey, uint64_t contractOverheadBytes,
-    uint256 const& salt, std::optional<uint32_t> maxGeneratedFeeRate)
+    uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
+    uint64_t contractOverheadBytes, uint256 const& salt,
+    std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
     createResources.instructions = 1'000'000;
     createResources.diskReadBytes = contractOverheadBytes;
@@ -1078,15 +1088,14 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     return xdr::xdr_to_opaque(upgradeSet);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
-    uint32_t ledgerNum, std::optional<uint64_t> accountId,
-    SCBytes const& upgradeBytes, LedgerKey const& codeKey,
-    LedgerKey const& instanceKey, std::optional<uint32_t> maxGeneratedFeeRate,
+    uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
+    LedgerKey const& codeKey, LedgerKey const& instanceKey,
+    std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> resources)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(accountId, ledgerNum);
     auto const& contractID = instanceKey.contractData().contract;
 
     LedgerKey upgradeLK(CONTRACT_DATA);

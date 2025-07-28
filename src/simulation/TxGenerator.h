@@ -88,6 +88,9 @@ struct SorobanUpgradeConfig
 class TxGenerator
 {
   public:
+    // Special account ID to represent the root account
+    static uint64_t const ROOT_ACCOUNT_ID;
+
     struct ContractInstance
     {
         // [wasm, instance]
@@ -124,16 +127,14 @@ class TxGenerator
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
 
-    // If accountId is nullopt, the root test account is used.
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(
-        uint32_t ledgerNum, std::optional<uint64_t> accountId,
-        xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
+        uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
+        LedgerKey const& contractCodeLedgerKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    createContractTransaction(uint32_t ledgerNum,
-                              std::optional<uint64_t> accountId,
+    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               LedgerKey const& codeKey,
                               uint64_t contractOverheadBytes,
                               uint256 const& salt,
@@ -152,9 +153,8 @@ class TxGenerator
                                    std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
-        uint32_t ledgerNum, std::optional<uint64_t> accountId,
-        SCBytes const& upgradeBytes, LedgerKey const& codeKey,
-        LedgerKey const& instanceKey,
+        uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
+        LedgerKey const& codeKey, LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
