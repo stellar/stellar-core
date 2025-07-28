@@ -442,8 +442,9 @@ class SorobanNetworkConfig
     // to have more accurage modelled CPU and memory costs in tests and
     // especially the benchmarks.
     static void updateRecalibratedCostTypesForV20(AbstractLedgerTxn& ltx);
-#endif
+
     bool operator==(SorobanNetworkConfig const& other) const;
+#endif
 
   private:
     void loadMaxContractSize(LedgerTxnReadOnly const& roLtx);
