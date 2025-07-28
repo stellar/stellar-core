@@ -358,6 +358,9 @@ class Config : public std::enable_shared_from_this<Config>
     // `APPLY_LOAD_BL_LAST_BATCH_LEDGERS`.
     uint32_t APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
 
+    // Maximum number of entries that can be read during ApplyLoad.
+    uint32_t APPLY_LOAD_MAX_TOTAL_ENTRIES_TO_READ = 0;
+
     // The APPLY_LOAD_* parameters below are for initializing Soroban
     // settings before applying the benchmark transactions.
     uint32_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;

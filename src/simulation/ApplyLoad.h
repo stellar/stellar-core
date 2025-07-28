@@ -69,6 +69,9 @@ class ApplyLoad
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 
+    // ContractID used by all pre-populated archived entries.
+    SCAddress mHotArchiveContractID;
+
     TxGenerator mTxGenerator;
     Application& mApp;
     TxGenerator::TestAccountPtr mRoot;

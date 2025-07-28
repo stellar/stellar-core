@@ -15,6 +15,9 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
+#include "bucket/BucketListSnapshotBase.h"
+#include "bucket/BucketSnapshotManager.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 #include <crypto/SHA.h>
@@ -304,23 +307,31 @@ ApplyLoad::setupBucketList()
 {
     auto lh = mApp.getLedgerManager().getLastClosedLedgerHeader().header;
     auto& bl = mApp.getBucketManager().getLiveBucketList();
+    auto& hotArchiveBl = mApp.getBucketManager().getHotArchiveBucketList();
     auto const& cfg = mApp.getConfig();
 
-    uint64_t currentKey = 0;
+    mHotArchiveContractID.type(SC_ADDRESS_TYPE_CONTRACT);
+    mHotArchiveContractID.contractId() = sha256("ApplyLoad hot archive");
 
-    LedgerEntry baseLe;
-    baseLe.data.type(CONTRACT_DATA);
-    baseLe.data.contractData().contract = mLoadInstance.contractID;
-    baseLe.data.contractData().key.type(SCV_U64);
-    baseLe.data.contractData().key.u64() = 0;
-    baseLe.data.contractData().durability = ContractDataDurability::PERSISTENT;
-    baseLe.data.contractData().val.type(SCV_BYTES);
-    mDataEntrySize = xdr::xdr_size(baseLe);
+    uint64_t currentLiveKey = 0;
+    uint64_t currentHotArchiveKey = 0;
+
+    // Prepare base entries for both live and hot archive
+    LedgerEntry baseLiveEntry;
+    baseLiveEntry.data.type(CONTRACT_DATA);
+    baseLiveEntry.data.contractData().contract = mLoadInstance.contractID;
+    baseLiveEntry.data.contractData().key.type(SCV_U64);
+    baseLiveEntry.data.contractData().key.u64() = 0;
+    baseLiveEntry.data.contractData().durability =
+        ContractDataDurability::PERSISTENT;
+    baseLiveEntry.data.contractData().val.type(SCV_BYTES);
+
+    mDataEntrySize = xdr::xdr_size(baseLiveEntry);
     // Add some padding to reach the configured LE size.
     if (mDataEntrySize <
         mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING)
     {
-        baseLe.data.contractData().val.bytes().resize(
+        baseLiveEntry.data.contractData().val.bytes().resize(
             mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING -
             mDataEntrySize);
         mDataEntrySize =
@@ -333,6 +344,22 @@ ApplyLoad::setupBucketList()
                      "APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING: {} > {}",
                      mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING,
                      mDataEntrySize);
+    }
+
+    LedgerEntry baseHotArchiveEntry;
+    baseHotArchiveEntry = baseLiveEntry;
+    baseHotArchiveEntry.data.contractData().contract = mHotArchiveContractID;
+
+    uint32_t totalHotArchiveEntries =
+        mMode == ApplyLoadMode::SOROBAN
+            ? cfg.APPLY_LOAD_MAX_TOTAL_ENTRIES_TO_READ
+            : 0;
+    uint32_t hotArchiveEntriesPerBatch = 0;
+    if (totalHotArchiveEntries > 0)
+    {
+        releaseAssert(cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS > 0);
+        hotArchiveEntriesPerBatch = std::max(
+            1u, totalHotArchiveEntries / cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS);
     }
 
     for (uint32_t i = 0; i < cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS; ++i)
@@ -350,7 +377,9 @@ ApplyLoad::setupBucketList()
             }
         }
         lh.ledgerSeq++;
-        std::vector<LedgerEntry> initEntries;
+
+        // Prepare live entries
+        std::vector<LedgerEntry> liveEntries;
         bool isLastBatch = i >= cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS -
                                     cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS;
         if (i % cfg.APPLY_LOAD_BL_WRITE_FREQUENCY == 0 || isLastBatch)
@@ -360,32 +389,71 @@ ApplyLoad::setupBucketList()
                                       : cfg.APPLY_LOAD_BL_BATCH_SIZE;
             for (uint32_t j = 0; j < entryCount; j++)
             {
-                LedgerEntry le = baseLe;
+                LedgerEntry le = baseLiveEntry;
                 le.lastModifiedLedgerSeq = lh.ledgerSeq;
-                le.data.contractData().key.u64() = currentKey++;
-                initEntries.push_back(le);
+                le.data.contractData().key.u64() = currentLiveKey++;
+                liveEntries.push_back(le);
 
                 LedgerEntry ttlEntry;
                 ttlEntry.data.type(TTL);
                 ttlEntry.lastModifiedLedgerSeq = lh.ledgerSeq;
                 ttlEntry.data.ttl().keyHash = xdrSha256(LedgerEntryKey(le));
                 ttlEntry.data.ttl().liveUntilLedgerSeq = 1'000'000'000;
-                initEntries.push_back(ttlEntry);
+                liveEntries.push_back(ttlEntry);
             }
         }
-        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, initEntries, {}, {});
+
+        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, liveEntries, {}, {});
+
+        // Add hot archive entries
+        if (currentHotArchiveKey < totalHotArchiveEntries)
+        {
+            std::vector<LedgerEntry> hotArchiveEntries;
+            uint32_t entriesToAdd =
+                std::min(hotArchiveEntriesPerBatch,
+                         totalHotArchiveEntries -
+                             static_cast<uint32_t>(currentHotArchiveKey));
+
+            for (uint32_t j = 0; j < entriesToAdd; j++)
+            {
+                LedgerEntry le = baseHotArchiveEntry;
+                le.lastModifiedLedgerSeq = lh.ledgerSeq;
+                le.data.contractData().key.u64() = currentHotArchiveKey;
+                hotArchiveEntries.push_back(le);
+                ++currentHotArchiveKey;
+            }
+
+            if (!hotArchiveEntries.empty())
+            {
+                hotArchiveBl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion,
+                                      hotArchiveEntries, {});
+            }
+        }
     }
     lh.ledgerSeq++;
-    mDataEntryCount = currentKey;
-    CLOG_INFO(Bucket, "Final generated bucket list levels");
-    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+    mDataEntryCount = currentLiveKey;
+
+    auto logBucketListStats = [](std::string const& name,
+                                 auto const& bucketList) {
+        CLOG_INFO(Bucket, "Final generated {} bucket list levels", name);
+        for (uint32_t i = 0;
+             i < std::remove_reference_t<decltype(bucketList)>::kNumLevels; ++i)
+        {
+            auto const& lev = bucketList.getLevel(i);
+            auto currSz = BucketTestUtils::countEntries(lev.getCurr());
+            auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
+            CLOG_INFO(Bucket, "Level {}: {} = {} + {}", i, currSz + snapSz,
+                      currSz, snapSz);
+        }
+    };
+
+    logBucketListStats("live", bl);
+
+    if (totalHotArchiveEntries > 0)
     {
-        auto const& lev = bl.getLevel(i);
-        auto currSz = BucketTestUtils::countEntries(lev.getCurr());
-        auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
-        CLOG_INFO(Bucket, "Level {}: {} = {} + {}", i, currSz + snapSz, currSz,
-                  snapSz);
+        logBucketListStats("hot archive", hotArchiveBl);
     }
+
     HistoryArchiveState has;
     has.currentLedger = lh.ledgerSeq;
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
