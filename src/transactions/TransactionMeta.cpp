@@ -254,6 +254,10 @@ processOpLedgerEntryChanges(
         ++iter;
     }
 
+    // In order to maintain propper change ordering for a given key (i.e.
+    // CREATE/STATE/RESTORE before UPDATE/DELETE), aggregate all the restore
+    // changes we need to insert.
+    std::unordered_map<LedgerKey, LedgerEntryChange> restoreChangesToInsert;
     for (auto const& key : stateChangesToAdd)
     {
         auto le = hotArchiveRestores.at(key);
@@ -261,7 +265,7 @@ processOpLedgerEntryChanges(
         change.type(LEDGER_ENTRY_RESTORED);
         change.restored() = le;
         change.restored().lastModifiedLedgerSeq = ledgerSeq;
-        changes.push_back(change);
+        restoreChangesToInsert[key] = change;
     }
 
     if (op.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT)
@@ -282,7 +286,7 @@ processOpLedgerEntryChanges(
             LedgerEntryChange change;
             change.type(LEDGER_ENTRY_RESTORED);
             change.restored() = entry;
-            changes.push_back(change);
+            restoreChangesToInsert[key] = change;
         }
 
         // RestoreOp can't modify entries
@@ -290,7 +294,51 @@ processOpLedgerEntryChanges(
         releaseAssertOrThrow(stateChangesToConvert.empty());
     }
 
-    return changes;
+    if (restoreChangesToInsert.size() == 0)
+    {
+        return changes;
+    }
+
+    // Populate results with RESTORE events. We need to ensure that the changes
+    // for a key are sorted adjacent to each other, with the RESTORE change
+    // coming before UPDATED/REMOVED.
+    LedgerEntryChanges result;
+
+    auto insertRestoreChange = [&result,
+                                &restoreChangesToInsert](LedgerKey const& key) {
+        if (auto iter = restoreChangesToInsert.find(key);
+            iter != restoreChangesToInsert.end())
+        {
+            result.push_back(iter->second);
+            restoreChangesToInsert.erase(iter);
+        }
+    };
+
+    for (auto const& change : changes)
+    {
+        // Only UPDATED and REMOVED changes can have a RESTORE change before
+        // them.
+        if (change.type() == LEDGER_ENTRY_UPDATED)
+        {
+            auto key = LedgerEntryKey(change.updated());
+            insertRestoreChange(key);
+        }
+        else if (change.type() == LEDGER_ENTRY_REMOVED)
+        {
+            insertRestoreChange(change.removed());
+        }
+
+        result.push_back(change);
+    }
+
+    // If we didn't see an UPDATED or REMOVED change, the key only got restored,
+    // so we can append all the remaining RESTORE changes to the back.
+    for (auto const& [_, change] : restoreChangesToInsert)
+    {
+        result.push_back(change);
+    }
+
+    return result;
 }
 } // namespace
 
