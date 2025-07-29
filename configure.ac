@@ -94,6 +94,11 @@ AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AX_APPEND_COMPILE_FLAGS([-pthread])
 AC_LANG_POP(C)
 
+AC_ARG_ENABLE(unified-rust-unsafe-for-production,
+    AS_HELP_STRING([--enable-unified-rust-unsafe-for-production],
+        [Build rust crates as a single cargo library, risking version drift]))
+AM_CONDITIONAL(UNIFIED_RUST, [test "x$enable_unified_rust_unsafe_for_production" = "xyes"])
+
 unset sanitizeopts
 
 AC_ARG_ENABLE([asan],

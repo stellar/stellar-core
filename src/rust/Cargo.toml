@@ -93,23 +93,26 @@ tracy-client = { version = "=0.17.0", features = [
 # the host dependencies. Make sure they are commented back out before committing
 # (and be careful to reset any changes the IDE makes to Cargo.lock)
 
-# [dependencies.soroban-env-host-p23]
-# version = "=23.0.0"
-# git = "https://github.com/stellar/rs-soroban-env"
-# package = "soroban-env-host"
-# rev = "31cb455b87a25a1c049360b5422c411deae63ba2"
+[dependencies.soroban-env-host-p23]
+version = "=23.0.0-rc.2"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "339d5957d2a258ca888d2f7eb50e92e425555256"
+optional = true
 
-# [dependencies.soroban-env-host-p22]
-# version = "=22.0.0"
-# git = "https://github.com/stellar/rs-soroban-env"
-# package = "soroban-env-host"
-# rev = "1cd8b8dca9aeeca9ce45b129cd923992b32dc258"
+[dependencies.soroban-env-host-p22]
+version = "=22.0.0"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "80ebd78a53d608f76f4a5955fd9b03248efcb7c1"
+optional = true
 
-# [dependencies.soroban-env-host-p21]
-# version = "=21.2.2"
-# git = "https://github.com/stellar/rs-soroban-env"
-# package = "soroban-env-host"
-# rev = "7eeddd897cfb0f700f938b0c8d6f0541150d1fcb"
+[dependencies.soroban-env-host-p21]
+version = "=21.2.2"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "7eeddd897cfb0f700f938b0c8d6f0541150d1fcb"
+optional = true
 
 # The test wasms and synth-wasm crate should usually be taken from the highest
 # supported host, since test material usually just grows over time.
@@ -117,12 +120,12 @@ tracy-client = { version = "=0.17.0", features = [
 [dependencies.soroban-test-wasms]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "a3f7fca9c2ad89796c7525a648da086543502dd5"
+rev = "80ebd78a53d608f76f4a5955fd9b03248efcb7c1"
 
 [dependencies.soroban-synth-wasm]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "a3f7fca9c2ad89796c7525a648da086543502dd5"
+rev = "80ebd78a53d608f76f4a5955fd9b03248efcb7c1"
 
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
@@ -130,6 +133,8 @@ git = "https://github.com/stellar/stellar-quorum-analyzer"
 rev = "678acf18ee635c4270e241030d6e83bb0b98b5d5"
 
 [features]
+
+unified = ["dep:soroban-env-host-p21", "dep:soroban-env-host-p22", "dep:soroban-env-host-p23"]
 
 tracy = ["dep:tracy-client"]
 
