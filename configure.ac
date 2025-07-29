@@ -94,6 +94,11 @@ AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AX_APPEND_COMPILE_FLAGS([-pthread])
 AC_LANG_POP(C)
 
+AC_ARG_ENABLE(unified-rust-unsafe-for-production,
+    AS_HELP_STRING([--enable-unified-rust-unsafe-for-production],
+        [Build rust crates as a single cargo library, risking version drift]))
+AM_CONDITIONAL(UNIFIED_RUST, [test "x$enable_unified_rust_unsafe_for_production" = "xyes"])
+
 unset sanitizeopts
 
 AC_ARG_ENABLE([asan],
@@ -101,6 +106,11 @@ AC_ARG_ENABLE([asan],
         [build with asan (address-sanitizer) instrumentation]))
 AS_IF([test "x$enable_asan" = "xyes"], [
   AC_MSG_NOTICE([ Enabling asan, see https://clang.llvm.org/docs/AddressSanitizer.html ])
+
+  AS_IF([test "xyes" != "x$enable_unified_rust_unsafe_for_production"], [
+    AC_MSG_WARN(Asan will not instrument rust without --enable-unified-rust-unsafe-for-production)
+  ])
+
   sanitizeopts="address"
 ])
 
@@ -121,8 +131,11 @@ AC_ARG_ENABLE([threadsanitizer],
 AS_IF([test "x$enable_threadsanitizer" = "xyes"], [
   AC_MSG_NOTICE([ enabling thread-sanitizer, see https://clang.llvm.org/docs/ThreadSanitizer.html ])
 
+  AS_IF([test "xyes" != "x$enable_unified_rust_unsafe_for_production"], [
+    AC_MSG_ERROR(Enabling tsan requires --enable-unified-rust-unsafe-for-production)
+  ])
   AS_IF([test x != "x$sanitizeopts"], [
-    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+    AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
   ])
   sanitizeopts="thread"
 ])
@@ -145,7 +158,7 @@ AS_IF([test "x$enable_memcheck" = "xyes"], [
   AC_MSG_NOTICE([ To completely enable poison destructor set MSAN_OPTIONS=poison_in_dtor=1 before running the program ])
 
   AS_IF([test x != "x$sanitizeopts"], [
-    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+    AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
   ])
   sanitizeopts="memory -fsanitize-memory-track-origins=2 -fsanitize-memory-use-after-dtor"
 
@@ -169,7 +182,7 @@ AC_ARG_ENABLE([undefinedcheck],
 AS_IF([test "x$enable_undefinedcheck" = "xyes"], [
   AC_MSG_NOTICE([ enabling undefined-behavior-sanitizer, see https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html ])
   AS_IF([test x != "x$sanitizeopts"], [
-    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+    AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
   ])
   sanitizeopts="undefined"
 ])
