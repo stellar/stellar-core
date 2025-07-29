@@ -358,7 +358,8 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
     simulation->stopAllNodes();
 }
 
-TEST_CASE("survey request process order", "[overlay][survey][topology]")
+TEST_CASE("survey request process order",
+          "[overlay][survey][topology][acceptance]")
 {
     // An arbitrary number reasonably larger than MAX_REQUEST_LIMIT_PER_LEDGER.
     int numberOfNodes = 20;
@@ -479,7 +480,8 @@ TEST_CASE("survey request process order", "[overlay][survey][topology]")
     simulation->stopAllNodes();
 }
 
-TEST_CASE("Time sliced static topology survey", "[overlay][survey][topology]")
+TEST_CASE("Time sliced static topology survey",
+          "[overlay][survey][topology][acceptance]")
 {
     enum
     {
