@@ -503,7 +503,11 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 resources.diskReadBytes = 1000;
                 resources.writeBytes = 1000;
                 txs.emplace_back(createUploadWasmTx(
-                    *app, source, fee, DEFAULT_TEST_RESOURCE_FEE, resources));
+                    *app, source, fee, DEFAULT_TEST_RESOURCE_FEE, resources,
+                    /*memo=*/std::nullopt, /*addInvalidOps=*/0,
+                    /*wasmSize=*/std::nullopt,
+                    /*seq=*/std::nullopt,
+                    /*wasmSeed=*/accountId));
             }
             else
             {
@@ -742,6 +746,111 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             .parallelTxsComponent()
                             .executionStages.size() == 3);
                 checkXdrRoundtrip(txSetXdr);
+            }
+            SECTION("apply order is shuffled")
+            {
+                std::vector<std::vector<TxFrameList>> stages(5);
+                for (int stageId = 0; stageId < 5; ++stageId)
+                {
+                    int clusterCount = (stageId + 1) * 4;
+                    for (int clusterId = 0; clusterId < clusterCount;
+                         ++clusterId)
+                    {
+                        stages[stageId].push_back(createTxs(
+                            clusterId + 10,
+                            stageId * 1000 + clusterId * 10 + 1000, true));
+                    }
+                }
+                auto [xdrTxSetFrame, applicableTxSet] =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        classicPhase, std::nullopt, stages, *app,
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+                GeneralizedTransactionSet xdrTxSet;
+                xdrTxSetFrame->toXDR(xdrTxSet);
+                auto const& applyOrderPhases =
+                    applicableTxSet->getPhasesInApplyOrder();
+                auto const& classicPhaseTxs =
+                    applyOrderPhases[static_cast<size_t>(TxSetPhase::CLASSIC)]
+                        .getSequentialTxs();
+                REQUIRE(classicPhaseTxs.size() == 9);
+
+                // The order is shuffled, but is deterministically defined
+                // by the tx set hash, so this may only break on protocol
+                // upgrade if the ledger hash changes (use a different indices
+                // in that case - the chance of order being exactly the same
+                // is very low).
+                // We use source account here for comparison as all the source
+                // accounts are unique.
+                REQUIRE(classicPhaseTxs[0]->getSourceID().ed25519() !=
+                        xdrTxSet.v1TxSet()
+                            .phases[0]
+                            .v0Components()[0]
+                            .txsMaybeDiscountedFee()
+                            .txs[0]
+                            .v1()
+                            .tx.sourceAccount.ed25519());
+
+                auto const& sorobanPhaseTxStages =
+                    applyOrderPhases[static_cast<size_t>(TxSetPhase::SOROBAN)]
+                        .getParallelStages();
+                auto const& xdrStages = xdrTxSet.v1TxSet()
+                                            .phases[1]
+                                            .parallelTxsComponent()
+                                            .executionStages;
+                // Stages must be shuffled relative to each other.
+                bool wasShuffledStage = false;
+                for (int i = 0; i < sorobanPhaseTxStages.size(); ++i)
+                {
+                    if (sorobanPhaseTxStages[i].size() != xdrStages[i].size())
+                    {
+                        wasShuffledStage = true;
+                        break;
+                    }
+                }
+                REQUIRE(wasShuffledStage);
+
+                for (int i = 0; i < sorobanPhaseTxStages.size(); ++i)
+                {
+                    auto const& stage = sorobanPhaseTxStages[i];
+                    bool found = false;
+                    for (int j = 0; j < xdrStages.size(); ++j)
+                    {
+                        if (xdrStages[j].size() != stage.size())
+                        {
+                            continue;
+                        }
+                        found = true;
+                        for (int clusterId = 0; clusterId < stage.size();
+                             ++clusterId)
+                        {
+                            // Clusters are not shuffled within the stage.
+                            REQUIRE(xdrStages[j][clusterId].size() ==
+                                    stage[clusterId].size());
+                            // But the transactions must be shuffled within the
+                            // cluster.
+                            bool wasNonMatchingTx = false;
+                            for (int txId = 0; txId < stage[clusterId].size();
+                                 ++txId)
+                            {
+                                if (xdrStages[j][clusterId][txId]
+                                        .v1()
+                                        .tx.sourceAccount.ed25519() !=
+                                    stage[clusterId][txId]
+                                        ->getSourceID()
+                                        .ed25519())
+                                {
+                                    wasNonMatchingTx = true;
+                                    break;
+                                }
+                            }
+                            REQUIRE(wasNonMatchingTx);
+                        }
+                        break;
+                    }
+                    REQUIRE(found);
+                }
             }
         }
     }
