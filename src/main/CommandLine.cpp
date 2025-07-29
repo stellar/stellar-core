@@ -1934,7 +1934,7 @@ runApplyLoad(CommandLineArgs const& args)
                      "ledger-cpu-insns-ratio-excl-vm"});
                 ledgerCpuInsRatioExclVm.Clear();
 
-                for (size_t i = 0; i < 100; ++i)
+                for (size_t i = 0; i < ApplyLoad::APPLY_LOAD_LEDGERS; ++i)
                 {
                     app.getBucketManager()
                         .getLiveBucketList()

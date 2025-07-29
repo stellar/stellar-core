@@ -21,6 +21,8 @@ enum class ApplyLoadMode
 class ApplyLoad
 {
   public:
+    static constexpr uint32_t APPLY_LOAD_LEDGERS = 100;
+
     ApplyLoad(Application& app, ApplyLoadMode mode = ApplyLoadMode::SOROBAN);
 
     // Fills up a list of transactions with
@@ -47,6 +49,10 @@ class ApplyLoad
     medida::Histogram const& getReadEntryUtilization();
     medida::Histogram const& getWriteEntryUtilization();
 
+    // Returns LedgerKey for pre-populated archived state at the given index.
+    static LedgerKey getKeyForArchivedEntry(uint64_t index);
+    static uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
+
   private:
     void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                      xdr::xvector<UpgradeType, 6> const& upgrades = {});
@@ -69,14 +75,15 @@ class ApplyLoad
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 
-    // ContractID used by all pre-populated archived entries.
-    SCAddress mHotArchiveContractID;
+    // Track the next hot archive key to restore
+    uint32_t mNextHotArchiveKeyToRestore = 0;
 
     TxGenerator mTxGenerator;
     Application& mApp;
     TxGenerator::TestAccountPtr mRoot;
 
     uint32_t mNumAccounts;
+    uint32_t mTotalHotArchiveEntries;
 
     medida::Histogram& mTxCountUtilization;
     medida::Histogram& mInstructionUtilization;

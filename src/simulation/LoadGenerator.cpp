@@ -891,9 +891,12 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     size_t dataEntrySize =
                         appCfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
 
+                    // Since we won't actually execute TXs, we don't need to
+                    // generate disk load.
                     return mTxGenerator.invokeSorobanLoadTransactionV2(
                         ledgerNum, sourceAccountId, instance, dataEntryCount,
-                        dataEntrySize, cfg.maxGeneratedFeeRate);
+                        dataEntrySize, cfg.maxGeneratedFeeRate,
+                        /*nextKeyToRestore=*/nullptr);
                 };
                 break;
             }

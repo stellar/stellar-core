@@ -2,6 +2,7 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "simulation/LoadGenerator.h"
+#include "simulation/ApplyLoad.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include <cmath>
@@ -532,7 +533,7 @@ std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanLoadTransactionV2(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
     uint64_t dataEntryCount, size_t dataEntrySize,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+    std::optional<uint32_t> maxGeneratedFeeRate, uint32_t* nextKeyToRestore)
 {
     auto const& appCfg = mApp.getConfig();
 
@@ -548,22 +549,33 @@ TxGenerator::invokeSorobanLoadTransactionV2(
 
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
-    uint32_t roEntries = sampleDiscrete(
-        appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
-        appCfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+
+    // Simulate disk reads via autorestore
+    // If nextKeyToRestore is null, skip archived entries entirely
+    uint32_t archiveEntriesToRestore = 0;
+    if (nextKeyToRestore != nullptr)
+    {
+        archiveEntriesToRestore = sampleDiscrete(
+            appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
+            appCfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+    }
+
     uint32_t rwEntries = sampleDiscrete(
         appCfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING,
         appCfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
 
-    releaseAssert(dataEntryCount > roEntries + rwEntries);
-    if (roEntries >= instance.readOnlyKeys.size())
+    // Subtract the archive entries from rwEntries since restoration counts as a
+    // write
+    if (rwEntries >= archiveEntriesToRestore)
     {
-        roEntries -= instance.readOnlyKeys.size();
+        rwEntries -= archiveEntriesToRestore;
     }
     else
     {
-        roEntries = 0;
+        rwEntries = 0;
     }
+
+    releaseAssert(dataEntryCount > rwEntries);
     std::unordered_set<uint64_t> usedEntries;
     stellar::uniform_int_distribution<uint64_t> entryDist(0,
                                                           dataEntryCount - 1);
@@ -584,8 +596,23 @@ TxGenerator::invokeSorobanLoadTransactionV2(
             }
         }
     };
-    generateEntries(roEntries, resources.footprint.readOnly);
+    // Generate regular RW entries
     generateEntries(rwEntries, resources.footprint.readWrite);
+
+    // Vector to store indices of archived entries in the readWrite footprint
+    std::vector<uint32_t> archivedIndexes;
+
+    // Add archived entries to autorestore to the readWrite footprint
+    if (archiveEntriesToRestore > 0)
+    {
+        auto endIndex = *nextKeyToRestore + archiveEntriesToRestore;
+        for (; *nextKeyToRestore < endIndex; ++(*nextKeyToRestore))
+        {
+            auto lk = ApplyLoad::getKeyForArchivedEntry(*nextKeyToRestore);
+            resources.footprint.readWrite.emplace_back(lk);
+            archivedIndexes.push_back(resources.footprint.readWrite.size() - 1);
+        }
+    }
 
     uint32_t txOverheadBytes = baselineTxSizeBytes + xdr::xdr_size(resources);
     uint32_t desiredTxBytes = sampleDiscrete(
@@ -593,7 +620,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING, 0u);
     uint32_t paddingBytes =
         txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
-    uint32_t entriesSize = dataEntrySize * (roEntries + rwEntries);
+    uint32_t entriesSize =
+        dataEntrySize * (rwEntries + archiveEntriesToRestore);
 
     uint32_t eventCount = sampleDiscrete(
         appCfg.APPLY_LOAD_EVENT_COUNT_FOR_TESTING,
@@ -604,7 +632,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
         appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING, 0u);
 
-    auto numEntries = (roEntries + rwEntries + instance.readOnlyKeys.size());
+    auto numEntries =
+        (rwEntries + archiveEntriesToRestore + instance.readOnlyKeys.size());
 
     // The entry encoding estimates are somewhat loose because we're
     // unfortunately building storage with O(n^2) complexity.
@@ -652,10 +681,12 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     ihf.invokeContract().functionName = "do_cpu_only_work";
     ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
                                  makeU32(eventCount)};
-    resources.writeBytes = dataEntrySize * rwEntries;
-    resources.diskReadBytes = dataEntrySize * roEntries +
-                              instance.contractEntriesSize +
-                              resources.writeBytes;
+
+    // Write bytes include both regular RW entries and restored entries
+    resources.writeBytes =
+        dataEntrySize * (rwEntries + archiveEntriesToRestore);
+    resources.diskReadBytes =
+        dataEntrySize * archiveEntriesToRestore + resources.writeBytes;
 
     increaseOpSize(op, paddingBytes);
 
@@ -666,7 +697,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     auto resourceFee =
         sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes,
                            eventSize * eventCount);
-    resourceFee += 1'000'000;
+    // Add extra buffer for restoration operations
+    resourceFee += 1'000'000 + (archiveEntriesToRestore * 100'000);
 
     // A tx created using this method may be discarded when creating the txSet,
     // so we need to refresh the TestAccount sequence number to avoid a
@@ -674,11 +706,13 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     auto account = findAccount(accountId, ledgerNum);
     account->loadSequenceNumber();
 
-    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                             {op}, {}, resources,
-                                             generateFee(maxGeneratedFeeRate,
-                                                         /* opsCnt */ 1),
-                                             resourceFee);
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *account, {op}, {}, resources,
+        generateFee(maxGeneratedFeeRate,
+                    /* opsCnt */ 1),
+        resourceFee, std::nullopt, std::nullopt,
+        archivedIndexes.empty() ? std::nullopt
+                                : std::make_optional(archivedIndexes));
     return std::make_pair(account, tx);
 }
 

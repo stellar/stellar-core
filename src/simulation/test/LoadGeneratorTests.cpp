@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManager.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerManager.h"
@@ -1014,6 +1015,25 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 
     ApplyLoad al(*app);
 
+    // Sample a few indices to verify hot archive is properly initialized
+    uint32_t expectedArchivedEntries =
+        ApplyLoad::calculateRequiredHotArchiveEntries(cfg);
+    std::vector<uint32_t> sampleIndices = {0, expectedArchivedEntries / 2,
+                                           expectedArchivedEntries - 1};
+    std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
+
+    auto hotArchive = app->getBucketManager()
+                          .getBucketSnapshotManager()
+                          .copySearchableHotArchiveBucketListSnapshot();
+
+    for (auto idx : sampleIndices)
+    {
+        sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
+    }
+
+    auto sampleEntries = hotArchive->loadKeys(sampleKeys);
+    REQUIRE(sampleEntries.size() == sampleKeys.size());
+
     auto& ledgerClose =
         app->getMetrics().NewTimer({"ledger", "ledger", "close"});
     ledgerClose.Clear();
@@ -1030,7 +1050,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
         {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"});
     declaredInsnsUsageRatio.Clear();
 
-    for (size_t i = 0; i < 100; ++i)
+    for (size_t i = 0; i < ApplyLoad::APPLY_LOAD_LEDGERS; ++i)
     {
         app->getBucketManager().getLiveBucketList().resolveAllFutures();
         releaseAssert(

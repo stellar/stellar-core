@@ -1,5 +1,6 @@
 #include "simulation/ApplyLoad.h"
 
+#include <cmath>
 #include <numeric>
 
 #include "bucket/test/BucketTestUtils.h"
@@ -18,6 +19,7 @@
 #include "bucket/BucketListSnapshotBase.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 #include <crypto/SHA.h>
@@ -93,6 +95,64 @@ getUpgradeConfig(Config const& cfg)
 }
 }
 
+// Given an index, returns the LedgerKey for an archived entry that is
+// pre-populated in the Hot Archive.
+LedgerKey
+ApplyLoad::getKeyForArchivedEntry(uint64_t index)
+{
+
+    static const SCAddress hotArchiveContractID = [] {
+        SCAddress addr;
+        addr.type(SC_ADDRESS_TYPE_CONTRACT);
+        addr.contractId() = sha256("archived-entry");
+        return addr;
+    }();
+
+    LedgerKey lk;
+    lk.type(CONTRACT_DATA);
+    lk.contractData().contract = hotArchiveContractID;
+    lk.contractData().key.type(SCV_U64);
+    lk.contractData().key.u64() = index;
+    lk.contractData().durability = ContractDataDurability::PERSISTENT;
+    return lk;
+}
+
+uint32_t
+ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
+{
+    // If no RO entries are configured, return 0
+    if (cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING.empty())
+    {
+        return 0;
+    }
+
+    releaseAssertOrThrow(
+        cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING.size() ==
+        cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING.size());
+
+    // Calculate weighted average of RO entries per transaction
+    double totalWeight = 0;
+    double weightedSum = 0;
+    for (size_t i = 0; i < cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING.size();
+         ++i)
+    {
+        auto entries = cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING[i];
+        auto weight = cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING[i];
+
+        totalWeight += weight;
+        weightedSum += entries * weight;
+    }
+
+    double avgROEntriesPerTx = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+    // Calculate total expected RO accesses
+    double totalExpectedRestores =
+        avgROEntriesPerTx * cfg.APPLY_LOAD_MAX_TX_COUNT * APPLY_LOAD_LEDGERS;
+
+    // Add some generous buffer since actual distributions may vary.
+    return totalExpectedRestores * 1.5;
+}
+
 ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     : mTxGenerator(app)
     , mApp(app)
@@ -101,6 +161,8 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
           mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
               mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
           1)
+    , mTotalHotArchiveEntries(
+          calculateRequiredHotArchiveEntries(app.getConfig()))
     , mTxCountUtilization(
           mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-count"}))
     , mInstructionUtilization(
@@ -310,9 +372,6 @@ ApplyLoad::setupBucketList()
     auto& hotArchiveBl = mApp.getBucketManager().getHotArchiveBucketList();
     auto const& cfg = mApp.getConfig();
 
-    mHotArchiveContractID.type(SC_ADDRESS_TYPE_CONTRACT);
-    mHotArchiveContractID.contractId() = sha256("ApplyLoad hot archive");
-
     uint64_t currentLiveKey = 0;
     uint64_t currentHotArchiveKey = 0;
 
@@ -346,40 +405,62 @@ ApplyLoad::setupBucketList()
                      mDataEntrySize);
     }
 
-    LedgerEntry baseHotArchiveEntry;
-    baseHotArchiveEntry = baseLiveEntry;
-    baseHotArchiveEntry.data.contractData().contract = mHotArchiveContractID;
+    auto logBucketListStats = [](std::string const& logStr,
+                                 auto const& bucketList) {
+        CLOG_INFO(Bucket, "{}", logStr);
+        for (uint32_t i = 0;
+             i < std::remove_reference_t<decltype(bucketList)>::kNumLevels; ++i)
+        {
+            auto const& lev = bucketList.getLevel(i);
+            auto currSz = BucketTestUtils::countEntries(lev.getCurr());
+            auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
+            CLOG_INFO(Bucket, "Level {}: {} = {} + {}", i, currSz + snapSz,
+                      currSz, snapSz);
+        }
+    };
 
-    uint32_t totalHotArchiveEntries =
-        mMode == ApplyLoadMode::SOROBAN
-            ? cfg.APPLY_LOAD_MAX_TOTAL_ENTRIES_TO_READ
+    LedgerEntry baseHotArchiveEntry = baseLiveEntry;
+
+    // Hot archive entries are added every APPLY_LOAD_BL_WRITE_FREQUENCY
+    // ledgers, but save one batch for the last batch to populate upper levels.
+    uint32_t totalBatchCount =
+        cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS / cfg.APPLY_LOAD_BL_WRITE_FREQUENCY;
+    releaseAssertOrThrow(totalBatchCount > 0);
+
+    // Reserve one batch worth of entries for the top level buckets.
+    uint32_t hotArchiveBatchCount = totalBatchCount - 1;
+    uint32_t hotArchiveBatchSize =
+        mTotalHotArchiveEntries / (totalBatchCount + 1);
+
+    // To populate the first few levels of the hot archive BL, we write the
+    // remaining entries over APPLY_LOAD_BL_LAST_BATCH_LEDGERS ledgers.
+    uint32_t hotArchiveLastBatchSize =
+        mTotalHotArchiveEntries > 0
+            ? (mTotalHotArchiveEntries -
+               (hotArchiveBatchSize * hotArchiveBatchCount)) /
+                  cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS
             : 0;
-    uint32_t hotArchiveEntriesPerBatch = 0;
-    if (totalHotArchiveEntries > 0)
-    {
-        releaseAssert(cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS > 0);
-        hotArchiveEntriesPerBatch = std::max(
-            1u, totalHotArchiveEntries / cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS);
-    }
 
     for (uint32_t i = 0; i < cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS; ++i)
     {
         if (i % 1000 == 0)
         {
-            CLOG_INFO(Bucket, "Generating BL ledger {}, levels thus far", i);
-            for (uint32_t j = 0; j < LiveBucketList::kNumLevels; ++j)
+            logBucketListStats(
+                fmt::format("Generating BL ledger {}, levels thus far", i), bl);
+
+            if (mTotalHotArchiveEntries > 0)
             {
-                auto const& lev = bl.getLevel(j);
-                auto currSz = BucketTestUtils::countEntries(lev.getCurr());
-                auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
-                CLOG_INFO(Bucket, "Level {}: {} = {} + {}", j, currSz + snapSz,
-                          currSz, snapSz);
+                logBucketListStats(
+                    fmt::format(
+                        "Generating hot archive BL ledger {}, levels thus far",
+                        i),
+                    hotArchiveBl);
             }
         }
         lh.ledgerSeq++;
 
-        // Prepare live entries
         std::vector<LedgerEntry> liveEntries;
+        std::vector<LedgerEntry> archivedEntries;
         bool isLastBatch = i >= cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS -
                                     cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS;
         if (i % cfg.APPLY_LOAD_BL_WRITE_FREQUENCY == 0 || isLastBatch)
@@ -401,57 +482,43 @@ ApplyLoad::setupBucketList()
                 ttlEntry.data.ttl().liveUntilLedgerSeq = 1'000'000'000;
                 liveEntries.push_back(ttlEntry);
             }
-        }
 
-        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, liveEntries, {}, {});
-
-        // Add hot archive entries
-        if (currentHotArchiveKey < totalHotArchiveEntries)
-        {
-            std::vector<LedgerEntry> hotArchiveEntries;
-            uint32_t entriesToAdd =
-                std::min(hotArchiveEntriesPerBatch,
-                         totalHotArchiveEntries -
-                             static_cast<uint32_t>(currentHotArchiveKey));
-
-            for (uint32_t j = 0; j < entriesToAdd; j++)
+            uint32_t archivedEntryCount =
+                isLastBatch ? hotArchiveLastBatchSize : hotArchiveBatchSize;
+            for (uint32_t j = 0; j < archivedEntryCount; j++)
             {
                 LedgerEntry le = baseHotArchiveEntry;
                 le.lastModifiedLedgerSeq = lh.ledgerSeq;
-                le.data.contractData().key.u64() = currentHotArchiveKey;
-                hotArchiveEntries.push_back(le);
+
+                auto lk = getKeyForArchivedEntry(currentHotArchiveKey);
+                le.data.contractData().contract = lk.contractData().contract;
+                le.data.contractData().key = lk.contractData().key;
+                le.data.contractData().durability =
+                    lk.contractData().durability;
+                le.data.contractData().val =
+                    baseLiveEntry.data.contractData().val;
+
+                archivedEntries.push_back(le);
                 ++currentHotArchiveKey;
             }
+        }
 
-            if (!hotArchiveEntries.empty())
-            {
-                hotArchiveBl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion,
-                                      hotArchiveEntries, {});
-            }
+        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, liveEntries, {}, {});
+        if (mTotalHotArchiveEntries > 0)
+        {
+            hotArchiveBl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion,
+                                  archivedEntries, {});
         }
     }
     lh.ledgerSeq++;
     mDataEntryCount = currentLiveKey;
+    releaseAssertOrThrow(mTotalHotArchiveEntries <= currentHotArchiveKey);
 
-    auto logBucketListStats = [](std::string const& name,
-                                 auto const& bucketList) {
-        CLOG_INFO(Bucket, "Final generated {} bucket list levels", name);
-        for (uint32_t i = 0;
-             i < std::remove_reference_t<decltype(bucketList)>::kNumLevels; ++i)
-        {
-            auto const& lev = bucketList.getLevel(i);
-            auto currSz = BucketTestUtils::countEntries(lev.getCurr());
-            auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
-            CLOG_INFO(Bucket, "Level {}: {} = {} + {}", i, currSz + snapSz,
-                      currSz, snapSz);
-        }
-    };
-
-    logBucketListStats("live", bl);
-
-    if (totalHotArchiveEntries > 0)
+    logBucketListStats("Final generated live bucket list levels", bl);
+    if (mTotalHotArchiveEntries > 0)
     {
-        logBucketListStats("hot archive", hotArchiveBl);
+        logBucketListStats("Final generated hot archive bucket list levels",
+                           hotArchiveBl);
     }
 
     HistoryArchiveState has;
@@ -524,7 +591,12 @@ ApplyLoad::benchmark()
         {
             tx = mTxGenerator.invokeSorobanLoadTransactionV2(
                 lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
-                mDataEntryCount, mDataEntrySize, 1'000'000);
+                mDataEntryCount, mDataEntrySize, 1'000'000,
+                &mNextHotArchiveKeyToRestore);
+            if (mNextHotArchiveKeyToRestore > mTotalHotArchiveEntries)
+            {
+                throw std::runtime_error("Ran out of hot archive entries");
+            }
         }
 
         {

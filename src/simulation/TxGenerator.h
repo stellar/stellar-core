@@ -145,12 +145,18 @@ class TxGenerator
                                  TxGenerator::ContractInstance const& instance,
                                  uint64_t contractOverheadBytes,
                                  std::optional<uint32_t> maxGeneratedFeeRate);
+
+    // nextKeyToRestore is the index of the next archived entry to restore in
+    // order to simulate disk load. If nullptr, no archived entries are
+    // restored. index is incremented by the number of archived entries
+    // restored.
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransactionV2(uint32_t ledgerNum, uint64_t accountId,
                                    ContractInstance const& instance,
                                    uint64_t dataEntryCount,
                                    size_t dataEntrySize,
-                                   std::optional<uint32_t> maxGeneratedFeeRate);
+                                   std::optional<uint32_t> maxGeneratedFeeRate,
+                                   uint32_t* nextKeyToRestore);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,

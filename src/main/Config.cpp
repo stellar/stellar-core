@@ -1589,10 +1589,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      APPLY_LOAD_BL_LAST_BATCH_SIZE = readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_MAX_TOTAL_ENTRIES_TO_READ",
-                 [&]() {
-                     APPLY_LOAD_MAX_TOTAL_ENTRIES_TO_READ = readInt<uint32_t>(item);
-                 }},
                 {"APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING",
                  [&]() {
                      APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING =
@@ -1851,6 +1847,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             std::string msg =
                 "Invalid configuration: PEER_READING_CAPACITY "
                 "must be greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
+        }
+
+        if (APPLY_LOAD_LEDGER_MAX_WRITE_BYTES <
+            APPLY_LOAD_LEDGER_MAX_READ_BYTES)
+        {
+            std::string msg =
+                "Invalid configuration: APPLY_LOAD_LEDGER_MAX_WRITE_BYTES "
+                "must be greater than or equal to "
+                "APPLY_LOAD_LEDGER_MAX_READ_BYTES";
             throw std::runtime_error(msg);
         }
 
