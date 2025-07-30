@@ -3514,7 +3514,11 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             restoreCost -= 119;
         }
 
-        SorobanTest test(cfg);
+        SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.minPersistentTTL = 16;
+            cfg.mStateArchivalSettings.minTemporaryTTL = 16;
+            cfg.mStateArchivalSettings.startingEvictionScanLevel = 2;
+        });
         ContractStorageTestClient client(test);
         auto acc1 = test.getRoot().create(
             "acc1", test.getApp().getLedgerManager().getLastMinBalance(2));
@@ -3584,45 +3588,49 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         // Extend contract instance lifetime to ensure it doesn't expire during
         // test
         test.invokeExtendOp(contractKeys, 10'000);
-
-        // Create a temporary storage entry that will be used for eviction
-        // testing
-        auto invocation = client.getContract().prepareInvocation(
-            "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
-            client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
-        REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
         auto temporaryLk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
-
-        auto expectedLiveUntilLedger =
-            test.getLCLSeq() +
-            test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL - 1;
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        // Advance ledgers to just before eviction
-        auto const evictionLedger = 4097;
-        for (uint32_t i = test.getLCLSeq(); i < evictionLedger - 2; ++i)
-        {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-        }
-
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        // Verify extend operation is a no-op for expired temporary entries
-        test.invokeExtendOp({temporaryLk}, 10'000, 0);
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        // Verify contract function fails when accessing expired entry
-        REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY, 10'000,
-                              10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        REQUIRE(!test.isEntryLive(temporaryLk, test.getLCLSeq()));
+        auto const tempEntryEvictionLedger = 33;
 
         SECTION("temp entry meta")
         {
+            // Create a temporary storage entry that will be used for
+            // eviction testing
+            auto invocation = client.getContract().prepareInvocation(
+                "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+                client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
+            REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
+
+            auto expectedLiveUntilLedger =
+                test.getLCLSeq() +
+                test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL -
+                1;
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            // Advance ledgers to just before eviction
+            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger - 2;
+                 ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            // Verify extend operation is a no-op for expired temporary
+            // entries
+            test.invokeExtendOp({temporaryLk}, 10'000, 0);
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            // Verify contract function fails when accessing expired entry
+            REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY,
+                                  10'000,
+                                  10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            REQUIRE(!test.isEntryLive(temporaryLk, test.getLCLSeq()));
+
             // Close one more ledger to trigger the eviction
-            closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
+            closeLedgerOn(test.getApp(), tempEntryEvictionLedger, 2, 1, 2016);
 
             // Verify the entry is deleted from eviction
             {
@@ -3632,8 +3640,47 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
             xdr::xvector<LedgerKey> expectedEvictedKeys = {
                 temporaryLk, getTTLKey(temporaryLk)};
-            verifyEvictions(evictionLedger, expectedEvictedKeys);
+            verifyEvictions(tempEntryEvictionLedger, expectedEvictedKeys);
         }
+
+        SECTION("Create temp entry with same key as an expired entry on "
+                "eviction ledger")
+        {
+            // Verify that we're on the ledger where the entry would get
+            // evicted it wasn't recreated.
+            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger;
+                 ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+
+            REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
+                    INVOKE_HOST_FUNCTION_SUCCESS);
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(ltx.load(temporaryLk));
+            }
+
+            REQUIRE(test.getLCLSeq() == tempEntryEvictionLedger);
+
+            // Entry is live again
+            REQUIRE(test.isEntryLive(temporaryLk, test.getLCLSeq()));
+
+            // Verify that we didn't emit an eviction
+            XDRInputFileStream in;
+            in.open(metaPath);
+            LedgerCloseMeta lcm;
+            while (in.readOne(lcm))
+            {
+                LedgerCloseMetaFrame lcmFrame(lcm);
+                REQUIRE(lcmFrame.getEvictedKeys().empty());
+            }
+
+            // Check that we have the new value of the entry
+            REQUIRE(client.get("key", ContractDataDurability::TEMPORARY, 234) ==
+                    INVOKE_HOST_FUNCTION_SUCCESS);
+        }
+
         SECTION("persistent entry meta")
         {
             // For perstent entry restoration, we'll write an entry initially
@@ -4284,81 +4331,51 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 runRestoreTestCases(/*wasEvicted=*/false);
             }
 
-            if (protocolVersionStartsFrom(
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            SECTION("entry evicted")
             {
-                SECTION("entry evicted")
+                // Close ledgers until entry is evicted
+                auto evictionLedger = 33;
+                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
                 {
-                    // Close ledgers until entry is evicted
-                    auto evictionLedger = 8193;
-                    for (uint32_t i = test.getLCLSeq(); i <= evictionLedger;
-                         ++i)
-                    {
-                        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-                    }
+                    closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                }
 
+                if (protocolVersionStartsFrom(
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                        LiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                    REQUIRE(!ltx.load(persistentKey));
+                }
+                else
+                {
+                    LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                    REQUIRE(ltx.load(persistentKey));
+                }
+
+                SECTION("eviction meta")
+                {
+                    // Only support persistent eviction meta >= p23
                     if (protocolVersionStartsFrom(
                             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                             LiveBucket::
                                 FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                     {
-                        LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                        REQUIRE(!ltx.load(persistentKey));
+                        xdr::xvector<LedgerKey> expectedEvictedKeys = {
+                            persistentKey, getTTLKey(persistentKey)};
+                        verifyEvictions(evictionLedger, expectedEvictedKeys);
+                        runRestoreTestCases(/*wasEvicted=*/true);
                     }
-
-                    SECTION("eviction meta")
+                    else
                     {
-                        // Only support persistent eviction meta >= p23
-                        if (protocolVersionStartsFrom(
-                                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                LiveBucket::
-                                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                        {
-                            xdr::xvector<LedgerKey> expectedEvictedKeys = {
-                                persistentKey, getTTLKey(persistentKey)};
-                            verifyEvictions(evictionLedger,
-                                            expectedEvictedKeys);
-                        }
-                        else
-                        {
-                            // For older protocols, verify no evictions occurred
-                            auto frame = getMetaForLedger(evictionLedger);
-                            REQUIRE(frame.has_value());
-                            REQUIRE(frame->getEvictedKeys().empty());
-                        }
+                        // For older protocols, just verify no evictions
+                        // occurred
+                        auto frame = getMetaForLedger(evictionLedger);
+                        REQUIRE(frame.has_value());
+                        REQUIRE(frame->getEvictedKeys().empty());
                     }
-
-                    runRestoreTestCases(/*wasEvicted=*/true);
                 }
-            }
-        }
-        SECTION(
-            "Create temp entry with same key as an expired entry on eviction "
-            "ledger")
-        {
-            REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
-                    INVOKE_HOST_FUNCTION_SUCCESS);
-            {
-                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                REQUIRE(ltx.load(temporaryLk));
-            }
-
-            // Verify that we're on the ledger where the entry would get
-            // evicted it wasn't recreated.
-            REQUIRE(test.getLCLSeq() == evictionLedger);
-
-            // Entry is live again
-            REQUIRE(test.isEntryLive(temporaryLk, test.getLCLSeq()));
-
-            // Verify that we didn't emit an eviction
-            XDRInputFileStream in;
-            in.open(metaPath);
-            LedgerCloseMeta lcm;
-            while (in.readOne(lcm))
-            {
-                LedgerCloseMetaFrame lcmFrame(lcm);
-                REQUIRE(lcmFrame.getEvictedKeys().empty());
             }
         }
     };
