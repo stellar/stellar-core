@@ -478,6 +478,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(protocolVersion);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(protocolVersion);
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 2500;
     bool isParallelSoroban = protocolVersionStartsFrom(
         cfg.LEDGER_PROTOCOL_VERSION, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
 
@@ -486,16 +487,13 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
         sorobanCfg.mLedgerMaxTxCount = 5;
     });
-    auto root = app->getRoot();
 
     int accountId = 0;
     auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
         std::vector<TransactionFrameBaseConstPtr> txs;
         for (int i = 0; i < cnt; ++i)
         {
-            auto source =
-                root->create("unique " + std::to_string(accountId++),
-                             app->getLedgerManager().getLastMinBalance(2));
+            auto source = getGenesisAccount(*app, accountId++);
             if (isSoroban)
             {
                 SorobanResources resources;
@@ -532,8 +530,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         REQUIRE(newXdr == txSetXdr);
     };
 
-    SECTION("empty set")
     {
+        INFO("empty set");
         auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{}, {}}, *app,
@@ -544,8 +542,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().empty());
         checkXdrRoundtrip(txSetXdr);
     }
-    SECTION("one discounted component set")
     {
+        INFO("one discounted component set");
         auto txs = createTxs(5, 1234);
         auto ledgerHash =
             app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -568,8 +566,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     .txs.size() == 5);
         checkXdrRoundtrip(txSetXdr);
     }
-    SECTION("one non-discounted component set")
     {
+        INFO("one non-discounted component set");
         auto txs = createTxs(5, 4321);
         auto ledgerHash =
             app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -592,8 +590,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     .txs.size() == 5);
         checkXdrRoundtrip(txSetXdr);
     }
-    SECTION("multiple component sets")
     {
+        INFO("multiple component sets");
         auto txs1 = createTxs(3, 12345);
         auto txs2 = createTxs(1, 123);
         auto txs3 = createTxs(2, 1234);
@@ -625,8 +623,10 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     if (protocolVersionStartsFrom(static_cast<uint32_t>(protocolVersion),
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
     {
-        SECTION("parallel Soroban phase")
         {
+            INFO("parallel Soroban phase");
+            auto configBeforeUpgrade =
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             modifySorobanNetworkConfig(
                 *app, [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mLedgerMaxTxCount = 100;
@@ -682,8 +682,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 checkXdrRoundtrip(txSetXdr);
             }
 
-            SECTION("single stage, multiple clusters")
             {
+                INFO("single stage, multiple clusters");
                 auto sorobanTxs1 = createTxs(10, 1234, true);
                 auto sorobanTxs2 = createTxs(5, 2000, true);
                 auto sorobanTxs3 = createTxs(3, 1500, true);
@@ -713,8 +713,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 checkXdrRoundtrip(txSetXdr);
             }
 
-            SECTION("multiple stages, multiple clusters")
             {
+                INFO("multiple stages, multiple clusters");
                 auto stage1Txs1 = createTxs(1, 1234, true);
                 auto stage1Txs2 = createTxs(3, 2000, true);
                 auto stage1Txs3 = createTxs(5, 1500, true);
@@ -747,8 +747,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             .executionStages.size() == 3);
                 checkXdrRoundtrip(txSetXdr);
             }
-            SECTION("apply order is shuffled")
             {
+                INFO("apply order is shuffled");
                 std::vector<std::vector<TxFrameList>> stages(5);
                 for (int stageId = 0; stageId < 5; ++stageId)
                 {
@@ -783,10 +783,10 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 // is very low).
                 // We use source account here for comparison as all the source
                 // accounts are unique.
-                REQUIRE(classicPhaseTxs[0]->getSourceID().ed25519() !=
+                REQUIRE(classicPhaseTxs[1]->getSourceID().ed25519() !=
                         xdrTxSet.v1TxSet()
                             .phases[0]
-                            .v0Components()[0]
+                            .v0Components()[1]
                             .txsMaybeDiscountedFee()
                             .txs[0]
                             .v1()
@@ -852,21 +852,25 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     REQUIRE(found);
                 }
             }
+            modifySorobanNetworkConfig(*app,
+                                       [&](SorobanNetworkConfig& sorobanCfg) {
+                                           sorobanCfg = configBeforeUpgrade;
+                                       });
         }
     }
-    SECTION("built from transactions")
     {
+        INFO("built from transactions");
         auto getLclHeader = [&]() -> auto const&
         {
             return app->getLedgerManager().getLastClosedLedgerHeader();
         };
-        std::vector<TransactionFrameBasePtr> txs =
+        std::vector<TransactionFrameBasePtr> const txs =
             createTxs(5, getLclHeader().header.baseFee, /* isSoroban */ false);
-        std::vector<TransactionFrameBasePtr> sorobanTxs =
+        std::vector<TransactionFrameBasePtr> const baseSorobanTxs =
             createTxs(5, 10'000'000, /* isSoroban */ true);
 
-        SECTION("classic only")
         {
+            INFO("classic only");
             auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).first;
             GeneralizedTransactionSet txSetXdr;
             txSet->toXDR(txSetXdr);
@@ -884,15 +888,17 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                         .txs.size() == 5);
             checkXdrRoundtrip(txSetXdr);
         }
-        SECTION("classic and soroban")
+
         {
-            SECTION("valid")
+            INFO("classic and soroban");
+
             {
-                SECTION("minimum base fee")
+                INFO("valid");
                 {
-                    auto txSet =
-                        makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0)
-                            .first;
+                    INFO("minimum base fee");
+                    auto txSet = makeTxSetFromTransactions(
+                                     {txs, baseSorobanTxs}, *app, 0, 0)
+                                     .first;
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
                     REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
@@ -932,12 +938,13 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     }
                     checkXdrRoundtrip(txSetXdr);
                 }
-                SECTION("higher base fee")
                 {
+                    INFO("higher base fee");
                     // generate more soroban txs with higher fee to trigger
                     // surge pricing
                     auto higherFeeSorobanTxs =
                         createTxs(5, 20'000'000, /* isSoroban */ true);
+                    auto sorobanTxs = baseSorobanTxs;
                     sorobanTxs.insert(sorobanTxs.begin(),
                                       higherFeeSorobanTxs.begin(),
                                       higherFeeSorobanTxs.end());
@@ -951,8 +958,9 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     {
                         auto const& phase = txSetXdr.v1TxSet().phases[i];
                         auto expectedBaseFee =
-                            i == 0 ? getLclHeader().header.baseFee
-                                   : higherFeeSorobanTxs[0]->getInclusionFee();
+                            i == static_cast<size_t>(TxSetPhase::CLASSIC)
+                                ? getLclHeader().header.baseFee
+                                : higherFeeSorobanTxs[0]->getInclusionFee();
                         if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
                             isParallelSoroban)
                         {
@@ -983,19 +991,22 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     checkXdrRoundtrip(txSetXdr);
                 }
             }
-            SECTION("invalid, soroban tx in wrong phase")
             {
+                INFO("invalid, soroban tx in wrong phase");
+                auto sorobanTxs = baseSorobanTxs;
                 sorobanTxs[4] = txs[0];
                 REQUIRE_THROWS_WITH(
                     makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
                     "TxSetFrame::makeFromTransactions: phases "
                     "contain txs of wrong type");
             }
-            SECTION("invalid, classic tx in wrong phase")
             {
-                txs[4] = sorobanTxs[0];
+                INFO("invalid, classic tx in wrong phase");
+                auto classicTxs = txs;
+                classicTxs[4] = baseSorobanTxs[0];
                 REQUIRE_THROWS_WITH(
-                    makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
+                    makeTxSetFromTransactions({classicTxs, baseSorobanTxs},
+                                              *app, 0, 0),
                     "TxSetFrame::makeFromTransactions: phases "
                     "contain txs of wrong type");
             }
