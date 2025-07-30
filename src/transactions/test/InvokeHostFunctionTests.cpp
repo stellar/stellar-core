@@ -9591,6 +9591,98 @@ TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
     });
 }
 
+// Test that autorestore works when keys aren't explicitly written and belong to
+// another uncalled contractID.
+TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.stateArchivalSettings().minPersistentTTL =
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        cfg.mStateArchivalSettings.startingEvictionScanLevel = 1;
+        cfg.mStateArchivalSettings.evictionScanSize = 1'000'000;
+
+        // Never snapshot bucket list so we have stable rent fees
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+            10'000;
+    });
+
+    // Deploy two separate contracts
+    ContractStorageTestClient client1(test);
+    ContractStorageTestClient client2(test);
+    client1.put("key1", ContractDataDurability::PERSISTENT, 111);
+    client2.put("key2", ContractDataDurability::PERSISTENT, 222);
+
+    auto expirationLedger =
+        test.getLCLSeq() +
+        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+    // Close ledgers until all entries are expired and evicted
+    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+         ledgerSeq <= expirationLedger + 1; ++ledgerSeq)
+    {
+        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+    }
+
+    auto lk1 = client1.getContract().getDataKey(
+        makeSymbolSCVal("key1"), ContractDataDurability::PERSISTENT);
+    auto lk2 = client2.getContract().getDataKey(
+        makeSymbolSCVal("key2"), ContractDataDurability::PERSISTENT);
+
+    // Verify entries are archived
+    REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT,
+                        std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+    REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT,
+                        std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+    auto hotArchiveSnapshot = test.getApp()
+                                  .getBucketManager()
+                                  .getBucketSnapshotManager()
+                                  .copySearchableHotArchiveBucketListSnapshot();
+    auto liveSnapshot = test.getApp()
+                            .getBucketManager()
+                            .getBucketSnapshotManager()
+                            .copySearchableLiveBucketListSnapshot();
+
+    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 2);
+    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 0);
+
+    // Now, invoke contract2, but also autorestore state from contract1.
+    auto keysToRestore = client2.getContract().getKeys();
+    keysToRestore.push_back(lk2);
+    keysToRestore.push_back(lk1);
+
+    std::vector<uint32_t> archivedIndexes;
+    for (size_t i = 0; i < keysToRestore.size(); ++i)
+    {
+        archivedIndexes.push_back(i);
+    }
+
+    auto spec = client2.defaultSpecWithoutFootprint()
+                    .setReadWriteFootprint(keysToRestore)
+                    .setArchivedIndexes(archivedIndexes)
+                    .setWriteBytes(10000)
+                    .setRefundableResourceFee(100'000);
+
+    // Make sure both keys are properly restored
+    auto invocation = client2.getContract().prepareInvocation(
+        "get_persistent", {makeSymbolSCVal("key2")}, spec,
+        /*addContractKeys=*/false);
+    REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
+
+    liveSnapshot = test.getApp()
+                       .getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+    hotArchiveSnapshot = test.getApp()
+                             .getBucketManager()
+                             .getBucketSnapshotManager()
+                             .copySearchableHotArchiveBucketListSnapshot();
+    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 2);
+    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 0);
+}
+
 TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
                    "on soroban fee bump",
                    "[tx][soroban][merge][feebump]")
