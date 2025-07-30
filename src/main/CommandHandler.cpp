@@ -1299,6 +1299,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "nominit");
             upgradeCfg.nominationTimeoutIncrementMilliseconds =
                 parseOptionalParam<uint32_t>(map, "nominc");
+            upgradeCfg.ledgerMaxDependentTxClusters =
+                parseOptionalParam<uint32_t>(map, "maxtxclstrs");
         }
 
         if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)
