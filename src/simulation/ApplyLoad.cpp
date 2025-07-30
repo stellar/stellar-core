@@ -154,8 +154,7 @@ ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
 }
 
 ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
-    : mTxGenerator(app)
-    , mApp(app)
+    : mApp(app)
     , mRoot(app.getRoot())
     , mNumAccounts(
           mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
@@ -178,6 +177,7 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     , mWriteEntryUtilization(mApp.getMetrics().NewHistogram(
           {"soroban", "benchmark", "write-entry"}))
     , mMode(mode)
+    , mTxGenerator(app, mTotalHotArchiveEntries)
 {
     setup();
 }
@@ -591,12 +591,7 @@ ApplyLoad::benchmark()
         {
             tx = mTxGenerator.invokeSorobanLoadTransactionV2(
                 lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
-                mDataEntryCount, mDataEntrySize, 1'000'000,
-                &mNextHotArchiveKeyToRestore);
-            if (mNextHotArchiveKeyToRestore > mTotalHotArchiveEntries)
-            {
-                throw std::runtime_error("Ran out of hot archive entries");
-            }
+                mDataEntryCount, mDataEntrySize, 1'000'000);
         }
 
         {

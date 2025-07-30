@@ -1,8 +1,8 @@
 #include "simulation/TxGenerator.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
-#include "simulation/LoadGenerator.h"
 #include "simulation/ApplyLoad.h"
+#include "simulation/LoadGenerator.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include <cmath>
@@ -60,13 +60,14 @@ footprintSize(Application& app, xdr::xvector<stellar::LedgerKey> const& keys)
     return total;
 }
 
-TxGenerator::TxGenerator(Application& app)
+TxGenerator::TxGenerator(Application& app, uint32_t prePopulatedArchivedEntries)
     : mApp(app)
     , mMinBalance(0)
     , mApplySorobanSuccess(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "success"}))
     , mApplySorobanFailure(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
+    , mPrePopulatedArchivedEntries(prePopulatedArchivedEntries)
 {
     updateMinBalance();
 }
@@ -533,7 +534,7 @@ std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanLoadTransactionV2(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
     uint64_t dataEntryCount, size_t dataEntrySize,
-    std::optional<uint32_t> maxGeneratedFeeRate, uint32_t* nextKeyToRestore)
+    std::optional<uint32_t> maxGeneratedFeeRate)
 {
     auto const& appCfg = mApp.getConfig();
 
@@ -553,7 +554,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     // Simulate disk reads via autorestore
     // If nextKeyToRestore is null, skip archived entries entirely
     uint32_t archiveEntriesToRestore = 0;
-    if (nextKeyToRestore != nullptr)
+    if (mPrePopulatedArchivedEntries != 0)
     {
         archiveEntriesToRestore = sampleDiscrete(
             appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
@@ -605,10 +606,15 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     // Add archived entries to autorestore to the readWrite footprint
     if (archiveEntriesToRestore > 0)
     {
-        auto endIndex = *nextKeyToRestore + archiveEntriesToRestore;
-        for (; *nextKeyToRestore < endIndex; ++(*nextKeyToRestore))
+        auto endIndex = mNextKeyToRestore + archiveEntriesToRestore;
+        if (endIndex > mPrePopulatedArchivedEntries)
         {
-            auto lk = ApplyLoad::getKeyForArchivedEntry(*nextKeyToRestore);
+            throw std::runtime_error("Ran out of hot archive entries");
+        }
+
+        for (; mNextKeyToRestore < endIndex; ++mNextKeyToRestore)
+        {
+            auto lk = ApplyLoad::getKeyForArchivedEntry(mNextKeyToRestore);
             resources.footprint.readWrite.emplace_back(lk);
             archivedIndexes.push_back(resources.footprint.readWrite.size() - 1);
         }

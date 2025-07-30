@@ -75,10 +75,6 @@ class ApplyLoad
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 
-    // Track the next hot archive key to restore
-    uint32_t mNextHotArchiveKeyToRestore = 0;
-
-    TxGenerator mTxGenerator;
     Application& mApp;
     TxGenerator::TestAccountPtr mRoot;
 
@@ -94,6 +90,7 @@ class ApplyLoad
     medida::Histogram& mWriteEntryUtilization;
 
     ApplyLoadMode mMode;
+    TxGenerator mTxGenerator;
 };
 
 }
