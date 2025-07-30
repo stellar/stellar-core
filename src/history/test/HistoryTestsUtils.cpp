@@ -762,7 +762,7 @@ CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
     // catchup, one as closing ledger.
     ensureLedgerAvailable(HistoryManager::checkpointContainingLedger(
                               targetLedger, getApp().getConfig()) +
-                          bufferLedgers + 3);
+                          bufferLedgers + 2);
     ensurePublishesComplete();
 }
 
@@ -977,23 +977,13 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
 
-    testutil::crankUntil(app, catchupIsDone,
-                         std::chrono::seconds{std::max<int64>(
-                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
-
-    if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
+    // No point in waiting if catchup wasn't even started
+    if (app->getLedgerApplyManager().isCatchupInitialized())
     {
-        // Externalize closing ledger
-        externalize(triggerLedger + bufferLedgers + 1);
+        testutil::crankUntil(app, catchupIsDone,
+                             std::chrono::seconds{std::max<int64>(
+                                 expectedCatchupWork.mTxSetsApplied + 15, 60)});
     }
-
-    testutil::crankUntil(
-        app,
-        [&]() {
-            return lm.getLastClosedLedgerNum() ==
-                   triggerLedger + bufferLedgers + 1;
-        },
-        std::chrono::seconds{60});
 
     auto result = caughtUp();
     if (result)

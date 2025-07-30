@@ -417,6 +417,7 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 2000;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = SOURCE_ACCOUNT_COUNT;
     cfg.BACKFILL_RESTORE_META = true;
     SorobanTest test(
         cfg, /*useTestLimits=*/true, [&](SorobanNetworkConfig& cfg) {
@@ -464,14 +465,11 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         }
     };
 
-    std::vector<std::string> accountNames;
+    std::vector<TestAccount> accounts;
     for (int i = 0; i < SOURCE_ACCOUNT_COUNT; ++i)
     {
-        accountNames.push_back("a" + std::to_string(i));
+        accounts.push_back(getGenesisAccount(test.getApp(), i));
     }
-    auto accounts = test.getRoot().createBatch(
-        accountNames,
-        test.getApp().getLedgerManager().getLastMinBalance(10000));
 
     Asset asset = makeAsset(test.getRoot().getSecretKey(), "aaa");
 
@@ -1243,7 +1241,7 @@ runTestCase(TestConfig const& testConfig)
 
 TEST_CASE("parallel soroban application results are independent of transaction "
           "partitioning - tiny scenario",
-          "[soroban][parallelapply]")
+          "[soroban][parallelapply][acceptance]")
 {
     TestConfig testConfig;
     testConfig.randomWasmCount = 2;
@@ -1258,7 +1256,7 @@ TEST_CASE("parallel soroban application results are independent of transaction "
 
 TEST_CASE("parallel soroban application results are independent of transaction "
           "partitioning - small scenario",
-          "[soroban][parallelapply]")
+          "[soroban][parallelapply][acceptance]")
 {
     TestConfig testConfig;
     testConfig.randomWasmCount = 6;
@@ -1273,7 +1271,7 @@ TEST_CASE("parallel soroban application results are independent of transaction "
 
 TEST_CASE("parallel soroban application results are independent of transaction "
           "partitioning - medium scenario",
-          "[soroban][parallelapply]")
+          "[soroban][parallelapply][acceptance]")
 {
     TestConfig testConfig;
     testConfig.randomWasmCount = 30;
@@ -1288,7 +1286,7 @@ TEST_CASE("parallel soroban application results are independent of transaction "
 
 TEST_CASE("parallel soroban application results are independent of transaction "
           "partitioning - large scenario",
-          "[soroban][parallelapply]")
+          "[soroban][parallelapply][acceptance]")
 {
     TestConfig testConfig;
     testConfig.randomWasmCount = 50;

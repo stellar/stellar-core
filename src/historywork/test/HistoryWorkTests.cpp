@@ -19,7 +19,7 @@
 using namespace stellar;
 using namespace historytestutils;
 
-TEST_CASE("write verified checkpoint hashes", "[historywork]")
+TEST_CASE("write verified checkpoint hashes", "[historywork][acceptance]")
 {
     CatchupSimulation catchupSimulation{};
     uint32_t nestedBatchSize = 4;

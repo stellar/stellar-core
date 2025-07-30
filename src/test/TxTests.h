@@ -358,5 +358,7 @@ uint32_t getLclProtocolVersion(Application& app);
 
 bool isSuccessResult(TransactionResult const& res);
 
+TestAccount getGenesisAccount(Application& app, uint32_t accountIndex);
+
 } // end txtest namespace
 }

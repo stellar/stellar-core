@@ -2038,5 +2038,13 @@ isSuccessResult(TransactionResult const& res)
            res.result.code() == txFEE_BUMP_INNER_SUCCESS;
 }
 
+TestAccount
+getGenesisAccount(Application& app, uint32_t accountIndex)
+{
+    REQUIRE(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
+    return TestAccount(
+        app, getAccount("TestAccount-" + std::to_string(accountIndex)));
+}
+
 } // namespace txtest
 } // namespace stellar
