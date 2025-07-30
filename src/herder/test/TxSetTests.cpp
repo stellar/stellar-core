@@ -2292,6 +2292,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
     // to pass (with 4 stages we have not enough insns for an upgrade tx to go
     // through).
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
     Application::pointer app = createTestApplication(clock, cfg);
 
     modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& sorobanCfg) {
@@ -2310,9 +2311,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         sorobanCfg.mLedgerMaxTxCount = 1000;
         sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
     });
-    auto root = app->getRoot();
-    std::map<int, TestAccount> accounts;
-    int accountId = 1;
+    int accountId = 0;
     SCAddress contract(SC_ADDRESS_TYPE_CONTRACT);
 
     auto generateKey = [&contract](int i) {
@@ -2325,16 +2324,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
     auto createTx = [&](int instructions, std::vector<int> const& roKeys,
                         std::vector<int> rwKeys, int64_t inclusionFee = 1000,
                         int readBytes = 1000, int writeBytes = 100) {
-        auto it = accounts.find(accountId);
-        if (it == accounts.end())
-        {
-            it = accounts
-                     .emplace(accountId, root->create(std::to_string(accountId),
-                                                      1'000'000'000))
-                     .first;
-        }
-        ++accountId;
-        auto source = it->second;
+        auto source = getGenesisAccount(*app, accountId++);
         SorobanResources resources;
         resources.instructions = instructions;
         resources.diskReadBytes = readBytes;
@@ -2384,10 +2374,19 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         }
     };
 
-    SECTION("no conflicts")
+    auto runWithConfigUpgrade = [&](auto&& configUpgradeFn, auto&& fn) {
+        SorobanNetworkConfig preUpgradeConfig =
+            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+        modifySorobanNetworkConfig(*app, configUpgradeFn);
+        fn();
+        modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& config) {
+            config = preUpgradeConfig;
+        });
+    };
     {
-        SECTION("single stage")
+        INFO("no conflicts");
         {
+            INFO("single stage");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2412,8 +2411,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
 
             validateBaseFee(*txSet, 100);
         }
-        SECTION("all stages")
         {
+            INFO("all stages");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2433,8 +2432,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
 
             validateBaseFee(*txSet, 100);
         }
-        SECTION("all stages, smaller txs")
         {
+            INFO("all stages, smaller txs");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 5; ++i)
             {
@@ -2453,9 +2452,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             }
             validateBaseFee(*txSet, 100);
         }
-
-        SECTION("all stages, smaller txs with prioritization")
         {
+            INFO("all stages, smaller txs with prioritization");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 10; ++i)
             {
@@ -2477,37 +2475,42 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                 *txSet, 10LL * STAGE_COUNT * CLUSTER_COUNT * 1000 / 2 + 1000);
         }
 
-        SECTION("instruction limit reached")
         {
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            INFO("instruction limit reached");
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxInstructions = 2'500'000;
                     sorobanCfg.mLedgerMaxInstructions = 10'000'000;
-                });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 4; ++i)
-            {
-                sorobanTxs.push_back(createTx(2'500'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i));
-            }
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 4; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(2'500'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i));
+                    }
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            if (variableStageCount)
-            {
-                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
-            }
-            else
-            {
-                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
-            }
+                    if (variableStageCount)
+                    {
+                        validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
+                    }
+                    else
+                    {
+                        validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+                    }
 
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT * 4 -
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT * 4 -
                                         STAGE_COUNT * CLUSTER_COUNT);
+                });
         }
-        SECTION("read bytes limit reached")
         {
+            INFO("read bytes limit reached");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2521,29 +2524,35 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
-        SECTION("read entries limit reached")
         {
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            INFO("read entries limit reached");
+
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxDiskReadEntries = 4 * 10 + 3;
                     sorobanCfg.mLedgerMaxDiskReadEntries = 4 * 10 + 3;
-                });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
-            {
-                sorobanTxs.push_back(createTx(1'000'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i,
-                                              /* readBytes */ 100'000));
-            }
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(1'000'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i,
+                                     /* readBytes */ 100'000));
+                    }
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, 1, 1, 10);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                    validateShape(*txSet, 1, 1, 10);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                });
         }
-        SECTION("write bytes limit reached")
         {
+            INFO("write bytes limit reached");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2559,28 +2568,33 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
-        SECTION("write entries limit reached")
         {
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            INFO("write entries limit reached");
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxWriteLedgerEntries = 2 * 10 + 1;
                     sorobanCfg.mLedgerMaxWriteLedgerEntries = 2 * 10 + 1;
-                });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
-            {
-                sorobanTxs.push_back(createTx(1'000'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i));
-            }
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(1'000'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i));
+                    }
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, 1, 1, 10);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                    validateShape(*txSet, 1, 1, 10);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                });
         }
-        SECTION("tx size limit reached")
         {
+            INFO("tx size limit reached");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2588,47 +2602,56 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               {4 * i + 2, 4 * i + 3},
                                               /* inclusionFee */ 100 + i));
             }
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            runWithConfigUpgrade(
+                [&](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxSizeBytes =
                         MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
                     sorobanCfg.mLedgerMaxTransactionsSizeBytes =
                         xdr::xdr_size(sorobanTxs[0]->getEnvelope()) * 11 - 1;
                     REQUIRE(sorobanCfg.mTxMaxSizeBytes <=
                             sorobanCfg.mLedgerMaxTransactionsSizeBytes);
+                },
+                [&]() {
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
+
+                    validateShape(*txSet, 1, 1, 10);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 10);
                 });
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-
-            validateShape(*txSet, 1, 1, 10);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
-        SECTION("tx count limit reached")
         {
-            modifySorobanNetworkConfig(*app,
-                                       [&](SorobanNetworkConfig& sorobanCfg) {
-                                           sorobanCfg.mLedgerMaxTxCount = 5;
-                                       });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
-            {
-                sorobanTxs.push_back(createTx(1'000'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i));
-            }
+            INFO("tx count limit reached");
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
+                    sorobanCfg.mLedgerMaxTxCount = 5;
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(1'000'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i));
+                    }
 
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, 1, 1, 5);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 5);
+                    validateShape(*txSet, 1, 1, 5);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 5);
+                });
         }
     }
 
-    SECTION("with conflicts")
     {
-        SECTION("all RW conflicting")
+        INFO("with conflicts");
         {
+            INFO("all RW conflicting");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT * STAGE_COUNT; ++i)
             {
@@ -2651,8 +2674,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateBaseFee(*txSet,
                             100 + CLUSTER_COUNT * STAGE_COUNT - STAGE_COUNT);
         }
-        SECTION("chain of conflicts")
         {
+            INFO("chain of conflicts");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT * STAGE_COUNT; ++i)
             {
@@ -2668,8 +2691,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
             validateBaseFee(*txSet, 100);
         }
-        SECTION("conflict clusters not exceeding max ledger insns")
         {
+            INFO("conflict clusters not exceeding max ledger insns");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2697,8 +2720,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             }
             validateBaseFee(*txSet, 100);
         }
-        SECTION("small conflict clusters with excluded txs")
         {
+            INFO("small conflict clusters with excluded txs");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2730,8 +2753,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             // cluster 0, stage 1).
             validateBaseFee(*txSet, 101);
         }
-        SECTION("one sparse conflict cluster")
         {
+            INFO("one sparse conflict cluster");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             // A small dense cluster of RW conflicts on entry 1000 with high
             // fee to ensure these are included.
@@ -2782,8 +2805,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             // 1000 base fee).
             validateBaseFee(*txSet, 1000);
         }
-        SECTION("many clusters with small transactions")
         {
+            INFO("many clusters with small transactions");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2801,8 +2824,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 10);
             validateBaseFee(*txSet, 100);
         }
-        SECTION("all RO conflict with one RW")
         {
+            INFO("all RO conflict with one RW");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             sorobanTxs.push_back(createTx(100'000'000, {1, 2}, {0, 3, 4},
                                           /* inclusionFee */ 1'000'000));
@@ -2844,8 +2867,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         }
     }
 
-    SECTION("smoke test")
     {
+        INFO("smoke test");
         auto runTest = [&]() {
             stellar::uniform_int_distribution<> maxInsnsDistr(20'000'000,
                                                               100'000'000);
