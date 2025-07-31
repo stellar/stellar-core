@@ -724,6 +724,13 @@ BucketManager::clearMergeFuturesForTesting()
     mLiveBucketFutures.clear();
     mHotArchiveBucketFutures.clear();
 }
+
+void
+BucketManager::enableDelayedMergesForTesting()
+{
+    releaseAssertOrThrow(!mDelayMergesForTesting);
+    mDelayMergesForTesting = true;
+}
 #endif
 
 std::set<Hash>

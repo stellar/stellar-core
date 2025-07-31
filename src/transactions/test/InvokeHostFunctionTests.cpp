@@ -9631,6 +9631,12 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
     client1.put("key1", ContractDataDurability::PERSISTENT, 111);
     client2.put("key2", ContractDataDurability::PERSISTENT, 222);
 
+    // Extend the contract instances so they don't get archived
+    auto extendLedgers =
+        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME + 10000;
+    test.invokeExtendOp(client1.getContract().getKeys(), extendLedgers);
+    test.invokeExtendOp(client2.getContract().getKeys(), extendLedgers);
+
     auto expirationLedger =
         test.getLCLSeq() +
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
@@ -9696,8 +9702,15 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
                              .getBucketManager()
                              .getBucketSnapshotManager()
                              .copySearchableHotArchiveBucketListSnapshot();
+
     REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 2);
     REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 0);
+
+    // Verify that the correct values were restored
+    REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT, 111) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT, 222) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
 TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "

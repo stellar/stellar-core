@@ -26,6 +26,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/types.h"
 #include <Tracy.hpp>
+#include <thread>
 
 namespace stellar
 {
@@ -291,6 +292,11 @@ BucketBase<BucketT, IndexT>::mergeInternal(
 {
     BucketEntryIdCmp<BucketT> cmp;
     size_t iter = 0;
+#ifdef BUILD_TESTS
+    // Get delay flag at start of merge so we don't change behavior mid-merge
+    bool shouldApplyDelays = bucketManager.shouldDelayMergesForTesting();
+    bool delayApplied = false;
+#endif
 
     while (!inputSource.isDone())
     {
@@ -304,6 +310,20 @@ BucketBase<BucketT, IndexT>::mergeInternal(
                 throw std::runtime_error(
                     "Incomplete bucket merge due to BucketManager shutdown");
             }
+
+#ifdef BUILD_TESTS
+            // To avoid blocking the main thread (since we really only want to
+            // test background merge behavior here), only delay merges for
+            // buckets over 1000 entries so we don't delay level 0.
+            if (!delayApplied && shouldApplyDelays)
+            {
+                delayApplied = true;
+                CLOG_INFO(Bucket,
+                          "Applying artificial delay of 2 second during "
+                          "merge for testing");
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+            }
+#endif
         }
 
         if (!mergeCasesWithDefaultAcceptance<BucketT, IndexT, InputSource>(

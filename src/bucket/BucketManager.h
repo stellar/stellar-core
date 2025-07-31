@@ -7,6 +7,7 @@
 #include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -172,6 +173,7 @@ class BucketManager : NonMovableOrCopyable
     bool mUseFakeTestValuesForNextClose{false};
     uint32_t mFakeTestProtocolVersion;
     uint256 mFakeTestBucketListHash;
+    std::atomic<bool> mDelayMergesForTesting{false};
 #endif
 
   protected:
@@ -330,6 +332,14 @@ class BucketManager : NonMovableOrCopyable
     std::set<Hash> getBucketHashesInBucketDirForTesting() const;
 
     medida::Counter& getEntriesEvictedCounter() const;
+
+    // Enable merge delays for testing bucket reattachment
+    void enableDelayedMergesForTesting();
+    bool
+    shouldDelayMergesForTesting() const
+    {
+        return mDelayMergesForTesting;
+    }
 #endif
 
     // Return the set of buckets referenced by the BucketList
