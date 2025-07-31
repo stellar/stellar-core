@@ -1622,7 +1622,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS",
                  [&]() {
                      APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS =
-                         readInt<uint32_t>(item);
+                         readInt<uint64_t>(item);
                  }},
                 {"APPLY_LOAD_TX_MAX_INSTRUCTIONS",
                  [&]() {
@@ -1686,6 +1686,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS =
                          readInt<uint32_t>(item);
                  }},
+                {"APPLY_LOAD_NUM_ACCOUNTS",
+                 [&]() { APPLY_LOAD_NUM_ACCOUNTS = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_NUM_LEDGERS",
+                 [&]() { APPLY_LOAD_NUM_LEDGERS = readInt<uint32_t>(item); }},
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
