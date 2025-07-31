@@ -100,7 +100,7 @@ class TxGenerator
     };
 
     using TestAccountPtr = std::shared_ptr<TestAccount>;
-    TxGenerator(Application& app);
+    TxGenerator(Application& app, uint32_t prePopulatedArchivedEntries = 0);
 
     bool loadAccount(TestAccount& account);
     bool loadAccount(TestAccountPtr account);
@@ -145,6 +145,7 @@ class TxGenerator
                                  TxGenerator::ContractInstance const& instance,
                                  uint64_t contractOverheadBytes,
                                  std::optional<uint32_t> maxGeneratedFeeRate);
+
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransactionV2(uint32_t ledgerNum, uint64_t accountId,
                                    ContractInstance const& instance,
@@ -205,6 +206,15 @@ class TxGenerator
     // Counts of soroban transactions that succeeded or failed at apply time
     medida::Counter const& mApplySorobanSuccess;
     medida::Counter const& mApplySorobanFailure;
+
+    // mPrePopulatedArchivedEntries contains the
+    // total number of pre-populated archived entries to autorestore for IO
+    // load.
+    uint32_t const mPrePopulatedArchivedEntries;
+
+    // index of next entry to autorestore. LedgerKey can be derived from index
+    // using ApplyLoad::getKeyForArchivedEntry.
+    uint32_t mNextKeyToRestore{};
 };
 
 }

@@ -1850,6 +1850,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        if (APPLY_LOAD_LEDGER_MAX_WRITE_BYTES <
+            APPLY_LOAD_LEDGER_MAX_READ_BYTES)
+        {
+            std::string msg =
+                "Invalid configuration: APPLY_LOAD_LEDGER_MAX_WRITE_BYTES "
+                "must be greater than or equal to "
+                "APPLY_LOAD_LEDGER_MAX_READ_BYTES";
+            throw std::runtime_error(msg);
+        }
+
 #ifdef BUILD_TESTS
         if (getSorobanByteAllowance() + getClassicByteAllowance() >
             MAX_TX_SET_ALLOWANCE)
