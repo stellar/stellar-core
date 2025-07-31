@@ -184,9 +184,9 @@ class SurveySimulation:
 
             self._results["topology"][node] = self._create_node_json(
                 node,
-                 slice(inbound_peer_index, inbound_peer_index + PEER_LIST_SIZE),
-                 slice(outbound_peer_index, outbound_peer_index + PEER_LIST_SIZE)
-             )
+                slice(inbound_peer_index, inbound_peer_index + PEER_LIST_SIZE),
+                slice(outbound_peer_index, outbound_peer_index + PEER_LIST_SIZE)
+            )
         return SimulatedResponse(json=self._results)
 
     def _create_node_json(self, node, inbound_slice, outbound_slice):
