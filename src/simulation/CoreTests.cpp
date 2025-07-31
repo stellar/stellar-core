@@ -377,7 +377,11 @@ TEST_CASE(
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
-        Topologies::pair(Simulation::OVER_LOOPBACK, networkID);
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 3;
+            return cfg;
+        });
 
     simulation->startAllNodes();
     simulation->crankUntil(
@@ -388,9 +392,6 @@ TEST_CASE(
     auto& app = *nodes[0]; // pick a node to generate load
 
     auto& loadGen = app.getLoadGenerator();
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 3,
-        /* txRate */ 10));
     try
     {
         simulation->crankUntil(
@@ -399,7 +400,7 @@ TEST_CASE(
                 // to the second node in time and the second node gets the
                 // nomination
                 return simulation->haveAllExternalized(5, 2) &&
-                       loadGen.checkAccountSynced(app, true).empty();
+                       loadGen.checkAccountSynced(app).empty();
             },
             15 * simulation->getExpectedLedgerCloseTime(), false);
 
@@ -408,13 +409,13 @@ TEST_CASE(
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
-                       loadGen.checkAccountSynced(app, false).empty();
+                       loadGen.checkAccountSynced(app).empty();
             },
             10 * simulation->getExpectedLedgerCloseTime(), true);
     }
     catch (...)
     {
-        auto problems = loadGen.checkAccountSynced(app, false);
+        auto problems = loadGen.checkAccountSynced(app);
         REQUIRE(problems.empty());
     }
 
@@ -422,7 +423,7 @@ TEST_CASE(
 }
 
 Application::pointer
-newLoadTestApp(VirtualClock& clock)
+newLoadTestApp(VirtualClock& clock, uint32_t accountCount = 0)
 {
     Config cfg =
 #ifdef USE_POSTGRES
@@ -434,6 +435,10 @@ newLoadTestApp(VirtualClock& clock)
     // ledger close
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
+    if (accountCount > 0)
+    {
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = accountCount;
+    }
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();
     return appPtr;
@@ -509,27 +514,17 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
                      "latency50", "latency95", "latency99"});
 
     VirtualClock clock;
-    auto appPtr = newLoadTestApp(clock);
+    auto appPtr = newLoadTestApp(clock, 10); // Create 10 accounts at genesis
     auto& app = *appPtr;
 
     auto& loadGen = app.getLoadGenerator();
     auto& txtime = app.getMetrics().NewTimer({"ledger", "operation", "apply"});
     uint32_t numItems = 500000;
 
-    // Create accounts
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 10,
-        /* txRate */ 10));
-
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 
     auto& io = clock.getIOContext();
-    asio::io_context::work mainWork(io);
-    while (!io.stopped() && complete.count() == 0)
-    {
-        clock.crank();
-    }
 
     txtime.Clear();
 
@@ -568,21 +563,6 @@ netTopologyTest(std::string const& name,
         assert(!nodes.empty());
         auto& app = *nodes[0];
 
-        auto& loadGen = app.getLoadGenerator();
-        loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-            /* nAccounts */ 50,
-            /* txRate */ 10));
-        auto& complete =
-            app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-
-        sim->crankUntil(
-            [&]() {
-                return sim->haveAllExternalized(8, 2) &&
-                       loadGen.checkAccountSynced(app, true).empty() &&
-                       complete.count() == 1;
-            },
-            10 * sim->getExpectedLedgerCloseTime(), true);
-
         app.reportCfgMetrics();
 
         auto& inmsg = app.getMetrics().NewMeter({"overlay", "message", "read"},
@@ -616,6 +596,7 @@ TEST_CASE("Mesh nodes vs network traffic", "[scalability][!hide]")
                 res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
                 res.TARGET_PEER_CONNECTIONS = 1000;
                 res.MAX_ADDITIONAL_PEER_CONNECTIONS = 1000;
+                res.GENESIS_TEST_ACCOUNT_COUNT = 50;
                 return res;
             });
     });
@@ -632,6 +613,7 @@ TEST_CASE("Cycle nodes vs network traffic", "[scalability][!hide]")
                 res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
                 res.TARGET_PEER_CONNECTIONS = 1000;
                 res.MAX_ADDITIONAL_PEER_CONNECTIONS = 1000;
+                res.GENESIS_TEST_ACCOUNT_COUNT = 50;
                 return res;
             });
     });
@@ -648,6 +630,7 @@ TEST_CASE("Branched cycle nodes vs network traffic", "[scalability][!hide]")
                 res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
                 res.TARGET_PEER_CONNECTIONS = 1000;
                 res.MAX_ADDITIONAL_PEER_CONNECTIONS = 1000;
+                res.GENESIS_TEST_ACCOUNT_COUNT = 50;
                 return res;
             });
     });

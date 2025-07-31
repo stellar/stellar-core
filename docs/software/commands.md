@@ -450,11 +450,14 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
+    (pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
-  * `create` mode creates new accounts. Batches 100 creation operations per transaction.
+
+    **Note**: The `create` mode has been deprecated and removed. To create test accounts,
+    use the `GENESIS_TEST_ACCOUNT_COUNT` configuration parameter which creates accounts
+    at genesis when initializing a test network.
   * `pay` mode generates `PaymentOp` transactions on accounts specified
     (where the number of accounts can be offset).
   * `pay_pregenerated` mode submits pre-generated payment transactions from an XDR file.
@@ -519,7 +522,7 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
     weight divided by the sum of all weights.
   * `stop` mode stops any existing load generation run and marks it as "failed".
 
-  Non-`create` load generation makes use of the additional parameters:
+  Load generation makes use of the additional parameters:
   * when a nonzero `spikeinterval` is given, a spike will occur every
     `spikeinterval` seconds injecting `spikesize` transactions on top of
     `txrate`

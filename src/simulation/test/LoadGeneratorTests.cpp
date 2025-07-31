@@ -34,6 +34,7 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
             cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
             return cfg;
         });
 
@@ -289,6 +290,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             cfg.USE_CONFIG_FOR_GENESIS = false;
             cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.UPDATE_SOROBAN_COSTS_DURING_PROTOCOL_UPGRADE_FOR_TESTING = true;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 20;
             //  Use tight bounds to we can verify storage works properly
             cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {numDataEntries};
             cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1};
@@ -334,15 +336,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     };
 
     auto nAccounts = 20;
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ nAccounts,
-        /* txRate */ 1));
+    // Accounts are created via GENESIS_TEST_ACCOUNT_COUNT
     auto& complete =
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto completeCount = complete.count();
-    simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
-        100 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Before creating any contracts, test that loadgen correctly
     // reports an error when trying to run a soroban invoke setup.
@@ -775,6 +772,7 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
             // and 50% of transactions contain 3 ops.
             cfg.LOADGEN_OP_COUNT_FOR_TESTING = {2, 3};
             cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {1, 1};
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 5;
             return cfg;
         });
 
@@ -790,19 +788,8 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
     uint32_t nAccounts = 5;
     uint32_t txRate = 5;
 
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ nAccounts,
-        /* txRate */ txRate));
     try
     {
-        simulation->crankUntil(
-            [&]() {
-                return app.getMetrics()
-                           .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 1;
-            },
-            3 * simulation->getExpectedLedgerCloseTime(), false);
-
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PRETEND,
                                                          nAccounts, 5, txRate));
 
@@ -810,22 +797,19 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
             [&]() {
                 return app.getMetrics()
                            .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 2;
+                           .count() == 1;
             },
             2 * simulation->getExpectedLedgerCloseTime(), false);
     }
     catch (...)
     {
-        auto problems = loadGen.checkAccountSynced(app, false);
+        auto problems = loadGen.checkAccountSynced(app);
         REQUIRE(problems.empty());
     }
 
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "txn", "rejected"}, "txn")
                 .count() == 0);
-    REQUIRE(app.getMetrics()
-                .NewMeter({"loadgen", "account", "created"}, "account")
-                .count() == nAccounts);
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "payment", "submitted"}, "op")
                 .count() == 0);
@@ -846,6 +830,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
             cfg.LOADGEN_OP_COUNT_FOR_TESTING = {3};
             cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {1};
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
             return cfg;
         });
 
@@ -858,49 +843,31 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     auto& app = *nodes[0]; // pick a node to generate load
 
     uint32_t txRate = 5;
-    uint32_t numAccounts =
-        txRate *
-        static_cast<uint32>(std::chrono::duration_cast<std::chrono::seconds>(
-                                simulation->getExpectedLedgerCloseTime())
-                                .count() *
-                            3);
     auto& loadGen = app.getLoadGenerator();
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ numAccounts,
-        /* txRate */ txRate));
     try
     {
-        simulation->crankUntil(
-            [&]() {
-                return app.getMetrics()
-                           .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 1;
-            },
-            3 * simulation->getExpectedLedgerCloseTime(), false);
-        auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_CLASSIC,
-                                                  numAccounts, 100, txRate);
+        auto config = GeneratedLoadConfig::txLoad(
+            LoadGenMode::MIXED_CLASSIC,
+            app.getConfig().GENESIS_TEST_ACCOUNT_COUNT, 100, txRate);
         config.getMutDexTxPercent() = 50;
         loadGen.generateLoad(config);
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
                            .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 2;
+                           .count() == 1;
             },
             15 * simulation->getExpectedLedgerCloseTime(), false);
     }
     catch (...)
     {
-        auto problems = loadGen.checkAccountSynced(app, false);
+        auto problems = loadGen.checkAccountSynced(app);
         REQUIRE(problems.empty());
     }
 
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "txn", "rejected"}, "txn")
                 .count() == 0);
-    REQUIRE(app.getMetrics()
-                .NewMeter({"loadgen", "account", "created"}, "account")
-                .count() == numAccounts);
     auto nonDexOps = app.getMetrics()
                          .NewMeter({"loadgen", "payment", "submitted"}, "op")
                          .count();
@@ -916,7 +883,12 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
 {
     // Create a simulation with two nodes
     Simulation::pointer sim = Topologies::pair(
-        Simulation::OVER_LOOPBACK, sha256(getTestConfig().NETWORK_PASSPHRASE));
+        Simulation::OVER_LOOPBACK, sha256(getTestConfig().NETWORK_PASSPHRASE),
+        [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = 1; // Create account at genesis
+            return cfg;
+        });
     sim->startAllNodes();
     sim->crankUntil([&]() { return sim->haveAllExternalized(3, 1); },
                     2 * sim->getExpectedLedgerCloseTime(), false);
@@ -927,12 +899,6 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
         app->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     medida::Meter& runsFailed =
         app->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
-
-    // Add an account
-    loadgen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 1, /* txRate */ 1));
-    sim->crankUntil([&]() { return runsComplete.count() == 1; },
-                    5 * sim->getExpectedLedgerCloseTime(), false);
 
     // Clear metrics to reset run count
     app->clearMetrics("");
