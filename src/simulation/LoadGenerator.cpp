@@ -125,11 +125,7 @@ LoadGenerator::LoadGenerator(Application& app)
 LoadGenMode
 LoadGenerator::getMode(std::string const& mode)
 {
-    if (mode == "create")
-    {
-        return LoadGenMode::CREATE;
-    }
-    else if (mode == "pay")
+    if (mode == "pay")
     {
         return LoadGenMode::PAY;
     }
@@ -226,21 +222,6 @@ LoadGenerator::cleanupAccounts()
 {
     ZoneScoped;
 
-    // Check if creation source accounts have been created
-    for (auto it = mCreationSourceAccounts.begin();
-         it != mCreationSourceAccounts.end();)
-    {
-        if (mTxGenerator.loadAccount(it->second))
-        {
-            mAccountsAvailable.insert(it->first);
-            it = mCreationSourceAccounts.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
     // "Free" any accounts that aren't used by the tx queue anymore
     for (auto it = mAccountsInUse.begin(); it != mAccountsInUse.end();)
     {
@@ -268,7 +249,7 @@ LoadGenerator::reset()
     mTxGenerator.reset();
     mAccountsInUse.clear();
     mAccountsAvailable.clear();
-    mCreationSourceAccounts.clear();
+
     mContractInstances.clear();
     mLoadTimer.reset();
     mStartTime.reset();
@@ -276,7 +257,7 @@ LoadGenerator::reset()
     mWaitTillCompleteForLedgers = 0;
     mFailed = false;
     mStarted = false;
-    mInitialAccountsCreated = false;
+
     mPreLoadgenApplySorobanSuccess = 0;
     mPreLoadgenApplySorobanFailure = 0;
     mTransactionsAppliedAtTheStart = 0;
@@ -497,10 +478,9 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     // a buffer) to accommodate the desired tx rate.
     auto closeTimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(
         mApp.getLedgerManager().getExpectedLedgerCloseTime());
-    if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
-        (cfg.txRate * closeTimeSeconds.count()) *
-                MIN_UNIQUE_ACCOUNT_MULTIPLIER >
-            cfg.nAccounts)
+    if (cfg.nTxs > cfg.nAccounts && (cfg.txRate * closeTimeSeconds.count()) *
+                                            MIN_UNIQUE_ACCOUNT_MULTIPLIER >
+                                        cfg.nAccounts)
     {
         errorMsg = fmt::format(
             "Tx rate is too high, there are not enough unique accounts. Make "
@@ -539,13 +519,6 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
         {
             errorMsg = "must run SOROBAN_UPGRADE_SETUP";
         }
-    }
-
-    if (cfg.mode == LoadGenMode::CREATE &&
-        mApp.getConfig().GENESIS_TEST_ACCOUNT_COUNT)
-    {
-        errorMsg =
-            "Cannot create accounts when GENESIS_TEST_ACCOUNT_COUNT is set";
     }
 
     if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
@@ -597,14 +570,14 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 bool
 GeneratedLoadConfig::isDone() const
 {
-    return (isCreate() && nAccounts == 0) || (isLoad() && nTxs == 0) ||
+    return (isLoad() && nTxs == 0) ||
            (isSorobanSetup() && getSorobanConfig().nInstances == 0);
 }
 
 bool
 GeneratedLoadConfig::areTxsRemaining() const
 {
-    return (isCreate() && nAccounts != 0) || (!isCreate() && nTxs != 0);
+    return nTxs != 0;
 }
 
 Json::Value
@@ -614,9 +587,6 @@ GeneratedLoadConfig::getStatus() const
     std::string modeStr;
     switch (mode)
     {
-    case LoadGenMode::CREATE:
-        modeStr = "create";
-        break;
     case LoadGenMode::PAY:
         modeStr = "pay";
         break;
@@ -654,11 +624,7 @@ GeneratedLoadConfig::getStatus() const
 
     ret["mode"] = modeStr;
 
-    if (isCreate())
-    {
-        ret["accounts_remaining"] = nAccounts;
-    }
-    else if (isSorobanSetup())
+    if (isSorobanSetup())
     {
         ret["wasms_remaining"] = getSorobanConfig().nWasms;
         ret["instances_remaining"] = getSorobanConfig().nInstances;
@@ -710,7 +676,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     if (!cfg.areTxsRemaining())
     {
         // Done submitting the load, now ensure it propagates to the DB.
-        if (!cfg.isCreate() && cfg.skipLowFeeTxs)
+        if (cfg.skipLowFeeTxs)
         {
             // skipLowFeeTxs allows triggering tx queue limiter, which
             // makes it hard to track the final seq nums. Hence just
@@ -725,15 +691,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     auto txPerStep = getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
-    if (cfg.mode == LoadGenMode::CREATE)
-    {
-        // Limit creation to the number of accounts we have. This is only the
-        // case at the very beginning, when only root account is available for
-        // account creation
-        size_t expectedSize =
-            mInitialAccountsCreated ? mAccountsAvailable.size() : 1;
-        txPerStep = std::min<int64_t>(txPerStep, expectedSize);
-    }
     auto submitScope = mStepTimer.TimeScope();
 
     uint64_t now = mApp.timeNow();
@@ -748,178 +705,162 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     uint32_t count = 0;
     for (int64_t i = 0; i < txPerStep; ++i)
     {
-        if (cfg.mode == LoadGenMode::CREATE)
+        if (mAccountsAvailable.empty() &&
+            cfg.mode != LoadGenMode::PAY_PREGENERATED)
         {
-            cfg.nAccounts =
-                submitCreationTx(cfg.nAccounts, cfg.offset, ledgerNum);
+            CLOG_WARNING(LoadGen,
+                         "Load generation failed: no more accounts available");
+            mLoadgenFail.Mark();
+            reset();
+            return;
         }
-        else
+
+        uint64_t sourceAccountId = 0;
+        if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
         {
-            if (mAccountsAvailable.empty() &&
-                cfg.mode != LoadGenMode::PAY_PREGENERATED)
-            {
-                CLOG_WARNING(
-                    LoadGen,
-                    "Load generation failed: no more accounts available");
-                mLoadgenFail.Mark();
-                reset();
-                return;
-            }
+            sourceAccountId = getNextAvailableAccount(ledgerNum);
+        }
 
-            uint64_t sourceAccountId = 0;
-            if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
-            {
-                sourceAccountId = getNextAvailableAccount(ledgerNum);
-            }
+        std::function<std::pair<TxGenerator::TestAccountPtr,
+                                TransactionFrameBaseConstPtr>()>
+            generateTx;
 
-            std::function<std::pair<TxGenerator::TestAccountPtr,
-                                    TransactionFrameBaseConstPtr>()>
-                generateTx;
-
-            switch (cfg.mode)
-            {
-            case LoadGenMode::CREATE:
-                releaseAssert(false);
-                break;
-            case LoadGenMode::PAY:
-                generateTx = [&]() {
+        switch (cfg.mode)
+        {
+        case LoadGenMode::PAY:
+            generateTx = [&]() {
+                return mTxGenerator.paymentTransaction(
+                    cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId, 1,
+                    cfg.maxGeneratedFeeRate);
+            };
+            break;
+        case LoadGenMode::PRETEND:
+        {
+            auto opCount = chooseOpCount(mApp.getConfig());
+            generateTx = [&, opCount]() {
+                return mTxGenerator.pretendTransaction(
+                    cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
+                    opCount, cfg.maxGeneratedFeeRate);
+            };
+        }
+        break;
+        case LoadGenMode::MIXED_CLASSIC:
+        {
+            auto opCount = chooseOpCount(mApp.getConfig());
+            bool isDex =
+                rand_uniform<uint32_t>(1, 100) <= cfg.getDexTxPercent();
+            generateTx = [&, opCount, isDex]() {
+                if (isDex)
+                {
+                    return mTxGenerator.manageOfferTransaction(
+                        ledgerNum, sourceAccountId, opCount,
+                        cfg.maxGeneratedFeeRate);
+                }
+                else
+                {
                     return mTxGenerator.paymentTransaction(
                         cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
-                        1, cfg.maxGeneratedFeeRate);
-                };
-                break;
-            case LoadGenMode::PRETEND:
-            {
-                auto opCount = chooseOpCount(mApp.getConfig());
-                generateTx = [&, opCount]() {
-                    return mTxGenerator.pretendTransaction(
-                        cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
                         opCount, cfg.maxGeneratedFeeRate);
-                };
-            }
-            break;
-            case LoadGenMode::MIXED_CLASSIC:
-            {
-                auto opCount = chooseOpCount(mApp.getConfig());
-                bool isDex =
-                    rand_uniform<uint32_t>(1, 100) <= cfg.getDexTxPercent();
-                generateTx = [&, opCount, isDex]() {
-                    if (isDex)
-                    {
-                        return mTxGenerator.manageOfferTransaction(
-                            ledgerNum, sourceAccountId, opCount,
-                            cfg.maxGeneratedFeeRate);
-                    }
-                    else
-                    {
-                        return mTxGenerator.paymentTransaction(
-                            cfg.nAccounts, cfg.offset, ledgerNum,
-                            sourceAccountId, opCount, cfg.maxGeneratedFeeRate);
-                    }
-                };
-            }
-            break;
-            case LoadGenMode::SOROBAN_UPLOAD:
-            {
-                generateTx = [&]() {
-                    return mTxGenerator.sorobanRandomWasmTransaction(
-                        ledgerNum, sourceAccountId,
-                        mTxGenerator.generateFee(cfg.maxGeneratedFeeRate,
-                                                 /* opsCnt */ 1));
-                };
-            }
-            break;
-            case LoadGenMode::SOROBAN_INVOKE_SETUP:
-            case LoadGenMode::SOROBAN_UPGRADE_SETUP:
-                generateTx = [&] {
-                    auto& sorobanCfg = cfg.getMutSorobanConfig();
-                    if (sorobanCfg.nWasms != 0)
-                    {
-                        --sorobanCfg.nWasms;
-                        return createUploadWasmTransaction(cfg, ledgerNum,
-                                                           sourceAccountId);
-                    }
-                    else
-                    {
-                        --sorobanCfg.nInstances;
-                        return createInstanceTransaction(cfg, ledgerNum,
-                                                         sourceAccountId);
-                    }
-                };
-                break;
-            case LoadGenMode::SOROBAN_INVOKE:
-                generateTx = [&]() {
-                    auto instanceIter =
-                        mContractInstances.find(sourceAccountId);
-                    releaseAssert(instanceIter != mContractInstances.end());
-                    auto const& instance = instanceIter->second;
-                    return mTxGenerator.invokeSorobanLoadTransaction(
-                        ledgerNum, sourceAccountId, instance,
-                        mContactOverheadBytes, cfg.maxGeneratedFeeRate);
-                };
-                break;
-            case LoadGenMode::SOROBAN_CREATE_UPGRADE:
-                generateTx = [&]() {
-                    releaseAssert(mCodeKey);
-                    releaseAssert(mContractInstanceKeys.size() == 1);
-
-                    auto upgradeBytes =
-                        mTxGenerator.getConfigUpgradeSetFromLoadConfig(
-                            cfg.getSorobanUpgradeConfig());
-                    return mTxGenerator.invokeSorobanCreateUpgradeTransaction(
-                        ledgerNum, sourceAccountId, upgradeBytes, *mCodeKey,
-                        *mContractInstanceKeys.begin(),
-                        cfg.maxGeneratedFeeRate);
-                };
-                break;
-            case LoadGenMode::MIXED_CLASSIC_SOROBAN:
-                generateTx = [&]() {
-                    return createMixedClassicSorobanTransaction(
-                        ledgerNum, sourceAccountId, cfg);
-                };
-                break;
-            case LoadGenMode::PAY_PREGENERATED:
-                generateTx = [&]() { return readTransactionFromFile(cfg); };
-                break;
-            case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
-                generateTx = [&]() {
-                    auto instanceIter =
-                        mContractInstances.find(sourceAccountId);
-                    releaseAssert(instanceIter != mContractInstances.end());
-                    auto const& instance = instanceIter->second;
-                    auto const& appCfg = mApp.getConfig();
-                    uint64_t dataEntryCount =
-                        appCfg.APPLY_LOAD_BL_BATCH_SIZE *
-                        appCfg.APPLY_LOAD_BL_SIMULATED_LEDGERS;
-                    size_t dataEntrySize =
-                        appCfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
-
-                    return mTxGenerator.invokeSorobanLoadTransactionV2(
-                        ledgerNum, sourceAccountId, instance, dataEntryCount,
-                        dataEntrySize, cfg.maxGeneratedFeeRate);
-                };
-                break;
-            }
-
-            try
-            {
-                if (submitTx(cfg, generateTx))
-                {
-                    --cfg.nTxs;
                 }
-            }
-            catch (std::runtime_error const& e)
-            {
-                CLOG_ERROR(LoadGen, "Exception while submitting tx: {}",
-                           e.what());
-                mFailed = true;
-                break;
-            }
+            };
+        }
+        break;
+        case LoadGenMode::SOROBAN_UPLOAD:
+        {
+            generateTx = [&]() {
+                return mTxGenerator.sorobanRandomWasmTransaction(
+                    ledgerNum, sourceAccountId,
+                    mTxGenerator.generateFee(cfg.maxGeneratedFeeRate,
+                                             /* opsCnt */ 1));
+            };
+        }
+        break;
+        case LoadGenMode::SOROBAN_INVOKE_SETUP:
+        case LoadGenMode::SOROBAN_UPGRADE_SETUP:
+            generateTx = [&] {
+                auto& sorobanCfg = cfg.getMutSorobanConfig();
+                if (sorobanCfg.nWasms != 0)
+                {
+                    --sorobanCfg.nWasms;
+                    return createUploadWasmTransaction(cfg, ledgerNum,
+                                                       sourceAccountId);
+                }
+                else
+                {
+                    --sorobanCfg.nInstances;
+                    return createInstanceTransaction(cfg, ledgerNum,
+                                                     sourceAccountId);
+                }
+            };
+            break;
+        case LoadGenMode::SOROBAN_INVOKE:
+            generateTx = [&]() {
+                auto instanceIter = mContractInstances.find(sourceAccountId);
+                releaseAssert(instanceIter != mContractInstances.end());
+                auto const& instance = instanceIter->second;
+                return mTxGenerator.invokeSorobanLoadTransaction(
+                    ledgerNum, sourceAccountId, instance, mContactOverheadBytes,
+                    cfg.maxGeneratedFeeRate);
+            };
+            break;
+        case LoadGenMode::SOROBAN_CREATE_UPGRADE:
+            generateTx = [&]() {
+                releaseAssert(mCodeKey);
+                releaseAssert(mContractInstanceKeys.size() == 1);
 
-            if (mFailed)
+                auto upgradeBytes =
+                    mTxGenerator.getConfigUpgradeSetFromLoadConfig(
+                        cfg.getSorobanUpgradeConfig());
+                return mTxGenerator.invokeSorobanCreateUpgradeTransaction(
+                    ledgerNum, sourceAccountId, upgradeBytes, *mCodeKey,
+                    *mContractInstanceKeys.begin(), cfg.maxGeneratedFeeRate);
+            };
+            break;
+        case LoadGenMode::MIXED_CLASSIC_SOROBAN:
+            generateTx = [&]() {
+                return createMixedClassicSorobanTransaction(
+                    ledgerNum, sourceAccountId, cfg);
+            };
+            break;
+        case LoadGenMode::PAY_PREGENERATED:
+            generateTx = [&]() { return readTransactionFromFile(cfg); };
+            break;
+        case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
+            generateTx = [&]() {
+                auto instanceIter = mContractInstances.find(sourceAccountId);
+                releaseAssert(instanceIter != mContractInstances.end());
+                auto const& instance = instanceIter->second;
+                auto const& appCfg = mApp.getConfig();
+                uint64_t dataEntryCount =
+                    appCfg.APPLY_LOAD_BL_BATCH_SIZE *
+                    appCfg.APPLY_LOAD_BL_SIMULATED_LEDGERS;
+                size_t dataEntrySize =
+                    appCfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
+
+                return mTxGenerator.invokeSorobanLoadTransactionV2(
+                    ledgerNum, sourceAccountId, instance, dataEntryCount,
+                    dataEntrySize, cfg.maxGeneratedFeeRate);
+            };
+            break;
+        }
+
+        try
+        {
+            if (submitTx(cfg, generateTx))
             {
-                break;
+                --cfg.nTxs;
             }
+        }
+        catch (std::runtime_error const& e)
+        {
+            CLOG_ERROR(LoadGen, "Exception while submitting tx: {}", e.what());
+            mFailed = true;
+            break;
+        }
+
+        if (mFailed)
+        {
+            break;
         }
         ++count;
         if (cfg.nAccounts == 0 || !cfg.areTxsRemaining())
@@ -942,49 +883,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     mLastSecond = now;
     mTotalSubmitted += count;
     scheduleLoadGeneration(cfg);
-}
-
-uint32_t
-LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
-                                uint32_t ledgerNum)
-{
-    uint32_t numToProcess =
-        nAccounts < MAX_OPS_PER_TX ? nAccounts : MAX_OPS_PER_TX;
-    auto [from, tx] = creationTransaction(
-        mTxGenerator.getAccounts().size() + offset, numToProcess, ledgerNum);
-    TransactionResultCode code;
-    TransactionQueue::AddResultCode status;
-    bool createDuplicate = false;
-    uint32_t numTries = 0;
-
-    while ((status = execute(tx, LoadGenMode::CREATE, code)) !=
-           TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
-    {
-        // Ignore duplicate transactions, simply continue generating load
-        if (status == TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE)
-        {
-            createDuplicate = true;
-            break;
-        }
-
-        if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
-        {
-            // Failed to submit the step of load
-            mFailed = true;
-            return 0;
-        }
-
-        // In case of bad seqnum, attempt refreshing it from the DB
-        maybeHandleFailedTx(tx, from, status, code);
-    }
-
-    if (!createDuplicate)
-    {
-        nAccounts -= numToProcess;
-    }
-
-    return nAccounts;
 }
 
 bool
@@ -1095,11 +993,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
     auto submitSteps = duration_cast<milliseconds>(submitTimer).count();
 
     auto remainingTxCount = 0;
-    if (cfg.mode == LoadGenMode::CREATE)
-    {
-        remainingTxCount = cfg.nAccounts / MAX_OPS_PER_TX;
-    }
-    else if (cfg.isSorobanSetup())
+    if (cfg.isSorobanSetup())
     {
         remainingTxCount =
             cfg.getSorobanConfig().nWasms + cfg.getSorobanConfig().nInstances;
@@ -1123,15 +1017,6 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
                   cfg.txRate, applyTx.one_minute_rate(), remainingTxCount,
                   etaHours, etaMins);
     }
-    else if (cfg.mode == LoadGenMode::CREATE)
-    {
-        CLOG_INFO(LoadGen,
-                  "Tx/s: {} target, {}tx/{}op actual (1m EWMA). Pending: {} "
-                  "accounts, {} txs. ETA: {}h{}m",
-                  cfg.txRate, applyTx.one_minute_rate(),
-                  applyOp.one_minute_rate(), cfg.nAccounts, remainingTxCount,
-                  etaHours, etaMins);
-    }
     else
     {
         CLOG_INFO(LoadGen,
@@ -1145,31 +1030,6 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
     CLOG_DEBUG(LoadGen, "Step timing: {}ms submit.", submitSteps);
 
     mTxMetrics.report();
-}
-
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
-                                   uint32_t ledgerNum)
-{
-    TxGenerator::TestAccountPtr sourceAcc =
-        mInitialAccountsCreated
-            ? mTxGenerator.findAccount(getNextAvailableAccount(ledgerNum),
-                                       ledgerNum)
-            : mRoot;
-    vector<Operation> creationOps = mTxGenerator.createAccounts(
-        startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
-    if (!mInitialAccountsCreated)
-    {
-        auto const& initialAccounts = mTxGenerator.getAccounts();
-        for (auto const& kvp : initialAccounts)
-        {
-            mCreationSourceAccounts.emplace(kvp.first, kvp.second);
-        }
-    }
-    mInitialAccountsCreated = true;
-    return std::make_pair(sourceAcc,
-                          mTxGenerator.createTransactionFramePtr(
-                              sourceAcc, creationOps, false, std::nullopt));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -1321,7 +1181,7 @@ LoadGenerator::checkSorobanStateSynced(Application& app,
 }
 
 std::vector<TxGenerator::TestAccountPtr>
-LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
+LoadGenerator::checkAccountSynced(Application& app)
 {
     std::vector<TxGenerator::TestAccountPtr> result;
     for (auto const& acc : mTxGenerator.getAccounts())
@@ -1330,26 +1190,9 @@ LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
         auto accountFromDB = *account;
 
         auto reloadRes = mTxGenerator.loadAccount(accountFromDB);
-        // For account creation, reload accounts from the DB
-        // For payments, ensure that the sequence number matches expected
+        // Ensure that the sequence number matches expected
         // seqnum. Timeout after 20 ledgers.
-        if (isCreate)
-        {
-            if (!reloadRes)
-            {
-                CLOG_TRACE(LoadGen, "Account {} is not created yet!",
-                           account->getAccountId());
-                result.push_back(account);
-            }
-            else if (app.getHerder().sourceAccountPending(
-                         account->getPublicKey()))
-            {
-                CLOG_TRACE(LoadGen, "Account {} is pending!",
-                           account->getAccountId());
-                result.push_back(account);
-            }
-        }
-        else if (!reloadRes)
+        if (!reloadRes)
         {
             auto msg =
                 fmt::format("Account {} used to submit payment tx could not "
@@ -1419,7 +1262,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     }
     else
     {
-        classicIsDone = checkAccountSynced(mApp, cfg.isCreate()).empty();
+        classicIsDone = checkAccountSynced(mApp).empty();
         sorobanIsDone = checkSorobanStateSynced(mApp, cfg).empty();
     }
 
@@ -1496,7 +1339,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
     }
     if (++mWaitTillCompleteForLedgers == COMPLETION_TIMEOUT_WITHOUT_CHECKS)
     {
-        auto inconsistencies = checkAccountSynced(mApp, /* isCreate */ false);
+        auto inconsistencies = checkAccountSynced(mApp);
         CLOG_INFO(LoadGen, "Load generation complete.");
         if (!inconsistencies.empty())
         {
@@ -1517,8 +1360,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
 }
 
 LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
-    : mAccountCreated(m.NewMeter({"loadgen", "account", "created"}, "account"))
-    , mNativePayment(m.NewMeter({"loadgen", "payment", "submitted"}, "op"))
+    : mNativePayment(m.NewMeter({"loadgen", "payment", "submitted"}, "op"))
     , mManageOfferOps(m.NewMeter({"loadgen", "manageoffer", "submitted"}, "op"))
     , mPretendOps(m.NewMeter({"loadgen", "pretend", "submitted"}, "op"))
     , mSorobanUploadTxs(m.NewMeter({"loadgen", "soroban", "upload"}, "txn"))
@@ -1539,22 +1381,20 @@ void
 LoadGenerator::TxMetrics::report()
 {
     CLOG_DEBUG(LoadGen,
-               "Counts: {} tx, {} rj, {} by, {} ac, {} na, {} pr, {} dex, {} "
+               "Counts: {} tx, {} rj, {} by, {} na, {} pr, {} dex, {} "
                "su, {} ssi, {} ssu, {} si, {} scu",
                mTxnAttempted.count(), mTxnRejected.count(), mTxnBytes.count(),
-               mAccountCreated.count(), mNativePayment.count(),
-               mPretendOps.count(), mManageOfferOps.count(),
-               mSorobanUploadTxs.count(), mSorobanSetupInvokeTxs.count(),
-               mSorobanSetupUpgradeTxs.count(), mSorobanInvokeTxs.count(),
-               mSorobanCreateUpgradeTxs.count());
+               mNativePayment.count(), mPretendOps.count(),
+               mManageOfferOps.count(), mSorobanUploadTxs.count(),
+               mSorobanSetupInvokeTxs.count(), mSorobanSetupUpgradeTxs.count(),
+               mSorobanInvokeTxs.count(), mSorobanCreateUpgradeTxs.count());
 
     CLOG_DEBUG(LoadGen,
-               "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} ac, {} na, {} pr, "
+               "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} na, {} pr, "
                "{} dex, {} su, {} ssi, {} ssu, {} si, {} scu",
                mTxnAttempted.one_minute_rate(), mTxnRejected.one_minute_rate(),
-               mTxnBytes.one_minute_rate(), mAccountCreated.one_minute_rate(),
-               mNativePayment.one_minute_rate(), mPretendOps.one_minute_rate(),
-               mManageOfferOps.one_minute_rate(),
+               mTxnBytes.one_minute_rate(), mNativePayment.one_minute_rate(),
+               mPretendOps.one_minute_rate(), mManageOfferOps.one_minute_rate(),
                mSorobanUploadTxs.one_minute_rate(),
                mSorobanSetupInvokeTxs.one_minute_rate(),
                mSorobanSetupUpgradeTxs.one_minute_rate(),
@@ -1571,9 +1411,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     // Record tx metrics.
     switch (mode)
     {
-    case LoadGenMode::CREATE:
-        txm.mAccountCreated.Mark(txf->getNumOperations());
-        break;
     case LoadGenMode::PAY:
     case LoadGenMode::PAY_PREGENERATED:
         txm.mNativePayment.Mark(txf->getNumOperations());
@@ -1771,16 +1608,6 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
 }
 
 GeneratedLoadConfig
-GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate)
-{
-    GeneratedLoadConfig cfg;
-    cfg.mode = LoadGenMode::CREATE;
-    cfg.nAccounts = nAccounts;
-    cfg.txRate = txRate;
-    return cfg;
-}
-
-GeneratedLoadConfig
 GeneratedLoadConfig::createSorobanInvokeSetupLoad(uint32_t nAccounts,
                                                   uint32_t nInstances,
                                                   uint32_t txRate)
@@ -1907,12 +1734,6 @@ GeneratedLoadConfig::setMinSorobanPercentSuccess(uint32_t percent)
         throw std::invalid_argument("percent must be <= 100");
     }
     mMinSorobanPercentSuccess = percent;
-}
-
-bool
-GeneratedLoadConfig::isCreate() const
-{
-    return mode == LoadGenMode::CREATE;
 }
 
 bool
