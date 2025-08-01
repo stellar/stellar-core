@@ -378,18 +378,21 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
     {
         // For upgrade modes, use root account (represented by special ID)
+        uint32_t accounts = cfg.nAccounts;
         if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
             cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
             mAccountsAvailable.insert(TxGenerator::ROOT_ACCOUNT_ID);
-        }
-        else
-        {
-            // Mark all accounts "available" as source accounts
-            for (auto i = 0u; i < cfg.nAccounts; i++)
+            if (accounts)
             {
-                mAccountsAvailable.insert(i + cfg.offset);
+                accounts--;
             }
+        }
+
+        // Mark all accounts "available" as source accounts
+        for (auto i = 0u; i < accounts; i++)
+        {
+            mAccountsAvailable.insert(i + cfg.offset);
         }
 
         if (cfg.modeInvokes())
