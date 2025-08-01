@@ -735,7 +735,7 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
     default:
         emitInconsistencyError("invalid call of SurveyManager::getMsgSummary",
                                "invalid call of SurveyManager::getMsgSummary");
-        return "UNKNOWN";
+        return "SURVEY_UNKNOWN";
     }
     return summary + commandTypeName(commandType);
 }
