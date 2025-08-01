@@ -18,8 +18,11 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include <algorithm>
+#include <map>
 namespace stellar
 {
 namespace
@@ -478,7 +481,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(protocolVersion);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(protocolVersion);
-    cfg.GENESIS_TEST_ACCOUNT_COUNT = 2500;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
     bool isParallelSoroban = protocolVersionStartsFrom(
         cfg.LEDGER_PROTOCOL_VERSION, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
 
@@ -629,8 +632,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             modifySorobanNetworkConfig(
                 *app, [](SorobanNetworkConfig& sorobanCfg) {
-                    sorobanCfg.mLedgerMaxTxCount = 100;
-                    sorobanCfg.mLedgerMaxDependentTxClusters = 5;
+                    sorobanCfg.mLedgerMaxTxCount = 2000;
+                    sorobanCfg.mLedgerMaxDependentTxClusters = 50;
                 });
             auto classicTxs1 = createTxs(3, 1000, false);
             auto classicTxs2 = createTxs(3, 1200, false);
@@ -641,7 +644,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 {1500, classicTxs3}};
             SECTION("single stage, single cluster")
             {
-                auto sorobanTxs = createTxs(10, 1234, true);
+                auto sorobanTxs = createTxs(20, 1234, true);
                 auto ledgerHash =
                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
@@ -678,15 +681,15 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             .phases[1]
                             .parallelTxsComponent()
                             .executionStages[0][0]
-                            .size() == 10);
+                            .size() == 20);
                 checkXdrRoundtrip(txSetXdr);
             }
 
             {
                 INFO("single stage, multiple clusters");
-                auto sorobanTxs1 = createTxs(10, 1234, true);
-                auto sorobanTxs2 = createTxs(5, 2000, true);
-                auto sorobanTxs3 = createTxs(3, 1500, true);
+                auto sorobanTxs1 = createTxs(20, 1234, true);
+                auto sorobanTxs2 = createTxs(15, 2000, true);
+                auto sorobanTxs3 = createTxs(10, 1500, true);
                 auto ledgerHash =
                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
@@ -715,14 +718,14 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 
             {
                 INFO("multiple stages, multiple clusters");
-                auto stage1Txs1 = createTxs(1, 1234, true);
-                auto stage1Txs2 = createTxs(3, 2000, true);
-                auto stage1Txs3 = createTxs(5, 1500, true);
-                auto stage1Txs4 = createTxs(2, 1000, true);
-                auto stage1Txs5 = createTxs(7, 3000, true);
-                auto stage2Txs1 = createTxs(3, 1234, true);
-                auto stage2Txs2 = createTxs(5, 1300, true);
-                auto stage3Txs1 = createTxs(2, 4321, true);
+                auto stage1Txs1 = createTxs(10, 1234, true);
+                auto stage1Txs2 = createTxs(15, 2000, true);
+                auto stage1Txs3 = createTxs(20, 1500, true);
+                auto stage1Txs4 = createTxs(12, 1000, true);
+                auto stage1Txs5 = createTxs(25, 3000, true);
+                auto stage2Txs1 = createTxs(18, 1234, true);
+                auto stage2Txs2 = createTxs(22, 1300, true);
+                auto stage3Txs1 = createTxs(14, 4321, true);
                 auto ledgerHash =
                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
@@ -749,15 +752,20 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
             }
             {
                 INFO("apply order is shuffled");
-                std::vector<std::vector<TxFrameList>> stages(5);
-                for (int stageId = 0; stageId < 5; ++stageId)
+                // each stage has a unique size for id purposes
+                std::vector<std::vector<TxFrameList>> stages(10);
+                for (int stageId = 0; stageId < 10; ++stageId)
                 {
-                    int clusterCount = (stageId + 1) * 4;
+                    // Create stages with unique cluster counts: 3, 5, 7, 9, 11,
+                    // 13, 15, 17, 19, 21
+                    int clusterCount = 3 + stageId * 2;
                     for (int clusterId = 0; clusterId < clusterCount;
                          ++clusterId)
                     {
+                        // Each cluster has a unique number of transactions,
+                        // 50-80
                         stages[stageId].push_back(createTxs(
-                            clusterId + 10,
+                            50 + (stageId + clusterId) % 31,
                             stageId * 1000 + clusterId * 10 + 1000, true));
                     }
                 }
@@ -783,74 +791,96 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 // is very low).
                 // We use source account here for comparison as all the source
                 // accounts are unique.
-                REQUIRE(classicPhaseTxs[1]->getSourceID().ed25519() !=
-                        xdrTxSet.v1TxSet()
-                            .phases[0]
-                            .v0Components()[1]
-                            .txsMaybeDiscountedFee()
-                            .txs[0]
-                            .v1()
-                            .tx.sourceAccount.ed25519());
-
-                auto const& sorobanPhaseTxStages =
-                    applyOrderPhases[static_cast<size_t>(TxSetPhase::SOROBAN)]
-                        .getParallelStages();
-                auto const& xdrStages = xdrTxSet.v1TxSet()
-                                            .phases[1]
-                                            .parallelTxsComponent()
-                                            .executionStages;
-                // Stages must be shuffled relative to each other.
-                bool wasShuffledStage = false;
-                for (int i = 0; i < sorobanPhaseTxStages.size(); ++i)
+                // Check that at least one classic transaction is in a different
+                // position
+                bool foundDifferentOrder = false;
+                size_t txIndex = 0;
+                auto const& components =
+                    xdrTxSet.v1TxSet().phases[0].v0Components();
+                for (auto const& txSetComponent : components)
                 {
-                    if (sorobanPhaseTxStages[i].size() != xdrStages[i].size())
+                    auto const& componentTxs =
+                        txSetComponent.txsMaybeDiscountedFee().txs;
+                    for (size_t i = 0; i < componentTxs.size(); ++i)
                     {
-                        wasShuffledStage = true;
+                        if (txIndex < classicPhaseTxs.size() &&
+                            classicPhaseTxs[txIndex]->getSourceID().ed25519() !=
+                                componentTxs[i].v1().tx.sourceAccount.ed25519())
+                        {
+                            foundDifferentOrder = true;
+                            break;
+                        }
+                        ++txIndex;
+                    }
+
+                    if (foundDifferentOrder)
+                    {
                         break;
                     }
                 }
-                REQUIRE(wasShuffledStage);
+                REQUIRE(foundDifferentOrder);
 
-                for (int i = 0; i < sorobanPhaseTxStages.size(); ++i)
-                {
-                    auto const& stage = sorobanPhaseTxStages[i];
-                    bool found = false;
-                    for (int j = 0; j < xdrStages.size(); ++j)
+                auto const& shuffledStages = xdrTxSet.v1TxSet()
+                                                 .phases[1]
+                                                 .parallelTxsComponent()
+                                                 .executionStages;
+
+                // Return a vector of the total number of transactions in each
+                // stage. This is basically just a vector of IDs for each stage
+                // in order.
+                auto calcStageSizes = [](auto const& stageList) {
+                    std::vector<size_t> sizes;
+                    for (auto const& stage : stageList)
                     {
-                        if (xdrStages[j].size() != stage.size())
-                        {
-                            continue;
-                        }
-                        found = true;
-                        for (int clusterId = 0; clusterId < stage.size();
-                             ++clusterId)
-                        {
-                            // Clusters are not shuffled within the stage.
-                            REQUIRE(xdrStages[j][clusterId].size() ==
-                                    stage[clusterId].size());
-                            // But the transactions must be shuffled within the
-                            // cluster.
-                            bool wasNonMatchingTx = false;
-                            for (int txId = 0; txId < stage[clusterId].size();
-                                 ++txId)
-                            {
-                                if (xdrStages[j][clusterId][txId]
-                                        .v1()
-                                        .tx.sourceAccount.ed25519() !=
-                                    stage[clusterId][txId]
-                                        ->getSourceID()
-                                        .ed25519())
-                                {
-                                    wasNonMatchingTx = true;
-                                    break;
-                                }
-                            }
-                            REQUIRE(wasNonMatchingTx);
-                        }
-                        break;
+                        size_t total = 0;
+                        for (auto const& cluster : stage)
+                            total += cluster.size();
+                        sizes.push_back(total);
                     }
-                    REQUIRE(found);
-                }
+                    return sizes;
+                };
+
+                // Check that stages are shuffled
+                auto originalStageSizes = calcStageSizes(stages);
+                auto shuffledStageSizes = calcStageSizes(shuffledStages);
+                REQUIRE(originalStageSizes.size() == shuffledStageSizes.size());
+                REQUIRE(originalStageSizes != shuffledStageSizes);
+
+                // Check transaction-level shuffling within a randomly
+                // selected cluster
+                auto& randomStage = rand_element(stages);
+                auto& selectedOriginalCluster = rand_element(randomStage);
+
+                // Find corresponding shuffled stage by its size
+                size_t stageIdx = std::distance(
+                    stages.begin(),
+                    std::find(stages.begin(), stages.end(), randomStage));
+                auto stageIt = std::find(shuffledStageSizes.begin(),
+                                         shuffledStageSizes.end(),
+                                         originalStageSizes[stageIdx]);
+                REQUIRE(stageIt != shuffledStageSizes.end());
+                auto const& shuffledStage =
+                    shuffledStages[stageIt - shuffledStageSizes.begin()];
+
+                // Find matching cluster by size (each cluster has unique size)
+                auto clusterIt = std::find_if(
+                    shuffledStage.begin(), shuffledStage.end(),
+                    [&](auto const& cluster) {
+                        return cluster.size() == selectedOriginalCluster.size();
+                    });
+                REQUIRE(clusterIt != shuffledStage.end());
+                auto const& selectedShuffledCluster = *clusterIt;
+
+                // Verify at least one transaction is shuffled
+                auto mismatchPair = std::mismatch(
+                    selectedOriginalCluster.begin(),
+                    selectedOriginalCluster.end(),
+                    selectedShuffledCluster.begin(),
+                    [](auto const& original, auto const& shuffled) {
+                        return original->getSourceID().ed25519() ==
+                               shuffled.v1().tx.sourceAccount.ed25519();
+                    });
+                REQUIRE(mismatchPair.first != selectedOriginalCluster.end());
             }
             modifySorobanNetworkConfig(*app,
                                        [&](SorobanNetworkConfig& sorobanCfg) {

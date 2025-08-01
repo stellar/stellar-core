@@ -2731,7 +2731,7 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
 {
     auto runTest = [&](Config cfg) {
         VirtualClock clock;
-        cfg.ENTRY_CACHE_SIZE = 1000;
+        cfg.ENTRY_CACHE_SIZE = 100;
         cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
 
         UnorderedSet<LedgerKey> keysToPrefetch;
