@@ -74,11 +74,31 @@ peerStatsToJson(PeerStats const& peer)
     return peerInfo;
 }
 
+// Quick checks that we have something that looks like an iterable of
+// TimeSlicedPeerData
+template <typename, typename = std::void_t<>>
+struct IsPeerList : std::false_type
+{
+};
+
+template <typename T>
+struct IsPeerList<
+    T, std::enable_if_t<std::conjunction_v<
+           std::is_same<typename std::iterator_traits<decltype(std::begin(
+                            std::declval<T&>()))>::value_type,
+                        TimeSlicedPeerData>,
+           std::is_same<typename std::iterator_traits<decltype(std::end(
+                            std::declval<T&>()))>::value_type,
+                        TimeSlicedPeerData>>>> : std::true_type
+{
+};
+
 // Generate JSON for each peer in `peerList` and append to `jsonResultList`
 template <typename T>
 void
 recordTimeSlicedLinkResults(Json::Value& jsonResultList, T const& peerList)
 {
+    static_assert(IsPeerList<T>());
     for (auto const& peer : peerList)
     {
         Json::Value peerInfo = peerStatsToJson(peer.peerStats);
@@ -93,6 +113,7 @@ static void
 populatePeerResults(Json::Value& results, TimeSlicedNodeData const& node,
                     T const& inboundPeers, T const& outboundPeers)
 {
+    static_assert(IsPeerList<T>());
     // Fill in node data
     results["addedAuthenticatedPeers"] = node.addedAuthenticatedPeers;
     results["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
