@@ -20,6 +20,23 @@ namespace stellar
 
 uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
 
+// Function to call when something has gone wrong. Throws an exception with
+// exceptionMessage in testing, otherwise logs an error (errorMessage) and a
+// note to report the bug.
+template <typename... Ts>
+static void
+emitInconsistencyError(const char* exceptionMessage,
+                       std::string_view errorMessage, Ts... errorExtra)
+{
+    static_assert(std::conjunction_v<std::is_same<std::string_view, Ts>...>);
+#ifdef BUILD_TESTS
+    throw std::runtime_error(exceptionMessage);
+#else
+    CLOG_ERROR(Overlay, errorMessage, errorExtra...);
+    CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+#endif
+}
+
 namespace
 {
 // Generate JSON for a single peer
@@ -57,17 +74,63 @@ peerStatsToJson(PeerStats const& peer)
     return peerInfo;
 }
 
-// Generate JSON for each peer in `peerList` and append to `jsonResultList`
-void
-recordTimeSlicedLinkResults(Json::Value& jsonResultList,
-                            TimeSlicedPeerDataList const& peerList)
+// Quick checks that we have something that looks like an iterable of
+// TimeSlicedPeerData
+template <typename, typename = std::void_t<>>
+struct IsPeerList : std::false_type
 {
+};
+
+template <typename T>
+struct IsPeerList<
+    T, std::enable_if_t<std::conjunction_v<
+           std::is_same<typename std::iterator_traits<decltype(std::begin(
+                            std::declval<T&>()))>::value_type,
+                        TimeSlicedPeerData>,
+           std::is_same<typename std::iterator_traits<decltype(std::end(
+                            std::declval<T&>()))>::value_type,
+                        TimeSlicedPeerData>>>> : std::true_type
+{
+};
+
+// Generate JSON for each peer in `peerList` and append to `jsonResultList`
+template <typename T>
+void
+recordTimeSlicedLinkResults(Json::Value& jsonResultList, T const& peerList)
+{
+    static_assert(IsPeerList<T>());
     for (auto const& peer : peerList)
     {
         Json::Value peerInfo = peerStatsToJson(peer.peerStats);
         peerInfo["averageLatencyMs"] = peer.averageLatencyMs;
         jsonResultList.append(peerInfo);
     }
+}
+
+// Populate results with the values of the other parameters
+template <typename T>
+static void
+populatePeerResults(Json::Value& results, TimeSlicedNodeData const& node,
+                    T const& inboundPeers, T const& outboundPeers)
+{
+    static_assert(IsPeerList<T>());
+    // Fill in node data
+    results["addedAuthenticatedPeers"] = node.addedAuthenticatedPeers;
+    results["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
+    results["numTotalInboundPeers"] = node.totalInboundPeerCount;
+    results["numTotalOutboundPeers"] = node.totalOutboundPeerCount;
+    results["p75SCPFirstToSelfLatencyMs"] = node.p75SCPFirstToSelfLatencyMs;
+    results["p75SCPSelfToOtherLatencyMs"] = node.p75SCPSelfToOtherLatencyMs;
+    results["lostSyncCount"] = node.lostSyncCount;
+    results["isValidator"] = node.isValidator;
+    results["maxInboundPeerCount"] = node.maxInboundPeerCount;
+    results["maxOutboundPeerCount"] = node.maxOutboundPeerCount;
+
+    // Fill in link data
+    auto& inboundResults = results["inboundPeers"];
+    auto& outboundResults = results["outboundPeers"];
+    recordTimeSlicedLinkResults(inboundResults, inboundPeers);
+    recordTimeSlicedLinkResults(outboundResults, outboundPeers);
 }
 
 // We just need a rough estimate of the close time, so use the default starting
@@ -118,6 +181,24 @@ SurveyManager::startSurveyReporting()
     // results are only cleared when we start the NEXT survey so we can query
     // the results  after the survey closes
     mResults.clear();
+
+    // Add surveying node's data to results
+    auto& node = mSurveyDataManager.getFinalNodeData();
+    if (node.has_value())
+    {
+        auto& results = mResults["topology"][KeyUtils::toStrKey(
+            mApp.getConfig().NODE_SEED.getPublicKey())];
+        populatePeerResults(results, node.value(),
+                            mSurveyDataManager.getFinalInboundPeerData(),
+                            mSurveyDataManager.getFinalOutboundPeerData());
+    }
+    else
+    {
+        emitInconsistencyError(
+            "in startSurveyReporting, final node data was empty",
+            "When startSurveyReporting was called, the surveying node didn't "
+            "have finalized surveying data.");
+    }
     mBadResponseNodes.clear();
 
     // queued peers are only cleared when we start the NEXT survey so we know
@@ -314,16 +395,12 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
 {
     if (!mRunningSurveyReportingPhase)
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("addNodeToRunningSurveyBacklog failed");
-#else
-        CLOG_ERROR(Overlay,
-                   "Cannot add node {} to survey backlog because survey is not "
-                   "running",
-                   KeyUtils::toStrKey(nodeToSurvey));
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        emitInconsistencyError(
+            "addNodeToRunningSurveyBacklog failed",
+            "Cannot add node {} to survey backlog because survey is not "
+            "running",
+            std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
         return;
-#endif
     }
 
     addPeerToBacklog(nodeToSurvey);
@@ -550,25 +627,8 @@ SurveyManager::processTimeSlicedTopologyResponse(NodeID const& surveyedPeerID,
     // SURVEY_TOPOLOGY_RESPONSE_V2 is the only type of survey
     // response remaining in the XDR union for SurveyResponseBody
     TopologyResponseBodyV2 const& topologyBody = body.topologyResponseBodyV2();
-
-    // Fill in node data
-    TimeSlicedNodeData const& node = topologyBody.nodeData;
-    peerResults["addedAuthenticatedPeers"] = node.addedAuthenticatedPeers;
-    peerResults["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
-    peerResults["numTotalInboundPeers"] = node.totalInboundPeerCount;
-    peerResults["numTotalOutboundPeers"] = node.totalOutboundPeerCount;
-    peerResults["p75SCPFirstToSelfLatencyMs"] = node.p75SCPFirstToSelfLatencyMs;
-    peerResults["p75SCPSelfToOtherLatencyMs"] = node.p75SCPSelfToOtherLatencyMs;
-    peerResults["lostSyncCount"] = node.lostSyncCount;
-    peerResults["isValidator"] = node.isValidator;
-    peerResults["maxInboundPeerCount"] = node.maxInboundPeerCount;
-    peerResults["maxOutboundPeerCount"] = node.maxOutboundPeerCount;
-
-    // Fill in link data
-    auto& inboundResults = peerResults["inboundPeers"];
-    auto& outboundResults = peerResults["outboundPeers"];
-    recordTimeSlicedLinkResults(inboundResults, topologyBody.inboundPeers);
-    recordTimeSlicedLinkResults(outboundResults, topologyBody.outboundPeers);
+    populatePeerResults(peerResults, topologyBody.nodeData,
+                        topologyBody.inboundPeers, topologyBody.outboundPeers);
 }
 
 bool
@@ -694,8 +754,9 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
     case TIME_SLICED_SURVEY_STOP_COLLECTING:
         return "TIME_SLICED_SURVEY_STOP_COLLECTING";
     default:
-        throw std::runtime_error(
-            "invalid call of SurveyManager::getMsgSummary");
+        emitInconsistencyError("invalid call of SurveyManager::getMsgSummary",
+                               "invalid call of SurveyManager::getMsgSummary");
+        return "SURVEY_UNKNOWN";
     }
     return summary + commandTypeName(commandType);
 }
@@ -722,17 +783,12 @@ SurveyManager::topOffRequests()
     {
         if (mPeersToSurveyQueue.empty())
         {
-#ifdef BUILD_TESTS
-            throw std::runtime_error("mPeersToSurveyQueue unexpectedly empty");
-#else
-            CLOG_ERROR(
-                Overlay,
+            emitInconsistencyError(
+                "mPeersToSurveyQueue unexpectedly empty",
                 "mPeersToSurveyQueue is empty, but mPeersToSurvey is not");
-            CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
             mPeersToSurvey.clear();
             stopSurveyReporting();
             return;
-#endif
         }
         auto key = mPeersToSurveyQueue.front();
         mPeersToSurvey.erase(key);
@@ -769,17 +825,14 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("addPeerToBacklog failed: Peer is already in "
-                                 "the backlog, or peer is self.");
-#else
-        CLOG_ERROR(Overlay,
-                   "Tried to add node {} to survey backlog, but it is already "
-                   "queued or is the self node",
-                   KeyUtils::toStrKey(nodeToSurvey));
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        emitInconsistencyError(
+            "addPeerToBacklog failed: Peer is already in "
+            "the backlog, or peer is self.",
+
+            "Tried to add node {} to survey backlog, but it is already "
+            "queued or is the self node",
+            std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
         return;
-#endif
     }
 
     mBadResponseNodes.erase(nodeToSurvey);
