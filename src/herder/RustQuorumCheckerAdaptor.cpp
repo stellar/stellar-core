@@ -489,7 +489,7 @@ runQuorumIntersectionCheckAsync(
     out.close();
     size_t numNodes = qmap.size();
 
-    // we propagate the logging level of partition "SCP" beacuse that's the
+    // we propagate the logging level of partition "SCP" because that's the
     // level which the quorum checker is assigned under. this means the
     // subprocess will be globally logging at this level.
     std::string exe = std::string(rust_bridge::current_exe());
