@@ -306,17 +306,17 @@ SurveyDataManager::fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
 }
 
 std::optional<TimeSlicedNodeData> const&
-SurveyDataManager::getFinalNodeData()
+SurveyDataManager::getFinalNodeData() const
 {
     return mFinalNodeData;
 }
 std::vector<TimeSlicedPeerData> const&
-SurveyDataManager::getFinalInboundPeerData()
+SurveyDataManager::getFinalInboundPeerData() const
 {
     return mFinalInboundPeerData;
 }
 std::vector<TimeSlicedPeerData> const&
-SurveyDataManager::getFinalOutboundPeerData()
+SurveyDataManager::getFinalOutboundPeerData() const
 {
     return mFinalOutboundPeerData;
 }
