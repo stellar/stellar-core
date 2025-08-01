@@ -139,7 +139,9 @@ class SurveySimulation:
         inbound_peer_idx = params["inboundpeerindex"]
         outbound_peer_idx = params["outboundpeerindex"]
         if node == self._root_node:
-            # Nodes cannot survey themselves (yet)
+            # Nodes cannot request a survey from themselves (but, the surveying
+            # node's data gets auto-included on the first call to
+            # surveytopologytimesliced)
             return fail_response
 
         if ((inbound_peer_idx > 0 or outbound_peer_idx > 0) and
