@@ -20,6 +20,23 @@ namespace stellar
 
 uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
 
+// Function to call when something has gone wrong. Throws an exception with
+// exceptionMessage in testing, otherwise logs an error (errorMessage) and a
+// note to report the bug.
+template <typename... Ts>
+static void
+emitInconsistencyError(const char* exceptionMessage,
+                       std::string_view errorMessage, Ts... errorExtra)
+{
+    static_assert(std::conjunction_v<std::is_same<std::string_view, Ts>...>);
+#ifdef BUILD_TESTS
+    throw std::runtime_error(exceptionMessage);
+#else
+    CLOG_ERROR(Overlay, errorMessage, errorExtra...);
+    CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+#endif
+}
+
 namespace
 {
 // Generate JSON for a single peer
@@ -143,6 +160,8 @@ SurveyManager::startSurveyReporting()
     // results are only cleared when we start the NEXT survey so we can query
     // the results  after the survey closes
     mResults.clear();
+
+    // Add surveying node's data to results
     auto& node = mSurveyDataManager.getFinalNodeData();
     if (node.has_value())
     {
@@ -151,6 +170,13 @@ SurveyManager::startSurveyReporting()
         populatePeerResults(results, node.value(),
                             mSurveyDataManager.getFinalInboundPeerData(),
                             mSurveyDataManager.getFinalOutboundPeerData());
+    }
+    else
+    {
+        emitInconsistencyError(
+            "in startSurveyReporting, final node data was empty",
+            "When startSurveyReporting was called, the surveying node didn't "
+            "have finalized surveying data.");
     }
     mBadResponseNodes.clear();
 
@@ -348,16 +374,12 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
 {
     if (!mRunningSurveyReportingPhase)
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("addNodeToRunningSurveyBacklog failed");
-#else
-        CLOG_ERROR(Overlay,
-                   "Cannot add node {} to survey backlog because survey is not "
-                   "running",
-                   KeyUtils::toStrKey(nodeToSurvey));
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        emitInconsistencyError(
+            "addNodeToRunningSurveyBacklog failed",
+            "Cannot add node {} to survey backlog because survey is not "
+            "running",
+            std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
         return;
-#endif
     }
 
     addPeerToBacklog(nodeToSurvey);
@@ -739,17 +761,12 @@ SurveyManager::topOffRequests()
     {
         if (mPeersToSurveyQueue.empty())
         {
-#ifdef BUILD_TESTS
-            throw std::runtime_error("mPeersToSurveyQueue unexpectedly empty");
-#else
-            CLOG_ERROR(
-                Overlay,
+            emitInconsistencyError(
+                "mPeersToSurveyQueue unexpectedly empty",
                 "mPeersToSurveyQueue is empty, but mPeersToSurvey is not");
-            CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
             mPeersToSurvey.clear();
             stopSurveyReporting();
             return;
-#endif
         }
         auto key = mPeersToSurveyQueue.front();
         mPeersToSurvey.erase(key);
@@ -786,17 +803,14 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("addPeerToBacklog failed: Peer is already in "
-                                 "the backlog, or peer is self.");
-#else
-        CLOG_ERROR(Overlay,
-                   "Tried to add node {} to survey backlog, but it is already "
-                   "queued or is the self node",
-                   KeyUtils::toStrKey(nodeToSurvey));
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        emitInconsistencyError(
+            "addPeerToBacklog failed: Peer is already in "
+            "the backlog, or peer is self.",
+
+            "Tried to add node {} to survey backlog, but it is already "
+            "queued or is the self node",
+            std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
         return;
-#endif
     }
 
     mBadResponseNodes.erase(nodeToSurvey);
