@@ -130,7 +130,6 @@ SurveyManager::SurveyManager(Application& app)
 {
 }
 
-// returns false iff the survey was already reporting
 bool
 SurveyManager::startSurveyReporting()
 {
