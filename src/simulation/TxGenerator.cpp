@@ -82,6 +82,16 @@ TxGenerator::updateMinBalance()
     }
 }
 
+bool
+TxGenerator::isLive(LedgerKey const& lk, uint32_t ledgerNum) const
+{
+    LedgerSnapshot lsg(mApp);
+    auto ttlEntryPtr = lsg.load(getTTLKey(lk));
+
+    return ttlEntryPtr &&
+           ttlEntryPtr.current().data.ttl().liveUntilLedgerSeq >= ledgerNum;
+}
+
 int
 TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
                          size_t opsCnt)
@@ -336,6 +346,30 @@ TxGenerator::createContractTransaction(
         makeWasmExecutable(codeKey.contractCode().hash), createResources,
         generateFee(maxGeneratedFeeRate,
                     /* opsCnt */ 1));
+
+    return std::make_pair(account, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::createSACTransaction(uint32_t ledgerNum,
+                                  std::optional<uint64_t> accountId,
+                                  Asset const& asset,
+                                  std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto account =
+        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    SorobanResources createResources{};
+    createResources.instructions = 1'000'000;
+    createResources.diskReadBytes = 200;
+    createResources.writeBytes = 300;
+
+    auto contractIDPreimage = makeContractIDPreimage(asset);
+
+    auto tx =
+        makeSorobanCreateContractTx(mApp, *account, contractIDPreimage,
+                                    makeAssetExecutable(asset), createResources,
+                                    generateFee(maxGeneratedFeeRate,
+                                                /* opsCnt */ 1));
 
     return std::make_pair(account, tx);
 }
@@ -720,6 +754,106 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         archivedIndexes.empty() ? std::nullopt
                                 : std::make_optional(archivedIndexes));
     return std::make_pair(account, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
+                              SCAddress const& toAddress,
+                              ContractInstance const& instance, uint64_t amount,
+                              std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto fromAccount = findAccount(fromAccountId, ledgerNum);
+    fromAccount->loadSequenceNumber();
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAccount->getPublicKey());
+
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddress;
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = instance.contractID;
+    ihf.invokeContract().functionName = "transfer";
+
+    ihf.invokeContract().args = {fromVal, toVal, makeI128(amount)};
+
+    SorobanResources resources;
+    // These are overestimated
+    resources.writeBytes = 800;
+    resources.diskReadBytes = 800;
+    resources.instructions = 250'000;
+
+    std::vector<uint32_t> archivedEntries;
+    bool autorestore = false;
+    // If the instance has expired, autorestore all keys
+    // The contract invocation will extend the TTL of the contract
+    // and the balance entries, so autorestore is only used in
+    // some edge cases.
+    if (!isLive(instance.readOnlyKeys.back(), ledgerNum))
+    {
+        resources.footprint.readWrite.emplace_back(
+            instance.readOnlyKeys.back());
+        archivedEntries = {0};
+        autorestore = true;
+    }
+    else
+    {
+        resources.footprint.readOnly = instance.readOnlyKeys;
+    }
+
+    LedgerKey fromKey(ACCOUNT);
+    fromKey.account().accountID = fromAccount->getPublicKey();
+    resources.footprint.readWrite.emplace_back(fromKey);
+
+    if (toAddress.type() == SC_ADDRESS_TYPE_CONTRACT)
+    {
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = instance.contractID;
+
+        balanceKey.contractData().key =
+            makeVecSCVal({makeSymbolSCVal("Balance"), toVal});
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+
+        resources.footprint.readWrite.emplace_back(balanceKey);
+
+        if (autorestore)
+        {
+            archivedEntries.emplace_back(2);
+        }
+    }
+    else if (toAddress.type() == SC_ADDRESS_TYPE_ACCOUNT)
+    {
+        LedgerKey toKey(ACCOUNT);
+        toKey.account().accountID = toAddress.accountId();
+        resources.footprint.readWrite.emplace_back(toKey);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported address type for SAC payment");
+    }
+
+    SorobanAuthorizedInvocation invocation;
+    invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    invocation.function.contractFn() =
+        op.body.invokeHostFunctionOp().hostFunction.invokeContract();
+
+    SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    op.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    auto resourceFee =
+        sorobanResourceFee(mApp, resources, 350, 200, archivedEntries);
+    resourceFee += 1'000'000;
+
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *fromAccount, {op}, {}, resources,
+        generateFee(maxGeneratedFeeRate,
+                    /* opsCnt */ 1),
+        resourceFee, std::nullopt, std::nullopt, archivedEntries);
+    return std::make_pair(fromAccount, tx);
 }
 
 std::map<uint64_t, TxGenerator::TestAccountPtr> const&

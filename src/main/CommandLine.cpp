@@ -1867,14 +1867,20 @@ applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
             mode = ApplyLoadMode::CLASSIC;
             return "";
         }
+        if (iequals(modeArg, "mix"))
+        {
+            mode = ApplyLoadMode::MIX;
+            return "";
+        }
         return "Unrecognized apply-load mode. Please select 'soroban' or "
-               "'classic'.";
+               "'classic' or 'mix'.";
     };
 
-    return {clara::Opt{modeArg, "MODE"}["--mode"](
-                "set the apply-load mode. Expected modes: soroban, classic. "
-                "Defaults to soroban."),
-            validateMode};
+    return {
+        clara::Opt{modeArg, "MODE"}["--mode"](
+            "set the apply-load mode. Expected modes: soroban, classic, mix. "
+            "Defaults to soroban."),
+        validateMode};
 }
 
 int
@@ -1934,7 +1940,13 @@ runApplyLoad(CommandLineArgs const& args)
                      "ledger-cpu-insns-ratio-excl-vm"});
                 ledgerCpuInsRatioExclVm.Clear();
 
-                for (size_t i = 0; i < ApplyLoad::APPLY_LOAD_LEDGERS; ++i)
+                if (config.APPLY_LOAD_NUM_LEDGERS == 0)
+                {
+                    throw std::runtime_error(
+                        "APPLY_LOAD_NUM_LEDGERS must be greater than 0");
+                }
+
+                for (size_t i = 0; i < config.APPLY_LOAD_NUM_LEDGERS; ++i)
                 {
                     app.getBucketManager()
                         .getLiveBucketList()

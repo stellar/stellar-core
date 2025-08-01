@@ -544,7 +544,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               ParallelSorobanOrder const& parallelSorobanOrder)
 {
     // Ensure that parallelSorobanOrder is only used with strictOrder
-    REQUIRE((parallelSorobanOrder.empty() || strictOrder));
+    releaseAssert((parallelSorobanOrder.empty() || strictOrder));
 
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
