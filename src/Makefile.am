@@ -129,10 +129,20 @@ RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
+
+# Of course, RUST_PROFILE can't be used as an argument directly because cargo
+# doesn't let you pass --debug, that's the default! you can only pass --release.
+# So we have to derive a new variable here.
+RUST_PROFILE_ARG := $(if $(findstring release,$(RUST_PROFILE)),--release,)
+
+# Also for even more nonsense reasons the debug profile name is actually `dev`
+# but only in the command line, the target subdirectory gets called `debug`.
+RUST_PROFILE_DIR := $(if $(findstring release,$(RUST_PROFILE)),release,debug)
+
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
 SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
 RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_DEP_TREE_STAMP)
-LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
+LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
@@ -178,7 +188,7 @@ endif
 SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
 
 define soroban_lib_dir
-$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE)' $(1))
+$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
 endef
 
 define soroban_rlib
@@ -226,11 +236,6 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLC
 		fi; \
 	done
 	touch $@
-
-# Of course, RUST_PROFILE can't be used as an argument directly because cargo
-# doesn't let you pass --debug, that's the default! you can only pass --release.
-# So we have to derive a new variable here.
-RUST_PROFILE_ARG := $(if $(findstring release,$(RUST_PROFILE)),--release,)
 
 # This next build command looks a little weird but it's necessary. We have to
 # provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
