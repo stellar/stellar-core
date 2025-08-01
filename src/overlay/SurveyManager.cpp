@@ -733,8 +733,9 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
     case TIME_SLICED_SURVEY_STOP_COLLECTING:
         return "TIME_SLICED_SURVEY_STOP_COLLECTING";
     default:
-        throw std::runtime_error(
-            "invalid call of SurveyManager::getMsgSummary");
+        emitInconsistencyError("invalid call of SurveyManager::getMsgSummary",
+                               "invalid call of SurveyManager::getMsgSummary");
+        return "UNKNOWN";
     }
     return summary + commandTypeName(commandType);
 }
