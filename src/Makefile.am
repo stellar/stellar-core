@@ -130,6 +130,12 @@ RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
 
+check-rust-profile: Makefile
+	@case "$(RUST_PROFILE)" in \
+		release|dev) ;; \
+		*) echo "Error: RUST_PROFILE must be 'release' or 'dev', got '$(RUST_PROFILE)'" >&2; exit 1;; \
+	esac
+
 # Of course, RUST_PROFILE can't be used as an argument directly because cargo
 # doesn't let you pass --debug, that's the default! you can only pass --release.
 # So we have to derive a new variable here.
@@ -207,7 +213,7 @@ ALL_SOROBAN_LIBS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_rlib,$(
 ALL_SOROBAN_EXTERN_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_extern_flag,$(proto)))
 ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_depend_flag,$(proto)))
 
-$(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
+$(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE) check-rust-profile
 	mkdir -p $(RUST_BIN_DIR)
 	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
