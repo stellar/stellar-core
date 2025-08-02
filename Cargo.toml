@@ -5,3 +5,10 @@ members = ["src/rust"]
 [profile.release]
 codegen-units = 1
 lto = true
+# Note: setting debug=true here is only going to cause debuginfo to be
+# generated for polymorphic functions inlined from sub-crates and/or
+# functions defined in the top-level rust crate, not the soroban sub
+# crates. They need to have debug=true set in their Cargo.toml files
+# (or you can build with `make RUST_PROFILE=dev` to get them built with
+# debug-and-no-opt).
+debug = true
