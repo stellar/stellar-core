@@ -6623,7 +6623,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     {
         simulation = Topologies::core(
             3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+                auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
                 return cfg;
             });
