@@ -10,6 +10,7 @@
 #include "main/ErrorMessages.h"
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/ReportError.h"
 #include "overlay/SurveyDataManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -19,23 +20,6 @@ namespace stellar
 {
 
 uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
-
-// Function to call when something has gone wrong. Throws an exception with
-// exceptionMessage in testing, otherwise logs an error (errorMessage) and a
-// note to report the bug.
-template <typename... Ts>
-static void
-emitInconsistencyError(const char* exceptionMessage,
-                       std::string_view errorMessage, Ts... errorExtra)
-{
-    static_assert(std::conjunction_v<std::is_same<std::string_view, Ts>...>);
-#ifdef BUILD_TESTS
-    throw std::runtime_error(exceptionMessage);
-#else
-    CLOG_ERROR(Overlay, errorMessage, errorExtra...);
-    CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
-#endif
-}
 
 namespace
 {
@@ -194,7 +178,7 @@ SurveyManager::startSurveyReporting()
     }
     else
     {
-        emitInconsistencyError(
+        reportError(
             "in startSurveyReporting, final node data was empty",
             "When startSurveyReporting was called, the surveying node didn't "
             "have finalized surveying data.");
@@ -395,7 +379,7 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
 {
     if (!mRunningSurveyReportingPhase)
     {
-        emitInconsistencyError(
+        reportError(
             "addNodeToRunningSurveyBacklog failed",
             "Cannot add node {} to survey backlog because survey is not "
             "running",
@@ -754,8 +738,8 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
     case TIME_SLICED_SURVEY_STOP_COLLECTING:
         return "TIME_SLICED_SURVEY_STOP_COLLECTING";
     default:
-        emitInconsistencyError("invalid call of SurveyManager::getMsgSummary",
-                               "invalid call of SurveyManager::getMsgSummary");
+        reportError("invalid call of SurveyManager::getMsgSummary",
+                    "invalid call of SurveyManager::getMsgSummary");
         return "SURVEY_UNKNOWN";
     }
     return summary + commandTypeName(commandType);
@@ -783,7 +767,7 @@ SurveyManager::topOffRequests()
     {
         if (mPeersToSurveyQueue.empty())
         {
-            emitInconsistencyError(
+            reportError(
                 "mPeersToSurveyQueue unexpectedly empty",
                 "mPeersToSurveyQueue is empty, but mPeersToSurvey is not");
             mPeersToSurvey.clear();
@@ -825,13 +809,12 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-        emitInconsistencyError(
-            "addPeerToBacklog failed: Peer is already in "
-            "the backlog, or peer is self.",
+        reportError("addPeerToBacklog failed: Peer is already in "
+                    "the backlog, or peer is self.",
 
-            "Tried to add node {} to survey backlog, but it is already "
-            "queued or is the self node",
-            std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
+                    "Tried to add node {} to survey backlog, but it is already "
+                    "queued or is the self node",
+                    std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
         return;
     }
 
