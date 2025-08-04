@@ -422,7 +422,7 @@ SurveyDataManager::emitInconsistencyError(std::string const& where)
                     where + "`.",
                 "Encountered inconsistent survey data while executing "
                 "`{}`. Resetting survey state.",
-                std::string_view{where});
+                where);
 
     reset();
 }

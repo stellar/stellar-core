@@ -383,7 +383,7 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
             "addNodeToRunningSurveyBacklog failed",
             "Cannot add node {} to survey backlog because survey is not "
             "running",
-            std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
+            KeyUtils::toStrKey(nodeToSurvey));
         return;
     }
 
@@ -814,7 +814,7 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
 
                     "Tried to add node {} to survey backlog, but it is already "
                     "queued or is the self node",
-                    std::string_view{KeyUtils::toStrKey(nodeToSurvey)});
+                    KeyUtils::toStrKey(nodeToSurvey));
         return;
     }
 
