@@ -5,6 +5,7 @@
 #include "crypto/Curve25519.h"
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/ReportError.h"
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "simulation/Simulation.h"
