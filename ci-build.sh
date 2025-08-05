@@ -78,7 +78,7 @@ hash -r
 if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
     # Use CLANG_VERSION environment variable if set, otherwise default to 12
-    CLANG_VER=${CLANG_VERSION:-12}
+    CLANG_VER=${CLANG_VERSION:-15}
     which clang-${CLANG_VER}
     ln -s `which clang-${CLANG_VER}` bin/clang
     which clang++-${CLANG_VER}
@@ -152,7 +152,7 @@ then
 fi
 
 date
-time make -j$(($NPROCS + 1))
+time make -j$(($NPROCS - 1))
 
 ccache -s
 ### incrementally purge old content from cargo source cache and target directory
