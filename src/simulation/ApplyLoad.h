@@ -71,8 +71,10 @@ class ApplyLoad
     LedgerKey mUpgradeInstanceKey;
 
     LedgerKey mLoadCodeKey;
+    // Used to generate soroban load transactions
     TxGenerator::ContractInstance mLoadInstance;
-    TxGenerator::ContractInstance mXLMInstance;
+    // Used to generate XLM payments
+    TxGenerator::ContractInstance mSACInstanceXLM;
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 

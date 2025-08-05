@@ -200,7 +200,10 @@ ApplyLoad::setup()
 
         setupLoadContract();
 
-        setupXLMContract();
+        if (mMode == ApplyLoadMode::MIX)
+        {
+            setupXLMContract();
+        }
     }
     else
     {
@@ -394,10 +397,10 @@ ApplyLoad::setupXLMContract()
     auto instanceKey =
         createTx.second->sorobanResources().footprint.readWrite.back();
 
-    mXLMInstance.readOnlyKeys.emplace_back(instanceKey);
-    mXLMInstance.contractID = instanceKey.contractData().contract;
-    mXLMInstance.contractEntriesSize =
-        footprintSize(mApp, mXLMInstance.readOnlyKeys);
+    mSACInstanceXLM.readOnlyKeys.emplace_back(instanceKey);
+    mSACInstanceXLM.contractID = instanceKey.contractData().contract;
+    mSACInstanceXLM.contractEntriesSize =
+        footprintSize(mApp, mSACInstanceXLM.readOnlyKeys);
 }
 
 void
@@ -631,21 +634,27 @@ ApplyLoad::benchmark()
         }
         else
         {
-            if (it->first % 2 == 0)
+            // We use the transaction index to split the load between:
+            // - classic payments
+            // - SAC payments
+            // - Soroban load transactions
+            // The distribution between classic and Soroban transactions
+            // is not that important because they use separate resource limits.
+            if (it->first % 3 == 0)
             {
                 it->second->loadSequenceNumber();
                 tx = mTxGenerator.paymentTransaction(
                     mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first,
                     1, std::nullopt);
             }
-            else if (it->first % 3 == 0)
+            else if (it->first % 3 == 1)
             {
                 SCAddress toAddress(SC_ADDRESS_TYPE_CONTRACT);
                 toAddress.contractId() = sha256(xdr::xdr_to_opaque(it->first));
 
                 tx = mTxGenerator.invokeSACPayment(
                     lm.getLastClosedLedgerNum() + 1, it->first, toAddress,
-                    mXLMInstance, 100, 1'000'000);
+                    mSACInstanceXLM, 100, 1'000'000);
             }
             else
             {

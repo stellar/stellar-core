@@ -88,8 +88,7 @@ TxGenerator::isLive(LedgerKey const& lk, uint32_t ledgerNum) const
     LedgerSnapshot lsg(mApp);
     auto ttlEntryPtr = lsg.load(getTTLKey(lk));
 
-    return ttlEntryPtr &&
-           ttlEntryPtr.current().data.ttl().liveUntilLedgerSeq >= ledgerNum;
+    return ttlEntryPtr && stellar::isLive(ttlEntryPtr.current(), ledgerNum);
 }
 
 int
@@ -785,24 +784,7 @@ TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
     resources.writeBytes = 800;
     resources.diskReadBytes = 800;
     resources.instructions = 250'000;
-
-    std::vector<uint32_t> archivedEntries;
-    bool autorestore = false;
-    // If the instance has expired, autorestore all keys
-    // The contract invocation will extend the TTL of the contract
-    // and the balance entries, so autorestore is only used in
-    // some edge cases.
-    if (!isLive(instance.readOnlyKeys.back(), ledgerNum))
-    {
-        resources.footprint.readWrite.emplace_back(
-            instance.readOnlyKeys.back());
-        archivedEntries = {0};
-        autorestore = true;
-    }
-    else
-    {
-        resources.footprint.readOnly = instance.readOnlyKeys;
-    }
+    resources.footprint.readOnly = instance.readOnlyKeys;
 
     LedgerKey fromKey(ACCOUNT);
     fromKey.account().accountID = fromAccount->getPublicKey();
@@ -819,11 +801,6 @@ TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
             ContractDataDurability::PERSISTENT;
 
         resources.footprint.readWrite.emplace_back(balanceKey);
-
-        if (autorestore)
-        {
-            archivedEntries.emplace_back(2);
-        }
     }
     else if (toAddress.type() == SC_ADDRESS_TYPE_ACCOUNT)
     {
@@ -844,15 +821,14 @@ TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
     SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
     op.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
 
-    auto resourceFee =
-        sorobanResourceFee(mApp, resources, 350, 200, archivedEntries);
+    auto resourceFee = sorobanResourceFee(mApp, resources, 350, 200);
     resourceFee += 1'000'000;
 
-    auto tx = sorobanTransactionFrameFromOps(
-        mApp.getNetworkID(), *fromAccount, {op}, {}, resources,
-        generateFee(maxGeneratedFeeRate,
-                    /* opsCnt */ 1),
-        resourceFee, std::nullopt, std::nullopt, archivedEntries);
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *fromAccount,
+                                             {op}, {}, resources,
+                                             generateFee(maxGeneratedFeeRate,
+                                                         /* opsCnt */ 1),
+                                             resourceFee);
     return std::make_pair(fromAccount, tx);
 }
 
