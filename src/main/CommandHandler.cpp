@@ -1187,12 +1187,21 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
         auto modeStr =
-            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
+            parseOptionalParamOrDefault<std::string>(map, "mode", "pay");
         // First check if a current run needs to be stopped
         if (modeStr == "stop")
         {
             mApp.getLoadGenerator().stop();
             retStr = "Stopped load generation";
+            return;
+        }
+
+        // Check for deprecated CREATE mode
+        if (modeStr == "create")
+        {
+            retStr = "DEPRECATED: CREATE mode has been removed. "
+                     "Use GENESIS_TEST_ACCOUNT_COUNT configuration parameter "
+                     "to create test accounts at genesis instead.";
             return;
         }
 
