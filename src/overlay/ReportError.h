@@ -13,7 +13,7 @@
         throw std::runtime_error(exceptionMessage); \
     } while (0)
 #else
-#define reportError(exceptionMessage, errorMessage, ...) \
+#define reportError(exceptionMessage, ...) \
     do \
     { \
         CLOG_ERROR(Overlay, __VA_ARGS__); \
