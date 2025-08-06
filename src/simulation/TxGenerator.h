@@ -141,6 +141,11 @@ class TxGenerator
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    createSACTransaction(uint32_t ledgerNum, std::optional<uint64_t> accountId,
+                         Asset const& asset,
+                         std::optional<uint32_t> maxGeneratedFeeRate);
+
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  TxGenerator::ContractInstance const& instance,
                                  uint64_t contractOverheadBytes,
@@ -152,6 +157,11 @@ class TxGenerator
                                    uint64_t dataEntryCount,
                                    size_t dataEntrySize,
                                    std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
+                     SCAddress const& toAddress,
+                     ContractInstance const& instance, uint64_t amount,
+                     std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
@@ -195,6 +205,7 @@ class TxGenerator
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
 
     void updateMinBalance();
+    bool isLive(LedgerKey const& lk, uint32_t ledgerNum) const;
 
     Application& mApp;
 

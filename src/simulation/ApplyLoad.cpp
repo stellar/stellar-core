@@ -146,8 +146,9 @@ ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
     double avgROEntriesPerTx = totalWeight > 0 ? weightedSum / totalWeight : 0;
 
     // Calculate total expected RO accesses
-    double totalExpectedRestores =
-        avgROEntriesPerTx * cfg.APPLY_LOAD_MAX_TX_COUNT * APPLY_LOAD_LEDGERS;
+    double totalExpectedRestores = avgROEntriesPerTx *
+                                   cfg.APPLY_LOAD_MAX_TX_COUNT *
+                                   cfg.APPLY_LOAD_NUM_LEDGERS;
 
     // Add some generous buffer since actual distributions may vary.
     return totalExpectedRestores * 1.5;
@@ -156,10 +157,12 @@ ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
 ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     : mApp(app)
     , mRoot(app.getRoot())
-    , mNumAccounts(
+    , mNumAccounts(std::max(
           mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
-              mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
-          1)
+                  (mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                   mApp.getConfig().TRANSACTION_QUEUE_SIZE_MULTIPLIER) +
+              2,
+          mApp.getConfig().APPLY_LOAD_NUM_ACCOUNTS))
     , mTotalHotArchiveEntries(
           calculateRequiredHotArchiveEntries(app.getConfig()))
     , mTxCountUtilization(
@@ -189,13 +192,18 @@ ApplyLoad::setup()
 
     setupAccounts();
 
-    if (mMode == ApplyLoadMode::SOROBAN)
+    if (mMode == ApplyLoadMode::SOROBAN || mMode == ApplyLoadMode::MIX)
     {
         setupUpgradeContract();
 
         upgradeSettings();
 
         setupLoadContract();
+
+        if (mMode == ApplyLoadMode::MIX)
+        {
+            setupXLMContract();
+        }
     }
     else
     {
@@ -292,6 +300,8 @@ ApplyLoad::setupUpgradeContract()
 void
 ApplyLoad::upgradeSettings()
 {
+    int64_t currApplySorobanSuccess =
+        mTxGenerator.getApplySorobanSuccess().count();
     auto const& lm = mApp.getLedgerManager();
     auto upgradeConfig = getUpgradeConfig(mApp.getConfig());
     auto upgradeBytes =
@@ -317,6 +327,10 @@ ApplyLoad::upgradeSettings()
     upgrade.push_back(UpgradeType{v.begin(), v.end()});
 
     closeLedger({invokeTx.second}, upgrade);
+
+    releaseAssert(mTxGenerator.getApplySorobanSuccess().count() -
+                      currApplySorobanSuccess ==
+                  1);
 }
 
 void
@@ -362,6 +376,31 @@ ApplyLoad::setupLoadContract()
     mLoadInstance.contractID = instanceKey.contractData().contract;
     mLoadInstance.contractEntriesSize =
         footprintSize(mApp, mLoadInstance.readOnlyKeys);
+}
+
+void
+ApplyLoad::setupXLMContract()
+{
+    int64_t currApplySorobanSuccess =
+        mTxGenerator.getApplySorobanSuccess().count();
+
+    auto createTx = mTxGenerator.createSACTransaction(
+        mApp.getLedgerManager().getLastClosedLedgerNum() + 1, 0,
+        txtest::makeNativeAsset(), std::nullopt);
+    closeLedger({createTx.second});
+
+    releaseAssert(mTxGenerator.getApplySorobanSuccess().count() -
+                      currApplySorobanSuccess ==
+                  1);
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+
+    auto instanceKey =
+        createTx.second->sorobanResources().footprint.readWrite.back();
+
+    mSACInstanceXLM.readOnlyKeys.emplace_back(instanceKey);
+    mSACInstanceXLM.contractID = instanceKey.contractData().contract;
+    mSACInstanceXLM.contractEntriesSize =
+        footprintSize(mApp, mSACInstanceXLM.readOnlyKeys);
 }
 
 void
@@ -587,11 +626,42 @@ ApplyLoad::benchmark()
                 mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
                 std::nullopt);
         }
-        else
+        else if (mMode == ApplyLoadMode::SOROBAN)
         {
             tx = mTxGenerator.invokeSorobanLoadTransactionV2(
                 lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
                 mDataEntryCount, mDataEntrySize, 1'000'000);
+        }
+        else
+        {
+            // We use the transaction index to split the load between:
+            // - classic payments
+            // - SAC payments
+            // - Soroban load transactions
+            // The distribution between classic and Soroban transactions
+            // is not that important because they use separate resource limits.
+            if (it->first % 3 == 0)
+            {
+                it->second->loadSequenceNumber();
+                tx = mTxGenerator.paymentTransaction(
+                    mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first,
+                    1, std::nullopt);
+            }
+            else if (it->first % 3 == 1)
+            {
+                SCAddress toAddress(SC_ADDRESS_TYPE_CONTRACT);
+                toAddress.contractId() = sha256(xdr::xdr_to_opaque(it->first));
+
+                tx = mTxGenerator.invokeSACPayment(
+                    lm.getLastClosedLedgerNum() + 1, it->first, toAddress,
+                    mSACInstanceXLM, 100, 1'000'000);
+            }
+            else
+            {
+                tx = mTxGenerator.invokeSorobanLoadTransactionV2(
+                    lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
+                    mDataEntryCount, mDataEntrySize, 1'000'000);
+            }
         }
 
         {
@@ -605,7 +675,7 @@ ApplyLoad::benchmark()
         uint32_t ledgerVersion = mApp.getLedgerManager()
                                      .getLastClosedLedgerHeader()
                                      .header.ledgerVersion;
-        if (mMode == ApplyLoadMode::SOROBAN)
+        if (tx.second->isSoroban())
         {
             if (!anyGreater(tx.second->getResources(false, ledgerVersion),
                             resources))
@@ -630,7 +700,7 @@ ApplyLoad::benchmark()
                 break;
             }
         }
-        else if (mMode == ApplyLoadMode::CLASSIC)
+        else
         {
             if (!anyGreater(tx.second->getResources(false, ledgerVersion),
                             classicResources))
@@ -649,13 +719,12 @@ ApplyLoad::benchmark()
 
         txs.emplace_back(tx.second);
     }
-
     // If this assert fails, it most likely means that we ran out of
     // accounts, which should not happen.
     releaseAssert(limitHit);
 
     // Only update Soroban-specific metrics in Soroban mode
-    if (mMode == ApplyLoadMode::SOROBAN)
+    if (mMode == ApplyLoadMode::SOROBAN || mMode == ApplyLoadMode::MIX)
     {
         mTxCountUtilization.Update(
             (1.0 - (resources.getVal(Resource::Type::OPERATIONS) * 1.0 /

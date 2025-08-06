@@ -15,14 +15,13 @@ namespace stellar
 enum class ApplyLoadMode
 {
     SOROBAN,
-    CLASSIC
+    CLASSIC,
+    MIX
 };
 
 class ApplyLoad
 {
   public:
-    static constexpr uint32_t APPLY_LOAD_LEDGERS = 100;
-
     ApplyLoad(Application& app, ApplyLoadMode mode = ApplyLoadMode::SOROBAN);
 
     // Fills up a list of transactions with
@@ -62,6 +61,7 @@ class ApplyLoad
     void setupAccounts();
     void setupUpgradeContract();
     void setupLoadContract();
+    void setupXLMContract();
     void setupBucketList();
 
     // Upgrades using mUpgradeConfig
@@ -71,7 +71,10 @@ class ApplyLoad
     LedgerKey mUpgradeInstanceKey;
 
     LedgerKey mLoadCodeKey;
+    // Used to generate soroban load transactions
     TxGenerator::ContractInstance mLoadInstance;
+    // Used to generate XLM payments
+    TxGenerator::ContractInstance mSACInstanceXLM;
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 

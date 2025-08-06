@@ -976,6 +976,8 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 8198;
     cfg.APPLY_LOAD_MAX_TX_COUNT = 50;
 
+    cfg.APPLY_LOAD_NUM_LEDGERS = 100;
+
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 
@@ -1016,7 +1018,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
         {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"});
     declaredInsnsUsageRatio.Clear();
 
-    for (size_t i = 0; i < ApplyLoad::APPLY_LOAD_LEDGERS; ++i)
+    for (size_t i = 0; i < cfg.APPLY_LOAD_NUM_LEDGERS; ++i)
     {
         app->getBucketManager().getLiveBucketList().resolveAllFutures();
         releaseAssert(

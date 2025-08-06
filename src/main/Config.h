@@ -360,7 +360,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // The APPLY_LOAD_* parameters below are for initializing Soroban
     // settings before applying the benchmark transactions.
-    uint32_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;
+    uint64_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;
     uint32_t APPLY_LOAD_TX_MAX_INSTRUCTIONS = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES = 0;
@@ -382,6 +382,9 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_MAX_TX_COUNT = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
+    // A min of APPLY_LOAD_MAX_TX_COUNT * queue size multiplier will be used
+    uint32_t APPLY_LOAD_NUM_ACCOUNTS = 0;
+    uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
 
     // Number of read-only and read-write entries in the apply-load
     // transactions. Every entry will have
