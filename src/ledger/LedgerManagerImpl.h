@@ -242,9 +242,10 @@ class LedgerManagerImpl : public LedgerManager
                                    std::vector<LedgerKey> const& deadEntries,
                                    LedgerHeader const& lh);
 
-        // Note: This is a const getter, but should still only be called in the
+        // Note: These are const getters, but should still only be called in the
         // COMMITTING phase.
         uint64_t getSorobanInMemoryStateSize() const;
+        void reportInMemoryMetrics(SorobanMetrics& metrics) const;
 
         void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
         // Finishes a compilation started by `startCompilingAllContracts`.

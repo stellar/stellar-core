@@ -153,5 +153,6 @@ class LiveBucketIndex : public NonMovableOrCopyable
     bool operator==(LiveBucketIndex const& in) const;
     size_t getMaxCacheSize() const;
 #endif
+    size_t getCurrentCacheSize() const;
 };
 }

@@ -400,6 +400,18 @@ LiveBucketIndex::getMaxCacheSize() const
 }
 #endif
 
+size_t
+LiveBucketIndex::getCurrentCacheSize() const
+{
+    if (shouldUseCache())
+    {
+        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        return mCache->size();
+    }
+
+    return 0;
+}
+
 template LiveBucketIndex::LiveBucketIndex(BucketManager const& bm,
                                           cereal::BinaryInputArchive& ar,
                                           std::streamoff pageSize);
