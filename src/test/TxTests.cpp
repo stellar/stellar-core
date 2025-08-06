@@ -2122,7 +2122,6 @@ TEST_CASE("check paddedTransactionFromOperationsV1 behavior", "")
     std::vector<Operation> ops;
     ops.push_back(txtest::payment(source.getPublicKey(), 1));
 
-
     auto tx = txtest::transactionFromOperationsV1(*app, source.getSecretKey(),
                                                   1, ops, 0);
     uint32_t const baseTxSize = xdr::xdr_argpack_size(*tx->toStellarMessage());
