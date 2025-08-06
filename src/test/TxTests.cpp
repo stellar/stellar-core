@@ -704,13 +704,12 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
     return res;
 }
 
-TransactionTestFramePtr
-transactionFromOperationsV1(Application& app, SecretKey const& from,
-                            SequenceNumber seq,
-                            std::vector<Operation> const& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond,
-                            std::optional<uint64_t> sourceMux,
-                            std::optional<Memo> memo)
+// Common setup between transactionFromOperationsV1 and
+// paddedTransactionFromOperationsV1
+static TransactionEnvelope
+makeEnvelopeV1(Application& app, SecretKey const& from, SequenceNumber seq,
+               std::vector<Operation> const& ops, uint32_t fee,
+               std::optional<uint64_t> sourceMux)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
     e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), sourceMux);
@@ -722,6 +721,71 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     e.v1().tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v1().tx.operations));
+    return e;
+}
+
+TransactionTestFramePtr
+paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
+                                  SequenceNumber seq,
+                                  std::vector<Operation> const& ops,
+                                  uint32_t fee, uint32_t desiredSize)
+{
+    TransactionEnvelope e =
+        makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
+
+    uint32_t baseSize = xdr::xdr_argpack_size(e);
+
+    StellarMessage baseMessage;
+    baseMessage.type(TRANSACTION);
+    baseMessage.transaction() = e;
+    baseMessage.transaction().v1().signatures.push_back(
+        DecoratedSignature{SignatureHint{}, crypto_sign_BYTES});
+    uint32_t const baseMessageSize = xdr::xdr_argpack_size(baseMessage);
+
+    e.v1().tx.ext.v(1);
+    e.v1().tx.ext.sorobanData().ext.v(1);
+    uint32_t const minPadding = xdr::xdr_argpack_size(e) - baseSize;
+
+    if (desiredSize <= baseMessageSize)
+    {
+        e.v1().tx.ext.v(0);
+    }
+    else
+    {
+        using EntryType = decltype(e.v1()
+                                       .tx.ext.sorobanData()
+                                       .ext.resourceExt()
+                                       .archivedSorobanEntries)::value_type;
+        uint32_t constexpr entrySize =
+            xdr::xdr_traits<EntryType>::serial_size({});
+        if (desiredSize >= baseMessageSize + minPadding)
+        {
+            uint32_t remaining = desiredSize - baseMessageSize - minPadding;
+            // Pad with ceil(remaining / entrySize) * entrySize bytes
+            e.v1()
+                .tx.ext.sorobanData()
+                .ext.resourceExt()
+                .archivedSorobanEntries.resize((remaining + entrySize - 1) /
+                                               entrySize);
+        }
+    }
+
+    auto res = TransactionTestFrame::fromTxFrame(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+    res->addSignature(from);
+    return res;
+}
+
+TransactionTestFramePtr
+transactionFromOperationsV1(Application& app, SecretKey const& from,
+                            SequenceNumber seq,
+                            std::vector<Operation> const& ops, uint32_t fee,
+                            std::optional<PreconditionsV2> cond,
+                            std::optional<uint64_t> sourceMux,
+                            std::optional<Memo> memo)
+{
+    TransactionEnvelope e =
+        makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
 
     if (cond)
     {
@@ -738,6 +802,23 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
     return res;
+}
+
+TransactionTestFramePtr
+paddedTransactionFromOperations(Application& app, SecretKey const& from,
+                                SequenceNumber seq,
+                                const std::vector<Operation>& ops, uint32_t fee,
+                                uint32_t desiredSize)
+{
+    auto ledgerVersion =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
+    {
+        throw std::invalid_argument(
+            "paddedTransactionFromOperations() called from pre-V23 protocol");
+    }
+    return paddedTransactionFromOperationsV1(app, from, seq, ops, fee,
+                                             desiredSize);
 }
 
 TransactionTestFramePtr

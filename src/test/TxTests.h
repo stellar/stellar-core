@@ -136,6 +136,16 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             std::vector<Operation> const& ops, uint32_t fee = 0,
                             std::optional<Memo> memo = std::nullopt);
+
+// Create TxFrame from arguments with padding to get close to `desiredSize`.
+// Note that if `desiredSize` is less than the size of the TxFrame without
+// padding, the frame will be created as normal. Otherwise, the frame is padded
+// up to the nearest multiple of 4 to `desiredSize`, with a minimum padding of
+// the cost to enable the sorobanData extension (~36 bytes).
+TransactionTestFramePtr paddedTransactionFromOperationsV1(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    std::vector<Operation> const& ops, uint32_t fee, uint32_t desiredSize);
+
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
@@ -143,6 +153,16 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
                             std::optional<PreconditionsV2> cond = std::nullopt,
                             std::optional<uint64_t> sourceMux = std::nullopt,
                             std::optional<Memo> memo = std::nullopt);
+
+// If `app` protocol version is >=23, attempts to pad to around `desiredSize`
+// (see comment on `paddedTransactionFromOperationsV1`). Otherwise, throw an
+// error.
+TransactionTestFramePtr
+paddedTransactionFromOperations(Application& app, SecretKey const& from,
+                                SequenceNumber seq,
+                                std::vector<Operation> const& ops,
+                                uint32_t fee = 0, uint32_t desiredSize = 0);
+
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, std::vector<Operation> const& ops,

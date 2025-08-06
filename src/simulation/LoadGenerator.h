@@ -30,9 +30,6 @@ class VirtualTimer;
 enum class LoadGenMode
 {
     PAY,
-    PRETEND,
-    // Mix of payments and DEX-related transactions.
-    MIXED_CLASSIC,
     // Deploy random Wasm blobs, for overlay/herder testing
     SOROBAN_UPLOAD,
     // Deploy contracts to be used by SOROBAN_INVOKE
@@ -98,8 +95,6 @@ struct GeneratedLoadConfig
     SorobanUpgradeConfig const& getSorobanUpgradeConfig() const;
     MixClassicSorobanConfig& getMutMixClassicSorobanConfig();
     MixClassicSorobanConfig const& getMixClassicSorobanConfig() const;
-    uint32_t& getMutDexTxPercent();
-    uint32_t const& getDexTxPercent() const;
     uint32_t getMinSorobanPercentSuccess() const;
     void setMinSorobanPercentSuccess(uint32_t minPercentSuccess);
 
@@ -146,9 +141,6 @@ struct GeneratedLoadConfig
     SorobanConfig sorobanConfig;
     SorobanUpgradeConfig sorobanUpgradeConfig;
     MixClassicSorobanConfig mixClassicSorobanConfig;
-
-    // Percentage (from 0 to 100) of DEX transactions
-    uint32_t dexTxPercent = 0;
 
     // Minimum percentage of successful soroban transactions for run to be
     // considered successful.
@@ -215,8 +207,6 @@ class LoadGenerator
     struct TxMetrics
     {
         medida::Meter& mNativePayment;
-        medida::Meter& mManageOfferOps;
-        medida::Meter& mPretendOps;
         medida::Meter& mSorobanUploadTxs;
         medida::Meter& mSorobanSetupInvokeTxs;
         medida::Meter& mSorobanSetupUpgradeTxs;
@@ -225,6 +215,7 @@ class LoadGenerator
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
         medida::Meter& mTxnBytes;
+        medida::Meter& mNativePaymentBytes;
 
         TxMetrics(medida::MetricsRegistry& m);
         void report();
@@ -321,9 +312,10 @@ class LoadGenerator
 
     // Create a transaction in MIXED_CLASSIC_SOROBAN mode
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    createMixedClassicSorobanTransaction(uint32_t ledgerNum,
-                                         uint64_t sourceAccountId,
-                                         GeneratedLoadConfig const& cfg);
+    createMixedClassicSorobanTransaction(
+        uint32_t ledgerNum, uint64_t sourceAccountId,
+        std::optional<uint32_t> classicByteCount,
+        GeneratedLoadConfig const& cfg);
 
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
@@ -352,7 +344,7 @@ class LoadGenerator
     void waitTillComplete(GeneratedLoadConfig cfg);
     void waitTillCompleteWithoutChecks();
 
-    unsigned short chooseOpCount(Config const& cfg) const;
+    std::optional<uint32_t> chooseByteCount(Config const& cfg) const;
 
     void cleanupAccounts();
 
