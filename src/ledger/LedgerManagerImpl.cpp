@@ -355,6 +355,17 @@ LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
 }
 
 void
+LedgerManagerImpl::ApplyState::reportInMemoryMetrics(
+    SorobanMetrics& metrics) const
+{
+    // This assert is not strictly necessary, but we don't really want to
+    // access the state size outside of the snapshotting process during the
+    // LEDGER_CLOSE or SETTING_UP_STATE phase.
+    assertWritablePhase();
+    mInMemorySorobanState.reportMetrics(metrics);
+}
+
+void
 LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
     LedgerHeader const& lh)
 {
@@ -1149,6 +1160,8 @@ LedgerManagerImpl::publishSorobanMetrics()
     m.mConfigBucketListTargetSizeByte.set_count(
         conf.sorobanStateTargetSizeBytes());
     m.mConfigFeeWrite1KB.set_count(conf.feeRent1KB());
+
+    mApplyState.reportInMemoryMetrics(m);
 
     // then publish the actual ledger usage
     m.publishAndResetLedgerWideMetrics();

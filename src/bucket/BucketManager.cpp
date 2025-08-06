@@ -158,6 +158,10 @@ BucketManager::BucketManager(Application& app)
                                                "bucketlistDB"))
     , mCacheMissMeter(app.getMetrics().NewMeter(
           {"bucketlistDB", "cache", "miss"}, "bucketlistDB"))
+    , mLiveBucketIndexCacheEntries(
+          app.getMetrics().NewCounter({"bucketlistDB", "cache", "entries"}))
+    , mLiveBucketIndexCacheBytes(
+          app.getMetrics().NewCounter({"bucketlistDB", "cache", "bytes"}))
     , mBucketListEvictionCounters(app)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     , mConfig(app.getConfig())
@@ -353,6 +357,48 @@ medida::Meter&
 BucketManager::getCacheMissMeter() const
 {
     return mCacheMissMeter;
+}
+
+void
+BucketManager::reportLiveBucketIndexCacheMetrics()
+{
+    size_t totalCacheEntries = 0;
+    size_t totalEstimatedBytes = 0;
+
+    for (uint32_t i = 0; i < BucketListBase<LiveBucket>::kNumLevels; ++i)
+    {
+        auto const& level = mLiveBucketList->getLevel(i);
+
+        auto processBucket = [&totalCacheEntries, &totalEstimatedBytes](
+                                 std::shared_ptr<LiveBucket> const& bucket) {
+            if (bucket && !bucket->isEmpty())
+            {
+                size_t cacheSize = bucket->getIndexCacheSize();
+                totalCacheEntries += cacheSize;
+
+                // Estimate cache consumption in bytes using average account
+                // size for this bucket
+                if (cacheSize > 0)
+                {
+                    auto counters = bucket->getBucketEntryCounters();
+                    double totalBucketCount = counters.entryTypeCounts.at(
+                        LedgerEntryTypeAndDurability::ACCOUNT);
+                    double totalBucketSize = counters.entryTypeSizes.at(
+                        LedgerEntryTypeAndDurability::ACCOUNT);
+
+                    releaseAssertOrThrow(totalBucketCount > 0);
+                    totalEstimatedBytes +=
+                        cacheSize * (totalBucketSize / totalBucketCount);
+                }
+            }
+        };
+
+        processBucket(level.getCurr());
+        processBucket(level.getSnap());
+    }
+
+    mLiveBucketIndexCacheEntries.set_count(totalCacheEntries);
+    mLiveBucketIndexCacheBytes.set_count(totalEstimatedBytes);
 }
 
 template <>
@@ -977,6 +1023,7 @@ BucketManager::addLiveBatch(Application& app, LedgerHeader header,
                               initEntries, liveEntries, deadEntries);
     mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
     reportBucketEntryCountMetrics();
+    reportLiveBucketIndexCacheMetrics();
 }
 
 void

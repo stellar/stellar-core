@@ -145,6 +145,14 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewTimer({"soroban", "module-cache", "rebuild-time"}))
     , mModuleCacheRebuildBytes(
           metrics.NewCounter({"soroban", "module-cache", "rebuild-bytes"}))
+    , mContractCodeStateSize(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-code-size"}))
+    , mContractDataStateSize(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-data-size"}))
+    , mContractCodeEntryCount(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-code-entries"}))
+    , mContractDataEntryCount(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-data-entries"}))
 
 {
 }

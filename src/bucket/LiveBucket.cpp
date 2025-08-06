@@ -327,6 +327,16 @@ LiveBucket::containsBucketIdentity(BucketEntry const& id) const
     return false;
 }
 
+size_t
+LiveBucket::getIndexCacheSize() const
+{
+    if (mIndex)
+    {
+        return mIndex->getCurrentCacheSize();
+    }
+    return 0;
+}
+
 #ifdef BUILD_TESTS
 void
 LiveBucket::apply(Application& app) const

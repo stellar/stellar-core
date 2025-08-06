@@ -5,6 +5,7 @@
 #include "ledger/InMemorySorobanState.h"
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
 #include <cstdint>
 
@@ -98,7 +99,7 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
 
     uint32_t oldSize = xdr::xdr_size(*dataIt->get().ledgerEntry);
     uint32_t newSize = xdr::xdr_size(ledgerEntry);
-    updateStateSizeOnEntryUpdate(oldSize, newSize);
+    updateStateSizeOnEntryUpdate(oldSize, newSize, /*isContractCode=*/false);
 
     // Preserve the existing TTL while updating the data
     auto preservedTTL = dataIt->get().ttlData;
@@ -132,7 +133,8 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
 
-    updateStateSizeOnEntryUpdate(0, xdr::xdr_size(ledgerEntry));
+    updateStateSizeOnEntryUpdate(0, xdr::xdr_size(ledgerEntry),
+                                 /*isContractCode=*/false);
     mContractDataEntries.emplace(
         InternalContractDataMapEntry(ledgerEntry, ttlData));
 }
@@ -192,7 +194,8 @@ InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
         mContractDataEntries.find(InternalContractDataMapEntry(ledgerKey));
     releaseAssertOrThrow(it != mContractDataEntries.end());
     releaseAssertOrThrow(it->get().ledgerEntry != nullptr);
-    updateStateSizeOnEntryUpdate(xdr::xdr_size(*it->get().ledgerEntry), 0);
+    updateStateSizeOnEntryUpdate(xdr::xdr_size(*it->get().ledgerEntry), 0,
+                                 /*isContractCode=*/false);
     mContractDataEntries.erase(it);
 }
 
@@ -261,7 +264,7 @@ InMemorySorobanState::createContractCodeEntry(
 
     uint32_t entrySize =
         contractCodeSizeForRent(ledgerEntry, sorobanConfig, ledgerVersion);
-    updateStateSizeOnEntryUpdate(0, entrySize);
+    updateStateSizeOnEntryUpdate(0, entrySize, /*isContractCode=*/true);
 
     mContractCodeEntries.emplace(
         keyHash,
@@ -285,7 +288,8 @@ InMemorySorobanState::updateContractCode(
     uint32_t newEntrySize =
         contractCodeSizeForRent(ledgerEntry, sorobanConfig, ledgerVersion);
 
-    updateStateSizeOnEntryUpdate(codeIt->second.sizeBytes, newEntrySize);
+    updateStateSizeOnEntryUpdate(codeIt->second.sizeBytes, newEntrySize,
+                                 /*isContractCode=*/true);
 
     // Preserve the existing TTL while updating the code
     auto ttlData = codeIt->second.ttlData;
@@ -304,7 +308,8 @@ InMemorySorobanState::deleteContractCode(LedgerKey const& ledgerKey)
     auto keyHash = ttlKey.ttl().keyHash;
     auto it = mContractCodeEntries.find(keyHash);
     releaseAssertOrThrow(it != mContractCodeEntries.end());
-    updateStateSizeOnEntryUpdate(it->second.sizeBytes, 0);
+    updateStateSizeOnEntryUpdate(it->second.sizeBytes, 0,
+                                 /*isContractCode=*/true);
     mContractCodeEntries.erase(it);
 }
 
@@ -554,7 +559,8 @@ InMemorySorobanState::recomputeContractCodeSize(
     {
         uint32_t newSize = contractCodeSizeForRent(
             *entry.ledgerEntry, sorobanConfig, ledgerVersion);
-        updateStateSizeOnEntryUpdate(entry.sizeBytes, newSize);
+        updateStateSizeOnEntryUpdate(entry.sizeBytes, newSize,
+                                     /*isContractCode=*/true);
         entry.sizeBytes = newSize;
     }
 }
@@ -562,8 +568,19 @@ InMemorySorobanState::recomputeContractCodeSize(
 uint64_t
 InMemorySorobanState::getSize() const
 {
-    releaseAssertOrThrow(mStateSize >= 0);
-    return static_cast<int64_t>(mStateSize);
+    releaseAssertOrThrow(mContractCodeStateSize >= 0);
+    releaseAssertOrThrow(mContractDataStateSize >= 0);
+    return static_cast<uint64_t>(mContractCodeStateSize +
+                                 mContractDataStateSize);
+}
+
+void
+InMemorySorobanState::reportMetrics(SorobanMetrics& metrics) const
+{
+    metrics.mContractCodeStateSize.set_count(mContractCodeStateSize);
+    metrics.mContractDataStateSize.set_count(mContractDataStateSize);
+    metrics.mContractCodeEntryCount.set_count(mContractCodeEntries.size());
+    metrics.mContractDataEntryCount.set_count(mContractDataEntries.size());
 }
 
 void
@@ -580,15 +597,30 @@ InMemorySorobanState::checkUpdateInvariants() const
 }
 void
 InMemorySorobanState::updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
-                                                   uint32_t newEntrySize)
+                                                   uint32_t newEntrySize,
+                                                   bool isContractCode)
 {
     int64_t sizeDelta =
         static_cast<int64_t>(newEntrySize) - static_cast<int64_t>(oldEntrySize);
-    releaseAssertOrThrow(mStateSize + sizeDelta >= 0);
-    releaseAssertOrThrow(sizeDelta <= 0 ||
-                         mStateSize <=
-                             std::numeric_limits<int64_t>::max() - sizeDelta);
-    mStateSize += sizeDelta;
+
+    if (isContractCode)
+    {
+        releaseAssertOrThrow(mContractCodeStateSize + sizeDelta >= 0);
+        releaseAssertOrThrow(sizeDelta <= 0 ||
+                             mContractCodeStateSize <=
+                                 std::numeric_limits<int64_t>::max() -
+                                     sizeDelta);
+        mContractCodeStateSize += sizeDelta;
+    }
+    else
+    {
+        releaseAssertOrThrow(mContractDataStateSize + sizeDelta >= 0);
+        releaseAssertOrThrow(sizeDelta <= 0 ||
+                             mContractDataStateSize <=
+                                 std::numeric_limits<int64_t>::max() -
+                                     sizeDelta);
+        mContractDataStateSize += sizeDelta;
+    }
 }
 
 #ifdef BUILD_TESTS
@@ -599,6 +631,8 @@ InMemorySorobanState::clearForTesting()
     mContractCodeEntries.clear();
     mPendingTTLs.clear();
     mLastClosedLedgerSeq = 0;
+    mContractCodeStateSize = 0;
+    mContractDataStateSize = 0;
 }
 #endif
 }

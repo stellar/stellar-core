@@ -103,6 +103,8 @@ class BucketManager : NonMovableOrCopyable
     medida::Counter& mArchiveBucketListSizeCounter;
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;
+    medida::Counter& mLiveBucketIndexCacheEntries;
+    medida::Counter& mLiveBucketIndexCacheBytes;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mLiveMergeCounters;
     MergeCounters mHotArchiveMergeCounters;
@@ -168,6 +170,8 @@ class BucketManager : NonMovableOrCopyable
     template <class BucketT>
     void noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
                                       FutureMapT<BucketT>& futureMap);
+
+    void reportLiveBucketIndexCacheMetrics();
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};

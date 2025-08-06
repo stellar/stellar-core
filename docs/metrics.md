@@ -51,6 +51,8 @@ bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microsecond
 bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
 bucketlistDB-cache.hit                    | meter     | number of cache hits on Live BucketList Disk random eviction cache
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
+bucketlistDB.cache.entries                | counter   | number of entries currently in Live BucketList index cache
+bucketlistDB.cache.bytes                  | counter   | estimated size in bytes of entries in Live BucketList index cache
 crypto.verify.hit                         | meter     | number of signature cache hits
 crypto.verify.miss                        | meter     | number of signature cache misses
 crypto.verify.total                       | meter     | sum of both hits and misses
@@ -260,3 +262,7 @@ soroban.module-cache.num-entries             | counter   | current number of ent
 soroban.module-cache.compilation-time        | timer     | times each contract compilation when adding to module cache
 soroban.module-cache.rebuild-time            | timer     | times each rebuild of module cache (including all compilations)
 soroban.module-cache.rebuild-bytes           | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
+soroban.in-memory-state.contract-code-size   | counter   | size in bytes of non-evicted ContractCode entries according to memory cost model
+soroban.in-memory-state.contract-data-size   | counter   | size in bytes of ContractData entries in memory
+soroban.in-memory-state.contract-code-entries   | counter   | number of ContractCode entries in memory
+soroban.in-memory-state.contract-data-entries   | counter   | number of ContractData entries in memory

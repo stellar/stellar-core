@@ -22,6 +22,8 @@
 namespace stellar
 {
 
+class SorobanMetrics;
+
 // TTLData stores both liveUntilLedgerSeq and lastModifiedLedgerSeq for TTL
 // entries. This allows us to construct a LedgerEntry for TTLs without having to
 // redundantly store the keyHash.
@@ -309,10 +311,11 @@ class InMemorySorobanState : public NonMovableOrCopyable
 
     // Total size of the in-memory state in bytes as defined by the protocol (
     // including using the in-memory module size for the ContractCode entries).
-    // Note, that this is int64 and not uint64 even though we store this in
+    // Note, that these are int64 and not uint64 even though we store this in
     // ledger as uint64 - neither of the type limits is realistically
     // reachable, but signed int makes math simpler and safer.
-    int64_t mStateSize = 0;
+    int64_t mContractCodeStateSize = 0;
+    int64_t mContractDataStateSize = 0;
 
     // Helper to update an existing ContractData entry's TTL without changing
     // data
@@ -326,7 +329,8 @@ class InMemorySorobanState : public NonMovableOrCopyable
     void checkUpdateInvariants() const;
 
     void updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
-                                      uint32_t newEntrySize);
+                                      uint32_t newEntrySize,
+                                      bool isContractCode);
 
     // Returns the TTL entry for the given key, or nullptr if not found.
     // LedgerKey must be of type TTL.
@@ -391,6 +395,8 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // memory config settings have been changed, or protocol version has been
     // updated.
     uint64_t getSize() const;
+
+    void reportMetrics(SorobanMetrics& metrics) const;
 
     // Returns the entry for the given key, or nullptr if not found.
     std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
