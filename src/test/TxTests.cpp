@@ -705,6 +705,71 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 }
 
 TransactionTestFramePtr
+paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
+                                  SequenceNumber seq,
+                                  std::vector<Operation> const& ops,
+                                  uint32_t fee, uint32_t desiredSize)
+{
+    TransactionEnvelope e(ENVELOPE_TYPE_TX);
+    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), std::nullopt);
+    e.v1().tx.fee =
+        fee != 0 ? fee
+                 : static_cast<uint32_t>(
+                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
+                       UINT32_MAX);
+    e.v1().tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(e.v1().tx.operations));
+
+    // 4 bytes for DecoratedSignature.hint, 4 bytes for Signature size, 4 bytes
+    // for TransactionEnvelope Envelope type
+    uint32_t const baseTxSize =
+        xdr::xdr_argpack_size(e) + from.sign("").size() + 12;
+
+    if (desiredSize > baseTxSize)
+    {
+        // A memo can add at most 32 bytes to the transaction size
+        if (desiredSize <= baseTxSize + 32)
+        {
+            e.v1().tx.memo.type(MEMO_TEXT);
+            // The memo size field takes 4 bytes
+            if (desiredSize <= baseTxSize + 4)
+            {
+                e.v1().tx.memo.text() = "";
+            }
+            else
+            {
+                e.v1().tx.memo.text() =
+                    std::string(desiredSize - baseTxSize - 4, ' ');
+            }
+        }
+        // Otherwise, we use the soroban extension to pad it out
+        else
+        {
+            e.v1().tx.ext.v(1);
+            e.v1().tx.ext.sorobanData().ext.v(1);
+            // sorobanData with the extension with 0 archivedSorobanEntries
+            // takes 36 bytes
+            if (desiredSize > baseTxSize + 36)
+            {
+                // each entry takes 4 bytes, and we want to round up to the
+                // nearest 4
+                e.v1()
+                    .tx.ext.sorobanData()
+                    .ext.resourceExt()
+                    .archivedSorobanEntries.resize(
+                        (desiredSize - baseTxSize - 36 + 3) / 4);
+            }
+        }
+    }
+
+    auto res = TransactionTestFrame::fromTxFrame(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+    res->addSignature(from);
+    return res;
+}
+
+TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             std::vector<Operation> const& ops, uint32_t fee,
@@ -2044,6 +2109,40 @@ getGenesisAccount(Application& app, uint32_t accountIndex)
     REQUIRE(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
     return TestAccount(
         app, getAccount("TestAccount-" + std::to_string(accountIndex)));
+}
+
+TEST_CASE("check paddedTransactionFromOperationsV1 behavior", "")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+    auto source =
+        root->create("", app->getLedgerManager().getLastMinBalance(0));
+    std::vector<Operation> ops;
+    ops.push_back(txtest::payment(source.getPublicKey(), 1));
+
+
+    auto tx = txtest::transactionFromOperationsV1(*app, source.getSecretKey(),
+                                                  1, ops, 0);
+    uint32_t const baseTxSize = xdr::xdr_argpack_size(*tx->toStellarMessage());
+
+    tx = txtest::paddedTransactionFromOperationsV1(*app, source.getSecretKey(),
+                                                   1, ops, 0, 0);
+    REQUIRE(xdr::xdr_argpack_size(*tx->toStellarMessage()) == baseTxSize);
+
+    // Check that we correctly do padding up to what should require two
+    // additional archivedSorobanEntry fields
+    for (int size = 0; size <= 44; size++)
+    {
+        tx = txtest::paddedTransactionFromOperationsV1(
+            *app, source.getSecretKey(), 1, ops, 0, size + baseTxSize);
+        uint32_t expectedSize = baseTxSize + size;
+        // round up to nearest multiple of 4 (XDR serializations are always
+        // a multiple of 4)
+        expectedSize = (expectedSize + 3) / 4 * 4;
+        REQUIRE(xdr::xdr_argpack_size(*tx->toStellarMessage()) == expectedSize);
+    }
 }
 
 } // namespace txtest

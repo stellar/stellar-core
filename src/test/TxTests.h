@@ -136,6 +136,11 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             std::vector<Operation> const& ops, uint32_t fee = 0,
                             std::optional<Memo> memo = std::nullopt);
+
+TransactionTestFramePtr paddedTransactionFromOperationsV1(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    std::vector<Operation> const& ops, uint32_t fee, uint32_t desiredSize);
+
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
