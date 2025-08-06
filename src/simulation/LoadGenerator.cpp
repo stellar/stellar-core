@@ -129,10 +129,6 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::PAY;
     }
-    else if (mode == "pretend")
-    {
-        return LoadGenMode::PRETEND;
-    }
     else if (mode == "mixed_classic")
     {
         return LoadGenMode::MIXED_CLASSIC;
@@ -590,9 +586,6 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::PAY:
         modeStr = "pay";
         break;
-    case LoadGenMode::PRETEND:
-        modeStr = "pretend";
-        break;
     case LoadGenMode::MIXED_CLASSIC:
         modeStr = "mixed_classic";
         break;
@@ -734,16 +727,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     cfg.maxGeneratedFeeRate);
             };
             break;
-        case LoadGenMode::PRETEND:
-        {
-            auto opCount = chooseOpCount(mApp.getConfig());
-            generateTx = [&, opCount]() {
-                return mTxGenerator.pretendTransaction(
-                    cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
-                    opCount, cfg.maxGeneratedFeeRate);
-            };
-        }
-        break;
         case LoadGenMode::MIXED_CLASSIC:
         {
             auto opCount = chooseOpCount(mApp.getConfig());
@@ -1362,7 +1345,6 @@ LoadGenerator::waitTillCompleteWithoutChecks()
 LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     : mNativePayment(m.NewMeter({"loadgen", "payment", "submitted"}, "op"))
     , mManageOfferOps(m.NewMeter({"loadgen", "manageoffer", "submitted"}, "op"))
-    , mPretendOps(m.NewMeter({"loadgen", "pretend", "submitted"}, "op"))
     , mSorobanUploadTxs(m.NewMeter({"loadgen", "soroban", "upload"}, "txn"))
     , mSorobanSetupInvokeTxs(
           m.NewMeter({"loadgen", "soroban", "setup_invoke"}, "txn"))
@@ -1381,20 +1363,20 @@ void
 LoadGenerator::TxMetrics::report()
 {
     CLOG_DEBUG(LoadGen,
-               "Counts: {} tx, {} rj, {} by, {} na, {} pr, {} dex, {} "
+               "Counts: {} tx, {} rj, {} by, {} na, {} dex, {} "
                "su, {} ssi, {} ssu, {} si, {} scu",
                mTxnAttempted.count(), mTxnRejected.count(), mTxnBytes.count(),
-               mNativePayment.count(), mPretendOps.count(),
-               mManageOfferOps.count(), mSorobanUploadTxs.count(),
-               mSorobanSetupInvokeTxs.count(), mSorobanSetupUpgradeTxs.count(),
-               mSorobanInvokeTxs.count(), mSorobanCreateUpgradeTxs.count());
+               mNativePayment.count(), mManageOfferOps.count(),
+               mSorobanUploadTxs.count(), mSorobanSetupInvokeTxs.count(),
+               mSorobanSetupUpgradeTxs.count(), mSorobanInvokeTxs.count(),
+               mSorobanCreateUpgradeTxs.count());
 
     CLOG_DEBUG(LoadGen,
-               "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} na, {} pr, "
+               "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} na, "
                "{} dex, {} su, {} ssi, {} ssu, {} si, {} scu",
                mTxnAttempted.one_minute_rate(), mTxnRejected.one_minute_rate(),
                mTxnBytes.one_minute_rate(), mNativePayment.one_minute_rate(),
-               mPretendOps.one_minute_rate(), mManageOfferOps.one_minute_rate(),
+               mManageOfferOps.one_minute_rate(),
                mSorobanUploadTxs.one_minute_rate(),
                mSorobanSetupInvokeTxs.one_minute_rate(),
                mSorobanSetupUpgradeTxs.one_minute_rate(),
@@ -1414,9 +1396,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     case LoadGenMode::PAY:
     case LoadGenMode::PAY_PREGENERATED:
         txm.mNativePayment.Mark(txf->getNumOperations());
-        break;
-    case LoadGenMode::PRETEND:
-        txm.mPretendOps.Mark(txf->getNumOperations());
         break;
     case LoadGenMode::MIXED_CLASSIC:
         if (txf->hasDexOperations())
@@ -1758,8 +1737,7 @@ GeneratedLoadConfig::isSorobanSetup() const
 bool
 GeneratedLoadConfig::isLoad() const
 {
-    return mode == LoadGenMode::PAY || mode == LoadGenMode::PRETEND ||
-           mode == LoadGenMode::MIXED_CLASSIC ||
+    return mode == LoadGenMode::PAY || mode == LoadGenMode::MIXED_CLASSIC ||
            mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||

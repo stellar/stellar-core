@@ -224,24 +224,12 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
 
 TransactionFrameBasePtr
 TxGenerator::createTransactionFramePtr(
-    TxGenerator::TestAccountPtr from, std::vector<Operation> ops, bool pretend,
+    TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
     auto txf = transactionFromOperations(
         mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
         generateFee(maxGeneratedFeeRate, ops.size()));
-    if (pretend)
-    {
-        Memo memo(MEMO_TEXT);
-        memo.text() = std::string(28, ' ');
-        txbridge::setMemo(txf, memo);
-
-        txbridge::setMinTime(txf, 0);
-        txbridge::setMaxTime(txf, UINT64_MAX);
-
-        txbridge::getSignatures(txf).clear();
-        txf->addSignature(from->getSecretKey());
-    }
 
     return txf;
 }
@@ -263,9 +251,8 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
         paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
     }
 
-    return std::make_pair(from,
-                          createTransactionFramePtr(from, paymentOps, false,
-                                                    maxGeneratedFeeRate));
+    return std::make_pair(
+        from, createTransactionFramePtr(from, paymentOps, maxGeneratedFeeRate));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
@@ -286,8 +273,7 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
             100));
     }
     return std::make_pair(
-        account,
-        createTransactionFramePtr(account, ops, false, maxGeneratedFeeRate));
+        account, createTransactionFramePtr(account, ops, maxGeneratedFeeRate));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -1363,35 +1349,4 @@ TxGenerator::sorobanRandomUploadResources()
 
     return {resources, wasmSize};
 }
-
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
-                                uint32_t ledgerNum, uint64_t sourceAccount,
-                                uint32_t opCount,
-                                std::optional<uint32_t> maxGeneratedFeeRate)
-{
-    vector<Operation> ops;
-    ops.reserve(opCount);
-    auto acc = findAccount(sourceAccount, ledgerNum);
-    for (uint32 i = 0; i < opCount; i++)
-    {
-        auto args = SetOptionsArguments{};
-
-        // We make SetOptionsOps such that we end up
-        // with a n-op transaction that is exactly 100n + 240 bytes.
-        args.inflationDest = std::make_optional<AccountID>(acc->getPublicKey());
-        args.homeDomain = std::make_optional<std::string>(std::string(16, '*'));
-        if (i == 0)
-        {
-            // The first operation needs to be bigger to achieve
-            // 100n + 240 bytes.
-            args.homeDomain->append(std::string(8, '*'));
-            args.signer = std::make_optional<Signer>(Signer{});
-        }
-        ops.push_back(txtest::setOptions(args));
-    }
-    return std::make_pair(
-        acc, createTransactionFramePtr(acc, ops, true, maxGeneratedFeeRate));
-}
-
 }

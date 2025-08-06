@@ -763,65 +763,6 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     }
 }
 
-TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
-{
-    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::pointer simulation =
-        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i);
-            // 50% of transactions contain 2 ops,
-            // and 50% of transactions contain 3 ops.
-            cfg.LOADGEN_OP_COUNT_FOR_TESTING = {2, 3};
-            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {1, 1};
-            cfg.GENESIS_TEST_ACCOUNT_COUNT = 5;
-            return cfg;
-        });
-
-    simulation->startAllNodes();
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(3, 1); },
-        2 * simulation->getExpectedLedgerCloseTime(), false);
-
-    auto nodes = simulation->getNodes();
-    auto& app = *nodes[0]; // pick a node to generate load
-
-    auto& loadGen = app.getLoadGenerator();
-    uint32_t nAccounts = 5;
-    uint32_t txRate = 5;
-
-    try
-    {
-        loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PRETEND,
-                                                         nAccounts, 5, txRate));
-
-        simulation->crankUntil(
-            [&]() {
-                return app.getMetrics()
-                           .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 1;
-            },
-            2 * simulation->getExpectedLedgerCloseTime(), false);
-    }
-    catch (...)
-    {
-        auto problems = loadGen.checkAccountSynced(app);
-        REQUIRE(problems.empty());
-    }
-
-    REQUIRE(app.getMetrics()
-                .NewMeter({"loadgen", "txn", "rejected"}, "txn")
-                .count() == 0);
-    REQUIRE(app.getMetrics()
-                .NewMeter({"loadgen", "payment", "submitted"}, "op")
-                .count() == 0);
-    REQUIRE(app.getMetrics()
-                .NewMeter({"loadgen", "pretend", "submitted"}, "op")
-                .count() >= 2 * 5);
-    REQUIRE(app.getMetrics()
-                .NewMeter({"loadgen", "pretend", "submitted"}, "op")
-                .count() <= 3 * 5);
-}
-
 TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
