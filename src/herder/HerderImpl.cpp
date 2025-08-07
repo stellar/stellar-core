@@ -617,24 +617,15 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     if (hasSoroban || hasClassic)
     {
 #ifdef BUILD_TESTS
-        if (isLoadgenTx)
-        {
-            result =
-                mTransactionQueue.tryAdd(tx, submittedFromSelf, isLoadgenTx);
-        }
-        else
-        {
-#endif
-            CLOG_DEBUG(
-                Herder,
-                "recv transaction {} for {} rejected due to 1 tx per source "
-                "account per ledger limit",
-                hexAbbrev(tx->getFullHash()),
-                KeyUtils::toShortString(tx->getSourceID()));
-            result.code =
-                TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER;
-#ifdef BUILD_TESTS
-        }
+        result = mTransactionQueue.tryAdd(tx, submittedFromSelf, isLoadgenTx);
+#else
+        CLOG_DEBUG(Herder,
+                   "recv transaction {} for {} rejected due to 1 tx per source "
+                   "account per ledger limit",
+                   hexAbbrev(tx->getFullHash()),
+                   KeyUtils::toShortString(tx->getSourceID()));
+        result.code =
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER;
 #endif
     }
     else if (!tx->isSoroban())
