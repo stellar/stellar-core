@@ -136,8 +136,11 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
-            cfg.LOADGEN_OP_COUNT_FOR_TESTING = {1, 2, 10};
-            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
+            uint32_t baseSize = 148;
+            uint32_t opSize = 56;
+            cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {0, baseSize + opSize * 2,
+                                                  baseSize + opSize * 10};
+            cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
             cfg.GENESIS_TEST_ACCOUNT_COUNT = nAccounts * 10;
             return cfg;
         });
@@ -763,14 +766,16 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     }
 }
 
-TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
+TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
-            cfg.LOADGEN_OP_COUNT_FOR_TESTING = {3};
-            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {1};
+            uint32_t baseSize = 148;
+            uint32_t opSize = 56;
+            cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {baseSize + opSize * 3};
+            cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {1};
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
             return cfg;
