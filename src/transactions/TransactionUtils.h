@@ -262,9 +262,6 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
-bool checkVNext(uint32_t currProtocol, Config const& cfg,
-                TransactionEnvelope const& envelope);
-
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
