@@ -31,7 +31,7 @@ use crate::RustBuf;
 
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just always supposed to use the latest.
-pub(crate) use p22 as soroban_curr;
+pub(crate) use p23 as soroban_curr;
 
 #[path = "."]
 pub(crate) mod p23 {
