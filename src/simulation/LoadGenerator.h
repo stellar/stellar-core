@@ -321,6 +321,7 @@ class LoadGenerator
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createMixedClassicSorobanTransaction(uint32_t ledgerNum,
                                          uint64_t sourceAccountId,
+                                         uint32_t classicByteCount,
                                          GeneratedLoadConfig const& cfg);
 
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -350,7 +351,7 @@ class LoadGenerator
     void waitTillComplete(GeneratedLoadConfig cfg);
     void waitTillCompleteWithoutChecks();
 
-    unsigned short chooseOpCount(Config const& cfg) const;
+    uint32_t chooseByteCount(Config const& cfg) const;
 
     void cleanupAccounts();
 

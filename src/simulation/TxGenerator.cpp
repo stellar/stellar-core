@@ -234,10 +234,22 @@ TxGenerator::createTransactionFramePtr(
     return txf;
 }
 
+TransactionFrameBasePtr
+TxGenerator::createTransactionFramePtr(
+    TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
+    std::optional<uint32_t> maxGeneratedFeeRate, uint32_t byteCount)
+{
+    auto txf = paddedTransactionFromOperationsV1(
+        mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
+        generateFee(maxGeneratedFeeRate, ops.size()), byteCount);
+
+    return txf;
+}
+
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
-                                uint32_t opCount,
+                                uint32_t byteCount,
                                 std::optional<uint32_t> maxGeneratedFeeRate)
 {
     TxGenerator::TestAccountPtr to, from;
@@ -245,19 +257,15 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
     std::tie(from, to) =
         pickAccountPair(numAccounts, offset, ledgerNum, sourceAccount);
     vector<Operation> paymentOps;
-    paymentOps.reserve(opCount);
-    for (uint32_t i = 0; i < opCount; ++i)
-    {
-        paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
-    }
+    paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
 
     return std::make_pair(
-        from, createTransactionFramePtr(from, paymentOps, maxGeneratedFeeRate));
+        from, createTransactionFramePtr(from, paymentOps, maxGeneratedFeeRate, byteCount));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                    uint32_t opCount,
+                                    uint32_t byteCount,
                                     std::optional<uint32_t> maxGeneratedFeeRate)
 {
     auto account = findAccount(accountId, ledgerNum);
@@ -265,13 +273,10 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
     Asset buying(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(buying.alphaNum4().assetCode, "USD");
     vector<Operation> ops;
-    for (uint32_t i = 0; i < opCount; ++i)
-    {
-        ops.emplace_back(txtest::manageBuyOffer(
-            rand_uniform<int64_t>(1, 10000000), selling, buying,
-            Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
-            100));
-    }
+    ops.emplace_back(txtest::manageBuyOffer(
+        rand_uniform<int64_t>(1, 10000000), selling, buying,
+        Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
+        100));
     return std::make_pair(
         account, createTransactionFramePtr(account, ops, maxGeneratedFeeRate));
 }

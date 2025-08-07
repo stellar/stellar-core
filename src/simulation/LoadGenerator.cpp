@@ -45,7 +45,6 @@ using namespace txtest;
 namespace
 {
 // Default distribution settings, largely based on averages seen on testnet
-constexpr unsigned short DEFAULT_OP_COUNT = 1;
 // Sample from a discrete distribution of `values` with weights `weights`.
 // Returns `defaultValue` if `values` is empty.
 template <typename T>
@@ -172,12 +171,11 @@ LoadGenerator::getMode(std::string const& mode)
     }
 }
 
-unsigned short
-LoadGenerator::chooseOpCount(Config const& cfg) const
+uint32_t
+LoadGenerator::chooseByteCount(Config const& cfg) const
 {
-    return sampleDiscrete(cfg.LOADGEN_OP_COUNT_FOR_TESTING,
-                          cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING,
-                          DEFAULT_OP_COUNT);
+    return sampleDiscrete(cfg.LOADGEN_BYTE_COUNT_FOR_TESTING,
+                          cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING, 0u);
 }
 
 int64_t
@@ -721,29 +719,32 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         switch (cfg.mode)
         {
         case LoadGenMode::PAY:
-            generateTx = [&]() {
+        {
+            auto byteCount = chooseByteCount(mApp.getConfig());
+            generateTx = [&, byteCount]() {
                 return mTxGenerator.paymentTransaction(
-                    cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId, 1,
-                    cfg.maxGeneratedFeeRate);
+                    cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
+                    byteCount, cfg.maxGeneratedFeeRate);
             };
-            break;
+        }
+        break;
         case LoadGenMode::MIXED_CLASSIC:
         {
-            auto opCount = chooseOpCount(mApp.getConfig());
+            auto byteCount = chooseByteCount(mApp.getConfig());
             bool isDex =
                 rand_uniform<uint32_t>(1, 100) <= cfg.getDexTxPercent();
-            generateTx = [&, opCount, isDex]() {
+            generateTx = [&, byteCount, isDex]() {
                 if (isDex)
                 {
                     return mTxGenerator.manageOfferTransaction(
-                        ledgerNum, sourceAccountId, opCount,
+                        ledgerNum, sourceAccountId, byteCount,
                         cfg.maxGeneratedFeeRate);
                 }
                 else
                 {
                     return mTxGenerator.paymentTransaction(
                         cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
-                        opCount, cfg.maxGeneratedFeeRate);
+                        byteCount, cfg.maxGeneratedFeeRate);
                 }
             };
         }
@@ -800,11 +801,14 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             };
             break;
         case LoadGenMode::MIXED_CLASSIC_SOROBAN:
-            generateTx = [&]() {
+        {
+            auto byteCount = chooseByteCount(mApp.getConfig());
+            generateTx = [&, byteCount]() {
                 return createMixedClassicSorobanTransaction(
-                    ledgerNum, sourceAccountId, cfg);
+                    ledgerNum, sourceAccountId, byteCount, cfg);
             };
-            break;
+        }
+        break;
         case LoadGenMode::PAY_PREGENERATED:
             generateTx = [&]() { return readTransactionFromFile(cfg); };
             break;
@@ -1017,7 +1021,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createMixedClassicSorobanTransaction(
-    uint32_t ledgerNum, uint64_t sourceAccountId,
+    uint32_t ledgerNum, uint64_t sourceAccountId, uint32_t classicByteCount,
     GeneratedLoadConfig const& cfg)
 {
     auto const& mixCfg = cfg.getMixClassicSorobanConfig();
@@ -1030,9 +1034,9 @@ LoadGenerator::createMixedClassicSorobanTransaction(
     {
         // Create a payment transaction
         mLastMixedMode = LoadGenMode::PAY;
-        return mTxGenerator.paymentTransaction(cfg.nAccounts, cfg.offset,
-                                               ledgerNum, sourceAccountId, 1,
-                                               cfg.maxGeneratedFeeRate);
+        return mTxGenerator.paymentTransaction(
+            cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
+            classicByteCount, cfg.maxGeneratedFeeRate);
     }
     case 1:
     {
