@@ -49,3 +49,37 @@ pub(crate) fn current_exe() -> Result<String, Box<dyn std::error::Error>> {
         .into_string()
         .map_err(|e| format!("Failed to convert path to string: {:?}", e).into())
 }
+
+fn compare_xdr_files_sha256(
+    crate1: &str,
+    files1: &[(&str, &str)],
+    crate2: &str,
+    files2: &[(&str, &str)],
+) -> Result<(), Box<dyn std::error::Error>> {
+    if files1.len() != files2.len() {
+        return Err(format!("XDR files count mismatch between {} and {}", crate1, crate2).into());
+    }
+    for (file1, sha1) in files1 {
+        if let Some((_, sha2)) = files2.iter().find(|(f, _)| f == file1) {
+            if sha1 != sha2 {
+                return Err(
+                    format!("XDR file {} SHA256 mismatch: {} != {}", file1, sha1, sha2).into(),
+                );
+            }
+        } else {
+            return Err(format!("XDR file {} not found in {}", file1, crate2).into());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn check_xdr_version_identities() -> Result<(), Box<dyn std::error::Error>> {
+    compare_xdr_files_sha256(
+        "stellar_quorum_analyzer",
+        &stellar_quorum_analyzer::xdr::curr::XDR_FILES_SHA256,
+        "soroban_env_curr",
+        &crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::XDR_FILES_SHA256,
+    )?;
+    // Add more comparisons between XDR file lists as needed
+    Ok(())
+}
