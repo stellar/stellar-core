@@ -1,4 +1,4 @@
-soroban-env-host v23.0.0-rc.3 (src/rust/soroban/p23/soroban-env-host)
+soroban-env-host v23.0.0 (src/rust/soroban/p23/soroban-env-host)
 ├── ark-bls12-381 v0.4.0
 │   ├── ark-ec v0.4.2
 │   │   ├── ark-ff v0.4.2
@@ -224,17 +224,17 @@ soroban-env-host v23.0.0-rc.3 (src/rust/soroban/p23/soroban-env-host)
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
 │       └── cpufeatures v0.2.8 (*)
-├── soroban-builtin-sdk-macros v23.0.0-rc.3 (proc-macro) (src/rust/soroban/p23/soroban-builtin-sdk-macros)
+├── soroban-builtin-sdk-macros v23.0.0 (proc-macro) (src/rust/soroban/p23/soroban-builtin-sdk-macros)
 │   ├── itertools v0.10.5
 │   │   └── either v1.8.1
 │   ├── proc-macro2 v1.0.69 (*)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
-├── soroban-env-common v23.0.0-rc.3 (src/rust/soroban/p23/soroban-env-common)
+├── soroban-env-common v23.0.0 (src/rust/soroban/p23/soroban-env-common)
 │   ├── ethnum v1.5.0
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
-│   ├── soroban-env-macros v23.0.0-rc.3 (proc-macro) (src/rust/soroban/p23/soroban-env-macros)
+│   ├── soroban-env-macros v23.0.0 (proc-macro) (src/rust/soroban/p23/soroban-env-macros)
 │   │   ├── itertools v0.10.5 (*)
 │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   ├── quote v1.0.33 (*)
@@ -247,7 +247,7 @@ soroban-env-host v23.0.0-rc.3 (src/rust/soroban/p23/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v23.0.0-rc.3
+│   │   ├── stellar-xdr v23.0.0
 │   │   │   ├── cfg_eval v0.1.2 (proc-macro)
 │   │   │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   ├── quote v1.0.33 (*)
@@ -278,7 +278,7 @@ soroban-env-host v23.0.0-rc.3 (src/rust/soroban/p23/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v23.0.0-rc.3
+│   ├── stellar-xdr v23.0.0
 │   │   ├── base64 v0.22.1
 │   │   ├── cfg_eval v0.1.2 (proc-macro) (*)
 │   │   ├── escape-bytes v0.1.1
