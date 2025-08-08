@@ -30,8 +30,23 @@ use crate::RustBuf;
 // correct soroban.
 
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
-// that's just always supposed to use the latest.
+// that's just "always supposed to use the latest".
 pub(crate) use p23 as soroban_curr;
+
+// We also pin some protocol _agnostic_ definitions that are technically
+// implemented by a specific version of soroban, but which is protocol-stable
+// and can be used across protocols (either by never changing or by being
+// only compatible with with, say, a rust Dyn interface like Box<dyn Error>).
+pub(crate) mod protocol_agnostic {
+    pub(crate) fn make_error(msg: &'static str) -> Box<dyn std::error::Error> {
+        super::p23::soroban_proto_any::CoreHostError::General(msg).into()
+    }
+
+    // The i128 functions are protocol-agnostic because they're too simple to
+    // ever plausibly change. If they ever _do_ change we can switch this (and
+    // the callers) to pass a protocol number but it seems unlikely.
+    pub(crate) use super::p23::soroban_env_host::xdr::int128_helpers;
+}
 
 #[path = "."]
 pub(crate) mod p23 {
@@ -583,6 +598,16 @@ pub fn check_sensible_soroban_config_for_protocol(core_max_proto: u32) {
 // declared above in the rust_bridge module.
 
 pub(crate) fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo> {
+    // This is just a check to ensure the `soroban_curr` alias has been updated
+    // to point to the current latest soroban version.
+    let curr_max_proto = soroban_curr::soroban_proto_any::get_max_proto();
+    if curr_max_proto != core_max_proto {
+        panic!(
+            "soroban_curr::get_max_proto() {} is not equal to C++ stellar-core max protocol {}",
+            curr_max_proto, core_max_proto
+        );
+    }
+
     let infos: Vec<SorobanVersionInfo> = HOST_MODULES
         .iter()
         .map(|f| (f.get_soroban_version_info)(core_max_proto))
@@ -693,10 +718,8 @@ pub(crate) fn get_host_module_for_protocol(
     ledger_protocol_version: u32,
 ) -> Result<&'static HostModule, Box<dyn std::error::Error>> {
     if ledger_protocol_version > config_max_protocol {
-        return Err(Box::new(
-            soroban_curr::soroban_proto_any::CoreHostError::General(
-                "protocol exceeds configured max",
-            ),
+        return Err(protocol_agnostic::make_error(
+            "protocol exceeds configured max",
         ));
     }
     // Each host's max protocol implies a min protocol for the _next_
@@ -709,9 +732,7 @@ pub(crate) fn get_host_module_for_protocol(
         }
         curr_min_proto = curr.max_proto + 1;
     }
-    Err(Box::new(
-        soroban_curr::soroban_proto_any::CoreHostError::General("unsupported protocol"),
-    ))
+    Err(protocol_agnostic::make_error("unsupported protocol"))
 }
 
 #[test]

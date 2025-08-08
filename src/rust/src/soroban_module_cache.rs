@@ -16,7 +16,7 @@
 
 use crate::{
     rust_bridge::CxxBuf,
-    soroban_proto_all::{get_host_module_for_protocol, p23, soroban_curr},
+    soroban_proto_all::{get_host_module_for_protocol, p23, protocol_agnostic},
 };
 
 pub(crate) struct SorobanModuleCache {
@@ -41,9 +41,7 @@ impl SorobanModuleCache {
             #[cfg(feature = "next")]
             24 => self.p23_cache.compile(_wasm),
             // Add other protocols here as needed.
-            _ => Err(Box::new(
-                soroban_curr::soroban_proto_any::CoreHostError::General("unsupported protocol"),
-            )),
+            _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
     pub fn shallow_clone(&self) -> Result<Box<Self>, Box<dyn std::error::Error>> {
@@ -78,9 +76,7 @@ impl SorobanModuleCache {
             23 => self.p23_cache.contains_module(&_hash),
             #[cfg(feature = "next")]
             24 => self.p23_cache.contains_module(&_hash),
-            _ => Err(Box::new(
-                soroban_curr::soroban_proto_any::CoreHostError::General("unsupported protocol"),
-            )),
+            _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
     pub fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {

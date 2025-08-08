@@ -234,6 +234,9 @@ pub(crate) mod rust_bridge {
         // if the protocol version is not supported.
         fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo>;
 
+        // Check to see if the XDR files used by different rust dependencies match.
+        fn check_xdr_version_identities() -> Result<()>;
+
         // Computes the resource fee given the transaction resource consumption
         // and network configuration.
         fn compute_transaction_resource_fee(
