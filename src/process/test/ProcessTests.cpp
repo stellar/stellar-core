@@ -75,6 +75,80 @@ TEST_CASE("subprocess fails", "[process]")
     REQUIRE(failed);
 }
 
+TEST_CASE("subprocess error messages", "[process]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    
+    SECTION("successful exit")
+    {
+        bool exited = false;
+        asio::error_code capturedEc;
+        auto evt = app->getProcessManager().runProcess("true", "").lock();
+        REQUIRE(evt);
+        evt->async_wait([&](asio::error_code ec) {
+            capturedEc = ec;
+            exited = true;
+        });
+
+        while (!exited && !clock.getIOContext().stopped())
+        {
+            clock.crank(true);
+        }
+        
+        // Process should exit with code 0
+        REQUIRE(capturedEc.value() == 0);
+        REQUIRE(capturedEc.message() == "Process exited successfully");
+        REQUIRE(std::string(capturedEc.category().name()) == "process_exit");
+    }
+    
+    SECTION("failed exit")
+    {
+        bool exited = false;
+        asio::error_code capturedEc;
+        auto evt = app->getProcessManager().runProcess("false", "").lock();
+        REQUIRE(evt);
+        evt->async_wait([&](asio::error_code ec) {
+            capturedEc = ec;
+            exited = true;
+        });
+
+        while (!exited && !clock.getIOContext().stopped())
+        {
+            clock.crank(true);
+        }
+        
+        // Process should exit with non-zero code
+        REQUIRE(capturedEc.value() != 0);
+        REQUIRE(capturedEc.message().find("Process exited with code") != std::string::npos);
+        REQUIRE(std::string(capturedEc.category().name()) == "process_exit");
+    }
+    
+    SECTION("custom exit code")
+    {
+        bool exited = false;
+        asio::error_code capturedEc;
+        // Use sh -c "exit 42" to exit with specific code
+        auto evt = app->getProcessManager().runProcess("sh -c 'exit 42'", "").lock();
+        REQUIRE(evt);
+        evt->async_wait([&](asio::error_code ec) {
+            capturedEc = ec;
+            exited = true;
+        });
+
+        while (!exited && !clock.getIOContext().stopped())
+        {
+            clock.crank(true);
+        }
+        
+        // Process should exit with code 42
+        REQUIRE(capturedEc.value() == 42);
+        REQUIRE(capturedEc.message() == "Process exited with code 42");
+        REQUIRE(std::string(capturedEc.category().name()) == "process_exit");
+    }
+}
+
 TEST_CASE("subprocess redirect to new file", "[process]")
 {
     VirtualClock clock;

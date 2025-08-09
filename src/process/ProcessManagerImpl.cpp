@@ -57,6 +57,38 @@ enum ProcessLifecycle
 namespace stellar
 {
 
+// Custom error category for process exit codes
+class process_exit_category_impl : public std::error_category
+{
+  public:
+    virtual const char* name() const noexcept override
+    {
+        return "process_exit";
+    }
+    
+    virtual std::string message(int value) const override
+    {
+        if (value == 0)
+        {
+            return "Process exited successfully";
+        }
+        else if (value == -1)
+        {
+            return "Process terminated by signal";
+        }
+        else
+        {
+            return fmt::format("Process exited with code {}", value);
+        }
+    }
+};
+
+const std::error_category& process_exit_category()
+{
+    static process_exit_category_impl instance;
+    return instance;
+}
+
 static const asio::error_code ABORT_ERROR_CODE(asio::error::operation_aborted,
                                                asio::system_category());
 
@@ -66,7 +98,7 @@ mapExitStatusToErrorCode(std::string const& cmdLine, int pid, int status)
 // On windows, an exit status is just an exit status. On unix it's
 // got some flags incorporated into it.
 #ifdef _WIN32
-    return asio::error_code(status, asio::system_category());
+    return asio::error_code(status, process_exit_category());
 #else
     if (WIFEXITED(status))
     {
@@ -98,23 +130,14 @@ mapExitStatusToErrorCode(std::string const& cmdLine, int pid, int status)
             CLOG_WARNING(Process, "");
         }
 #endif
-        // FIXME: this doesn't _quite_ do the right thing; it conveys
-        // the exit status back to the caller but it puts it in "system
-        // category" which on POSIX means if you call .message() on it
-        // you'll get perror(value()), which is not correct. Errno has
-        // nothing to do with process exit values. We could make a new
-        // error_category to tighten this up, but it's a bunch of work
-        // just to convey the meaningless string "exited" to the user.
-        return asio::error_code(WEXITSTATUS(status), asio::system_category());
+        // Use our custom process_exit_category for proper error messages
+        return asio::error_code(WEXITSTATUS(status), process_exit_category());
     }
     else
     {
-        // FIXME: for now we also collapse all non-WIFEXITED exits on
-        // posix into a single "exit 1" error_code. This is enough
-        // for most callers; we can enrich it if anyone really wants
-        // to differentiate various signals that might have killed
-        // the child.
-        return asio::error_code(1, asio::system_category());
+        // Process was terminated by a signal rather than normal exit
+        // Use -1 to indicate signal termination in our custom category
+        return asio::error_code(-1, process_exit_category());
     }
 #endif
 }
