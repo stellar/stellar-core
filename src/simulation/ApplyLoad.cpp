@@ -250,8 +250,8 @@ ApplyLoad::setupAccounts()
         size_t end_id = std::min(i + MAX_OPS_PER_TX, creationOps.size());
         std::vector<Operation> currOps(creationOps.begin() + i,
                                        creationOps.begin() + end_id);
-        txs.push_back(mTxGenerator.createTransactionFramePtr(
-            mRoot, currOps, false, std::nullopt));
+        txs.push_back(mTxGenerator.createTransactionFramePtr(mRoot, currOps,
+                                                             std::nullopt));
 
         closeLedger(txs);
     }

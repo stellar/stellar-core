@@ -30,7 +30,6 @@ class VirtualTimer;
 enum class LoadGenMode
 {
     PAY,
-    PRETEND,
     // Mix of payments and DEX-related transactions.
     MIXED_CLASSIC,
     // Deploy random Wasm blobs, for overlay/herder testing
@@ -216,7 +215,6 @@ class LoadGenerator
     {
         medida::Meter& mNativePayment;
         medida::Meter& mManageOfferOps;
-        medida::Meter& mPretendOps;
         medida::Meter& mSorobanUploadTxs;
         medida::Meter& mSorobanSetupInvokeTxs;
         medida::Meter& mSorobanSetupUpgradeTxs;
