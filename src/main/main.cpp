@@ -167,6 +167,12 @@ checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
 
+    // This will panic if the rust bridge has incompatible XDRs linked into it,
+    // which when combined with the _next_ check (comparing C++ and Rust XDRs)
+    // is enough to guarantee _all_ code linked into core is using the same
+    // XDRs.
+    check_xdr_version_identities();
+
     // This will panic if soroban does not support the current ledger protocol
     // version. It should even work if configured with "next": the next feature
     // should enable the next feature on the most recent soroban host, and to

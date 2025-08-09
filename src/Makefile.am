@@ -116,8 +116,12 @@ stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQuery
 BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 
+if UNIFIED_RUST
+RUST_TOOLCHAIN_CHANNEL=nightly
+else
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+endif
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
 
 # we pass RUST_TOOLCHAIN_CHANNEL by environment variable
@@ -148,8 +152,6 @@ RUST_PROFILE_DIR := $(if $(findstring release,$(RUST_PROFILE)),release,debug)
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
 SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
 RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_DEP_TREE_STAMP)
-LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
-stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 
@@ -243,6 +245,50 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLC
 	done
 	touch $@
 
+# The "unified" rust build is a special non-production mode that builds all of
+# the rust dependencies of librust_stellar_core.a through a single cargo
+# invocation, which is actually the "normal" way cargo operates, but which also
+# has the negative side effect of resolving (merging) different point releases
+# and pre-release minor versions across transitive dependencies, which means we
+# can't control the _exact_ transitive dependencies as well as we'd like.
+#
+# So we only use the unified rust build for certain special cases such as
+# testing with asan/tsan (they seem to only work well when built this way) and
+# use the non-unified build (with separate .a files for each separate soroban
+# version) for production builds.
+
+if UNIFIED_RUST
+
+# In the unified build, we have to pass the --target flag. This actually breaks
+# the non-unified build, so we wind up setting LIBRUST_STELLAR_CORE separately
+# in unified and non-unified builds.
+RUST_TARGET=$(shell rustc -vV | sed -n 's/host: //p')
+LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_TARGET)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
+
+RUSTFLAGS_ASAN := $(if $(findstring -fsanitize=address,$(CXXFLAGS)),-Zsanitizer=address,)
+RUSTFLAGS_TSAN := $(if $(findstring -fsanitize=thread,$(CXXFLAGS)),-Zsanitizer=thread,)
+RUSTFLAGS_SANI := $(RUSTFLAGS_ASAN) $(RUSTFLAGS_TSAN)
+CARGOFLAGS_BUILDSTD := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),-Zbuild-std,)
+RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
+
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
+	rm -rf $(abspath $(RUST_TARGET_DIR))
+	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
+	CARGO_NET_GIT_FETCH_WITH_CLI=true \
+	$(CARGO) rustc \
+		$(CARGOFLAGS_BUILDSTD) \
+		--package stellar-core \
+		--target $(RUST_TARGET) \
+		--features unified \
+		$(RUST_PROFILE_ARG) \
+		--locked \
+		--target-dir $(abspath $(RUST_TARGET_DIR)) \
+		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)
+	ranlib $@
+
+else # !UNIFIED_RUST
+
 # This next build command looks a little weird but it's necessary. We have to
 # provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
 # essentially manually marking-as-different the separate dependency trees
@@ -303,7 +349,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 		esac ; \
 		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
-		RUSTFLAGS="-Cmetadata=$$proto $(RUSTFLAGS_ASAN)" \
+		RUSTFLAGS="-Cmetadata=$$proto" \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
 			--package soroban-env-host \
@@ -327,10 +373,12 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # them in as separate `--extern` arguments to a slightly-more-manual `cargo
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
+
+LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
+
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
 	rm -rf $(abspath $(RUST_TARGET_DIR))
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
-	RUSTFLAGS="$(RUSTFLAGS_ASAN)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \
@@ -342,6 +390,10 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SORO
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)
 	ranlib $@
+
+endif # UNIFIED_RUST
+
+stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks
