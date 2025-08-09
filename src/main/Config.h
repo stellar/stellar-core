@@ -848,6 +848,11 @@ class Config : public std::enable_shared_from_this<Config>
     size_t TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
     size_t TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;
 
+    // Experimental flag to use externalized close time for trigger timer
+    // calculation instead of prepare start time. Should only be used for
+    // testing.
+    bool EXPERIMENTAL_TRIGGER_TIMER;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void

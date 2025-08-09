@@ -1220,6 +1220,30 @@ HerderImpl::setupTriggerNextLedger()
     uint64_t nextIndex = nextConsensusLedgerIndex();
     auto lastIndex = trackingConsensusLedgerIndex();
 
+    // Note, this is not the LCL externalized close time, but the close time of
+    // the ledger prior. This should be roughly ledgerCloseTime seconds ago.
+    std::optional<uint64_t> externalizedCloseTime = std::nullopt;
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER && lastIndex > 0 &&
+        mApp.getClock().getMode() != VirtualClock::VIRTUAL_TIME)
+    {
+        auto messages = getSCP().getLatestMessagesSend(lastIndex - 1);
+        for (auto const& env : messages)
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                // Extract the close time from the externalized value
+                auto const& ext = env.statement.pledges.externalize();
+                auto const& value = ext.commit.value;
+                StellarValue sv;
+                xdr::xdr_from_opaque(value, sv);
+                externalizedCloseTime = sv.closeTime;
+                break;
+            }
+        }
+    }
+#endif
+
     // if we're in sync, we setup mTriggerTimer
     // it may get cancelled if a more recent ledger externalizes
 
@@ -1229,16 +1253,39 @@ HerderImpl::setupTriggerNextLedger()
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last
     auto now = mApp.getClock().now();
-    auto lastBallotStart = now - milliseconds;
-    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
-    if (lastStart)
+    auto lastLedgerStatingPoint = now - milliseconds;
+
+#ifdef BUILD_TESTS
+    if (externalizedCloseTime)
     {
-        lastBallotStart = *lastStart;
+        // The externalized close time is a unix timestamp (seconds since
+        // epoch). We convert it to steady_clock time by:
+        // 1. Converting unix timestamp to system_clock::time_point (wall clock
+        // time)
+        // 2. Calculating how long ago that was from current system time
+        // 3. Subtracting that duration from current steady_clock time
+        // (monotonic clock) This avoids clock type mismatches since
+        // lastLedgerStatingPoint uses steady_clock
+        auto externalizedSystemTime =
+            VirtualClock::from_time_t(*externalizedCloseTime);
+        auto currentSystemTime = mApp.getClock().system_now();
+        auto timeSinceExternalized = currentSystemTime - externalizedSystemTime;
+        lastLedgerStatingPoint = now - timeSinceExternalized;
+    }
+    else
+#endif
+    {
+        // Fall back to prepare start time if available
+        auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+        if (lastStart)
+        {
+            lastLedgerStatingPoint = *lastStart;
+        }
     }
 
     // Adjust trigger time in case node's clock has drifted.
     // This ensures that next value to nominate is valid
-    auto triggerTime = lastBallotStart + milliseconds;
+    auto triggerTime = lastLedgerStatingPoint + milliseconds;
 
     if (triggerTime < now)
     {
