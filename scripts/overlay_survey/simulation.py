@@ -127,6 +127,11 @@ class SurveySimulation:
                                  "inboundpeerindex",
                                  "outboundpeerindex"}
 
+        if self._root_node not in self._results["topology"]:
+            self._results["topology"][self._root_node] = self._create_node_json(
+                self._root_node, slice(0, None), slice(0, None)
+            )
+
         fail_response = SimulatedResponse(
             {"exception" :
                 util.SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF})
@@ -134,7 +139,9 @@ class SurveySimulation:
         inbound_peer_idx = params["inboundpeerindex"]
         outbound_peer_idx = params["outboundpeerindex"]
         if node == self._root_node:
-            # Nodes cannot survey themselves (yet)
+            # Nodes cannot request a survey from themselves (but, the surveying
+            # node's data gets auto-included on the first call to
+            # surveytopologytimesliced)
             return fail_response
 
         if ((inbound_peer_idx > 0 or outbound_peer_idx > 0) and
@@ -177,68 +184,75 @@ class SurveySimulation:
             node, inbound_peer_index, outbound_peer_index = \
                 self._pending_requests.pop()
 
-            # Start with info on the node itself
-            node_json = self._graph.nodes[node].copy()
-
-            # Remove "version" field, which is not part of stellar-core's
-            # response
-            del node_json["version"]
-
-            # Generate inboundPeers list
-            node_json["inboundPeers"] = []
-            in_edges = list(self._graph.in_edges(node, True))
-            inbound_slice = in_edges[
-                inbound_peer_index : inbound_peer_index + PEER_LIST_SIZE
-                ]
-            for (node_id, _, data) in inbound_slice:
-                self._addpeer(node_id, data, node_json["inboundPeers"])
-            if ("numTotalInboundPeers" in node_json and
-                node_json["numTotalInboundPeers"] != len(in_edges)):
-                # The V1 survey contains a race condition in which the number of
-                # peers can change between when a node reports its peer count
-                # and when the surveyor requests the peers themselves. The V2
-                # survey resolves this with time slicing. The different handling
-                # of peer counts between the V1 and V2 surveys can cause issues
-                # when simulating a V2 survey using V1 survey data, resulting in
-                # an output graph that is not isomorphic to the input graph.
-                # Therefore, we patch up the peer counts in the simulated survey
-                # results with the real peer counts, rather than using what the
-                # node reported during the V1 survey.
-                logger.warning("Node %s has %s inbound peers, but the node "
-                               "claims it has %s inbound peers. Replacing "
-                               "survey results with actual inbound peer "
-                               "count.",
-                               node,
-                               len(in_edges),
-                               node_json["numTotalInboundPeers"])
-                node_json["numTotalInboundPeers"] = len(in_edges)
-
-            # Generate outboundPeers list
-            node_json["outboundPeers"] = []
-            out_edges = list(self._graph.out_edges(node, True))
-            outbound_slice = out_edges[
-                outbound_peer_index : outbound_peer_index + PEER_LIST_SIZE
-                ]
-            for (_, node_id, data) in outbound_slice:
-                self._addpeer(node_id, data, node_json["outboundPeers"])
-            if ("numTotalOutboundPeers" in node_json and
-                node_json["numTotalOutboundPeers"] != len(out_edges)):
-                # Patch up peer counts in simulated survey results with real
-                # peer counts (see note on similar conditional for inbound peers
-                # above)
-                logger.warning("Node %s has %s outbound peers, but the node "
-                               "claims it has %s outbound peers. Replacing "
-                               "survey results with actual outbound peer "
-                               "count.",
-                               node,
-                               len(out_edges),
-                               node_json["numTotalOutboundPeers"])
-                node_json["numTotalOutboundPeers"] = len(out_edges)
-
-            _add_v2_survey_data(node_json)
-
-            self._results["topology"][node] = node_json
+            self._results["topology"][node] = self._create_node_json(
+                node,
+                slice(inbound_peer_index, inbound_peer_index + PEER_LIST_SIZE),
+                slice(outbound_peer_index, outbound_peer_index + PEER_LIST_SIZE)
+            )
         return SimulatedResponse(json=self._results)
+
+    def _create_node_json(self, node, inbound_slice, outbound_slice):
+        """
+        Create the JSON-like dictionary corresponding to the value in the
+        topology dictionary
+        """
+        # Start with info on the node itself
+        node_json = self._graph.nodes[node].copy()
+
+        # Remove "version" field, which is not part of stellar-core's
+        # response
+        del node_json["version"]
+
+        # Generate inboundPeers list
+        node_json["inboundPeers"] = []
+        in_edges = list(self._graph.in_edges(node, True))
+        inbound_slice = in_edges[inbound_slice]
+        for (node_id, _, data) in inbound_slice:
+            self._addpeer(node_id, data, node_json["inboundPeers"])
+        if ("numTotalInboundPeers" in node_json and
+            node_json["numTotalInboundPeers"] != len(in_edges)):
+            # The V1 survey contains a race condition in which the number of
+            # peers can change between when a node reports its peer count
+            # and when the surveyor requests the peers themselves. The V2
+            # survey resolves this with time slicing. The different handling
+            # of peer counts between the V1 and V2 surveys can cause issues
+            # when simulating a V2 survey using V1 survey data, resulting in
+            # an output graph that is not isomorphic to the input graph.
+            # Therefore, we patch up the peer counts in the simulated survey
+            # results with the real peer counts, rather than using what the
+            # node reported during the V1 survey.
+            logger.warning("Node %s has %s inbound peers, but the node "
+                           "claims it has %s inbound peers. Replacing "
+                           "survey results with actual inbound peer "
+                           "count.",
+                           node,
+                           len(in_edges),
+                           node_json["numTotalInboundPeers"])
+            node_json["numTotalInboundPeers"] = len(in_edges)
+
+        # Generate outboundPeers list
+        node_json["outboundPeers"] = []
+        out_edges = list(self._graph.out_edges(node, True))
+        outbound_slice = out_edges[outbound_slice]
+        for (_, node_id, data) in outbound_slice:
+            self._addpeer(node_id, data, node_json["outboundPeers"])
+        if ("numTotalOutboundPeers" in node_json and
+            node_json["numTotalOutboundPeers"] != len(out_edges)):
+            # Patch up peer counts in simulated survey results with real
+            # peer counts (see note on similar conditional for inbound peers
+            # above)
+            logger.warning("Node %s has %s outbound peers, but the node "
+                           "claims it has %s outbound peers. Replacing "
+                           "survey results with actual outbound peer "
+                           "count.",
+                           node,
+                           len(out_edges),
+                           node_json["numTotalOutboundPeers"])
+            node_json["numTotalOutboundPeers"] = len(out_edges)
+
+        _add_v2_survey_data(node_json)
+
+        return node_json
 
     def get(self, url, params):
         """Simulate a GET request"""
