@@ -994,7 +994,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
                               max<double>(1, applyTx.one_minute_rate()));
 
     auto etaHours = etaSecs / 3600;
-    auto etaMins = etaSecs % 60;
+    auto etaMins = etaSecs % 3600 / 60;
 
     if (cfg.isSoroban())
     {
