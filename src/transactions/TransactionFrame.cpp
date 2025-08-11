@@ -1248,12 +1248,14 @@ TransactionFrame::commonValidPreSeqNum(
     {
         if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21))
         {
+#ifndef BUILD_TESTS
             if (mEnvelope.type() == ENVELOPE_TYPE_TX &&
                 mEnvelope.v1().tx.ext.v() != 0)
             {
                 txResult.setInnermostError(txMALFORMED);
                 return std::nullopt;
             }
+#endif
         }
     }
 

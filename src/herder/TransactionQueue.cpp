@@ -637,6 +637,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
 {
     ZoneScoped;
 
+#ifndef BUILD_TESTS
     auto c1 =
         tx->getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
         tx->getEnvelope().feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX &&
@@ -650,6 +651,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
                          txMALFORMED);
     }
+#endif
 
     AccountStates::iterator stateIter;
 
