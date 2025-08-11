@@ -1248,14 +1248,17 @@ TransactionFrame::commonValidPreSeqNum(
     {
         if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21))
         {
-#ifndef BUILD_TESTS
             if (mEnvelope.type() == ENVELOPE_TYPE_TX &&
-                mEnvelope.v1().tx.ext.v() != 0)
+                mEnvelope.v1().tx.ext.v() != 0
+#ifdef BUILD_TESTS
+                // For testing, allow sorobanData extension for loadgen padding
+                && mEnvelope.v1().tx.ext.sorobanData().ext.v() != 1
+#endif
+            )
             {
                 txResult.setInnermostError(txMALFORMED);
                 return std::nullopt;
             }
-#endif
         }
     }
 
