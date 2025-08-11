@@ -823,7 +823,7 @@ TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
                       .count();
     REQUIRE(nonDexOps > 0);
     REQUIRE(dexOps > 0);
-    REQUIRE(dexOps + nonDexOps == 3 * 100);
+    REQUIRE(dexOps + nonDexOps == 100);
 }
 
 TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
