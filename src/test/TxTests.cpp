@@ -813,15 +813,10 @@ paddedTransactionFromOperations(Application& app, SecretKey const& from,
 {
     auto ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
-    {
-        return transactionFromOperationsV0(app, from, seq, ops, fee,
-                                           std::nullopt);
-    }
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
     {
-        return transactionFromOperationsV1(
-            app, from, seq, ops, fee, std::nullopt, std::nullopt, std::nullopt);
+        return transactionFromOperations(app, from, seq, ops, fee,
+                                         std::nullopt);
     }
     return paddedTransactionFromOperationsV1(app, from, seq, ops, fee,
                                              desiredSize);
