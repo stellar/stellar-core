@@ -130,14 +130,14 @@ optional = true
 # supported host, since test material usually just grows over time.
 
 [dependencies.soroban-test-wasms]
-version = "=22.0.0"
+version = "=23.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "1cd8b8dca9aeeca9ce45b129cd923992b32dc258"
+rev = "688bc34e6cd15c71742139e625268c7f30f55a92"
 
 [dependencies.soroban-synth-wasm]
-version = "=22.0.0"
+version = "=23.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "1cd8b8dca9aeeca9ce45b129cd923992b32dc258"
+rev = "688bc34e6cd15c71742139e625268c7f30f55a92"
 
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
