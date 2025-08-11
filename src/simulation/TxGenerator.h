@@ -117,7 +117,8 @@ class TxGenerator
 
     TransactionFrameBaseConstPtr
     createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
-                              std::optional<uint32_t> maxGeneratedFeeRate, uint32_t byteCount);
+                              std::optional<uint32_t> maxGeneratedFeeRate,
+                              uint32_t byteCount);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,

@@ -239,7 +239,7 @@ TxGenerator::createTransactionFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate, uint32_t byteCount)
 {
-    auto txf = paddedTransactionFromOperationsV1(
+    auto txf = paddedTransactionFromOperations(
         mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
         generateFee(maxGeneratedFeeRate, ops.size()), byteCount);
 
@@ -259,8 +259,9 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
     vector<Operation> paymentOps;
     paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
 
-    return std::make_pair(
-        from, createTransactionFramePtr(from, paymentOps, maxGeneratedFeeRate, byteCount));
+    return std::make_pair(from, createTransactionFramePtr(from, paymentOps,
+                                                          maxGeneratedFeeRate,
+                                                          byteCount));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
