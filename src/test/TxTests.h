@@ -148,6 +148,13 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
                             std::optional<PreconditionsV2> cond = std::nullopt,
                             std::optional<uint64_t> sourceMux = std::nullopt,
                             std::optional<Memo> memo = std::nullopt);
+
+TransactionTestFramePtr
+paddedTransactionFromOperations(Application& app, SecretKey const& from,
+                                SequenceNumber seq,
+                                std::vector<Operation> const& ops,
+                                uint32_t fee = 0, uint32_t desiredSize = 0);
+
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, std::vector<Operation> const& ops,
