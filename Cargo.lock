@@ -1301,21 +1301,21 @@ dependencies = [
 
 [[package]]
 name = "soroban-synth-wasm"
-version = "22.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=1cd8b8dca9aeeca9ce45b129cd923992b32dc258#1cd8b8dca9aeeca9ce45b129cd923992b32dc258"
+version = "23.0.0"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=688bc34e6cd15c71742139e625268c7f30f55a92#688bc34e6cd15c71742139e625268c7f30f55a92"
 dependencies = [
  "arbitrary",
- "soroban-env-common 22.0.0",
- "soroban-env-macros 22.0.0",
- "stellar-xdr 22.0.0",
+ "soroban-env-common 23.0.0",
+ "soroban-env-macros 23.0.0",
+ "stellar-xdr 23.0.0",
  "wasm-encoder",
  "wasmparser",
 ]
 
 [[package]]
 name = "soroban-test-wasms"
-version = "22.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=1cd8b8dca9aeeca9ce45b129cd923992b32dc258#1cd8b8dca9aeeca9ce45b129cd923992b32dc258"
+version = "23.0.0"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=688bc34e6cd15c71742139e625268c7f30f55a92#688bc34e6cd15c71742139e625268c7f30f55a92"
 
 [[package]]
 name = "soroban-wasmi"
