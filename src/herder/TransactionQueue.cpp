@@ -637,7 +637,6 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
 {
     ZoneScoped;
 
-#ifndef BUILD_TESTS
     auto c1 =
         tx->getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
         tx->getEnvelope().feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX &&
@@ -648,10 +647,20 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     // fast fail when Soroban tx is malformed
     if ((tx->isSoroban() != (c1 || c2)) || !tx->XDRProvidesValidFee())
     {
-        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
-                         txMALFORMED);
-    }
+#ifdef BUILD_TESTS
+        // Allow sorobanData as padding for classic transactions when testing
+        // (used in loadgen)
+        if (c1 || !c2 ||
+            tx->getEnvelope().v1().tx.ext.sorobanData().ext.v() != 1 ||
+            !tx->XDRProvidesValidFee())
+        {
 #endif
+            return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                             *tx, txMALFORMED);
+#ifdef BUILD_TESTS
+        }
+#endif
+    }
 
     AccountStates::iterator stateIter;
 
