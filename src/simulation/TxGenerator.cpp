@@ -279,7 +279,8 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
         Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
         100));
     return std::make_pair(
-        account, createTransactionFramePtr(account, ops, maxGeneratedFeeRate));
+        account, createTransactionFramePtr(account, ops, maxGeneratedFeeRate,
+                                           byteCount));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
