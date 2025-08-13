@@ -763,7 +763,7 @@ sizeOfTests()
     {
         for (uint32_t level = 0; level < BucketListT::kNumLevels; ++level)
         {
-            uint32_t ledger = dist(gRandomEngine);
+            uint32_t ledger = dist(getGlobalRandomEngine());
             if (BucketListT::sizeOfSnap(ledger, level) > 0)
             {
                 uint32_t oldestInCurr =
@@ -826,8 +826,8 @@ snapSteadyStateTest()
         stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
         for (uint32_t i = 0; i < 1000; ++i)
         {
-            uint32_t low = distLow(gRandomEngine);
-            uint32_t high = distHigh(gRandomEngine);
+            uint32_t low = distLow(getGlobalRandomEngine());
+            uint32_t high = distHigh(getGlobalRandomEngine());
             REQUIRE(BucketListT::sizeOfSnap(low, level) < half);
             REQUIRE(BucketListT::sizeOfSnap(high, level) == half);
         }
@@ -863,8 +863,8 @@ deepestCurrTest()
     stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
     for (uint32_t i = 0; i < 1000; ++i)
     {
-        uint32_t low = distLow(gRandomEngine);
-        uint32_t high = distHigh(gRandomEngine);
+        uint32_t low = distLow(getGlobalRandomEngine());
+        uint32_t high = distHigh(getGlobalRandomEngine());
         REQUIRE(BucketListT::sizeOfCurr(low, deepest) == 0);
         REQUIRE(BucketListT::oldestLedgerInCurr(low, deepest) ==
                 std::numeric_limits<uint32_t>::max());

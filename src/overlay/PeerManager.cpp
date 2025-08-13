@@ -159,8 +159,8 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     size_t maxOffset = count > size ? count - size : 0;
     size_t offset = rand_uniform<size_t>(0, maxOffset);
     result = loadPeers(size, offset, where, bindToStatement);
-
-    stellar::shuffle(std::begin(result), std::end(result), gRandomEngine);
+    stellar::shuffle(std::begin(result), std::end(result),
+                     getGlobalRandomEngine());
     return result;
 }
 
@@ -371,7 +371,7 @@ computeBackoff(size_t numFailures)
     uint32 backoffCount = static_cast<uint32>(
         std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
     auto nsecs =
-        std::chrono::seconds(static_cast<uint32>(gRandomEngine()) %
+        std::chrono::seconds(static_cast<uint32>(getGlobalRandomEngine()()) %
                                  ((1u << backoffCount) * SECONDS_PER_BACKOFF) +
                              1);
     return nsecs;

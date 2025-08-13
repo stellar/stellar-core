@@ -51,7 +51,7 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
     REQUIRE(lbound <= ubound);
 
     stellar::uniform_int_distribution<int64_t> dist(lbound, ubound);
-    account.balance = dist(gRandomEngine);
+    account.balance = dist(getGlobalRandomEngine());
     return le;
 }
 

@@ -229,14 +229,14 @@ modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     {
         stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
-        acc.signers.at(dist(gRandomEngine)) = validSignerGenerator();
+        acc.signers.at(dist(getGlobalRandomEngine())) = validSignerGenerator();
         updateAccountSubEntries(app, le, lePrev, 0, {});
     }
     else
     {
         stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
-        auto index = dist(gRandomEngine);
+        auto index = dist(getGlobalRandomEngine());
         auto se = subentries.at(index);
         auto se2 = generateRandomModifiedSubEntry(le, se);
         subentries.at(index) = se2;
@@ -266,7 +266,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
         stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
 
-        auto pos = dist(gRandomEngine);
+        auto pos = dist(getGlobalRandomEngine());
         acc.signers.erase(acc.signers.begin() + pos);
         if (hasAccountEntryExtV2(acc))
         {
@@ -280,7 +280,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     {
         stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
-        auto index = dist(gRandomEngine);
+        auto index = dist(getGlobalRandomEngine());
         auto se = subentries.at(index);
         subentries.erase(subentries.begin() + index);
         updateAccountSubEntries(app, le, lePrev,
@@ -323,7 +323,7 @@ TEST_CASE("Create account then add signers and subentries",
         std::vector<LedgerEntry> subentries;
         for (uint32_t j = 0; j < 50; ++j)
         {
-            auto change = changesDist(gRandomEngine);
+            auto change = changesDist(getGlobalRandomEngine());
             if (change > 0 || le.data.account().numSubEntries == 0)
             {
                 addRandomSubEntryToAccount(*app, le, subentries);

@@ -563,8 +563,8 @@ TEST_CASE("operation filter configuration", "[config]")
         {
             vals.emplace_back(static_cast<OperationType>(v));
         }
-        stellar::shuffle(vals.begin(), vals.end(), gRandomEngine);
-        vals.resize(dist(gRandomEngine));
+        stellar::shuffle(vals.begin(), vals.end(), getGlobalRandomEngine());
+        vals.resize(dist(getGlobalRandomEngine()));
         loadConfig(vals);
     }
 }

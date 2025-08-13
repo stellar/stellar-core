@@ -189,7 +189,7 @@ resilienceTest(Simulation::pointer sim)
     {
         // now restart a random node i, will reconnect to
         // j to join the network
-        auto i = gen(gRandomEngine);
+        auto i = gen(getGlobalRandomEngine());
         auto j = (i + 1) % nbNodes;
 
         auto victimID = nodes[i];

@@ -618,7 +618,7 @@ Hash
 HashUtils::pseudoRandomForTesting()
 {
     Hash res;
-    auto bytes = getPRNGBytes(res.size(), gRandomEngine);
+    auto bytes = getPRNGBytes(res.size(), getGlobalRandomEngine());
     for (size_t i = 0; i < bytes.size(); ++i)
     {
         res[i] = bytes[i];

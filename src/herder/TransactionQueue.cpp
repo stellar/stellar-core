@@ -187,7 +187,7 @@ ClassicTransactionQueue::allowTxBroadcast(TimestampedTx const& tx)
                 std::geometric_distribution<uint32_t> dist(
                     mApp.getConfig().FLOOD_ARB_TX_DAMPING_FACTOR);
                 uint32_t k = maxBroadcast - allowance;
-                allowTx = dist(gRandomEngine) >= k;
+                allowTx = dist(getGlobalRandomEngine()) >= k;
             }
 
             // If we've decided to admit a tx, bump all pairs on the path.

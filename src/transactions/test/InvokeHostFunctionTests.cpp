@@ -7884,7 +7884,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
                 .getInclusionFee();
         for (size_t i = 0; i < 6; i++)
         {
-            auto extendTo = dist(gRandomEngine);
+            auto extendTo = dist(getGlobalRandomEngine());
             extendTos.emplace_back(extendTo);
 
             // The first tx will be a rw, the rest are ro
@@ -8643,10 +8643,11 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
         auto resources = lm.maxLedgerResources(true);
         for (auto& account : accounts)
         {
-            auto const& key = keys.at(keyDist(gRandomEngine));
-            auto const& action = actions.at(actionDist(gRandomEngine));
+            auto const& key = keys.at(keyDist(getGlobalRandomEngine()));
+            auto const& action =
+                actions.at(actionDist(getGlobalRandomEngine()));
             auto const& durability =
-                durabilities.at(durabilityDist(gRandomEngine));
+                durabilities.at(durabilityDist(getGlobalRandomEngine()));
 
             SorobanInvocationSpec spec;
             std::vector<SCVal> args;
@@ -8658,7 +8659,7 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
             else if (action == "extend")
             {
                 spec = client.readKeySpec(key, durability);
-                auto ttl = ttlDist(gRandomEngine);
+                auto ttl = ttlDist(getGlobalRandomEngine());
                 args = {makeSymbolSCVal(key), makeU32SCVal(ttl),
                         makeU32SCVal(ttl)};
             }
@@ -8801,7 +8802,7 @@ TEST_CASE("read-only bumps across threads", "[tx][soroban][parallelapply]")
     std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
     for (auto& account : accounts)
     {
-        auto extendTo = dist(gRandomEngine);
+        auto extendTo = dist(getGlobalRandomEngine());
         maxExtension = std::max(maxExtension, extendTo);
 
         auto inv = client.getContract().prepareInvocation(

@@ -476,7 +476,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                           &carol,     &eve,   &stroopy};
     stellar::uniform_int_distribution<> accountDistr(0, accounts.size() - 1);
     auto randomAccount = [&accounts, &accountDistr]() -> TestAccount& {
-        return *accounts.at(accountDistr(gRandomEngine));
+        return *accounts.at(accountDistr(getGlobalRandomEngine()));
     };
 
     std::vector<TransactionFrameBasePtr> txs;

@@ -240,7 +240,7 @@ class SlidingWindowTester
         : mSlidingWindowSample(kDefaultSampleSize, kDefaultWindowTime)
         , mTimestamp(medida::Clock::now())
     {
-        mSlidingWindowSample.Seed(stellar::gRandomEngine());
+        mSlidingWindowSample.Seed(stellar::getGlobalRandomEngine()());
     }
     template <typename Dist, typename... Args>
     void
@@ -253,7 +253,7 @@ class SlidingWindowTester
         while (mTimestamp < endTime)
         {
             uint64_t sample =
-                static_cast<uint64_t>(dist(stellar::gRandomEngine));
+                static_cast<uint64_t>(dist(stellar::getGlobalRandomEngine()));
             mSlidingWindowSample.Update(sample, mTimestamp);
             mSamples.emplace_back(sample, mTimestamp);
             mTimestamp += timeStep;
@@ -372,7 +372,7 @@ sampleFrom(Args... args)
     std::vector<double> sample;
     for (size_t i = 0; i < 10000; ++i)
     {
-        sample.emplace_back(dist(stellar::gRandomEngine));
+        sample.emplace_back(dist(stellar::getGlobalRandomEngine()));
     }
     return medida::stats::Snapshot(sample);
 }
@@ -588,7 +588,7 @@ testCKMSSample(int const count, Args... args)
     Dist dist(std::forward<Args>(args)...);
     for (int i = 0; i < count; i++)
     {
-        auto x = static_cast<int64_t>(dist(stellar::gRandomEngine));
+        auto x = static_cast<int64_t>(dist(stellar::getGlobalRandomEngine()));
         values.push_back(x);
         hist.Update(x);
     }

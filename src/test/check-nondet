@@ -11,7 +11,7 @@
 if git grep 'std::rand()' '*.h' '*.cpp'
 then
     echo
-    echo "please use stellar::gRandomEngine instead of std::rand since the latter is not"
+    echo "please use stellar::getGlobalRandomEngine() instead of std::rand since the latter is not"
     echo "identical on all platforms and other library code may call it unexpectedly."
     exit 1
 fi

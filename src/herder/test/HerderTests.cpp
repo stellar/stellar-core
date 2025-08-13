@@ -5990,7 +5990,7 @@ TEST_CASE("getNodeWeight", "[herder]")
 static Value
 getRandomValue()
 {
-    auto h = sha256(fmt::format("value {}", gRandomEngine()));
+    auto h = sha256(fmt::format("value {}", getGlobalRandomEngine()()));
     return xdr::xdr_to_opaque(h);
 }
 
@@ -6452,7 +6452,7 @@ testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
     std::transform(validators.begin(), validators.end(),
                    std::back_inserter(nodeIDs),
                    [](ValidatorEntry const& v) { return v.mKey; });
-    stellar::shuffle(nodeIDs.begin(), nodeIDs.end(), gRandomEngine);
+    stellar::shuffle(nodeIDs.begin(), nodeIDs.end(), getGlobalRandomEngine());
     std::set<NodeID> unresponsive(nodeIDs.begin(),
                                   nodeIDs.begin() + numUnresponsive);
 

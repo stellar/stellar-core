@@ -60,7 +60,7 @@ sampleDiscrete(std::vector<T> const& values,
 
     std::discrete_distribution<uint32_t> distribution(weights.begin(),
                                                       weights.end());
-    return values.at(distribution(gRandomEngine));
+    return values.at(distribution(getGlobalRandomEngine()));
 }
 } // namespace
 
@@ -1041,7 +1041,7 @@ LoadGenerator::createMixedClassicSorobanTransaction(
     std::discrete_distribution<uint32_t> dist({mixCfg.payWeight,
                                                mixCfg.sorobanUploadWeight,
                                                mixCfg.sorobanInvokeWeight});
-    switch (dist(gRandomEngine))
+    switch (dist(getGlobalRandomEngine()))
     {
     case 0:
     {

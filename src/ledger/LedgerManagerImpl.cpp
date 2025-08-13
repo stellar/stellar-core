@@ -1285,7 +1285,7 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
         {
             sleepFor +=
                 cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[distribution(
-                    gRandomEngine)];
+                    getGlobalRandomEngine())];
         }
         std::chrono::microseconds applicationTime =
             closeTime.checkElapsedTime();
