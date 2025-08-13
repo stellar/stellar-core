@@ -223,6 +223,8 @@ class LoadGenerator
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
         medida::Meter& mTxnBytes;
+        medida::Meter& mNativePaymentBytes;
+        medida::Meter& mManageOfferBytes;
 
         TxMetrics(medida::MetricsRegistry& m);
         void report();
