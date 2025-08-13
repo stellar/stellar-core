@@ -13,9 +13,7 @@ namespace autocheck {
     class mapped_generator {
       public:
         typedef
-          typename std::result_of<
-            Func(typename Gen::result_type&&, size_t)
-          >::type
+          typename std::invoke_result_t<Func, typename Gen::result_type&&, size_t>
           result_type;
 
       private:
