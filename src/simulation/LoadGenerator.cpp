@@ -44,7 +44,6 @@ using namespace txtest;
 
 namespace
 {
-// Default distribution settings, largely based on averages seen on testnet
 // Sample from a discrete distribution of `values` with weights `weights`.
 // Returns `defaultValue` if `values` is empty.
 template <typename T>
