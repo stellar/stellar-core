@@ -774,6 +774,7 @@ TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
             auto cfg = getTestConfig(i);
             uint32_t baseSize = 148;
             uint32_t opSize = 56;
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {baseSize + opSize * 3};
             cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {1};
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
