@@ -5935,7 +5935,8 @@ testWeights(std::vector<ValidatorEntry> const& validators)
     {
         uint64_t weight = herder.getHerderSCPDriver().getNodeWeight(
             validator.mKey, cfg.QUORUM_SET, false);
-        double normalizedWeight = static_cast<double>(weight) / UINT64_MAX;
+        double normalizedWeight =
+            static_cast<double>(weight) / static_cast<double>(UINT64_MAX);
         normalizedOrgWeights[validator.mHomeDomain] += normalizedWeight;
 
         std::string const& org = validator.mHomeDomain;
