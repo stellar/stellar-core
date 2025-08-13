@@ -2251,7 +2251,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto seq = herder.trackingConsensusLedgerIndex() + 1;
-        auto ct = app->timeNow() + 1;
 
         auto& cache = herder.getHerderSCPDriver().getTxSetValidityCache();
         REQUIRE(cache.getCounters().mHits == 0);
@@ -4997,7 +4996,6 @@ TEST_CASE("do not flood too many transactions with DEX separation",
 
         auto app = simulation->getNode(mainKey.getPublicKey());
         auto const& cfg = app->getConfig();
-        auto& lm = app->getLedgerManager();
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& tq = herder.getTransactionQueue();
 

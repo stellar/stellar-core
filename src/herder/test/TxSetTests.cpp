@@ -3179,8 +3179,6 @@ TEST_CASE("parallel tx set building benchmark",
             int txSize = genValue(txSizeDistr, MAX_TX_SIZE);
             int readBytes = genValue(readBytesDistr, MAX_READ_BYTES_PER_TX);
             int writeBytes = genValue(writeBytesDistr, MAX_WRITE_BYTES_PER_TX);
-            int readCount = genValue(readCountDistr, MAX_READS_PER_TX);
-            int writeCount = genValue(writeCountDistr, MAX_WRITES_PER_TX);
             txs.push_back(createTx(insns, txKeys[i].first, txKeys[i].second,
                                    feeDistr(Catch::rng()), readBytes,
                                    writeBytes, txSize));

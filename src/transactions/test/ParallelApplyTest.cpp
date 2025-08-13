@@ -543,7 +543,6 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         MIN_EXPIRED_ENTRY_FRACTION, MAX_EXPIRED_ENTRY_FRACTION)(testRng);
     int liveEntryCount =
         preuploadedEntryKeys.size() * (1.0 - expiredEntryFraction);
-    int expiredEntryCount = preuploadedEntryKeys.size() - liveEntryCount;
     // Bump some entries that are supposed to expire a little bit to make
     // sure they are expired, but not yet moved to the hot archive.
     int expiredInLiveStateEntryCount =

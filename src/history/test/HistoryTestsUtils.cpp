@@ -607,7 +607,6 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     auto& txsSucceeded =
         getApp().getMetrics().NewCounter({"ledger", "apply", "success"});
-    auto lastSucceeded = txsSucceeded.count();
 
     lm.applyLedger(mLedgerCloseDatas.back());
 
