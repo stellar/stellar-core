@@ -360,15 +360,15 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             parallelPhase({{2}, {}}, false), false,
             "parallel Soroban - one of the stages has no clusters");
         scenarios[1].emplace_back(
-            parallelPhase({{2}, {{0}}, {3, 5}}, false), false,
+            parallelPhase({{2}, {0}, {3, 5}}, false), false,
             "parallel Soroban - one of the stages has empty cluster");
         scenarios[1].emplace_back(
-            parallelPhase({{2}, {{0}}}, false), false,
+            parallelPhase({{2}, {0}}, false), false,
             "parallel Soroban - one of the stages has empty cluster");
         scenarios[1].emplace_back(parallelPhase({{}, {}, {}}, false), false,
                                   "parallel Soroban - multiple empty stages");
         scenarios[1].emplace_back(
-            parallelPhase({{{}, {0}}, {{0}}, {}}, false), false,
+            parallelPhase({{{}, 0}, {0}, {}}, false), false,
             "parallel Soroban - multiple empty and empty cluster stages");
         scenarios[1].emplace_back(
             parallelPhase({{10, 2, 0, 1, 3}}, false), false,
