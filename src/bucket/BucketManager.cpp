@@ -399,6 +399,10 @@ BucketManager::reportLiveBucketIndexCacheMetrics()
 
     mLiveBucketIndexCacheEntries.set_count(totalCacheEntries);
     mLiveBucketIndexCacheBytes.set_count(totalEstimatedBytes);
+    TracyPlot("bucketlistDB.cache.entries",
+              static_cast<int64_t>(totalCacheEntries));
+    TracyPlot("bucketlistDB.cache.bytes",
+              static_cast<int64_t>(totalEstimatedBytes));
 }
 
 template <>
