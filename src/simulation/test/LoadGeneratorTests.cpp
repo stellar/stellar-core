@@ -769,13 +769,14 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    uint32_t constexpr baseSize = 148;
+    uint32_t constexpr opSize = 56;
+    uint32_t constexpr frameSize = baseSize + opSize * 3;
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
-            uint32_t baseSize = 148;
-            uint32_t opSize = 56;
             cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-            cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {baseSize + opSize * 3};
+            cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {frameSize};
             cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {1};
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
@@ -825,6 +826,16 @@ TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
     REQUIRE(nonDexOps > 0);
     REQUIRE(dexOps > 0);
     REQUIRE(dexOps + nonDexOps == 100);
+
+    auto nonDexBytes = app.getMetrics()
+                           .NewMeter({"loadgen", "payment", "bytes"}, "txn")
+                           .count();
+    auto dexBytes = app.getMetrics()
+                        .NewMeter({"loadgen", "manageoffer", "bytes"}, "txn")
+                        .count();
+    // Since both payment and dex transactions only use one op, # ops = # txns
+    REQUIRE(nonDexBytes == nonDexOps * frameSize);
+    REQUIRE(dexBytes == dexOps * frameSize);
 }
 
 TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")

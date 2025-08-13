@@ -1359,6 +1359,8 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     , mTxnAttempted(m.NewMeter({"loadgen", "txn", "attempted"}, "txn"))
     , mTxnRejected(m.NewMeter({"loadgen", "txn", "rejected"}, "txn"))
     , mTxnBytes(m.NewMeter({"loadgen", "txn", "bytes"}, "txn"))
+    , mNativePaymentBytes(m.NewMeter({"loadgen", "payment", "bytes"}, "txn"))
+    , mManageOfferBytes(m.NewMeter({"loadgen", "manageoffer", "bytes"}, "txn"))
 {
 }
 
@@ -1367,16 +1369,17 @@ LoadGenerator::TxMetrics::report()
 {
     CLOG_DEBUG(LoadGen,
                "Counts: {} tx, {} rj, {} by, {} na, {} dex, {} "
-               "su, {} ssi, {} ssu, {} si, {} scu",
+               "su, {} ssi, {} ssu, {} si, {}, scu, {} nab, {} dexb",
                mTxnAttempted.count(), mTxnRejected.count(), mTxnBytes.count(),
                mNativePayment.count(), mManageOfferOps.count(),
                mSorobanUploadTxs.count(), mSorobanSetupInvokeTxs.count(),
                mSorobanSetupUpgradeTxs.count(), mSorobanInvokeTxs.count(),
-               mSorobanCreateUpgradeTxs.count());
+               mSorobanCreateUpgradeTxs.count(), mNativePaymentBytes.count(),
+               mManageOfferBytes.count());
 
     CLOG_DEBUG(LoadGen,
                "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} na, "
-               "{} dex, {} su, {} ssi, {} ssu, {} si, {} scu",
+               "{} dex, {} su, {} ssi, {} ssu, {} si, {} scu, {} nab, {} dexb",
                mTxnAttempted.one_minute_rate(), mTxnRejected.one_minute_rate(),
                mTxnBytes.one_minute_rate(), mNativePayment.one_minute_rate(),
                mManageOfferOps.one_minute_rate(),
@@ -1384,7 +1387,9 @@ LoadGenerator::TxMetrics::report()
                mSorobanSetupInvokeTxs.one_minute_rate(),
                mSorobanSetupUpgradeTxs.one_minute_rate(),
                mSorobanInvokeTxs.one_minute_rate(),
-               mSorobanCreateUpgradeTxs.one_minute_rate());
+               mSorobanCreateUpgradeTxs.one_minute_rate(),
+               mNativePaymentBytes.one_minute_rate(),
+               mManageOfferBytes.one_minute_rate());
 }
 
 TransactionQueue::AddResultCode
@@ -1399,15 +1404,21 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     case LoadGenMode::PAY:
     case LoadGenMode::PAY_PREGENERATED:
         txm.mNativePayment.Mark(txf->getNumOperations());
+        txm.mNativePaymentBytes.Mark(
+            xdr::xdr_argpack_size(*txf->toStellarMessage()));
         break;
     case LoadGenMode::MIXED_CLASSIC:
         if (txf->hasDexOperations())
         {
             txm.mManageOfferOps.Mark(txf->getNumOperations());
+            txm.mManageOfferBytes.Mark(
+                xdr::xdr_argpack_size(*txf->toStellarMessage()));
         }
         else
         {
             txm.mNativePayment.Mark(txf->getNumOperations());
+            txm.mNativePaymentBytes.Mark(
+                xdr::xdr_argpack_size(*txf->toStellarMessage()));
         }
         break;
     case LoadGenMode::SOROBAN_UPLOAD:
@@ -1430,6 +1441,8 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         {
         case LoadGenMode::PAY:
             txm.mNativePayment.Mark(txf->getNumOperations());
+            txm.mNativePaymentBytes.Mark(
+                xdr::xdr_argpack_size(*txf->toStellarMessage()));
             break;
         case LoadGenMode::SOROBAN_UPLOAD:
             txm.mSorobanUploadTxs.Mark();
