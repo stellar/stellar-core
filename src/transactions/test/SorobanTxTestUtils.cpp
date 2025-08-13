@@ -300,6 +300,9 @@ makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
                            asset.alphaNum12().assetCode.end()) +
                ":" + KeyUtils::toStrKey(asset.alphaNum12().issuer);
         break;
+    default:
+        releaseAssertOrThrow(false);
+        break;
     }
 
     std::vector<SCVal> topics = {makeSymbolSCVal("transfer"),
