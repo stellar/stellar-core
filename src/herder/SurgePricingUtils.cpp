@@ -71,8 +71,11 @@ computeBetterFee(TransactionFrameBase const& tx, int64_t refFeeBid,
 }
 
 SurgePricingPriorityQueue::TxComparator::TxComparator(bool isGreater,
-                                                      size_t seed)
-    : mIsGreater(isGreater), mSeed(seed)
+                                                      size_t _seed)
+    : mIsGreater(isGreater)
+#ifndef BUILD_TESTS
+    , mSeed(_seed)
+#endif
 {
 }
 

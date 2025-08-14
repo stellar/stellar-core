@@ -35,7 +35,8 @@ static void
 setupValues()
 {
     std::vector<Value> v;
-    std::string d = fmt::format("SEED_VALUE_DATA_{}", gRandomEngine());
+    std::string d =
+        fmt::format("SEED_VALUE_DATA_{}", getGlobalRandomEngine()());
     for (int i = 0; i < 4; i++)
     {
         auto h = sha256(fmt::format("{}/{}", d, i));

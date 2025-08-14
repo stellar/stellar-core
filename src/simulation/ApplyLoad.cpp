@@ -609,7 +609,7 @@ ApplyLoad::benchmark()
     std::vector<uint64_t> shuffledAccounts(accounts.size());
     std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
-                     gRandomEngine);
+                     getGlobalRandomEngine());
 
     bool limitHit = false;
     for (auto accountIndex : shuffledAccounts)

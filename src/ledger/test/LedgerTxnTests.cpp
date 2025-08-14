@@ -501,7 +501,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         while (modifyBatch.size() < MODIFY_ENTRIES)
         {
             auto iter = entries.begin();
-            std::advance(iter, dist(gRandomEngine));
+            std::advance(iter, dist(getGlobalRandomEngine()));
             modifyBatch[iter->first] =
                 generateLedgerEntryWithSameKey(iter->second);
         }
@@ -524,7 +524,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         while (eraseBatch.size() < ERASE_ENTRIES)
         {
             auto iter = entries.begin();
-            std::advance(iter, dist(gRandomEngine));
+            std::advance(iter, dist(getGlobalRandomEngine()));
             if (iter->first.type() == CONFIG_SETTING)
             {
                 continue;
@@ -575,7 +575,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             generateModify(ltx1, updatedEntries);
             generateErase(ltx1, updatedEntries, updatedDead);
 
-            if (entries.empty() || shouldCommitDist(gRandomEngine))
+            if (entries.empty() || shouldCommitDist(getGlobalRandomEngine()))
             {
                 entries = updatedEntries;
                 dead = updatedDead;

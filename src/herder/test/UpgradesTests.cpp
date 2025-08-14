@@ -3820,8 +3820,7 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
     };
 
     // Write some data to the ledger
-    auto& contract =
-        test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
+    test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
 
     uint64_t const expectedInMemorySize = 81297;
 

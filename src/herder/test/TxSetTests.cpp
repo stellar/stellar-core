@@ -360,15 +360,15 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             parallelPhase({{2}, {}}, false), false,
             "parallel Soroban - one of the stages has no clusters");
         scenarios[1].emplace_back(
-            parallelPhase({{2}, {{0}}, {3, 5}}, false), false,
+            parallelPhase({{2}, {0}, {3, 5}}, false), false,
             "parallel Soroban - one of the stages has empty cluster");
         scenarios[1].emplace_back(
-            parallelPhase({{2}, {{0}}}, false), false,
+            parallelPhase({{2}, {0}}, false), false,
             "parallel Soroban - one of the stages has empty cluster");
         scenarios[1].emplace_back(parallelPhase({{}, {}, {}}, false), false,
                                   "parallel Soroban - multiple empty stages");
         scenarios[1].emplace_back(
-            parallelPhase({{{}, {0}}, {{0}}, {}}, false), false,
+            parallelPhase({{{}, 0}, {0}, {}}, false), false,
             "parallel Soroban - multiple empty and empty cluster stages");
         scenarios[1].emplace_back(
             parallelPhase({{10, 2, 0, 1, 3}}, false), false,
@@ -3179,8 +3179,6 @@ TEST_CASE("parallel tx set building benchmark",
             int txSize = genValue(txSizeDistr, MAX_TX_SIZE);
             int readBytes = genValue(readBytesDistr, MAX_READ_BYTES_PER_TX);
             int writeBytes = genValue(writeBytesDistr, MAX_WRITE_BYTES_PER_TX);
-            int readCount = genValue(readCountDistr, MAX_READS_PER_TX);
-            int writeCount = genValue(writeCountDistr, MAX_WRITES_PER_TX);
             txs.push_back(createTx(insns, txKeys[i].first, txKeys[i].second,
                                    feeDistr(Catch::rng()), readBytes,
                                    writeBytes, txSize));

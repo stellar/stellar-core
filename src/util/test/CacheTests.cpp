@@ -104,7 +104,7 @@ TEST_CASE("RandomEvictionCache works as a cache", "[randomevictioncache]")
 TEST_CASE("RandomEvictionCache does not thrash",
           "[randomevictioncachethrash][!hide]")
 {
-    gRandomEngine.seed(std::time(nullptr) & UINT32_MAX);
+    getGlobalRandomEngine().seed(std::time(nullptr) & UINT32_MAX);
     size_t sz = 1000;
     RandomEvictionCache<size_t, size_t> cache(sz);
     auto const& ctrs = cache.getCounters();

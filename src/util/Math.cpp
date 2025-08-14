@@ -18,19 +18,27 @@
 namespace stellar
 {
 
-stellar_default_random_engine gRandomEngine;
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
+
+stellar_default_random_engine&
+getGlobalRandomEngine()
+{
+    // gRandomEngine is for main thread only.
+    static stellar_default_random_engine gRandomEngine;
+    releaseAssert(threadIsMain());
+    return gRandomEngine;
+}
 
 double
 rand_fraction()
 {
-    return uniformFractionDistribution(gRandomEngine);
+    return uniformFractionDistribution(getGlobalRandomEngine());
 }
 
 bool
 rand_flip()
 {
-    return (gRandomEngine() & 1);
+    return (getGlobalRandomEngine()() & 1);
 }
 
 double
@@ -68,6 +76,7 @@ exponentialBackoff(uint64_t n)
 std::set<double>
 k_meansPP(std::vector<double> const& points, uint32_t k)
 {
+    auto& engine = getGlobalRandomEngine();
     if (k == 0)
     {
         throw std::runtime_error("k_means: k must be positive");
@@ -111,7 +120,7 @@ k_meansPP(std::vector<double> const& points, uint32_t k)
         // Select the next centroid based on weights, furthest away
         std::discrete_distribution<size_t> weightedDistribution(weights.begin(),
                                                                 weights.end());
-        auto nextIndex = weightedDistribution(gRandomEngine);
+        auto nextIndex = weightedDistribution(engine);
         moveIndexToCentroid(nextIndex);
     }
 
@@ -177,7 +186,7 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
     PubKeyUtils::clearVerifySigCache();
     PubKeyUtils::maybeSeedVerifySigCache(seed);
     srand(seed);
-    gRandomEngine.seed(seed);
+    getGlobalRandomEngine().seed(seed);
     randHash::initialize();
 }
 

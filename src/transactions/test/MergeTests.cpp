@@ -971,10 +971,6 @@ TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
 
     // set up world
     auto root = app->getRoot();
-
-    int64_t trustLineBalance = 100000;
-    int64_t trustLineLimit = trustLineBalance * 10;
-
     auto txfee = app->getLedgerManager().getLastTxFee();
 
     const int64_t minBalance =

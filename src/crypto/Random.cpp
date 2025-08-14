@@ -21,7 +21,7 @@ randomBytes(size_t length)
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     stellar::uniform_int_distribution<unsigned short> dist(0, 255);
     std::generate(vec.begin(), vec.end(), [&]() {
-        return static_cast<uint8_t>(dist(stellar::gRandomEngine));
+        return static_cast<uint8_t>(dist(stellar::getGlobalRandomEngine()));
     });
 #else
     randombytes_buf(vec.data(), length);

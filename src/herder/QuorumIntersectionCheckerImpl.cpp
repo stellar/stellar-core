@@ -277,7 +277,7 @@ QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     , mQuiet(quiet)
     , mTSC()
     , mInterruptFlag(interruptFlag)
-    , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE)
+    , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE, /*separatePRNG=*/true)
     , mRand(seed)
 {
     buildGraph(qmap);

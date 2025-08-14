@@ -40,7 +40,7 @@ sampleDiscrete(std::vector<T> const& values,
 
     std::discrete_distribution<uint32_t> distribution(weights.begin(),
                                                       weights.end());
-    return values.at(distribution(gRandomEngine));
+    return values.at(distribution(getGlobalRandomEngine()));
 }
 } // namespace
 
@@ -111,8 +111,9 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
         // transaction comparisons.
         auto fractionalFeeDistr = uniform_int_distribution<uint32_t>(
             0, static_cast<uint32_t>(opsCnt) - 1);
-        fee = static_cast<uint32_t>(opsCnt) * feeRateDistr(gRandomEngine) +
-              fractionalFeeDistr(gRandomEngine);
+        fee = static_cast<uint32_t>(opsCnt) *
+                  feeRateDistr(getGlobalRandomEngine()) +
+              fractionalFeeDistr(getGlobalRandomEngine());
     }
     else
     {
@@ -617,7 +618,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
                                xdr::xvector<LedgerKey>& footprint) {
         for (uint32_t i = 0; i < entryCount; ++i)
         {
-            uint64_t entryId = entryDist(gRandomEngine);
+            uint64_t entryId = entryDist(getGlobalRandomEngine());
             if (usedEntries.emplace(entryId).second)
             {
                 auto lk = contractDataKey(instance.contractID, makeU64(entryId),

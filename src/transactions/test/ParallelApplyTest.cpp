@@ -543,7 +543,6 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         MIN_EXPIRED_ENTRY_FRACTION, MAX_EXPIRED_ENTRY_FRACTION)(testRng);
     int liveEntryCount =
         preuploadedEntryKeys.size() * (1.0 - expiredEntryFraction);
-    int expiredEntryCount = preuploadedEntryKeys.size() - liveEntryCount;
     // Bump some entries that are supposed to expire a little bit to make
     // sure they are expired, but not yet moved to the hot archive.
     int expiredInLiveStateEntryCount =
@@ -1086,18 +1085,35 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
             // Errors are expected, but we want the fees and limits to not
             // be a reason, as these could be not stable between protocol
             // versions.
-            REQUIRE(res.result.result.results()[0].code() !=
-                    INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
-            REQUIRE(res.result.result.results()[0].code() !=
-                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            REQUIRE(res.result.result.results()[0].code() !=
-                    EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
-            REQUIRE(res.result.result.results()[0].code() !=
-                    EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
-            REQUIRE(res.result.result.results()[0].code() !=
-                    RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-            REQUIRE(res.result.result.results()[0].code() !=
-                    RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
+            auto const& tr = res.result.result.results()[0].tr();
+            switch (tr.type())
+            {
+            case INVOKE_HOST_FUNCTION:
+            {
+                auto code = tr.invokeHostFunctionResult().code();
+                REQUIRE(code !=
+                        INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
+                REQUIRE(code != INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            }
+            break;
+            case EXTEND_FOOTPRINT_TTL:
+            {
+                auto code = tr.extendFootprintTTLResult().code();
+                REQUIRE(code != EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+                REQUIRE(code !=
+                        EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
+            }
+            break;
+            case RESTORE_FOOTPRINT:
+            {
+                auto code = tr.restoreFootprintResult().code();
+                REQUIRE(code != RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+                REQUIRE(code != RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
+            }
+            break;
+            default:
+                break;
+            }
         }
     }
     std::vector<std::pair<LedgerKey, std::pair<std::optional<LedgerEntry>,

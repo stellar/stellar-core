@@ -296,7 +296,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
                 soci::transaction sqltx(session);
                 for (int64_t j = 0; j < sz; ++j)
                 {
-                    int64_t r = dist(gRandomEngine);
+                    int64_t r = dist(getGlobalRandomEngine());
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(j);
                 }
@@ -316,7 +316,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
                 soci::transaction subtx(session);
                 for (int64_t k = 0; k < div; ++k)
                 {
-                    int64_t r = dist(gRandomEngine);
+                    int64_t r = dist(getGlobalRandomEngine());
                     pk++;
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(k);

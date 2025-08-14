@@ -2251,7 +2251,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto seq = herder.trackingConsensusLedgerIndex() + 1;
-        auto ct = app->timeNow() + 1;
 
         auto& cache = herder.getHerderSCPDriver().getTxSetValidityCache();
         REQUIRE(cache.getCounters().mHits == 0);
@@ -4997,7 +4996,6 @@ TEST_CASE("do not flood too many transactions with DEX separation",
 
         auto app = simulation->getNode(mainKey.getPublicKey());
         auto const& cfg = app->getConfig();
-        auto& lm = app->getLedgerManager();
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& tq = herder.getTransactionQueue();
 
@@ -5935,7 +5933,8 @@ testWeights(std::vector<ValidatorEntry> const& validators)
     {
         uint64_t weight = herder.getHerderSCPDriver().getNodeWeight(
             validator.mKey, cfg.QUORUM_SET, false);
-        double normalizedWeight = static_cast<double>(weight) / UINT64_MAX;
+        double normalizedWeight =
+            static_cast<double>(weight) / static_cast<double>(UINT64_MAX);
         normalizedOrgWeights[validator.mHomeDomain] += normalizedWeight;
 
         std::string const& org = validator.mHomeDomain;
@@ -5990,7 +5989,7 @@ TEST_CASE("getNodeWeight", "[herder]")
 static Value
 getRandomValue()
 {
-    auto h = sha256(fmt::format("value {}", gRandomEngine()));
+    auto h = sha256(fmt::format("value {}", getGlobalRandomEngine()()));
     return xdr::xdr_to_opaque(h);
 }
 
@@ -6452,7 +6451,7 @@ testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
     std::transform(validators.begin(), validators.end(),
                    std::back_inserter(nodeIDs),
                    [](ValidatorEntry const& v) { return v.mKey; });
-    stellar::shuffle(nodeIDs.begin(), nodeIDs.end(), gRandomEngine);
+    stellar::shuffle(nodeIDs.begin(), nodeIDs.end(), getGlobalRandomEngine());
     std::set<NodeID> unresponsive(nodeIDs.begin(),
                                   nodeIDs.begin() + numUnresponsive);
 
