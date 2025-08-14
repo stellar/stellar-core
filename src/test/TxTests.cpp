@@ -815,6 +815,12 @@ paddedTransactionFromOperations(Application& app, SecretKey const& from,
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
     {
+        if (desiredSize > 0)
+        {
+            throw std::invalid_argument(
+                "paddedTransactionFromOperations() called with non-zero "
+                "desiredSize in protocol before V23");
+        }
         return transactionFromOperations(app, from, seq, ops, fee,
                                          std::nullopt);
     }
