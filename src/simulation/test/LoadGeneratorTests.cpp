@@ -33,6 +33,7 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
             cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
             cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
             cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
             cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
@@ -102,6 +103,7 @@ TEST_CASE("generate load in protocol 1", "[loadgen]")
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 1;
             cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             return cfg;
         });
 
@@ -138,6 +140,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
             uint32_t baseSize = 148;
             uint32_t opSize = 56;
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {0, baseSize + opSize * 2,
                                                   baseSize + opSize * 10};
             cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {80, 19, 1};
@@ -245,6 +248,7 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             return cfg;
         });
 
@@ -845,6 +849,7 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
         Simulation::OVER_LOOPBACK, sha256(getTestConfig().NETWORK_PASSPHRASE),
         [&](int i) {
             auto cfg = getTestConfig(i);
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.GENESIS_TEST_ACCOUNT_COUNT = 1; // Create account at genesis
             return cfg;
         });
@@ -935,6 +940,8 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.APPLY_LOAD_MAX_TX_COUNT = 50;
 
     cfg.APPLY_LOAD_NUM_LEDGERS = 100;
+
+    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
