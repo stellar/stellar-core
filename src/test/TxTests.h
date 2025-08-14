@@ -153,9 +153,10 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
                             std::optional<uint64_t> sourceMux = std::nullopt,
                             std::optional<Memo> memo = std::nullopt);
 
-// Create TxFrame from arguments. If `app` protocol version is >23, attempts to
+// Create TxFrame from arguments. If `app` protocol version is >=23, attempts to
 // pad to around `desiredSize` (see comment on
-// `paddedTransactionFromOperationsV1`). Otherwise, act the same as
+// `paddedTransactionFromOperationsV1`). Otherwise, if `desiredSize` is
+// non-zero, throw an error, and if `desiredSize` is zero, act the same as
 // `transactionFromOperations`.
 TransactionTestFramePtr
 paddedTransactionFromOperations(Application& app, SecretKey const& from,
