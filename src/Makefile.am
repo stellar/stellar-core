@@ -215,17 +215,17 @@ ALL_SOROBAN_LIBS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_rlib,$(
 ALL_SOROBAN_EXTERN_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_extern_flag,$(proto)))
 ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_depend_flag,$(proto)))
 
-$(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE) check-rust-profile
+$(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
 	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
-	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+	@if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
 rust/RustBridge.cpp: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --output $@.tmp
-	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+	@if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
 # This is just a convenience target for rebuilding the explicit depfiles we
 # check in to this repo as a secondary check on the lockfiles in the soroban
@@ -405,7 +405,7 @@ $(TESTDATA_DIR)/%.json : $(top_srcdir)/src/history/serialize-tests/%.json
 	mkdir -p $(@D) && cp $< $@
 
 .PHONY: always
-always:
+always: check-rust-profile
 	@:
 
 # Always rebuild because .git/HEAD is a symbolic ref one can't depend on
