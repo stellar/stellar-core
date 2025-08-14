@@ -417,12 +417,10 @@ SurveyDataManager::reset()
 void
 SurveyDataManager::emitInconsistencyError(std::string const& where)
 {
-    reportError("Encountered inconsistent survey data while "
-                "executing `" +
-                    where + "`.",
-                "Encountered inconsistent survey data while executing "
-                "`{}`. Resetting survey state.",
-                where);
+    reportError(
+        fmt::format("Encountered inconsistent survey data while executing "
+                    "`{}`. Resetting survey state.",
+                    where));
 
     reset();
 }

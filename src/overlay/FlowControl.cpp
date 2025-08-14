@@ -5,7 +5,6 @@
 #include "overlay/FlowControl.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "main/ErrorMessages.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
@@ -254,9 +253,8 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
         break;
     default:
     {
-        reportError("Unknown message type in updateMsgMetrics",
-                    "Unknown message type {} in updateMsgMetrics",
-                    static_cast<int>(msg->type()));
+        reportError(fmt::format("Unknown message type {} in updateMsgMetrics",
+                                static_cast<int>(msg->type())));
     }
     }
 }

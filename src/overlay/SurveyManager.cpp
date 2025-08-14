@@ -158,7 +158,6 @@ SurveyManager::startSurveyReporting()
     else
     {
         reportError(
-            "in startSurveyReporting, final node data was empty",
             "When startSurveyReporting was called, the surveying node didn't "
             "have finalized surveying data.");
     }
@@ -358,11 +357,10 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
 {
     if (!mRunningSurveyReportingPhase)
     {
-        reportError(
-            "addNodeToRunningSurveyBacklog failed",
+        reportError(fmt::format(
             "Cannot add node {} to survey backlog because survey is not "
             "running",
-            KeyUtils::toStrKey(nodeToSurvey));
+            KeyUtils::toStrKey(nodeToSurvey)));
         return;
     }
 
@@ -717,8 +715,7 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
     case TIME_SLICED_SURVEY_STOP_COLLECTING:
         return "TIME_SLICED_SURVEY_STOP_COLLECTING";
     default:
-        reportError("invalid call of SurveyManager::getMsgSummary",
-                    "invalid call of SurveyManager::getMsgSummary");
+        reportError("invalid call of SurveyManager::getMsgSummary");
         return "SURVEY_UNKNOWN";
     }
     return summary + commandTypeName(commandType);
@@ -747,7 +744,6 @@ SurveyManager::topOffRequests()
         if (mPeersToSurveyQueue.empty())
         {
             reportError(
-                "mPeersToSurveyQueue unexpectedly empty",
                 "mPeersToSurveyQueue is empty, but mPeersToSurvey is not");
             mPeersToSurvey.clear();
             stopSurveyReporting();
@@ -788,12 +784,10 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-        reportError("addPeerToBacklog failed: Peer is already in "
-                    "the backlog, or peer is self.",
-
-                    "Tried to add node {} to survey backlog, but it is already "
-                    "queued or is the self node",
-                    KeyUtils::toStrKey(nodeToSurvey));
+        reportError(fmt::format(
+            "Tried to add node {} to survey backlog, but it is already "
+            "queued or is the self node",
+            KeyUtils::toStrKey(nodeToSurvey)));
         return;
     }
 
