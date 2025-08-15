@@ -2125,6 +2125,20 @@
 		"ME40pL8heq0="
 	],
 	"charge rent fees for storage resize" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
+	"classic payment source same as soroban fee bump source|protocol version 21" : [ "NTGGdj1offM=", "WQxK0L0eSCg=", "XYBFgdXMM2Q=", "qTDm8RGyn5o=" ],
+	"classic payment source same as soroban fee bump source|protocol version 22" : [ "NTGGdj1offM=", "tiYHFp7ZbdQ=", "vS8mT2cRBfk=", "jdmkrqFPYzY=" ],
+	"classic payment source same as soroban fee bump source|protocol version 23" : [ "NTGGdj1offM=", "/BL0GVDK25E=", "el74K0RTG3s=", "G2A+Ze4n0j0=" ],
+	"classic payment to soroban fee bump account|protocol version 21" : [ "NTGGdj1offM=", "fjoLcDhWHYA=", "4IRpUOj0+wQ=", "sSgQaOxyoRw=" ],
+	"classic payment to soroban fee bump account|protocol version 22" : [ "NTGGdj1offM=", "uATUQupgc10=", "Bm2FUdIKm9s=", "lvpJjIticYI=" ],
+	"classic payment to soroban fee bump account|protocol version 23" : [ "NTGGdj1offM=", "Q863mNGKGLA=", "GoSyXOxdw1s=", "02AVQAnH7qc=" ],
+	"classic phase bumps sequence of soroban source account|protocol version 20" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "9Rpfyyb4ewI=" ],
+	"classic phase bumps sequence of soroban source account|protocol version 21" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "9Rpfyyb4ewI=" ],
+	"classic phase bumps sequence of soroban source account|protocol version 22" : [ "NTGGdj1offM=", "CTLGLR5LLHY=", "xXpwdFz6+Uc=" ],
+	"classic phase bumps sequence of soroban source account|protocol version 23" : [ "NTGGdj1offM=", "jcAe7jOvF7U=", "3KNBsUHfZIc=" ],
+	"classic phase sets master weight of soroban source account to 0|protocol version 20" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "Xrc/DmdG8do=" ],
+	"classic phase sets master weight of soroban source account to 0|protocol version 21" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "Xrc/DmdG8do=" ],
+	"classic phase sets master weight of soroban source account to 0|protocol version 22" : [ "NTGGdj1offM=", "CTLGLR5LLHY=", "FBx7+A8nzD8=" ],
+	"classic phase sets master weight of soroban source account to 0|protocol version 23" : [ "NTGGdj1offM=", "jcAe7jOvF7U=", "CpEmfvshkZs=" ],
 	"complex contract|diagnostics disabled" : [ "+cR3oq2qY0I=" ],
 	"complex contract|diagnostics enabled" : [ "+cR3oq2qY0I=" ],
 	"contract constructor support" : 
@@ -2894,10 +2908,16 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
 	"persistent entry archival|eviction|key accessible after restore in same ledger" : 
 	[
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
@@ -2962,10 +2982,16 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
 	"persistent entry archival|expiration without eviction|key accessible after restore in same ledger" : 
 	[
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
+		"ImGdUJJCFZM=",
+		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",
 		"RH+UShPLOJY=",
 		"ImGdUJJCFZM=",

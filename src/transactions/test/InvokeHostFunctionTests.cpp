@@ -4802,6 +4802,52 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                                    false) == INVOKE_HOST_FUNCTION_SUCCESS);
             }
 
+            SECTION("autorestore, delete, then has")
+            {
+                auto hasInvocation = client.getContract().prepareInvocation(
+                    "has_persistent", {makeSymbolSCVal("key")},
+                    client.readKeySpec("key",
+                                       ContractDataDurability::PERSISTENT));
+
+                auto hasTx = hasInvocation.withExactNonRefundableResourceFee()
+                                 .createTx();
+
+                SECTION("same stage")
+                {
+                    auto r = closeLedger(test.getApp(), {delTx, hasTx},
+                                         /*strictOrder=*/true);
+                    REQUIRE(r.results.size() == 2);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    auto const& txMeta = TransactionMetaFrame(
+                        test.getLastLcm().getTransactionMeta(1));
+                    REQUIRE(txMeta.getReturnValue().b() == false);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+                SECTION("across stages")
+                {
+                    auto r = closeLedger(test.getApp(), {delTx, hasTx},
+                                         {{{0}}, {{1}}});
+                    REQUIRE(r.results.size() == 2);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    auto const& txMeta = TransactionMetaFrame(
+                        test.getLastLcm().getTransactionMeta(1));
+                    REQUIRE(txMeta.getReturnValue().b() == false);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+            }
+
             SECTION("autorestore, delete, then create")
             {
                 auto writeInvocation = client.getContract().prepareInvocation(
@@ -4859,7 +4905,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                     restoreResources, 1'000, 400'000, &restore1SrcAccount);
 
                 auto restoreTx2 = test.createRestoreTx(
-                    restoreResources, 1'000, 400'000, &restore1SrcAccount);
+                    restoreResources, 1'000, 400'000, &restore2SrcAccount);
 
                 SECTION("same stage")
                 {
@@ -9792,5 +9838,377 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         // transaction
         REQUIRE(secondFeeBumper.getBalance() ==
                 startingBalance - r.results.at(1).result.feeCharged);
+    });
+}
+
+TEST_CASE_VERSIONS("classic payment to soroban fee bump account",
+                   "[tx][soroban][feebump]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(21, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto paymentSender = root.create("paymentSender", startingBalance);
+        auto feeBumpAccount = root.create("feeBumpAccount", startingBalance);
+        auto sorobanAccount = root.create("sorobanAccount", startingBalance);
+
+        auto feeBumpAccountStartingBalance = feeBumpAccount.getBalance();
+        auto sorobanAccountStartingBalance = sorobanAccount.getBalance();
+
+        // Record initial sequence numbers
+        auto paymentSenderStartingSeq = paymentSender.loadSequenceNumber();
+        auto feeBumpAccountStartingSeq = feeBumpAccount.loadSequenceNumber();
+        auto sorobanAccountStartingSeq = sorobanAccount.loadSequenceNumber();
+
+        // Step 1: Create classic payment to the fee bump account
+        auto classicPaymentTx =
+            paymentSender.tx({payment(feeBumpAccount, 1000000)});
+
+        // Step 2: Create a Soroban transaction with the soroban account as
+        // source
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(test.getApp(), sorobanAccount,
+                                                 wasm, resources, 1000);
+
+        // Step 3: Use the fee bump account (that will receive the payment) as
+        // the fee bump source
+        int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpTx =
+            feeBump(test.getApp(), feeBumpAccount, sorobanTx, feeBumpFullFee,
+                    /*useInclusionAsFullFee=*/true);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicPaymentTx,
+                                                    feeBumpTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS);                // Classic payment
+        checkTx(1, result, txFEE_BUMP_INNER_SUCCESS); // Fee bump soroban
+
+        // Verify sequence numbers
+        REQUIRE(paymentSender.loadSequenceNumber() ==
+                paymentSenderStartingSeq + 1); // Payment sender seq incremented
+        REQUIRE(sorobanAccount.loadSequenceNumber() ==
+                sorobanAccountStartingSeq +
+                    1); // Soroban account seq incremented
+        REQUIRE(feeBumpAccount.loadSequenceNumber() ==
+                feeBumpAccountStartingSeq); // Fee bump account seq unchanged
+
+        // Verify the soroban account balance is unchanged (didn't pay fee)
+        REQUIRE(sorobanAccount.getBalance() == sorobanAccountStartingBalance);
+
+        // The fee bump account should have received payment and paid the
+        // soroban fee
+        auto finalFeeBumpBalance = feeBumpAccount.getBalance();
+        auto expectedBalance = feeBumpAccountStartingBalance + 1000000 -
+                               result.results[1].result.feeCharged;
+        REQUIRE(finalFeeBumpBalance == expectedBalance);
+    });
+}
+
+TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
+                   "[tx][soroban][feebump]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(21, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto sharedAccount = root.create("sharedAccount", startingBalance);
+        auto paymentRecipient =
+            root.create("paymentRecipient", startingBalance);
+        auto sorobanInnerAccount = root.create("sorobanInner", startingBalance);
+
+        auto sharedAccountStartingBalance = sharedAccount.getBalance();
+        auto paymentRecipientStartingBalance = paymentRecipient.getBalance();
+        auto sorobanInnerAccountStartingBalance =
+            sorobanInnerAccount.getBalance();
+
+        // Record initial sequence numbers
+        auto sharedAccountStartingSeq = sharedAccount.loadSequenceNumber();
+        auto paymentRecipientStartingSeq =
+            paymentRecipient.loadSequenceNumber();
+        auto sorobanInnerAccountStartingSeq =
+            sorobanInnerAccount.loadSequenceNumber();
+
+        // Step 1: Create classic payment from shared account
+        auto classicPaymentTx =
+            sharedAccount.tx({payment(paymentRecipient, 750000)});
+
+        // Step 2: Create Soroban transaction with a different inner source
+        // account
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(
+            test.getApp(), sorobanInnerAccount, wasm, resources, 1000);
+
+        // Step 3: Fee bump the Soroban transaction with the same shared account
+        // (that also did the payment)
+        int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpTx =
+            feeBump(test.getApp(), sharedAccount, sorobanTx, feeBumpFullFee,
+                    /*useInclusionAsFullFee=*/true);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicPaymentTx,
+                                                    feeBumpTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS);                // Classic payment
+        checkTx(1, result, txFEE_BUMP_INNER_SUCCESS); // Fee bump soroban
+
+        // Verify sequence numbers
+        REQUIRE(sharedAccount.loadSequenceNumber() ==
+                sharedAccountStartingSeq +
+                    1); // Only classic payment increments seq
+        REQUIRE(paymentRecipient.loadSequenceNumber() ==
+                paymentRecipientStartingSeq); // Recipient seq unchanged
+        REQUIRE(sorobanInnerAccount.loadSequenceNumber() ==
+                sorobanInnerAccountStartingSeq +
+                    1); // Inner soroban account seq incremented
+
+        // Verify balances
+        // Payment recipient should have received the payment
+        REQUIRE(paymentRecipient.getBalance() ==
+                paymentRecipientStartingBalance + 750000);
+
+        // Soroban inner account balance should be unchanged (fee bump pays the
+        // fee)
+        REQUIRE(sorobanInnerAccount.getBalance() ==
+                sorobanInnerAccountStartingBalance);
+
+        // Shared account should have paid for payment amount, classic payment
+        // fee, and soroban fee
+        auto expectedSharedBalance =
+            sharedAccountStartingBalance - 750000 - // Payment amount
+            result.results[0].result.feeCharged -   // Classic payment fee
+            result.results[1].result.feeCharged;    // Soroban fee
+        REQUIRE(sharedAccount.getBalance() == expectedSharedBalance);
+    });
+}
+
+TEST_CASE_VERSIONS(
+    "classic phase sets master weight of soroban source account to 0",
+    "[tx][soroban][signer]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto sorobanSourceAccount =
+            root.create("sorobanSource", startingBalance);
+        auto signerAdmin = root.create("signerAdmin", startingBalance);
+
+        auto sorobanSourceStartingBalance = sorobanSourceAccount.getBalance();
+        auto signerAdminStartingBalance = signerAdmin.getBalance();
+
+        // Record initial sequence numbers
+        auto sorobanSourceStartingSeq =
+            sorobanSourceAccount.loadSequenceNumber();
+        auto signerAdminStartingSeq = signerAdmin.loadSequenceNumber();
+
+        // Step 1: Classic transaction to add signer to the soroban source
+        // account
+        auto setOptionsOp = txtest::setOptions(setMasterWeight(0));
+        setOptionsOp.sourceAccount.activate() =
+            toMuxedAccount(sorobanSourceAccount);
+        auto classicSetOptionsTx = signerAdmin.tx({setOptionsOp});
+        classicSetOptionsTx->addSignature(sorobanSourceAccount.getSecretKey());
+
+        // Step 2: Create Soroban transaction with the account that just got a
+        // new signer
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(
+            test.getApp(), sorobanSourceAccount, wasm, resources, 1000);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicSetOptionsTx,
+                                                    sorobanTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS);  // Classic set options
+        checkTx(1, result, txBAD_AUTH); // Soroban transaction
+
+        // Verify sequence numbers
+        REQUIRE(signerAdmin.loadSequenceNumber() ==
+                signerAdminStartingSeq + 1); // Set options tx increments seq
+        REQUIRE(sorobanSourceAccount.loadSequenceNumber() ==
+                sorobanSourceStartingSeq + 1); // Soroban tx increments seq
+
+        // Verify balances
+        // Signer admin should have paid the set options fee
+        REQUIRE(signerAdmin.getBalance() ==
+                signerAdminStartingBalance -
+                    result.results[0].result.feeCharged);
+
+        // Soroban source account should have paid the soroban fee
+        auto expectedSorobanBalance =
+            sorobanSourceStartingBalance - result.results[1].result.feeCharged;
+        REQUIRE(sorobanSourceAccount.getBalance() == expectedSorobanBalance);
+
+        auto txm =
+            TransactionMetaFrame(test.getLastLcm().getTransactionMeta(1));
+        // Verify refund amount in transaction meta
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : test.getLastLcm().getPostTxApplyFeeProcessing(
+                      1); // Index 1 for soroban tx
+
+        REQUIRE(refundChanges.size() == 2);
+        auto refund = refundChanges[1].updated().data.account().balance -
+                      refundChanges[0].state().data.account().balance;
+        REQUIRE(refund > 0);
+
+        auto initialFeeChanges =
+            test.getLastLcm().getPreTxApplyFeeProcessing(1);
+        auto initialFee = initialFeeChanges[0].state().data.account().balance -
+                          initialFeeChanges[1].updated().data.account().balance;
+
+        auto const& txEvents = txm.getTxEvents();
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], sorobanSourceAccount.getPublicKey(),
+                         initialFee, ledgerVersion, false);
+        validateFeeEvent(txEvents[1], sorobanSourceAccount.getPublicKey(),
+                         -refund, ledgerVersion, true);
+    });
+}
+
+TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
+                   "[tx][soroban][bumpsequence]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto sorobanSourceAccount =
+            root.create("sorobanSource", startingBalance);
+        auto bumpAdmin = root.create("bumpAdmin", startingBalance);
+
+        auto sorobanSourceStartingBalance = sorobanSourceAccount.getBalance();
+        auto bumpAdminStartingBalance = bumpAdmin.getBalance();
+
+        // Record initial sequence numbers
+        auto sorobanSourceStartingSeq =
+            sorobanSourceAccount.loadSequenceNumber();
+        auto bumpAdminStartingSeq = bumpAdmin.loadSequenceNumber();
+
+        // Step 1: Classic transaction to bump sequence of the soroban source
+        // account
+        auto targetSequence = sorobanSourceStartingSeq + 10;
+        auto bumpSequenceOp = txtest::bumpSequence(targetSequence);
+        bumpSequenceOp.sourceAccount.activate() =
+            toMuxedAccount(sorobanSourceAccount);
+        auto classicBumpTx = bumpAdmin.tx({bumpSequenceOp});
+        classicBumpTx->addSignature(sorobanSourceAccount.getSecretKey());
+
+        // Step 2: Create Soroban transaction with the account that just had its
+        // sequence bumped
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(
+            test.getApp(), sorobanSourceAccount, wasm, resources, 1000);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicBumpTx, sorobanTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS); // Classic bump sequence
+        checkTx(1, result, txBAD_SEQ); // Soroban transaction
+
+        // Verify sequence numbers
+        REQUIRE(bumpAdmin.loadSequenceNumber() == bumpAdminStartingSeq + 1);
+        REQUIRE(sorobanSourceAccount.loadSequenceNumber() == targetSequence);
+
+        // Verify balances
+        // Bump admin should have paid the bump sequence fee
+        REQUIRE(bumpAdmin.getBalance() ==
+                bumpAdminStartingBalance - result.results[0].result.feeCharged);
+
+        // Soroban source account should have paid the soroban fee
+        auto expectedSorobanBalance =
+            sorobanSourceStartingBalance - result.results[1].result.feeCharged;
+        REQUIRE(sorobanSourceAccount.getBalance() == expectedSorobanBalance);
+
+        auto txm =
+            TransactionMetaFrame(test.getLastLcm().getTransactionMeta(1));
+        // Verify refund amount in transaction meta
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : test.getLastLcm().getPostTxApplyFeeProcessing(
+                      1); // Index 1 for soroban tx
+
+        REQUIRE(refundChanges.size() == 2);
+        auto refund = refundChanges[1].updated().data.account().balance -
+                      refundChanges[0].state().data.account().balance;
+        REQUIRE(refund > 0);
+
+        auto initialFeeChanges =
+            test.getLastLcm().getPreTxApplyFeeProcessing(1);
+        auto initialFee = initialFeeChanges[0].state().data.account().balance -
+                          initialFeeChanges[1].updated().data.account().balance;
+
+        auto const& txEvents = txm.getTxEvents();
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], sorobanSourceAccount.getPublicKey(),
+                         initialFee, ledgerVersion, false);
+        validateFeeEvent(txEvents[1], sorobanSourceAccount.getPublicKey(),
+                         -refund, ledgerVersion, true);
     });
 }
