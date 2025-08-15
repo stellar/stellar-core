@@ -50,18 +50,18 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
-    "LOADGEN_OP_COUNT_FOR_TESTING",
-    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_BYTE_COUNT_FOR_TESTING",
+    "LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_WASM_BYTES_FOR_TESTING",
-    "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
-    "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_IO_KILOBYTES_FOR_TESTING",
-    "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
-    "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_FOR_TESTING",
-    "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
@@ -129,8 +129,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
         std::vector<std::chrono::microseconds>();
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
-    LOADGEN_OP_COUNT_FOR_TESTING = {};
-    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {};
@@ -346,8 +346,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
-    LOADGEN_OP_COUNT_FOR_TESTING = {};
-    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     COMMANDS = {};
     REPORT_METRICS = {};
     INVARIANT_CHECKS = {};
@@ -965,24 +965,6 @@ Config::verifyLoadGenDistribution(std::vector<T> const& values,
 }
 
 void
-Config::verifyLoadGenOpCountForTestingConfigs()
-{
-    verifyLoadGenDistribution(LOADGEN_OP_COUNT_FOR_TESTING,
-                              LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING,
-                              "LOADGEN_OP_COUNT_FOR_TESTING",
-                              "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING");
-
-    if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
-                     LOADGEN_OP_COUNT_FOR_TESTING.end(),
-                     [](unsigned short i) { return 1 <= i && i <= 100; }))
-    {
-        throw std::invalid_argument(
-            "All elements in LOADGEN_OP_COUNT_FOR_TESTING must be "
-            "integers in [1, 100]");
-    }
-}
-
-void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
     if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size() !=
@@ -1506,14 +1488,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
                          readIntArray<uint32>(item);
                  }},
-                {"LOADGEN_OP_COUNT_FOR_TESTING",
+                {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {
-                     LOADGEN_OP_COUNT_FOR_TESTING =
-                         readIntArray<unsigned short>(item);
+                     LOADGEN_BYTE_COUNT_FOR_TESTING =
+                         readIntArray<uint32_t>(item);
                  }},
-                {"LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+                {"LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING",
                  [&]() {
-                     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
+                     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_WASM_BYTES_FOR_TESTING",
@@ -1904,7 +1886,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
 
         // Check all loadgen distributions
-        verifyLoadGenOpCountForTestingConfigs();
+        verifyLoadGenDistribution(
+            LOADGEN_BYTE_COUNT_FOR_TESTING,
+            LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_BYTE_COUNT_FOR_TESTING",
+            "LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING");
         verifyLoadGenDistribution(
             LOADGEN_WASM_BYTES_FOR_TESTING,
             LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING,

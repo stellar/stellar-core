@@ -450,7 +450,7 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
+    (pay|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -466,14 +466,6 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
     config to specify the path to the XDR file containing the pre-generated transactions.
     To generate a file with pre-generated transactions, use the
     `pregenerate-loadgen-txs` command.
-  * `pretend` mode generates transactions on accounts specified(where the number
-    of accounts can be offset). Operations in `pretend` mode are designed to
-    have a realistic size to help users "pretend" that they have real traffic.
-    You can add optional configs `LOADGEN_OP_COUNT_FOR_TESTING` and
-    `LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING` in the config file to specify
-    the # of ops / tx and how often they appear. See the section on [specifying
-    discrete distributions](#specifying-discrete-distributions) for more info
-    on how to set these options.
   * `mixed_classic` mode generates a mix of DEX and non-DEX transactions
     (containing `PaymentOp` and `ManageBuyOfferOp` operations respectively).
     The fraction of DEX transactions generated is defined by the `dextxpercent`

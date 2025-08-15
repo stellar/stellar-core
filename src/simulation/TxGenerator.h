@@ -111,15 +111,28 @@ class TxGenerator
                                           uint32_t ledgerNum,
                                           bool initialAccounts);
 
+    // Create transaction frame from `from` with `ops` and a generated fee
+    // between the base fee required for `ops` and `maxGeneratedFeeRate` (if
+    // present).
     TransactionFrameBaseConstPtr
     createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
-                              bool pretend,
                               std::optional<uint32_t> maxGeneratedFeeRate);
+
+    // Create transaction frame from `from` with `ops` and a generated fee
+    // between the base fee required for `ops` and `maxGeneratedFeeRate` (if
+    // present). Attempt to pad resulting size such that the serialization is
+    // `byteCount`. Note that padding will not shrink a transaction, and that it
+    // will always round up to the nearest multiple of four (since we are using
+    // XDR).
+    TransactionFrameBaseConstPtr
+    createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
+                              std::optional<uint32_t> maxGeneratedFeeRate,
+                              uint32_t byteCount);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
-                       uint32_t opCount,
+                       uint32_t byteCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -171,12 +184,6 @@ class TxGenerator
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  uint32_t inclusionFee);
-
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    pretendTransaction(uint32_t numAccounts, uint32_t offset,
-                       uint32_t ledgerNum, uint64_t sourceAccount,
-                       uint32_t opCount,
-                       std::optional<uint32_t> maxGeneratedFeeRate);
 
     int generateFee(std::optional<uint32_t> maxGeneratedFeeRate, size_t opsCnt);
 
