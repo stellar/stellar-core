@@ -637,6 +637,12 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
 {
     ZoneScoped;
 
+    if (!tx->XDRProvidesValidFee())
+    {
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
+                         txMALFORMED);
+    }
+
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
