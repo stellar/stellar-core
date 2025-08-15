@@ -75,14 +75,15 @@ class RestoreFootprintApplyHelper : virtual public LedgerAccessHelper
     RestoreFootprintApplyHelper(
         AppConnector& app, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame)
+        OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame,
+        SorobanNetworkConfig const& sorobanConfig)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
         , mOpMeta(opMeta)
         , mOpFrame(opFrame)
         , mResources(mOpFrame.mParentTx.sorobanResources())
-        , mSorobanConfig(app.getSorobanNetworkConfigForApply())
+        , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics())
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
@@ -243,9 +244,10 @@ class RestoreFootprintPreV23ApplyHelper
     RestoreFootprintPreV23ApplyHelper(
         AppConnector& app, AbstractLedgerTxn& ltx, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame)
+        OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame,
+        SorobanNetworkConfig const& sorobanConfig)
         : RestoreFootprintApplyHelper(app, res, refundableFeeTracker, opMeta,
-                                      opFrame)
+                                      opFrame, sorobanConfig)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -286,7 +288,7 @@ class RestoreFootprintParallelApplyHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, RestoreFootprintOpFrame const& opFrame)
         : RestoreFootprintApplyHelper(app, res, refundableFeeTracker, opMeta,
-                                      opFrame)
+                                      opFrame, threadState.getSorobanConfig())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
         , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
     {
@@ -365,9 +367,9 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 ParallelTxReturnVal
 RestoreFootprintOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
-    Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
-    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    Config const& appConfig, Hash const& txPrngSeed,
+    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {
@@ -383,8 +385,9 @@ RestoreFootprintOpFrame::doParallelApply(
 }
 
 bool
-RestoreFootprintOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+RestoreFootprintOpFrame::doApplyForSoroban(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
@@ -394,8 +397,17 @@ RestoreFootprintOpFrame::doApply(
                                 PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
     releaseAssertOrThrow(refundableFeeTracker);
     RestoreFootprintPreV23ApplyHelper helper(
-        app, ltx, res, refundableFeeTracker, opMeta, *this);
+        app, ltx, res, refundableFeeTracker, opMeta, *this, sorobanConfig);
     return helper.apply();
+}
+
+bool
+RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                 OperationResult& res,
+                                 OperationMetaBuilder& opMeta) const
+{
+    throw std::runtime_error(
+        "RestoreFootprintOpFrame may only be applied via doApplyForSoroban");
 }
 
 bool

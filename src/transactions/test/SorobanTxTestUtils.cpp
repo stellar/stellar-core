@@ -1319,7 +1319,7 @@ SorobanTest::getDummyAccount()
 SorobanNetworkConfig const&
 SorobanTest::getNetworkCfg()
 {
-    return getApp().getLedgerManager().getMutableSorobanNetworkConfigForApply();
+    return getApp().getLedgerManager().getLastClosedSorobanNetworkConfig();
 }
 
 uint32_t
