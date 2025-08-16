@@ -10,6 +10,7 @@ CACHE_MAX_DAYS=30
 
 WITH_TESTS=1
 export TEMP_POSTGRES=0
+WITH_CODEQL=0
 
 PROTOCOL_CONFIG=""
 
@@ -25,6 +26,10 @@ while [[ -n "$1" ]]; do
     "--use-temp-db")
             export TEMP_POSTGRES=1
             echo Using temp database
+            ;;
+    "--build-with-codeql")
+            WITH_CODEQL=1
+            echo Building with CodeQL for static analysis
             ;;
     "--check-test-tx-meta")
             if [[ -z "${PROTOCOL}" ]]; then
@@ -97,7 +102,14 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
+if [ $WITH_CODEQL -eq 0 ]
+then
+    config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
+else
+    # Disable asan to successfully build with CodeQL
+    config_flags="--enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
+fi
+
 export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
 export CXXFLAGS="$CFLAGS"
 
@@ -152,7 +164,13 @@ then
 fi
 
 date
-time make -j$(($NPROCS + 1))
+
+if [ $WITH_CODEQL -eq 0 ]
+then
+    time make -j$(($NPROCS + 1))
+else
+    codeql database create codeql-db --language=c-cpp --command make -j$(($NPROCS + 1))
+fi
 
 ccache -s
 ### incrementally purge old content from cargo source cache and target directory
