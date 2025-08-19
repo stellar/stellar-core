@@ -39,7 +39,7 @@ pub(crate) use p23 as soroban_curr;
 // only compatible with with, say, a rust Dyn interface like Box<dyn Error>).
 pub(crate) mod protocol_agnostic {
     pub(crate) fn make_error(msg: &'static str) -> Box<dyn std::error::Error> {
-        super::p23::soroban_proto_any::CoreHostError::General(msg).into()
+        super::p23::soroban_proto_any::CoreHostError::General(msg.into()).into()
     }
 
     // The i128 functions are protocol-agnostic because they're too simple to
