@@ -1609,7 +1609,7 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 321);
 }
 
-TEST_CASE("upgrade to version 10", "[upgrades]")
+TEST_CASE("upgrade to version 10", "[upgrades][acceptance]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -2448,7 +2448,7 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
     }
 }
 
-TEST_CASE("upgrade to version 11", "[upgrades]")
+TEST_CASE("upgrade to version 11", "[upgrades][acceptance]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -2570,7 +2570,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
     }
 }
 
-TEST_CASE("upgrade to version 12", "[upgrades]")
+TEST_CASE("upgrade to version 12", "[upgrades][acceptance]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -2680,7 +2680,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
 // are correct the protocol 20 upgrade that updates LedgerCloseMeta to V1 and
 // that no asserts are thrown.
-TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades]")
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades][acceptance]")
 {
     TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
                       binToHex(randomBytes(8)));
@@ -3820,8 +3820,7 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
     };
 
     // Write some data to the ledger
-    auto& contract =
-        test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
+    test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
 
     uint64_t const expectedInMemorySize = 81297;
 

@@ -114,6 +114,17 @@ Build with asan (address-sanitizer) instrumentation, which detects invalid addre
 
 See https://clang.llvm.org/docs/AddressSanitizer.html for more information.
 
+*Note*: ASan will ignore any memory errors in Rust code unless you build with
+Rust's ASan support. And building with Rust's ASan support requires configuring
+with `--enable-unified-rust-unsafe-for-production`. See below on "unified Rust
+builds".
+
+*Note*: Rust's ASan support also requires a nightly compiler and the rust-src
+component. Install these with:
+
+  - `rustup component add rust-src`
+  - `rustup toolchain install nightly`
+
 ### enable-undefinedcheck
 build with undefinedcheck (undefined-behavior-sanitizer) instrumentation.
 
@@ -141,6 +152,17 @@ time, but still uses the system headers - so make sure that the two don't confli
 Build with thread sanitizer (TSan) instrumentation, which detects data races.
 
 See https://clang.llvm.org/docs/ThreadSanitizer.html for more information.
+
+*Note*: Since Rust code is run on multiple threads and those threads are
+launched _from C++_ TSan will report races in Rust code unless you build with
+Rust's TSan support. And building with Rust's TSan support requires configuring
+with `--enable-unified-rust-unsafe-for-production`.
+
+*Note*: Rust's ASan support also requires a nightly compiler and the rust-src
+component. Install these with:
+
+  - `rustup component add rust-src`
+  - `rustup toolchain install nightly`
 
 #### Building a custom `libc++`
 
@@ -266,3 +288,61 @@ These commands will rewrite the baseline files, which are human-readable JSON
 files. You should then inspect to see that only the transactions you expected to
 see change did so. If so, commit the changes as a new set of baselines for
 future tests.
+
+## Unified and non-unified Rust builds
+
+As of protocol 20, some components of stellar-core are written in Rust (notably
+soroban).
+
+Rust (intentionally) supports linking together multiple versions of the same
+library, and we use this ability to support replaying old traffic for old
+soroban protocols without having to place protocol-gates all over the inside of
+soroban: instead there is a single protocol gate when invoking soroban, and we
+then route calls into one of _multiple copies_ of soroban linked in to core,
+each protocol-specific.
+
+This is all fine, and works, but there is an annoying detail: when you combine
+two versions of a crate (eg. soroban v21 and v22), cargo will attempt to resolve
+versions of the _transitive dependencies_ of those multiple sorobans to single
+versions, to cut down on code duplication. And it will combine versions that it
+thinks of as "semantically compatible", which covers a lot of cases we don't
+want to be combined. Instead, we want to be sure that for a library like
+"soroban v21" we will continue to ship _exactly_ the same transitive
+dependencies linked into that soroban in the future that we shipped in the past.
+
+So to deal with this issue, we do a fairly ugly semi-manual build where we
+invoke cargo multiple times -- one per soroban crate -- and then manually pass
+in the soroban library paths as --extern arguments to our top-level cargo build
+that unifies them into librust_stellar_core.a.
+
+Or at least: we _usually_ do that. That's what we'll call a "non-unified build"
+and it _usually_ works. But there are two cases you might not want it.
+
+  1. When using an IDE (eg. vscode) the LSP backend has no idea how non-unified
+     builds work.
+
+  2. When building with _sanitizers_, the sanitizers do a bunch of unfortunate
+     things that seem to conflict with non-unified builds (including rebuilding
+     the stdlib and producing some sort of link-time dependency on crates that
+     are only used as procedural macros).
+
+For both of these cases, we've added the ability to (optionally) switch back to
+the normal way Rust expects you to build a crate that links multiple versions of
+a dependency: with a single "unified" cargo invocation, at the top level. There
+are two different ways to enable this:
+
+  - By configuring with `--enable-unified-rust-unsafe-for-production`, if one
+    wants to _build_ a stellar-core with unified rust.
+
+  - By toggling the "unified" feature flag in the IDE (eg. using the "Rust
+    Feature Toggler" editor extension in VS code) if one merely wants to _edit_
+    a stellar-core with unified rust.
+
+The configure flag has got such a long and unwieldy name because _it will build
+soroban with slightly different versions of transitive dependencies_, a
+configuration we do _not_ want to ship in production builds.
+
+It is fine for debugging though. In practice those different versions of
+transitive dependencies are rarely "all that different". You will _probably_ not
+be able to observe any differences. We just don't want to chance it in
+production.

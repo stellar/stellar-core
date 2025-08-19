@@ -222,7 +222,9 @@ class SurgePricingPriorityQueue
                         TransactionFrameBasePtr const& tx2) const;
 
         bool const mIsGreater;
+#ifndef BUILD_TESTS
         size_t mSeed;
+#endif
     };
 
     using TxSortedSet = std::set<TransactionFrameBasePtr, TxComparator>;

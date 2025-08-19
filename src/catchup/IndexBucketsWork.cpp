@@ -70,8 +70,18 @@ IndexBucketsWork<BucketT>::IndexWork::postWork()
             if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX &&
                 fs::exists(indexFilename))
             {
-                self->mIndex = loadIndex<BucketT>(bm, indexFilename,
-                                                  self->mBucket->getSize());
+                try
+                {
+                    self->mIndex = loadIndex<BucketT>(bm, indexFilename,
+                                                      self->mBucket->getSize());
+                }
+                // If we get an exception from an invalid index file, ignore it
+                // and reindex the Bucket.
+                catch (std::runtime_error&)
+                {
+                    CLOG_WARNING(Bucket, "Invalid or corrupt index file: {}",
+                                 indexFilename);
+                }
 
                 // If we could not load the index from the file, file is out of
                 // date. Delete and create a new index.

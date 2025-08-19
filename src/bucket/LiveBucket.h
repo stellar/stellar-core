@@ -60,6 +60,9 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // BucketEntry exists in the bucket. For testing.
     bool containsBucketIdentity(BucketEntry const& id) const;
 
+    // Returns the current cache size for this bucket's index
+    size_t getIndexCacheSize() const;
+
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.
     static constexpr ProtocolVersion

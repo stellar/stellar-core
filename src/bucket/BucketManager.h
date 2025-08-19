@@ -7,6 +7,7 @@
 #include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -102,6 +103,8 @@ class BucketManager : NonMovableOrCopyable
     medida::Counter& mArchiveBucketListSizeCounter;
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;
+    medida::Counter& mLiveBucketIndexCacheEntries;
+    medida::Counter& mLiveBucketIndexCacheBytes;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mLiveMergeCounters;
     MergeCounters mHotArchiveMergeCounters;
@@ -168,10 +171,13 @@ class BucketManager : NonMovableOrCopyable
     void noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
                                       FutureMapT<BucketT>& futureMap);
 
+    void reportLiveBucketIndexCacheMetrics();
+
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
     uint32_t mFakeTestProtocolVersion;
     uint256 mFakeTestBucketListHash;
+    std::atomic<bool> mDelayMergesForTesting{false};
 #endif
 
   protected:
@@ -330,6 +336,14 @@ class BucketManager : NonMovableOrCopyable
     std::set<Hash> getBucketHashesInBucketDirForTesting() const;
 
     medida::Counter& getEntriesEvictedCounter() const;
+
+    // Enable merge delays for testing bucket reattachment
+    void enableDelayedMergesForTesting();
+    bool
+    shouldDelayMergesForTesting() const
+    {
+        return mDelayMergesForTesting;
+    }
 #endif
 
     // Return the set of buckets referenced by the BucketList

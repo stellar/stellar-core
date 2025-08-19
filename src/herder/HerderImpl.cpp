@@ -1974,8 +1974,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         mLastQuorumMapIntersectionState->mInterruptFlag = false;
         mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
         auto& cfg = mApp.getConfig();
-        releaseAssert(threadIsMain());
-        auto seed = gRandomEngine();
+        auto seed = getGlobalRandomEngine()();
 
         auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();

@@ -31,6 +31,7 @@
 #include "util/Timer.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <thread>
 
 #include <cstdio>
 #include <optional>
@@ -475,7 +476,6 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
-    cfg.MANUAL_CLOSE = false;
 
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
@@ -487,127 +487,120 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
         bool hasHotArchive = protocolVersionStartsFrom(
             vers, LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
 
-        // This test is a race that will (if all goes well) eventually be won:
-        // we keep trying to do an immediate-reattach to a running merge and
-        // will only lose in cases of extremely short-running merges that finish
-        // before we have a chance to reattach. Once the merges are at all
-        // nontrivial in size, we'll likely win. In practice we observe the race
-        // being won within 10 ledgers.
-        //
-        // The amount of testing machinery we have to put in place to make this
-        // a non-racy test seems to be (a) extensive and (b) not worth the
-        // trouble, since it'd be testing fake circumstances anyways: the entire
-        // point of reattachment is to provide a benefit in cases where this
-        // race is won. So testing it _as_ a race seems reasonably fair.
-        //
-        // That said, nondeterminism in tests is no fun and tests that run
-        // potentially-forever are no fun. So we put a statistically-unlikely
-        // limit in here of 10,000 ledgers. If we consistently lose for that
-        // long, there's probably something wrong with the code, and in any case
-        // it's a better nondeterministic failure than timing out the entire
-        // testsuite with no explanation.
-        uint32_t ledger = 0;
-        uint32_t limit = 10000;
+        // Test that we can reattach to a merge that's in progress. To simulate
+        // this, we need to artificially delay a merge that is NOT occurring on
+        // the main thread. To do this, we will close ledgers until just before
+        // a level 3 spill. To speed up the test, we don't enable artificial
+        // merge delays until the ledger before a level 3 spill. Right before we
+        // close the level 3 spill ledger, we enable artificial merge delays.
+        // This won't effect the behavior of the actual spill, since those
+        // buckets have already finished merging in the background, but it will
+        // delay the new merges that are spawned by the spill. The result is
+        // that addBatch returns quickly, but new background merges are
+        // artificially delayed. This gives the test time to forget about the
+        // in-progress, delayed merges, and attempt to reattach to them.
 
-        // Iterate until we've reached the limit, or stop early if both the Hot
-        // Archive and live BucketList have seen a running merge reattachment.
-        auto cond = [&]() {
-            bool reattachmentsNotFinished;
-            if (hasHotArchive)
-            {
-                reattachmentsNotFinished =
-                    bm.readMergeCounters<HotArchiveBucket>()
-                            .mRunningMergeReattachments < 1 ||
-                    bm.readMergeCounters<LiveBucket>()
-                            .mRunningMergeReattachments < 1;
-            }
-            else
-            {
-                reattachmentsNotFinished = bm.readMergeCounters<LiveBucket>()
-                                               .mRunningMergeReattachments < 1;
-            }
-            return ledger < limit && reattachmentsNotFinished;
-        };
+        uint32_t ledger = 1;
+        uint32_t const spillLedger = 32;
 
-        while (cond())
+        // Close ledgers until just before the spill ledger.
+        for (; ledger < spillLedger; ++ledger)
         {
-            ++ledger;
-            // Merges will start on one or more levels here, starting a race
-            // between the main thread here and the background workers doing
-            // the merges.
             auto lh =
                 app->getLedgerManager().getLastClosedLedgerHeader().header;
             lh.ledgerSeq = ledger;
             addLiveBatchAndUpdateSnapshot(
                 *app, lh, {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 100),
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 75),
                 {});
             if (hasHotArchive)
             {
                 addHotArchiveBatchAndUpdateSnapshot(
                     *app, lh,
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                        {CONTRACT_CODE}, 100),
+                        {CONTRACT_CODE}, 75),
+                    {});
+            }
+        }
+
+        // Enable merge delays just before we close the spill ledger. At this
+        // point, all next buckets should already be finished merging and will
+        // be unaffected by the delay. The new merges spawned by the spill will
+        // be delayed.
+        bm.enableDelayedMergesForTesting();
+
+        // Now close ledger 32, which will trigger merges on multiple levels
+        // with delay
+        {
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = ledger;
+
+            if (hasHotArchive)
+            {
+                addHotArchiveBatchAndUpdateSnapshot(
+                    *app, lh,
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_CODE}, 75),
                     {});
             }
 
-            bm.forgetUnreferencedBuckets(
-                app->getLedgerManager().getLastClosedLedgerHAS());
+            // Add enough entries to ensure buckets have substantial size
+            addLiveBatchAndUpdateSnapshot(
+                *app, lh, {},
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 75),
+                {});
+        }
 
-            HistoryArchiveState has;
-            if (hasHotArchive)
-            {
-                has = HistoryArchiveState(ledger, bl, hotArchive,
-                                          app->getConfig().NETWORK_PASSPHRASE);
-            }
-            else
-            {
-                has = HistoryArchiveState(ledger, bl,
-                                          app->getConfig().NETWORK_PASSPHRASE);
-            }
+        bm.forgetUnreferencedBuckets(
+            app->getLedgerManager().getLastClosedLedgerHAS());
 
-            std::string serialHas = has.toString();
+        // Now serialize and deserialize to test reattachment
+        HistoryArchiveState has;
+        if (hasHotArchive)
+        {
+            has = HistoryArchiveState(ledger, bl, hotArchive,
+                                      app->getConfig().NETWORK_PASSPHRASE);
+        }
+        else
+        {
+            has = HistoryArchiveState(ledger, bl,
+                                      app->getConfig().NETWORK_PASSPHRASE);
+        }
 
-            // Deserialize and reactivate levels of HAS. Races with the merge
-            // workers end here. One of these reactivations should eventually
-            // reattach, winning the race (each time around this loop the
-            // merge workers will take longer to finish, so we will likely
-            // win quite shortly).
-            HistoryArchiveState has2;
-            has2.fromString(serialHas);
-            for (uint32_t level = 0; level < LiveBucketList::kNumLevels;
-                 ++level)
-            {
-                if (has2.currentBuckets[level].next.hasHashes())
-                {
-                    has2.currentBuckets[level].next.makeLive(
-                        *app, vers,
-                        LiveBucketList::keepTombstoneEntries(level));
-                }
-            }
+        std::string serialHas = has.toString();
 
-            for (uint32_t level = 0; level < has2.hotArchiveBuckets.size();
-                 ++level)
+        // Deserialize and reactivate levels of HAS. Due to the artificial
+        // delay, merges should still be running, so we should successfully
+        // reattach to them.
+        HistoryArchiveState has2;
+        has2.fromString(serialHas);
+        for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
+        {
+            if (has2.currentBuckets[level].next.hasHashes())
             {
-                if (has2.hotArchiveBuckets[level].next.hasHashes())
-                {
-                    has2.hotArchiveBuckets[level].next.makeLive(
-                        *app, vers,
-                        HotArchiveBucketList::keepTombstoneEntries(level));
-                }
+                has2.currentBuckets[level].next.makeLive(
+                    *app, vers, LiveBucketList::keepTombstoneEntries(level));
             }
         }
-        CLOG_INFO(Bucket, "reattached to running merge at or around ledger {}",
-                  ledger);
-        REQUIRE(ledger < limit);
 
-        // Because there is a race, we can't guarantee that we'll see exactly 1
-        // reattachment, but we should see at least 1.
+        for (uint32_t level = 0; level < has2.hotArchiveBuckets.size(); ++level)
+        {
+            if (has2.hotArchiveBuckets[level].next.hasHashes())
+            {
+                has2.hotArchiveBuckets[level].next.makeLive(
+                    *app, vers,
+                    HotArchiveBucketList::keepTombstoneEntries(level));
+            }
+        }
+
+        // Make sure we reattached to both BucketLists
         if (hasHotArchive)
         {
             REQUIRE(bm.readMergeCounters<HotArchiveBucket>()
-                        .mRunningMergeReattachments >= 1);
+                        .mRunningMergeReattachments == 1);
         }
 
         REQUIRE(bm.readMergeCounters<LiveBucket>().mRunningMergeReattachments >=

@@ -228,7 +228,7 @@ TEST_CASE("peer churn", "[overlay][connectivity][!hide]")
             randomIndexes.push_back(i);
         }
         stellar::shuffle(std::begin(randomIndexes), std::end(randomIndexes),
-                         gRandomEngine);
+                         getGlobalRandomEngine());
         // One-by-one add a node, ensure everyone can connect
         for (int i = 0; i < randomIndexes.size(); i++)
         {

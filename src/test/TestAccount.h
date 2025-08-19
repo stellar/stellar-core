@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <vector>
+
 #include "crypto/SecretKey.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/test/TransactionTestFrame.h"
@@ -42,6 +44,11 @@ class TestAccount
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);
+    std::vector<TestAccount> createBatch(std::vector<std::string> const& names,
+                                         uint64_t initialBalance);
+    std::vector<TestAccount>
+    createBatch(std::vector<SecretKey> const& secretKeys,
+                uint64_t initialBalance);
     void merge(PublicKey const& into);
     void inflation();
 
@@ -177,6 +184,8 @@ class TestAccount
     uint32_t getNumSubEntries() const;
 
     bool exists() const;
+
+    void applyOpsBatch(std::vector<Operation> const& ops);
 
   private:
     Application& mApp;

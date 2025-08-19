@@ -177,7 +177,7 @@ class BucketIndexTest
             // Sample ~4% of entries if not a cache test
             // For cache tests we want to load all entries to test eviction
             // behavior
-            if (isCacheTest || mDist(gRandomEngine) < 10)
+            if (isCacheTest || mDist(getGlobalRandomEngine()) < 10)
             {
                 for (auto const& e : entries)
                 {
@@ -254,7 +254,7 @@ class BucketIndexTest
         std::vector<LedgerEntry> toUpdate;
         auto f = [&](std::vector<LedgerEntry> const& entries) {
             // Actually update/destroy entries for ~4% of ledgers
-            if (mDist(gRandomEngine) < 10)
+            if (mDist(getGlobalRandomEngine()) < 10)
             {
                 for (auto& e : toUpdate)
                 {
@@ -300,7 +300,7 @@ class BucketIndexTest
             else
             {
                 // Sample ~15% of entries to be destroyed/updated
-                if (mDist(gRandomEngine) < 40)
+                if (mDist(getGlobalRandomEngine()) < 40)
                 {
                     for (auto const& e : entries)
                     {
@@ -649,7 +649,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
             std::vector<LedgerEntry> poolEntries;
             std::vector<LedgerKey> toDelete;
             std::vector<LedgerEntry> toUpdate;
-            if (mDist(gRandomEngine) < 30)
+            if (mDist(getGlobalRandomEngine()) < 30)
             {
                 auto pool =
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
@@ -693,7 +693,8 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 entries.emplace_back(trustline2);
             }
             // Write new version via delete
-            else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
+            else if (shouldMultiVersion &&
+                     mDist(getGlobalRandomEngine()) < 10 &&
                      !mTestEntries.empty())
             {
                 // Arbitrarily pick first entry of map
@@ -702,7 +703,8 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 mTestEntries.erase(iter);
             }
             // Write new version via modify
-            else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
+            else if (shouldMultiVersion &&
+                     mDist(getGlobalRandomEngine()) < 10 &&
                      !mTestEntries.empty())
             {
                 // Arbitrarily pick first entry of map

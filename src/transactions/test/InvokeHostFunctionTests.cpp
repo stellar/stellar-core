@@ -9,6 +9,7 @@
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"
 #include <iterator>
+#include <numeric>
 #include <stdexcept>
 #include <xdrpp/printer.h>
 
@@ -3513,7 +3514,11 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             restoreCost -= 119;
         }
 
-        SorobanTest test(cfg);
+        SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.minPersistentTTL = 16;
+            cfg.mStateArchivalSettings.minTemporaryTTL = 16;
+            cfg.mStateArchivalSettings.startingEvictionScanLevel = 2;
+        });
         ContractStorageTestClient client(test);
         auto acc1 = test.getRoot().create(
             "acc1", test.getApp().getLedgerManager().getLastMinBalance(2));
@@ -3583,45 +3588,49 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         // Extend contract instance lifetime to ensure it doesn't expire during
         // test
         test.invokeExtendOp(contractKeys, 10'000);
-
-        // Create a temporary storage entry that will be used for eviction
-        // testing
-        auto invocation = client.getContract().prepareInvocation(
-            "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
-            client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
-        REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
         auto temporaryLk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
-
-        auto expectedLiveUntilLedger =
-            test.getLCLSeq() +
-            test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL - 1;
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        // Advance ledgers to just before eviction
-        auto const evictionLedger = 4097;
-        for (uint32_t i = test.getLCLSeq(); i < evictionLedger - 2; ++i)
-        {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-        }
-
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        // Verify extend operation is a no-op for expired temporary entries
-        test.invokeExtendOp({temporaryLk}, 10'000, 0);
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        // Verify contract function fails when accessing expired entry
-        REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY, 10'000,
-                              10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
-        REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
-
-        REQUIRE(!test.isEntryLive(temporaryLk, test.getLCLSeq()));
+        auto const tempEntryEvictionLedger = 33;
 
         SECTION("temp entry meta")
         {
+            // Create a temporary storage entry that will be used for
+            // eviction testing
+            auto invocation = client.getContract().prepareInvocation(
+                "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+                client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
+            REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
+
+            auto expectedLiveUntilLedger =
+                test.getLCLSeq() +
+                test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL -
+                1;
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            // Advance ledgers to just before eviction
+            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger - 2;
+                 ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            // Verify extend operation is a no-op for expired temporary
+            // entries
+            test.invokeExtendOp({temporaryLk}, 10'000, 0);
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            // Verify contract function fails when accessing expired entry
+            REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY,
+                                  10'000,
+                                  10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
+            REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
+
+            REQUIRE(!test.isEntryLive(temporaryLk, test.getLCLSeq()));
+
             // Close one more ledger to trigger the eviction
-            closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
+            closeLedgerOn(test.getApp(), tempEntryEvictionLedger, 2, 1, 2016);
 
             // Verify the entry is deleted from eviction
             {
@@ -3631,8 +3640,47 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
             xdr::xvector<LedgerKey> expectedEvictedKeys = {
                 temporaryLk, getTTLKey(temporaryLk)};
-            verifyEvictions(evictionLedger, expectedEvictedKeys);
+            verifyEvictions(tempEntryEvictionLedger, expectedEvictedKeys);
         }
+
+        SECTION("Create temp entry with same key as an expired entry on "
+                "eviction ledger")
+        {
+            // Verify that we're on the ledger where the entry would get
+            // evicted it wasn't recreated.
+            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger;
+                 ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+
+            REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
+                    INVOKE_HOST_FUNCTION_SUCCESS);
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(ltx.load(temporaryLk));
+            }
+
+            REQUIRE(test.getLCLSeq() == tempEntryEvictionLedger);
+
+            // Entry is live again
+            REQUIRE(test.isEntryLive(temporaryLk, test.getLCLSeq()));
+
+            // Verify that we didn't emit an eviction
+            XDRInputFileStream in;
+            in.open(metaPath);
+            LedgerCloseMeta lcm;
+            while (in.readOne(lcm))
+            {
+                LedgerCloseMetaFrame lcmFrame(lcm);
+                REQUIRE(lcmFrame.getEvictedKeys().empty());
+            }
+
+            // Check that we have the new value of the entry
+            REQUIRE(client.get("key", ContractDataDurability::TEMPORARY, 234) ==
+                    INVOKE_HOST_FUNCTION_SUCCESS);
+        }
+
         SECTION("persistent entry meta")
         {
             // For perstent entry restoration, we'll write an entry initially
@@ -3698,6 +3746,13 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     LedgerKeySet keysToDelete =
                         wasDeletedByFirstTx ? keysToRestore : LedgerKeySet{};
 
+                    // Make sure we see init meta changes
+                    // (CREATED, RESTORED, STATE) before any other change types
+                    // for a given key. We also need to check that all meta
+                    // changes for the same key are adjacent to each other.
+                    std::unordered_set<LedgerKey> nonInitMetaChanges;
+                    std::optional<LedgerKey> nextExpectedKey = std::nullopt;
+
                     for (auto const& change : restoreChanges)
                     {
                         if (change.type() ==
@@ -3706,6 +3761,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                             auto le = change.restored();
                             auto lk = LedgerEntryKey(le);
                             REQUIRE(keysToRestore.erase(lk) == 1);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
+                            nextExpectedKey = lk;
 
                             if (lk.type() == CONTRACT_DATA)
                             {
@@ -3725,6 +3783,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                         {
                             auto lk = change.removed();
                             REQUIRE(keysToDelete.erase(lk) == 1);
+                            nonInitMetaChanges.emplace(lk);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else
                         {
@@ -3771,22 +3832,38 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
 
                     auto const& updateChanges =
                         updateTx.getLedgerEntryChangesAtOp(0);
+
+                    // Make sure we see init meta changes
+                    // (CREATED, RESTORED, STATE) before any other change types
+                    // for a given key. We also need to check that all meta
+                    // changes for the same key are adjacent to each other.
+                    std::unordered_set<LedgerKey> nonInitMetaChanges;
+                    std::optional<LedgerKey> nextExpectedKey = std::nullopt;
+
                     for (auto const& change : updateChanges)
                     {
                         if (change.type() ==
                             LedgerEntryChangeType::LEDGER_ENTRY_UPDATED)
                         {
                             auto le = change.updated();
+                            auto lk = LedgerEntryKey(le);
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(le.data.contractData().val ==
                                     makeU64SCVal(updatedValue));
                             REQUIRE(keysToUpdate.erase(LedgerEntryKey(le)) ==
                                     1);
                             REQUIRE(le.lastModifiedLedgerSeq == targetLedger);
+
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_CREATED)
                         {
                             auto le = change.created();
+                            auto lk = LedgerEntryKey(le);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
                             if (LedgerEntryKey(le).type() == CONTRACT_DATA)
                             {
                                 REQUIRE(le.data.contractData().val ==
@@ -3796,11 +3873,15 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                             REQUIRE(keysToCreate.erase(LedgerEntryKey(le)) ==
                                     1);
                             REQUIRE(le.lastModifiedLedgerSeq == targetLedger);
+                            nextExpectedKey = lk;
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_STATE)
                         {
                             auto le = change.state();
+                            auto lk = LedgerEntryKey(le);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
                             REQUIRE(expectedStateKeys.erase(
                                         LedgerEntryKey(le)) == 1);
                             if (LedgerEntryKey(le).type() == CONTRACT_DATA)
@@ -3818,12 +3899,16 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 REQUIRE(le.lastModifiedLedgerSeq ==
                                         expectedTTLRestoreLastModified);
                             }
+                            nextExpectedKey = lk;
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
                         {
                             auto lk = change.removed();
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(keysToDelete.erase(lk) == 1);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else
                         {
@@ -3874,6 +3959,13 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     LedgerKeySet keysToDelete =
                         deleted ? keysToRestore : LedgerKeySet{};
 
+                    // Make sure we see init meta changes
+                    // (CREATED, RESTORED, STATE) before any other change types
+                    // for a given key. We also need to check that all meta
+                    // changes for the same key are adjacent to each other.
+                    std::unordered_set<LedgerKey> nonInitMetaChanges;
+                    std::optional<LedgerKey> nextExpectedKey = std::nullopt;
+
                     for (auto const& change : changes)
                     {
                         if (change.type() ==
@@ -3881,6 +3973,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                         {
                             auto le = change.restored();
                             auto lk = LedgerEntryKey(le);
+                            REQUIRE(nonInitMetaChanges.find(lk) ==
+                                    nonInitMetaChanges.end());
                             REQUIRE(keysToRestore.erase(lk) == 1);
 
                             if (lk.type() == CONTRACT_DATA)
@@ -3893,22 +3987,29 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                                 REQUIRE(le.lastModifiedLedgerSeq ==
                                         expectedTTLLastModified);
                             }
+                            nextExpectedKey = lk;
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_UPDATED)
                         {
                             REQUIRE(updatedValue.has_value());
                             auto le = change.updated();
+                            auto lk = LedgerEntryKey(le);
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(le.data.contractData().val ==
                                     makeU64SCVal(*updatedValue));
-                            REQUIRE(keysToUpdate.erase(LedgerEntryKey(le)) ==
-                                    1);
+                            REQUIRE(keysToUpdate.erase(lk) == 1);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else if (change.type() ==
                                  LedgerEntryChangeType::LEDGER_ENTRY_REMOVED)
                         {
                             auto lk = change.removed();
+                            nonInitMetaChanges.emplace(lk);
                             REQUIRE(keysToDelete.erase(lk) == 1);
+                            REQUIRE(nextExpectedKey.has_value());
+                            REQUIRE(lk == *nextExpectedKey);
                         }
                         else
                         {
@@ -4230,81 +4331,51 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                 runRestoreTestCases(/*wasEvicted=*/false);
             }
 
-            if (protocolVersionStartsFrom(
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            SECTION("entry evicted")
             {
-                SECTION("entry evicted")
+                // Close ledgers until entry is evicted
+                auto evictionLedger = 33;
+                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
                 {
-                    // Close ledgers until entry is evicted
-                    auto evictionLedger = 8193;
-                    for (uint32_t i = test.getLCLSeq(); i <= evictionLedger;
-                         ++i)
-                    {
-                        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-                    }
+                    closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                }
 
+                if (protocolVersionStartsFrom(
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                        LiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                    REQUIRE(!ltx.load(persistentKey));
+                }
+                else
+                {
+                    LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                    REQUIRE(ltx.load(persistentKey));
+                }
+
+                SECTION("eviction meta")
+                {
+                    // Only support persistent eviction meta >= p23
                     if (protocolVersionStartsFrom(
                             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                             LiveBucket::
                                 FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                     {
-                        LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                        REQUIRE(!ltx.load(persistentKey));
+                        xdr::xvector<LedgerKey> expectedEvictedKeys = {
+                            persistentKey, getTTLKey(persistentKey)};
+                        verifyEvictions(evictionLedger, expectedEvictedKeys);
+                        runRestoreTestCases(/*wasEvicted=*/true);
                     }
-
-                    SECTION("eviction meta")
+                    else
                     {
-                        // Only support persistent eviction meta >= p23
-                        if (protocolVersionStartsFrom(
-                                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                LiveBucket::
-                                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-                        {
-                            xdr::xvector<LedgerKey> expectedEvictedKeys = {
-                                persistentKey, getTTLKey(persistentKey)};
-                            verifyEvictions(evictionLedger,
-                                            expectedEvictedKeys);
-                        }
-                        else
-                        {
-                            // For older protocols, verify no evictions occurred
-                            auto frame = getMetaForLedger(evictionLedger);
-                            REQUIRE(frame.has_value());
-                            REQUIRE(frame->getEvictedKeys().empty());
-                        }
+                        // For older protocols, just verify no evictions
+                        // occurred
+                        auto frame = getMetaForLedger(evictionLedger);
+                        REQUIRE(frame.has_value());
+                        REQUIRE(frame->getEvictedKeys().empty());
                     }
-
-                    runRestoreTestCases(/*wasEvicted=*/true);
                 }
-            }
-        }
-        SECTION(
-            "Create temp entry with same key as an expired entry on eviction "
-            "ledger")
-        {
-            REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
-                    INVOKE_HOST_FUNCTION_SUCCESS);
-            {
-                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-                REQUIRE(ltx.load(temporaryLk));
-            }
-
-            // Verify that we're on the ledger where the entry would get
-            // evicted it wasn't recreated.
-            REQUIRE(test.getLCLSeq() == evictionLedger);
-
-            // Entry is live again
-            REQUIRE(test.isEntryLive(temporaryLk, test.getLCLSeq()));
-
-            // Verify that we didn't emit an eviction
-            XDRInputFileStream in;
-            in.open(metaPath);
-            LedgerCloseMeta lcm;
-            while (in.readOne(lcm))
-            {
-                LedgerCloseMetaFrame lcmFrame(lcm);
-                REQUIRE(lcmFrame.getEvictedKeys().empty());
             }
         }
     };
@@ -4731,6 +4802,52 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                                    false) == INVOKE_HOST_FUNCTION_SUCCESS);
             }
 
+            SECTION("autorestore, delete, then has")
+            {
+                auto hasInvocation = client.getContract().prepareInvocation(
+                    "has_persistent", {makeSymbolSCVal("key")},
+                    client.readKeySpec("key",
+                                       ContractDataDurability::PERSISTENT));
+
+                auto hasTx = hasInvocation.withExactNonRefundableResourceFee()
+                                 .createTx();
+
+                SECTION("same stage")
+                {
+                    auto r = closeLedger(test.getApp(), {delTx, hasTx},
+                                         /*strictOrder=*/true);
+                    REQUIRE(r.results.size() == 2);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    auto const& txMeta = TransactionMetaFrame(
+                        test.getLastLcm().getTransactionMeta(1));
+                    REQUIRE(txMeta.getReturnValue().b() == false);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+                SECTION("across stages")
+                {
+                    auto r = closeLedger(test.getApp(), {delTx, hasTx},
+                                         {{{0}}, {{1}}});
+                    REQUIRE(r.results.size() == 2);
+
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txSUCCESS);
+
+                    auto const& txMeta = TransactionMetaFrame(
+                        test.getLastLcm().getTransactionMeta(1));
+                    REQUIRE(txMeta.getReturnValue().b() == false);
+
+                    REQUIRE(client.has("key",
+                                       ContractDataDurability::PERSISTENT,
+                                       false) == INVOKE_HOST_FUNCTION_SUCCESS);
+                }
+            }
+
             SECTION("autorestore, delete, then create")
             {
                 auto writeInvocation = client.getContract().prepareInvocation(
@@ -4788,7 +4905,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                     restoreResources, 1'000, 400'000, &restore1SrcAccount);
 
                 auto restoreTx2 = test.createRestoreTx(
-                    restoreResources, 1'000, 400'000, &restore1SrcAccount);
+                    restoreResources, 1'000, 400'000, &restore2SrcAccount);
 
                 SECTION("same stage")
                 {
@@ -7489,9 +7606,6 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
 
     SECTION("basic test")
     {
-        // All of these put_temporary txs will have the same fee, resulting in
-        // some non-determinism when building tx set. To avoid that, use the
-        // i1Spec fee to offset the other txs inclusion fees.
         auto i1Spec =
             client.writeKeySpec("key1", ContractDataDurability::TEMPORARY);
         auto i1 = client.getContract().prepareInvocation(
@@ -7592,8 +7706,13 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
         sorobanTxs.emplace_back(tx9);
         sorobanTxs.emplace_back(transferTx1);
         sorobanTxs.emplace_back(transferTx2);
-
-        auto r = closeLedger(test.getApp(), sorobanTxs);
+        ParallelSorobanOrder order;
+        order.emplace_back();
+        order.back().emplace_back();
+        auto& clusterOrder = order.back().back();
+        clusterOrder.resize(sorobanTxs.size());
+        std::iota(clusterOrder.begin(), clusterOrder.end(), 0);
+        auto r = closeLedger(test.getApp(), sorobanTxs, order);
         REQUIRE(r.results.size() == sorobanTxs.size());
 
         // Do a sanity check on tx meta
@@ -7623,7 +7742,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
                         // is a extend op not covered by the hostFnSuccessMeter
         REQUIRE(hostFnFailureMeter.count() == 1);
 
-        REQUIRE(r.results[8]
+        REQUIRE(r.results[3]
                     .result.result.results()[0]
                     .tr()
                     .invokeHostFunctionResult()
@@ -7811,7 +7930,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
                 .getInclusionFee();
         for (size_t i = 0; i < 6; i++)
         {
-            auto extendTo = dist(gRandomEngine);
+            auto extendTo = dist(getGlobalRandomEngine());
             extendTos.emplace_back(extendTo);
 
             // The first tx will be a rw, the rest are ro
@@ -8570,10 +8689,11 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
         auto resources = lm.maxLedgerResources(true);
         for (auto& account : accounts)
         {
-            auto const& key = keys.at(keyDist(gRandomEngine));
-            auto const& action = actions.at(actionDist(gRandomEngine));
+            auto const& key = keys.at(keyDist(getGlobalRandomEngine()));
+            auto const& action =
+                actions.at(actionDist(getGlobalRandomEngine()));
             auto const& durability =
-                durabilities.at(durabilityDist(gRandomEngine));
+                durabilities.at(durabilityDist(getGlobalRandomEngine()));
 
             SorobanInvocationSpec spec;
             std::vector<SCVal> args;
@@ -8585,7 +8705,7 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
             else if (action == "extend")
             {
                 spec = client.readKeySpec(key, durability);
-                auto ttl = ttlDist(gRandomEngine);
+                auto ttl = ttlDist(getGlobalRandomEngine());
                 args = {makeSymbolSCVal(key), makeU32SCVal(ttl),
                         makeU32SCVal(ttl)};
             }
@@ -8728,7 +8848,7 @@ TEST_CASE("read-only bumps across threads", "[tx][soroban][parallelapply]")
     std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
     for (auto& account : accounts)
     {
-        auto extendTo = dist(gRandomEngine);
+        auto extendTo = dist(getGlobalRandomEngine());
         maxExtension = std::max(maxExtension, extendTo);
 
         auto inv = client.getContract().prepareInvocation(
@@ -9535,6 +9655,111 @@ TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
     });
 }
 
+// Test that autorestore works when keys aren't explicitly written and belong to
+// another uncalled contractID.
+TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+        cfg.stateArchivalSettings().minPersistentTTL =
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        cfg.mStateArchivalSettings.startingEvictionScanLevel = 1;
+        cfg.mStateArchivalSettings.evictionScanSize = 1'000'000;
+
+        // Never snapshot bucket list so we have stable rent fees
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+            10'000;
+    });
+
+    // Deploy two separate contracts
+    ContractStorageTestClient client1(test);
+    ContractStorageTestClient client2(test);
+    client1.put("key1", ContractDataDurability::PERSISTENT, 111);
+    client2.put("key2", ContractDataDurability::PERSISTENT, 222);
+
+    // Extend the contract instances so they don't get archived
+    auto extendLedgers =
+        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME + 10000;
+    test.invokeExtendOp(client1.getContract().getKeys(), extendLedgers);
+    test.invokeExtendOp(client2.getContract().getKeys(), extendLedgers);
+
+    auto expirationLedger =
+        test.getLCLSeq() +
+        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+    // Close ledgers until all entries are expired and evicted
+    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+         ledgerSeq <= expirationLedger + 1; ++ledgerSeq)
+    {
+        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+    }
+
+    auto lk1 = client1.getContract().getDataKey(
+        makeSymbolSCVal("key1"), ContractDataDurability::PERSISTENT);
+    auto lk2 = client2.getContract().getDataKey(
+        makeSymbolSCVal("key2"), ContractDataDurability::PERSISTENT);
+
+    // Verify entries are archived
+    REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT,
+                        std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+    REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT,
+                        std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+    auto hotArchiveSnapshot = test.getApp()
+                                  .getBucketManager()
+                                  .getBucketSnapshotManager()
+                                  .copySearchableHotArchiveBucketListSnapshot();
+    auto liveSnapshot = test.getApp()
+                            .getBucketManager()
+                            .getBucketSnapshotManager()
+                            .copySearchableLiveBucketListSnapshot();
+
+    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 2);
+    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 0);
+
+    // Now, invoke contract2, but also autorestore state from contract1.
+    auto keysToRestore = client2.getContract().getKeys();
+    keysToRestore.push_back(lk2);
+    keysToRestore.push_back(lk1);
+
+    std::vector<uint32_t> archivedIndexes;
+    for (size_t i = 0; i < keysToRestore.size(); ++i)
+    {
+        archivedIndexes.push_back(i);
+    }
+
+    auto spec = client2.defaultSpecWithoutFootprint()
+                    .setReadWriteFootprint(keysToRestore)
+                    .setArchivedIndexes(archivedIndexes)
+                    .setWriteBytes(10000)
+                    .setRefundableResourceFee(100'000);
+
+    // Make sure both keys are properly restored
+    auto invocation = client2.getContract().prepareInvocation(
+        "get_persistent", {makeSymbolSCVal("key2")}, spec,
+        /*addContractKeys=*/false);
+    REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
+
+    liveSnapshot = test.getApp()
+                       .getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+    hotArchiveSnapshot = test.getApp()
+                             .getBucketManager()
+                             .getBucketSnapshotManager()
+                             .copySearchableHotArchiveBucketListSnapshot();
+
+    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 2);
+    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 0);
+
+    // Verify that the correct values were restored
+    REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT, 111) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT, 222) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+}
+
 TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
                    "on soroban fee bump",
                    "[tx][soroban][merge][feebump]")
@@ -9613,5 +9838,377 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         // transaction
         REQUIRE(secondFeeBumper.getBalance() ==
                 startingBalance - r.results.at(1).result.feeCharged);
+    });
+}
+
+TEST_CASE_VERSIONS("classic payment to soroban fee bump account",
+                   "[tx][soroban][feebump]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(21, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto paymentSender = root.create("paymentSender", startingBalance);
+        auto feeBumpAccount = root.create("feeBumpAccount", startingBalance);
+        auto sorobanAccount = root.create("sorobanAccount", startingBalance);
+
+        auto feeBumpAccountStartingBalance = feeBumpAccount.getBalance();
+        auto sorobanAccountStartingBalance = sorobanAccount.getBalance();
+
+        // Record initial sequence numbers
+        auto paymentSenderStartingSeq = paymentSender.loadSequenceNumber();
+        auto feeBumpAccountStartingSeq = feeBumpAccount.loadSequenceNumber();
+        auto sorobanAccountStartingSeq = sorobanAccount.loadSequenceNumber();
+
+        // Step 1: Create classic payment to the fee bump account
+        auto classicPaymentTx =
+            paymentSender.tx({payment(feeBumpAccount, 1000000)});
+
+        // Step 2: Create a Soroban transaction with the soroban account as
+        // source
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(test.getApp(), sorobanAccount,
+                                                 wasm, resources, 1000);
+
+        // Step 3: Use the fee bump account (that will receive the payment) as
+        // the fee bump source
+        int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpTx =
+            feeBump(test.getApp(), feeBumpAccount, sorobanTx, feeBumpFullFee,
+                    /*useInclusionAsFullFee=*/true);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicPaymentTx,
+                                                    feeBumpTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS);                // Classic payment
+        checkTx(1, result, txFEE_BUMP_INNER_SUCCESS); // Fee bump soroban
+
+        // Verify sequence numbers
+        REQUIRE(paymentSender.loadSequenceNumber() ==
+                paymentSenderStartingSeq + 1); // Payment sender seq incremented
+        REQUIRE(sorobanAccount.loadSequenceNumber() ==
+                sorobanAccountStartingSeq +
+                    1); // Soroban account seq incremented
+        REQUIRE(feeBumpAccount.loadSequenceNumber() ==
+                feeBumpAccountStartingSeq); // Fee bump account seq unchanged
+
+        // Verify the soroban account balance is unchanged (didn't pay fee)
+        REQUIRE(sorobanAccount.getBalance() == sorobanAccountStartingBalance);
+
+        // The fee bump account should have received payment and paid the
+        // soroban fee
+        auto finalFeeBumpBalance = feeBumpAccount.getBalance();
+        auto expectedBalance = feeBumpAccountStartingBalance + 1000000 -
+                               result.results[1].result.feeCharged;
+        REQUIRE(finalFeeBumpBalance == expectedBalance);
+    });
+}
+
+TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
+                   "[tx][soroban][feebump]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(21, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto sharedAccount = root.create("sharedAccount", startingBalance);
+        auto paymentRecipient =
+            root.create("paymentRecipient", startingBalance);
+        auto sorobanInnerAccount = root.create("sorobanInner", startingBalance);
+
+        auto sharedAccountStartingBalance = sharedAccount.getBalance();
+        auto paymentRecipientStartingBalance = paymentRecipient.getBalance();
+        auto sorobanInnerAccountStartingBalance =
+            sorobanInnerAccount.getBalance();
+
+        // Record initial sequence numbers
+        auto sharedAccountStartingSeq = sharedAccount.loadSequenceNumber();
+        auto paymentRecipientStartingSeq =
+            paymentRecipient.loadSequenceNumber();
+        auto sorobanInnerAccountStartingSeq =
+            sorobanInnerAccount.loadSequenceNumber();
+
+        // Step 1: Create classic payment from shared account
+        auto classicPaymentTx =
+            sharedAccount.tx({payment(paymentRecipient, 750000)});
+
+        // Step 2: Create Soroban transaction with a different inner source
+        // account
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(
+            test.getApp(), sorobanInnerAccount, wasm, resources, 1000);
+
+        // Step 3: Fee bump the Soroban transaction with the same shared account
+        // (that also did the payment)
+        int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
+        auto feeBumpTx =
+            feeBump(test.getApp(), sharedAccount, sorobanTx, feeBumpFullFee,
+                    /*useInclusionAsFullFee=*/true);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicPaymentTx,
+                                                    feeBumpTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS);                // Classic payment
+        checkTx(1, result, txFEE_BUMP_INNER_SUCCESS); // Fee bump soroban
+
+        // Verify sequence numbers
+        REQUIRE(sharedAccount.loadSequenceNumber() ==
+                sharedAccountStartingSeq +
+                    1); // Only classic payment increments seq
+        REQUIRE(paymentRecipient.loadSequenceNumber() ==
+                paymentRecipientStartingSeq); // Recipient seq unchanged
+        REQUIRE(sorobanInnerAccount.loadSequenceNumber() ==
+                sorobanInnerAccountStartingSeq +
+                    1); // Inner soroban account seq incremented
+
+        // Verify balances
+        // Payment recipient should have received the payment
+        REQUIRE(paymentRecipient.getBalance() ==
+                paymentRecipientStartingBalance + 750000);
+
+        // Soroban inner account balance should be unchanged (fee bump pays the
+        // fee)
+        REQUIRE(sorobanInnerAccount.getBalance() ==
+                sorobanInnerAccountStartingBalance);
+
+        // Shared account should have paid for payment amount, classic payment
+        // fee, and soroban fee
+        auto expectedSharedBalance =
+            sharedAccountStartingBalance - 750000 - // Payment amount
+            result.results[0].result.feeCharged -   // Classic payment fee
+            result.results[1].result.feeCharged;    // Soroban fee
+        REQUIRE(sharedAccount.getBalance() == expectedSharedBalance);
+    });
+}
+
+TEST_CASE_VERSIONS(
+    "classic phase sets master weight of soroban source account to 0",
+    "[tx][soroban][signer]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto sorobanSourceAccount =
+            root.create("sorobanSource", startingBalance);
+        auto signerAdmin = root.create("signerAdmin", startingBalance);
+
+        auto sorobanSourceStartingBalance = sorobanSourceAccount.getBalance();
+        auto signerAdminStartingBalance = signerAdmin.getBalance();
+
+        // Record initial sequence numbers
+        auto sorobanSourceStartingSeq =
+            sorobanSourceAccount.loadSequenceNumber();
+        auto signerAdminStartingSeq = signerAdmin.loadSequenceNumber();
+
+        // Step 1: Classic transaction to add signer to the soroban source
+        // account
+        auto setOptionsOp = txtest::setOptions(setMasterWeight(0));
+        setOptionsOp.sourceAccount.activate() =
+            toMuxedAccount(sorobanSourceAccount);
+        auto classicSetOptionsTx = signerAdmin.tx({setOptionsOp});
+        classicSetOptionsTx->addSignature(sorobanSourceAccount.getSecretKey());
+
+        // Step 2: Create Soroban transaction with the account that just got a
+        // new signer
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(
+            test.getApp(), sorobanSourceAccount, wasm, resources, 1000);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicSetOptionsTx,
+                                                    sorobanTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS);  // Classic set options
+        checkTx(1, result, txBAD_AUTH); // Soroban transaction
+
+        // Verify sequence numbers
+        REQUIRE(signerAdmin.loadSequenceNumber() ==
+                signerAdminStartingSeq + 1); // Set options tx increments seq
+        REQUIRE(sorobanSourceAccount.loadSequenceNumber() ==
+                sorobanSourceStartingSeq + 1); // Soroban tx increments seq
+
+        // Verify balances
+        // Signer admin should have paid the set options fee
+        REQUIRE(signerAdmin.getBalance() ==
+                signerAdminStartingBalance -
+                    result.results[0].result.feeCharged);
+
+        // Soroban source account should have paid the soroban fee
+        auto expectedSorobanBalance =
+            sorobanSourceStartingBalance - result.results[1].result.feeCharged;
+        REQUIRE(sorobanSourceAccount.getBalance() == expectedSorobanBalance);
+
+        auto txm =
+            TransactionMetaFrame(test.getLastLcm().getTransactionMeta(1));
+        // Verify refund amount in transaction meta
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : test.getLastLcm().getPostTxApplyFeeProcessing(
+                      1); // Index 1 for soroban tx
+
+        REQUIRE(refundChanges.size() == 2);
+        auto refund = refundChanges[1].updated().data.account().balance -
+                      refundChanges[0].state().data.account().balance;
+        REQUIRE(refund > 0);
+
+        auto initialFeeChanges =
+            test.getLastLcm().getPreTxApplyFeeProcessing(1);
+        auto initialFee = initialFeeChanges[0].state().data.account().balance -
+                          initialFeeChanges[1].updated().data.account().balance;
+
+        auto const& txEvents = txm.getTxEvents();
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], sorobanSourceAccount.getPublicKey(),
+                         initialFee, ledgerVersion, false);
+        validateFeeEvent(txEvents[1], sorobanSourceAccount.getPublicKey(),
+                         -refund, ledgerVersion, true);
+    });
+}
+
+TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
+                   "[tx][soroban][bumpsequence]")
+{
+    Config cfg = getTestConfig();
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+        auto ledgerVersion = test.getLedgerVersion();
+
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
+
+        // Create accounts
+        auto root = test.getRoot();
+        auto sorobanSourceAccount =
+            root.create("sorobanSource", startingBalance);
+        auto bumpAdmin = root.create("bumpAdmin", startingBalance);
+
+        auto sorobanSourceStartingBalance = sorobanSourceAccount.getBalance();
+        auto bumpAdminStartingBalance = bumpAdmin.getBalance();
+
+        // Record initial sequence numbers
+        auto sorobanSourceStartingSeq =
+            sorobanSourceAccount.loadSequenceNumber();
+        auto bumpAdminStartingSeq = bumpAdmin.loadSequenceNumber();
+
+        // Step 1: Classic transaction to bump sequence of the soroban source
+        // account
+        auto targetSequence = sorobanSourceStartingSeq + 10;
+        auto bumpSequenceOp = txtest::bumpSequence(targetSequence);
+        bumpSequenceOp.sourceAccount.activate() =
+            toMuxedAccount(sorobanSourceAccount);
+        auto classicBumpTx = bumpAdmin.tx({bumpSequenceOp});
+        classicBumpTx->addSignature(sorobanSourceAccount.getSecretKey());
+
+        // Step 2: Create Soroban transaction with the account that just had its
+        // sequence bumped
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources =
+            defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+        auto sorobanTx = makeSorobanWasmUploadTx(
+            test.getApp(), sorobanSourceAccount, wasm, resources, 1000);
+
+        // Execute both transactions in the same ledger
+        std::vector<TransactionFrameBasePtr> txs = {classicBumpTx, sorobanTx};
+        auto result = closeLedger(test.getApp(), txs);
+        REQUIRE(result.results.size() == 2);
+        checkTx(0, result, txSUCCESS); // Classic bump sequence
+        checkTx(1, result, txBAD_SEQ); // Soroban transaction
+
+        // Verify sequence numbers
+        REQUIRE(bumpAdmin.loadSequenceNumber() == bumpAdminStartingSeq + 1);
+        REQUIRE(sorobanSourceAccount.loadSequenceNumber() == targetSequence);
+
+        // Verify balances
+        // Bump admin should have paid the bump sequence fee
+        REQUIRE(bumpAdmin.getBalance() ==
+                bumpAdminStartingBalance - result.results[0].result.feeCharged);
+
+        // Soroban source account should have paid the soroban fee
+        auto expectedSorobanBalance =
+            sorobanSourceStartingBalance - result.results[1].result.feeCharged;
+        REQUIRE(sorobanSourceAccount.getBalance() == expectedSorobanBalance);
+
+        auto txm =
+            TransactionMetaFrame(test.getLastLcm().getTransactionMeta(1));
+        // Verify refund amount in transaction meta
+        auto refundChanges =
+            protocolVersionIsBefore(test.getLedgerVersion(),
+                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)
+                ? txm.getChangesAfter()
+                : test.getLastLcm().getPostTxApplyFeeProcessing(
+                      1); // Index 1 for soroban tx
+
+        REQUIRE(refundChanges.size() == 2);
+        auto refund = refundChanges[1].updated().data.account().balance -
+                      refundChanges[0].state().data.account().balance;
+        REQUIRE(refund > 0);
+
+        auto initialFeeChanges =
+            test.getLastLcm().getPreTxApplyFeeProcessing(1);
+        auto initialFee = initialFeeChanges[0].state().data.account().balance -
+                          initialFeeChanges[1].updated().data.account().balance;
+
+        auto const& txEvents = txm.getTxEvents();
+        REQUIRE(txEvents.size() == 2);
+        validateFeeEvent(txEvents[0], sorobanSourceAccount.getPublicKey(),
+                         initialFee, ledgerVersion, false);
+        validateFeeEvent(txEvents[1], sorobanSourceAccount.getPublicKey(),
+                         -refund, ledgerVersion, true);
     });
 }

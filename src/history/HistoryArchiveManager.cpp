@@ -162,7 +162,7 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
     else
     {
         stellar::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
-        size_t i = dist(gRandomEngine);
+        size_t i = dist(getGlobalRandomEngine());
         CLOG_DEBUG(History, "Fetching from readable history archive #{}, '{}'",
                    i, archives[i]->getName());
         return archives[i];

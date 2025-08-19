@@ -156,7 +156,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     std::streamoff pageUpperBound = 0;
     typename BucketT::EntryT be;
     size_t iter = 0;
-    size_t count = 0;
+    size_t _count = 0;
 
     std::vector<uint64_t> keyHashes;
     auto seed = shortHash::getShortHashInitKey();
@@ -182,7 +182,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
         if (!isBucketMetaEntry<BucketT>(be))
         {
-            ++count;
+            ++_count;
             LedgerKey key = getBucketLedgerKey(be);
 
             // Track type boundaries
@@ -291,7 +291,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
     CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mData.keysToOffset.size(),
                filename.filename());
-    ZoneValue(static_cast<int64_t>(count));
+    ZoneValue(static_cast<int64_t>(_count));
 
     if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX)
     {

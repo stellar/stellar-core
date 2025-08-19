@@ -617,7 +617,7 @@ buildSurgePricedParallelSorobanPhase(
         CLOG_DEBUG(Herder,
                    "Parallel Soroban tx set nomination: {} stages => {} total "
                    "inclusion fee",
-                   results[i].mTotalInclusionFee, results[i].mStages.size());
+                   results[i].mStages.size(), results[i].mTotalInclusionFee);
         if (results[i].mTotalInclusionFee < maxTotalInclusionFee)
         {
             continue;

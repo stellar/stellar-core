@@ -51,7 +51,7 @@ BucketInputIterator<BucketT>::loadEntry()
             }
             mMetadata = mEntry.metaEntry();
 
-            if constexpr (std::is_same_v<BucketT, HotArchiveBucketEntry>)
+            if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
             {
                 if (mMetadata.ext.v() != 1 ||
                     mMetadata.ext.bucketListType() != HOT_ARCHIVE)

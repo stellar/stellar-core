@@ -15,7 +15,8 @@ namespace stellar
 enum class ApplyLoadMode
 {
     SOROBAN,
-    CLASSIC
+    CLASSIC,
+    MIX
 };
 
 class ApplyLoad
@@ -47,6 +48,10 @@ class ApplyLoad
     medida::Histogram const& getReadEntryUtilization();
     medida::Histogram const& getWriteEntryUtilization();
 
+    // Returns LedgerKey for pre-populated archived state at the given index.
+    static LedgerKey getKeyForArchivedEntry(uint64_t index);
+    static uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
+
   private:
     void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                      xdr::xvector<UpgradeType, 6> const& upgrades = {});
@@ -56,6 +61,7 @@ class ApplyLoad
     void setupAccounts();
     void setupUpgradeContract();
     void setupLoadContract();
+    void setupXLMContract();
     void setupBucketList();
 
     // Upgrades using mUpgradeConfig
@@ -65,15 +71,18 @@ class ApplyLoad
     LedgerKey mUpgradeInstanceKey;
 
     LedgerKey mLoadCodeKey;
+    // Used to generate soroban load transactions
     TxGenerator::ContractInstance mLoadInstance;
+    // Used to generate XLM payments
+    TxGenerator::ContractInstance mSACInstanceXLM;
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 
-    TxGenerator mTxGenerator;
     Application& mApp;
     TxGenerator::TestAccountPtr mRoot;
 
     uint32_t mNumAccounts;
+    uint32_t mTotalHotArchiveEntries;
 
     medida::Histogram& mTxCountUtilization;
     medida::Histogram& mInstructionUtilization;
@@ -84,6 +93,7 @@ class ApplyLoad
     medida::Histogram& mWriteEntryUtilization;
 
     ApplyLoadMode mMode;
+    TxGenerator mTxGenerator;
 };
 
 }

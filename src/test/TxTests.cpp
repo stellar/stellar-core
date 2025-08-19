@@ -544,7 +544,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               ParallelSorobanOrder const& parallelSorobanOrder)
 {
     // Ensure that parallelSorobanOrder is only used with strictOrder
-    REQUIRE((parallelSorobanOrder.empty() || strictOrder));
+    releaseAssert((parallelSorobanOrder.empty() || strictOrder));
 
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -907,7 +907,8 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
 }
 
 Operation
-createUploadWasmOperation(uint32_t generatedWasmSize)
+createUploadWasmOperation(uint32_t generatedWasmSize,
+                          std::optional<uint64_t> wasmSeed)
 {
     uint32_t const WASM_HEADER_SIZE = 100;
 
@@ -916,7 +917,7 @@ createUploadWasmOperation(uint32_t generatedWasmSize)
     auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
     uniform_int_distribution<uint64_t> seedDistr;
-    uint64_t seed = seedDistr(Catch::rng());
+    uint64_t seed = wasmSeed ? *wasmSeed : seedDistr(Catch::rng());
     // Roughly account for the generated header.
     if (generatedWasmSize > WASM_HEADER_SIZE)
     {
@@ -937,12 +938,13 @@ createUploadWasmTx(Application& app, TestAccount& account,
                    uint32_t inclusionFee, int64_t resourceFee,
                    SorobanResources resources, std::optional<std::string> memo,
                    int addInvalidOps, std::optional<uint32_t> wasmSize,
-                   std::optional<SequenceNumber> seq)
+                   std::optional<SequenceNumber> seq,
+                   std::optional<uint64_t> wasmSeed)
 {
     uint32_t const DEFAULT_WASM_SIZE = 1000;
 
-    Operation uploadOp =
-        createUploadWasmOperation(wasmSize ? *wasmSize : DEFAULT_WASM_SIZE);
+    Operation uploadOp = createUploadWasmOperation(
+        wasmSize ? *wasmSize : DEFAULT_WASM_SIZE, wasmSeed);
 
     if (resources.footprint.readWrite.empty() &&
         resources.footprint.readOnly.empty())
@@ -2034,6 +2036,14 @@ isSuccessResult(TransactionResult const& res)
 {
     return res.result.code() == txSUCCESS ||
            res.result.code() == txFEE_BUMP_INNER_SUCCESS;
+}
+
+TestAccount
+getGenesisAccount(Application& app, uint32_t accountIndex)
+{
+    REQUIRE(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
+    return TestAccount(
+        app, getAccount("TestAccount-" + std::to_string(accountIndex)));
 }
 
 } // namespace txtest

@@ -1174,7 +1174,7 @@ OverlayManagerImpl::extractPeersFromMap(
 void
 OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 {
-    stellar::shuffle(peerList.begin(), peerList.end(), gRandomEngine);
+    stellar::shuffle(peerList.begin(), peerList.end(), getGlobalRandomEngine());
 }
 
 bool

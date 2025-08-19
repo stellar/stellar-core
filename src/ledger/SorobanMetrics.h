@@ -119,6 +119,12 @@ class SorobanMetrics
     medida::Timer& mModuleCacheRebuildTime;
     medida::Counter& mModuleCacheRebuildBytes;
 
+    // In-memory state metrics
+    medida::Counter& mContractCodeStateSize;
+    medida::Counter& mContractDataStateSize;
+    medida::Counter& mContractCodeEntryCount;
+    medida::Counter& mContractDataEntryCount;
+
     SorobanMetrics(medida::MetricsRegistry& metrics);
 
     void accumulateModelledCpuInsns(uint64_t insnsCount,

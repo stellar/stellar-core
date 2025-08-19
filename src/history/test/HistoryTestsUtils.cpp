@@ -476,7 +476,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                           &carol,     &eve,   &stroopy};
     stellar::uniform_int_distribution<> accountDistr(0, accounts.size() - 1);
     auto randomAccount = [&accounts, &accountDistr]() -> TestAccount& {
-        return *accounts.at(accountDistr(gRandomEngine));
+        return *accounts.at(accountDistr(getGlobalRandomEngine()));
     };
 
     std::vector<TransactionFrameBasePtr> txs;
@@ -607,7 +607,6 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     auto& txsSucceeded =
         getApp().getMetrics().NewCounter({"ledger", "apply", "success"});
-    auto lastSucceeded = txsSucceeded.count();
 
     lm.applyLedger(mLedgerCloseDatas.back());
 
@@ -762,7 +761,7 @@ CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
     // catchup, one as closing ledger.
     ensureLedgerAvailable(HistoryManager::checkpointContainingLedger(
                               targetLedger, getApp().getConfig()) +
-                          bufferLedgers + 3);
+                          bufferLedgers + 2);
     ensurePublishesComplete();
 }
 
@@ -977,23 +976,13 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
 
-    testutil::crankUntil(app, catchupIsDone,
-                         std::chrono::seconds{std::max<int64>(
-                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
-
-    if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
+    // No point in waiting if catchup wasn't even started
+    if (app->getLedgerApplyManager().isCatchupInitialized())
     {
-        // Externalize closing ledger
-        externalize(triggerLedger + bufferLedgers + 1);
+        testutil::crankUntil(app, catchupIsDone,
+                             std::chrono::seconds{std::max<int64>(
+                                 expectedCatchupWork.mTxSetsApplied + 15, 60)});
     }
-
-    testutil::crankUntil(
-        app,
-        [&]() {
-            return lm.getLastClosedLedgerNum() ==
-                   triggerLedger + bufferLedgers + 1;
-        },
-        std::chrono::seconds{60});
 
     auto result = caughtUp();
     if (result)

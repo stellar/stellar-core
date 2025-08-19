@@ -240,7 +240,8 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 liveIdxs.emplace_back(i);
             }
-            stellar::shuffle(liveIdxs.begin(), liveIdxs.end(), gRandomEngine);
+            stellar::shuffle(liveIdxs.begin(), liveIdxs.end(),
+                             getGlobalRandomEngine());
             for (size_t src = 0; src < live.size(); ++src)
             {
                 size_t dst = liveIdxs.at(src);

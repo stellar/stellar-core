@@ -34,6 +34,7 @@
 #include "xdr/Stellar-ledger.h"
 
 #include <autocheck/generator.hpp>
+#include <catch.hpp>
 #include <deque>
 #include <sstream>
 
@@ -463,6 +464,76 @@ TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",
     });
 }
 
+TEST_CASE("hot archive accepts multiple archives and restores for same key",
+          "[bucket][bucketlist][tombstones]")
+{
+    testutil::BucketListDepthModifier<HotArchiveBucket> bldm(3);
+
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    HotArchiveBucketList bl;
+    BucketManager& bm = app->getBucketManager();
+
+    // This tests simulates an entry that is archived, restored, then becomes
+    // archived again for Hot Archive Merges. We'll populate the BucketList
+    // such that a LedgerKey was originally archived with value archivedEntryV0,
+    // was restored, and then was archived again with value archivedEntryV1.
+    LedgerEntry archivedEntryV0 =
+        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+    LedgerEntry archivedEntryV1 = archivedEntryV0;
+    archivedEntryV1.lastModifiedLedgerSeq += 10;
+
+    auto& firstLevel = bl.getLevel(0);
+    firstLevel.setCurr(HotArchiveBucket::fresh(
+        bm, getAppLedgerVersion(app), {archivedEntryV1}, {},
+        /*countMergeEvents=*/true, clock.getIOContext(),
+        /*doFsync=*/true));
+    firstLevel.setSnap(HotArchiveBucket::fresh(
+        bm, getAppLedgerVersion(app), {}, {LedgerEntryKey(archivedEntryV0)},
+        /*countMergeEvents=*/true, clock.getIOContext(),
+        /*doFsync=*/true));
+
+    auto& lastLevel = bl.getLevel(HotArchiveBucketList::kNumLevels - 1);
+    lastLevel.setCurr(HotArchiveBucket::fresh(
+        bm, getAppLedgerVersion(app), {archivedEntryV0}, {},
+        /*countMergeEvents=*/true, clock.getIOContext(),
+        /*doFsync=*/true));
+
+    auto lastBucketHasNewVersion = [&]() {
+        auto b = bl.getLevel(HotArchiveBucketList::kNumLevels - 1).getCurr();
+        for (HotArchiveBucketInputIterator iter(b); iter; ++iter)
+        {
+            auto be = *iter;
+            if (be.type() == HOT_ARCHIVE_ARCHIVED)
+            {
+                auto archivedEntry = be.archivedEntry();
+                if (archivedEntry == archivedEntryV1)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
+    // Close ledgers until the newest version of the entry merges and overrides
+    // the older archived version and the restore.
+    bool newestValueMerged = false;
+    for (uint32_t ledgerSeq = 1; ledgerSeq < 1000; ++ledgerSeq)
+    {
+        bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {}, {});
+        if (lastBucketHasNewVersion())
+        {
+            newestValueMerged = true;
+            break;
+        }
+    }
+
+    REQUIRE(newestValueMerged);
+}
+
 TEST_CASE_VERSIONS("live bucket tombstones expire at bottom level",
                    "[bucket][bucketlist][tombstones]")
 {
@@ -692,7 +763,7 @@ sizeOfTests()
     {
         for (uint32_t level = 0; level < BucketListT::kNumLevels; ++level)
         {
-            uint32_t ledger = dist(gRandomEngine);
+            uint32_t ledger = dist(getGlobalRandomEngine());
             if (BucketListT::sizeOfSnap(ledger, level) > 0)
             {
                 uint32_t oldestInCurr =
@@ -755,8 +826,8 @@ snapSteadyStateTest()
         stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
         for (uint32_t i = 0; i < 1000; ++i)
         {
-            uint32_t low = distLow(gRandomEngine);
-            uint32_t high = distHigh(gRandomEngine);
+            uint32_t low = distLow(getGlobalRandomEngine());
+            uint32_t high = distHigh(getGlobalRandomEngine());
             REQUIRE(BucketListT::sizeOfSnap(low, level) < half);
             REQUIRE(BucketListT::sizeOfSnap(high, level) == half);
         }
@@ -792,8 +863,8 @@ deepestCurrTest()
     stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
     for (uint32_t i = 0; i < 1000; ++i)
     {
-        uint32_t low = distLow(gRandomEngine);
-        uint32_t high = distHigh(gRandomEngine);
+        uint32_t low = distLow(getGlobalRandomEngine());
+        uint32_t high = distHigh(getGlobalRandomEngine());
         REQUIRE(BucketListT::sizeOfCurr(low, deepest) == 0);
         REQUIRE(BucketListT::oldestLedgerInCurr(low, deepest) ==
                 std::numeric_limits<uint32_t>::max());

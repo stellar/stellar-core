@@ -355,6 +355,17 @@ LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
 }
 
 void
+LedgerManagerImpl::ApplyState::reportInMemoryMetrics(
+    SorobanMetrics& metrics) const
+{
+    // This assert is not strictly necessary, but we don't really want to
+    // access the state size outside of the snapshotting process during the
+    // LEDGER_CLOSE or SETTING_UP_STATE phase.
+    assertWritablePhase();
+    mInMemorySorobanState.reportMetrics(metrics);
+}
+
+void
 LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
     LedgerHeader const& lh)
 {
@@ -1150,6 +1161,8 @@ LedgerManagerImpl::publishSorobanMetrics()
         conf.sorobanStateTargetSizeBytes());
     m.mConfigFeeWrite1KB.set_count(conf.feeRent1KB());
 
+    mApplyState.reportInMemoryMetrics(m);
+
     // then publish the actual ledger usage
     m.publishAndResetLedgerWideMetrics();
 }
@@ -1272,7 +1285,7 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
         {
             sleepFor +=
                 cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[distribution(
-                    gRandomEngine)];
+                    getGlobalRandomEngine())];
         }
         std::chrono::microseconds applicationTime =
             closeTime.checkElapsedTime();

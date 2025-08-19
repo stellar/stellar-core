@@ -88,6 +88,9 @@ struct SorobanUpgradeConfig
 class TxGenerator
 {
   public:
+    // Special account ID to represent the root account
+    static uint64_t const ROOT_ACCOUNT_ID;
+
     struct ContractInstance
     {
         // [wasm, instance]
@@ -97,7 +100,7 @@ class TxGenerator
     };
 
     using TestAccountPtr = std::shared_ptr<TestAccount>;
-    TxGenerator(Application& app);
+    TxGenerator(Application& app, uint32_t prePopulatedArchivedEntries = 0);
 
     bool loadAccount(TestAccount& account);
     bool loadAccount(TestAccountPtr account);
@@ -124,26 +127,30 @@ class TxGenerator
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
 
-    // If accountId is nullopt, the root test account is used.
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(
-        uint32_t ledgerNum, std::optional<uint64_t> accountId,
-        xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
+        uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
+        LedgerKey const& contractCodeLedgerKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    createContractTransaction(uint32_t ledgerNum,
-                              std::optional<uint64_t> accountId,
+    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               LedgerKey const& codeKey,
                               uint64_t contractOverheadBytes,
                               uint256 const& salt,
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    createSACTransaction(uint32_t ledgerNum, std::optional<uint64_t> accountId,
+                         Asset const& asset,
+                         std::optional<uint32_t> maxGeneratedFeeRate);
+
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  TxGenerator::ContractInstance const& instance,
                                  uint64_t contractOverheadBytes,
                                  std::optional<uint32_t> maxGeneratedFeeRate);
+
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransactionV2(uint32_t ledgerNum, uint64_t accountId,
                                    ContractInstance const& instance,
@@ -151,10 +158,14 @@ class TxGenerator
                                    size_t dataEntrySize,
                                    std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
+                     SCAddress const& toAddress,
+                     ContractInstance const& instance, uint64_t amount,
+                     std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
-        uint32_t ledgerNum, std::optional<uint64_t> accountId,
-        SCBytes const& upgradeBytes, LedgerKey const& codeKey,
-        LedgerKey const& instanceKey,
+        uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
+        LedgerKey const& codeKey, LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -194,6 +205,7 @@ class TxGenerator
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
 
     void updateMinBalance();
+    bool isLive(LedgerKey const& lk, uint32_t ledgerNum) const;
 
     Application& mApp;
 
@@ -205,6 +217,15 @@ class TxGenerator
     // Counts of soroban transactions that succeeded or failed at apply time
     medida::Counter const& mApplySorobanSuccess;
     medida::Counter const& mApplySorobanFailure;
+
+    // mPrePopulatedArchivedEntries contains the
+    // total number of pre-populated archived entries to autorestore for IO
+    // load.
+    uint32_t const mPrePopulatedArchivedEntries;
+
+    // index of next entry to autorestore. LedgerKey can be derived from index
+    // using ApplyLoad::getKeyForArchivedEntry.
+    uint32_t mNextKeyToRestore{};
 };
 
 }

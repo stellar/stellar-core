@@ -31,7 +31,7 @@ class CatchupRange;
 
 namespace historytestutils
 {
-class CatchupPerformedWork;
+struct CatchupPerformedWork;
 } // namespace historytestutils
 } // namespace stellar
 

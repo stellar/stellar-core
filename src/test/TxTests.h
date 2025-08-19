@@ -205,14 +205,17 @@ TransactionTestFramePtr createSimpleDexTx(Application& app,
 // valid Wasm of *roughly* `generatedWasmSize` (within a few bytes).
 // The output size deterministically depends on the input
 // `generatedWasmSize`.
-Operation createUploadWasmOperation(uint32_t generatedWasmSize);
+Operation
+createUploadWasmOperation(uint32_t generatedWasmSize,
+                          std::optional<uint64_t> wasmSeed = std::nullopt);
 
 TransactionTestFramePtr createUploadWasmTx(
     Application& app, TestAccount& account, uint32_t inclusionFee,
     int64_t resourceFee, SorobanResources resources,
     std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0,
     std::optional<uint32_t> wasmSize = std::nullopt,
-    std::optional<SequenceNumber> seq = std::nullopt);
+    std::optional<SequenceNumber> seq = std::nullopt,
+    std::optional<uint64_t> wasmSeed = std::nullopt);
 int64_t sorobanResourceFee(
     Application& app, SorobanResources const& resources, size_t txSize,
     uint32_t eventsSize,
@@ -354,6 +357,8 @@ int64_t getBalance(Application& app, AccountID const& accountID,
 uint32_t getLclProtocolVersion(Application& app);
 
 bool isSuccessResult(TransactionResult const& res);
+
+TestAccount getGenesisAccount(Application& app, uint32_t accountIndex);
 
 } // end txtest namespace
 }

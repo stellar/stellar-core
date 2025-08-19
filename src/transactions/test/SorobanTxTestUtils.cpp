@@ -227,6 +227,13 @@ makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                                           inclusionFee, uploadResourceFee);
 }
 
+bool
+isExpiredStatus(ExpirationStatus status)
+{
+    return status == ExpirationStatus::EXPIRED_IN_LIVE_STATE ||
+           status == ExpirationStatus::HOT_ARCHIVE;
+}
+
 SorobanResources
 defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
                                            uint32_t ledgerVersion)
@@ -292,6 +299,9 @@ makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
         name = std::string(asset.alphaNum12().assetCode.begin(),
                            asset.alphaNum12().assetCode.end()) +
                ":" + KeyUtils::toStrKey(asset.alphaNum12().issuer);
+        break;
+    default:
+        releaseAssertOrThrow(false);
         break;
     }
 
@@ -1102,7 +1112,8 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
 }
 
 Hash
-SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources)
+SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources,
+                        int64_t additionalRefundableFee)
 {
     SCBytes expectedWasm(wasm.data.begin(), wasm.data.end());
     Hash expectedWasmHash = sha256(expectedWasm);
@@ -1125,8 +1136,8 @@ SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources)
         previousLiveUntilLedger = getTTL(contractCodeLedgerKey);
     }
 
-    auto tx =
-        makeSorobanWasmUploadTx(getApp(), *mRoot, wasm, uploadResources, 1000);
+    auto tx = makeSorobanWasmUploadTx(getApp(), *mRoot, wasm, uploadResources,
+                                      1000, additionalRefundableFee);
     REQUIRE(isSuccessResult(invokeTx(tx)));
 
     // Verify the uploaded contract code is correct.
@@ -1221,16 +1232,19 @@ SorobanTest::getApp() const
 TestContract&
 SorobanTest::deployWasmContract(RustBuf const& wasm,
                                 std::optional<SorobanResources> uploadResources,
-                                std::optional<SorobanResources> createResources)
+                                std::optional<SorobanResources> createResources,
+                                int64_t additionalRefundableFee)
 {
-    return deployWasmContract(wasm, {}, uploadResources, createResources);
+    return deployWasmContract(wasm, {}, uploadResources, createResources,
+                              additionalRefundableFee);
 }
 
 TestContract&
 SorobanTest::deployWasmContract(RustBuf const& wasm,
                                 ConstructorParams const& constructorParams,
                                 std::optional<SorobanResources> uploadResources,
-                                std::optional<SorobanResources> createResources)
+                                std::optional<SorobanResources> createResources,
+                                int64_t additionalRefundableFee)
 {
     if (!uploadResources)
     {
@@ -1246,7 +1260,7 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
             static_cast<uint32_t>(wasm.data.size() + 1000);
         createResources->writeBytes = 1000;
     }
-    Hash wasmHash = uploadWasm(wasm, *uploadResources);
+    Hash wasmHash = uploadWasm(wasm, *uploadResources, additionalRefundableFee);
     SCAddress contractAddress = createContract(
         makeContractIDPreimage(*mRoot,
                                sha256(std::to_string(mContracts.size()))),
@@ -1413,6 +1427,31 @@ SorobanTest::isEntryLive(LedgerKey const& k, uint32_t ledgerSeq)
     auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
     REQUIRE(ttlLtxe);
     return isLive(ttlLtxe.current(), ledgerSeq);
+}
+
+ExpirationStatus
+SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
+{
+    auto ttlKey = getTTLKey(key);
+    LedgerSnapshot ls(getApp());
+    if (auto lse = ls.load(ttlKey))
+    {
+        if (lse.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
+        {
+            return ExpirationStatus::EXPIRED_IN_LIVE_STATE;
+        }
+        return ExpirationStatus::LIVE;
+    }
+    auto hotArchive = getApp()
+                          .getBucketManager()
+                          .getBucketSnapshotManager()
+                          .copySearchableHotArchiveBucketListSnapshot();
+    releaseAssert(hotArchive);
+    if (hotArchive->load(key) != nullptr)
+    {
+        return ExpirationStatus::HOT_ARCHIVE;
+    }
+    return ExpirationStatus::NOT_FOUND;
 }
 
 void
@@ -1660,16 +1699,17 @@ AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
     return tx;
 }
 
-bool
-AssetContractTestClient::transfer(TestAccount& fromAcc,
-                                  SCAddress const& maybeMuxedToAddr,
-                                  int64_t amount)
+TestContract::Invocation
+AssetContractTestClient::transferInvocation(TestAccount& fromAcc,
+                                            SCAddress const& maybeMuxedToAddr,
+                                            int64_t amount, bool& fromIsIssuer,
+                                            bool& toIsIssuer, SCAddress& toAddr)
 {
     SCVal fromVal(SCV_ADDRESS);
     fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
 
     SCVal toVal(SCV_ADDRESS);
-    SCAddress toAddr = maybeMuxedToAddr;
+    toAddr = maybeMuxedToAddr;
     if (maybeMuxedToAddr.type() != SCAddressType::SC_ADDRESS_TYPE_MUXED_ACCOUNT)
     {
         toVal.address() = maybeMuxedToAddr;
@@ -1688,8 +1728,8 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
 
     auto spec = defaultSpec();
 
-    bool fromIsIssuer = false;
-    bool toIsIssuer = false;
+    fromIsIssuer = false;
+    toIsIssuer = false;
     if (mAsset.type() != ASSET_TYPE_NATIVE)
     {
         spec = spec.extendReadOnlyFootprint({makeIssuerKey(mAsset)});
@@ -1710,7 +1750,10 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
         }
         else
         {
-            spec = spec.extendReadWriteFootprint({toBalanceKey});
+            if (toBalanceKey != fromBalanceKey)
+            {
+                spec = spec.extendReadWriteFootprint({toBalanceKey});
+            }
         }
     }
     else
@@ -1718,15 +1761,29 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
         spec = spec.setReadWriteFootprint({fromBalanceKey, toBalanceKey});
     }
 
-    auto preTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
-                                      ? fromAcc.getBalance()
-                                      : fromAcc.getTrustlineBalance(mAsset);
-    auto preTransferToBalance = getBalance(toAddr);
     auto invocation =
         mContract
             .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
                                spec)
             .withAuthorizedTopCall();
+    return invocation;
+}
+
+bool
+AssetContractTestClient::transfer(TestAccount& fromAcc,
+                                  SCAddress const& maybeMuxedToAddr,
+                                  int64_t amount)
+{
+    bool fromIsIssuer;
+    bool toIsIssuer;
+    SCAddress toAddr;
+    auto invocation = transferInvocation(fromAcc, maybeMuxedToAddr, amount,
+                                         fromIsIssuer, toIsIssuer, toAddr);
+
+    auto preTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
+                                      ? fromAcc.getBalance()
+                                      : fromAcc.getTrustlineBalance(mAsset);
+    auto preTransferToBalance = getBalance(toAddr);
     bool success = invocation.invoke(&fromAcc);
     setLastEvent(invocation, success);
 
@@ -1756,7 +1813,8 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
             // From is an account so it should never have a contract data
             // balance
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            REQUIRE(!ltx.load(makeContractDataBalanceKey(fromVal.address())));
+            auto fromAddr = makeAccountAddress(fromAcc.getPublicKey());
+            REQUIRE(!ltx.load(makeContractDataBalanceKey(fromAddr)));
         }
 
         if (toIsIssuer)
@@ -1916,9 +1974,11 @@ AssetContractTestClient::clawback(TestAccount& admin, SCAddress const& fromAddr,
     return success;
 }
 
-ContractStorageTestClient::ContractStorageTestClient(SorobanTest& test)
-    : mContract(
-          test.deployWasmContract(rust_bridge::get_test_wasm_contract_data()))
+ContractStorageTestClient::ContractStorageTestClient(
+    SorobanTest& test, int64_t additionalRefundableFee)
+    : mContract(test.deployWasmContract(
+          rust_bridge::get_test_wasm_contract_data(), std::nullopt,
+          std::nullopt, additionalRefundableFee))
 {
 }
 
@@ -1971,6 +2031,14 @@ ContractStorageTestClient::isEntryLive(std::string const& key,
 {
     return mContract.getTest().isEntryLive(
         mContract.getDataKey(makeSymbolSCVal(key), durability), ledgerSeq);
+}
+
+ExpirationStatus
+ContractStorageTestClient::getEntryExpirationStatus(
+    std::string const& key, ContractDataDurability durability)
+{
+    return mContract.getTest().getEntryExpirationStatus(
+        mContract.getDataKey(makeSymbolSCVal(key), durability));
 }
 
 TestContract::Invocation

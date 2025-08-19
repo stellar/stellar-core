@@ -918,93 +918,154 @@ TEST_CASE("History catchup", "[history][catchup][acceptance]")
         // generate megabytes of unnecessary log entries
         CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
         auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
-        auto app = catchupSimulation.createCatchupApplication(
-            std::numeric_limits<uint32_t>::max(),
-            Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
 
         auto offlineNonCheckpointDestinationLedger =
-            checkpointLedger -
-            HistoryManager::getCheckpointFrequency(app->getConfig()) / 2;
+            checkpointLedger - HistoryManager::getCheckpointFrequency(
+                                   catchupSimulation.getApp().getConfig()) /
+                                   2;
 
-        SECTION("when not enough publishes has been performed")
         {
+            INFO("when not enough publishes has been performed");
             // only 2 first checkpoints can be published in this section
             catchupSimulation.ensureLedgerAvailable(checkpointLedger);
 
-            SECTION("online")
             {
+                INFO("online");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
                 REQUIRE(
                     !catchupSimulation.catchupOnline(app, checkpointLedger));
             }
 
-            SECTION("offline")
             {
+                INFO("offline");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
                 REQUIRE(
                     !catchupSimulation.catchupOffline(app, checkpointLedger));
             }
 
-            SECTION("offline, in the middle of checkpoint")
             {
+                INFO("offline, in the middle of checkpoint");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
                 REQUIRE(!catchupSimulation.catchupOffline(
                     app, offlineNonCheckpointDestinationLedger));
             }
         }
 
-        SECTION(
-            "when enough publishes has been performed, but no trigger ledger"
-            "was externalized")
         {
+            INFO("when enough publishes has been performed, but no trigger "
+                 "ledger"
+                 "was externalized");
             // 1 ledger is for publish-trigger
             catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
             catchupSimulation.ensurePublishesComplete();
 
-            SECTION("online")
             {
+                INFO("online");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
                 REQUIRE(
                     !catchupSimulation.catchupOnline(app, checkpointLedger));
             }
 
-            SECTION("offline")
             {
+                INFO("offline");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
                 REQUIRE(
                     catchupSimulation.catchupOffline(app, checkpointLedger));
             }
 
-            SECTION("offline, in the middle of checkpoint")
             {
+                INFO("offline, in the middle of checkpoint");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
                 REQUIRE(catchupSimulation.catchupOffline(
                     app, offlineNonCheckpointDestinationLedger));
             }
         }
 
-        SECTION(
-            "when enough publishes has been performed, but no closing ledger "
-            "was externalized")
         {
+            INFO("when enough publishes has been performed, but no trigger "
+                 "ledger"
+                 "was externalized");
+            // 1 ledger is for publish-trigger
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
+            catchupSimulation.ensurePublishesComplete();
+
+            {
+                INFO("online");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    !catchupSimulation.catchupOnline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    catchupSimulation.catchupOffline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline, in the middle of checkpoint");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(catchupSimulation.catchupOffline(
+                    app, offlineNonCheckpointDestinationLedger));
+            }
+        }
+
+        {
+            INFO("when enough publishes has been performed, but no closing "
+                 "ledger"
+                 "was externalized");
             // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
             // ledger
+            auto app = catchupSimulation.createCatchupApplication(
+                std::numeric_limits<uint32_t>::max(),
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
             catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
             catchupSimulation.ensurePublishesComplete();
             REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger));
         }
 
-        SECTION(
-            "when enough publishes has been performed, 3 ledgers are buffered "
-            "and no closing ledger was externalized")
         {
+            INFO("when enough publishes has been performed, 3 ledgers are "
+                 "buffered "
+                 "and no closing ledger was externalized");
             // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
             // ledger, 3 ledgers are buffered
+            auto app = catchupSimulation.createCatchupApplication(
+                std::numeric_limits<uint32_t>::max(),
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
             catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
             catchupSimulation.ensurePublishesComplete();
             REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
         }
 
-        SECTION(
-            "when enough publishes has been performed, 3 ledgers are buffered "
-            "and closing ledger was externalized")
         {
+            INFO("when enough publishes has been performed, 3 ledgers are "
+                 "buffered "
+                 "and closing ledger was externalized");
             // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
             // ledger, 3 ledgers are buffered, 1 ledger is closing
+            auto app = catchupSimulation.createCatchupApplication(
+                std::numeric_limits<uint32_t>::max(),
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
             catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
             catchupSimulation.ensurePublishesComplete();
             REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
@@ -1225,19 +1286,19 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Catchup to prefix of published history"));
     // Try to catchup to ledger 10, which is part of first checkpoint (ending
-    // at 63), witch 5 buffered ledgers. It will succeed (as 3 checkpoints are
-    // available in history) and it will land on ledger 64 + 7 = 71.
+    // at 63), with 5 buffered ledgers. It will succeed (as 3 checkpoints are
+    // available in history) and it will land on ledger 64 + 6 = 70.
     // Externalizing ledger 65 triggers catchup (as only at this point we can
     // be sure that publishing history up to ledger 63 has started), then we
     // simulate 5 buffered ledgers and at last we need one closing ledger to
     // get us into synced state.
     REQUIRE(catchupSimulation.catchupOnline(a, 10, 5));
     uint32_t freq = HistoryManager::getCheckpointFrequency(a->getConfig());
-    REQUIRE(a->getLedgerManager().getLastClosedLedgerNum() == freq + 7);
+    REQUIRE(a->getLedgerManager().getLastClosedLedgerNum() == freq + 6);
 
     // Try to catchup to ledger 74, which is part of second checkpoint (ending
     // at 127), witch 5 buffered ledgers. It will succeed (as 3 checkpoints are
-    // available in history) and it will land on ledger 128 + 7 = 135.
+    // available in history) and it will land on ledger 128 + 6 = 135.
     // Externalizing ledger 129 triggers catchup (as only at this point we can
     // be sure that publishing history up to ledger 127 has started), then we
     // simulate 5 buffered ledgers and at last we need one closing ledger to
@@ -1246,7 +1307,7 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Catchup to second prefix of published history"));
     REQUIRE(catchupSimulation.catchupOnline(b, freq + 10, 5));
-    REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 7);
+    REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 6);
 }
 
 TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
@@ -1667,16 +1728,16 @@ TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
-    REQUIRE(init == 73);
+    REQUIRE(init == 72);
 
     // Now start a catchup on that catchups as far as it can due to gap. Make
     // sure gap is past the checkpoint to ensure we buffer the ledger
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 59));
 
-    // 73+59=132 is the missing ledger, so the previous ledger was the last one
+    // 72+59=131 is the missing ledger, so the previous ledger was the last one
     // to be closed
-    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 131);
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 130);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -1799,7 +1860,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
-    REQUIRE(init == 73);
+    REQUIRE(init == 72);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
@@ -1813,7 +1874,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     // We get up to 127 using checkpoint data, and apply {128, ..., 132}.
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 60, init + 60));
-    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 132);
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 131);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -1830,34 +1891,43 @@ TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
-    auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
-
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
 
     // we have 3 buffered ledgers after trigger (66, 67, and 68)
 
-    SECTION("Checkpoint and trigger in order")
     {
+        INFO("Checkpoint and trigger in order");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 64, 65, 67, 68, 66}));
     }
 
-    SECTION("Checkpoint and trigger with gap in between")
     {
+        INFO("Checkpoint and trigger with gap in between");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 64, 67, 65, 68, 66}));
     }
 
-    SECTION("Trigger and checkpoint with gap in between")
     {
+        INFO("Trigger and checkpoint with gap in between");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 65, 67, 64, 68, 66}));
     }
 
-    SECTION("Reverse order")
     {
+        INFO("Reverse order");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {68, 67, 66, 65, 64, 63}));
     }
@@ -1917,8 +1987,8 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);
-    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 60));
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 61);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 61));
 
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 126);
 
@@ -1947,8 +2017,8 @@ TEST_CASE("Externalize gap while catchup work is running", "[history][catchup]")
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);
-    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 60));
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 61);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 61));
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
     REQUIRE(lcl == 126);

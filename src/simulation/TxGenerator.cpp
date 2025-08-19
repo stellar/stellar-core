@@ -1,6 +1,8 @@
 #include "simulation/TxGenerator.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "simulation/ApplyLoad.h"
+#include "simulation/LoadGenerator.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include <cmath>
@@ -11,6 +13,9 @@ namespace stellar
 
 using namespace std;
 using namespace txtest;
+
+// Definition of static const member
+uint64_t const TxGenerator::ROOT_ACCOUNT_ID = UINT64_MAX;
 
 namespace
 {
@@ -35,7 +40,7 @@ sampleDiscrete(std::vector<T> const& values,
 
     std::discrete_distribution<uint32_t> distribution(weights.begin(),
                                                       weights.end());
-    return values.at(distribution(gRandomEngine));
+    return values.at(distribution(getGlobalRandomEngine()));
 }
 } // namespace
 
@@ -55,13 +60,14 @@ footprintSize(Application& app, xdr::xvector<stellar::LedgerKey> const& keys)
     return total;
 }
 
-TxGenerator::TxGenerator(Application& app)
+TxGenerator::TxGenerator(Application& app, uint32_t prePopulatedArchivedEntries)
     : mApp(app)
     , mMinBalance(0)
     , mApplySorobanSuccess(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "success"}))
     , mApplySorobanFailure(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
+    , mPrePopulatedArchivedEntries(prePopulatedArchivedEntries)
 {
     updateMinBalance();
 }
@@ -74,6 +80,15 @@ TxGenerator::updateMinBalance()
     {
         mMinBalance = b;
     }
+}
+
+bool
+TxGenerator::isLive(LedgerKey const& lk, uint32_t ledgerNum) const
+{
+    LedgerSnapshot lsg(mApp);
+    auto ttlEntryPtr = lsg.load(getTTLKey(lk));
+
+    return ttlEntryPtr && stellar::isLive(ttlEntryPtr.current(), ledgerNum);
 }
 
 int
@@ -96,8 +111,9 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
         // transaction comparisons.
         auto fractionalFeeDistr = uniform_int_distribution<uint32_t>(
             0, static_cast<uint32_t>(opsCnt) - 1);
-        fee = static_cast<uint32_t>(opsCnt) * feeRateDistr(gRandomEngine) +
-              fractionalFeeDistr(gRandomEngine);
+        fee = static_cast<uint32_t>(opsCnt) *
+                  feeRateDistr(getGlobalRandomEngine()) +
+              fractionalFeeDistr(getGlobalRandomEngine());
     }
     else
     {
@@ -157,15 +173,23 @@ TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
     auto res = mAccounts.find(accountId);
     if (res == mAccounts.end())
     {
-        SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
-        auto name = "TestAccount-" + std::to_string(accountId);
-        newAccountPtr =
-            std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
-
-        if (!mApp.getRunInOverlayOnlyMode() && !loadAccount(newAccountPtr))
+        // Special handling for root account
+        if (accountId == TxGenerator::ROOT_ACCOUNT_ID)
         {
-            throw std::runtime_error(
-                fmt::format("Account {0} must exist in the DB.", accountId));
+            newAccountPtr = mApp.getRoot();
+        }
+        else
+        {
+            SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
+            auto name = "TestAccount-" + std::to_string(accountId);
+            newAccountPtr = std::make_shared<TestAccount>(
+                mApp, txtest::getAccount(name), sn);
+
+            if (!mApp.getRunInOverlayOnlyMode() && !loadAccount(newAccountPtr))
+            {
+                throw std::runtime_error(fmt::format(
+                    "Account {0} must exist in the DB.", accountId));
+            }
         }
         mAccounts.insert(std::pair<uint64_t, TxGenerator::TestAccountPtr>(
             accountId, newAccountPtr));
@@ -268,13 +292,12 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
-    uint32_t ledgerNum, std::optional<uint64_t> accountId,
-    xdr::opaque_vec<> const& wasm, LedgerKey const& contractCodeLedgerKey,
+    uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
+    LedgerKey const& contractCodeLedgerKey,
     std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> uploadResources)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(accountId, ledgerNum);
 
     if (!uploadResources)
     {
@@ -306,12 +329,11 @@ TxGenerator::createUploadWasmTransaction(
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createContractTransaction(
-    uint32_t ledgerNum, std::optional<uint64_t> accountId,
-    LedgerKey const& codeKey, uint64_t contractOverheadBytes,
-    uint256 const& salt, std::optional<uint32_t> maxGeneratedFeeRate)
+    uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
+    uint64_t contractOverheadBytes, uint256 const& salt,
+    std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
     createResources.instructions = 1'000'000;
     createResources.diskReadBytes = contractOverheadBytes;
@@ -324,6 +346,30 @@ TxGenerator::createContractTransaction(
         makeWasmExecutable(codeKey.contractCode().hash), createResources,
         generateFee(maxGeneratedFeeRate,
                     /* opsCnt */ 1));
+
+    return std::make_pair(account, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::createSACTransaction(uint32_t ledgerNum,
+                                  std::optional<uint64_t> accountId,
+                                  Asset const& asset,
+                                  std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto account =
+        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    SorobanResources createResources{};
+    createResources.instructions = 1'000'000;
+    createResources.diskReadBytes = 200;
+    createResources.writeBytes = 300;
+
+    auto contractIDPreimage = makeContractIDPreimage(asset);
+
+    auto tx =
+        makeSorobanCreateContractTx(mApp, *account, contractIDPreimage,
+                                    makeAssetExecutable(asset), createResources,
+                                    generateFee(maxGeneratedFeeRate,
+                                                /* opsCnt */ 1));
 
     return std::make_pair(account, tx);
 }
@@ -538,22 +584,33 @@ TxGenerator::invokeSorobanLoadTransactionV2(
 
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
-    uint32_t roEntries = sampleDiscrete(
-        appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
-        appCfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+
+    // Simulate disk reads via autorestore
+    // If nextKeyToRestore is null, skip archived entries entirely
+    uint32_t archiveEntriesToRestore = 0;
+    if (mPrePopulatedArchivedEntries != 0)
+    {
+        archiveEntriesToRestore = sampleDiscrete(
+            appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
+            appCfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+    }
+
     uint32_t rwEntries = sampleDiscrete(
         appCfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING,
         appCfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
 
-    releaseAssert(dataEntryCount > roEntries + rwEntries);
-    if (roEntries >= instance.readOnlyKeys.size())
+    // Subtract the archive entries from rwEntries since restoration counts as a
+    // write
+    if (rwEntries >= archiveEntriesToRestore)
     {
-        roEntries -= instance.readOnlyKeys.size();
+        rwEntries -= archiveEntriesToRestore;
     }
     else
     {
-        roEntries = 0;
+        rwEntries = 0;
     }
+
+    releaseAssert(dataEntryCount > rwEntries);
     std::unordered_set<uint64_t> usedEntries;
     stellar::uniform_int_distribution<uint64_t> entryDist(0,
                                                           dataEntryCount - 1);
@@ -561,7 +618,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
                                xdr::xvector<LedgerKey>& footprint) {
         for (uint32_t i = 0; i < entryCount; ++i)
         {
-            uint64_t entryId = entryDist(gRandomEngine);
+            uint64_t entryId = entryDist(getGlobalRandomEngine());
             if (usedEntries.emplace(entryId).second)
             {
                 auto lk = contractDataKey(instance.contractID, makeU64(entryId),
@@ -574,8 +631,28 @@ TxGenerator::invokeSorobanLoadTransactionV2(
             }
         }
     };
-    generateEntries(roEntries, resources.footprint.readOnly);
+    // Generate regular RW entries
     generateEntries(rwEntries, resources.footprint.readWrite);
+
+    // Vector to store indices of archived entries in the readWrite footprint
+    std::vector<uint32_t> archivedIndexes;
+
+    // Add archived entries to autorestore to the readWrite footprint
+    if (archiveEntriesToRestore > 0)
+    {
+        auto endIndex = mNextKeyToRestore + archiveEntriesToRestore;
+        if (endIndex > mPrePopulatedArchivedEntries)
+        {
+            throw std::runtime_error("Ran out of hot archive entries");
+        }
+
+        for (; mNextKeyToRestore < endIndex; ++mNextKeyToRestore)
+        {
+            auto lk = ApplyLoad::getKeyForArchivedEntry(mNextKeyToRestore);
+            resources.footprint.readWrite.emplace_back(lk);
+            archivedIndexes.push_back(resources.footprint.readWrite.size() - 1);
+        }
+    }
 
     uint32_t txOverheadBytes = baselineTxSizeBytes + xdr::xdr_size(resources);
     uint32_t desiredTxBytes = sampleDiscrete(
@@ -583,7 +660,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING, 0u);
     uint32_t paddingBytes =
         txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
-    uint32_t entriesSize = dataEntrySize * (roEntries + rwEntries);
+    uint32_t entriesSize =
+        dataEntrySize * (rwEntries + archiveEntriesToRestore);
 
     uint32_t eventCount = sampleDiscrete(
         appCfg.APPLY_LOAD_EVENT_COUNT_FOR_TESTING,
@@ -594,7 +672,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
         appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING, 0u);
 
-    auto numEntries = (roEntries + rwEntries + instance.readOnlyKeys.size());
+    auto numEntries =
+        (rwEntries + archiveEntriesToRestore + instance.readOnlyKeys.size());
 
     // The entry encoding estimates are somewhat loose because we're
     // unfortunately building storage with O(n^2) complexity.
@@ -642,10 +721,12 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     ihf.invokeContract().functionName = "do_cpu_only_work";
     ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
                                  makeU32(eventCount)};
-    resources.writeBytes = dataEntrySize * rwEntries;
-    resources.diskReadBytes = dataEntrySize * roEntries +
-                              instance.contractEntriesSize +
-                              resources.writeBytes;
+
+    // Write bytes include both regular RW entries and restored entries
+    resources.writeBytes =
+        dataEntrySize * (rwEntries + archiveEntriesToRestore);
+    resources.diskReadBytes =
+        dataEntrySize * archiveEntriesToRestore + resources.writeBytes;
 
     increaseOpSize(op, paddingBytes);
 
@@ -656,7 +737,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     auto resourceFee =
         sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes,
                            eventSize * eventCount);
-    resourceFee += 1'000'000;
+    // Add extra buffer for restoration operations
+    resourceFee += 1'000'000 + (archiveEntriesToRestore * 100'000);
 
     // A tx created using this method may be discarded when creating the txSet,
     // so we need to refresh the TestAccount sequence number to avoid a
@@ -664,12 +746,91 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     auto account = findAccount(accountId, ledgerNum);
     account->loadSequenceNumber();
 
-    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *account, {op}, {}, resources,
+        generateFee(maxGeneratedFeeRate,
+                    /* opsCnt */ 1),
+        resourceFee, std::nullopt, std::nullopt,
+        archivedIndexes.empty() ? std::nullopt
+                                : std::make_optional(archivedIndexes));
+    return std::make_pair(account, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
+                              SCAddress const& toAddress,
+                              ContractInstance const& instance, uint64_t amount,
+                              std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto fromAccount = findAccount(fromAccountId, ledgerNum);
+    fromAccount->loadSequenceNumber();
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAccount->getPublicKey());
+
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddress;
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = instance.contractID;
+    ihf.invokeContract().functionName = "transfer";
+
+    ihf.invokeContract().args = {fromVal, toVal, makeI128(amount)};
+
+    SorobanResources resources;
+    // These are overestimated
+    resources.writeBytes = 800;
+    resources.diskReadBytes = 800;
+    resources.instructions = 250'000;
+    resources.footprint.readOnly = instance.readOnlyKeys;
+
+    LedgerKey fromKey(ACCOUNT);
+    fromKey.account().accountID = fromAccount->getPublicKey();
+    resources.footprint.readWrite.emplace_back(fromKey);
+
+    if (toAddress.type() == SC_ADDRESS_TYPE_CONTRACT)
+    {
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = instance.contractID;
+
+        balanceKey.contractData().key =
+            makeVecSCVal({makeSymbolSCVal("Balance"), toVal});
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+
+        resources.footprint.readWrite.emplace_back(balanceKey);
+    }
+    else if (toAddress.type() == SC_ADDRESS_TYPE_ACCOUNT)
+    {
+        LedgerKey toKey(ACCOUNT);
+        toKey.account().accountID = toAddress.accountId();
+        resources.footprint.readWrite.emplace_back(toKey);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported address type for SAC payment");
+    }
+
+    SorobanAuthorizedInvocation invocation;
+    invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    invocation.function.contractFn() =
+        op.body.invokeHostFunctionOp().hostFunction.invokeContract();
+
+    SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    op.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    auto resourceFee = sorobanResourceFee(mApp, resources, 350, 200);
+    resourceFee += 1'000'000;
+
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *fromAccount,
                                              {op}, {}, resources,
                                              generateFee(maxGeneratedFeeRate,
                                                          /* opsCnt */ 1),
                                              resourceFee);
-    return std::make_pair(account, tx);
+    return std::make_pair(fromAccount, tx);
 }
 
 std::map<uint64_t, TxGenerator::TestAccountPtr> const&
@@ -1078,15 +1239,14 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     return xdr::xdr_to_opaque(upgradeSet);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
-    uint32_t ledgerNum, std::optional<uint64_t> accountId,
-    SCBytes const& upgradeBytes, LedgerKey const& codeKey,
-    LedgerKey const& instanceKey, std::optional<uint32_t> maxGeneratedFeeRate,
+    uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
+    LedgerKey const& codeKey, LedgerKey const& instanceKey,
+    std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> resources)
 {
-    auto account =
-        accountId ? findAccount(*accountId, ledgerNum) : mApp.getRoot();
+    auto account = findAccount(accountId, ledgerNum);
     auto const& contractID = instanceKey.contractData().contract;
 
     LedgerKey upgradeLK(CONTRACT_DATA);

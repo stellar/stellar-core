@@ -63,7 +63,7 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
             REQUIRE(maxIncrease >= maxDecrease);
             stellar::uniform_int_distribution<int64_t> dist(maxDecrease,
                                                             maxIncrease);
-            delta = dist(gRandomEngine);
+            delta = dist(getGlobalRandomEngine());
         }
         else
         {
@@ -108,7 +108,7 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app)
 
     stellar::uniform_int_distribution<int64_t> dist(
         totalCoins - coinsAboveReserve, INT64_MAX);
-    int64_t newTotalCoins = dist(gRandomEngine);
+    int64_t newTotalCoins = dist(getGlobalRandomEngine());
     return updateBalances(entries, app, newTotalCoins - totalCoins, true);
 }
 
@@ -124,7 +124,7 @@ TEST_CASE("Total coins change without inflation",
     Application::pointer app = createTestApplication(clock, cfg);
 
     LedgerTxn ltx(app->getLedgerTxnRoot());
-    ltx.loadHeader().current().totalCoins = dist(gRandomEngine);
+    ltx.loadHeader().current().totalCoins = dist(getGlobalRandomEngine());
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
                           {}, res, ltx.getDelta(), {}),
@@ -143,7 +143,7 @@ TEST_CASE("Fee pool change without inflation",
     Application::pointer app = createTestApplication(clock, cfg);
 
     LedgerTxn ltx(app->getLedgerTxnRoot());
-    ltx.loadHeader().current().feePool = dist(gRandomEngine);
+    ltx.loadHeader().current().feePool = dist(getGlobalRandomEngine());
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
                           {}, res, ltx.getDelta(), {}),
@@ -253,17 +253,18 @@ TEST_CASE("Inflation changes are consistent",
         opRes.tr().inflationResult().code(INFLATION_SUCCESS);
         int64_t inflationAmount = 0;
         auto& payouts = opRes.tr().inflationResult().payouts();
-        std::generate_n(std::back_inserter(payouts), payoutsDist(gRandomEngine),
+        std::generate_n(std::back_inserter(payouts),
+                        payoutsDist(getGlobalRandomEngine()),
                         [&amountDist, &inflationAmount]() {
                             InflationPayout ip;
-                            ip.amount = amountDist(gRandomEngine);
+                            ip.amount = amountDist(getGlobalRandomEngine());
                             inflationAmount += ip.amount;
                             return ip;
                         });
 
         stellar::uniform_int_distribution<int64_t> deltaFeePoolDist(
             0, 2 * inflationAmount);
-        auto deltaFeePool = deltaFeePoolDist(gRandomEngine);
+        auto deltaFeePool = deltaFeePoolDist(getGlobalRandomEngine());
 
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());

@@ -2088,6 +2088,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 3000;
         if (i == 1)
         {
             cfg.FORCE_SCP = false;
@@ -2112,9 +2113,10 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
 
     // Generate transactions traffic, which the out of sync node will drop
     auto& loadGen = node->getLoadGenerator();
+    // Generate payment transactions
     loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 3000,
-                                                /* txRate */ 1));
+        GeneratedLoadConfig::txLoad(LoadGenMode::PAY, /* nAccounts */ 3000,
+                                    /* nTxs */ 100, /* txRate */ 1));
 
     auto& loadGenDone =
         node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -2162,6 +2164,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
             Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
         configs.push_back(cfg);
     }
 
@@ -2209,26 +2212,14 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 
     setupSimulation();
 
-    // Generate a bit of load to flood transactions, make sure nodes can
-    // close ledgers properly
     auto& loadGen = node->getLoadGenerator();
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
-                                                /* txRate */ 1));
-
     auto& loadGenDone =
         node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
 
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        15 * simulation->getExpectedLedgerCloseTime(), false);
-
-    currLoadGenCount = loadGenDone.count();
-
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
-                                                     /* nAccounts */ 150, 200,
-                                                     /*txRate*/ 5));
+                                                     /* nAccounts */ 1000, 200,
+                                                     /* txRate */ 20));
 
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
@@ -2803,7 +2794,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
-        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
 
     SIMULATION_CREATE_NODE(Node1);
     SIMULATION_CREATE_NODE(Node2);
@@ -2819,7 +2810,9 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     for (auto i = 0; i < 2; i++)
     {
         auto cfg = getTestConfig(i + 1);
-        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = numAccounts * MAX_OPS_PER_TX;
+        // Set really high to avoid throttling flooding
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = numAccounts * 100;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = numAccounts;
         configs.push_back(cfg);
     }
 
@@ -2851,7 +2844,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
             }
             SECTION("valid limit")
             {
-                txSizeLimit = 10000;
+                txSizeLimit = 1000;
             }
             SECTION("invalid limit")
             {
@@ -2880,11 +2873,11 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
         node2->getHerder().setMaxTxSize(txSizeLimit);
     }
 
-    // Create 5 txns each creating one new account.
+    // Generate payment transactions
     // Set a really high tx rate so we create the txns right away.
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ numAccounts * MAX_OPS_PER_TX,
-        /* txRate */ 2));
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, /* nAccounts */ numAccounts,
+        /* nTxs */ numAccounts, /* txRate */ 100));
 
     // Let the network close multiple ledgers.
     // If the logic to advertise or demand incorrectly sends more than

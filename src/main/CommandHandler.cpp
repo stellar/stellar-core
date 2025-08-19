@@ -864,11 +864,14 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             archivalInfo["average_bucket_list_size"] =
                 static_cast<Json::UInt64>(conf.getAverageSorobanStateSize());
 
-            // SCP timing settings
             if (protocolVersionStartsFrom(
                     lm.getLastClosedLedgerHeader().header.ledgerVersion,
                     ProtocolVersion::V_23))
             {
+                res["max_dependent_tx_clusters"] =
+                    conf.ledgerMaxDependentTxClusters();
+
+                // SCP timing settings
                 auto& scpSettings = res["scp"];
                 scpSettings["ledger_close_time_ms"] =
                     conf.ledgerTargetCloseTimeMilliseconds();
@@ -1184,12 +1187,21 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
         auto modeStr =
-            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
+            parseOptionalParamOrDefault<std::string>(map, "mode", "pay");
         // First check if a current run needs to be stopped
         if (modeStr == "stop")
         {
             mApp.getLoadGenerator().stop();
             retStr = "Stopped load generation";
+            return;
+        }
+
+        // Check for deprecated CREATE mode
+        if (modeStr == "create")
+        {
+            retStr = "DEPRECATED: CREATE mode has been removed. "
+                     "Use GENESIS_TEST_ACCOUNT_COUNT configuration parameter "
+                     "to create test accounts at genesis instead.";
             return;
         }
 
@@ -1299,6 +1311,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "nominit");
             upgradeCfg.nominationTimeoutIncrementMilliseconds =
                 parseOptionalParam<uint32_t>(map, "nominc");
+            upgradeCfg.ledgerMaxDependentTxClusters =
+                parseOptionalParam<uint32_t>(map, "maxtxclstrs");
         }
 
         if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)

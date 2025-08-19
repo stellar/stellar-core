@@ -29,7 +29,7 @@ std::streamoff
 LiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
 {
     // Convert cfg param from MB to bytes
-    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1'000'000;
+    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1024 * 1024;
         bucketSize < cutoff)
     {
         return 0;
@@ -399,6 +399,18 @@ LiveBucketIndex::getMaxCacheSize() const
     return 0;
 }
 #endif
+
+size_t
+LiveBucketIndex::getCurrentCacheSize() const
+{
+    if (shouldUseCache())
+    {
+        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        return mCache->size();
+    }
+
+    return 0;
+}
 
 template LiveBucketIndex::LiveBucketIndex(BucketManager const& bm,
                                           cereal::BinaryInputArchive& ar,

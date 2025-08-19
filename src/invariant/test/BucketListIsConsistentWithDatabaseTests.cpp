@@ -150,7 +150,7 @@ struct BucketListGenerator
         {
             auto dist = stellar::uniform_int_distribution<size_t>(
                 0, liveDeletable.size() - 1);
-            auto index = dist(gRandomEngine);
+            auto index = dist(getGlobalRandomEngine());
             auto iter = liveDeletable.begin();
             std::advance(iter, index);
             if (iter->type() == CONFIG_SETTING)
@@ -259,7 +259,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
                 stellar::uniform_int_distribution<size_t> dist(
                     0, mLiveKeys.size() - 1);
                 auto iter = mLiveKeys.begin();
-                std::advance(iter, dist(gRandomEngine));
+                std::advance(iter, dist(getGlobalRandomEngine()));
 
                 mSelected = std::make_shared<LedgerEntry>(
                     ltx.loadWithoutRecord(*iter).current());
@@ -499,7 +499,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
             2, blg.mLedgerSeq);
         auto le =
             LedgerTestUtils::generateValidLedgerEntryWithTypes({OFFER}, 10);
-        le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
+        le.lastModifiedLedgerSeq = addAtLedgerDist(getGlobalRandomEngine());
         REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkAddEntry>(le),
                           InvariantDoesNotHold);
     }
@@ -598,7 +598,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
 
         for (uint32_t i = 0; i < 10; ++i)
         {
-            uint32_t ledgerToModify = ledgerToModifyDist(gRandomEngine);
+            uint32_t ledgerToModify =
+                ledgerToModifyDist(getGlobalRandomEngine());
             uint32_t maxLowTargetLedger = 0;
             uint32_t minHighTargetLedger = 0;
             if (ledgerToModify >=
@@ -622,8 +623,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
             stellar::uniform_int_distribution<uint32_t> highTargetLedgerDist(
                 minHighTargetLedger, std::numeric_limits<int32_t>::max());
 
-            uint32_t lowTarget = lowTargetLedgerDist(gRandomEngine);
-            uint32_t highTarget = highTargetLedgerDist(gRandomEngine);
+            uint32_t lowTarget = lowTargetLedgerDist(getGlobalRandomEngine());
+            uint32_t highTarget = highTargetLedgerDist(getGlobalRandomEngine());
             for (auto target : {lowTarget, highTarget})
             {
                 LastModifiedBucketListGenerator blg(ledgerToModify, target);

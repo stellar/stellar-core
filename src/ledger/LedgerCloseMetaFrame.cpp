@@ -306,6 +306,22 @@ LedgerCloseMetaFrame::getTransactionMeta(size_t index) const
 }
 
 LedgerEntryChanges const&
+LedgerCloseMetaFrame::getPreTxApplyFeeProcessing(size_t index) const
+{
+    switch (mVersion)
+    {
+    case 0:
+        return mLedgerCloseMeta.v0().txProcessing.at(index).feeProcessing;
+    case 1:
+        return mLedgerCloseMeta.v1().txProcessing.at(index).feeProcessing;
+    case 2:
+        return mLedgerCloseMeta.v2().txProcessing.at(index).feeProcessing;
+    default:
+        releaseAssert(false);
+    }
+}
+
+LedgerEntryChanges const&
 LedgerCloseMetaFrame::getPostTxApplyFeeProcessing(size_t index) const
 {
     releaseAssert(mVersion == 2);
@@ -314,6 +330,31 @@ LedgerCloseMetaFrame::getPostTxApplyFeeProcessing(size_t index) const
         .postTxApplyFeeProcessing;
 }
 
-#endif
+void
+LedgerCloseMetaFrame::sortTxMetaByHash()
+{
+    auto sortTxMeta = [](auto& txProcessing) {
+        std::sort(txProcessing.begin(), txProcessing.end(),
+                  [](auto const& a, auto const& b) {
+                      return a.result.transactionHash <
+                             b.result.transactionHash;
+                  });
+    };
+    switch (mVersion)
+    {
+    case 0:
+        sortTxMeta(mLedgerCloseMeta.v0().txProcessing);
+        break;
+    case 1:
+        sortTxMeta(mLedgerCloseMeta.v1().txProcessing);
+        break;
+    case 2:
+        sortTxMeta(mLedgerCloseMeta.v2().txProcessing);
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
 
+#endif
 }

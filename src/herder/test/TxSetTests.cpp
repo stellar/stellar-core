@@ -18,8 +18,11 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include <algorithm>
+#include <map>
 namespace stellar
 {
 namespace
@@ -357,15 +360,15 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             parallelPhase({{2}, {}}, false), false,
             "parallel Soroban - one of the stages has no clusters");
         scenarios[1].emplace_back(
-            parallelPhase({{2}, {{0}}, {3, 5}}, false), false,
+            parallelPhase({{2}, {0}, {3, 5}}, false), false,
             "parallel Soroban - one of the stages has empty cluster");
         scenarios[1].emplace_back(
-            parallelPhase({{2}, {{0}}}, false), false,
+            parallelPhase({{2}, {0}}, false), false,
             "parallel Soroban - one of the stages has empty cluster");
         scenarios[1].emplace_back(parallelPhase({{}, {}, {}}, false), false,
                                   "parallel Soroban - multiple empty stages");
         scenarios[1].emplace_back(
-            parallelPhase({{{}, {0}}, {{0}}, {}}, false), false,
+            parallelPhase({{{}, 0}, {0}, {}}, false), false,
             "parallel Soroban - multiple empty and empty cluster stages");
         scenarios[1].emplace_back(
             parallelPhase({{10, 2, 0, 1, 3}}, false), false,
@@ -478,6 +481,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(protocolVersion);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(protocolVersion);
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
     bool isParallelSoroban = protocolVersionStartsFrom(
         cfg.LEDGER_PROTOCOL_VERSION, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
 
@@ -486,16 +490,13 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
         sorobanCfg.mLedgerMaxTxCount = 5;
     });
-    auto root = app->getRoot();
 
     int accountId = 0;
     auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
         std::vector<TransactionFrameBaseConstPtr> txs;
         for (int i = 0; i < cnt; ++i)
         {
-            auto source =
-                root->create("unique " + std::to_string(accountId++),
-                             app->getLedgerManager().getLastMinBalance(2));
+            auto source = getGenesisAccount(*app, accountId++);
             if (isSoroban)
             {
                 SorobanResources resources;
@@ -503,7 +504,11 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 resources.diskReadBytes = 1000;
                 resources.writeBytes = 1000;
                 txs.emplace_back(createUploadWasmTx(
-                    *app, source, fee, DEFAULT_TEST_RESOURCE_FEE, resources));
+                    *app, source, fee, DEFAULT_TEST_RESOURCE_FEE, resources,
+                    /*memo=*/std::nullopt, /*addInvalidOps=*/0,
+                    /*wasmSize=*/std::nullopt,
+                    /*seq=*/std::nullopt,
+                    /*wasmSeed=*/accountId));
             }
             else
             {
@@ -528,8 +533,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         REQUIRE(newXdr == txSetXdr);
     };
 
-    SECTION("empty set")
     {
+        INFO("empty set");
         auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{}, {}}, *app,
@@ -540,8 +545,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().empty());
         checkXdrRoundtrip(txSetXdr);
     }
-    SECTION("one discounted component set")
     {
+        INFO("one discounted component set");
         auto txs = createTxs(5, 1234);
         auto ledgerHash =
             app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -564,8 +569,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     .txs.size() == 5);
         checkXdrRoundtrip(txSetXdr);
     }
-    SECTION("one non-discounted component set")
     {
+        INFO("one non-discounted component set");
         auto txs = createTxs(5, 4321);
         auto ledgerHash =
             app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -588,8 +593,8 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     .txs.size() == 5);
         checkXdrRoundtrip(txSetXdr);
     }
-    SECTION("multiple component sets")
     {
+        INFO("multiple component sets");
         auto txs1 = createTxs(3, 12345);
         auto txs2 = createTxs(1, 123);
         auto txs3 = createTxs(2, 1234);
@@ -621,12 +626,14 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     if (protocolVersionStartsFrom(static_cast<uint32_t>(protocolVersion),
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
     {
-        SECTION("parallel Soroban phase")
         {
+            INFO("parallel Soroban phase");
+            auto configBeforeUpgrade =
+                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
             modifySorobanNetworkConfig(
                 *app, [](SorobanNetworkConfig& sorobanCfg) {
-                    sorobanCfg.mLedgerMaxTxCount = 100;
-                    sorobanCfg.mLedgerMaxDependentTxClusters = 5;
+                    sorobanCfg.mLedgerMaxTxCount = 2000;
+                    sorobanCfg.mLedgerMaxDependentTxClusters = 50;
                 });
             auto classicTxs1 = createTxs(3, 1000, false);
             auto classicTxs2 = createTxs(3, 1200, false);
@@ -637,7 +644,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 {1500, classicTxs3}};
             SECTION("single stage, single cluster")
             {
-                auto sorobanTxs = createTxs(10, 1234, true);
+                auto sorobanTxs = createTxs(20, 1234, true);
                 auto ledgerHash =
                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
@@ -674,15 +681,15 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             .phases[1]
                             .parallelTxsComponent()
                             .executionStages[0][0]
-                            .size() == 10);
+                            .size() == 20);
                 checkXdrRoundtrip(txSetXdr);
             }
 
-            SECTION("single stage, multiple clusters")
             {
-                auto sorobanTxs1 = createTxs(10, 1234, true);
-                auto sorobanTxs2 = createTxs(5, 2000, true);
-                auto sorobanTxs3 = createTxs(3, 1500, true);
+                INFO("single stage, multiple clusters");
+                auto sorobanTxs1 = createTxs(20, 1234, true);
+                auto sorobanTxs2 = createTxs(15, 2000, true);
+                auto sorobanTxs3 = createTxs(10, 1500, true);
                 auto ledgerHash =
                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
@@ -709,16 +716,16 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 checkXdrRoundtrip(txSetXdr);
             }
 
-            SECTION("multiple stages, multiple clusters")
             {
-                auto stage1Txs1 = createTxs(1, 1234, true);
-                auto stage1Txs2 = createTxs(3, 2000, true);
-                auto stage1Txs3 = createTxs(5, 1500, true);
-                auto stage1Txs4 = createTxs(2, 1000, true);
-                auto stage1Txs5 = createTxs(7, 3000, true);
-                auto stage2Txs1 = createTxs(3, 1234, true);
-                auto stage2Txs2 = createTxs(5, 1300, true);
-                auto stage3Txs1 = createTxs(2, 4321, true);
+                INFO("multiple stages, multiple clusters");
+                auto stage1Txs1 = createTxs(10, 1234, true);
+                auto stage1Txs2 = createTxs(15, 2000, true);
+                auto stage1Txs3 = createTxs(20, 1500, true);
+                auto stage1Txs4 = createTxs(12, 1000, true);
+                auto stage1Txs5 = createTxs(25, 3000, true);
+                auto stage2Txs1 = createTxs(18, 1234, true);
+                auto stage2Txs2 = createTxs(22, 1300, true);
+                auto stage3Txs1 = createTxs(14, 4321, true);
                 auto ledgerHash =
                     app->getLedgerManager().getLastClosedLedgerHeader().hash;
                 auto [_, applicableTxSetFrame] =
@@ -743,21 +750,157 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                             .executionStages.size() == 3);
                 checkXdrRoundtrip(txSetXdr);
             }
+            {
+                INFO("apply order is shuffled");
+                // each stage has a unique size for id purposes
+                std::vector<std::vector<TxFrameList>> stages(10);
+                for (int stageId = 0; stageId < 10; ++stageId)
+                {
+                    // Create stages with unique cluster counts: 3, 5, 7, 9, 11,
+                    // 13, 15, 17, 19, 21
+                    int clusterCount = 3 + stageId * 2;
+                    for (int clusterId = 0; clusterId < clusterCount;
+                         ++clusterId)
+                    {
+                        // Each cluster has a unique number of transactions,
+                        // 50-80
+                        stages[stageId].push_back(createTxs(
+                            50 + (stageId + clusterId) % 31,
+                            stageId * 1000 + clusterId * 10 + 1000, true));
+                    }
+                }
+                auto [xdrTxSetFrame, applicableTxSet] =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        classicPhase, std::nullopt, stages, *app,
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+                GeneralizedTransactionSet xdrTxSet;
+                xdrTxSetFrame->toXDR(xdrTxSet);
+                auto const& applyOrderPhases =
+                    applicableTxSet->getPhasesInApplyOrder();
+                auto const& classicPhaseTxs =
+                    applyOrderPhases[static_cast<size_t>(TxSetPhase::CLASSIC)]
+                        .getSequentialTxs();
+                REQUIRE(classicPhaseTxs.size() == 9);
+
+                // The order is shuffled, but is deterministically defined
+                // by the tx set hash, so this may only break on protocol
+                // upgrade if the ledger hash changes (use a different indices
+                // in that case - the chance of order being exactly the same
+                // is very low).
+                // We use source account here for comparison as all the source
+                // accounts are unique.
+                // Check that at least one classic transaction is in a different
+                // position
+                bool foundDifferentOrder = false;
+                size_t txIndex = 0;
+                auto const& components =
+                    xdrTxSet.v1TxSet().phases[0].v0Components();
+                for (auto const& txSetComponent : components)
+                {
+                    auto const& componentTxs =
+                        txSetComponent.txsMaybeDiscountedFee().txs;
+                    for (size_t i = 0; i < componentTxs.size(); ++i)
+                    {
+                        if (txIndex < classicPhaseTxs.size() &&
+                            classicPhaseTxs[txIndex]->getSourceID().ed25519() !=
+                                componentTxs[i].v1().tx.sourceAccount.ed25519())
+                        {
+                            foundDifferentOrder = true;
+                            break;
+                        }
+                        ++txIndex;
+                    }
+
+                    if (foundDifferentOrder)
+                    {
+                        break;
+                    }
+                }
+                REQUIRE(foundDifferentOrder);
+
+                auto const& shuffledStages = xdrTxSet.v1TxSet()
+                                                 .phases[1]
+                                                 .parallelTxsComponent()
+                                                 .executionStages;
+
+                // Return a vector of the total number of transactions in each
+                // stage. This is basically just a vector of IDs for each stage
+                // in order.
+                auto calcStageSizes = [](auto const& stageList) {
+                    std::vector<size_t> sizes;
+                    for (auto const& stage : stageList)
+                    {
+                        size_t total = 0;
+                        for (auto const& cluster : stage)
+                            total += cluster.size();
+                        sizes.push_back(total);
+                    }
+                    return sizes;
+                };
+
+                // Check that stages are shuffled
+                auto originalStageSizes = calcStageSizes(stages);
+                auto shuffledStageSizes = calcStageSizes(shuffledStages);
+                REQUIRE(originalStageSizes.size() == shuffledStageSizes.size());
+                REQUIRE(originalStageSizes != shuffledStageSizes);
+
+                // Check transaction-level shuffling within a randomly
+                // selected cluster
+                auto& randomStage = rand_element(stages);
+                auto& selectedOriginalCluster = rand_element(randomStage);
+
+                // Find corresponding shuffled stage by its size
+                size_t stageIdx = std::distance(
+                    stages.begin(),
+                    std::find(stages.begin(), stages.end(), randomStage));
+                auto stageIt = std::find(shuffledStageSizes.begin(),
+                                         shuffledStageSizes.end(),
+                                         originalStageSizes[stageIdx]);
+                REQUIRE(stageIt != shuffledStageSizes.end());
+                auto const& shuffledStage =
+                    shuffledStages[stageIt - shuffledStageSizes.begin()];
+
+                // Find matching cluster by size (each cluster has unique size)
+                auto clusterIt = std::find_if(
+                    shuffledStage.begin(), shuffledStage.end(),
+                    [&](auto const& cluster) {
+                        return cluster.size() == selectedOriginalCluster.size();
+                    });
+                REQUIRE(clusterIt != shuffledStage.end());
+                auto const& selectedShuffledCluster = *clusterIt;
+
+                // Verify at least one transaction is shuffled
+                auto mismatchPair = std::mismatch(
+                    selectedOriginalCluster.begin(),
+                    selectedOriginalCluster.end(),
+                    selectedShuffledCluster.begin(),
+                    [](auto const& original, auto const& shuffled) {
+                        return original->getSourceID().ed25519() ==
+                               shuffled.v1().tx.sourceAccount.ed25519();
+                    });
+                REQUIRE(mismatchPair.first != selectedOriginalCluster.end());
+            }
+            modifySorobanNetworkConfig(*app,
+                                       [&](SorobanNetworkConfig& sorobanCfg) {
+                                           sorobanCfg = configBeforeUpgrade;
+                                       });
         }
     }
-    SECTION("built from transactions")
     {
+        INFO("built from transactions");
         auto getLclHeader = [&]() -> auto const&
         {
             return app->getLedgerManager().getLastClosedLedgerHeader();
         };
-        std::vector<TransactionFrameBasePtr> txs =
+        std::vector<TransactionFrameBasePtr> const txs =
             createTxs(5, getLclHeader().header.baseFee, /* isSoroban */ false);
-        std::vector<TransactionFrameBasePtr> sorobanTxs =
+        std::vector<TransactionFrameBasePtr> const baseSorobanTxs =
             createTxs(5, 10'000'000, /* isSoroban */ true);
 
-        SECTION("classic only")
         {
+            INFO("classic only");
             auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).first;
             GeneralizedTransactionSet txSetXdr;
             txSet->toXDR(txSetXdr);
@@ -775,15 +918,17 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                         .txs.size() == 5);
             checkXdrRoundtrip(txSetXdr);
         }
-        SECTION("classic and soroban")
+
         {
-            SECTION("valid")
+            INFO("classic and soroban");
+
             {
-                SECTION("minimum base fee")
+                INFO("valid");
                 {
-                    auto txSet =
-                        makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0)
-                            .first;
+                    INFO("minimum base fee");
+                    auto txSet = makeTxSetFromTransactions(
+                                     {txs, baseSorobanTxs}, *app, 0, 0)
+                                     .first;
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
                     REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
@@ -823,12 +968,13 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     }
                     checkXdrRoundtrip(txSetXdr);
                 }
-                SECTION("higher base fee")
                 {
+                    INFO("higher base fee");
                     // generate more soroban txs with higher fee to trigger
                     // surge pricing
                     auto higherFeeSorobanTxs =
                         createTxs(5, 20'000'000, /* isSoroban */ true);
+                    auto sorobanTxs = baseSorobanTxs;
                     sorobanTxs.insert(sorobanTxs.begin(),
                                       higherFeeSorobanTxs.begin(),
                                       higherFeeSorobanTxs.end());
@@ -842,8 +988,9 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     {
                         auto const& phase = txSetXdr.v1TxSet().phases[i];
                         auto expectedBaseFee =
-                            i == 0 ? getLclHeader().header.baseFee
-                                   : higherFeeSorobanTxs[0]->getInclusionFee();
+                            i == static_cast<size_t>(TxSetPhase::CLASSIC)
+                                ? getLclHeader().header.baseFee
+                                : higherFeeSorobanTxs[0]->getInclusionFee();
                         if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
                             isParallelSoroban)
                         {
@@ -874,19 +1021,22 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                     checkXdrRoundtrip(txSetXdr);
                 }
             }
-            SECTION("invalid, soroban tx in wrong phase")
             {
+                INFO("invalid, soroban tx in wrong phase");
+                auto sorobanTxs = baseSorobanTxs;
                 sorobanTxs[4] = txs[0];
                 REQUIRE_THROWS_WITH(
                     makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
                     "TxSetFrame::makeFromTransactions: phases "
                     "contain txs of wrong type");
             }
-            SECTION("invalid, classic tx in wrong phase")
             {
-                txs[4] = sorobanTxs[0];
+                INFO("invalid, classic tx in wrong phase");
+                auto classicTxs = txs;
+                classicTxs[4] = baseSorobanTxs[0];
                 REQUIRE_THROWS_WITH(
-                    makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
+                    makeTxSetFromTransactions({classicTxs, baseSorobanTxs},
+                                              *app, 0, 0),
                     "TxSetFrame::makeFromTransactions: phases "
                     "contain txs of wrong type");
             }
@@ -1773,21 +1923,13 @@ TEST_CASE("txset nomination", "[txset]")
             "txs,classic_dex_txs_base_fee,soroban_ops,soroban_base_fee,"
             "insns,disk_read_bytes,write_bytes,disk_read_entries,write_"
             "entries,tx_size_bytes");
-        Config cfg(getTestConfig());
+        Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
         cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = 1;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
 
         cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(54321);
-        VirtualClock clock;
-        Application::pointer app = createTestApplication(clock, cfg);
-        auto root = app->getRoot();
-        std::vector<std::pair<TestAccount, int64_t>> accounts;
-        for (int i = 0; i < 1000; ++i)
-        {
-            auto account = root->create(std::to_string(i), 1'000'000'000);
-            accounts.emplace_back(account, account.getLastSequenceNumber() + 1);
-        }
 
         stellar::uniform_int_distribution<> txCountDistr(100, 500);
 
@@ -1809,6 +1951,21 @@ TEST_CASE("txset nomination", "[txset]")
         strToAssetCode(asset1.alphaNum4().assetCode, "USD");
         Asset asset2(ASSET_TYPE_NATIVE);
 
+        // We store the `SecretKey` instead of the `TestAccount` in this vector
+        // so that we can create a vector without dangling references to `app`
+        // inside `runIteration`
+        std::vector<std::pair<SecretKey, int64_t>> accountKeys;
+        {
+            VirtualClock clock;
+            Application::pointer app = createTestApplication(clock, cfg, true);
+            auto root = app->getRoot();
+            for (int i = 0; i < 1000; ++i)
+            {
+                auto acc = getGenesisAccount(*app, i).getSecretKey();
+                accountKeys.emplace_back(acc, 0);
+            }
+        }
+
         auto runIteration = [&]() {
             int classicOpsCount = txCountDistr(rng);
             int feeBumpFraction = feeBumpFractionDistr(rng);
@@ -1819,8 +1976,20 @@ TEST_CASE("txset nomination", "[txset]")
             LedgerUpgrade ledgerUpgrade(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
             ledgerUpgrade.newMaxTxSetSize() = txCountDistr(rng);
 
-            app->getMutableConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET =
+            cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET =
                 stellar::uniform_int_distribution<>(0, classicOpsCount)(rng);
+
+            // Note: we restart app every iteration so that the config updates
+            // apply: in particular, MAX_DEX_TX_OPERATIONS_IN_TX_SET is read at
+            // construction time by some downstream users
+            VirtualClock clock;
+            Application::pointer app = createTestApplication(clock, cfg, false);
+            std::vector<std::pair<TestAccount, int64_t>> accounts;
+            for (const auto& [key, seqNo] : accountKeys)
+            {
+                accounts.emplace_back(TestAccount{*app, key, seqNo}, seqNo + 1);
+            }
+            auto root = app->getRoot();
 
             auto v = xdr::xdr_to_opaque(ledgerUpgrade);
             upgrades.push_back(UpgradeType(v.begin(), v.end()));
@@ -2164,6 +2333,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
     // to pass (with 4 stages we have not enough insns for an upgrade tx to go
     // through).
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
     Application::pointer app = createTestApplication(clock, cfg);
 
     modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& sorobanCfg) {
@@ -2182,9 +2352,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         sorobanCfg.mLedgerMaxTxCount = 1000;
         sorobanCfg.mLedgerMaxDependentTxClusters = CLUSTER_COUNT;
     });
-    auto root = app->getRoot();
-    std::map<int, TestAccount> accounts;
-    int accountId = 1;
+    int accountId = 0;
     SCAddress contract(SC_ADDRESS_TYPE_CONTRACT);
 
     auto generateKey = [&contract](int i) {
@@ -2197,16 +2365,7 @@ runParallelTxSetBuildingTest(bool variableStageCount)
     auto createTx = [&](int instructions, std::vector<int> const& roKeys,
                         std::vector<int> rwKeys, int64_t inclusionFee = 1000,
                         int readBytes = 1000, int writeBytes = 100) {
-        auto it = accounts.find(accountId);
-        if (it == accounts.end())
-        {
-            it = accounts
-                     .emplace(accountId, root->create(std::to_string(accountId),
-                                                      1'000'000'000))
-                     .first;
-        }
-        ++accountId;
-        auto source = it->second;
+        auto source = getGenesisAccount(*app, accountId++);
         SorobanResources resources;
         resources.instructions = instructions;
         resources.diskReadBytes = readBytes;
@@ -2256,10 +2415,19 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         }
     };
 
-    SECTION("no conflicts")
+    auto runWithConfigUpgrade = [&](auto&& configUpgradeFn, auto&& fn) {
+        SorobanNetworkConfig preUpgradeConfig =
+            app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+        modifySorobanNetworkConfig(*app, configUpgradeFn);
+        fn();
+        modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& config) {
+            config = preUpgradeConfig;
+        });
+    };
     {
-        SECTION("single stage")
+        INFO("no conflicts");
         {
+            INFO("single stage");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2284,8 +2452,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
 
             validateBaseFee(*txSet, 100);
         }
-        SECTION("all stages")
         {
+            INFO("all stages");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2305,8 +2473,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
 
             validateBaseFee(*txSet, 100);
         }
-        SECTION("all stages, smaller txs")
         {
+            INFO("all stages, smaller txs");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 5; ++i)
             {
@@ -2325,9 +2493,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             }
             validateBaseFee(*txSet, 100);
         }
-
-        SECTION("all stages, smaller txs with prioritization")
         {
+            INFO("all stages, smaller txs with prioritization");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 10; ++i)
             {
@@ -2349,37 +2516,42 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                 *txSet, 10LL * STAGE_COUNT * CLUSTER_COUNT * 1000 / 2 + 1000);
         }
 
-        SECTION("instruction limit reached")
         {
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            INFO("instruction limit reached");
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxInstructions = 2'500'000;
                     sorobanCfg.mLedgerMaxInstructions = 10'000'000;
-                });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 4; ++i)
-            {
-                sorobanTxs.push_back(createTx(2'500'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i));
-            }
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT * 4; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(2'500'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i));
+                    }
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            if (variableStageCount)
-            {
-                validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
-            }
-            else
-            {
-                validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
-            }
+                    if (variableStageCount)
+                    {
+                        validateShape(*txSet, 1, CLUSTER_COUNT, STAGE_COUNT);
+                    }
+                    else
+                    {
+                        validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
+                    }
 
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT * 4 -
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT * 4 -
                                         STAGE_COUNT * CLUSTER_COUNT);
+                });
         }
-        SECTION("read bytes limit reached")
         {
+            INFO("read bytes limit reached");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2393,29 +2565,35 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
-        SECTION("read entries limit reached")
         {
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            INFO("read entries limit reached");
+
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxDiskReadEntries = 4 * 10 + 3;
                     sorobanCfg.mLedgerMaxDiskReadEntries = 4 * 10 + 3;
-                });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
-            {
-                sorobanTxs.push_back(createTx(1'000'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i,
-                                              /* readBytes */ 100'000));
-            }
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(1'000'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i,
+                                     /* readBytes */ 100'000));
+                    }
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, 1, 1, 10);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                    validateShape(*txSet, 1, 1, 10);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                });
         }
-        SECTION("write bytes limit reached")
         {
+            INFO("write bytes limit reached");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2431,28 +2609,33 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, 1, 1, 10);
             validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
-        SECTION("write entries limit reached")
         {
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            INFO("write entries limit reached");
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxWriteLedgerEntries = 2 * 10 + 1;
                     sorobanCfg.mLedgerMaxWriteLedgerEntries = 2 * 10 + 1;
-                });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
-            {
-                sorobanTxs.push_back(createTx(1'000'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i));
-            }
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(1'000'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i));
+                    }
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, 1, 1, 10);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                    validateShape(*txSet, 1, 1, 10);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 10);
+                });
         }
-        SECTION("tx size limit reached")
         {
+            INFO("tx size limit reached");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
             {
@@ -2460,47 +2643,56 @@ runParallelTxSetBuildingTest(bool variableStageCount)
                                               {4 * i + 2, 4 * i + 3},
                                               /* inclusionFee */ 100 + i));
             }
-            modifySorobanNetworkConfig(
-                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+            runWithConfigUpgrade(
+                [&](SorobanNetworkConfig& sorobanCfg) {
                     sorobanCfg.mTxMaxSizeBytes =
                         MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
                     sorobanCfg.mLedgerMaxTransactionsSizeBytes =
                         xdr::xdr_size(sorobanTxs[0]->getEnvelope()) * 11 - 1;
                     REQUIRE(sorobanCfg.mTxMaxSizeBytes <=
                             sorobanCfg.mLedgerMaxTransactionsSizeBytes);
+                },
+                [&]() {
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
+
+                    validateShape(*txSet, 1, 1, 10);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 10);
                 });
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
-
-            validateShape(*txSet, 1, 1, 10);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 10);
         }
-        SECTION("tx count limit reached")
         {
-            modifySorobanNetworkConfig(*app,
-                                       [&](SorobanNetworkConfig& sorobanCfg) {
-                                           sorobanCfg.mLedgerMaxTxCount = 5;
-                                       });
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
-            {
-                sorobanTxs.push_back(createTx(1'000'000, {4 * i, 4 * i + 1},
-                                              {4 * i + 2, 4 * i + 3},
-                                              /* inclusionFee */ 100 + i));
-            }
+            INFO("tx count limit reached");
+            runWithConfigUpgrade(
+                [](SorobanNetworkConfig& sorobanCfg) {
+                    sorobanCfg.mLedgerMaxTxCount = 5;
+                },
+                [&]() {
+                    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+                    for (int i = 0; i < STAGE_COUNT * CLUSTER_COUNT; ++i)
+                    {
+                        sorobanTxs.push_back(
+                            createTx(1'000'000, {4 * i, 4 * i + 1},
+                                     {4 * i + 2, 4 * i + 3},
+                                     /* inclusionFee */ 100 + i));
+                    }
 
-            PerPhaseTransactionList phases = {{}, sorobanTxs};
-            auto [_, txSet] = makeTxSetFromTransactions(phases, *app, 0, 0);
+                    PerPhaseTransactionList phases = {{}, sorobanTxs};
+                    auto [_, txSet] =
+                        makeTxSetFromTransactions(phases, *app, 0, 0);
 
-            validateShape(*txSet, 1, 1, 5);
-            validateBaseFee(*txSet, 100 + STAGE_COUNT * CLUSTER_COUNT - 5);
+                    validateShape(*txSet, 1, 1, 5);
+                    validateBaseFee(*txSet,
+                                    100 + STAGE_COUNT * CLUSTER_COUNT - 5);
+                });
         }
     }
 
-    SECTION("with conflicts")
     {
-        SECTION("all RW conflicting")
+        INFO("with conflicts");
         {
+            INFO("all RW conflicting");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT * STAGE_COUNT; ++i)
             {
@@ -2523,8 +2715,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateBaseFee(*txSet,
                             100 + CLUSTER_COUNT * STAGE_COUNT - STAGE_COUNT);
         }
-        SECTION("chain of conflicts")
         {
+            INFO("chain of conflicts");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT * STAGE_COUNT; ++i)
             {
@@ -2540,8 +2732,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 1);
             validateBaseFee(*txSet, 100);
         }
-        SECTION("conflict clusters not exceeding max ledger insns")
         {
+            INFO("conflict clusters not exceeding max ledger insns");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2569,8 +2761,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             }
             validateBaseFee(*txSet, 100);
         }
-        SECTION("small conflict clusters with excluded txs")
         {
+            INFO("small conflict clusters with excluded txs");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2602,8 +2794,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             // cluster 0, stage 1).
             validateBaseFee(*txSet, 101);
         }
-        SECTION("one sparse conflict cluster")
         {
+            INFO("one sparse conflict cluster");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             // A small dense cluster of RW conflicts on entry 1000 with high
             // fee to ensure these are included.
@@ -2654,8 +2846,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             // 1000 base fee).
             validateBaseFee(*txSet, 1000);
         }
-        SECTION("many clusters with small transactions")
         {
+            INFO("many clusters with small transactions");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             for (int i = 0; i < CLUSTER_COUNT; ++i)
             {
@@ -2673,8 +2865,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
             validateShape(*txSet, STAGE_COUNT, CLUSTER_COUNT, 10);
             validateBaseFee(*txSet, 100);
         }
-        SECTION("all RO conflict with one RW")
         {
+            INFO("all RO conflict with one RW");
             std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
             sorobanTxs.push_back(createTx(100'000'000, {1, 2}, {0, 3, 4},
                                           /* inclusionFee */ 1'000'000));
@@ -2716,8 +2908,8 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         }
     }
 
-    SECTION("smoke test")
     {
+        INFO("smoke test");
         auto runTest = [&]() {
             stellar::uniform_int_distribution<> maxInsnsDistr(20'000'000,
                                                               100'000'000);
@@ -2987,8 +3179,6 @@ TEST_CASE("parallel tx set building benchmark",
             int txSize = genValue(txSizeDistr, MAX_TX_SIZE);
             int readBytes = genValue(readBytesDistr, MAX_READ_BYTES_PER_TX);
             int writeBytes = genValue(writeBytesDistr, MAX_WRITE_BYTES_PER_TX);
-            int readCount = genValue(readCountDistr, MAX_READS_PER_TX);
-            int writeCount = genValue(writeCountDistr, MAX_WRITES_PER_TX);
             txs.push_back(createTx(insns, txKeys[i].first, txKeys[i].second,
                                    feeDistr(Catch::rng()), readBytes,
                                    writeBytes, txSize));
