@@ -152,7 +152,7 @@ then
 fi
 
 date
-time make -j$(($NPROCS + 1))
+time make -j$(($NPROCS - 1))
 
 ccache -s
 ### incrementally purge old content from cargo source cache and target directory
