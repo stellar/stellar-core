@@ -10,6 +10,7 @@
 #include "main/ErrorMessages.h"
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayUtils.h"
 #include "overlay/SurveyDataManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -314,16 +315,11 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
 {
     if (!mRunningSurveyReportingPhase)
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("addNodeToRunningSurveyBacklog failed");
-#else
-        CLOG_ERROR(Overlay,
-                   "Cannot add node {} to survey backlog because survey is not "
-                   "running",
-                   KeyUtils::toStrKey(nodeToSurvey));
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        logErrorOrThrow(fmt::format(
+            "Cannot add node {} to survey backlog because survey is not "
+            "running",
+            KeyUtils::toStrKey(nodeToSurvey)));
         return;
-#endif
     }
 
     addPeerToBacklog(nodeToSurvey);
@@ -722,17 +718,11 @@ SurveyManager::topOffRequests()
     {
         if (mPeersToSurveyQueue.empty())
         {
-#ifdef BUILD_TESTS
-            throw std::runtime_error("mPeersToSurveyQueue unexpectedly empty");
-#else
-            CLOG_ERROR(
-                Overlay,
+            logErrorOrThrow(
                 "mPeersToSurveyQueue is empty, but mPeersToSurvey is not");
-            CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
             mPeersToSurvey.clear();
             stopSurveyReporting();
             return;
-#endif
         }
         auto key = mPeersToSurveyQueue.front();
         mPeersToSurvey.erase(key);
@@ -769,17 +759,11 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("addPeerToBacklog failed: Peer is already in "
-                                 "the backlog, or peer is self.");
-#else
-        CLOG_ERROR(Overlay,
-                   "Tried to add node {} to survey backlog, but it is already "
-                   "queued or is the self node",
-                   KeyUtils::toStrKey(nodeToSurvey));
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        logErrorOrThrow(fmt::format(
+            "Tried to add node {} to survey backlog, but it is already "
+            "queued or is the self node",
+            KeyUtils::toStrKey(nodeToSurvey)));
         return;
-#endif
     }
 
     mBadResponseNodes.erase(nodeToSurvey);

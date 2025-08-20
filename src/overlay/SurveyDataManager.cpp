@@ -5,6 +5,7 @@
 #include "overlay/SurveyDataManager.h"
 
 #include "crypto/SecretKey.h"
+#include "overlay/OverlayUtils.h"
 #include "overlay/Peer.h"
 #include "util/Logging.h"
 #include "util/numeric.h"
@@ -386,16 +387,11 @@ SurveyDataManager::reset()
 void
 SurveyDataManager::emitInconsistencyError(std::string const& where)
 {
-#ifdef BUILD_TESTS
-    // Throw an exception when testing to make the error more visible
-    throw std::runtime_error("Encountered inconsistent survey data while "
-                             "executing `" +
-                             where + "`.");
-#endif
-    CLOG_ERROR(Overlay,
-               "Encountered inconsistent survey data while executing "
-               "`{}`. Resetting survey state.",
-               where);
+    logErrorOrThrow(
+        fmt::format("Encountered inconsistent survey data while executing "
+                    "`{}`. Resetting survey state.",
+                    where));
+
     reset();
 }
 
