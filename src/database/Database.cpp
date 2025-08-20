@@ -472,6 +472,7 @@ Database::initialize()
                     fn = databaseLocation;
                     break;
                 }
+                st.fetch();
             }
         }
         if (!fn.empty() && fs::exists(fn))

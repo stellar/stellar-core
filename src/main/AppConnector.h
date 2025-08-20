@@ -37,7 +37,6 @@ class AppConnector
     OverlayManager& getOverlayManager();
     BanManager& getBanManager();
     bool shouldYield() const;
-    SorobanMetrics& getSorobanMetrics() const;
     void checkOnOperationApply(Operation const& operation,
                                OperationResult const& opres,
                                LedgerTxnDelta const& ltxDelta,
@@ -45,6 +44,7 @@ class AppConnector
     Hash const& getNetworkID() const;
 
     // Thread-safe methods
+    SorobanMetrics& getSorobanMetrics() const;
     void postOnMainThread(
         std::function<void()>&& f, std::string&& message,
         Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION);

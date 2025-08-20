@@ -193,6 +193,8 @@ std::string
 PersistentState::getState(PersistentState::Entry entry, SessionWrapper& session)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     return getFromDb(getStoreStateName(entry), session, getDBForEntry(entry));
 }
 
@@ -201,6 +203,8 @@ PersistentState::setState(PersistentState::Entry entry,
                           std::string const& value, SessionWrapper& session)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     updateDb(getStoreStateName(entry), value, session, getDBForEntry(entry));
 }
 
@@ -290,6 +294,8 @@ PersistentState::updateDb(std::string const& entry, std::string const& value,
                           SessionWrapper& sess, std::string const& tableName)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     auto prep = mApp.getDatabase().getPreparedStatement(
         fmt::format("UPDATE {} SET state = :v WHERE statename = :n;",
                     tableName),
@@ -403,6 +409,8 @@ PersistentState::getFromDb(std::string const& entry, SessionWrapper& sess,
                            std::string const& tableName)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain() ||
+                  mApp.threadIsType(Application::ThreadType::APPLY));
     std::string res;
 
     auto& db = mApp.getDatabase();
