@@ -71,7 +71,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     }
 #endif
 
-    virtual ~FeeBumpTransactionFrame(){};
+    ~FeeBumpTransactionFrame() override = default;
 
     void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,

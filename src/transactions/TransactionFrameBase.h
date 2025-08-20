@@ -239,5 +239,7 @@ class TransactionFrameBase
     // Returns true if this TX is a soroban transaction with a
     // RestoreFootprintOp.
     virtual bool isRestoreFootprintTx() const = 0;
+
+    virtual ~TransactionFrameBase() = default;
 };
 }

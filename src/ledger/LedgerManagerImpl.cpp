@@ -1955,7 +1955,7 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 }
 
 SearchableSnapshotConstPtr
-LedgerManagerImpl::getLastClosedSnaphot() const
+LedgerManagerImpl::getLastClosedSnapshot() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -2130,9 +2130,7 @@ LedgerManagerImpl::processFeesSeqNums(
 
                 if (ledgerCloseMeta)
                 {
-                    ledgerCloseMeta->pushTxProcessingEntry();
-                    ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
-                        ltxTx.getChanges());
+                    ledgerCloseMeta->pushTxFeeProcessing(ltxTx.getChanges());
                 }
                 ++index;
                 ltxTx.commit();
