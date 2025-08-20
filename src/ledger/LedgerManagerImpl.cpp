@@ -2130,9 +2130,7 @@ LedgerManagerImpl::processFeesSeqNums(
 
                 if (ledgerCloseMeta)
                 {
-                    ledgerCloseMeta->pushTxProcessingEntry();
-                    ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
-                        ltxTx.getChanges());
+                    ledgerCloseMeta->pushTxFeeProcessing(ltxTx.getChanges());
                 }
                 ++index;
                 ltxTx.commit();
