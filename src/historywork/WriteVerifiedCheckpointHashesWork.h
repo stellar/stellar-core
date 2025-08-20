@@ -41,7 +41,6 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     static Hash loadHashFromJsonOutput(uint32_t seq,
                                        std::filesystem::path const& path);
     // Helper to load the latest hash back from a file produced by this class.
-    // If the file does not exist, returns std::nullopt.
     static LedgerNumHashPair
     loadLatestHashPairFromJsonOutput(std::filesystem::path const& path);
 
