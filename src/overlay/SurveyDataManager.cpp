@@ -306,6 +306,36 @@ SurveyDataManager::fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
     return false;
 }
 
+std::optional<TimeSlicedNodeData> const&
+SurveyDataManager::getFinalNodeData()
+{
+    if (mPhase != SurveyPhase::REPORTING || !mFinalNodeData.has_value())
+    {
+        emitInconsistencyError("getFinalNodeData()");
+    }
+    return mFinalNodeData;
+}
+
+std::vector<TimeSlicedPeerData> const&
+SurveyDataManager::getFinalInboundPeerData()
+{
+    if (mPhase != SurveyPhase::REPORTING)
+    {
+        emitInconsistencyError("getFinalInboundPeerData()");
+    }
+    return mFinalInboundPeerData;
+}
+
+std::vector<TimeSlicedPeerData> const&
+SurveyDataManager::getFinalOutboundPeerData()
+{
+    if (mPhase != SurveyPhase::REPORTING)
+    {
+        emitInconsistencyError("getFinalOutboundPeerData()");
+    }
+    return mFinalOutboundPeerData;
+}
+
 bool
 SurveyDataManager::surveyIsActive() const
 {

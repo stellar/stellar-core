@@ -31,7 +31,8 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     SurveyManager(Application& app);
 
     // Start survey reporting. Must be called before gathering data during the
-    // reporting phase of a survey.
+    // reporting phase of a survey. Returns false iff the survey was already
+    // reporting
     bool startSurveyReporting();
 
     // Stop survey reporting. Must be called after gathering data during the
