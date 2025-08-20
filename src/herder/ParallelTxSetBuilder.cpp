@@ -254,7 +254,7 @@ class Stage
         BuilderTx const& tx,
         std::unordered_set<Cluster const*> const& txConflicts) const
     {
-        int64_t newInstructions = tx.mInstructions;
+        uint64_t newInstructions = tx.mInstructions;
         for (auto const* cluster : txConflicts)
         {
             newInstructions += cluster->mInstructions;
@@ -371,7 +371,7 @@ class Stage
     // enough to run in the close-time target on the guaranteed parallelism.
     std::vector<BitSet> mBinPacking;
     std::vector<uint64_t> mBinInstructions;
-    int64_t mInstructions = 0;
+    uint64_t mInstructions = 0;
     ParallelPartitionConfig mConfig;
     bool mTriedCompactingBinPacking = false;
 };
