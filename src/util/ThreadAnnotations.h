@@ -14,6 +14,7 @@
 #ifndef THREAD_ANNOTATIONS_H_
 #define THREAD_ANNOTATIONS_H_
 
+#include "util/NonCopyable.h"
 #include <mutex>
 #include <shared_mutex>
 
@@ -131,7 +132,7 @@
 
 // Defines an annotated interface for mutexes.
 // These methods can be implemented to use any internal mutex implementation.
-class LOCKABLE Mutex
+class LOCKABLE Mutex : public stellar::NonMovableOrCopyable
 {
   private:
     std::mutex mMutex;
@@ -157,7 +158,8 @@ class LOCKABLE Mutex
 
 // MutexLocker is an RAII class that acquires a mutex in its constructor, and
 // releases it in its destructor.
-template <typename MutexType> class SCOPED_LOCKABLE MutexLockerT
+template <typename MutexType>
+class SCOPED_LOCKABLE MutexLockerT : public stellar::NonMovableOrCopyable
 {
   private:
     MutexType& mut;
@@ -176,7 +178,7 @@ template <typename MutexType> class SCOPED_LOCKABLE MutexLockerT
 // Defines an annotated interface for shared mutexes (read-write locks).
 // These methods can be implemented to use any internal shared_mutex
 // implementation.
-class LOCKABLE SharedMutex
+class LOCKABLE SharedMutex : public stellar::NonMovableOrCopyable
 {
   private:
     std::shared_mutex mSharedMutex;
@@ -215,7 +217,7 @@ class LOCKABLE SharedMutex
 
 // SharedLockShared is an RAII class that acquires a shared mutex in shared
 // mode in its constructor, and releases it in its destructor.
-class SCOPED_LOCKABLE SharedLockShared
+class SCOPED_LOCKABLE SharedLockShared : public stellar::NonMovableOrCopyable
 {
   private:
     SharedMutex& mut;
@@ -234,7 +236,7 @@ class SCOPED_LOCKABLE SharedLockShared
 // Defines an annotated interface for recursive mutexes.
 // These methods can be implemented to use any internal recursive_mutex
 // implementation.
-class LOCKABLE RecursiveMutex
+class LOCKABLE RecursiveMutex : public stellar::NonMovableOrCopyable
 {
   private:
     std::recursive_mutex mRecursiveMutex;
