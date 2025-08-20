@@ -5,11 +5,11 @@
 #include "overlay/FlowControl.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "main/ErrorMessages.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
+#include "overlay/OverlayUtils.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 
@@ -253,16 +253,9 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
         break;
     default:
     {
-#ifdef BUILD_TESTS
-        throw std::runtime_error("Unknown message type in updateMsgMetrics");
-#else
-        // This function only updates metrics, so fail gracefully
-        CLOG_ERROR(Overlay, "Unknown message type {} in updateMsgMetrics",
-                   static_cast<int>(msg->type()));
-        CLOG_ERROR(Overlay, "FlowControl::updateMsgMetrics: {}",
-                   REPORT_INTERNAL_BUG);
-        return;
-#endif
+        logErrorOrThrow(
+            fmt::format("Unknown message type {} in updateMsgMetrics",
+                        static_cast<int>(msg->type())));
     }
     }
 }

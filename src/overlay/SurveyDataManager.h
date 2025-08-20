@@ -132,6 +132,13 @@ class SurveyDataManager : public NonMovableOrCopyable
     bool fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
                         TopologyResponseBodyV2& response);
 
+    // For non-networked acquiring of local data (i.e., the node's own data)
+    // These are only properly called during the reporting phase--otherwise, the
+    // data will be reset
+    std::optional<TimeSlicedNodeData> const& getFinalNodeData();
+    std::vector<TimeSlicedPeerData> const& getFinalInboundPeerData();
+    std::vector<TimeSlicedPeerData> const& getFinalOutboundPeerData();
+
     // Returns `true` iff there is currently an active survey
     bool surveyIsActive() const;
 

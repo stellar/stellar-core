@@ -5,6 +5,7 @@
 #include "crypto/Curve25519.h"
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayUtils.h"
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "simulation/Simulation.h"
@@ -227,7 +228,28 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         auto result = getResults(keyList[A]);
         Json::Value topology = result["topology"];
 
-        REQUIRE(topology.size() == 1);
+        // Auto-populated A response + B response
+        REQUIRE(topology.size() == 2);
+
+        // Check that A responded correctly
+        REQUIRE(topology[keyStrList[A]]["inboundPeers"].size() == 1);
+        REQUIRE(topology[keyStrList[A]]["outboundPeers"].size() == 1);
+        REQUIRE(topology[keyStrList[A]]["inboundPeers"][0]["nodeId"] ==
+                keyStrList[D]);
+        REQUIRE(topology[keyStrList[A]]["outboundPeers"][0]["nodeId"] ==
+                keyStrList[B]);
+        REQUIRE(topology[keyStrList[A]]["numTotalInboundPeers"].asUInt64() ==
+                1);
+        REQUIRE(topology[keyStrList[A]]["numTotalOutboundPeers"].asUInt64() ==
+                1);
+        REQUIRE(topology[keyStrList[A]]["maxInboundPeerCount"].asUInt64() ==
+                simulation->getNode(keyList[A])
+                    ->getConfig()
+                    .MAX_ADDITIONAL_PEER_CONNECTIONS);
+        REQUIRE(topology[keyStrList[A]]["maxOutboundPeerCount"].asUInt64() ==
+                simulation->getNode(keyList[A])
+                    ->getConfig()
+                    .TARGET_PEER_CONNECTIONS);
 
         // B responds with 2 new nodes (C and E)
         REQUIRE(topology[keyStrList[B]]["inboundPeers"][0]["nodeId"] ==
@@ -264,7 +286,7 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         topology = result["topology"];
 
         // In the next round, we sent requests to C and E
-        REQUIRE(topology.size() == 3);
+        REQUIRE(topology.size() == 4);
         REQUIRE(topology[keyStrList[C]]["inboundPeers"][0]["nodeId"] ==
                 keyStrList[B]);
         REQUIRE(topology[keyStrList[C]]["outboundPeers"].isNull());
@@ -290,10 +312,17 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         auto result = getResults(keyList[D]);
         Json::Value const& topology = result["topology"];
 
-        REQUIRE(topology.size() == 2);
-        for (auto const& value : topology)
+        REQUIRE(topology.size() == 3);
+        for (auto const& name : topology.getMemberNames())
         {
-            REQUIRE(value.isNull());
+            if (name == keyStrList[D])
+            {
+                REQUIRE(!topology[name].isNull());
+            }
+            else
+            {
+                REQUIRE(topology[name].isNull());
+            }
         }
     }
 
@@ -312,10 +341,17 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         auto result = getResults(keyList[C]);
         Json::Value const& topology = result["topology"];
 
-        REQUIRE(topology.size() == 2);
-        for (auto const& value : topology)
+        REQUIRE(topology.size() == 3);
+        for (auto const& name : topology.getMemberNames())
         {
-            REQUIRE(value.isNull());
+            if (name == keyStrList[C])
+            {
+                REQUIRE(!topology[name].isNull());
+            }
+            else
+            {
+                REQUIRE(topology[name].isNull());
+            }
         }
     }
     SECTION("A (surveyor) filters out unknown responses")
@@ -350,8 +386,9 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         Json::Value topology = result["topology"];
 
         // A receives a response from D, but it gets filtered out
-        // Result only contains response from B
-        REQUIRE(topology.size() == 1);
+        // Result only contains response from B and auto populated self response
+        REQUIRE(topology.size() == 2);
+        REQUIRE(topology.isMember(KeyUtils::toStrKey(keyList[A])));
         REQUIRE(topology.isMember(KeyUtils::toStrKey(keyList[B])));
     }
 
@@ -547,8 +584,39 @@ TEST_CASE("Time sliced static topology survey",
 
         // Check results
         Json::Value topology = getSurveyResult(surveyor)["topology"];
-        REQUIRE(topology.size() == 1);
+        // Auto-populated self data + B response
+        REQUIRE(topology.size() == 2);
 
+        // Check self data
+        // Peer counts are correct
+        REQUIRE(topology[keyStrList[A]]["inboundPeers"].size() == 1);
+        REQUIRE(topology[keyStrList[A]]["outboundPeers"].size() == 1);
+        REQUIRE(topology[keyStrList[A]]["inboundPeers"][0]["nodeId"] ==
+                keyStrList[D]);
+        REQUIRE(topology[keyStrList[A]]["outboundPeers"][0]["nodeId"] ==
+                keyStrList[B]);
+        REQUIRE(topology[keyStrList[A]]["numTotalInboundPeers"].asUInt64() ==
+                1);
+        REQUIRE(topology[keyStrList[A]]["numTotalOutboundPeers"].asUInt64() ==
+                1);
+        REQUIRE(topology[keyStrList[A]]["maxInboundPeerCount"].asUInt64() ==
+                simulation->getNode(keyList[A])
+                    ->getConfig()
+                    .MAX_ADDITIONAL_PEER_CONNECTIONS);
+        REQUIRE(topology[keyStrList[A]]["maxOutboundPeerCount"].asUInt64() ==
+                simulation->getNode(keyList[A])
+                    ->getConfig()
+                    .TARGET_PEER_CONNECTIONS);
+        REQUIRE(topology[keyStrList[A]]["addedAuthenticatedPeers"].asUInt() ==
+                0);
+        REQUIRE(topology[keyStrList[A]]["droppedAuthenticatedPeers"].asUInt() ==
+                0);
+
+        // Validator check is correct
+        REQUIRE(topology[keyStrList[A]]["isValidator"].asBool() ==
+                configList[A].NODE_IS_VALIDATOR);
+
+        // Check B response
         // B responds with 2 new nodes (C and E)
         REQUIRE(topology[keyStrList[B]]["inboundPeers"][0]["nodeId"] ==
                 keyStrList[A]);
@@ -590,7 +658,7 @@ TEST_CASE("Time sliced static topology survey",
 
         // In the next round, we sent requests to C and E
         topology = getSurveyResult(surveyor)["topology"];
-        REQUIRE(topology.size() == 3);
+        REQUIRE(topology.size() == 4);
         REQUIRE(topology[keyStrList[C]]["inboundPeers"][0]["nodeId"] ==
                 keyStrList[B]);
         REQUIRE(topology[keyStrList[C]]["outboundPeers"].isNull());
@@ -603,7 +671,7 @@ TEST_CASE("Time sliced static topology survey",
         REQUIRE(surveyTopologyTimeSliced(surveyor, keyList[B], 1, 1));
         crankForSurvey();
         topology = getSurveyResult(surveyor)["topology"];
-        REQUIRE(topology.size() == 3);
+        REQUIRE(topology.size() == 4);
         // Should have no inbound peers (requested index was too high)
         REQUIRE(topology[keyStrList[B]]["inboundPeers"].isNull());
         // Should have just 1 outbound peer
@@ -615,7 +683,7 @@ TEST_CASE("Time sliced static topology survey",
         REQUIRE(!surveyTopologyTimeSliced(surveyor, keyList[B], 1, 1));
         crankForSurvey();
         topology = getSurveyResult(surveyor)["topology"];
-        REQUIRE(topology.size() == 3);
+        REQUIRE(topology.size() == 4);
         // Should have 1 inbound peer and 2 outbound peers, indicating that the
         // survey with 0 indices went through
         REQUIRE(topology[keyStrList[B]]["inboundPeers"].size() == 1);
@@ -834,7 +902,23 @@ TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
 
     // Check results
     Json::Value topology = getSurveyResult(surveyor)["topology"];
-    REQUIRE(topology.size() == 3);
+    REQUIRE(topology.size() == 4);
+
+    // A has 1 inbound peer active for entire time slice (D)
+    REQUIRE(topology[keyStrList[A]]["numTotalInboundPeers"].asUInt64() == 1);
+    REQUIRE(topology[keyStrList[A]]["inboundPeers"][0]["nodeId"] ==
+            keyStrList[D]);
+
+    // A only has 1 outbound peer active for entire time slice (B)
+    REQUIRE(topology[keyStrList[A]]["numTotalOutboundPeers"].asUInt64() == 1);
+    REQUIRE(topology[keyStrList[A]]["outboundPeers"][0]["nodeId"] ==
+            keyStrList[B]);
+
+    // A has no dropped peers
+    REQUIRE(topology[keyStrList[A]]["droppedAuthenticatedPeers"].asUInt() == 0);
+
+    // A has no added peers.
+    REQUIRE(topology[keyStrList[A]]["addedAuthenticatedPeers"].asUInt() == 0);
 
     // B has 1 inbound peer active for entire time slice (A)
     REQUIRE(topology[keyStrList[B]]["numTotalInboundPeers"].asUInt64() == 1);
