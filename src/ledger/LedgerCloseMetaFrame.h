@@ -19,9 +19,8 @@ class LedgerCloseMetaFrame
 
     LedgerHeaderHistoryEntry& ledgerHeader();
     void reserveTxProcessing(size_t n);
-    void pushTxProcessingEntry();
-    void
-    setLastTxProcessingFeeProcessingChanges(LedgerEntryChanges const& changes);
+    void pushTxFeeProcessing(LedgerEntryChanges const& feeProcessing);
+
     void setTxProcessingMetaAndResultPair(TransactionMeta&& tm,
                                           TransactionResultPair&& rp,
                                           int index);

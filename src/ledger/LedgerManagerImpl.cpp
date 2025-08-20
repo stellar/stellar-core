@@ -1955,7 +1955,7 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 }
 
 SearchableSnapshotConstPtr
-LedgerManagerImpl::getLastClosedSnaphot() const
+LedgerManagerImpl::getLastClosedSnapshot() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);

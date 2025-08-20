@@ -230,7 +230,7 @@ class LedgerManager
     getLastClosedLedgerHeader() const = 0;
 
     // Get bucketlist snapshot of LCL
-    virtual SearchableSnapshotConstPtr getLastClosedSnaphot() const = 0;
+    virtual SearchableSnapshotConstPtr getLastClosedSnapshot() const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database

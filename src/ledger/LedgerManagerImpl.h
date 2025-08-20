@@ -551,7 +551,7 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    SearchableSnapshotConstPtr getLastClosedSnaphot() const override;
+    SearchableSnapshotConstPtr getLastClosedSnapshot() const override;
     virtual bool
     isApplying() const override
     {

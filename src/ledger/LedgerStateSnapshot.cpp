@@ -240,7 +240,7 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     else
 #endif
         mGetter = std::make_unique<BucketSnapshotState>(
-            app.getLedgerManager().getLastClosedSnaphot());
+            app.getLedgerManager().getLastClosedSnapshot());
 }
 
 LedgerSnapshot::LedgerSnapshot(SearchableSnapshotConstPtr snapshot)
