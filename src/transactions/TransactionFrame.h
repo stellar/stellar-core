@@ -160,9 +160,7 @@ class TransactionFrame : public TransactionFrameBase
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
-    virtual ~TransactionFrame()
-    {
-    }
+    ~TransactionFrame() override = default;
 
     Hash const& getFullHash() const override;
     Hash const& getContentsHash() const override;
