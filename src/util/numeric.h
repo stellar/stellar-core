@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 
 namespace stellar
 {
@@ -55,4 +56,30 @@ bool bigDivideUnsigned(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
 
 // This only implements ROUND_DOWN
 uint64_t bigSquareRoot(uint64_t a, uint64_t b);
+
+// Saturating multiplication: returns a * b, capped at INT64_MAX if overflow
+// would occur. Assumes both inputs are non-negative.
+inline int64_t
+saturatingMultiply(int64_t a, int64_t b)
+{
+    // Both inputs must be non-negative for this implementation
+    if (a < 0 || b < 0)
+    {
+        throw std::invalid_argument(
+            "saturatingMultiply requires non-negative inputs");
+    }
+
+    if (a == 0 || b == 0)
+    {
+        return 0;
+    }
+
+    // Check if multiplication would overflow
+    if (a > std::numeric_limits<int64_t>::max() / b)
+    {
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    return a * b;
+}
 }
