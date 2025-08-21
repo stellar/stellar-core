@@ -8,6 +8,7 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
+#include "util/numeric.h"
 #include <Tracy.hpp>
 
 #ifdef BUILD_TESTS
@@ -2096,13 +2097,16 @@ SorobanNetworkConfig::feeFlatRateWrite1KB() const
 Resource
 SorobanNetworkConfig::maxLedgerResources() const
 {
-    std::vector<int64_t> limits = {ledgerMaxTxCount(),
-                                   ledgerMaxInstructions(),
-                                   ledgerMaxTransactionSizesBytes(),
-                                   ledgerMaxDiskReadBytes(),
-                                   ledgerMaxWriteBytes(),
-                                   ledgerMaxDiskReadEntries(),
-                                   ledgerMaxWriteLedgerEntries()};
+    std::vector<int64_t> limits = {
+        ledgerMaxTxCount(),
+        // Starting in p23, ledgerMaxInstructions is the max instructions per
+        // cluster. Prior to p23, mLedgerMaxDependentTxClusters == 0, hence the
+        // max.
+        saturatingMultiply(ledgerMaxInstructions(),
+                           std::max(mLedgerMaxDependentTxClusters, 1u)),
+        ledgerMaxTransactionSizesBytes(), ledgerMaxDiskReadBytes(),
+        ledgerMaxWriteBytes(), ledgerMaxDiskReadEntries(),
+        ledgerMaxWriteLedgerEntries()};
     return Resource(limits);
 }
 

@@ -1694,6 +1694,65 @@ TEST_CASE("Soroban TransactionQueue limits",
             }
         }
     }
+    SECTION("queue can fit enough instructions for parallel apply")
+    {
+        // Ensure that the TX queue can fit at least 2 ledgers worth of "best
+        // case" TXs, assuming all TXs are non-conflicting and can all be
+        // scheduled in different clusters
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxDependentTxClusters = 2;
+            cfg.mLedgerMaxInstructions = 2'500'000;
+            cfg.mTxMaxInstructions = 2'500'000;
+            cfg.mLedgerMaxTxCount = 10;
+        });
+
+        auto account3 = root->create("a3", minBalance2);
+        auto account4 = root->create("a4", minBalance2);
+        auto account5 = root->create("a5", minBalance2);
+
+        // Create non-conflicting transactions that require the full cluster's
+        // instructions. We should be able to fit in 2 TXs per ledger, so 4
+        // total in the queue.
+        SorobanResources clusterResources;
+        clusterResources.instructions = 2'500'000;
+        clusterResources.diskReadBytes = 1000;
+        clusterResources.writeBytes = 500;
+
+        // First four transactions should fit in the queue
+        auto tx1 = createUploadWasmTx(*app, account1, initialInclusionFee,
+                                      resourceFee, clusterResources);
+        auto tx2 = createUploadWasmTx(*app, account2, initialInclusionFee,
+                                      resourceFee, clusterResources);
+        auto tx3 = createUploadWasmTx(*app, account3, initialInclusionFee,
+                                      resourceFee, clusterResources);
+        auto tx4 = createUploadWasmTx(*app, account4, initialInclusionFee,
+                                      resourceFee, clusterResources);
+
+        REQUIRE(app->getHerder().recvTransaction(tx1, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx2, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx3, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx4, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+
+        // Verify all 4 transactions are in the queue
+        REQUIRE(app->getHerder().getTx(tx1->getFullHash()) != nullptr);
+        REQUIRE(app->getHerder().getTx(tx2->getFullHash()) != nullptr);
+        REQUIRE(app->getHerder().getTx(tx3->getFullHash()) != nullptr);
+        REQUIRE(app->getHerder().getTx(tx4->getFullHash()) != nullptr);
+
+        // Now try to add a 5th transaction that would exceed the total limit
+        // (only 4 TXs should fit: 2 per ledger * 2 ledgers in queue)
+        auto tx5 = createUploadWasmTx(*app, account5, initialInclusionFee,
+                                      resourceFee, clusterResources);
+
+        auto result5 = app->getHerder().recvTransaction(tx5, false);
+        REQUIRE(result5.code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+        REQUIRE(app->getHerder().getTx(tx5->getFullHash()) == nullptr);
+    }
 }
 
 TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
