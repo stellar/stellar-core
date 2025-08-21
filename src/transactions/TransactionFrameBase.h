@@ -167,6 +167,7 @@ class TransactionFrameBase
     virtual MutableTxResultPtr createValidationSuccessResult() const = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
+    virtual TransactionEnvelope const& getInnermostEnvelope() const = 0;
 
     virtual bool checkSignature(SignatureChecker& signatureChecker,
                                 LedgerEntryWrapper const& account,

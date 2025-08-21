@@ -292,24 +292,27 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 bool
 validateSorobanMemo(TransactionFrameBasePtr tx)
 {
-    if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX)
+    // v0 envelopes are invalid from protocol version 13 onwards, so it's
+    // impossible for a soroban tx to be in a v0 envelope
+    auto const& txEnv = tx->getInnermostEnvelope();
+    if (txEnv.type() != ENVELOPE_TYPE_TX)
     {
         return true;
     }
 
-    auto const& txEnv = tx->getEnvelope().v1();
-    if (txEnv.tx.operations.size() != 1)
+    auto const& txEnvV1 = txEnv.v1();
+    if (txEnvV1.tx.operations.size() != 1)
     {
         return true;
     }
-    auto const& op = txEnv.tx.operations.at(0);
+    auto const& op = txEnvV1.tx.operations.at(0);
     if (op.body.type() != INVOKE_HOST_FUNCTION)
     {
         return true;
     }
 
-    if (txEnv.tx.memo.type() != MemoType::MEMO_NONE ||
-        txEnv.tx.sourceAccount.type() ==
+    if (txEnvV1.tx.memo.type() != MemoType::MEMO_NONE ||
+        txEnvV1.tx.sourceAccount.type() ==
             CryptoKeyType::KEY_TYPE_MUXED_ED25519 ||
         (op.sourceAccount &&
          op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519))

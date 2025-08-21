@@ -161,6 +161,12 @@ TransactionFrame::getEnvelope() const
     return mEnvelope;
 }
 
+TransactionEnvelope const&
+TransactionFrame::getInnermostEnvelope() const
+{
+    return getEnvelope();
+}
+
 #ifdef BUILD_TESTS
 TransactionEnvelope&
 TransactionFrame::getMutableEnvelope() const

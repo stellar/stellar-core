@@ -1155,6 +1155,7 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
 
     auto root = app->getRoot();
     auto a1 = root->create("A", startingBalance);
+    auto feeBumper = root->create("feeBumper", startingBalance);
 
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     auto resources = defaultUploadWasmResourcesWithoutFootprint(
@@ -1236,6 +1237,29 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
         REQUIRE(
             app->getHerder().recvTransaction(txWithMuxedOpSource, false).code ==
             TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+
+    SECTION("fee bump of Soroban tx with memo")
+    {
+        auto txWithMemo = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, "memo");
+        auto feeBumpTx =
+            feeBump(*app, feeBumper, txWithMemo, uploadResourceFee + 200);
+        REQUIRE(app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+
+    SECTION("fee bump of Soroban tx with muxed tx source")
+    {
+        auto txWithMuxedTxSource = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, std::nullopt,
+            1 /*muxedData*/);
+        auto feeBumpTx = feeBump(*app, feeBumper, txWithMuxedTxSource,
+                                 uploadResourceFee + 200);
+        REQUIRE(app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     }
 }
 
