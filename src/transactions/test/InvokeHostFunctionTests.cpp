@@ -8886,9 +8886,6 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
 
     const int64_t startingBalance = lm.getLastMinBalance(50);
 
-    // Wasm and instance should not expire during test
-    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
-
     REQUIRE(client.put("key", ContractDataDurability::PERSISTENT, 1) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
 
@@ -8903,18 +8900,25 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
 
     auto persistentKey = client.getContract().getDataKey(
         makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
-    REQUIRE(!test.isEntryLive(persistentKey, test.getLCLSeq()));
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
     auto a2 = root.create("a2", startingBalance);
 
+    auto contractKeys = client.getContract().getKeys();
+    contractKeys.emplace_back(persistentKey);
+    REQUIRE(contractKeys.size() == 3);
+
+    for (auto const& key : contractKeys)
+    {
+        REQUIRE(!test.isEntryLive(key, test.getLCLSeq()));
+    }
+
     SorobanResources restoreResources;
-    restoreResources.footprint.readWrite = {persistentKey};
+    restoreResources.footprint.readWrite = contractKeys;
     restoreResources.diskReadBytes = 9'000;
     restoreResources.writeBytes = 9'000;
 
-    auto const& contractKeys = client.getContract().getKeys();
     auto const resourceFee = 1'000'000 + 40'000 * contractKeys.size();
     auto tx1 = test.createRestoreTx(restoreResources, 1'000, resourceFee, &a1);
 
@@ -8925,20 +8929,20 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
         i1Spec.setInclusionFee(i1Spec.getInclusionFee() + 2));
     auto tx2 = i1.withExactNonRefundableResourceFee().createTx(&a2);
 
-    std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-    sorobanTxs.emplace_back(tx1);
-    sorobanTxs.emplace_back(tx2);
-
-    auto r = closeLedger(test.getApp(), sorobanTxs, /*strictOrder=*/true);
-    REQUIRE(r.results.size() == sorobanTxs.size());
+    auto r = closeLedger(test.getApp(), {tx1, tx2}, /*strictOrder=*/true);
+    REQUIRE(r.results.size() == 2);
 
     checkTx(0, r, txSUCCESS);
     checkTx(1, r, txSUCCESS);
 
-    REQUIRE(test.getTTL(persistentKey) ==
+    for (auto const& key : contractKeys)
+    {
+        REQUIRE(
+            test.getTTL(key) ==
             test.getLCLSeq() +
                 test.getNetworkCfg().stateArchivalSettings().minPersistentTTL -
                 1);
+    }
 
     REQUIRE(client.get("key", ContractDataDurability::PERSISTENT, 3) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
