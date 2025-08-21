@@ -89,17 +89,17 @@ jobs:
           export CXX='clang++'
           export CLANG_VERSION='19'
 
+          - name: Compile overflow test
+  run: clang++ -fsanitize=address -g src/tests/overflow.cpp -o overflow_test
+
+- name: Run overflow test
+  run: ./overflow_test || echo "ASAN detected an error"
+
           # Skip clang-format check since we don't have clang-format-12
           export SKIP_FORMAT_CHECK=1
 
           # Run ci-build.sh with tests disabled and protocol specified
           ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
-          
-- name: Compile overflow test
-  run: clang++ -fsanitize=address -g src/tests/overflow.cpp -o overflow_test
-
-- name: Run overflow test
-  run: ./overflow_test || echo "ASAN detected an error"
 
       - uses: actions/cache/save@v4
         if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
