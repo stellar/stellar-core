@@ -765,8 +765,8 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
                     {
                         auto msg =
                             fmt::format("Failed to remove stale checkpoint "
-                                        "file {} after 5 attempts: {}",
-                                        f, strerror(errno));
+                                        "file {} after 5 attempts",
+                                        f);
                         CLOG_ERROR(History, "{}", msg);
                         throw std::runtime_error(msg);
                     }

@@ -5,7 +5,7 @@ use stellar_quorum_analyzer::{FbasAnalyzer, FbasError, ResourceLimiter, SolveSta
 #[derive(Debug)]
 pub(crate) enum QuorumCheckerError {
     Fbas(FbasError),
-    General(&'static str),
+    General(String),
 }
 
 impl std::fmt::Display for QuorumCheckerError {
@@ -91,7 +91,15 @@ pub(crate) fn network_enjoys_quorum_intersection(
         Ok(status.into())
     }));
     match res {
-        Err(_) => Err(QuorumCheckerError::General("solver panicked").into()),
+        Err(r) => {
+            if let Some(s) = r.downcast_ref::<String>() {
+                Err(QuorumCheckerError::General(format!("solver panicked: {s}")).into())
+            } else if let Some(s) = r.downcast_ref::<&'static str>() {
+                Err(QuorumCheckerError::General(format!("solver panicked: {s}")).into())
+            } else {
+                Err(QuorumCheckerError::General("solver panicked".into()).into())
+            }
+        }
         Ok(r) => r,
     }
 }

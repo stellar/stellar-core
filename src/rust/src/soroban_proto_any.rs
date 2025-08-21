@@ -67,11 +67,9 @@ impl TryFrom<&CxxLedgerInfo> for LedgerInfo {
             protocol_version: c.protocol_version,
             sequence_number: c.sequence_number,
             timestamp: c.timestamp,
-            network_id: c
-                .network_id
-                .clone()
-                .try_into()
-                .map_err(|_| Box::new(CoreHostError::General("network ID has wrong size")))?,
+            network_id: c.network_id.clone().try_into().map_err(|_| {
+                Box::new(CoreHostError::General("network ID has wrong size".into()))
+            })?,
             base_reserve: c.base_reserve,
             min_temp_entry_ttl: c.min_temp_entry_ttl,
             min_persistent_entry_ttl: c.min_persistent_entry_ttl,
@@ -112,7 +110,7 @@ const MARSHALLING_STACK_LIMIT: u32 = 1000;
 #[derive(Debug)]
 pub(crate) enum CoreHostError {
     Host(HostError),
-    General(&'static str),
+    General(String),
 }
 
 impl Display for CoreHostError {
@@ -342,7 +340,15 @@ pub(crate) fn invoke_host_function(
         )
     }));
     match res {
-        Err(_) => Err(CoreHostError::General("contract host panicked").into()),
+        Err(r) => {
+            if let Some(s) = r.downcast_ref::<String>() {
+                Err(CoreHostError::General(format!("contract host panicked: {s}")).into())
+            } else if let Some(s) = r.downcast_ref::<&'static str>() {
+                Err(CoreHostError::General(format!("contract host panicked: {s}")).into())
+            } else {
+                Err(CoreHostError::General("contract host panicked".into()).into())
+            }
+        }
         Ok(r) => r,
     }
 }
