@@ -105,10 +105,9 @@ lessThanXored(Hash const& l, Hash const& r, Hash const& x)
 bool
 isStringValid(std::string const& str)
 {
-    auto& loc = std::locale::classic();
     for (auto c : str)
     {
-        if (c < 0 || std::iscntrl(c, loc))
+        if (!isAsciiNonControl(c))
         {
             return false;
         }
@@ -149,7 +148,6 @@ isAssetValid(T const& cur, uint32_t ledgerVersion)
     if (cur.type() == ASSET_TYPE_NATIVE)
         return true;
 
-    auto& loc = std::locale::classic();
     if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         auto const& code = cur.alphaNum4().assetCode;
@@ -168,7 +166,7 @@ isAssetValid(T const& cur, uint32_t ledgerVersion)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, loc))
+                if (b > 0x7f || !isAsciiAlphaNumeric((char)b))
                 {
                     return false;
                 }
@@ -196,7 +194,7 @@ isAssetValid(T const& cur, uint32_t ledgerVersion)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, loc))
+                if (b > 0x7F || !isAsciiAlphaNumeric((char)b))
                 {
                     return false;
                 }
@@ -308,7 +306,7 @@ iequals(std::string const& a, std::string const& b)
     if (b.size() != sz)
         return false;
     for (size_t i = 0; i < sz; ++i)
-        if (tolower(a[i]) != tolower(b[i]))
+        if (toAsciiLower(a[i]) != toAsciiLower(b[i]))
             return false;
     return true;
 }

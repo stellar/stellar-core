@@ -175,4 +175,40 @@ bool iequals(std::string const& a, std::string const& b);
 bool operator>=(Price const& a, Price const& b);
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);
+
+// Rather than using <cctype> functions, which can be locale-dependent, and more
+// importantly are easy to accidentally misuse, we provide a few simpler
+// ascii-only functions.
+
+inline bool
+isAsciiAlphaNumeric(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    if ('a' <= uc && uc <= 'z')
+        return true;
+    if ('A' <= uc && uc <= 'Z')
+        return true;
+    if ('0' <= uc && uc <= '9')
+        return true;
+    return false;
+}
+
+inline bool
+isAsciiNonControl(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    return (0x1f < uc && uc < 0x7F);
+}
+
+inline char
+toAsciiLower(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    if ('A' <= uc && uc <= 'Z')
+    {
+        return static_cast<char>(uc + ('a' - 'A'));
+    }
+    return c;
+}
+
 }

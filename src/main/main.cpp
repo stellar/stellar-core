@@ -299,6 +299,10 @@ void*
 operator new(std::size_t count)
 {
     auto ptr = malloc(count);
+    if (ptr == nullptr)
+    {
+        throw std::bad_alloc();
+    }
     // "Secure" here means "tolerant of calls outside the
     // lifeitme of the tracy client".
     TracySecureAlloc(ptr, count);
@@ -316,6 +320,10 @@ void*
 operator new[](std::size_t count)
 {
     auto ptr = malloc(count);
+    if (ptr == nullptr)
+    {
+        throw std::bad_alloc();
+    }
     TracySecureAlloc(ptr, count);
     return ptr;
 }

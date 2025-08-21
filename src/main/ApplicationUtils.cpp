@@ -29,6 +29,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
+#include "util/types.h"
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -201,13 +202,11 @@ httpCommand(std::string const& command, unsigned short port)
     path << "/";
     bool gotCommand = false;
 
-    std::locale loc("C");
-
     for (auto const& c : command)
     {
         if (gotCommand)
         {
-            if (std::isalnum(c, loc))
+            if (isAsciiAlphaNumeric(c))
             {
                 path << c;
             }

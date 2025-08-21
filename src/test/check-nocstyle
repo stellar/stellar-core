@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Copyright 2025 Stellar Development Foundation and contributors. Licensed
+# under the Apache License, Version 2.0. See the COPYING file at the root
+# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+# This file just does some simple static checks that calls to C-style
+# functions maintained in C++ are not present in the codebase.
+
+if git grep -w -P '(is|to)(alnum|alpha|lower|upper|digit|xdigit|cntrl|graph|space|blank|print|punct)' 'src/**/*.cpp' 'src/**/*.h'
+then
+    echo
+    echo "please avoid <cctype> functions. use ascii-specific functions in util/types.h instead."
+    exit 1
+fi
+
+if git grep -w -P '(scanf|sscanf|fscanf|vscanf|vsscanf|vfscanf)' 'src/**/*.cpp' 'src/**/*.h'
+then
+    echo
+    echo "please avoid scanf functions. use std::string and std::istringstream instead."
+    exit 1
+fi
+
+if git grep -w -P '(str|wcs)(cat|cpy|ncat|ncpy|cmp|ncmp|chr|strchr)' 'src/**/*.cpp' 'src/**/*.h'
+then
+    echo
+    echo "please avoid C-style string functions. use std::string and std::wstring instead."
+    exit 1
+fi
+
+if git grep -w -P '(str|wcs)(tok|tok_r)' 'src/**/*.cpp' 'src/**/*.h'
+then
+    echo
+    echo "please avoid C-style string tokenization functions. use std::string and std::wstring instead."
+    exit 1
+fi
+
+if git grep -w -P '(gets|fgets)\(' 'src/**/*.cpp' 'src/**/*.h'
+then
+    echo
+    echo "please avoid gets and fgets functions. use std::string and std::getline instead."
+    exit 1
+fi
