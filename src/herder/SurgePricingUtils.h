@@ -153,12 +153,14 @@ class SurgePricingPriorityQueue
     // processed.
     // `laneResourcesLeftUntilLimit` is an output parameter that for each lane
     // will contain the number of resources left until lane's limit is reached.
+    // If `customLimits` is provided, use those instead of mLaneLimits.
     void visitTopTxs(
-        std::vector<TransactionFrameBasePtr> const& txs,
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit,
-        uint32_t ledgerVersion);
+        uint32_t ledgerVersion,
+        std::optional<std::vector<Resource>> const& customLimits =
+            std::nullopt);
 
     // Creates a `SurgePricingPriorityQueue` for the provided lane
     // configuration.
@@ -195,12 +197,15 @@ class SurgePricingPriorityQueue
     // queue until the lane limits are reached.
     // This is a destructive method that removes all or most of the queue
     // elements and thus should be used with care.
+    // If `customLimits` is provided, use those instead of mLaneLimits.
     void popTopTxs(
         bool allowGaps,
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit,
-        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+        std::optional<std::vector<Resource>> const& customLimits =
+            std::nullopt);
 
   private:
     class TxComparator

@@ -117,7 +117,6 @@ class TransactionQueue
     struct TimestampedTx
     {
         TransactionFrameBasePtr mTx;
-        bool mBroadcasted;
         VirtualClock::time_point mInsertionTime;
         bool mSubmittedFromSelf;
     };
@@ -235,7 +234,7 @@ class TransactionQueue
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
     virtual int getFloodPeriod() const = 0;
-    virtual bool allowTxBroadcast(TimestampedTx const& tx) = 0;
+    virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) = 0;
 
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -245,7 +244,7 @@ class TransactionQueue
         BROADCAST_STATUS_SUCCESS,
         BROADCAST_STATUS_SKIPPED
     };
-    BroadcastStatus broadcastTx(TimestampedTx& tx);
+    BroadcastStatus broadcastTx(TransactionFrameBasePtr const& tx);
 
 #ifdef BUILD_TESTS
     TransactionQueue::AddResult
@@ -276,7 +275,7 @@ class TransactionQueue
   public:
     size_t getQueueSizeOps() const;
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
-    std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
+    std::function<void(TransactionFrameBasePtr const&)> mTxBroadcastedEvent;
 #endif
 };
 
@@ -318,7 +317,7 @@ class SorobanTransactionQueue : public TransactionQueue
     std::vector<Resource> mBroadcastOpCarryover;
     // No special flooding rules for Soroban
     virtual bool
-    allowTxBroadcast(TimestampedTx const& tx) override
+    allowTxBroadcast(TransactionFrameBasePtr const& tx) override
     {
         return true;
     }
@@ -346,7 +345,7 @@ class ClassicTransactionQueue : public TransactionQueue
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
-    virtual bool allowTxBroadcast(TimestampedTx const& tx) override;
+    virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) override;
 };
 
 extern std::array<const char*,

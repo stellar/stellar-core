@@ -138,7 +138,7 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
 }
 
 bool
-ClassicTransactionQueue::allowTxBroadcast(TimestampedTx const& tx)
+ClassicTransactionQueue::allowTxBroadcast(TransactionFrameBasePtr const& tx)
 {
     bool allowTx{true};
 
@@ -155,7 +155,7 @@ ClassicTransactionQueue::allowTxBroadcast(TimestampedTx const& tx)
         // retains price-based competition among arbitrageurs earlier in the
         // queue) but avoids filling up ledgers with excessive (mostly
         // failed) arb attempts.
-        auto arbPairs = findAllAssetPairsInvolvedInPaymentLoops(tx.mTx);
+        auto arbPairs = findAllAssetPairsInvolvedInPaymentLoops(tx);
         if (!arbPairs.empty())
         {
             mArbTxSeenCounter.inc();
@@ -410,8 +410,8 @@ TransactionQueue::canAdd(
     // prior to this point. This is safe because we can't evict transactions
     // from the same source account, so a newer transaction won't replace an
     // old one.
-    auto canAddRes =
-        mTxQueueLimiter->canAddTx(tx, currentTx, txsToEvict, ledgerVersion);
+    auto canAddRes = mTxQueueLimiter->canAddTx(tx, currentTx, txsToEvict,
+                                               ledgerVersion, mBroadcastSeed);
     if (!canAddRes.first)
     {
         ban({tx});
@@ -679,12 +679,12 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
         // Drop current transaction associated with this account, replace
         // with `tx`
         prepareDropTransaction(stateIter->second);
-        *oldTx = {tx, false, mApp.getClock().now(), submittedFromSelf};
+        *oldTx = {tx, mApp.getClock().now(), submittedFromSelf};
     }
     else
     {
         // New transaction for this account, insert it and update age
-        stateIter->second.mTransaction = {tx, false, mApp.getClock().now(),
+        stateIter->second.mTransaction = {tx, mApp.getClock().now(),
                                           submittedFromSelf};
         mQueueMetrics->mSizeByAge[stateIter->second.mAge]->inc();
     }
@@ -930,6 +930,13 @@ TransactionQueue::shift()
     // pick a new randomizing seed for tie breaking
     mBroadcastSeed =
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
+
+    // Reset flood queue with the new seed (this will drop all existing
+    // non-broadcasted transactions, which will be re-added in `rebroadcast`)
+    mTxQueueLimiter->resetBestFeeTxs(mApp.getLedgerManager()
+                                         .getLastClosedLedgerHeader()
+                                         .header.ledgerVersion,
+                                     mBroadcastSeed);
 }
 
 bool
@@ -1022,27 +1029,17 @@ ClassicTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 }
 
 TransactionQueue::BroadcastStatus
-TransactionQueue::broadcastTx(TimestampedTx& tx)
+TransactionQueue::broadcastTx(TransactionFrameBasePtr const& tx)
 {
-    if (tx.mBroadcasted)
-    {
-        return BroadcastStatus::BROADCAST_STATUS_ALREADY;
-    }
-
+    ZoneScoped;
     bool allowTx = allowTxBroadcast(tx);
 
 #ifdef BUILD_TESTS
     if (mTxBroadcastedEvent)
     {
-        mTxBroadcastedEvent(tx.mTx);
+        mTxBroadcastedEvent(tx);
     }
 #endif
-
-    // Mark the tx as effectively "broadcast" and update the per-account
-    // queue to count it as consumption from that balance, for proper
-    // overall queue accounting (whether or not we will actually broadcast
-    // it).
-    tx.mBroadcasted = true;
 
     if (!allowTx)
     {
@@ -1053,8 +1050,8 @@ TransactionQueue::broadcastTx(TimestampedTx& tx)
         return BroadcastStatus::BROADCAST_STATUS_SKIPPED;
     }
     return mApp.getOverlayManager().broadcastMessage(
-               tx.mTx->toStellarMessage(),
-               std::make_optional<Hash>(tx.mTx->getFullHash()))
+               tx->toStellarMessage(),
+               std::make_optional<Hash>(tx->getFullHash()))
                ? BroadcastStatus::BROADCAST_STATUS_SUCCESS
                : BroadcastStatus::BROADCAST_STATUS_ALREADY;
 }
@@ -1108,6 +1105,7 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 bool
 SorobanTransactionQueue::broadcastSome()
 {
+    ZoneScoped;
     // broadcast transactions in surge pricing order:
     // loop over transactions by picking from the account queue with the
     // highest base fee not broadcasted so far.
@@ -1115,33 +1113,13 @@ SorobanTransactionQueue::broadcastSome()
     // of propagation.
     auto resToFlood = getMaxResourcesToFloodThisPeriod().first;
 
-    auto totalResToFlood = Resource::makeEmptySoroban();
-    std::vector<TransactionFrameBasePtr> txsToBroadcast;
-    std::unordered_map<TransactionFrameBasePtr, AccountState*> txToAccountState;
+    auto totalResToFlood = mTxQueueLimiter->getTotalResourcesToFlood();
     auto ledgerVersion = mApp.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.ledgerVersion;
-    for (auto& [_, accountState] : mAccountStates)
-    {
-        if (accountState.mTransaction &&
-            !accountState.mTransaction->mBroadcasted)
-        {
-            auto tx = accountState.mTransaction->mTx;
-            txsToBroadcast.emplace_back(tx);
-            totalResToFlood += tx->getResources(
-                /* useByteLimitInClassic */ false, ledgerVersion);
-            txToAccountState[tx] = &accountState;
-        }
-    }
-
-    auto visitor = [this, &totalResToFlood, ledgerVersion,
-                    &txToAccountState](TransactionFrameBasePtr const& tx) {
-        auto& accState = *txToAccountState.at(tx);
-        // look at the next candidate transaction for that account
-        auto& cur = *accState.mTransaction;
-        // by construction, cur points to non broadcasted transactions
-        releaseAssert(!cur.mBroadcasted);
-        auto bStatus = broadcastTx(cur);
+    auto visitor = [this, &totalResToFlood,
+                    ledgerVersion](TransactionFrameBasePtr const& tx) {
+        auto bStatus = broadcastTx(tx);
         // Skipped does not apply to Soroban
         releaseAssert(bStatus != BroadcastStatus::BROADCAST_STATUS_SKIPPED);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
@@ -1158,11 +1136,10 @@ SorobanTransactionQueue::broadcastSome()
         }
     };
 
-    SurgePricingPriorityQueue queue(
-        /* isHighestPriority */ true,
-        std::make_shared<SorobanGenericLaneConfig>(resToFlood), mBroadcastSeed);
-    queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover,
-                      ledgerVersion);
+    // Use resToFlood as the custom limit for broadcasting
+    std::vector<Resource> customLimits = {resToFlood};
+    mTxQueueLimiter->visitTopTxs(visitor, mBroadcastOpCarryover, ledgerVersion,
+                                 customLimits);
 
     Resource maxPerTx =
         mApp.getLedgerManager().maxSorobanTransactionResources();
@@ -1233,6 +1210,7 @@ SorobanTransactionQueue::resetAndRebuild()
 bool
 ClassicTransactionQueue::broadcastSome()
 {
+    ZoneScoped;
     // broadcast transactions in surge pricing order:
     // loop over transactions by picking from the account queue with the
     // highest base fee not broadcasted so far.
@@ -1245,33 +1223,14 @@ ClassicTransactionQueue::broadcastSome()
         releaseAssert(dexOpsToFlood->size() == NUM_CLASSIC_TX_RESOURCES);
     }
 
-    auto totalToFlood = Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES);
-    std::vector<TransactionFrameBasePtr> txsToBroadcast;
-    std::unordered_map<TransactionFrameBasePtr, AccountState*> txToAccountState;
-    for (auto& [_, accountState] : mAccountStates)
-    {
-        if (accountState.mTransaction &&
-            !accountState.mTransaction->mBroadcasted)
-        {
-            auto tx = accountState.mTransaction->mTx;
-            txsToBroadcast.emplace_back(tx);
-            totalToFlood += Resource(tx->getNumOperations());
-            txToAccountState[tx] = &accountState;
-        }
-    }
-
+    auto totalToFlood = mTxQueueLimiter->getTotalResourcesToFlood();
     std::vector<TransactionFrameBasePtr> banningTxs;
     auto ledgerVersion = mApp.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.ledgerVersion;
-    auto visitor = [this, &totalToFlood, &banningTxs, &txToAccountState,
+    auto visitor = [this, &totalToFlood, &banningTxs,
                     ledgerVersion](TransactionFrameBasePtr const& tx) {
-        auto const& curTracker = txToAccountState.at(tx);
-        // look at the next candidate transaction for that account
-        auto& cur = *curTracker->mTransaction;
-        // by construction, cur points to non broadcasted transactions
-        releaseAssert(!cur.mBroadcasted);
-        auto bStatus = broadcastTx(cur);
+        auto bStatus = broadcastTx(tx);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
             totalToFlood -= tx->getResources(/* useByteLimitInClassic */ false,
@@ -1292,12 +1251,14 @@ ClassicTransactionQueue::broadcastSome()
         }
     };
 
-    SurgePricingPriorityQueue queue(
-        /* isHighestPriority */ true,
-        std::make_shared<DexLimitingLaneConfig>(opsToFlood, dexOpsToFlood),
-        mBroadcastSeed);
-    queue.visitTopTxs(txsToBroadcast, visitor, mBroadcastOpCarryover,
-                      ledgerVersion);
+    // Use opsToFlood and dexOpsToFlood as custom limits for broadcasting
+    std::vector<Resource> customLimits = {opsToFlood};
+    if (dexOpsToFlood)
+    {
+        customLimits.push_back(*dexOpsToFlood);
+    }
+    mTxQueueLimiter->visitTopTxs(visitor, mBroadcastOpCarryover, ledgerVersion,
+                                 customLimits);
     ban(banningTxs);
     // carry over remainder, up to MAX_OPS_PER_TX ops
     // reason is that if we add 1 next round, we can flood a "worst case fee
@@ -1349,7 +1310,10 @@ TransactionQueue::rebroadcast()
         auto& as = m.second;
         if (as.mTransaction)
         {
-            as.mTransaction->mBroadcasted = false;
+            mTxQueueLimiter->markTxForFlood(as.mTransaction->mTx,
+                                            mApp.getLedgerManager()
+                                                .getLastClosedLedgerHeader()
+                                                .header.ledgerVersion);
         }
     }
     broadcast(false);
