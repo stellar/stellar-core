@@ -283,6 +283,36 @@ TransactionFrame::getRawOperations() const
                : mEnvelope.v1().tx.operations;
 }
 
+bool
+TransactionFrame::validateSorobanMemoForFlooding() const
+{
+    if (!isSoroban())
+    {
+        return true;
+    }
+
+    auto const& ops = getRawOperations();
+    if (ops.size() != 1)
+    {
+        return true;
+    }
+
+    auto const& op = ops.at(0);
+    if (op.body.type() != INVOKE_HOST_FUNCTION)
+    {
+        return true;
+    }
+
+    if (getMemo().type() != MemoType::MEMO_NONE ||
+        getSourceAccount().type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519 ||
+        (op.sourceAccount &&
+         op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519))
+    {
+        return false;
+    }
+    return true;
+}
+
 int64_t
 TransactionFrame::getFullFee() const
 {

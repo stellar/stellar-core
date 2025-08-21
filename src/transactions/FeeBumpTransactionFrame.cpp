@@ -441,6 +441,12 @@ FeeBumpTransactionFrame::clearCached() const
 }
 #endif
 
+bool
+FeeBumpTransactionFrame::validateSorobanMemoForFlooding() const
+{
+    return mInnerTx->validateSorobanMemoForFlooding();
+}
+
 int64_t
 FeeBumpTransactionFrame::getFullFee() const
 {

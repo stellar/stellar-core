@@ -184,6 +184,12 @@ TransactionTestFrame::getTxFramePtr() const
     return mTransactionFrame;
 }
 
+bool
+TransactionTestFrame::validateSorobanMemoForFlooding() const
+{
+    return mTransactionFrame->validateSorobanMemoForFlooding();
+}
+
 int64_t
 TransactionTestFrame::getFullFee() const
 {

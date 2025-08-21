@@ -289,39 +289,6 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
     return mAccountStates.find(accountID) != mAccountStates.end();
 }
 
-bool
-validateSorobanMemo(TransactionFrameBasePtr tx)
-{
-    // v0 envelopes are invalid from protocol version 13 onwards, so it's
-    // impossible for a soroban tx to be in a v0 envelope
-    auto const& txEnv = tx->getInnermostEnvelope();
-    if (txEnv.type() != ENVELOPE_TYPE_TX)
-    {
-        return true;
-    }
-
-    auto const& txEnvV1 = txEnv.v1();
-    if (txEnvV1.tx.operations.size() != 1)
-    {
-        return true;
-    }
-    auto const& op = txEnvV1.tx.operations.at(0);
-    if (op.body.type() != INVOKE_HOST_FUNCTION)
-    {
-        return true;
-    }
-
-    if (txEnvV1.tx.memo.type() != MemoType::MEMO_NONE ||
-        txEnvV1.tx.sourceAccount.type() ==
-            CryptoKeyType::KEY_TYPE_MUXED_ED25519 ||
-        (op.sourceAccount &&
-         op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519))
-    {
-        return false;
-    }
-    return true;
-}
-
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
@@ -510,7 +477,7 @@ TransactionQueue::canAdd(
         }
     }
 
-    if (!validateSorobanMemo(tx))
+    if (!tx->validateSorobanMemoForFlooding())
     {
         diagnosticEvents.pushError(
             SCE_CONTEXT, SCEC_INVALID_INPUT,

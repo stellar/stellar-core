@@ -203,6 +203,8 @@ class TransactionFrame : public TransactionFrameBase
 
     std::vector<Operation> const& getRawOperations() const override;
 
+    bool validateSorobanMemoForFlooding() const override;
+
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;
 
