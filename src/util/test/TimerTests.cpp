@@ -52,6 +52,17 @@ TEST_CASE("VirtualClock systemPointToISOString", "[timer]")
           std::string("1970-01-02T13:10:18Z"));
 }
 
+TEST_CASE("VirtualClock isoStringToTm", "[timer]")
+{
+    auto checkRoundTrip = [](std::string const& iso) {
+        std::tm tm = VirtualClock::isoStringToTm(iso);
+        auto tp = VirtualClock::tmToSystemPoint(tm);
+        CHECK(VirtualClock::systemPointToISOString(tp) == iso);
+    };
+    checkRoundTrip("1970-01-01T00:00:00Z");
+    checkRoundTrip("2025-12-03T01:44:59Z");
+}
+
 TEST_CASE("VirtualClock to_time_t", "[timer]")
 {
     VirtualClock clock;

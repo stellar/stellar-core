@@ -53,7 +53,6 @@ template <typename T>
 void
 replaceControlCharacters(T& s, int minSize)
 {
-    auto& loc = std::locale::classic();
     if (static_cast<int>(s.size()) < minSize)
     {
         s.resize(minSize);
@@ -61,13 +60,17 @@ replaceControlCharacters(T& s, int minSize)
     for (auto it = s.begin(); it != s.end(); it++)
     {
         char c = static_cast<char>(*it);
-        if (c < 0 || std::iscntrl(c, loc))
+        if (!isAsciiNonControl(c))
         {
             auto b = autocheck::generator<char>{}(autocheck::detail::nalnums);
             *it = b;
         }
     }
 }
+
+template void replaceControlCharacters(std::string& s, int minSize);
+template void replaceControlCharacters(string32& s, int minSize);
+template void replaceControlCharacters(string64& s, int minSize);
 
 static bool
 signerEqual(Signer const& s1, Signer const& s2)

@@ -21,6 +21,10 @@ namespace LedgerTestUtils
 // generating a 'valid' trust line
 
 template <typename T> void replaceControlCharacters(T& s, int minSize);
+extern template void replaceControlCharacters(std::string& s, int minSize);
+extern template void replaceControlCharacters(string32& s, int minSize);
+extern template void replaceControlCharacters(string64& s, int minSize);
+
 
 void randomlyModifyEntry(LedgerEntry& e);
 
