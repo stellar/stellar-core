@@ -374,7 +374,7 @@ checkQuorumIntersectionInner(
         }
     }
 
-    QuorumCheckerResource usage;
+    QuorumCheckerResource usage{0,0};
     try
     {
         QuorumCheckerStatus status;
