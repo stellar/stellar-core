@@ -160,6 +160,40 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+
+    bool allFit = true;
+    auto res = queue.countTxsResources(txs, ledgerVersion);
+    auto totalResources = Resource::makeEmpty(res[0].size());
+
+    // First check if each individual lane fits within its own limit
+    for (int i = 0; i < static_cast<int>(queue.getNumLanes()); ++i)
+    {
+        // Check against individual lane limits
+        auto const& limit = queue.laneLimits(i);
+        if (anyGreater(res.at(i), limit))
+        {
+            allFit = false;
+        }
+
+        // Check total limits
+        totalResources += res[i];
+        if (anyGreater(
+                totalResources,
+                queue.laneLimits(SurgePricingPriorityQueue::GENERIC_LANE)))
+        {
+            // If any lane is over the limit, we need to pop some transactions.
+            allFit = false;
+        }
+    }
+
+    if (allFit)
+    {
+        // If all lanes are within limits, we can include everything
+        hadTxNotFittingLane.assign(queue.getNumLanes(), false);
+        return txs;
+    }
+
+    // Otherwise, do normal surge pricing processing
     for (auto const& tx : txs)
     {
         queue.add(tx, ledgerVersion);
@@ -204,6 +238,25 @@ SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx,
         mLaneCurrentCount[lane] +=
             mLaneConfig->getTxResources(*tx, ledgerVersion);
     }
+}
+
+std::vector<Resource>
+SurgePricingPriorityQueue::countTxsResources(
+    std::vector<TransactionFrameBasePtr> const& txs,
+    uint32_t ledgerVersion) const
+{
+    ZoneScoped;
+
+    std::vector<Resource> laneResources;
+    laneResources.resize(
+        mLaneConfig->getLaneLimits().size(),
+        Resource::makeEmpty(mLaneConfig->getLaneLimits()[0].size()));
+    for (auto const& tx : txs)
+    {
+        auto lane = mLaneConfig->getLane(*tx);
+        laneResources[lane] += mLaneConfig->getTxResources(*tx, ledgerVersion);
+    }
+    return laneResources;
 }
 
 void
