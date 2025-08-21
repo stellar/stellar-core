@@ -83,7 +83,6 @@ class TransactionTestFrame : public TransactionFrameBase
     MutableTxResultPtr createValidationSuccessResult() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
-    TransactionEnvelope const& getInnermostEnvelope() const override;
     TransactionEnvelope& getMutableEnvelope() const override;
 
     // clear pre-computed hashes

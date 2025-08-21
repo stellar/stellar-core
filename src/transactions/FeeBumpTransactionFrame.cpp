@@ -418,12 +418,6 @@ FeeBumpTransactionFrame::getEnvelope() const
     return mEnvelope;
 }
 
-TransactionEnvelope const&
-FeeBumpTransactionFrame::getInnermostEnvelope() const
-{
-    return mInnerTx->getEnvelope();
-}
-
 #ifdef BUILD_TESTS
 TransactionEnvelope&
 FeeBumpTransactionFrame::getMutableEnvelope() const

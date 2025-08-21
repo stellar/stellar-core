@@ -157,12 +157,6 @@ TransactionTestFrame::getEnvelope() const
     return mTransactionFrame->getEnvelope();
 }
 
-TransactionEnvelope const&
-TransactionTestFrame::getInnermostEnvelope() const
-{
-    return mTransactionFrame->getInnermostEnvelope();
-}
-
 TransactionEnvelope&
 TransactionTestFrame::getMutableEnvelope() const
 {

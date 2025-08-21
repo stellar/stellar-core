@@ -165,7 +165,6 @@ class TransactionFrame : public TransactionFrameBase
     Hash const& getFullHash() const override;
     Hash const& getContentsHash() const override;
     TransactionEnvelope const& getEnvelope() const override;
-    TransactionEnvelope const& getInnermostEnvelope() const override;
 
     std::vector<std::shared_ptr<OperationFrame const>> const&
     getOperations() const

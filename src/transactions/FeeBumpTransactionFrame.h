@@ -116,7 +116,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     MutableTxResultPtr createValidationSuccessResult() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
-    TransactionEnvelope const& getInnermostEnvelope() const override;
 
     bool validateSorobanMemoForFlooding() const override;
 
