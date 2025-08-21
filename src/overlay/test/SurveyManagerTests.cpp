@@ -48,8 +48,8 @@ surveyTopologyTimeSliced(Application& surveyor, PublicKey const& surveyed,
         "&outboundpeerindex=" + std::to_string(outboundPeerIndex);
     std::string const response = surveyor.getCommandHandler().manualCmd(cmd);
 
-    // Detect failure by looking for the word "failed" in the response
-    return response.find("failed") == std::string::npos;
+    // Detect failure by looking for the word "exception" in the response
+    return response.find("exception") == std::string::npos;
 }
 
 // Crank the simulation for a short time to allow survey messages to propagate
