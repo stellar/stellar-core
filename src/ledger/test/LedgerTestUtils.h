@@ -25,7 +25,6 @@ extern template void replaceControlCharacters(std::string& s, int minSize);
 extern template void replaceControlCharacters(string32& s, int minSize);
 extern template void replaceControlCharacters(string64& s, int minSize);
 
-
 void randomlyModifyEntry(LedgerEntry& e);
 
 void makeValid(AccountEntry& a);

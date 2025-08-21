@@ -1677,8 +1677,9 @@ Peer::recvError(StellarMessage const& msg)
     std::string msgStr;
     msgStr.reserve(msg.error().msg.size());
     std::transform(msg.error().msg.begin(), msg.error().msg.end(),
-                   std::back_inserter(msgStr),
-                   [](char c) { return (isAsciiAlphaNumeric(c) || c == ' ') ? c : '*'; });
+                   std::back_inserter(msgStr), [](char c) {
+                       return (isAsciiAlphaNumeric(c) || c == ' ') ? c : '*';
+                   });
 
     drop(fmt::format(FMT_STRING("{} ({})"), codeStr, msgStr),
          Peer::DropDirection::REMOTE_DROPPED_US);
