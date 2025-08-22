@@ -156,7 +156,7 @@ VirtualClock::tmToSystemPoint(tm t)
 std::tm
 VirtualClock::isoStringToTm(std::string const& iso)
 {
-    std::tm res;
+    std::tm res{};
     std::istringstream ss(iso);
     ss >> std::get_time(&res, "%Y-%m-%dT%H:%M:%SZ");
     if (!ss)
