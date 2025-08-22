@@ -3081,4 +3081,79 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
                 .count() == 0);
     }
 }
+
+// Test background signature verification when an incoming transaction contains
+// a non-existent source account
+TEST_CASE("background signature verification with missing account",
+          "[overlay][connections][security]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    // Create simulation with custom config enabling background processing
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID, [](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+            return cfg;
+        });
+
+    // Create two nodes
+    auto senderSecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto receiverSecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 1;
+    qset.validators.push_back(senderSecretKey.getPublicKey());
+
+    auto senderNode = s->addNode(senderSecretKey, qset);
+    auto receiverNode = s->addNode(receiverSecretKey, qset);
+
+    // Establish connection
+    s->addPendingConnection(senderSecretKey.getPublicKey(),
+                            receiverSecretKey.getPublicKey());
+    s->startAllNodes();
+    s->crankForAtLeast(std::chrono::seconds(1), false);
+
+    // Get the connected TCPPeer
+    auto receiverPeer = senderNode->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", receiverNode->getConfig().PEER_PORT});
+
+    REQUIRE(receiverPeer);
+    REQUIRE(receiverPeer->isAuthenticatedForTesting());
+
+    // Create a malicious transaction with a non-existent fee source account.
+    // NOTE: Because background signature verification occurs before virtually
+    // all transaction validation, this transaction only needs the sourceAccount
+    // field filled to test this edge case.
+    auto tx = std::make_shared<StellarMessage>();
+    tx->type(TRANSACTION);
+    tx->transaction().type(ENVELOPE_TYPE_TX);
+
+    // Use a completely random account ID that doesn't exist in the ledger
+    SecretKey nonExistentAccount = SecretKey::pseudoRandomForTesting();
+    tx->transaction().v1().tx.sourceAccount.type(KEY_TYPE_ED25519);
+    tx->transaction().v1().tx.sourceAccount.ed25519() =
+        nonExistentAccount.getPublicKey().ed25519();
+
+    // Track number of transactions received by receiverPeer
+    auto const& recvTxCount = receiverNode->getOverlayManager()
+                                  .getOverlayMetrics()
+                                  .mRecvTransactionCounter;
+    REQUIRE(recvTxCount.count() == 0);
+
+    // Send the transaction
+    receiverPeer->sendAuthenticatedMessageForTesting(tx);
+
+    // Crank simulation to process the message on the overlay thread
+    s->crankUntil([&recvTxCount]() { return recvTxCount.count() == 1; },
+                  std::chrono::seconds(2), false);
+
+    // Getting to this point indicates that the background signature
+    // verification did not crash upon encountering the non-existent account,
+    // and `receiverNode` did actually receive the transaction (ensured by the
+    // condition in the above `crankUntil`).
+
+    s->stopAllNodes();
+}
 }
