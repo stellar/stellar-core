@@ -89,11 +89,13 @@ jobs:
           export CXX='clang++'
           export CLANG_VERSION='19'
 
-          - name: Compile overflow test
-  run: clang++ -fsanitize=address -g src/tests/overflow.cpp -o overflow_test
+         - name: Compile overflow test
+         run: clang++ -fsanitize=address -g src/tests/overflow.cpp -o overflow_test
 
-- name: Run overflow test
-  run: ./overflow_test || echo "ASAN detected an error"
+        - name: Run overflow test
+          run: ./overflow_test || echo "ASAN detected an error"
+
+
 
           # Skip clang-format check since we don't have clang-format-12
           export SKIP_FORMAT_CHECK=1
