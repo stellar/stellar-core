@@ -5,6 +5,7 @@
 #include "herder/TransactionQueue.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
+#include "herder/Herder.h"
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxQueueLimiter.h"
 #include "ledger/LedgerHashUtils.h"
@@ -58,7 +59,8 @@ TransactionQueue::AddResult::AddResult(AddResultCode addCode)
 }
 
 TransactionQueue::AddResult::AddResult(
-    AddResultCode addCode, MutableTxResultPtr payload,
+    AddResultCode addCode,
+    std::shared_ptr<MutableTransactionResultBase const> payload,
     xdr::xvector<DiagnosticEvent>&& diagnostics)
     : code(addCode)
     , txResult(std::move(payload))
@@ -67,8 +69,9 @@ TransactionQueue::AddResult::AddResult(
     releaseAssert(txResult);
 }
 
-TransactionQueue::AddResult::AddResult(AddResultCode addCode,
-                                       MutableTxResultPtr payload)
+TransactionQueue::AddResult::AddResult(
+    AddResultCode addCode,
+    std::shared_ptr<MutableTransactionResultBase const> payload)
     : code(addCode), txResult(std::move(payload))
 {
     releaseAssert(txResult);
@@ -77,7 +80,9 @@ TransactionQueue::AddResult::AddResult(AddResultCode addCode,
 TransactionQueue::AddResult::AddResult(AddResultCode addCode,
                                        TransactionFrameBase const& tx,
                                        TransactionResultCode txErrorCode)
-    : code(addCode), txResult(tx.createTxErrorResult(txErrorCode))
+    : code(addCode)
+    , txResult(std::shared_ptr<MutableTransactionResultBase const>(
+          tx.createTxErrorResult(txErrorCode)))
 {
 }
 
@@ -86,7 +91,8 @@ TransactionQueue::AddResult::AddResult(
     TransactionResultCode txErrorCode,
     xdr::xvector<DiagnosticEvent>&& diagnostics)
     : code(addCode)
-    , txResult(tx.createTxErrorResult(txErrorCode))
+    , txResult(std::shared_ptr<MutableTransactionResultBase const>(
+          tx.createTxErrorResult(txErrorCode)))
     , mDiagnosticEvents(std::move(diagnostics))
 {
 }
@@ -473,14 +479,13 @@ TransactionQueue::canAdd(
     if (!isLoadgenTx)
 #endif
     {
-        auto validationResult = tx->checkValid(
-            mApp.getAppConnector(), ls, 0, 0,
-            getUpperBoundCloseTimeOffset(mApp, closeTime), diagnosticEvents);
+        auto validationResult = mApp.getHerder().checkValidCached(
+            ls, tx, 0, getUpperBoundCloseTimeOffset(mApp, closeTime),
+            diagnosticEvents);
         if (!validationResult->isSuccess())
         {
             return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
-                             std::move(validationResult),
-                             diagnosticEvents.finalize());
+                             validationResult, diagnosticEvents.finalize());
         }
     }
 

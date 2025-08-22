@@ -237,5 +237,14 @@ class Herder
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
 
     virtual void beginApply() = 0;
+
+    // Check transaction validity with caching, returns shared_ptr to
+    // MutableTransactionResultBase
+    virtual std::shared_ptr<MutableTransactionResultBase const>
+    checkValidCached(LedgerSnapshot const& ls,
+                     TransactionFrameBaseConstPtr const& tx,
+                     uint64_t lowerBoundCloseTimeOffset,
+                     uint64_t upperBoundCloseTimeOffset,
+                     DiagnosticEventManager& diagnosticEvents) = 0;
 };
 }
