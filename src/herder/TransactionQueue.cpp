@@ -289,36 +289,6 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
     return mAccountStates.find(accountID) != mAccountStates.end();
 }
 
-bool
-validateSorobanMemo(TransactionFrameBasePtr tx)
-{
-    if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX)
-    {
-        return true;
-    }
-
-    auto const& txEnv = tx->getEnvelope().v1();
-    if (txEnv.tx.operations.size() != 1)
-    {
-        return true;
-    }
-    auto const& op = txEnv.tx.operations.at(0);
-    if (op.body.type() != INVOKE_HOST_FUNCTION)
-    {
-        return true;
-    }
-
-    if (txEnv.tx.memo.type() != MemoType::MEMO_NONE ||
-        txEnv.tx.sourceAccount.type() ==
-            CryptoKeyType::KEY_TYPE_MUXED_ED25519 ||
-        (op.sourceAccount &&
-         op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519))
-    {
-        return false;
-    }
-    return true;
-}
-
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
@@ -507,7 +477,7 @@ TransactionQueue::canAdd(
         }
     }
 
-    if (!validateSorobanMemo(tx))
+    if (!tx->validateSorobanMemoForFlooding())
     {
         diagnosticEvents.pushError(
             SCE_CONTEXT, SCEC_INVALID_INPUT,
