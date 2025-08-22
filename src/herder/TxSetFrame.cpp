@@ -9,12 +9,14 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "herder/Herder.h"
 #include "herder/ParallelTxSetBuilder.h"
 #include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/Peer.h"
+#include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
@@ -853,14 +855,13 @@ makeTxSetFromTransactions(
             validatedTxs = phaseTxs;
         }
         else
-        {
 #endif
+        {
             validatedTxs = TxSetUtils::trimInvalid(
                 phaseTxs, app, lowerBoundCloseTimeOffset,
                 upperBoundCloseTimeOffset, invalid);
-#ifdef BUILD_TESTS
         }
-#endif
+
         auto phaseType = static_cast<TxSetPhase>(i);
         auto [includedTxs, inclusionFeeMapBinding] =
             applySurgePricing(phaseType, validatedTxs, app
@@ -1962,16 +1963,16 @@ TxSetPhaseFrame::txsAreValid(Application& app,
     auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : *this)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset, diagnostics);
-        if (!txResult->isSuccess())
+        auto res = app.getHerder().checkValidCached(
+            ls, tx, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+            diagnostics);
+        if (!res->isSuccess())
         {
 
             CLOG_DEBUG(
                 Herder, "Got bad txSet: tx invalid tx: {} result: {}",
                 xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
-                txResult->getResultCode());
+                res->getResultCode());
             return false;
         }
     }

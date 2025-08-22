@@ -154,10 +154,14 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "flood", "unfulfilled-banned"}, "message"))
     , mUnknownMessageUnfulfilledMeter(app.getMetrics().NewMeter(
           {"overlay", "flood", "unfulfilled-unknown"}, "message"))
-    , mTxPullLatency(
-          app.getMetrics().NewTimer({"overlay", "flood", "tx-pull-latency"}))
-    , mPeerTxPullLatency(app.getMetrics().NewTimer(
-          {"overlay", "flood", "peer-tx-pull-latency"}))
+    , mTxPullLatencyAccumulator(app.getMetrics().NewCounter(
+          {"overlay", "flood", "tx-pull-latency", "sum"}))
+    , mTxPullLatencyCounter(app.getMetrics().NewCounter(
+          {"overlay", "flood", "tx-pull-latency", "count"}))
+    , mPeerTxPullLatencyAccumulator(app.getMetrics().NewCounter(
+          {"overlay", "flood", "peer-tx-pull-latency", "sum"}))
+    , mPeerTxPullLatencyCounter(app.getMetrics().NewCounter(
+          {"overlay", "flood", "peer-tx-pull-latency", "count"}))
     , mDemandTimeouts(app.getMetrics().NewMeter(
           {"overlay", "demand", "timeout"}, "timeout"))
     , mPulledRelevantTxs(app.getMetrics().NewMeter(
