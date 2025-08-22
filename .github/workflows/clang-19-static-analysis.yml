@@ -1,14 +1,15 @@
 name: Clang-19 Static Analysis
 
 on:
-  pull_request:
-  merge_group:
   push:
     branches:
       - master
       - prod
       - testnet
       - acceptance-test-pass
+  merge_group:
+    branches:
+      - master
 
 jobs:
   clang-19-compile:
