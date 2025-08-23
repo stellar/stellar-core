@@ -120,8 +120,6 @@ class Config : public std::enable_shared_from_this<Config>
     void verifyHistoryValidatorsBlocking(
         std::vector<ValidatorEntry> const& validators);
 
-    void verifyLoadGenOpCountForTestingConfigs();
-
     std::vector<std::chrono::microseconds> mOpApplySleepTimeForTesting;
 
     template <typename T>
@@ -300,13 +298,15 @@ class Config : public std::enable_shared_from_this<Config>
         OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
     std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
 
-    // Config parameters that LoadGen uses to decide the number of operations
-    // to include in each transaction and its distribution.
-    // The probability that transactions will contain COUNT[i] operations
-    // is DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each
-    // i.
-    std::vector<unsigned short> LOADGEN_OP_COUNT_FOR_TESTING;
-    std::vector<uint32> LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING;
+    // Config parameters that LoadGen uses to decide the number of bytes to
+    // include in each payment and offer transaction for testing only. The
+    // probability that transactions will contain COUNT[i] bytes is
+    // DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each i.
+    // Note that there is a minimum payment size (~204 bytes) and that the byte
+    // count will be rounded up to the nearest multiple of 4 (since all XDR
+    // serializations are multiples of 4).
+    std::vector<uint32_t> LOADGEN_BYTE_COUNT_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING;
 
     // Size of wasm blobs for SOROBAN_UPLOAD and MIX_CLASSIC_SOROBAN loadgen
     // modes

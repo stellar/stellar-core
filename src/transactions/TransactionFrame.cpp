@@ -1249,7 +1249,13 @@ TransactionFrame::commonValidPreSeqNum(
         if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21))
         {
             if (mEnvelope.type() == ENVELOPE_TYPE_TX &&
-                mEnvelope.v1().tx.ext.v() != 0)
+                mEnvelope.v1().tx.ext.v() != 0
+#ifdef BUILD_TESTS
+                // For loadgen testing, allow sorobanData extension for padding
+                && (mEnvelope.v1().tx.ext.sorobanData().ext.v() != 1 ||
+                    !app.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+#endif
+            )
             {
                 txResult.setInnermostError(txMALFORMED);
                 return std::nullopt;

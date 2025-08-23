@@ -30,7 +30,6 @@ class VirtualTimer;
 enum class LoadGenMode
 {
     PAY,
-    PRETEND,
     // Mix of payments and DEX-related transactions.
     MIXED_CLASSIC,
     // Deploy random Wasm blobs, for overlay/herder testing
@@ -216,7 +215,6 @@ class LoadGenerator
     {
         medida::Meter& mNativePayment;
         medida::Meter& mManageOfferOps;
-        medida::Meter& mPretendOps;
         medida::Meter& mSorobanUploadTxs;
         medida::Meter& mSorobanSetupInvokeTxs;
         medida::Meter& mSorobanSetupUpgradeTxs;
@@ -225,6 +223,8 @@ class LoadGenerator
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
         medida::Meter& mTxnBytes;
+        medida::Meter& mNativePaymentBytes;
+        medida::Meter& mManageOfferBytes;
 
         TxMetrics(medida::MetricsRegistry& m);
         void report();
@@ -323,6 +323,7 @@ class LoadGenerator
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createMixedClassicSorobanTransaction(uint32_t ledgerNum,
                                          uint64_t sourceAccountId,
+                                         uint32_t classicByteCount,
                                          GeneratedLoadConfig const& cfg);
 
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -352,7 +353,7 @@ class LoadGenerator
     void waitTillComplete(GeneratedLoadConfig cfg);
     void waitTillCompleteWithoutChecks();
 
-    unsigned short chooseOpCount(Config const& cfg) const;
+    uint32_t chooseByteCount(Config const& cfg) const;
 
     void cleanupAccounts();
 
