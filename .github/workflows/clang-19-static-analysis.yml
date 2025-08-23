@@ -20,25 +20,13 @@ jobs:
         target
     strategy:
       fail-fast: false
+    matrix:
+      protocol: ["current", "next"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Autotools
-        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool
-
-      - name: Generate build system
-        run: autoreconf -i
-
-      - name: Configure project
-        run: ./configure
-
-      - name: Build project
-        run: make
-      matrix:
-        protocol: ["current", "next"]
-    steps:
       - name: Fix kernel mmap rnd bits
         run: sudo sysctl vm.mmap_rnd_bits=28
 
@@ -59,41 +47,50 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-clang-19-${{ matrix.protocol }}
 
-      - uses: actions/checkout@v4
+      - name: Checkout (with submodules)
         if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
         with:
           fetch-depth: 200
           submodules: true
 
-      - name: install core packages
+      - name: Install core packages
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
 
-      - name: install clang-19
+      - name: Install clang-19
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update
           sudo apt-get -y install clang-19 llvm-19
 
-      - name: install dependencies
+      - name: Install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get -y install libc++-19-dev libc++abi-19-dev
           sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel sed perl ccache
 
-      - name: install rustup components
+      - name: Install rustup components
         if: steps.cache.outputs.cache-hit != 'true'
         run: rustup component add rustfmt
 
-      - name: install cargo-cache
+      - name: Install cargo-cache
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-cache --version 0.8.3
 
-      - name: install cargo-sweep
+      - name: Install cargo-sweep
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-sweep --version 0.7.0
+
+      - name: Generate build system
+        run: autoreconf -i
+
+      - name: Configure project
+        run: ./configure
+
+      - name: Build project
+        run: make
 
       - name: Build with ci-build.sh
         if: steps.cache.outputs.cache-hit != 'true'
@@ -106,15 +103,16 @@ jobs:
 
       - name: Clean build artifacts
         run: rm -rf build/ target/ overflow_test
-      
+
       - name: Compile overflow test
         run: clang++ -fsanitize=address -g src/test/overflow_runner.cpp src/test/overflow.cpp -o overflow_test
 
       - name: Run overflow test
         run: ./overflow_test
 
-      - uses: actions/cache/save@v4
+      - name: Save Cache
         if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
+        uses: actions/cache/save@v4
         with:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
