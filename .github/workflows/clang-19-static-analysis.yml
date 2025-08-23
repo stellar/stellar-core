@@ -20,6 +20,22 @@ jobs:
         target
     strategy:
       fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Autotools
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool
+
+      - name: Generate build system
+        run: autoreconf -i
+
+      - name: Configure project
+        run: ./configure
+
+      - name: Build project
+        run: make
       matrix:
         protocol: ["current", "next"]
     steps:
