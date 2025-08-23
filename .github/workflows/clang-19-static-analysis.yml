@@ -88,14 +88,14 @@ jobs:
           export SKIP_FORMAT_CHECK=1
           ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
 
-     - name: Clean build artifacts
-       run: rm -rf build/ target/ overflow_test
+      - name: Clean build artifacts
+        run: rm -rf build/ target/ overflow_test
       
-     - name: Compile overflow test
-       run: clang++ -fsanitize=address -g src/test/overflow_runner.cpp src/test/overflow.cpp -o overflow_test
+      - name: Compile overflow test
+        run: clang++ -fsanitize=address -g src/test/overflow_runner.cpp src/test/overflow.cpp -o overflow_test
 
-     - name: Run overflow test
-       run: ./overflow_test
+      - name: Run overflow test
+        run: ./overflow_test
 
       - uses: actions/cache/save@v4
         if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
