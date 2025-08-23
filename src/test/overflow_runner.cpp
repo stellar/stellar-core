@@ -1,4 +1,4 @@
-#include "overflow.cpp"
+#include "overflow.h"
 
 int main() {
     runOverflowTest();
