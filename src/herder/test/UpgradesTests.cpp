@@ -1115,11 +1115,6 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
         REQUIRE(le);
         std::vector<uint64_t> windowFromLtx =
             le.current().data.configSetting().liveSorobanStateSizeWindow();
-        auto const& cfg = test.getNetworkCfg();
-        std::vector<uint64_t> windowInMemory(
-            cfg.mSorobanStateSizeSnapshots.begin(),
-            cfg.mSorobanStateSizeSnapshots.end());
-        REQUIRE(windowFromLtx == windowInMemory);
         return windowFromLtx;
     };
     auto getAverageStateSize = [&]() {
@@ -1387,17 +1382,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ConfigUpgradeSetFrameConstPtr configUpgradeSet;
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
-                auto& cfg = app->getLedgerManager()
-                                .getMutableSorobanNetworkConfigForApply();
-
                 // Populate sliding window with interesting values
-                auto i = 0;
-                for (auto& val : cfg.mSorobanStateSizeSnapshots)
-                {
-                    val = i++;
-                }
-                cfg.writeLiveSorobanStateSizeWindow(ltx2);
-                cfg.updateSorobanStateSizeAverage();
+                updateStateSizeWindowSetting(ltx2, [](auto& window) {
+                    int i = 0;
+                    for (auto& val : window)
+                    {
+                        val = i++;
+                    }
+                });
 
                 configUpgradeSet =
                     makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(
@@ -1407,42 +1399,53 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 
             REQUIRE(configUpgradeSet);
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+            REQUIRE(sorobanConfig()
+                        .mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize == size);
+        };
+        auto loadWindow = [&]() {
+            LedgerSnapshot ls(*app);
+            LedgerKey key(CONFIG_SETTING);
+            key.configSetting().configSettingID =
+                ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+            return ls.load(key)
+                .current()
+                .data.configSetting()
+                .liveSorobanStateSizeWindow();
         };
 
         SECTION("decrease size")
         {
             auto const newSize = 20;
             populateValuesAndUpgradeSize(newSize);
-            auto const& cfg2 =
-                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
             // Verify that we popped the 10 oldest values
             auto sum = 0;
             auto expectedValue = 10;
-            REQUIRE(cfg2.mSorobanStateSizeSnapshots.size() == newSize);
-            for (auto const val : cfg2.mSorobanStateSizeSnapshots)
+            auto window = loadWindow();
+            REQUIRE(window.size() == newSize);
+            for (auto const val : window)
             {
                 REQUIRE(val == expectedValue);
                 sum += expectedValue;
                 ++expectedValue;
             }
-
             // Verify average has been properly updated as well
-            REQUIRE(cfg2.getAverageSorobanStateSize() == (sum / newSize));
+            REQUIRE(sorobanConfig().getAverageSorobanStateSize() ==
+                    (sum / newSize));
         }
 
         SECTION("increase size")
         {
             auto const newSize = 40;
             populateValuesAndUpgradeSize(newSize);
-            auto const& cfg2 =
-                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
+            auto window = loadWindow();
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
             auto expectedValue = 0;
-            REQUIRE(cfg2.mSorobanStateSizeSnapshots.size() == newSize);
-            for (auto i = 0; i < cfg2.mSorobanStateSizeSnapshots.size(); ++i)
+            REQUIRE(window.size() == newSize);
+            for (auto i = 0; i < window.size(); ++i)
             {
                 // First 11 values should be oldest value (0)
                 if (i > 10)
@@ -1450,28 +1453,37 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                     ++expectedValue;
                 }
 
-                REQUIRE(cfg2.mSorobanStateSizeSnapshots[i] == expectedValue);
+                REQUIRE(window[i] == expectedValue);
                 sum += expectedValue;
             }
-
             // Verify average has been properly updated as well
-            REQUIRE(cfg2.getAverageSorobanStateSize() == (sum / newSize));
+            REQUIRE(sorobanConfig().getAverageSorobanStateSize() ==
+                    (sum / newSize));
         }
 
         auto testUpgradeHasNoEffect = [&](uint32_t size) {
-            uint32_t initialSize;
-            std::deque<uint64_t> initialWindow;
-            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
+                updateStateSizeWindowSetting(ltx2, [](auto& window) {
+                    int i = 0;
+                    for (auto& val : window)
+                    {
+                        val = i++;
+                    }
+                });
+            }
 
-                auto const& cfg =
-                    app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-                initialSize = cfg.mStateArchivalSettings
-                                  .liveSorobanStateSizeWindowSampleSize;
-                initialWindow = cfg.mSorobanStateSizeSnapshots;
-                REQUIRE(initialWindow.size() == initialSize);
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            auto initialWindow = loadWindow();
+            auto initialAverageSize =
+                sorobanConfig().getAverageSorobanStateSize();
+            REQUIRE(sorobanConfig()
+                        .mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize ==
+                    initialWindow.size());
 
+            {
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
                 configUpgradeSet =
                     makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(
                         *app, ltx2, size);
@@ -1480,12 +1492,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 
             REQUIRE(configUpgradeSet);
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+            REQUIRE(loadWindow() == initialWindow);
 
-            auto const& cfg =
-                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-            REQUIRE(cfg.mStateArchivalSettings
-                        .liveSorobanStateSizeWindowSampleSize == initialSize);
-            REQUIRE(cfg.mSorobanStateSizeSnapshots == initialWindow);
+            REQUIRE(sorobanConfig()
+                        .mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize ==
+                    initialWindow.size());
+            REQUIRE(sorobanConfig().getAverageSorobanStateSize() ==
+                    initialAverageSize);
         };
 
         SECTION("upgrade size to 0")
@@ -2725,7 +2739,7 @@ TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades][acceptance]")
     REQUIRE(metaFrameCount == 2);
 }
 
-TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
+TEST_CASE("configuration initialized in version upgrade", "[soroban][upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -2759,13 +2773,9 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     REQUIRE(networkConfig.getAverageSorobanStateSize() == blSize);
 
     // Check in memory window
-    auto const& inMemoryWindow = networkConfig.mSorobanStateSizeSnapshots;
-    REQUIRE(inMemoryWindow.size() ==
+    REQUIRE(networkConfig.stateArchivalSettings()
+                .liveSorobanStateSizeWindowSampleSize ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
-    for (auto const& e : inMemoryWindow)
-    {
-        REQUIRE(e == blSize);
-    }
 
     // Check LedgerEntry with window
     auto onDiskWindow = ltx.load(getliveSorobanStateSizeWindowKey())
@@ -3794,7 +3804,7 @@ TEST_CASE("protocol 23 upgrade sets default SCP timing values", "[upgrades]")
     REQUIRE(scpDriver.computeTimeout(5, true) == nomTimeout5);
 }
 
-TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
+TEST_CASE("upgrade state size window", "[bucketlist][upgrades][soroban]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig());

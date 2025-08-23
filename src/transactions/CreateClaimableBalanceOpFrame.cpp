@@ -140,11 +140,10 @@ CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-CreateClaimableBalanceOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+CreateClaimableBalanceOpFrame::doApply(AppConnector& app,
+                                       AbstractLedgerTxn& ltx,
+                                       OperationResult& res,
+                                       OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "CreateClaimableBalanceOpFrame apply", true);
 

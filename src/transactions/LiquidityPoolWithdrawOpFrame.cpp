@@ -29,11 +29,9 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                      OperationResult& res,
+                                      OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
 

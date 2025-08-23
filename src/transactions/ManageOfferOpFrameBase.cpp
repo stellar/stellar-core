@@ -212,11 +212,9 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
 }
 
 bool
-ManageOfferOpFrameBase::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltxOuter,
-    Hash const& sorobanBasePrngSeed, OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
+                                OperationResult& res,
+                                OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ManageOfferOp apply", true);
     std::string pairStr = assetToString(mSheep);

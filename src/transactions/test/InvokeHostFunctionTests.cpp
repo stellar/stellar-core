@@ -944,7 +944,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxDiskReadEntries;
         cfg.mTxMaxFootprintEntries = (cfg.mTxMaxDiskReadEntries * 2) + 10;
     });
-    auto const& cfg = test.getNetworkCfg();
+    auto cfg = test.getNetworkCfg();
 
     auto& addContract =
         test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
@@ -1469,7 +1469,12 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
     int64_t const baseSizeFee = 16'352;
     int64_t const baseTxFee = baseHistoricalFee + baseSizeFee;
     uint32_t const minInclusionFee = 100;
-    uint32_t const writeFee = 5000;
+    /// We're using specifically 1000 here because that's also the minimum rent
+    // write fee set in Soroban host. Thus this will be the write fee for
+    // protocols before 23 (because the bucket list is small enough to fall back
+    // to the minimum fee), and in protocols 23 and later we just set this
+    // value for the flat rate write fee.
+    uint32_t const writeFee = 1000;
 
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1515,16 +1520,15 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
             auto validTx =
                 makeTx(resources, minInclusionFee, expectedNonRefundableFee);
             auto& app = test.getApp();
+            auto config =
+                app.getLedgerManager().getLastClosedSorobanNetworkConfig();
             // Sanity check the tx fee computation logic.
-            auto actualFeePair =
-                validTx->getRawTransactionFrame()
-                    .computePreApplySorobanResourceFee(
-                        app.getLedgerManager()
-                            .getLastClosedLedgerHeader()
-                            .header.ledgerVersion,
-                        app.getLedgerManager()
-                            .getLastClosedSorobanNetworkConfig(),
-                        app.getConfig());
+            auto actualFeePair = validTx->getRawTransactionFrame()
+                                     .computePreApplySorobanResourceFee(
+                                         app.getLedgerManager()
+                                             .getLastClosedLedgerHeader()
+                                             .header.ledgerVersion,
+                                         config, app.getConfig());
             REQUIRE(expectedNonRefundableFee ==
                     actualFeePair.non_refundable_fee);
 
@@ -1547,25 +1551,25 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
 
         // In the following tests, we isolate a single fee to test by zeroing
         // out every other resource, as much as is possible
-        SECTION("tx size fees")
         {
+            INFO("tx size fees");
             SorobanResources resources;
             checkFees(resources, baseTxFee);
         }
-        SECTION("compute fee")
         {
+            INFO("compute fee");
             SorobanResources resources;
             resources.instructions = 12'345'678;
             checkFees(resources, 1'234'568 + baseTxFee);
         }
 
-        SECTION("footprint entries")
         {
+            INFO("footprint entries");
             // Fee for additonal 6 footprint entries (6 * 36 = 216 bytes)
             // ceil(216 * 6000 / 1024) + ceil(216 * 8000 / 1024) == 2954
             const int64_t additionalTxSizeFee = 2954;
-            SECTION("RO only")
             {
+                INFO("RO only");
                 SorobanResources resources;
                 LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
                 for (uint8_t i = 0; i < 6; ++i)
@@ -1583,8 +1587,8 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
                 }
                 checkFees(resources, expectedFee);
             }
-            SECTION("RW only")
             {
+                INFO("RW only");
                 SorobanResources resources;
                 LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
                 for (uint8_t i = 0; i < 6; ++i)
@@ -1603,8 +1607,8 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
                 }
                 checkFees(resources, expectedFee);
             }
-            SECTION("RW and RO")
             {
+                INFO("RW and RO");
                 SorobanResources resources;
                 LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
                 for (uint8_t i = 0; i < 3; ++i)
@@ -1631,31 +1635,17 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
             }
         }
 
-        // Prior to protocol 23 `mFeeRent1KB` was also used as the regular
-        // write fee.
-        if (protocolVersionIsBefore(test.getLedgerVersion(),
-                                    ProtocolVersion::V_23))
         {
-            // Since mFeeWrite1KB is based on the BucketList size sliding
-            // window, we
-            // must explicitly override the in-memory cached value after
-            // initializing the test.
-            test.getApp().getLedgerManager().mutateSorobanNetworkConfigForApply(
-                [&](SorobanNetworkConfig& cfg) { cfg.mFeeRent1KB = 5000; });
-        }
-
-        SECTION("readBytes fee")
-        {
+            INFO("readBytes fee");
             SorobanResources resources;
             resources.diskReadBytes = 5 * 1024 + 1;
             checkFees(resources, 20'004 + baseTxFee);
         }
-
-        SECTION("writeBytes fee")
         {
+            INFO("writeBytes fee");
             SorobanResources resources;
             resources.writeBytes = 5 * 1024 + 1;
-            checkFees(resources, 25'005 + baseTxFee);
+            checkFees(resources, 5001 + baseTxFee);
         }
     });
 }
@@ -2609,7 +2599,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
 TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
 {
     SorobanTest test;
-    auto const& cfg = test.getNetworkCfg();
+    auto cfg = test.getNetworkCfg();
     ContractStorageTestClient client(test);
 
     auto failedRestoreOp = [&](LedgerKey const& lk) {
@@ -2925,7 +2915,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             cfg.mRentFee1KBSorobanStateSizeLow = 20'000;
             cfg.mRentFee1KBSorobanStateSizeHigh = 1'000'000;
         });
-        auto const& stateArchivalSettings =
+        auto stateArchivalSettings =
             test.getNetworkCfg().stateArchivalSettings();
         auto isSuccess = [](auto resultCode) {
             return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
@@ -4395,8 +4385,7 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
 
     SorobanTest test(cfg);
     ContractStorageTestClient client(test);
-    auto const& stateArchivalSettings =
-        test.getNetworkCfg().stateArchivalSettings();
+    auto stateArchivalSettings = test.getNetworkCfg().stateArchivalSettings();
 
     REQUIRE(client.resizeStorageAndExtend("k1", 5, 0, 0) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
@@ -4550,9 +4539,9 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
     auto test = [](bool evict) {
         auto cfg = getTestConfig();
         SorobanTest test(cfg, true, [evict](SorobanNetworkConfig& cfg) {
-            cfg.stateArchivalSettings().startingEvictionScanLevel =
+            cfg.mStateArchivalSettings.startingEvictionScanLevel =
                 evict ? 1 : 5;
-            cfg.stateArchivalSettings().minPersistentTTL =
+            cfg.mStateArchivalSettings.minPersistentTTL =
                 MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
         });
 
@@ -5093,7 +5082,7 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
-        cfg.stateArchivalSettings().minPersistentTTL =
+        cfg.mStateArchivalSettings.minPersistentTTL =
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         // Never snapshot bucket list so we have stable rent fees
@@ -5295,7 +5284,7 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
-        cfg.stateArchivalSettings().minPersistentTTL =
+        cfg.mStateArchivalSettings.minPersistentTTL =
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         cfg.mRentFee1KBSorobanStateSizeLow = 20'000;
@@ -8669,7 +8658,7 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
     auto& root = test.getRoot();
     const int64_t startingBalance = lm.getLastMinBalance(50);
 
-    auto const& sorobanConfig = lm.getMutableSorobanNetworkConfigForApply();
+    auto sorobanConfig = lm.getLastClosedSorobanNetworkConfig();
     std::vector<TestAccount> accounts;
     for (size_t i = 0; i < sorobanConfig.ledgerMaxTxCount(); ++i)
     {
@@ -9267,9 +9256,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
           "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
-    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
-        cfg.stateArchivalSettings().minPersistentTTL = 100;
-        cfg.stateArchivalSettings().maxEntriesToArchive = 100;
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mStateArchivalSettings.minPersistentTTL = 100;
+        sorobanCfg.mStateArchivalSettings.maxEntriesToArchive = 100;
     });
 
     ContractStorageTestClient client(test);
@@ -9665,15 +9654,15 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
-        cfg.stateArchivalSettings().minPersistentTTL =
+    SorobanTest test(cfg, true, [](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mStateArchivalSettings.minPersistentTTL =
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-        cfg.mStateArchivalSettings.startingEvictionScanLevel = 1;
-        cfg.mStateArchivalSettings.evictionScanSize = 1'000'000;
+        sorobanCfg.mStateArchivalSettings.startingEvictionScanLevel = 1;
+        sorobanCfg.mStateArchivalSettings.evictionScanSize = 1'000'000;
 
         // Never snapshot bucket list so we have stable rent fees
-        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
-            10'000;
+        sorobanCfg.mStateArchivalSettings
+            .liveSorobanStateSizeWindowSamplePeriod = 10'000;
     });
 
     // Deploy two separate contracts

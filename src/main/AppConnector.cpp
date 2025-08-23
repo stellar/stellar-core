@@ -53,12 +53,6 @@ AppConnector::getLastClosedSorobanNetworkConfig() const
     return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 }
 
-SorobanNetworkConfig const&
-AppConnector::getSorobanNetworkConfigForApply() const
-{
-    return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
-}
-
 medida::MetricsRegistry&
 AppConnector::getMetrics() const
 {

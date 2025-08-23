@@ -939,7 +939,7 @@ class FuzzTransactionFrame : public TransactionFrame
                 DiagnosticEventManager::createForValidation(app.getConfig());
             return !op->checkValid(
                 app.getAppConnector(), signatureChecker,
-                app.getAppConnector().getLastClosedSorobanNetworkConfig(),
+                &app.getAppConnector().getLastClosedSorobanNetworkConfig(),
                 ltxStmt, false, opResult, diagnostics);
         };
 
@@ -963,8 +963,10 @@ class FuzzTransactionFrame : public TransactionFrame
         TransactionMetaBuilder tm(true, *this,
                                   ltx.loadHeader().current().ledgerVersion,
                                   app.getAppConnector());
+        std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
+        Hash sorobanRngSeed;
         applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
-                        *mTxResult, Hash{});
+                        *mTxResult, sorobanNetworkConfig, sorobanRngSeed);
         if (mTxResult->getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");
