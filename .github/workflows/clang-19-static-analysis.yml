@@ -14,14 +14,15 @@ on:
 jobs:
   clang-19-compile:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        protocol: ["current", "next"]
+
     env:
       CACHED_PATHS: |
         ~/.cargo
         target
-    strategy:
-      fail-fast: false
-    matrix:
-      protocol: ["current", "next"]
 
     steps:
       - name: Checkout repository
@@ -47,41 +48,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-clang-19-${{ matrix.protocol }}
 
-      - name: Checkout (with submodules)
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 200
-          submodules: true
-
-      - name: Install core packages
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
-
-      - name: Install clang-19
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get -y install clang-19 llvm-19
-
-      - name: Install dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get -y install libc++-19-dev libc++abi-19-dev
-          sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel sed perl ccache
+          sudo apt-get install -y autoconf automake libtool clang-19 llvm-19 \
+            libc++-19-dev libc++abi-19-dev build-essential pkg-config \
+            postgresql libpq-dev bison flex parallel sed perl ccache \
+            rustup
 
       - name: Install rustup components
-        if: steps.cache.outputs.cache-hit != 'true'
         run: rustup component add rustfmt
 
-      - name: Install cargo-cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-cache --version 0.8.3
-
-      - name: Install cargo-sweep
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-sweep --version 0.7.0
+      - name: Install cargo tools
+        run: |
+          cargo install --locked cargo-cache --version 0.8.3
+          cargo install --locked cargo-sweep --version 0.7.0
 
       - name: Generate build system
         run: autoreconf -i
@@ -93,7 +74,6 @@ jobs:
         run: make
 
       - name: Build with ci-build.sh
-        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           export CC='clang'
           export CXX='clang++'
