@@ -4,6 +4,7 @@ bin_PROGRAMS =
 SUBDIRS = lib src
 AM_EXTRA_RECURSIVE_TARGETS = check-valgrind
 ACLOCAL_AMFLAGS = -I m4
+AM_CPPFLAGS = -Isrc/report
 
 dist_doc_DATA = docs/stellar-core_example.cfg			\
 	docs/stellar-core_standalone.cfg			\
