@@ -42,6 +42,7 @@
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
+#include <stdexcept>
 
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"
@@ -1872,15 +1873,20 @@ applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
             mode = ApplyLoadMode::MIX;
             return "";
         }
-        return "Unrecognized apply-load mode. Please select 'soroban' or "
-               "'classic' or 'mix'.";
+        if (iequals(modeArg, "max_sac_tps"))
+        {
+            mode = ApplyLoadMode::MAX_SAC_TPS;
+            return "";
+        }
+        return "Unrecognized apply-load mode. Please select 'soroban', "
+               "'classic', 'mix', or 'max_sac_tps'.";
     };
 
-    return {
-        clara::Opt{modeArg, "MODE"}["--mode"](
-            "set the apply-load mode. Expected modes: soroban, classic, mix. "
-            "Defaults to soroban."),
-        validateMode};
+    return {clara::Opt{modeArg, "MODE"}["--mode"](
+                "set the apply-load mode. Expected modes: soroban, classic, "
+                "mix, max_sac_tps. "
+                "Defaults to soroban."),
+            validateMode};
 }
 
 int
@@ -1902,11 +1908,35 @@ runApplyLoad(CommandLineArgs const& args)
             config.LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
-            TmpDirManager tdm(std::string("soroban-storage-meta-"));
-            TmpDir td = tdm.tmpDir("soroban-meta-ok");
-            std::string metaPath = td.getName() + "/stream.xdr";
+            if (mode == ApplyLoadMode::MAX_SAC_TPS)
+            {
+                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >=
+                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+                {
+                    throw std::runtime_error(
+                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must be less than "
+                        "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
+                }
 
-            config.METADATA_OUTPUT_STREAM = metaPath;
+                // We reuse accounts in max TPS tests, so we just need enough
+                // for a single ledger's worth of TXs
+                config.APPLY_LOAD_NUM_ACCOUNTS =
+                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
+                    (config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS /
+                     1000) *
+                    2;
+
+                config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+            }
+
+            if (mode != ApplyLoadMode::MAX_SAC_TPS)
+            {
+                TmpDirManager tdm(std::string("soroban-storage-meta-"));
+                TmpDir td = tdm.tmpDir("soroban-meta-ok");
+                std::string metaPath = td.getName() + "/stream.xdr";
+
+                config.METADATA_OUTPUT_STREAM = metaPath;
+            }
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto appPtr = Application::create(clock, config);
@@ -1939,6 +1969,16 @@ runApplyLoad(CommandLineArgs const& args)
                     {"soroban", "host-fn-op",
                      "ledger-cpu-insns-ratio-excl-vm"});
                 ledgerCpuInsRatioExclVm.Clear();
+
+                auto& totalTxApplyTime = app.getMetrics().NewTimer(
+                    {"ledger", "transaction", "total-apply"});
+                totalTxApplyTime.Clear();
+
+                if (mode == ApplyLoadMode::MAX_SAC_TPS)
+                {
+                    al.findMaxSacTps();
+                    return 0;
+                }
 
                 if (config.APPLY_LOAD_NUM_LEDGERS == 0)
                 {

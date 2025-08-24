@@ -1065,3 +1065,39 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     CLOG_INFO(Perf, "Write entry utilization {}%",
               al.getWriteEntryUtilization().mean() / 1000.0);
 }
+
+TEST_CASE("basic MAX_SAC_TPS functionality", "[loadgen][applyload][acceptance]")
+{
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+
+    // Configure test parameters for MAX_SAC_TPS mode
+    cfg.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+    cfg.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 200;
+    cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 220;
+    cfg.APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS = 2;
+    cfg.APPLY_LOAD_NUM_ACCOUNTS = 500;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app, ApplyLoadMode::MAX_SAC_TPS);
+
+    // Run the MAX_SAC_TPS test
+    al.findMaxSacTps();
+
+    // Verify that we actually applied something in parallel
+    auto& maxClustersMetric = app->getMetrics().NewCounter(
+        {"ledger", "apply-soroban", "max-clusters"});
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+
+    REQUIRE(maxClustersMetric.count() ==
+            cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
+    REQUIRE(successCountMetric.count() > 200);
+}

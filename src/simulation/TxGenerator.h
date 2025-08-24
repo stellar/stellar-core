@@ -88,6 +88,9 @@ struct SorobanUpgradeConfig
 class TxGenerator
 {
   public:
+    // Instructions per SAC transaction
+    static constexpr uint64_t SAC_TX_INSTRUCTIONS = 250'000;
+
     // Special account ID to represent the root account
     static uint64_t const ROOT_ACCOUNT_ID;
 
