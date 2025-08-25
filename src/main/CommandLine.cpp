@@ -1926,6 +1926,7 @@ runApplyLoad(CommandLineArgs const& args)
                      1000) *
                     2;
 
+                // Apply Load may exceed TX_SET byte size limits, so ignore them
                 config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
             }
 

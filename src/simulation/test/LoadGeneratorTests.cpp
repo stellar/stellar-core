@@ -1066,7 +1066,8 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
               al.getWriteEntryUtilization().mean() / 1000.0);
 }
 
-TEST_CASE("basic MAX_SAC_TPS functionality", "[loadgen][applyload][acceptance]")
+TEST_CASE("basic MAX_SAC_TPS functionality",
+          "[loadgen][applyload][soroban][acceptance]")
 {
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;

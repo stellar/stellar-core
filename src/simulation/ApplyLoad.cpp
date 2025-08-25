@@ -171,9 +171,8 @@ ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
         totalInstructions /
         mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
 
-    // Add a 5% buffer to ensure all transactions can fit
-    instructionsPerCluster =
-        static_cast<uint64_t>(instructionsPerCluster * 1.05);
+    // Ensure all transactions can fit
+    instructionsPerCluster += TxGenerator::SAC_TX_INSTRUCTIONS - 1;
 
     auto upgradeConfig = getUpgradeConfigForMaxTPS(
         mApp.getConfig(), instructionsPerCluster, txsToGenerate);
@@ -953,6 +952,8 @@ ApplyLoad::findMaxSacTps()
     uint32_t minTps = mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS;
     uint32_t maxTps = mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS;
     uint32_t bestTps = 0;
+    uint32_t numClusters =
+        mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
     double targetCloseTime =
         mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS;
 
@@ -969,7 +970,11 @@ ApplyLoad::findMaxSacTps()
 
         // Calculate transactions per ledger based on target close time
         uint32_t txsPerLedger = static_cast<uint32_t>(
-            static_cast<double>(testTps) * 1000.0 / targetCloseTime);
+            static_cast<double>(testTps) * (targetCloseTime / 1000.0));
+
+        // Round down to nearest multiple of cluster count so each cluster has
+        // an even distribution
+        txsPerLedger = (txsPerLedger / numClusters) * numClusters;
         CLOG_WARNING(Perf, "Testing {} TPS with {} TXs per ledger.", testTps,
                      txsPerLedger);
 
@@ -980,13 +985,13 @@ ApplyLoad::findMaxSacTps()
         if (avgCloseTime <= targetCloseTime)
         {
             bestTps = testTps;
-            minTps = testTps + 1;
+            minTps = testTps + numClusters;
             CLOG_WARNING(Perf, "Success: {} TPS (avg total tx apply: {:.2f}ms)",
                          testTps, avgCloseTime);
         }
         else
         {
-            maxTps = testTps - 1;
+            maxTps = testTps - numClusters;
             CLOG_WARNING(Perf, "Failed: {} TPS (avg total tx apply: {:.2f}ms)",
                          testTps, avgCloseTime);
         }
