@@ -1270,7 +1270,11 @@ HerderImpl::setupTriggerNextLedger()
             VirtualClock::from_time_t(*externalizedCloseTime);
         auto currentSystemTime = mApp.getClock().system_now();
         auto timeSinceExternalized = currentSystemTime - externalizedSystemTime;
-        lastLedgerStatingPoint = now - timeSinceExternalized;
+        // Choose the later starting point, resulting in the fastest next
+        // ledger trigger. This protects against malicious externalize messages
+        // or clock drift.
+        lastLedgerStatingPoint =
+            std::max(now - timeSinceExternalized, lastLedgerStatingPoint);
     }
     else
 #endif
