@@ -671,9 +671,14 @@ TCPPeer::getIncomingMsgLength()
     length |= header[2];
     length <<= 8;
     length |= header[3];
+    bool ignoreLimits = false;
+#ifdef BUILD_TESTS
+    ignoreLimits = mAppConnector.getConfig().IGNORE_MESSAGE_LIMITS_FOR_TESTING;
+#endif
     if (length <= 0 ||
-        (!isAuthenticated(guard) && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
-        length > MAX_MESSAGE_SIZE)
+        (!ignoreLimits &&
+         ((!isAuthenticated(guard) && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
+          length > MAX_MESSAGE_SIZE)))
     {
         mOverlayMetrics.mErrorRead.Mark();
         CLOG_ERROR(Overlay, "{} TCP: message size unacceptable: {}{}",
