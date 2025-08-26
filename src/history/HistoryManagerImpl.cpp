@@ -208,7 +208,7 @@ HistoryManagerImpl::dropSQLBasedPublish()
             sess.session(), firstLedgerInCheckpointContaining(lcl, cfg), freq,
             mCheckpointBuilder);
     }
-    db.clearPreparedStatementCache(sess);
+    db.clearPreparedStatementCache(sess, false);
 
     // Now it's safe to drop obsolete SQL tables
     sess.session() << "DROP TABLE IF EXISTS publishqueue;";

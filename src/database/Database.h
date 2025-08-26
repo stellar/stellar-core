@@ -163,7 +163,9 @@ class Database : NonMovableOrCopyable
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
-    void clearPreparedStatementCache(SessionWrapper& session);
+    // `assertOnlySession` asserts that no other DB sessions are using the cache
+    void clearPreparedStatementCache(SessionWrapper& session,
+                                     bool assertOnlySession);
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
