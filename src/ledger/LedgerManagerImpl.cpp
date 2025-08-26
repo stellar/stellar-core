@@ -1366,6 +1366,10 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
         return;
     }
 #endif
+
+    mApp.getDatabase().clearPreparedStatementCache(
+        mApp.getDatabase().getSession());
+
     // Perform LCL->appliedLedgerState transition on the _main_ thread, and kick
     // off publishing, cleanup bucket files, notify herder to trigger next
     // ledger.

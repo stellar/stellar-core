@@ -197,7 +197,7 @@ Database::open()
 {
     mSession.session().open(mApp.getConfig().DATABASE.value);
     DatabaseConfigureSessionOp op(mSession.session());
-    doDatabaseTypeSpecificOperation(op, mSession);
+    doDatabaseTypeSpecificOperation(mSession, op);
 }
 
 void
@@ -419,21 +419,6 @@ Database::canUsePool() const
 }
 
 void
-Database::clearPreparedStatementCache()
-{
-    std::lock_guard<std::mutex> lock(mStatementsMutex);
-    for (auto& c : mCaches)
-    {
-        for (auto& st : c.second)
-        {
-            st.second->clean_up(true);
-        }
-    }
-    mCaches.clear();
-    mStatementsSize.set_count(0);
-}
-
-void
 Database::clearPreparedStatementCache(SessionWrapper& session)
 {
     std::lock_guard<std::mutex> lock(mStatementsMutex);
@@ -451,7 +436,7 @@ Database::clearPreparedStatementCache(SessionWrapper& session)
 void
 Database::initialize()
 {
-    clearPreparedStatementCache();
+    clearPreparedStatementCache(mSession);
     if (isSqlite())
     {
         // delete the sqlite file directly if possible

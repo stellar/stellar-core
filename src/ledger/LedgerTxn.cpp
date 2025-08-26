@@ -3610,7 +3610,11 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
         {
             mTransaction->rollback();
             mTransaction.reset();
-            mSession.reset();
+            if (mSession)
+            {
+                mApp.getDatabase().clearPreparedStatementCache(*mSession);
+                mSession.reset();
+            }
         }
         catch (std::exception& e)
         {

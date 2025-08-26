@@ -643,7 +643,7 @@ LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
     BulkUpsertOffersOperation op(mApp.getDatabase(), entries, getSession());
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(getSession(), op);
 }
 
 void
@@ -654,7 +654,7 @@ LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
     ZoneValue(static_cast<int64_t>(entries.size()));
     BulkDeleteOffersOperation op(mApp.getDatabase(), cons, entries,
                                  getSession());
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(getSession(), op);
 }
 
 void
@@ -842,7 +842,7 @@ LedgerTxnRoot::Impl::bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const
         BulkLoadOffersOperation op(mApp.getDatabase(), keys, getSession());
         return populateLoadedEntries(
             keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
-                      op, getSession()));
+                      getSession(), op));
     }
     else
     {
