@@ -48,6 +48,7 @@
 #include "util/GlobalChecks.h"
 #include <algorithm>
 #include <ctime>
+#include <limits>
 #include <fmt/format.h>
 
 using namespace std;
@@ -2221,6 +2222,25 @@ HerderImpl::restoreUpgrades()
     }
 }
 
+namespace
+{
+// Safely add txMaxSizeBytes and flow control buffer, preventing overflow
+// that would reduce the effective maximum transaction size.
+uint32_t
+safeAddTxSizeAndBuffer(uint32_t txMaxSizeBytes, uint32_t flowControlBuffer)
+{
+    // Check if addition would overflow
+    if (txMaxSizeBytes > std::numeric_limits<uint32_t>::max() - flowControlBuffer)
+    {
+        // Overflow would occur, return the larger of the two values
+        // This preserves the intent of allowing maximum transaction size
+        return txMaxSizeBytes;
+    }
+    // Safe to add
+    return txMaxSizeBytes + flowControlBuffer;
+}
+}
+
 void
 HerderImpl::maybeHandleUpgrade()
 {
@@ -2240,7 +2260,7 @@ HerderImpl::maybeHandleUpgrade()
             mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 
         auto maybeNewMaxTxSize =
-            conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
+            safeAddTxSizeAndBuffer(conf.txMaxSizeBytes(), getFlowControlExtraBuffer());
         if (maybeNewMaxTxSize > mMaxTxSize)
         {
             diff = maybeNewMaxTxSize - mMaxTxSize;
@@ -2290,8 +2310,8 @@ HerderImpl::start()
         {
             auto const& conf =
                 mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
-            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
-                                                  getFlowControlExtraBuffer());
+            mMaxTxSize = std::max(mMaxTxSize, 
+                                  safeAddTxSizeAndBuffer(conf.txMaxSizeBytes(), getFlowControlExtraBuffer()));
         }
 
         maybeSetupSorobanQueue(version);
