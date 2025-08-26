@@ -163,8 +163,9 @@ class Database : NonMovableOrCopyable
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
-    void clearPreparedStatementCache(SessionWrapper& session);
-    void clearPreparedStatementCache();
+    // `assertOnlySession` asserts that no other DB sessions are using the cache
+    void clearPreparedStatementCache(SessionWrapper& session,
+                                     bool assertOnlySession);
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
@@ -192,8 +193,8 @@ class Database : NonMovableOrCopyable
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
-    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
-                                      SessionWrapper& session);
+    T doDatabaseTypeSpecificOperation(SessionWrapper& session,
+                                      DatabaseTypeSpecificOperation<T>& op);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -248,8 +249,8 @@ doDatabaseTypeSpecificOperation(soci::session& session,
 
 template <typename T>
 T
-Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
-                                          SessionWrapper& session)
+Database::doDatabaseTypeSpecificOperation(SessionWrapper& session,
+                                          DatabaseTypeSpecificOperation<T>& op)
 {
     return stellar::doDatabaseTypeSpecificOperation(session.session(), op);
 }

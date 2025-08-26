@@ -197,13 +197,13 @@ Database::open()
 {
     mSession.session().open(mApp.getConfig().DATABASE.value);
     DatabaseConfigureSessionOp op(mSession.session());
-    doDatabaseTypeSpecificOperation(op, mSession);
+    doDatabaseTypeSpecificOperation(mSession, op);
 }
 
 void
 Database::applySchemaUpgrade(unsigned long vers)
 {
-    clearPreparedStatementCache(mSession);
+    clearPreparedStatementCache(mSession, true);
 
     soci::transaction tx(mSession.session());
     switch (vers)
@@ -419,24 +419,19 @@ Database::canUsePool() const
 }
 
 void
-Database::clearPreparedStatementCache()
+Database::clearPreparedStatementCache(SessionWrapper& session,
+                                      bool assertOnlySession)
 {
     std::lock_guard<std::mutex> lock(mStatementsMutex);
-    for (auto& c : mCaches)
+
+    if (assertOnlySession)
     {
-        for (auto& st : c.second)
+        releaseAssert(mCaches.size() <= 1);
+        if (mCaches.size() == 1)
         {
-            st.second->clean_up(true);
+            releaseAssert(mCaches.begin()->first == session.getSessionName());
         }
     }
-    mCaches.clear();
-    mStatementsSize.set_count(0);
-}
-
-void
-Database::clearPreparedStatementCache(SessionWrapper& session)
-{
-    std::lock_guard<std::mutex> lock(mStatementsMutex);
 
     // Flush all prepared statements; in sqlite they represent open cursors
     // and will conflict with any DROP TABLE commands issued below
@@ -451,7 +446,7 @@ Database::clearPreparedStatementCache(SessionWrapper& session)
 void
 Database::initialize()
 {
-    clearPreparedStatementCache();
+    clearPreparedStatementCache(mSession, true);
     if (isSqlite())
     {
         // delete the sqlite file directly if possible

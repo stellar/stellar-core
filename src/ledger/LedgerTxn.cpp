@@ -2837,7 +2837,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
         // committing; on postgres this doesn't matter but on SQLite the passive
         // WAL-auto-checkpointing-at-commit behaviour will starve if there are
         // still prepared statements open at commit time.
-        mApp.getDatabase().clearPreparedStatementCache(getSession());
+        mApp.getDatabase().clearPreparedStatementCache(getSession(), false);
         ZoneNamedN(commitZone, "SOCI commit", true);
         mTransaction->commit();
     }
@@ -3610,7 +3610,12 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
         {
             mTransaction->rollback();
             mTransaction.reset();
-            mSession.reset();
+            if (mSession)
+            {
+                mApp.getDatabase().clearPreparedStatementCache(*mSession,
+                                                               false);
+                mSession.reset();
+            }
         }
         catch (std::exception& e)
         {
