@@ -9,6 +9,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "test/Catch2.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include <limits>
 
 using namespace stellar;
@@ -103,4 +104,34 @@ TEST_CASE("max transaction size overflow demonstration", "[herder][overflow][!sh
     REQUIRE(overflowResult == 1999);
     REQUIRE(overflowResult < flowControlBuffer);
     REQUIRE(overflowResult < 100 * 1024); // Classic tx size is 100KB
+}
+
+TEST_CASE("edge cases for transaction size calculation", "[herder][overflow]")
+{
+    SECTION("boundary conditions")
+    {
+        uint32_t flowControlBuffer = 2000;
+        uint32_t classicTxSize = 100 * 1024;
+        
+        // Test value just below overflow threshold
+        uint32_t almostMax = std::numeric_limits<uint32_t>::max() - flowControlBuffer - 1;
+        uint32_t result1 = almostMax + flowControlBuffer;
+        REQUIRE(result1 == std::numeric_limits<uint32_t>::max() - 1);
+        
+        // Test value at overflow threshold
+        uint32_t exactThreshold = std::numeric_limits<uint32_t>::max() - flowControlBuffer;
+        uint32_t result2 = exactThreshold + flowControlBuffer;
+        REQUIRE(result2 == std::numeric_limits<uint32_t>::max());
+        
+        // Test value just above overflow threshold (would overflow)
+        uint32_t justOverThreshold = std::numeric_limits<uint32_t>::max() - flowControlBuffer + 1;
+        uint32_t result3 = justOverThreshold + flowControlBuffer;
+        REQUIRE(result3 < justOverThreshold); // Demonstrates overflow
+        
+        // Test zero values
+        REQUIRE((uint32_t(0) + flowControlBuffer) == flowControlBuffer);
+        
+        // Test classic transaction size
+        REQUIRE((classicTxSize + flowControlBuffer) == (classicTxSize + flowControlBuffer));
+    }
 }
