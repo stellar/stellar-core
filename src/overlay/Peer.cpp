@@ -35,6 +35,7 @@
 
 #include "medida/meter.h"
 #include "medida/timer.h"
+#include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <chrono>
 #include <fmt/format.h>
@@ -79,22 +80,26 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
     // FeeBumpTransactionFrame
     auto const sourceAccount = ledgerSnapshot.getAccount(tx->getFeeSourceID());
 
-    // Check signature, which will add the result to the signature cache. This
-    // is safe to do here (pre-validation) because:
-    // 1. The signatures themselves are fixed and cannot change, and
-    // 2. In the unlikely case that the account's signers or thresholds have
-    //    changed (and we haven't heard of it yet), the validation and apply
-    //    functions still contain `checkSignature` calls, which will cause a
-    //    cache miss in that case and force a recheck of the signatures with
-    //    up-to-date signers/thresholds.
-    //
-    // Note that we always use a threshold of HIGH for the signatures to ensure
-    // we check all signatures for any possible operation that may be in the
-    // transaction. Performance analysis has shown that the overlay thread
-    // contains significant extra capacity and can handle this extra load.
-    tx->checkSignature(
-        signatureChecker, sourceAccount,
-        sourceAccount.current().data.account().thresholds[THRESHOLD_HIGH]);
+    if (sourceAccount)
+    {
+        // Check signature, which will add the result to the signature cache.
+        // This is safe to do here (pre-validation) because:
+        // 1. The signatures themselves are fixed and cannot change, and
+        // 2. In the unlikely case that the account's signers or thresholds have
+        //    changed (and we haven't heard of it yet), the validation and apply
+        //    functions still contain `checkSignature` calls, which will cause a
+        //    cache miss in that case and force a recheck of the signatures with
+        //    up-to-date signers/thresholds.
+        //
+        // Note that we always use a threshold of HIGH for the signatures to
+        // ensure we check all signatures for any possible operation that may be
+        // in the transaction. Performance analysis has shown that the overlay
+        // thread contains significant extra capacity and can handle this extra
+        // load.
+        tx->checkSignature(
+            signatureChecker, sourceAccount,
+            sourceAccount.current().data.account().thresholds[THRESHOLD_HIGH]);
+    }
 }
 } // namespace
 
@@ -1676,8 +1681,9 @@ Peer::recvError(StellarMessage const& msg)
     std::string msgStr;
     msgStr.reserve(msg.error().msg.size());
     std::transform(msg.error().msg.begin(), msg.error().msg.end(),
-                   std::back_inserter(msgStr),
-                   [](char c) { return (isalnum(c) || c == ' ') ? c : '*'; });
+                   std::back_inserter(msgStr), [](char c) {
+                       return (isAsciiAlphaNumeric(c) || c == ' ') ? c : '*';
+                   });
 
     drop(fmt::format(FMT_STRING("{} ({})"), codeStr, msgStr),
          Peer::DropDirection::REMOTE_DROPPED_US);

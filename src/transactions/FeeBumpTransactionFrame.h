@@ -117,6 +117,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     TransactionEnvelope const& getEnvelope() const override;
 
+    bool validateSorobanMemoForFlooding() const override;
+
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;
     int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,

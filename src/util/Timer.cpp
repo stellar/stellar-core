@@ -156,23 +156,13 @@ VirtualClock::tmToSystemPoint(tm t)
 std::tm
 VirtualClock::isoStringToTm(std::string const& iso)
 {
-    std::tm res;
-    int y, M, d, h, m, s;
-    if (std::sscanf(iso.c_str(), "%d-%d-%dT%d:%d:%dZ", &y, &M, &d, &h, &m,
-                    &s) != 6)
+    std::tm res{};
+    std::istringstream ss(iso);
+    ss >> std::get_time(&res, "%Y-%m-%dT%H:%M:%SZ");
+    if (!ss)
     {
         throw std::invalid_argument("Could not parse iso date");
     }
-    std::memset(&res, 0, sizeof(res));
-    res.tm_year = y - 1900;
-    res.tm_mon = M - 1;
-    res.tm_mday = d;
-    res.tm_hour = h;
-    res.tm_min = m;
-    res.tm_sec = s;
-    res.tm_isdst = 0;
-    res.tm_wday = 0;
-    res.tm_yday = 0;
     return res;
 }
 

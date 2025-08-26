@@ -374,7 +374,7 @@ checkQuorumIntersectionInner(
         }
     }
 
-    QuorumCheckerResource usage;
+    QuorumCheckerResource usage{0, 0};
     try
     {
         QuorumCheckerStatus status;
@@ -483,10 +483,52 @@ runQuorumIntersectionCheckAsync(
         fmt::format("{}/result.json", tmpDirName)); // for result
 
     auto qmapJson = toQuorumMapJson(qmap);
+    bool wroteQuorumMapFile = false;
     std::ofstream out(quorumMapFile);
-    out << qmapJson;
-    out.flush();
-    out.close();
+    if (out.is_open())
+    {
+        out << qmapJson;
+        if (out.fail())
+        {
+            CLOG_ERROR(SCP, "Failed to write quorum map file: {}",
+                       quorumMapFile);
+        }
+        else
+        {
+            out.flush();
+            if (out.fail())
+            {
+                CLOG_ERROR(SCP, "Failed to flush quorum map file: {}",
+                           quorumMapFile);
+            }
+            else
+            {
+                out.close();
+                if (out.fail())
+                {
+                    CLOG_ERROR(SCP, "Failed to close quorum map file: {}",
+                               quorumMapFile);
+                }
+                else
+                {
+                    wroteQuorumMapFile = true;
+                }
+            }
+        }
+    }
+    else
+    {
+        CLOG_ERROR(SCP, "Failed to open quorum map file: {}", quorumMapFile);
+    }
+    if (!wroteQuorumMapFile)
+    {
+        auto hStateSP = hState.lock();
+        if (hStateSP)
+        {
+            hStateSP->reset(app);
+        }
+        return;
+    }
     size_t numNodes = qmap.size();
 
     // we propagate the logging level of partition "SCP" beacuse that's the

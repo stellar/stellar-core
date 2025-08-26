@@ -292,7 +292,6 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     }
 
     liveEntries = std::move(*liveEntriesOp);
-    liveEntriesOp->clear();
 
     // Remove keys found in live bucketList from subsequent searches
     for (auto const& le : liveEntries)
