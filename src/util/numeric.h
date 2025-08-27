@@ -82,4 +82,17 @@ saturatingMultiply(int64_t a, int64_t b)
 
     return a * b;
 }
+
+// Saturating addition for unsigned ints: returns a + b, capped at type max.
+template <typename T>
+inline T
+saturatingAdd(T a, T b)
+{
+    static_assert(std::is_unsigned<T>());
+    if (a > std::numeric_limits<T>::max() - b)
+    {
+        return std::numeric_limits<T>::max();
+    }
+    return a + b;
+}
 }

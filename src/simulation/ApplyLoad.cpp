@@ -140,7 +140,7 @@ ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
         auto weight = cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING[i];
 
         totalWeight += weight;
-        weightedSum += entries * weight;
+        weightedSum += static_cast<double>(entries) * weight;
     }
 
     double avgROEntriesPerTx = totalWeight > 0 ? weightedSum / totalWeight : 0;

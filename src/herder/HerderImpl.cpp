@@ -2239,8 +2239,8 @@ HerderImpl::maybeHandleUpgrade()
         auto const& conf =
             mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 
-        auto maybeNewMaxTxSize =
-            conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
+        auto maybeNewMaxTxSize = saturatingAdd<uint32_t>(
+            conf.txMaxSizeBytes(), getFlowControlExtraBuffer());
         if (maybeNewMaxTxSize > mMaxTxSize)
         {
             diff = maybeNewMaxTxSize - mMaxTxSize;
@@ -2290,8 +2290,10 @@ HerderImpl::start()
         {
             auto const& conf =
                 mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
-            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
-                                                  getFlowControlExtraBuffer());
+            mMaxTxSize =
+                std::max(mMaxTxSize,
+                         saturatingAdd<uint32_t>(conf.txMaxSizeBytes(),
+                                                 getFlowControlExtraBuffer()));
         }
 
         maybeSetupSorobanQueue(version);
