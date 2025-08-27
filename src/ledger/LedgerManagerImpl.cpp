@@ -2174,8 +2174,19 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     for (auto& threadFuture : threadFutures)
     {
         releaseAssert(threadFuture.valid());
-        auto futureResult = threadFuture.get();
-        threadStates.emplace_back(std::move(futureResult));
+        try
+        {
+            auto futureResult = threadFuture.get();
+            threadStates.emplace_back(std::move(futureResult));
+        }
+        catch (const std::exception& e)
+        {
+            printErrorAndAbort("Exception on apply thread: ", e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort("Unknown exception on apply thread");
+        }
     }
     threadFutures.clear();
     return threadStates;
@@ -2370,10 +2381,23 @@ LedgerManagerImpl::applyTransactions(
     {
         if (phase.isParallel())
         {
-            releaseAssert(sorobanConfig.has_value());
-            applyParallelPhase(phase, applyStages, mutableTxResults, index, ltx,
-                               enableTxMeta, *sorobanConfig,
-                               sorobanBasePrngSeed);
+            try
+            {
+                releaseAssert(sorobanConfig.has_value());
+                applyParallelPhase(phase, applyStages, mutableTxResults, index,
+                                   ltx, enableTxMeta, *sorobanConfig,
+                                   sorobanBasePrngSeed);
+            }
+            catch (const std::exception& e)
+            {
+                printErrorAndAbort("Exception during applyParallelPhase: ",
+                                   e.what());
+            }
+            catch (...)
+            {
+                printErrorAndAbort(
+                    "Unknown exception during applyParallelPhase");
+            }
         }
         else
         {

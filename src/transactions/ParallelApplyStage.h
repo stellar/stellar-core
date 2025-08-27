@@ -39,7 +39,8 @@ class TxEffects
     void
     setDeltaEntry(LedgerKey const& key, LedgerTxnDelta::EntryDelta const& delta)
     {
-        mDelta.entry.emplace(key, delta);
+        auto [_, inserted] = mDelta.entry.emplace(key, delta);
+        releaseAssertOrThrow(inserted);
     }
 
     void

@@ -124,21 +124,19 @@ maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
     // Read Only bumps will always be updating a pre-existing value. TTL
     // creation (!oldEntry) or deletion (!newEntry) are write conflicts that
     // don't have merge special casing.
-    if (newEntry.mLedgerEntry && oldEntry.mLedgerEntry)
+    if (newEntry.mLedgerEntry && oldEntry.mLedgerEntry && key.type() == TTL)
     {
         auto const& newLe = newEntry.mLedgerEntry.value();
         auto& oldLe = oldEntry.mLedgerEntry.value();
-        if (key.type() == TTL)
+
+        releaseAssertOrThrow(newLe.data.type() == TTL);
+        releaseAssertOrThrow(oldLe.data.type() == TTL);
+        if (readWriteSet.find(key) == readWriteSet.end())
         {
-            releaseAssertOrThrow(newLe.data.type() == TTL);
-            releaseAssertOrThrow(oldLe.data.type() == TTL);
-            if (readWriteSet.find(key) == readWriteSet.end())
-            {
-                auto const& newTTL = newLe.data.ttl().liveUntilLedgerSeq;
-                auto& oldTTL = oldLe.data.ttl().liveUntilLedgerSeq;
-                oldTTL = std::max(oldTTL, newTTL);
-                return true;
-            }
+            auto const& newTTL = newLe.data.ttl().liveUntilLedgerSeq;
+            auto& oldTTL = oldLe.data.ttl().liveUntilLedgerSeq;
+            oldTTL = std::max(oldTTL, newTTL);
+            return true;
         }
     }
     return false;
@@ -511,8 +509,6 @@ GlobalParallelApplyLedgerState::commitChangesFromThread(
     AppConnector& app, ThreadParallelApplyLedgerState const& thread,
     ApplyStage const& stage)
 {
-    releaseAssert(threadIsMain() ||
-                  app.threadIsType(Application::ThreadType::APPLY));
     auto readWriteSet = getReadWriteKeysForStage(stage);
     for (auto const& [key, entry] : thread.getEntryMap())
     {
@@ -527,6 +523,9 @@ GlobalParallelApplyLedgerState::commitChangesFromThreads(
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const& threads,
     ApplyStage const& stage)
 {
+    releaseAssert(threadIsMain() ||
+                  app.threadIsType(Application::ThreadType::APPLY));
+
     for (auto const& thread : threads)
     {
         commitChangesFromThread(app, *thread, stage);
