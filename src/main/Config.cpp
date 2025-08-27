@@ -21,6 +21,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <functional>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -150,6 +151,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 #ifdef BUILD_TESTS
     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
+    IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
 #endif
 
     FORCE_SCP = false;
@@ -1187,6 +1189,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      TESTING_MAX_CLASSIC_BYTE_ALLOWANCE =
                          readInt<size_t>(item, 0);
                  }},
+                {"IGNORE_MESSAGE_LIMITS_FOR_TESTING",
+                 [&]() { IGNORE_MESSAGE_LIMITS_FOR_TESTING = readBool(item); }},
 #endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
@@ -1684,12 +1688,30 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS",
                  [&]() {
                      APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS =
-                         readInt<uint32_t>(item);
+                         readInt<uint32_t>(item, 1);
                  }},
                 {"APPLY_LOAD_NUM_ACCOUNTS",
                  [&]() { APPLY_LOAD_NUM_ACCOUNTS = readInt<uint32_t>(item); }},
                 {"APPLY_LOAD_NUM_LEDGERS",
                  [&]() { APPLY_LOAD_NUM_LEDGERS = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS =
+                         readInt<uint32_t>(item, 10);
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_MIN_TPS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_MAX_TPS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = readInt<uint32_t>(item);
+                 }},
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
@@ -1865,8 +1887,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
 
 #ifdef BUILD_TESTS
-        if (getSorobanByteAllowance() + getClassicByteAllowance() >
-            MAX_TX_SET_ALLOWANCE)
+        if (!IGNORE_MESSAGE_LIMITS_FOR_TESTING &&
+            getSorobanByteAllowance() + getClassicByteAllowance() >
+                MAX_TX_SET_ALLOWANCE)
         {
             std::string msg = "Invalid configuration: "
                               "TESTING_MAX_CLASSIC_BYTE_ALLOWANCE + "
@@ -2578,6 +2601,11 @@ size_t
 Config::getSorobanByteAllowance() const
 {
 #ifdef BUILD_TESTS
+    // Return a big number, but not big enough that it will overflow
+    if (IGNORE_MESSAGE_LIMITS_FOR_TESTING)
+    {
+        return std::numeric_limits<size_t>::max() / 2;
+    }
     if (TESTING_MAX_SOROBAN_BYTE_ALLOWANCE > 0)
     {
         return TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
@@ -2590,6 +2618,11 @@ size_t
 Config::getClassicByteAllowance() const
 {
 #ifdef BUILD_TESTS
+    // Return a big number, but not big enough that it will overflow
+    if (IGNORE_MESSAGE_LIMITS_FOR_TESTING)
+    {
+        return std::numeric_limits<size_t>::max() / 2;
+    }
     if (TESTING_MAX_CLASSIC_BYTE_ALLOWANCE > 0)
     {
         return TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;

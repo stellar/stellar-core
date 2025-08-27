@@ -68,6 +68,7 @@ class LedgerManagerImpl : public LedgerManager
     {
         SorobanMetrics mSorobanMetrics;
         medida::Timer& mTransactionApply;
+        medida::Timer& mTotalTxApply;
         medida::Histogram& mTransactionCount;
         medida::Histogram& mOperationCount;
         medida::Histogram& mPrefetchHitRate;
@@ -78,6 +79,8 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mTransactionApplyFailed;
         medida::Counter& mSorobanTransactionApplySucceeded;
         medida::Counter& mSorobanTransactionApplyFailed;
+        medida::Counter& mMaxClustersPerLedger;
+        medida::Counter& mStagesPerLedger;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
         LedgerApplyMetrics(medida::MetricsRegistry& registry);

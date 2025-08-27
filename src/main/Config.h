@@ -386,6 +386,12 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_NUM_ACCOUNTS = 0;
     uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
 
+    // MAX_SAC_TPS mode specific parameters
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS = 3;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
+
     // Number of read-only and read-write entries in the apply-load
     // transactions. Every entry will have
     // `APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING` size.
@@ -847,6 +853,9 @@ class Config : public std::enable_shared_from_this<Config>
     // Block byte limits overrides for testing
     size_t TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
     size_t TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;
+
+    // When set to true, ignores all message and tx set size limits for testing
+    bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
 
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.

@@ -192,6 +192,7 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
     medida::MetricsRegistry& registry)
     : mSorobanMetrics(registry)
     , mTransactionApply(registry.NewTimer({"ledger", "transaction", "apply"}))
+    , mTotalTxApply(registry.NewTimer({"ledger", "transaction", "total-apply"}))
     , mTransactionCount(
           registry.NewHistogram({"ledger", "transaction", "count"}))
     , mOperationCount(registry.NewHistogram({"ledger", "operation", "count"}))
@@ -209,6 +210,10 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
           registry.NewCounter({"ledger", "apply-soroban", "success"}))
     , mSorobanTransactionApplyFailed(
           registry.NewCounter({"ledger", "apply-soroban", "failure"}))
+    , mMaxClustersPerLedger(
+          registry.NewCounter({"ledger", "apply-soroban", "max-clusters"}))
+    , mStagesPerLedger(
+          registry.NewCounter({"ledger", "apply-soroban", "stages"}))
     , mMetaStreamBytes(
           registry.NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(registry.NewTimer({"ledger", "metastream", "write"}))
@@ -1573,6 +1578,12 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // first, prefetch source accounts for txset, then charge fees
         prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
                             mApp.getConfig());
+
+        // Time the entire transaction processing phase from fee processing
+        // through transaction application
+        auto totalTxApplyTime =
+            mApplyState.getMetrics().mTotalTxApply.TimeScope();
+
         // Subtle: after this call, `header` is invalidated, and is not safe
         // to use
         auto const mutableTxResults = processFeesSeqNums(
@@ -2273,6 +2284,7 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo)
 {
+    ZoneScoped;
 
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
     std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
@@ -2351,6 +2363,7 @@ LedgerManagerImpl::applySorobanStage(
     GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
     Hash const& sorobanBasePrngSeed)
 {
+    ZoneScoped;
     auto const& config = app.getConfig();
     auto const& sorobanConfig = getSorobanNetworkConfigForApply();
     auto ledgerInfo = getParallelLedgerInfo(app, header);
@@ -2369,6 +2382,7 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                                       std::vector<ApplyStage> const& stages,
                                       Hash const& sorobanBasePrngSeed)
 {
+    ZoneScoped;
     GlobalParallelApplyLedgerState globalParState(
         app, ltx, stages, mApplyState.getInMemorySorobanState());
     // LedgerTxn is not passed into applySorobanStage, so there's no risk
@@ -2389,6 +2403,7 @@ LedgerManagerImpl::processResultAndMeta(
     TransactionFrameBase const& tx, MutableTransactionResultBase const& result,
     TransactionResultSet& txResultSet)
 {
+    ZoneScoped;
     TransactionResultPair resultPair;
     resultPair.transactionHash = tx.getContentsHash();
     resultPair.result = result.getXDR();
@@ -2497,6 +2512,18 @@ LedgerManagerImpl::applyTransactions(
     processPostTxSetApply(phases, applyStages, ltx, ledgerCloseMeta,
                           txResultSet);
 
+    // Update cluster and stage metrics
+    if (!applyStages.empty())
+    {
+        size_t maxClusters = 0;
+        for (auto const& stage : applyStages)
+        {
+            maxClusters = std::max(maxClusters, stage.numClusters());
+        }
+        mApplyState.getMetrics().mMaxClustersPerLedger.set_count(maxClusters);
+        mApplyState.getMetrics().mStagesPerLedger.set_count(applyStages.size());
+    }
+
 #ifdef BUILD_TESTS
     releaseAssert(ledgerCloseMeta);
     mLastLedgerCloseMeta = *ledgerCloseMeta;
@@ -2513,6 +2540,7 @@ LedgerManagerImpl::applyParallelPhase(
     uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
     Hash const& sorobanBasePrngSeed)
 {
+    ZoneScoped;
 
     auto const& txSetStages = phase.getParallelStages();
 
@@ -2627,6 +2655,7 @@ LedgerManagerImpl::processPostTxSetApply(
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     TransactionResultSet& txResultSet)
 {
+    ZoneScoped;
     for (auto const& phase : phases)
     {
         if (phase.isParallel())

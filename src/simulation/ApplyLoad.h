@@ -16,7 +16,8 @@ enum class ApplyLoadMode
 {
     SOROBAN,
     CLASSIC,
-    MIX
+    MIX,
+    MAX_SAC_TPS
 };
 
 class ApplyLoad
@@ -31,6 +32,14 @@ class ApplyLoad
     // generated transactions are generated using the LOADGEN_* config
     // parameters.
     void benchmark();
+
+    // Generates SAC transactions and times just the application phase (fee and
+    // sequence number processing, tx execution, and post process, but no disk
+    // writes). This will do a binary search from APPLY_LOAD_MAX_SAC_TPS_MIN_TPS
+    // to APPLY_LOAD_MAX_SAC_TPS_MAX_TPS, attempting to find the largest
+    // transaction set we can execute in under
+    // APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS.
+    void findMaxSacTps();
 
     // Returns the % of transactions that succeeded during apply time. The range
     // of values is [0,1.0].
@@ -64,8 +73,28 @@ class ApplyLoad
     void setupXLMContract();
     void setupBucketList();
 
+    // Run iterations at the given TPS. Reports average time over all runs, in
+    // milliseconds.
+    double benchmarkSacTps(uint32_t targetTps);
+
+    // Generates the given number of native asset SAC payment TXs with no
+    // conflicts.
+    void generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
+                             uint32_t count);
+
+    // Iterate over all available accounts to make sure they are loaded into the
+    // BucketListDB cache. Note that this should be run everytime an account
+    // entry is modified.
+    void warmAccountCache();
+
     // Upgrades using mUpgradeConfig
     void upgradeSettings();
+
+    // Upgrades to very high limits for max TPS apply load test
+    void upgradeSettingsForMaxTPS(uint32_t txsToGenerate);
+
+    // Helper method to apply a config upgrade
+    void applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig);
 
     LedgerKey mUpgradeCodeKey;
     LedgerKey mUpgradeInstanceKey;

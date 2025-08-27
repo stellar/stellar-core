@@ -78,6 +78,8 @@ ledger.apply.success                      | counter   | count of successfully ap
 ledger.apply.failure                      | counter   | count of failed applied transactions
 ledger.apply-soroban.success              | counter   | count of successfully applied soroban transactions
 ledger.apply-soroban.failure              | counter   | count of failed applied soroban transactions
+ledger.apply-soroban.max-clusters         | counter   | maximum number of clusters across all stages in a ledger
+ledger.apply-soroban.stages               | counter   | number of stages used for parallel apply in a ledger
 ledger.catchup.duration                   | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                  | counter   | number of times invariants failed
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
@@ -87,6 +89,7 @@ ledger.metastream.write                   | timer     | time spent writing data 
 ledger.operation.apply                    | timer     | time applying an operation
 ledger.operation.count                    | histogram | number of operations per ledger
 ledger.transaction.apply                  | timer     | time to apply one transaction
+ledger.transaction.total-apply            | timer     | cumulative time to apply all transactions in a ledger
 ledger.transaction.count                  | histogram | number of transactions per ledger
 ledger.transaction.internal-error         | counter   | number of internal errors since start
 loadgen.payment.native                    | meter     | loadgenerator: native payment submitted
