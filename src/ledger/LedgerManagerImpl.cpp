@@ -2493,8 +2493,21 @@ LedgerManagerImpl::applyTransactions(
     {
         if (phase.isParallel())
         {
-            applyParallelPhase(phase, applyStages, mutableTxResults, index, ltx,
-                               enableTxMeta, sorobanBasePrngSeed);
+            try
+            {
+                applyParallelPhase(phase, applyStages, mutableTxResults, index,
+                                   ltx, enableTxMeta, sorobanBasePrngSeed);
+            }
+            catch (const std::exception& e)
+            {
+                printErrorAndAbort("Exception during applyParallelPhase: ",
+                                   e.what());
+            }
+            catch (...)
+            {
+                printErrorAndAbort(
+                    "Unknown exception during applyParallelPhase");
+            }
         }
         else
         {
