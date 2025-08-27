@@ -2273,7 +2273,6 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     SorobanNetworkConfig const& sorobanConfig,
     ParallelLedgerInfo const& ledgerInfo)
 {
-
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
     std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
         threadFutures;
@@ -2295,8 +2294,19 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     for (auto& threadFuture : threadFutures)
     {
         releaseAssert(threadFuture.valid());
-        auto futureResult = threadFuture.get();
-        threadStates.emplace_back(std::move(futureResult));
+        try
+        {
+            auto futureResult = threadFuture.get();
+            threadStates.emplace_back(std::move(futureResult));
+        }
+        catch (const std::exception& e)
+        {
+            printErrorAndAbort("Exception on apply thread: ", e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort("Unknown exception on apply thread");
+        }
     }
     threadFutures.clear();
     return threadStates;
@@ -2483,8 +2493,21 @@ LedgerManagerImpl::applyTransactions(
     {
         if (phase.isParallel())
         {
-            applyParallelPhase(phase, applyStages, mutableTxResults, index, ltx,
-                               enableTxMeta, sorobanBasePrngSeed);
+            try
+            {
+                applyParallelPhase(phase, applyStages, mutableTxResults, index,
+                                   ltx, enableTxMeta, sorobanBasePrngSeed);
+            }
+            catch (const std::exception& e)
+            {
+                printErrorAndAbort("Exception during applyParallelPhase: ",
+                                   e.what());
+            }
+            catch (...)
+            {
+                printErrorAndAbort(
+                    "Unknown exception during applyParallelPhase");
+            }
         }
         else
         {
