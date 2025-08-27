@@ -937,8 +937,7 @@ class InvokeHostFunctionParallelApplyHelper
     {
         // autorestore support started in p23. Entry must be in the read write
         // footprint and must be marked as in the archivedSorobanEntries vector.
-        if (!isReadOnly &&
-            checkIfReadWriteEntryIsMarkedForAutorestore(lk, index))
+        if (!isReadOnly && checkIfReadWriteEntryIsMarkedForAutorestore(index))
         {
             // In the auto restore case, we need to restore the entry and meter
             // disk reads. The host will take care of rent fees, and write fees
@@ -1039,8 +1038,7 @@ class InvokeHostFunctionParallelApplyHelper
     // autorestore, false otherwise. Assumes that lk is
     // a read-write key.
     bool
-    checkIfReadWriteEntryIsMarkedForAutorestore(LedgerKey const& lk,
-                                                uint32_t index)
+    checkIfReadWriteEntryIsMarkedForAutorestore(uint32_t index)
     {
 
         // If the autorestore vector is empty, there
