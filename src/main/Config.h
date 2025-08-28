@@ -299,8 +299,8 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
 
     // Config parameters that LoadGen uses to decide the number of bytes to
-    // include in each payment and offer transaction for testing only. The
-    // probability that transactions will contain COUNT[i] bytes is
+    // include in each payment transaction for testing only. The probability
+    // that transactions will contain COUNT[i] bytes is
     // DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each i.
     // Note that there is a minimum payment size (~204 bytes) and that the byte
     // count will be rounded up to the nearest multiple of 4 (since all XDR

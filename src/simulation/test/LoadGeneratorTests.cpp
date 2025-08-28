@@ -770,7 +770,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     }
 }
 
-TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
+TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     uint32_t constexpr baseSize = 148;
@@ -800,9 +800,8 @@ TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
     try
     {
         auto config = GeneratedLoadConfig::txLoad(
-            LoadGenMode::MIXED_CLASSIC,
+            LoadGenMode::PAY,
             app.getConfig().GENESIS_TEST_ACCOUNT_COUNT, 100, txRate);
-        config.getMutDexTxPercent() = 50;
         loadGen.generateLoad(config);
         simulation->crankUntil(
             [&]() {
@@ -821,25 +820,15 @@ TEST_CASE("Multi-byte mixed transactions are valid", "[loadgen]")
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "txn", "rejected"}, "txn")
                 .count() == 0);
-    auto nonDexOps = app.getMetrics()
+    auto ops = app.getMetrics()
                          .NewMeter({"loadgen", "payment", "submitted"}, "op")
                          .count();
-    auto dexOps = app.getMetrics()
-                      .NewMeter({"loadgen", "manageoffer", "submitted"}, "op")
-                      .count();
-    REQUIRE(nonDexOps > 0);
-    REQUIRE(dexOps > 0);
-    REQUIRE(dexOps + nonDexOps == 100);
+    REQUIRE(ops == 100);
 
-    auto nonDexBytes = app.getMetrics()
+    auto bytes = app.getMetrics()
                            .NewMeter({"loadgen", "payment", "bytes"}, "txn")
                            .count();
-    auto dexBytes = app.getMetrics()
-                        .NewMeter({"loadgen", "manageoffer", "bytes"}, "txn")
-                        .count();
-    // Since both payment and dex transactions only use one op, # ops = # txns
-    REQUIRE(nonDexBytes == nonDexOps * frameSize);
-    REQUIRE(dexBytes == dexOps * frameSize);
+    REQUIRE(bytes == ops * frameSize);
 }
 
 TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")

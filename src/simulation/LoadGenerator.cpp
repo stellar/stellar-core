@@ -127,10 +127,6 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::PAY;
     }
-    else if (mode == "mixed_classic")
-    {
-        return LoadGenMode::MIXED_CLASSIC;
-    }
     else if (mode == "soroban_upload")
     {
         return LoadGenMode::SOROBAN_UPLOAD;
@@ -583,9 +579,6 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::PAY:
         modeStr = "pay";
         break;
-    case LoadGenMode::MIXED_CLASSIC:
-        modeStr = "mixed_classic";
-        break;
     case LoadGenMode::SOROBAN_UPLOAD:
         modeStr = "soroban_upload";
         break;
@@ -625,11 +618,7 @@ GeneratedLoadConfig::getStatus() const
     }
 
     ret["tx_rate"] = std::to_string(txRate) + " tx/s";
-    if (mode == LoadGenMode::MIXED_CLASSIC)
-    {
-        ret["dex_tx_percent"] = std::to_string(getDexTxPercent()) + "%";
-    }
-    else if (modeInvokes())
+    if (modeInvokes())
     {
         ret["instances"] = getSorobanConfig().nInstances;
         ret["wasms"] = getSorobanConfig().nWasms;
@@ -724,27 +713,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return mTxGenerator.paymentTransaction(
                     cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
                     byteCount, cfg.maxGeneratedFeeRate);
-            };
-        }
-        break;
-        case LoadGenMode::MIXED_CLASSIC:
-        {
-            auto byteCount = chooseByteCount(mApp.getConfig());
-            bool isDex =
-                rand_uniform<uint32_t>(1, 100) <= cfg.getDexTxPercent();
-            generateTx = [&, byteCount, isDex]() {
-                if (isDex)
-                {
-                    return mTxGenerator.manageOfferTransaction(
-                        ledgerNum, sourceAccountId, byteCount,
-                        cfg.maxGeneratedFeeRate);
-                }
-                else
-                {
-                    return mTxGenerator.paymentTransaction(
-                        cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
-                        byteCount, cfg.maxGeneratedFeeRate);
-                }
             };
         }
         break;
@@ -1347,7 +1315,6 @@ LoadGenerator::waitTillCompleteWithoutChecks()
 
 LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     : mNativePayment(m.NewMeter({"loadgen", "payment", "submitted"}, "op"))
-    , mManageOfferOps(m.NewMeter({"loadgen", "manageoffer", "submitted"}, "op"))
     , mSorobanUploadTxs(m.NewMeter({"loadgen", "soroban", "upload"}, "txn"))
     , mSorobanSetupInvokeTxs(
           m.NewMeter({"loadgen", "soroban", "setup_invoke"}, "txn"))
@@ -1360,7 +1327,6 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     , mTxnRejected(m.NewMeter({"loadgen", "txn", "rejected"}, "txn"))
     , mTxnBytes(m.NewMeter({"loadgen", "txn", "bytes"}, "txn"))
     , mNativePaymentBytes(m.NewMeter({"loadgen", "payment", "bytes"}, "txn"))
-    , mManageOfferBytes(m.NewMeter({"loadgen", "manageoffer", "bytes"}, "txn"))
 {
 }
 
@@ -1368,28 +1334,25 @@ void
 LoadGenerator::TxMetrics::report()
 {
     CLOG_DEBUG(LoadGen,
-               "Counts: {} tx, {} rj, {} by, {} na, {} dex, {} "
-               "su, {} ssi, {} ssu, {} si, {}, scu, {} nab, {} dexb",
+               "Counts: {} tx, {} rj, {} by, {} na, {} "
+               "su, {} ssi, {} ssu, {} si, {}, scu, {} nab",
                mTxnAttempted.count(), mTxnRejected.count(), mTxnBytes.count(),
-               mNativePayment.count(), mManageOfferOps.count(),
-               mSorobanUploadTxs.count(), mSorobanSetupInvokeTxs.count(),
-               mSorobanSetupUpgradeTxs.count(), mSorobanInvokeTxs.count(),
-               mSorobanCreateUpgradeTxs.count(), mNativePaymentBytes.count(),
-               mManageOfferBytes.count());
+               mNativePayment.count(), mSorobanUploadTxs.count(),
+               mSorobanSetupInvokeTxs.count(), mSorobanSetupUpgradeTxs.count(),
+               mSorobanInvokeTxs.count(), mSorobanCreateUpgradeTxs.count(),
+               mNativePaymentBytes.count());
 
     CLOG_DEBUG(LoadGen,
                "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} na, "
-               "{} dex, {} su, {} ssi, {} ssu, {} si, {} scu, {} nab, {} dexb",
+               "{} su, {} ssi, {} ssu, {} si, {} scu, {} nab",
                mTxnAttempted.one_minute_rate(), mTxnRejected.one_minute_rate(),
                mTxnBytes.one_minute_rate(), mNativePayment.one_minute_rate(),
-               mManageOfferOps.one_minute_rate(),
                mSorobanUploadTxs.one_minute_rate(),
                mSorobanSetupInvokeTxs.one_minute_rate(),
                mSorobanSetupUpgradeTxs.one_minute_rate(),
                mSorobanInvokeTxs.one_minute_rate(),
                mSorobanCreateUpgradeTxs.one_minute_rate(),
-               mNativePaymentBytes.one_minute_rate(),
-               mManageOfferBytes.one_minute_rate());
+               mNativePaymentBytes.one_minute_rate());
 }
 
 TransactionQueue::AddResultCode
@@ -1406,20 +1369,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         txm.mNativePayment.Mark(txf->getNumOperations());
         txm.mNativePaymentBytes.Mark(
             xdr::xdr_argpack_size(*txf->toStellarMessage()));
-        break;
-    case LoadGenMode::MIXED_CLASSIC:
-        if (txf->hasDexOperations())
-        {
-            txm.mManageOfferOps.Mark(txf->getNumOperations());
-            txm.mManageOfferBytes.Mark(
-                xdr::xdr_argpack_size(*txf->toStellarMessage()));
-        }
-        else
-        {
-            txm.mNativePayment.Mark(txf->getNumOperations());
-            txm.mNativePaymentBytes.Mark(
-                xdr::xdr_argpack_size(*txf->toStellarMessage()));
-        }
         break;
     case LoadGenMode::SOROBAN_UPLOAD:
         txm.mSorobanUploadTxs.Mark();
@@ -1699,20 +1648,6 @@ GeneratedLoadConfig::getMixClassicSorobanConfig() const
     return mixClassicSorobanConfig;
 }
 
-uint32_t&
-GeneratedLoadConfig::getMutDexTxPercent()
-{
-    releaseAssert(mode == LoadGenMode::MIXED_CLASSIC);
-    return dexTxPercent;
-}
-
-uint32_t const&
-GeneratedLoadConfig::getDexTxPercent() const
-{
-    releaseAssert(mode == LoadGenMode::MIXED_CLASSIC);
-    return dexTxPercent;
-}
-
 uint32_t
 GeneratedLoadConfig::getMinSorobanPercentSuccess() const
 {
@@ -1753,8 +1688,7 @@ GeneratedLoadConfig::isSorobanSetup() const
 bool
 GeneratedLoadConfig::isLoad() const
 {
-    return mode == LoadGenMode::PAY || mode == LoadGenMode::MIXED_CLASSIC ||
-           mode == LoadGenMode::SOROBAN_UPLOAD ||
+    return mode == LoadGenMode::PAY || mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
