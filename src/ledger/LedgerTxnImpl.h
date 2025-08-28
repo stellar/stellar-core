@@ -102,6 +102,7 @@ class LedgerTxn::Impl
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
+    std::thread::id const mActiveThreadId;
 
     typedef std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
         OrderBook;
@@ -275,6 +276,7 @@ class LedgerTxn::Impl
 
     void throwIfChild() const;
     void throwIfSealed() const;
+    void abortIfWrongThread() const;
     void throwIfNotExactConsistency() const;
     void throwIfErasingConfig(InternalLedgerKey const& key) const;
 
@@ -600,6 +602,19 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
 };
 
+class ThreadInvariant
+{
+    mutable std::recursive_mutex mThreadInvariantMutex;
+    std::thread::id mThreadID;
+    bool mActiveThreadIdSet{false};
+
+  public:
+    ThreadInvariant();
+    void abortIfWrongThread() const;
+    void setActiveThread();
+    void clearActiveThread();
+};
+
 // Many functions in LedgerTxnRoot::Impl provide a basic exception safety
 // guarantee that states that certain caches may be modified or cleared if an
 // exception is thrown. It is always safe to continue using the LedgerTxn
@@ -655,12 +670,14 @@ class LedgerTxnRoot::Impl
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
+    ThreadInvariant mThreadInvariant;
 
 #ifdef BEST_OFFER_DEBUGGING
     bool const mBestOfferDebuggingEnabled;
 #endif
 
     void throwIfChild() const;
+    void abortIfWrongThread() const;
 
     std::shared_ptr<LedgerEntry const> loadOffer(LedgerKey const& key) const;
     std::vector<LedgerEntry> loadAllOffers() const;
