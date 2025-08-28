@@ -704,14 +704,15 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
     return res;
 }
 
-TransactionTestFramePtr
-paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
-                                  SequenceNumber seq,
-                                  std::vector<Operation> const& ops,
-                                  uint32_t fee, uint32_t desiredSize)
+// Common setup between transactionFromOperationsV1 and
+// paddedTransactionFromOperationsV1
+static TransactionEnvelope
+makeEnvelopeV1(Application& app, SecretKey const& from, SequenceNumber seq,
+               std::vector<Operation> const& ops, uint32_t fee,
+               std::optional<uint64_t> sourceMux)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
-    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), std::nullopt);
+    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), sourceMux);
     e.v1().tx.fee =
         fee != 0 ? fee
                  : static_cast<uint32_t>(
@@ -720,6 +721,17 @@ paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
     e.v1().tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v1().tx.operations));
+    return e;
+}
+
+TransactionTestFramePtr
+paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
+                                  SequenceNumber seq,
+                                  std::vector<Operation> const& ops,
+                                  uint32_t fee, uint32_t desiredSize)
+{
+    TransactionEnvelope e =
+        makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
 
     // 4 bytes for DecoratedSignature.hint, 4 bytes for Signature size, 4 bytes
     // for TransactionEnvelope Envelope type
@@ -777,16 +789,8 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
                             std::optional<uint64_t> sourceMux,
                             std::optional<Memo> memo)
 {
-    TransactionEnvelope e(ENVELOPE_TYPE_TX);
-    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), sourceMux);
-    e.v1().tx.fee =
-        fee != 0 ? fee
-                 : static_cast<uint32_t>(
-                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
-                       UINT32_MAX);
-    e.v1().tx.seqNum = seq;
-    std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(e.v1().tx.operations));
+    TransactionEnvelope e =
+        makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
 
     if (cond)
     {
