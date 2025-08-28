@@ -425,15 +425,6 @@ recordExternalizeAndCheckCloseTimeDrift(
 }
 
 void
-HerderImpl::beginApply()
-{
-    // Tx set might be applied async: in this case, cancel the timer. It'll be
-    // restarted when the tx set is applied. This is needed to not mess with
-    // Herder's out of sync recovery mechanism.
-    mTrackingTimer.cancel();
-}
-
-void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
@@ -2408,8 +2399,21 @@ HerderImpl::trackingHeartBeat()
 
     mTrackingTimer.expires_from_now(
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
-    mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
-                              &VirtualTimer::onFailureNoop);
+    mTrackingTimer.async_wait(
+        [this]() {
+            if (mApp.getLedgerManager().isApplying())
+            {
+                // if we're applying a ledger, it's possible that we're just
+                // slow and the timer expired; reset the timer and wait until we
+                // finished application
+                trackingHeartBeat();
+            }
+            else
+            {
+                herderOutOfSync();
+            }
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 void

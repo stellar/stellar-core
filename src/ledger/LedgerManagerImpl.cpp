@@ -404,10 +404,6 @@ LedgerManagerImpl::beginApply()
 
     // Go into "applying" state, this will prevent catchup from starting
     mCurrentlyApplyingLedger = true;
-
-    // Notify Herder that application started, so it won't fire out of sync
-    // timer
-    mApp.getHerder().beginApply();
 }
 
 void
