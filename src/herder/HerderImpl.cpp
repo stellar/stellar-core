@@ -1242,16 +1242,69 @@ HerderImpl::setupTriggerNextLedger()
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last
     auto now = mApp.getClock().now();
-    auto lastBallotStart = now - milliseconds;
-    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
-    if (lastStart)
+    auto lastLedgerStatingPoint = now - milliseconds;
+
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER &&
+        mApp.getClock().getMode() == VirtualClock::REAL_TIME)
     {
-        lastBallotStart = *lastStart;
+        auto consensusCloseTime = trackingConsensusCloseTime();
+
+        // Bootstrap to pessimistic estimate on startup
+        if (consensusCloseTime == 0)
+        {
+            CLOG_WARNING(
+                Herder,
+                "Consensus close time is 0, using pessimistic estimate");
+            // Keep the existing lastLedgerStatingPoint
+        }
+        else
+        {
+            // The externalized close time is a unix timestamp. We convert it to
+            // steady_clock time by:
+            // 1. Converting unix timestamp to system_clock::time_point (wall
+            // clock time)
+            // 2. Calculating how long ago that was from current system time
+            // 3. Subtracting that duration from current steady_clock time
+            auto externalizedSystemTime =
+                VirtualClock::from_time_t(consensusCloseTime);
+            auto currentSystemTime = mApp.getClock().system_now();
+
+            // Handle clock drift: if externalized time is in the future,
+            // fall back to pessimistic estimate
+            if (externalizedSystemTime >= currentSystemTime)
+            {
+                CLOG_WARNING(Herder,
+                             "Externalized closeTime {} is in the future "
+                             "(current time {}), "
+                             "using pessimistic estimate",
+                             consensusCloseTime,
+                             VirtualClock::to_time_t(currentSystemTime));
+                // Keep the existing lastLedgerStatingPoint which is already set
+                // to the pessimistic estimate (now - milliseconds)
+            }
+            else
+            {
+                // Calculate how long ago the externalized closeTime was
+                auto timeSinceExternalized =
+                    currentSystemTime - externalizedSystemTime;
+                lastLedgerStatingPoint = now - timeSinceExternalized;
+            }
+        }
+    }
+    else
+#endif
+    {
+        auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+        if (lastStart)
+        {
+            lastLedgerStatingPoint = *lastStart;
+        }
     }
 
     // Adjust trigger time in case node's clock has drifted.
     // This ensures that next value to nominate is valid
-    auto triggerTime = lastBallotStart + milliseconds;
+    auto triggerTime = lastLedgerStatingPoint + milliseconds;
 
     if (triggerTime < now)
     {
