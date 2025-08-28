@@ -276,7 +276,7 @@ class LedgerTxn::Impl
 
     void throwIfChild() const;
     void throwIfSealed() const;
-    void abortIfWrongThread() const;
+    void abortIfWrongThread(const char* functionName) const;
     void throwIfNotExactConsistency() const;
     void throwIfErasingConfig(InternalLedgerKey const& key) const;
 
@@ -677,7 +677,7 @@ class LedgerTxnRoot::Impl
 #endif
 
     void throwIfChild() const;
-    void abortIfWrongThread() const;
+    void abortIfWrongThread(const char* functionName) const;
 
     std::shared_ptr<LedgerEntry const> loadOffer(LedgerKey const& key) const;
     std::vector<LedgerEntry> loadAllOffers() const;
