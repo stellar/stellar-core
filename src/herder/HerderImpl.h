@@ -209,8 +209,6 @@ class HerderImpl : public Herder
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
 
-    virtual void beginApply() override;
-
     void startTxSetGCTimer();
 
 #ifdef BUILD_TESTS
