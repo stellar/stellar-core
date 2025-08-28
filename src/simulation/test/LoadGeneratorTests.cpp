@@ -800,8 +800,8 @@ TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
     try
     {
         auto config = GeneratedLoadConfig::txLoad(
-            LoadGenMode::PAY,
-            app.getConfig().GENESIS_TEST_ACCOUNT_COUNT, 100, txRate);
+            LoadGenMode::PAY, app.getConfig().GENESIS_TEST_ACCOUNT_COUNT, 100,
+            txRate);
         loadGen.generateLoad(config);
         simulation->crankUntil(
             [&]() {
@@ -821,13 +821,13 @@ TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
                 .NewMeter({"loadgen", "txn", "rejected"}, "txn")
                 .count() == 0);
     auto ops = app.getMetrics()
-                         .NewMeter({"loadgen", "payment", "submitted"}, "op")
-                         .count();
+                   .NewMeter({"loadgen", "payment", "submitted"}, "op")
+                   .count();
     REQUIRE(ops == 100);
 
     auto bytes = app.getMetrics()
-                           .NewMeter({"loadgen", "payment", "bytes"}, "txn")
-                           .count();
+                     .NewMeter({"loadgen", "payment", "bytes"}, "txn")
+                     .count();
     REQUIRE(bytes == ops * frameSize);
 }
 
