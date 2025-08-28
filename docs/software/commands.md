@@ -458,8 +458,10 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
     **Note**: The `create` mode has been deprecated and removed. To create test accounts,
     use the `GENESIS_TEST_ACCOUNT_COUNT` configuration parameter which creates accounts
     at genesis when initializing a test network.
-  * `pay` mode generates `PaymentOp` transactions on accounts specified
-    (where the number of accounts can be offset).
+  * `pay` mode generates `PaymentOp` transactions on accounts specified (where
+    the number of accounts can be offset). Each transaction uses a random
+    number of bytes, governed by `LOADGEN_BYTE_COUNT_FOR_TESTING` and
+    `LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING`.
   * `pay_pregenerated` mode submits pre-generated payment transactions from an XDR file.
     This mode skips signature verification for better performance when testing with
     large numbers of transactions. Use the `LOADGEN_PREGENERATED_TRANSACTIONS_FILE`
