@@ -57,8 +57,8 @@ class RandomEvictionCache : public NonMovableOrCopyable
     // Each cache keeps some counters just to monitor its performance.
     Counters mCounters;
 
-    // Optionally use a dedicated random engine
-    bool const mSeparatePRNG{false};
+    // Use a dedicated random engine, with an option to disable
+    bool const mSeparatePRNG{true};
     stellar_default_random_engine mRandEngine;
 
     // Randomly pick two elements and evict the less-recently-used one.
@@ -89,7 +89,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
   public:
     explicit RandomEvictionCache(size_t maxSize)
-        : mMaxSize(maxSize), mSeparatePRNG(false)
+        : mMaxSize(maxSize), mSeparatePRNG(true)
     {
         mValueMap.reserve(maxSize + 1);
         mValuePtrs.reserve(maxSize + 1);
