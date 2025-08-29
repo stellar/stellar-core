@@ -229,6 +229,7 @@ void
 TxDemandsManager::recordTxPullLatency(Hash const& hash,
                                       std::shared_ptr<Peer> peer)
 {
+    ZoneScoped;
     auto it = mDemandHistoryMap.find(hash);
     auto now = mApp.getClock().now();
     auto& om = mApp.getOverlayManager().getOverlayMetrics();
@@ -238,7 +239,11 @@ TxDemandsManager::recordTxPullLatency(Hash const& hash,
         if (!it->second.latencyRecorded)
         {
             auto delta = now - it->second.firstDemanded;
-            om.mTxPullLatency.Update(delta);
+            auto deltaMicros =
+                std::chrono::duration_cast<std::chrono::microseconds>(delta)
+                    .count();
+            om.mTxPullLatencyAccumulator.inc(deltaMicros);
+            om.mTxPullLatencyCounter.inc();
             it->second.latencyRecorded = true;
             CLOG_DEBUG(
                 Overlay,
@@ -254,7 +259,11 @@ TxDemandsManager::recordTxPullLatency(Hash const& hash,
         if (peerIt != it->second.peers.end())
         {
             auto delta = now - peerIt->second;
-            om.mPeerTxPullLatency.Update(delta);
+            auto deltaMicros =
+                std::chrono::duration_cast<std::chrono::microseconds>(delta)
+                    .count();
+            om.mPeerTxPullLatencyAccumulator.inc(deltaMicros);
+            om.mPeerTxPullLatencyCounter.inc();
             peer->getPeerMetrics().mPullLatency.Update(delta);
             CLOG_DEBUG(
                 Overlay,
