@@ -139,11 +139,6 @@ class TxGenerator
                        std::optional<uint32_t> maxGeneratedFeeRate);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
-                           uint32_t opCount,
-                           std::optional<uint32_t> maxGeneratedFeeRate);
-
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(
         uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
         LedgerKey const& contractCodeLedgerKey,

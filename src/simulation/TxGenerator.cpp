@@ -264,25 +264,6 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                                           byteCount));
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
-TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                    uint32_t byteCount,
-                                    std::optional<uint32_t> maxGeneratedFeeRate)
-{
-    auto account = findAccount(accountId, ledgerNum);
-    Asset selling(ASSET_TYPE_NATIVE);
-    Asset buying(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(buying.alphaNum4().assetCode, "USD");
-    vector<Operation> ops;
-    ops.emplace_back(txtest::manageBuyOffer(
-        rand_uniform<int64_t>(1, 10000000), selling, buying,
-        Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
-        100));
-    return std::make_pair(
-        account, createTransactionFramePtr(account, ops, maxGeneratedFeeRate,
-                                           byteCount));
-}
-
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
     uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
