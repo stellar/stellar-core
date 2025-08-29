@@ -9,6 +9,7 @@
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
@@ -344,6 +345,12 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
+    void buildParallelApplyStages(
+        TxStageFrameList const& txSetStages,
+        std::vector<stellar::ApplyStage>& applyStages,
+        std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
+        uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta);
+
     void
     applyParallelPhase(TxSetPhaseFrame const& phase,
                        std::vector<ApplyStage>& applyStages,
@@ -356,6 +363,11 @@ class LedgerManagerImpl : public LedgerManager
         std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
         Hash const& sorobanBasePrngSeed,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet& txResultSet);
+
+    void processPostTxSetApplyForParallelStages(
+        std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
 
@@ -417,6 +429,7 @@ class LedgerManagerImpl : public LedgerManager
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
     std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
+    friend class ParallelTestExecutor;
 #endif
 
     void setState(State s);

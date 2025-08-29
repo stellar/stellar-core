@@ -7,6 +7,7 @@
 #include "herder/TxSetFrame.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/BitSet.h"
+#include "util/Logging.h"
 
 #include <unordered_set>
 
@@ -24,6 +25,11 @@ struct ParallelPartitionConfig
         , mInstructionsPerCluster(sorobanCfg.ledgerMaxInstructions() /
                                   mStageCount)
     {
+        CLOG_DEBUG(Herder,
+                   "ParallelPartitionConfig: stages={}, clusters/stage={}, "
+                   "instructions/cluster={}, total max instructions={}",
+                   mStageCount, mClustersPerStage, mInstructionsPerCluster,
+                   sorobanCfg.ledgerMaxInstructions());
     }
 
     uint64_t
@@ -108,10 +114,17 @@ class Stage
         // exceed the theoretical limit of instructions per stage.
         if (mInstructions + tx.mInstructions > mConfig.instructionsPerStage())
         {
+            CLOG_DEBUG(Herder,
+                       "Tx {} rejected from stage: would exceed instruction "
+                       "limit ({} + {} > {})",
+                       tx.mId, mInstructions, tx.mInstructions,
+                       mConfig.instructionsPerStage());
             return false;
         }
         // First, find all clusters that conflict with the new transaction.
         auto conflictingClusters = getConflictingClusters(tx);
+        CLOG_DEBUG(Herder, "Tx {} has {} conflicting clusters", tx.mId,
+                   conflictingClusters.size());
 
         // Then, try creating new clusters by merging the conflicting clusters
         // together and adding the new transaction to the resulting cluster.
@@ -122,6 +135,9 @@ class Stage
         // stage and thus no new clusters could be created.
         if (!newClusters)
         {
+            CLOG_DEBUG(Herder,
+                       "Tx {} rejected: cluster would be too large after merge",
+                       tx.mId);
             return false;
         }
         // If it's possible to pack the newly-created cluster into one of the
@@ -175,6 +191,9 @@ class Stage
         // the required number of bins.
         if (!newPacking)
         {
+            CLOG_DEBUG(Herder,
+                       "Tx {} rejected: bin packing failed after rebuild",
+                       tx.mId);
             return false;
         }
         mClusters = std::move(newClusters.value());
@@ -399,21 +418,29 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
 
     // Visit the transactions in the surge pricing queue and try to add them to
     // at least one of the stages.
-    auto visitor = [&stages,
-                    &builderTxForTx](TransactionFrameBaseConstPtr const& tx) {
+    size_t processedCount = 0;
+    size_t rejectedCount = 0;
+    auto visitor = [&stages, &builderTxForTx, &processedCount,
+                    &rejectedCount](TransactionFrameBaseConstPtr const& tx) {
         bool added = false;
         auto builderTxIt = builderTxForTx.find(tx);
         releaseAssert(builderTxIt != builderTxForTx.end());
+
+        size_t stageNum = 0;
         for (auto& stage : stages)
         {
             if (stage.tryAdd(*builderTxIt->second))
             {
                 added = true;
+                CLOG_DEBUG(Herder, "Transaction {} added to stage {}",
+                           builderTxIt->second->mId, stageNum);
                 break;
             }
+            stageNum++;
         }
         if (added)
         {
+            processedCount++;
             return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
         }
         // If a transaction didn't fit into any of the stages, we consider it
@@ -421,6 +448,10 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         // surge pricing queue that surge pricing should be triggered (
         // REJECTED imitates the behavior for exceeding the resource limit
         // within the queue itself).
+        rejectedCount++;
+        CLOG_DEBUG(Herder,
+                   "Transaction {} rejected - couldn't fit in any stage",
+                   builderTxIt->second->mId);
         return SurgePricingPriorityQueue::VisitTxResult::REJECTED;
     };
 
@@ -428,6 +459,12 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     std::vector<Resource> laneLeftUntilLimitUnused;
     queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
                     result.mHadTxNotFittingLane, ledgerVersion);
+
+    CLOG_DEBUG(
+        Herder,
+        "Stage building complete: {} processed, {} rejected, stage count {}",
+        processedCount, rejectedCount, stageCount);
+
     // There is only a single fee lane for Soroban, so there is only a single
     // flag that indicates whether there was a transaction that didn't fit into
     // lane (and thus all transactions are surge priced at once).
@@ -464,14 +501,24 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         {
             releaseAssert(!cluster.empty());
         }
+        CLOG_DEBUG(Herder, "Stage {} has {} clusters", stages.size() - 1,
+                   resStage.size());
     }
     // Ensure we don't return any empty stages, which is prohibited by the
     // protocol. The algorithm builds the stages such that the stages are
     // populated from first to last.
+    size_t emptyStagesRemoved = 0;
     while (!result.mStages.empty() && result.mStages.back().empty())
     {
         result.mStages.pop_back();
+        emptyStagesRemoved++;
     }
+
+    CLOG_DEBUG(Herder,
+               "Final result: {} stages, {} empty stages removed, total fee {}",
+               result.mStages.size(), emptyStagesRemoved,
+               result.mTotalInclusionFee);
+
     for (auto const& stage : result.mStages)
     {
         releaseAssert(!stage.empty());
@@ -490,6 +537,9 @@ buildSurgePricedParallelSorobanPhase(
     std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
 {
     ZoneScoped;
+    CLOG_DEBUG(Herder, "Building parallel Soroban phase with {} transactions",
+               txFrames.size());
+
     // We prefer the transaction sets that are well utilized, but we also want
     // to lower the stage count when possible. Thus we will nominate a tx set
     // that has the lowest amount of stages while still being within
@@ -507,6 +557,8 @@ buildSurgePricedParallelSorobanPhase(
         auto const& txFrame = txFrames[i];
         builderTxs.emplace_back(std::make_unique<BuilderTx>(i, *txFrame));
         builderTxForTx.emplace(txFrame, builderTxs.back().get());
+        CLOG_DEBUG(Herder, "Transaction {} has {} instructions", i,
+                   txFrame->sorobanResources().instructions);
     }
 
     // Before trying to include any transactions, find all the pairs of the
@@ -542,6 +594,11 @@ buildSurgePricedParallelSorobanPhase(
         }
     }
 
+    CLOG_DEBUG(Herder,
+               "Found {} RO keys and {} RW keys across all transactions",
+               txsWithRoKey.size(), txsWithRwKey.size());
+
+    size_t totalConflicts = 0;
     for (auto const& [key, rwTxIds] : txsWithRwKey)
     {
         // RW-RW conflicts
@@ -551,6 +608,7 @@ buildSurgePricedParallelSorobanPhase(
             {
                 builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                 builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
+                totalConflicts += 1;
             }
         }
         // RO-RW conflicts
@@ -564,10 +622,14 @@ buildSurgePricedParallelSorobanPhase(
                 {
                     builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                     builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
+                    totalConflicts += 1;
                 }
             }
         }
     }
+
+    CLOG_DEBUG(Herder, "Found {} total conflicts between transactions",
+               totalConflicts);
 
     // Process the transactions in the surge pricing (decreasing fee) order.
     // This also automatically ensures that the resource limits are respected
@@ -575,6 +637,10 @@ buildSurgePricedParallelSorobanPhase(
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+
+    CLOG_DEBUG(Herder, "Adding {} transactions to surge pricing queue",
+               txFrames.size());
+
     for (auto const& tx : txFrames)
     {
         queue.add(tx, ledgerVersion);
@@ -585,6 +651,10 @@ buildSurgePricedParallelSorobanPhase(
     uint32_t stageCountOptions = cfg.SOROBAN_PHASE_MAX_STAGE_COUNT -
                                  cfg.SOROBAN_PHASE_MIN_STAGE_COUNT + 1;
     std::vector<ParallelPhaseBuildResult> results(stageCountOptions);
+
+    CLOG_DEBUG(Herder, "Creating {} threads for stage counts {} to {}",
+               stageCountOptions, cfg.SOROBAN_PHASE_MIN_STAGE_COUNT,
+               cfg.SOROBAN_PHASE_MAX_STAGE_COUNT);
 
     for (uint32_t stageCount = cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
          stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
@@ -611,6 +681,12 @@ buildSurgePricedParallelSorobanPhase(
             std::max(maxTotalInclusionFee, result.mTotalInclusionFee);
     }
     maxTotalInclusionFee *= MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT;
+
+    CLOG_DEBUG(Herder, "Max total inclusion fee: {}, tolerance threshold: {}",
+               maxTotalInclusionFee /
+                   MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT,
+               maxTotalInclusionFee);
+
     std::optional<size_t> bestResultIndex = std::nullopt;
     for (size_t i = 0; i < results.size(); ++i)
     {
@@ -620,19 +696,332 @@ buildSurgePricedParallelSorobanPhase(
                    results[i].mStages.size(), results[i].mTotalInclusionFee);
         if (results[i].mTotalInclusionFee < maxTotalInclusionFee)
         {
+            CLOG_DEBUG(Herder, "Skipping result {} - fee {} below threshold {}",
+                       i, results[i].mTotalInclusionFee, maxTotalInclusionFee);
             continue;
         }
         if (!bestResultIndex ||
             results[i].mStages.size() <
                 results[bestResultIndex.value()].mStages.size())
         {
+            CLOG_DEBUG(Herder, "New best result: index {} with {} stages", i,
+                       results[i].mStages.size());
             bestResultIndex = std::make_optional(i);
         }
     }
-    releaseAssert(bestResultIndex.has_value());
+
+    if (!bestResultIndex.has_value())
+    {
+        CLOG_ERROR(Herder, "No valid parallel phase result found!");
+        releaseAssert(false);
+    }
+
     auto& bestResult = results[bestResultIndex.value()];
+    CLOG_DEBUG(Herder, "Selected result {} with {} stages and {} total fee",
+               bestResultIndex.value(), bestResult.mStages.size(),
+               bestResult.mTotalInclusionFee);
+
     hadTxNotFittingLane = std::move(bestResult.mHadTxNotFittingLane);
     return std::move(bestResult.mStages);
 }
+
+#ifdef BUILD_TESTS
+
+// This next section provides a test-oriented "simple" builder that does not
+// attempt bin-packing, does not use the txqueue, and will not drop or reorder
+// dependent txs across stages: if dependent txs i < j are in the input, the
+// stage structure that goes out should still have i executing before j, either
+// in a single cluster or across stages. This exists entirely for the parallel
+// pre-execution code in LedgerManagerImpl.cpp that synthesizes parallel
+// schedules to match sequential ones online during testing.
+namespace
+{
+// Represents a cluster of transaction indices that must execute sequentially
+struct IndexCluster
+{
+    BitSet mTxIds;     // Set of transaction IDs in this cluster
+    BitSet mConflicts; // Union of all conflict sets of txs in cluster
+};
+
+// Core algorithm that works with indices and BitSets
+std::vector<std::vector<std::vector<size_t>>>
+buildSimpleParallelStagesFromIndices(std::vector<BitSet> const& conflictSets,
+                                     uint32_t clustersPerStage,
+                                     uint32_t targetStageCount)
+{
+
+    if (conflictSets.empty() || targetStageCount == 0 || clustersPerStage == 0)
+    {
+        return {};
+    }
+
+    std::vector<std::vector<std::vector<size_t>>> result;
+    size_t inputIndex = 0;
+    size_t inputEnd = conflictSets.size();
+
+    // Calculate target transactions per stage
+    size_t targetTxsPerStage = conflictSets.size() / targetStageCount;
+    if (targetTxsPerStage == 0)
+    {
+        targetTxsPerStage = 1;
+    }
+
+    // Build stages until all transactions are processed
+    while (inputIndex < inputEnd)
+    {
+        std::vector<IndexCluster> stageClusters;
+        size_t txsProcessedInStage = 0;
+
+        // Helper to check invariant: no two clusters should conflict
+        auto checkNonConflictingInvariant = [&]() {
+            for (size_t i = 0; i < stageClusters.size(); ++i)
+            {
+                for (size_t j = i + 1; j < stageClusters.size(); ++j)
+                {
+                    if (stageClusters[i].mTxIds.intersectionCount(
+                            stageClusters[j].mConflicts) > 0 ||
+                        stageClusters[j].mTxIds.intersectionCount(
+                            stageClusters[i].mConflicts) > 0)
+                    {
+                        throw std::runtime_error(
+                            "Invariant violated: clusters conflict");
+                    }
+                }
+            }
+        };
+
+        // Process a transaction
+        auto processTx = [&](size_t txId) -> bool {
+            CLOG_DEBUG(Herder, "processing txid {}", txId);
+            // Find all clusters that this tx conflicts with
+            std::vector<size_t> conflictingClusters;
+            for (size_t i = 0; i < stageClusters.size(); ++i)
+            {
+                auto& cluster = stageClusters[i];
+                // Check if this tx conflicts with the cluster
+                if (cluster.mTxIds.intersectionCount(conflictSets[txId]) > 0 ||
+                    cluster.mConflicts.get(txId))
+                {
+                    CLOG_DEBUG(Herder, "txid {} conflicts with cluster {}",
+                               txId, i);
+                    conflictingClusters.push_back(i);
+                }
+            }
+
+            // If no conflicts and we have room for a new cluster
+            if (conflictingClusters.empty() &&
+                stageClusters.size() < clustersPerStage)
+            {
+                CLOG_DEBUG(Herder, "forming new cluster with txid {}", txId);
+                IndexCluster newCluster;
+                newCluster.mTxIds.set(txId);
+                newCluster.mConflicts = conflictSets[txId];
+                stageClusters.push_back(std::move(newCluster));
+                txsProcessedInStage++;
+                checkNonConflictingInvariant();
+                return true;
+            }
+
+            // If we have conflicts, merge all conflicting clusters
+            if (!conflictingClusters.empty())
+            {
+                CLOG_DEBUG(Herder, "merging {} conflicting clusters",
+                           conflictingClusters.size());
+                // Build the merged cluster
+                IndexCluster mergedCluster;
+                for (size_t clusterIdx : conflictingClusters)
+                {
+                    auto& cluster = stageClusters[clusterIdx];
+                    mergedCluster.mTxIds.inplaceUnion(cluster.mTxIds);
+                    mergedCluster.mConflicts.inplaceUnion(cluster.mConflicts);
+                }
+
+                // Add new transaction at the end
+                mergedCluster.mTxIds.set(txId);
+                mergedCluster.mConflicts.inplaceUnion(conflictSets[txId]);
+
+                // Remove all conflicting clusters (in reverse order)
+                for (auto it = conflictingClusters.rbegin();
+                     it != conflictingClusters.rend(); ++it)
+                {
+                    stageClusters.erase(stageClusters.begin() + *it);
+                }
+
+                // Add the merged cluster
+                stageClusters.push_back(std::move(mergedCluster));
+
+                txsProcessedInStage++;
+
+                checkNonConflictingInvariant();
+                return true;
+            }
+
+            if (stageClusters.empty())
+            {
+                return false;
+            }
+
+            // No reason to add it to any cluster in particular; just add it to
+            // the smallest one.
+            size_t smallest = 0;
+            for (size_t i = 0; i < stageClusters.size(); ++i)
+            {
+                if (stageClusters[smallest].mTxIds.size() >
+                    stageClusters[i].mTxIds.size())
+                {
+                    smallest = i;
+                }
+            }
+            stageClusters[smallest].mTxIds.set(txId);
+            stageClusters[smallest].mConflicts.inplaceUnion(conflictSets[txId]);
+            return true;
+        };
+
+        while (inputIndex < inputEnd && txsProcessedInStage < targetTxsPerStage)
+        {
+            // Try to process the transaction
+            if (!processTx(inputIndex))
+            {
+                inputIndex++;
+                break;
+            }
+            else
+            {
+                inputIndex++;
+            }
+        }
+
+        // Convert stage clusters to result format
+        if (!stageClusters.empty())
+        {
+            std::vector<std::vector<size_t>> stage;
+            for (auto& cluster : stageClusters)
+            {
+                if (!cluster.mTxIds.empty())
+                {
+                    std::vector<size_t> clu;
+                    for (size_t i = 0; cluster.mTxIds.nextSet(i); ++i)
+                    {
+                        clu.push_back(i);
+                    }
+                    stage.push_back(clu);
+                }
+            }
+            if (!stage.empty())
+            {
+                CLOG_DEBUG(Herder, "formed stage with {} clusters",
+                           stage.size());
+                result.push_back(std::move(stage));
+            }
+        }
+    }
+
+    return result;
+}
+} // namespace
+
+// Test function that builds a simple TxStageFrameList with fixed parallelism
+// This function ignores resource limits and surge pricing
+TxStageFrameList
+buildSimpleParallelTxStages(TxFrameList const& txFrames,
+                            uint32_t clustersPerStage,
+                            uint32_t targetStageCount)
+{
+    ZoneScoped;
+    CLOG_DEBUG(Herder,
+               "Building simple parallel stages: {} txs, target {} stages, {} "
+               "clusters/stage",
+               txFrames.size(), targetStageCount, clustersPerStage);
+
+    if (txFrames.empty() || targetStageCount == 0 || clustersPerStage == 0)
+    {
+        return {};
+    }
+
+    // Build conflict map similar to the main function
+    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRoKey;
+    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRwKey;
+    std::vector<BitSet> conflictSets(txFrames.size());
+
+    for (size_t i = 0; i < txFrames.size(); ++i)
+    {
+        auto const& txFrame = txFrames[i];
+        auto const& footprint = txFrame->sorobanResources().footprint;
+        for (auto const& key : footprint.readOnly)
+        {
+            txsWithRoKey[key].push_back(i);
+        }
+        for (auto const& key : footprint.readWrite)
+        {
+            txsWithRwKey[key].push_back(i);
+        }
+    }
+
+    // Mark conflicts
+    for (auto const& [key, rwTxIds] : txsWithRwKey)
+    {
+        // RW-RW conflicts
+        for (size_t i = 0; i < rwTxIds.size(); ++i)
+        {
+            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
+            {
+                conflictSets[rwTxIds[i]].set(rwTxIds[j]);
+                conflictSets[rwTxIds[j]].set(rwTxIds[i]);
+            }
+        }
+        // RO-RW conflicts
+        auto roIt = txsWithRoKey.find(key);
+        if (roIt != txsWithRoKey.end())
+        {
+            auto const& roTxIds = roIt->second;
+            for (size_t i = 0; i < roTxIds.size(); ++i)
+            {
+                for (size_t j = 0; j < rwTxIds.size(); ++j)
+                {
+                    conflictSets[roTxIds[i]].set(rwTxIds[j]);
+                    conflictSets[rwTxIds[j]].set(roTxIds[i]);
+                }
+            }
+        }
+    }
+
+    // Use the core algorithm
+    auto indexStages = buildSimpleParallelStagesFromIndices(
+        conflictSets, clustersPerStage, targetStageCount);
+
+    // Convert index stages to TxStageFrameList
+    TxStageFrameList result;
+    for (auto const& indexStage : indexStages)
+    {
+        TxStageFrame stage;
+        for (auto const& indexCluster : indexStage)
+        {
+            TxFrameList cluster;
+            for (size_t txId : indexCluster)
+            {
+                cluster.push_back(txFrames[txId]);
+            }
+            stage.push_back(std::move(cluster));
+        }
+        result.push_back(std::move(stage));
+    }
+
+    CLOG_DEBUG(Herder, "Built {} stages from {} transactions", result.size(),
+               txFrames.size());
+
+    return result;
+}
+
+// Export the core algorithm for testing
+std::vector<std::vector<std::vector<size_t>>>
+testBuildSimpleParallelStagesFromIndices(
+    std::vector<BitSet> const& conflictSets, uint32_t clustersPerStage,
+    uint32_t targetStageCount)
+{
+    return buildSimpleParallelStagesFromIndices(conflictSets, clustersPerStage,
+                                                targetStageCount);
+}
+
+#endif // BUILD_TESTS
 
 } // namespace stellar
