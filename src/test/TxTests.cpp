@@ -2138,7 +2138,7 @@ getGenesisAccount(Application& app, uint32_t accountIndex)
         app, getAccount("TestAccount-" + std::to_string(accountIndex)));
 }
 
-TEST_CASE("check paddedTransactionFromOperationsV1 behavior", "[tx]")
+TEST_CASE("check paddedTransactionFromOperationsV1 behavior", "[loadgen]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
