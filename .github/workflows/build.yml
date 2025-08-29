@@ -95,9 +95,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}
+            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-
+            ${{ runner.os }}-${{ matrix.toolchain }}-
 
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
@@ -143,9 +144,9 @@ jobs:
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
 
-      # We only _save_ to the cache when we had a cache miss, are running on master, and are the non-txmeta scenario.
+      # We only _save_ to the cache when we had a cache miss and are the non-txmeta scenario.
       - uses: actions/cache/save@v4
-        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' && matrix.scenario == ''}}
+        if: ${{ steps.cache.outputs.cache-hit != 'true' && matrix.scenario == ''}}
         with:
           path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-${{ github.sha }}
