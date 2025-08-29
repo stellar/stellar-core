@@ -41,9 +41,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
+          key: ${{ runner.os }}-clang-19-${{ matrix.protocol }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-clang-19-${{ matrix.protocol }}
+            ${{ runner.os }}-clang-19-${{ matrix.protocol }}-
+            ${{ runner.os }}-clang-19-
 
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
@@ -96,8 +97,8 @@ jobs:
           ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
 
       - uses: actions/cache/save@v4
-        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
         with:
           path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
+          key: ${{ runner.os }}-clang-19-${{ matrix.protocol }}-${{ github.sha }}
 
