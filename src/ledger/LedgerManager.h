@@ -260,23 +260,18 @@ class LedgerManager
 
     virtual Resource maxLedgerResources(bool isSoroban) = 0;
     virtual Resource maxSorobanTransactionResources() = 0;
-    virtual void
-    updateSorobanNetworkConfigForCommit(AbstractLedgerTxn& ltx) = 0;
-    // Return the network config for Soroban.
-    // The config is automatically refreshed on protocol upgrades.
-    // Ledger txn here is needed for the sake of lazy load; it won't be
-    // used most of the time.
+    // Return the network config for Soroban as of the last closed ledger.
+    // This is only accessible from the main thread. Thus it shouldn't be
+    // accessed during the apply phase of ledger close, as that may run in a
+    // separate thread. During the apply phase, the network config should be
+    // loaded from the most recent ledger state on demand instead.
     virtual SorobanNetworkConfig const&
     getLastClosedSorobanNetworkConfig() const = 0;
-    virtual SorobanNetworkConfig const& getSorobanNetworkConfigForApply() = 0;
 
     virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
     virtual std::chrono::milliseconds getExpectedLedgerCloseTime() const = 0;
 
 #ifdef BUILD_TESTS
-    virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
-    virtual void mutateSorobanNetworkConfigForApply(
-        std::function<void(SorobanNetworkConfig&)> const& f) = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
     virtual std::optional<LedgerCloseMetaFrame> const&

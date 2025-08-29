@@ -399,8 +399,7 @@ InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 
 void
 InMemorySorobanState::initializeStateFromSnapshot(
-    SearchableSnapshotConstPtr snap, SorobanNetworkConfig const* sorobanConfig,
-    uint32_t ledgerVersion)
+    SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
     releaseAssertOrThrow(mContractDataEntries.empty());
     releaseAssertOrThrow(mContractCodeEntries.empty());
@@ -408,7 +407,7 @@ InMemorySorobanState::initializeStateFromSnapshot(
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        releaseAssertOrThrow(sorobanConfig != nullptr);
+        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(snap);
         // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise,
         // check if the entry is shadowed by a DEADENTRY.
         std::unordered_set<LedgerKey> deletedKeys;
@@ -468,7 +467,7 @@ InMemorySorobanState::initializeStateFromSnapshot(
             auto lk = LedgerEntryKey(be.liveEntry());
             if (!get(lk))
             {
-                createContractCodeEntry(be.liveEntry(), *sorobanConfig,
+                createContractCodeEntry(be.liveEntry(), sorobanConfig,
                                         ledgerVersion);
             }
 
@@ -485,11 +484,12 @@ InMemorySorobanState::initializeStateFromSnapshot(
 }
 
 void
-InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
-                                  std::vector<LedgerEntry> const& liveEntries,
-                                  std::vector<LedgerKey> const& deadEntries,
-                                  LedgerHeader const& lh,
-                                  SorobanNetworkConfig const* sorobanConfig)
+InMemorySorobanState::updateState(
+    std::vector<LedgerEntry> const& initEntries,
+    std::vector<LedgerEntry> const& liveEntries,
+    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    SorobanMetrics& metrics)
 {
     // After initialization, we must apply every ledger in order to the
     // in-memory state with no gaps.
@@ -499,7 +499,7 @@ InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
     // We only store soroban entries, no reason to check before protocol 20
     if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        releaseAssertOrThrow(sorobanConfig != nullptr);
+        releaseAssertOrThrow(sorobanConfig.has_value());
         uint32_t ledgerVersion = lh.ledgerVersion;
         for (auto const& entry : initEntries)
         {
@@ -549,6 +549,7 @@ InMemorySorobanState::updateState(std::vector<LedgerEntry> const& initEntries,
     }
 
     checkUpdateInvariants();
+    reportMetrics(metrics);
 }
 
 void

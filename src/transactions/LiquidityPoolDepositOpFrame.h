@@ -44,8 +44,7 @@ class LiquidityPoolDepositOpFrame : public OperationFrame
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                 OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;

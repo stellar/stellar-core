@@ -186,11 +186,12 @@ template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
 template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
-LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
+LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    LedgerHeader lh, uint32_t initialLedgerVers)
+    uint32_t initialLedgerVers)
 {
+    auto lh = ltx.loadHeader().current();
     if (mUseTestEntries)
     {
         // Seal the ltx but throw its entries away.
@@ -237,7 +238,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
                         ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
                         mApp.getLedgerManager()
-                            .getMutableSorobanNetworkConfigForApply());
+                            .getLastClosedSorobanNetworkConfig());
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::
@@ -273,25 +274,49 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
 
                 ltxEvictions.commit();
             }
-            mApp.getLedgerManager()
-                .getMutableSorobanNetworkConfigForApply()
-                .maybeSnapshotSorobanStateSize(
-                    lh.ledgerSeq,
-                    mApp.getLedgerManager()
-                        .getSorobanInMemoryStateSizeForTesting(),
-                    ltx, mApp);
+            SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
+                lh.ledgerSeq,
+                mApp.getLedgerManager().getSorobanInMemoryStateSizeForTesting(),
+                ltx, mApp);
         }
 
+        // Load the final Soroban config just before sealing the ltx.
+        std::optional<SorobanNetworkConfig> finalSorobanConfig;
+        if (protocolVersionStartsFrom(lh.ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            finalSorobanConfig =
+                std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
+        }
         ltx.getAllEntries(init, live, dead);
 
         // Add dead entries from ltx to entries that will be added to BucketList
         // so we can test background eviction properly
         if (protocolVersionStartsFrom(initialLedgerVers,
-                                      SOROBAN_PROTOCOL_VERSION))
+                                      SOROBAN_PROTOCOL_VERSION) ||
+            mAlsoAddActualEntries)
         {
-            for (auto const& k : dead)
+            mTestDeadEntries.insert(mTestDeadEntries.end(), dead.begin(),
+                                    dead.end());
+        }
+        if (mAlsoAddActualEntries)
+        {
+            mTestInitEntries.insert(mTestInitEntries.end(), init.begin(),
+                                    init.end());
+            // When the actual entries have the same key as test entries, we
+            // override the actual entries with the test entries (here we
+            // just don't add the actual entries if they're already present).
+            for (auto const& liveEntry : live)
             {
-                mTestDeadEntries.emplace_back(k);
+                if (std::find_if(mTestLiveEntries.begin(),
+                                 mTestLiveEntries.end(),
+                                 [liveEntry](auto const& e) {
+                                     return LedgerEntryKey(e) ==
+                                            LedgerEntryKey(liveEntry);
+                                 }) == mTestLiveEntries.end())
+                {
+                    mTestLiveEntries.push_back(liveEntry);
+                }
             }
         }
 
@@ -302,10 +327,13 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
                                                  mTestLiveEntries);
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
+
         mApplyState.updateInMemorySorobanState(
-            mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh);
+            mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh,
+            finalSorobanConfig);
 
         mUseTestEntries = false;
+        mAlsoAddActualEntries = false;
         mTestInitEntries.clear();
         mTestLiveEntries.clear();
         mTestDeadEntries.clear();
@@ -315,8 +343,8 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
     }
     else
     {
-        LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
-            ltx, ledgerCloseMeta, lh, initialLedgerVers);
+        LedgerManagerImpl::finalizeLedgerTxnChanges(ltx, ledgerCloseMeta,
+                                                    initialLedgerVers);
     }
 }
 

@@ -49,18 +49,23 @@ class OperationFrame
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
     virtual bool
-    doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-            Hash const& sorobanBasePrngSeed, OperationResult& res,
-            std::optional<RefundableFeeTracker>& refundableFeeTracker,
-            OperationMetaBuilder& opMeta) const = 0;
+    doApplyForSoroban(AppConnector& app, AbstractLedgerTxn& ltx,
+                      SorobanNetworkConfig const& sorobanConfig,
+                      Hash const& sorobanBasePrngSeed, OperationResult& res,
+                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                      OperationMetaBuilder& opMeta) const;
+    virtual bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                         OperationResult& res,
+                         OperationMetaBuilder& opMeta) const = 0;
 
-    virtual ParallelTxReturnVal doParallelApply(
-        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, SorobanNetworkConfig const& sorobanConfig,
-        Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
-        SorobanMetrics& sorobanMetrics, OperationResult& res,
-        std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta) const;
+    virtual ParallelTxReturnVal
+    doParallelApply(AppConnector& app,
+                    ThreadParallelApplyLedgerState const& threadState,
+                    Config const& config, Hash const& txPrngSeed,
+                    ParallelLedgerInfo const& ledgerInfo,
+                    SorobanMetrics& sorobanMetrics, OperationResult& res,
+                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+                    OperationMetaBuilder& opMeta) const;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -89,22 +94,21 @@ class OperationFrame
     MuxedAccount getSourceAccount() const;
 
     bool checkValid(AppConnector& app, SignatureChecker& signatureChecker,
-                    std::optional<SorobanNetworkConfig> const& cfg,
-                    LedgerSnapshot const& ls, bool forApply,
-                    OperationResult& res,
+                    SorobanNetworkConfig const* cfg, LedgerSnapshot const& ls,
+                    bool forApply, OperationResult& res,
                     DiagnosticEventManager& diagnosticEvents) const;
 
     bool apply(AppConnector& app, SignatureChecker& signatureChecker,
-               AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-               OperationResult& res,
+               AbstractLedgerTxn& ltx,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+               Hash const& sorobanBasePrngSeed, OperationResult& res,
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
                OperationMetaBuilder& opMeta) const;
 
     ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, SorobanNetworkConfig const& sorobanConfig,
-        ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
-        OperationResult& res,
+        Config const& config, ParallelLedgerInfo const& ledgerInfo,
+        SorobanMetrics& sorobanMetrics, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, Hash const& sorobanBasePrngSeed) const;
 

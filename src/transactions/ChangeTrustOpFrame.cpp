@@ -141,11 +141,9 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
+ChangeTrustOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                            OperationResult& res,
+                            OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
 

@@ -137,25 +137,35 @@ OperationFrame::OperationFrame(Operation const& op,
 }
 
 bool
-OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-                      OperationResult& res,
-                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const
+OperationFrame::apply(
+    AppConnector& app, SignatureChecker& signatureChecker,
+    AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed, OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneScoped;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
 
     LedgerSnapshot ltxState(ltx);
-    std::optional<SorobanNetworkConfig> cfg =
-        isSoroban() ? std::make_optional(app.getSorobanNetworkConfigForApply())
-                    : std::nullopt;
-    bool applyRes = checkValid(app, signatureChecker, cfg, ltxState, true, res,
-                               opMeta.getDiagnosticEventManager());
+    bool applyRes = checkValid(
+        app, signatureChecker, sorobanConfig ? &sorobanConfig.value() : nullptr,
+        ltxState, true, res, opMeta.getDiagnosticEventManager());
     if (applyRes)
     {
-        applyRes = doApply(app, ltx, sorobanBasePrngSeed, res,
-                           refundableFeeTracker, opMeta);
+        if (isSoroban())
+        {
+            releaseAssertOrThrow(sorobanConfig);
+            applyRes =
+                doApplyForSoroban(app, ltx, *sorobanConfig, sorobanBasePrngSeed,
+                                  res, refundableFeeTracker, opMeta);
+        }
+        else
+        {
+            applyRes = doApply(app, ltx, res, opMeta);
+        }
+
         CLOG_TRACE(Tx, "{}", xdrToCerealString(res, "OperationResult"));
     }
 
@@ -165,9 +175,8 @@ OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
 ParallelTxReturnVal
 OperationFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, SorobanNetworkConfig const& sorobanConfig,
-    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
-    OperationResult& res,
+    Config const& config, ParallelLedgerInfo const& ledgerInfo,
+    SorobanMetrics& sorobanMetrics, OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta, Hash const& txPrngSeed) const
 {
@@ -175,17 +184,16 @@ OperationFrame::parallelApply(
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
     // checkValid is called earlier in preParallelApply
 
-    return doParallelApply(app, threadState, config, sorobanConfig, txPrngSeed,
-                           ledgerInfo, sorobanMetrics, res,
-                           refundableFeeTracker, opMeta);
+    return doParallelApply(app, threadState, config, txPrngSeed, ledgerInfo,
+                           sorobanMetrics, res, refundableFeeTracker, opMeta);
 }
 
 ParallelTxReturnVal
 OperationFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& appConfig, SorobanNetworkConfig const& sorobanConfig,
-    Hash const& txPrngSeed, ParallelLedgerInfo const& ledgerInfo,
-    SorobanMetrics& sorobanMetrics, OperationResult& res,
+    Config const& appConfig, Hash const& txPrngSeed,
+    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
+    OperationResult& res,
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {
@@ -264,7 +272,7 @@ OperationFrame::getSourceAccount() const
 bool
 OperationFrame::checkValid(AppConnector& app,
                            SignatureChecker& signatureChecker,
-                           std::optional<SorobanNetworkConfig> const& cfg,
+                           SorobanNetworkConfig const* cfg,
                            LedgerSnapshot const& ls, bool forApply,
                            OperationResult& res,
                            DiagnosticEventManager& diagnosticEvents) const
@@ -315,9 +323,8 @@ OperationFrame::checkValid(AppConnector& app,
             isSoroban())
         {
             releaseAssertOrThrow(cfg);
-            validationResult =
-                doCheckValidForSoroban(cfg.value(), app.getConfig(),
-                                       ledgerVersion, res, diagnosticEvents);
+            validationResult = doCheckValidForSoroban(
+                *cfg, app.getConfig(), ledgerVersion, res, diagnosticEvents);
         }
         else
         {
@@ -349,6 +356,17 @@ OperationFrame::doCheckValidForSoroban(
     DiagnosticEventManager& diagnosticEvents) const
 {
     return doCheckValid(ledgerVersion, res);
+}
+
+bool
+OperationFrame::doApplyForSoroban(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
+    OperationResult& res,
+    std::optional<RefundableFeeTracker>& refundableFeeTracker,
+    OperationMetaBuilder& opMeta) const
+{
+    return doApply(app, ltx, res, opMeta);
 }
 
 LedgerTxnEntry
