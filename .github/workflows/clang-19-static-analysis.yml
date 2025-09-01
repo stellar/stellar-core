@@ -9,6 +9,9 @@ on:
       - prod
       - testnet
       - acceptance-test-pass
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true      
 
 jobs:
   clang-19-compile:
