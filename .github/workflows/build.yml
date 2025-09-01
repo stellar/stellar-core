@@ -88,6 +88,7 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-
+            ${{ runner.os }}-${{ matrix.toolchain }}-
 
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
