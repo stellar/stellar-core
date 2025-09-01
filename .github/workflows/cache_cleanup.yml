@@ -1,0 +1,59 @@
+name: CI cache cleanup
+on:
+  pull_request:
+    types:
+      - closed
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      # `actions:write` permission is required to delete caches
+      actions: write
+      contents: read
+    steps:
+      - name: Cleanup cache
+        run: |
+          echo "Fetching list of cache keys for PR branch: $BRANCH"
+          
+          # Get cache keys and handle the case where no caches exist
+          cacheKeysForPR=$(gh cache list --ref "$BRANCH" --limit 100 --json key,id --jq '.[].id' 2>/dev/null || echo "")
+          
+          if [ -z "$cacheKeysForPR" ]; then
+            echo "No caches found for branch $BRANCH"
+            exit 0
+          fi
+          
+          echo "Found cache keys: $cacheKeysForPR"
+          
+          # Set to not fail the workflow while deleting cache keys
+          set +e
+          echo "Deleting caches..."
+          
+          deleted_count=0
+          failed_count=0
+          
+          for cacheKey in $cacheKeysForPR
+          do
+              echo "Attempting to delete cache: $cacheKey"
+              if gh cache delete "$cacheKey" 2>/dev/null; then
+                echo "✓ Successfully deleted cache: $cacheKey"
+                ((deleted_count++))
+              else
+                echo "✗ Failed to delete cache: $cacheKey (likely insufficient permissions)"
+                ((failed_count++))
+              fi
+          done
+          
+          echo "Cache cleanup completed:"
+          echo "  - Successfully deleted: $deleted_count caches"
+          echo "  - Failed to delete: $failed_count caches"
+          
+          # Don't fail the workflow even if some deletions failed
+          exit 0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          # Only delete cache from PR branch
+          BRANCH: refs/pull/${{ github.event.pull_request.number }}/merge
