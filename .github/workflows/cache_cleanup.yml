@@ -18,7 +18,7 @@ jobs:
           echo "Fetching list of cache keys for PR branch: $BRANCH"
           
           # Get cache keys and handle the case where no caches exist
-          cacheKeysForPR=$(gh cache list  --repo "$GITHUB_REPO" --ref "$BRANCH" --limit 100 --json key,id --jq '.[].id' 2>/dev/null || echo "")
+          cacheKeysForPR=$(gh cache list --repo "$GITHUB_REPO" --ref "$BRANCH" --limit 100 --json key,id --jq '.[].id' 2>/dev/null || echo "")
           
           if [ -z "$cacheKeysForPR" ]; then
             echo "No caches found for branch $BRANCH"
