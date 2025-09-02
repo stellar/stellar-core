@@ -93,6 +93,48 @@ jobs:
             ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-
             ${{ runner.os }}-${{ matrix.toolchain }}-
 
+      # Clean up older caches from this PR to save space
+      - name: Clean up older PR caches
+        if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "Cleaning up older caches for this PR..."
+          
+          # Get current cache key prefix for this matrix combination
+          CACHE_PREFIX="${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-"
+          
+          # List all caches for this PR branch, excluding the current one
+          CURRENT_KEY="${CACHE_PREFIX}${{ github.sha }}"
+          
+          # Get cache IDs for this PR branch with same prefix but different SHA
+          OLD_CACHE_IDS=$(gh cache list --repo "$GITHUB_REPO" --ref "${{ github.head_ref }}" --limit 50 --json key,id --jq ".[] | select(.key | startswith(\"$CACHE_PREFIX\") and . != \"$CURRENT_KEY\") | .id" 2>/dev/null || echo "")
+          
+          if [ -n "$OLD_CACHE_IDS" ]; then
+            echo "Found old caches to delete:"
+            echo "$OLD_CACHE_IDS"
+            
+            # Delete old caches (ignore failures)
+            echo "$OLD_CACHE_IDS" | while read cache_id; do
+              if [ -n "$cache_id" ]; then
+                echo "Deleting cache ID: $cache_id"
+                gh cache delete "$cache_id" --repo "$GITHUB_REPO" 2>/dev/null || true
+              fi
+            done
+            
+            echo "Cache cleanup completed"
+          else
+            echo "No old caches found for cleanup"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        continue-on-error: true
+
+      - uses: actions/checkout@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+           fetch-depth: 200
+           submodules: true
+
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
         with:
