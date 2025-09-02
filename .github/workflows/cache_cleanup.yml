@@ -18,7 +18,7 @@ jobs:
           echo "Fetching list of cache keys for PR branch: $BRANCH"
           
           # Get cache keys and handle the case where no caches exist
-          cacheKeysForPR=$(gh cache list --ref "$BRANCH" --limit 100 --json key,id --jq '.[].id' 2>/dev/null || echo "")
+          cacheKeysForPR=$(gh cache list  --repo "$GITHUB_REPO" --ref "$BRANCH" --limit 100 --json key,id --jq '.[].id' 2>/dev/null || echo "")
           
           if [ -z "$cacheKeysForPR" ]; then
             echo "No caches found for branch $BRANCH"
@@ -37,7 +37,7 @@ jobs:
           for cacheKey in $cacheKeysForPR
           do
               echo "Attempting to delete cache: $cacheKey"
-              if gh cache delete "$cacheKey" 2>/dev/null; then
+              if gh cache delete "$cacheKey"  --repo "$GITHUB_REPO" 2>/dev/null; then
                 echo "✓ Successfully deleted cache: $cacheKey"
                 ((deleted_count++))
               else
@@ -53,7 +53,7 @@ jobs:
           # Don't fail the workflow even if some deletions failed
           exit 0
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
           # Only delete cache from PR branch
           BRANCH: refs/pull/${{ github.event.pull_request.number }}/merge
