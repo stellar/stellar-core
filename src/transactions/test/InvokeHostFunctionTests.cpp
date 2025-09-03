@@ -8620,7 +8620,7 @@ TEST_CASE("put in first stage and then update value in second stage",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
-TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
+TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
 {
     uint32 const MAX_TRANSACTIONS_PER_LEDGER = 500;
     auto cfg = getTestConfig();
