@@ -142,12 +142,24 @@ jobs:
           echo Build with $CC and $CXX
           echo "Running first scenario"
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
-          echo "Running second scenario with --check-test-tx-meta flag"
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} --check-test-tx-meta
 
       # We only _save_ to the cache when we had a cache miss and are running on master.
-      - uses: actions/cache/save@v4
+      - name: Save cache after first build
+        uses: actions/cache/save@v4
         if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
         with:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Build for check-test-tx-meta scenario
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          if test "${{ matrix.toolchain }}" = "gcc" ; then
+            export CC='gcc'
+            export CXX='g++'
+          else
+            export CC='clang'
+            export CXX='clang++'
+          fi
+          echo "Running second scenario with --check-test-tx-meta flag"
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} --check-test-tx-meta
