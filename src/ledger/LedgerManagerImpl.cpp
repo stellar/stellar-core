@@ -2242,8 +2242,8 @@ LedgerManagerImpl::applyThread(
     SorobanNetworkConfig const& sorobanConfig, ParallelLedgerInfo ledgerInfo,
     Hash sorobanBasePrngSeed)
 {
-    static std::mutex artificialSerializeMutex;
-    std::lock_guard<std::mutex> guard(artificialSerializeMutex);
+    // static std::mutex artificialSerializeMutex;
+    // std::lock_guard<std::mutex> guard(artificialSerializeMutex);
 
     for (auto const& txBundle : cluster)
     {
