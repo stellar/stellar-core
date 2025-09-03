@@ -8620,8 +8620,9 @@ TEST_CASE("put in first stage and then update value in second stage",
             INVOKE_HOST_FUNCTION_SUCCESS);
 }
 
-TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
+TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
 {
+    uint32 const MAX_TRANSACTIONS_PER_LEDGER = 500;
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
@@ -8634,6 +8635,8 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
     // settings upgrade transactions.
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
     cfg.SOROBAN_PHASE_MIN_STAGE_COUNT = 3;
+    cfg.SOROBAN_PHASE_MAX_STAGE_COUNT = 4;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
 
     std::vector<std::string> keys = {"key1", "key2", "key3", "key4",
                                      "key5", "key6", "key7"};
@@ -8646,9 +8649,9 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
 
     auto& app = test.getApp();
 
-    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+    modifySorobanNetworkConfig(app, [&](SorobanNetworkConfig& cfg) {
         cfg.mLedgerMaxInstructions = 400'000'000;
-        cfg.mLedgerMaxTxCount = 500;
+        cfg.mLedgerMaxTxCount = MAX_TRANSACTIONS_PER_LEDGER;
         cfg.mLedgerMaxDependentTxClusters = 2;
     });
 
@@ -8658,13 +8661,6 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
     auto& root = test.getRoot();
     const int64_t startingBalance = lm.getLastMinBalance(50);
 
-    auto sorobanConfig = lm.getLastClosedSorobanNetworkConfig();
-    std::vector<TestAccount> accounts;
-    for (size_t i = 0; i < sorobanConfig.ledgerMaxTxCount(); ++i)
-    {
-        accounts.emplace_back(root.create(std::to_string(i), startingBalance));
-    }
-
     stellar::uniform_int_distribution<uint32_t> keyDist(0, keys.size() - 1);
     stellar::uniform_int_distribution<uint32_t> actionDist(0,
                                                            actions.size() - 1);
@@ -8672,12 +8668,16 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
         0, durabilities.size() - 1);
     stellar::uniform_int_distribution<uint32_t> ttlDist(0, 10'000);
 
+    uint32_t accountId = 0;
+
     for (int i = 0; i < 2; ++i)
     {
         std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
         auto resources = lm.maxLedgerResources(true);
-        for (auto& account : accounts)
+        LedgerSnapshot ls(app);
+        for (int txId = 0; txId < MAX_TRANSACTIONS_PER_LEDGER; ++txId)
         {
+            auto account = txtest::getGenesisAccount(app, accountId++);
             auto const& key = keys.at(keyDist(getGlobalRandomEngine()));
             auto const& action =
                 actions.at(actionDist(getGlobalRandomEngine()));
@@ -8715,6 +8715,8 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
             auto tx = invocation.withExactNonRefundableResourceFee().createTx(
                 &account);
 
+            REQUIRE(tx->checkValid(app.getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
             if (!anyGreater(tx->getResources(false, test.getLedgerVersion()),
                             resources))
             {
@@ -8736,7 +8738,10 @@ TEST_CASE("apply generated parallel tx sets", "[tx][soroban][parallelapply]")
         {
             REQUIRE(txRes.result.result.code() != txINTERNAL_ERROR);
         }
-        REQUIRE(r.results.size() == sorobanTxs.size());
+        REQUIRE(r.results.size() <= sorobanTxs.size());
+        // It's not always possible to perfectly pack all the transactions into
+        // two clusters, so a transaction may be left out from time to time.
+        REQUIRE(sorobanTxs.size() - r.results.size() <= 2);
     }
 }
 
