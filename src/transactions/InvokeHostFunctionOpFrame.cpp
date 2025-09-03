@@ -515,6 +515,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
             basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
                                          mSorobanBasePrngSeed.end());
+            CLOG_DEBUG(Tx, "Calling Rust with PRNG base seed = {}", hexAbbrev(mSorobanBasePrngSeed));
             auto moduleCache = mApp.getModuleCache();
 
             out = rust_bridge::invoke_host_function(

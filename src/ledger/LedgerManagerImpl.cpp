@@ -2251,6 +2251,7 @@ LedgerManagerImpl::applyThread(
         auto txTime = mApplyState.getMetrics().mTransactionApply.TimeScope();
 
         Hash txSubSeed = subSha256(sorobanBasePrngSeed, txBundle.getTxNum());
+        CLOG_DEBUG(Tx, "Parallel tx #{} PRNG subseed = {}", txBundle.getTxNum(), hexAbbrev(txSubSeed));
 
         threadState->flushRoTTLBumpsInTxWriteFootprint(txBundle);
 
@@ -2876,7 +2877,7 @@ class ExecutionCapture
     write_keyhash_files(std::filesystem::path const& dir,
                         TransactionMeta const& meta)
     {
-        if (meta.v() != 3)
+        if (meta.v() != 3 || meta.v3().operations.empty())
         {
             return;
         }
@@ -3593,6 +3594,7 @@ LedgerManagerImpl::applySequentialPhase(
             // is observable in the protocol.
             subSeed =
                 subSha256(sorobanBasePrngSeed, static_cast<uint64_t>(index));
+            CLOG_DEBUG(Tx, "Sequential tx #{} PRNG subseed = {}", index, hexAbbrev(subSeed));
         }
         CLOG_DEBUG(Ledger, "Sequential tx #{} = {}", index,
                    hexAbbrev(tx->getFullHash()));

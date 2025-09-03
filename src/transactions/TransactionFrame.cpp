@@ -1929,9 +1929,18 @@ TransactionFrame::parallelApply(
         auto& opResult = txResult.getOpResultAt(0);
         auto& opMeta = effects.getMeta().getOperationMetaBuilderAt(0);
 
+        Hash subSeed = txPrngSeed;
+        // If op can use the seed, we need to compute a sub-seed for it.
+        // Technically this is redundant since we only have 1-op-per-tx 
+        // for parallel apply and we're always doing soroban, but for
+        // parity with the sequential case we keep it.
+        releaseAssert(op->isSoroban());
+        subSeed = subSha256(txPrngSeed, 0);
+        CLOG_DEBUG(Tx, "Op #{} PRNG parallel-apply subseed = {}", 0, hexAbbrev(subSeed));
+
         auto res = op->parallelApply(
             app, threadState, config, sorobanConfig, ledgerInfo, sorobanMetrics,
-            opResult, txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
+            opResult, txResult.getRefundableFeeTracker(), opMeta, subSeed);
 
 #ifdef BUILD_TESTS
         maybeTriggerTestInternalError(mEnvelope);
@@ -2037,6 +2046,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             if (op->isSoroban())
             {
                 subSeed = subSha256(sorobanBasePrngSeed, opNum);
+                CLOG_DEBUG(Tx, "Op #{} PRNG sequential-apply subseed = {}", i, hexAbbrev(subSeed));
             }
             ++opNum;
             auto& opMeta = outerMeta.getOperationMetaBuilderAt(i);
