@@ -192,6 +192,9 @@ AS_IF([test x != "x$sanitizeopts"], [
   sanflags="-fsanitize=$sanitizeopts -fno-omit-frame-pointer"
   CFLAGS="$CFLAGS $sanflags"
   CXXFLAGS="$CXXFLAGS $sanflags"
+  
+  # Add sanitizer flags to LDFLAGS for proper linking
+  LDFLAGS="$LDFLAGS -fsanitize=$sanitizeopts"
 
   # compile our own libraries when sanitizers are enabled
   libsodium_INTERNAL=yes
@@ -269,15 +272,34 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
 	      [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
               [AC_MSG_RESULT([yes]); FS_WORKS=yes],
               [AC_MSG_RESULT([no]); FS_WORKS=no])
+
+# If runtime test failed but we have sanitizers enabled, try compile-time test
+# since sanitizers can interfere with filesystem runtime tests
+if test "$FS_WORKS" = "no" && test "x$sanitizeopts" != "x"; then
+    AC_MSG_CHECKING([to see if <filesystem> compiles without extra libs (sanitizer mode)])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
+	              [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
+                      [AC_MSG_RESULT([yes]); FS_WORKS=yes],
+                      [AC_MSG_RESULT([no])])
+fi
+
 for testlib in -lstdc++fs -lc++fs; do
     if test "$FS_WORKS" = "no"; then
         fs_save_LIBS="$LIBS"
         LIBS="$testlib $LIBS"
         AC_MSG_CHECKING([to see if <filesystem> works with $testlib])
-        AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
-		      [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
-                  [AC_MSG_RESULT([yes]); FS_WORKS=yes],
-                  [AC_MSG_RESULT([no]); FS_WORKS=no; LIBS="$fs_save_LIBS"])
+        # Use compile test if sanitizers are enabled, runtime test otherwise
+        if test "x$sanitizeopts" != "x"; then
+            AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
+		                  [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
+                              [AC_MSG_RESULT([yes]); FS_WORKS=yes],
+                              [AC_MSG_RESULT([no]); FS_WORKS=no; LIBS="$fs_save_LIBS"])
+        else
+            AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
+		              [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
+                          [AC_MSG_RESULT([yes]); FS_WORKS=yes],
+                          [AC_MSG_RESULT([no]); FS_WORKS=no; LIBS="$fs_save_LIBS"])
+        fi
     fi
 done
 if test "$FS_WORKS" = "no"; then
