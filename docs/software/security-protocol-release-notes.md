@@ -21,8 +21,8 @@ It is organized as a reverse chronological timeline of releases.
 
 ## Goals for this document
 
-* have a summary view of changes that affect the code base (stellar-core has to be able to replay all ledgers generated since genesis on the Stellar public network).
-* drive transparency on issues that affected the network in the past as well as their impact.
+* Have a summary view of changes that affect the code base (stellar-core has to be able to replay all ledgers generated since genesis on the Stellar public network).
+* Drive transparency on issues that affected the network in the past as well as their impact.
 
 ## Security issues disclosure policy
 
@@ -52,6 +52,31 @@ It then follows that:
 * `History` - History subsystem
 
 # List of releases
+
+## v22.4.1 (2025-06-13)
+
+* `Ledger` - security - Unchecked XDR recursive data structure in a transaction beyond the limit can crash the network.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Invalid XDR enum value could crash a stellar-core node.
+    * exploited: no
+    * mitigation: code fix    
+
+## v22.2.0 (2025-03-19)
+
+* `Overlay` - security - Background Overlay thread requesting and pulling data faster than the main thread can process.
+    * exploited: no
+    * mitigation: code fix
+
+## v22.1.0 (2024-12-11)
+
+* `Overlay` - security - Peers SQL table can be grown arbitrarily and be poisoned with potentially invalid peer IPs.
+    * exploited: no
+    * mitigation: code fix
+
+* `SCP` - security - Elevated memory consumption with a lot of requests for valid transaction sets by peer.
+    * exploited: no
+    * mitigation: code fix
 
 ## v22.0.0 (2024-11-06)
 
