@@ -1404,11 +1404,13 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltx)
     return SorobanNetworkConfig::loadFromLedger(ls);
 }
 
+#ifdef BUILD_TESTS
 SorobanNetworkConfig
 SorobanNetworkConfig::emptyConfig()
 {
     return SorobanNetworkConfig();
 }
+#endif
 
 void
 SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
