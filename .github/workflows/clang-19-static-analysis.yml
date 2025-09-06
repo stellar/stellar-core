@@ -9,6 +9,9 @@ on:
       - prod
       - testnet
       - acceptance-test-pass
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true      
 
 jobs:
   clang-19-compile:
@@ -30,20 +33,12 @@ jobs:
 
       - name: Probe Cache
         id: cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ runner.os }}-clang-19-${{ matrix.protocol }}-${{ github.sha }}
-          lookup-only: true
-
-      - name: Restore Cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
           restore-keys: |
-            ${{ runner.os }}-clang-19-${{ matrix.protocol }}
+            ${{ runner.os }}-clang-19-${{ matrix.protocol }}-
 
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'
@@ -94,10 +89,3 @@ jobs:
 
           # Run ci-build.sh with tests disabled and protocol specified
           ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
-
-      - uses: actions/cache/save@v4
-        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
-        with:
-          path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-
