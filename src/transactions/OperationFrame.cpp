@@ -215,7 +215,7 @@ OperationFrame::isOpSupported(LedgerHeader const&) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, OperationResult& res,
+                               LedgerSnapshot const& ls, OperationResult* res,
                                bool forApply) const
 {
     ZoneScoped;
@@ -228,7 +228,10 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
         if (!mParentTx.checkSignature(signatureChecker, sourceAccount,
                                       neededThreshold))
         {
-            res.code(opBAD_AUTH);
+            if (res)
+            {
+                res->code(opBAD_AUTH);
+            }
             return false;
         }
     }
@@ -236,14 +239,20 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
     {
         if (forApply || !mOperation.sourceAccount)
         {
-            res.code(opNO_ACCOUNT);
+            if (res)
+            {
+                res->code(opNO_ACCOUNT);
+            }
             return false;
         }
 
         if (!mParentTx.checkSignatureNoAccount(
                 signatureChecker, toAccountID(*mOperation.sourceAccount)))
         {
-            res.code(opBAD_AUTH);
+            if (res)
+            {
+                res->code(opBAD_AUTH);
+            }
             return false;
         }
     }
@@ -293,7 +302,7 @@ OperationFrame::checkValid(AppConnector& app,
         if (!forApply ||
             protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
         {
-            if (!checkSignature(signatureChecker, ls, res, forApply))
+            if (!checkSignature(signatureChecker, ls, &res, forApply))
             {
                 validationResult = false;
                 return;

@@ -173,6 +173,20 @@ class TransactionFrameBase
                                 LedgerEntryWrapper const& account,
                                 int32_t neededWeight) const = 0;
 
+    // Validate signatures for all operations in this transaction. Callers may
+    // set `txResult` to `nullptr` if they don't need results (e.g. when
+    // populating signature cache in the background).
+    virtual bool
+    checkOperationSignatures(SignatureChecker& signatureChecker,
+                             LedgerSnapshot const& ls,
+                             MutableTransactionResultBase* txResult) const = 0;
+
+    // Validate all transaction-level signatures
+    virtual bool
+    checkAllTransactionSignatures(SignatureChecker& signatureChecker,
+                                  LedgerEntryWrapper const& sourceAccount,
+                                  uint32_t ledgerVersion) const = 0;
+
 #ifdef BUILD_TESTS
     virtual TransactionEnvelope& getMutableEnvelope() const = 0;
     virtual void clearCached() const = 0;
@@ -238,6 +252,11 @@ class TransactionFrameBase
     virtual SorobanTransactionData::_ext_t const& getResourcesExt() const = 0;
     virtual int64 declaredSorobanResourceFee() const = 0;
     virtual bool XDRProvidesValidFee() const = 0;
+
+    // Invoke `fn` with the transaction's inner transaction, if any exists.
+    // Otherwise this function does nothing.
+    virtual void
+    withInnerTx(std::function<void(TransactionFrameBaseConstPtr)> fn) const = 0;
 
     // Returns true if this TX is a soroban transaction with a
     // RestoreFootprintOp.

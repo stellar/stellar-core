@@ -33,6 +33,14 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                         LedgerEntryWrapper const& account,
                         int32_t neededWeight) const override;
 
+    bool checkOperationSignatures(
+        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        MutableTransactionResultBase* txResult) const override;
+
+    bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
+                                       LedgerEntryWrapper const& feeSource,
+                                       uint32_t ledgerVersion) const override;
+
     // If check passes, returns the fee source account. Otherwise returns
     // nullopt.
     std::optional<LedgerEntryWrapper>
@@ -164,5 +172,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
     virtual bool isRestoreFootprintTx() const override;
+
+    void withInnerTx(
+        std::function<void(TransactionFrameBaseConstPtr)> fn) const override;
 };
 }
