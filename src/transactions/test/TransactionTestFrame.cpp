@@ -215,6 +215,24 @@ TransactionTestFrame::checkSignature(SignatureChecker& signatureChecker,
                                              neededWeight);
 }
 
+bool
+TransactionTestFrame::checkOperationSignatures(
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    MutableTransactionResultBase* txResult) const
+{
+    return mTransactionFrame->checkOperationSignatures(signatureChecker, ls,
+                                                       txResult);
+}
+
+bool
+TransactionTestFrame::checkAllTransactionSignatures(
+    SignatureChecker& signatureChecker, LedgerEntryWrapper const& sourceAccount,
+    uint32_t ledgerVersion) const
+{
+    return mTransactionFrame->checkAllTransactionSignatures(
+        signatureChecker, sourceAccount, ledgerVersion);
+}
+
 Hash const&
 TransactionTestFrame::getContentsHash() const
 {
@@ -427,5 +445,12 @@ void
 TransactionTestFrame::overrideResultFeeCharged(int64_t feeCharged)
 {
     mTransactionTxResult->overrideFeeCharged(feeCharged);
+}
+
+void
+TransactionTestFrame::withInnerTx(
+    std::function<void(TransactionFrameBaseConstPtr)> fn) const
+{
+    mTransactionFrame->withInnerTx(fn);
 }
 }

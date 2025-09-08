@@ -80,26 +80,33 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
     // FeeBumpTransactionFrame
     auto const sourceAccount = ledgerSnapshot.getAccount(tx->getFeeSourceID());
 
-    if (sourceAccount)
+    if (!sourceAccount)
     {
-        // Check signature, which will add the result to the signature cache.
-        // This is safe to do here (pre-validation) because:
-        // 1. The signatures themselves are fixed and cannot change, and
-        // 2. In the unlikely case that the account's signers or thresholds have
-        //    changed (and we haven't heard of it yet), the validation and apply
-        //    functions still contain `checkSignature` calls, which will cause a
-        //    cache miss in that case and force a recheck of the signatures with
-        //    up-to-date signers/thresholds.
-        //
-        // Note that we always use a threshold of HIGH for the signatures to
-        // ensure we check all signatures for any possible operation that may be
-        // in the transaction. Performance analysis has shown that the overlay
-        // thread contains significant extra capacity and can handle this extra
-        // load.
-        tx->checkSignature(
-            signatureChecker, sourceAccount,
-            sourceAccount.current().data.account().thresholds[THRESHOLD_HIGH]);
+        return;
     }
+
+    // Check signatures, which will add the results to the signature cache.
+    // This is safe to do here (pre-validation) because:
+    // 1. The signatures themselves are fixed and cannot change, and
+    // 2. In the unlikely case that the account's signers or thresholds have
+    //    changed (and we haven't heard of it yet), the validation and apply
+    //    functions always directly call the same signature checking functions
+    //    which will fail upon detecting a different expected signer/threshold.
+    //    The cache *only* contains results for the low level cryptographic
+    //    signature checks, which cannot change (see point (1) above).
+
+    // Check all transaction signatures
+    tx->checkAllTransactionSignatures(
+        signatureChecker, sourceAccount,
+        ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+
+    // Check all operation signatures.
+    tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+
+    // Recurse on inner transaction if there is one
+    tx->withInnerTx([&app](TransactionFrameBaseConstPtr innerTx) {
+        populateSignatureCache(app, innerTx);
+    });
 }
 } // namespace
 
@@ -957,6 +964,13 @@ Peer::shouldAbortForTesting() const
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return shouldAbort(guard);
+}
+
+void
+Peer::populateSignatureCacheForTesting(AppConnector& app,
+                                       TransactionFrameBaseConstPtr tx)
+{
+    populateSignatureCache(app, tx);
 }
 #endif
 

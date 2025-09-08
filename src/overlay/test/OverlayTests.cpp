@@ -27,6 +27,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include <fmt/format.h>
 #include <numeric>
 
@@ -3155,5 +3156,261 @@ TEST_CASE("background signature verification with missing account",
     // condition in the above `crankUntil`).
 
     s->stopAllNodes();
+}
+
+// Targeted testing of background signature verification via direct calls to
+// `populateSignatureCache`
+TEST_CASE("populateSignatureCache tests", "[overlay]")
+{
+    // Common test setup
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+    auto app = createTestApplication(clock, cfg);
+
+    constexpr int64_t INITIAL_BALANCE = 10000000000;
+    constexpr int64_t PAYMENT_AMOUNT = 100;
+    constexpr int64_t FEE_BUMP_FEE = 1000;
+
+    // Helper function to run `populateSignatureCache` on overlay thread
+    auto invokePopulateSignatureCache = [&](TransactionTestFramePtr tx) {
+        bool completed = false;
+        app->postOnOverlayThread(
+            [&]() {
+                Peer::populateSignatureCacheForTesting(app->getAppConnector(),
+                                                       tx);
+                completed = true;
+            },
+            "populate signature cache test");
+
+        testutil::crankUntil(
+            app, [&completed]() { return completed; },
+            std::chrono::seconds{30});
+    };
+
+    // Helper function to create test accounts in ledger
+    auto createTestAccounts = [&](std::vector<TestAccount const*> accounts) {
+        auto root = app->getRoot();
+        for (auto account : accounts)
+        {
+            txtest::applyTx(
+                root->tx({txtest::createAccount(*account, INITIAL_BALANCE)}),
+                *app);
+        }
+    };
+
+    // Helper function to clear cache and reset counters
+    auto resetCache = [&]() {
+        PubKeyUtils::clearVerifySigCache();
+        uint64_t discardHits, discardMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(discardHits, discardMisses);
+    };
+
+    // Helper function to invalidate signature
+    auto invalidateSignature = [&](TransactionTestFramePtr tx) {
+        auto& signatures = txbridge::getSignatures(tx);
+        REQUIRE(!signatures.empty());
+        // Replace signature with unrelated value
+        signatures[0].signature = Signature(64, 123);
+    };
+
+    SECTION("Normal transaction with valid signature")
+    {
+        auto testAccountSk = txtest::getAccount("testaccount");
+        auto testAccount = TestAccount{*app, testAccountSk};
+
+        createTestAccounts({&testAccount});
+        resetCache();
+
+        auto tx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+
+        invokePopulateSignatureCache(tx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Should be a single cache miss for the single signature
+        REQUIRE(finalMisses == 1);
+    }
+
+    SECTION("Normal transaction with invalid signature")
+    {
+        auto testAccountSk = txtest::getAccount("testaccount");
+        auto testAccount = TestAccount{*app, testAccountSk};
+
+        createTestAccounts({&testAccount});
+        resetCache();
+
+        auto tx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+
+        invalidateSignature(tx);
+        invokePopulateSignatureCache(tx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Should be a single cache miss for the single signature
+        REQUIRE(finalMisses == 1);
+    }
+
+    SECTION("Fee bump transaction with valid signature")
+    {
+        auto testAccountSk = txtest::getAccount("testaccount");
+        auto feeSourceSk = txtest::getAccount("feesource");
+        auto testAccount = TestAccount{*app, testAccountSk};
+        auto feeSource = TestAccount{*app, feeSourceSk};
+
+        createTestAccounts({&testAccount, &feeSource});
+        resetCache();
+
+        auto innerTx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+        auto feeBumpTx =
+            txtest::feeBump(*app, feeSource, innerTx, FEE_BUMP_FEE);
+
+        invokePopulateSignatureCache(feeBumpTx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Should be two misses: one for outer and one for inner tx
+        REQUIRE(finalMisses == 2);
+    }
+
+    SECTION("Fee bump transaction with invalid signature")
+    {
+        auto testAccountSk = txtest::getAccount("testaccount");
+        auto feeSourceSk = txtest::getAccount("feesource");
+        auto testAccount = TestAccount{*app, testAccountSk};
+        auto feeSource = TestAccount{*app, feeSourceSk};
+
+        createTestAccounts({&testAccount, &feeSource});
+        resetCache();
+
+        auto innerTx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+        auto feeBumpTx =
+            txtest::feeBump(*app, feeSource, innerTx, FEE_BUMP_FEE);
+
+        invalidateSignature(feeBumpTx);
+        invokePopulateSignatureCache(feeBumpTx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Should be two misses: one for outer and one for inner tx
+        REQUIRE(finalMisses == 2);
+    }
+
+    SECTION("Normal transaction with invalid source account")
+    {
+        resetCache();
+
+        auto nonExistentAccount = SecretKey::pseudoRandomForTesting();
+        auto tx = txtest::transactionFromOperations(
+            *app, nonExistentAccount, 1,
+            {txtest::payment(nonExistentAccount.getPublicKey(),
+                             PAYMENT_AMOUNT)});
+
+        invokePopulateSignatureCache(tx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Transaction shouldn't even make it to the cache stage
+        REQUIRE(finalHits == 0);
+        REQUIRE(finalMisses == 0);
+    }
+
+    SECTION("Fee bump transaction with invalid fee source account")
+    {
+        resetCache();
+
+        auto testAccountSk = txtest::getAccount("testaccount");
+        auto nonExistentFeeSourceSk = SecretKey::pseudoRandomForTesting();
+        auto nonExistentFeeSource = TestAccount{*app, nonExistentFeeSourceSk};
+
+        auto innerTx = txtest::transactionFromOperations(
+            *app, testAccountSk, 1,
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+        auto feeBumpTx =
+            txtest::feeBump(*app, nonExistentFeeSource, innerTx, FEE_BUMP_FEE);
+
+        invokePopulateSignatureCache(feeBumpTx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Transaction shouldn't even make it to the cache stage
+        REQUIRE(finalHits == 0);
+        REQUIRE(finalMisses == 0);
+    }
+
+    SECTION("Signature cache invalidation after signer removal")
+    {
+        // Create an additional signer for this test
+        auto additionalSignerSk = txtest::getAccount("additionalsigner");
+        auto testAccountSk = txtest::getAccount("testaccount");
+        auto testAccount = TestAccount{*app, testAccountSk};
+
+        createTestAccounts({&testAccount});
+
+        // Add the additional signer to the account
+        auto addSignerTx = testAccount.tx({txtest::setOptions(
+            txtest::setSigner(txtest::makeSigner(additionalSignerSk, 100)))});
+        txtest::applyTx(addSignerTx, *app);
+
+        // Get current sequence number and create two transactions:
+        // 1. Transaction to remove the signer (sequence N+1)
+        // 2. Transaction signed by the signer that will be removed (sequence
+        // N+2)
+        auto currentSeq = testAccount.loadSequenceNumber();
+
+        auto removeSignerTx = testAccount.tx({txtest::setOptions(
+            txtest::setSigner(txtest::makeSigner(additionalSignerSk, 0)))});
+        txbridge::setSeqNum(removeSignerTx, currentSeq + 1);
+
+        auto paymentTx = txtest::transactionFromOperations(
+            *app, testAccountSk, currentSeq + 2,
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+
+        // Sign with the additional signer instead of the master key
+        auto& signatures = txbridge::getSignatures(paymentTx);
+        signatures.clear();
+        paymentTx->addSignature(additionalSignerSk);
+
+        // Populate signature cache with the transaction signed by the
+        // additional signer
+        resetCache();
+        invokePopulateSignatureCache(paymentTx);
+
+        // Verify that the signature is in the cache
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 1);
+
+        // Remove the signer from the account
+        txtest::applyTx(removeSignerTx, *app);
+
+        // Now check that the cached transaction is invalid due to bad auth
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        bool isValid = paymentTx->checkValidForTesting(app->getAppConnector(),
+                                                       ltx, 0, 0, 0);
+
+        REQUIRE(!isValid);
+
+        // Verify it fails with bad auth, not other reasons
+        auto ls = LedgerSnapshot(ltx);
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto result = paymentTx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                            diagnostics);
+        REQUIRE(result->getResultCode() == txBAD_AUTH);
+    }
 }
 }

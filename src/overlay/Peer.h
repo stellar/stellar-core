@@ -482,6 +482,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
         RecursiveLockGuard guard(mStateMutex);
         return mDropReason;
     }
+
+    // Testing only function to expose `populateSignatureCache`
+    static void
+    populateSignatureCacheForTesting(AppConnector& app,
+                                     TransactionFrameBaseConstPtr tx);
 #endif
 
     // Public thread-safe methods that access Peer's state

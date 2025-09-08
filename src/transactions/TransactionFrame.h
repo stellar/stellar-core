@@ -222,6 +222,14 @@ class TransactionFrame : public TransactionFrameBase
                                  AccountID const& accountID) const;
     bool checkExtraSigners(SignatureChecker& signatureChecker) const;
 
+    bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
+                                       LedgerEntryWrapper const& sourceAccount,
+                                       uint32_t ledgerVersion) const override;
+
+    bool checkOperationSignatures(
+        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        MutableTransactionResultBase* txResult) const override;
+
     void checkValidWithOptionallyChargedFee(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
@@ -344,6 +352,9 @@ class TransactionFrame : public TransactionFrameBase
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
     virtual bool isRestoreFootprintTx() const override;
+
+    void withInnerTx(
+        std::function<void(TransactionFrameBaseConstPtr)> fn) const override;
 
     Memo const& getMemo() const;
 

@@ -86,8 +86,11 @@ class OperationFrame
     OperationFrame(OperationFrame const&) = delete;
     virtual ~OperationFrame() = default;
 
+    // Verify signature requirements for this operation. Callers may set `res`
+    // to `nullptr` if they do not directly need the result of signature
+    // validation (such as in the case of background signature validation).
     bool checkSignature(SignatureChecker& signatureChecker,
-                        LedgerSnapshot const& ls, OperationResult& res,
+                        LedgerSnapshot const& ls, OperationResult* res,
                         bool forApply) const;
 
     AccountID getSourceID() const;
