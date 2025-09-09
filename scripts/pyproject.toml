@@ -1,0 +1,22 @@
+[project]
+name = "scripts"
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.3.3",
+]
+
+[tool.black]
+target-version = ["py313"]
+include = "HistogramGenerator.py"
+
+[tool.pyright]
+include = ["HistogramGenerator.py"]
+pythonVersion = "3.13"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "pyright>=1.1.405",
+]
