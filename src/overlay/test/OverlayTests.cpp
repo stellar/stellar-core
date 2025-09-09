@@ -828,7 +828,6 @@ TEST_CASE("peers during auth", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
-//
 TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
