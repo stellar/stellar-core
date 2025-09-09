@@ -140,8 +140,6 @@ class TransactionFrame : public TransactionFrameBase
                            AbstractLedgerTxn& ltxOuter,
                            MutableTransactionResultBase& txResult) const;
 
-    std::optional<TimeBounds const> const getTimeBounds() const;
-    std::optional<LedgerBounds const> const getLedgerBounds() const;
     bool extraSignersExist() const;
 
     bool validateSorobanOpsConsistency() const;
@@ -329,6 +327,9 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
     Duration getMinSeqAge() const override;
     uint32 getMinSeqLedgerGap() const override;
+
+    std::optional<TimeBounds const> const getTimeBounds() const override;
+    std::optional<LedgerBounds const> const getLedgerBounds() const override;
 
     bool hasDexOperations() const override;
 

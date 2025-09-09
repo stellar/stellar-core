@@ -1703,6 +1703,7 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                              uint64_t upperBoundCloseTimeOffset,
                              DiagnosticEventManager& diagnosticEvents) const
 {
+    ZoneScoped;
 #ifdef BUILD_TESTS
     if (app.getRunInOverlayOnlyMode())
     {

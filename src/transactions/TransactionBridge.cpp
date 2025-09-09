@@ -203,6 +203,47 @@ setMaxTime(std::shared_ptr<TransactionTestFrame const> tx, TimePoint maxTime)
         }
     }
 }
+
+void
+setLedgerBounds(TransactionTestFramePtr tx, std::optional<uint32_t> minLedger,
+                std::optional<uint32_t> maxLedger)
+{
+    auto& env = tx->getMutableEnvelope();
+    if (env.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = env.v1().tx.cond;
+        if (cond.type() == PRECOND_NONE)
+        {
+            cond.type(PRECOND_V2);
+        }
+
+        if (cond.type() == PRECOND_TIME)
+        {
+            TimeBounds tb = cond.timeBounds();
+            cond.type(PRECOND_V2);
+            cond.v2().timeBounds.activate();
+            cond.v2().timeBounds->minTime = tb.minTime;
+            cond.v2().timeBounds->maxTime = tb.maxTime;
+        }
+
+        if (minLedger || maxLedger)
+        {
+            cond.v2().ledgerBounds.activate();
+            if (minLedger)
+            {
+                cond.v2().ledgerBounds->minLedger = *minLedger;
+            }
+            if (maxLedger)
+            {
+                cond.v2().ledgerBounds->maxLedger = *maxLedger;
+            }
+        }
+        else
+        {
+            cond.v2().ledgerBounds.reset();
+        }
+    }
+}
 #endif
 }
 }

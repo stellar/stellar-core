@@ -12,6 +12,9 @@
 namespace stellar
 {
 
+using TransactionResultConstPtr =
+    std::shared_ptr<MutableTransactionResultBase const>;
+
 // This class tracks the refundable resources and corresponding fees for a
 // transaction.
 // This can not be instantiated directly and is only accessible through

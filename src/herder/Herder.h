@@ -235,5 +235,12 @@ class Herder
 
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
+
+    // Check transaction validity with caching, returns shared_ptr to
+    // MutableTransactionResultBase
+    virtual TransactionResultConstPtr checkValidCached(
+        LedgerSnapshot const& ls, TransactionFrameBaseConstPtr const& tx,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        DiagnosticEventManager& diagnosticEvents) = 0;
 };
 }

@@ -10,6 +10,7 @@
 #include "herder/QuorumIntersectionChecker.h"
 #include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
+#include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
 #include "util/UnorderedMap.h"
 #include "util/XDROperators.h"
@@ -30,6 +31,7 @@ namespace stellar
 class Application;
 class LedgerManager;
 class HerderSCPDriver;
+class DiagnosticEventManager;
 
 /*
  * Is in charge of receiving transactions from the network.
@@ -235,6 +237,11 @@ class HerderImpl : public Herder
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
 
+    TransactionResultConstPtr checkValidCached(
+        LedgerSnapshot const& ls, TransactionFrameBaseConstPtr const& tx,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        DiagnosticEventManager& diagnosticEvents) override;
+
   private:
     // return true if values referenced by envelope have a valid close time:
     // * it's within the allowed range (using lcl if possible)
@@ -328,6 +335,10 @@ class HerderImpl : public Herder
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
 
+        // TxValidityCache metrics
+        medida::Counter& mTxValidityCacheHits;
+        medida::Counter& mTxValidityCacheMisses;
+
         SCPMetrics(Application& app);
     };
 
@@ -356,5 +367,17 @@ class HerderImpl : public Herder
     ConsensusData mTrackingSCP;
 
     uint32_t mMaxTxSize{0};
+
+    // Key: {ledger state hash, tx hash, lower bound close time, upper bound
+    // close time}
+    using TxValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
+    struct TxValidityKeyHash
+    {
+        size_t operator()(TxValidityKey const& key) const;
+    };
+    static constexpr size_t TX_VALIDITY_CACHE_SIZE = 100000;
+    mutable RandomEvictionCache<TxValidityKey, TransactionResultConstPtr,
+                                TxValidityKeyHash>
+        mTxValidCache;
 };
 }

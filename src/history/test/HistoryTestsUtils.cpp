@@ -605,9 +605,6 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
 
-    auto& txsSucceeded =
-        getApp().getMetrics().NewCounter({"ledger", "apply", "success"});
-
     lm.applyLedger(mLedgerCloseDatas.back());
 
     auto const& lclh = lm.getLastClosedLedgerHeader();

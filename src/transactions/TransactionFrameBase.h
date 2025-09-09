@@ -209,6 +209,9 @@ class TransactionFrameBase
     virtual Duration getMinSeqAge() const = 0;
     virtual uint32 getMinSeqLedgerGap() const = 0;
 
+    virtual std::optional<TimeBounds const> const getTimeBounds() const = 0;
+    virtual std::optional<LedgerBounds const> const getLedgerBounds() const = 0;
+
     virtual void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;

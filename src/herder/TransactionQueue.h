@@ -75,7 +75,7 @@ class TransactionQueue
     struct AddResult
     {
         TransactionQueue::AddResultCode code;
-        MutableTxResultPtr txResult;
+        TransactionResultConstPtr txResult;
         xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
 
         // AddResult with no txResult
@@ -83,11 +83,11 @@ class TransactionQueue
 
         // AddResult from existing transaction result
         explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           MutableTxResultPtr payload);
+                           TransactionResultConstPtr payload);
 
         // Same as above, also populating diagnostics
         explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           MutableTxResultPtr payload,
+                           TransactionResultConstPtr payload,
                            xdr::xvector<DiagnosticEvent>&& diagnostics);
 
         // AddResult with error txResult with the specified txErrorCode

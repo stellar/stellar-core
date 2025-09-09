@@ -6,6 +6,7 @@
 
 #include "xdr/Stellar-transaction.h"
 #include <memory>
+#include <optional>
 
 namespace stellar
 {
@@ -47,6 +48,9 @@ void setMinTime(TransactionTestFramePtr tx, TimePoint minTime);
 
 void setMaxTime(std::shared_ptr<TransactionTestFrame const> tx,
                 TimePoint maxTime);
+void setLedgerBounds(TransactionTestFramePtr tx,
+                     std::optional<uint32_t> minLedger,
+                     std::optional<uint32_t> maxLedger);
 #endif
 }
 }

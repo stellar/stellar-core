@@ -1084,6 +1084,153 @@ TEST_CASE("tx set hits overlay byte limit during construction",
     }
 }
 
+TEST_CASE("tx validity cache", "[herder][txvalidcache]")
+{
+    Config cfg(getTestConfig());
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto root = app->getRoot();
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(1);
+    auto a1 = root->create("a1", minBalance);
+
+    closeLedgerOn(*app, 3, 1, 1, 2022);
+    auto initialTime = app->getLedgerManager()
+                           .getLastClosedLedgerHeader()
+                           .header.scpValue.closeTime;
+
+    // Create transaction with time bounds valid for current time
+    auto tx1 = a1.tx({payment(root->getPublicKey(), 100)});
+    auto& herder = app->getHerder();
+    auto& queue = herder.getTransactionQueue();
+
+    auto& cacheHits =
+        app->getMetrics().NewCounter({"herder", "txvalidity", "cache-hits"});
+    auto& cacheMisses =
+        app->getMetrics().NewCounter({"herder", "txvalidity", "cache-misses"});
+    auto initialHits = cacheHits.count();
+    auto initialMisses = cacheMisses.count();
+
+    SECTION("time bounds")
+    {
+        setMinTime(tx1, initialTime - 100);
+        setMaxTime(tx1, initialTime +
+                            100); // Valid for 100 seconds from initial time
+        txbridge::getSignatures(tx1).clear();
+        tx1->addSignature(a1.getSecretKey());
+        REQUIRE(queue.tryAdd(tx1, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        ++initialMisses;
+
+        SECTION("transaction queue")
+        {
+            for (int i = 1; i <= 20; i++)
+            {
+                closeLedgerOn(*app, 3 + i, 1 + i, 1, 2022);
+            }
+
+            REQUIRE(queue.getQueueSizeOps() == 0);
+            auto res2 = queue.tryAdd(tx1, false);
+            REQUIRE(res2.code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+            REQUIRE(res2.txResult->getResultCode() == txTOO_LATE);
+            REQUIRE(cacheHits.count() == initialHits);
+            REQUIRE(cacheMisses.count() > initialMisses);
+        }
+
+        SECTION("tx set")
+        {
+            TxFrameList removed;
+            SECTION("valid")
+            {
+                makeTxSetFromTransactions({tx1}, *app, 5, 5, removed);
+                REQUIRE(removed.empty());
+                REQUIRE(cacheHits.count() == initialHits);
+                REQUIRE(cacheMisses.count() == initialMisses + 1);
+            }
+            SECTION("invalid time bounds")
+            {
+                makeTxSetFromTransactions({tx1}, *app, 200, 200, removed);
+                REQUIRE(removed.size() == 1);
+                REQUIRE(removed.back() == tx1);
+                REQUIRE(cacheHits.count() == initialHits);
+                REQUIRE(cacheMisses.count() == initialMisses + 1);
+            }
+        }
+    }
+    SECTION("ledger bounds")
+    {
+        uint32_t MIN_LEDGER = 3, MAX_LEDGER = 20;
+        setLedgerBounds(tx1, MIN_LEDGER,
+                        MAX_LEDGER); // Valid for ledgers 3 to 9
+        txbridge::getSignatures(tx1).clear();
+        tx1->addSignature(a1.getSecretKey());
+        REQUIRE(queue.tryAdd(tx1, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        ++initialMisses;
+
+        while (app->getLedgerManager().getLastClosedLedgerNum() <= MAX_LEDGER)
+        {
+            closeLedgerOn(*app,
+                          app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                          app->getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header.scpValue.closeTime +
+                              1);
+        }
+
+        SECTION("transaction queue")
+        {
+            REQUIRE(queue.getQueueSizeOps() == 0);
+            auto res2 = queue.tryAdd(tx1, false);
+            REQUIRE(res2.code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+            REQUIRE(res2.txResult->getResultCode() == txTOO_LATE);
+            REQUIRE(cacheHits.count() == initialHits);
+            REQUIRE(cacheMisses.count() > initialMisses);
+        }
+        SECTION("tx set")
+        {
+            TxFrameList removed;
+            makeTxSetFromTransactions({tx1}, *app, 0, 0, removed);
+            REQUIRE(removed.size() == 1);
+            REQUIRE(removed.back() == tx1);
+            REQUIRE(cacheHits.count() == initialHits);
+            REQUIRE(cacheMisses.count() > initialMisses);
+        }
+    }
+    SECTION("no time bounds")
+    {
+        REQUIRE(queue.tryAdd(tx1, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        ++initialMisses;
+
+        SECTION("transaction queue")
+        {
+            for (int i = 1; i <= 20; i++)
+            {
+                closeLedgerOn(*app, 3 + i, 1 + i, 1, 2022);
+            }
+
+            REQUIRE(queue.getQueueSizeOps() == 0);
+            auto res2 = queue.tryAdd(tx1, false);
+            REQUIRE(res2.code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+            REQUIRE(cacheHits.count() == initialHits);
+            REQUIRE(cacheMisses.count() > initialMisses);
+        }
+        SECTION("tx set")
+        {
+            TxFrameList removed;
+            makeTxSetFromTransactions({tx1}, *app, 200, 200, removed);
+            REQUIRE(removed.empty());
+            REQUIRE(cacheHits.count() == initialHits + 1);
+            REQUIRE(cacheMisses.count() == initialMisses);
+        }
+    }
+}
+
 TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("max 0 ops per ledger")

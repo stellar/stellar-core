@@ -8,6 +8,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -178,10 +179,10 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
     auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset, diagnostics);
-        if (!txResult->isSuccess())
+        auto res = app.getHerder().checkValidCached(
+            ls, tx, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+            diagnostics);
+        if (!res->isSuccess())
         {
             invalidTxs.emplace_back(tx);
         }

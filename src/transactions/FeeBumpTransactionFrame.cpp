@@ -242,6 +242,18 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, neededWeight);
 }
 
+std::optional<TimeBounds const> const
+FeeBumpTransactionFrame::getTimeBounds() const
+{
+    return mInnerTx->getTimeBounds();
+}
+
+std::optional<LedgerBounds const> const
+FeeBumpTransactionFrame::getLedgerBounds() const
+{
+    return mInnerTx->getLedgerBounds();
+}
+
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,

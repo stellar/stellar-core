@@ -180,6 +180,18 @@ TransactionTestFrame::getTxFramePtr() const
     return mTransactionFrame;
 }
 
+std::optional<TimeBounds const> const
+TransactionTestFrame::getTimeBounds() const
+{
+    return mTransactionFrame->getTimeBounds();
+}
+
+std::optional<LedgerBounds const> const
+TransactionTestFrame::getLedgerBounds() const
+{
+    return mTransactionFrame->getLedgerBounds();
+}
+
 bool
 TransactionTestFrame::validateSorobanMemoForFlooding() const
 {

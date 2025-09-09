@@ -128,6 +128,9 @@ class TransactionTestFrame : public TransactionFrameBase
     Duration getMinSeqAge() const override;
     uint32 getMinSeqLedgerGap() const override;
 
+    std::optional<TimeBounds const> const getTimeBounds() const override;
+    std::optional<LedgerBounds const> const getLedgerBounds() const override;
+
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
