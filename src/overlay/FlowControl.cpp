@@ -468,8 +468,10 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 
     size_t dropped = 0;
 
+    auto& lm = mAppConnector.getLedgerManager();
     uint32_t const limit =
-        mAppConnector.getLedgerManager().getLastMaxTxSetSizeOps();
+        lm.getLastMaxTxSetSizeOps() +
+        lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
     auto& om = mOverlayMetrics;
     if (type == TRANSACTION)
     {

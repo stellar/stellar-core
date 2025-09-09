@@ -828,6 +828,7 @@ TEST_CASE("peers during auth", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+//
 TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -938,7 +939,10 @@ TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
     }
     SECTION("txs, limit reached")
     {
-        uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
+        auto& lm = node->getLedgerManager();
+        uint32_t limit =
+            lm.getLastMaxTxSetSizeOps() +
+            lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
         StellarMessage msg;
         msg.type(TRANSACTION);
         auto byteSize =
@@ -1047,7 +1051,10 @@ TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
         {
             // Adverts/demands aren't affected by the byte limit
             peer->getFlowControl()->setOutboundQueueLimit(1);
-            uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
+            auto& lm = node->getLedgerManager();
+            uint32_t limit =
+                lm.getLastMaxTxSetSizeOps() +
+                lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
             for (uint32_t i = 0; i < limit + 10; ++i)
             {
                 StellarMessage adv, dem, txn;
