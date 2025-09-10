@@ -70,8 +70,16 @@ size_t
 TxAdverts::getTxLimit()
 {
     auto& lm = mApp.getLedgerManager();
-    return lm.getLastMaxTxSetSizeOps() +
-           lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    size_t classic = lm.getLastMaxTxSetSizeOps();
+    if (protocolVersionStartsFrom(
+            lm.getLastClosedLedgerHeader().header.ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
+    {
+
+        return classic +
+               lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    }
+    return classic;
 }
 
 void
