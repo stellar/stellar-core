@@ -4559,7 +4559,9 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     herder.recvTransaction(tx2r, false);
 
     size_t numBroadcast = 0;
-    tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) { ++numBroadcast; };
+    tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr const&) {
+        ++numBroadcast;
+    };
 
     externalize(cfg.NODE_SEED, lm, herder, {tx1r}, *app);
     auto timeout = clock.now() + std::chrono::seconds(5);
@@ -4685,7 +4687,7 @@ TEST_CASE("do not flood too many soroban transactions",
 
     std::map<AccountID, SequenceNumber> bcastTracker;
     size_t numBroadcast = 0;
-    tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
+    tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr const& tx) {
         // ensure that sequence numbers are correct per account
         auto expected = tx->getSeqNum();
         std::swap(bcastTracker[tx->getSourceID()], expected);
@@ -4869,7 +4871,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 
         std::map<AccountID, SequenceNumber> bcastTracker;
         size_t numBroadcast = 0;
-        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
+        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr const& tx) {
             // ensure that sequence numbers are correct per account
             auto expected = tx->getSeqNum();
             std::swap(bcastTracker[tx->getSourceID()], expected);
@@ -5126,7 +5128,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
         std::map<AccountID, SequenceNumber> accountSeqNum;
         uint32_t dexOpsBroadcasted = 0;
         uint32_t nonDexOpsBroadcasted = 0;
-        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
+        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr const& tx) {
             // Ensure that sequence numbers are correct per account.
             if (accountSeqNum.find(tx->getSourceID()) == accountSeqNum.end())
             {

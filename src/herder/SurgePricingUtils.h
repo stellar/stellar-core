@@ -128,6 +128,18 @@ class SurgePricingPriorityQueue
     // Returns total amount of resources in the provided lane of the queue.
     Resource laneResources(size_t lane) const;
 
+    Resource
+    laneLimits(size_t lane) const
+    {
+        return mLaneConfig->getLaneLimits().at(lane);
+    }
+
+    size_t
+    getNumLanes() const
+    {
+        return mLaneConfig->getLaneLimits().size();
+    }
+
     // Result of visiting a transaction in the `visitTopTxs`.
     // This serves as a callback output to let the queue know how to process the
     // visited transaction.
@@ -153,12 +165,14 @@ class SurgePricingPriorityQueue
     // processed.
     // `laneResourcesLeftUntilLimit` is an output parameter that for each lane
     // will contain the number of resources left until lane's limit is reached.
+    // If `customLimits` is provided, use those instead of mLaneLimits.
     void visitTopTxs(
-        std::vector<TransactionFrameBasePtr> const& txs,
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit,
-        uint32_t ledgerVersion);
+        uint32_t ledgerVersion,
+        std::optional<std::vector<Resource>> const& customLimits =
+            std::nullopt);
 
     // Creates a `SurgePricingPriorityQueue` for the provided lane
     // configuration.
@@ -174,6 +188,11 @@ class SurgePricingPriorityQueue
     void add(TransactionFrameBasePtr tx, uint32_t ledgerVersion);
     // Erases a transaction from this queue.
     void erase(TransactionFrameBasePtr tx, uint32_t ledgerVersion);
+
+    // Count resources per lane for `txs`.
+    std::vector<Resource>
+    countTxsResources(std::vector<TransactionFrameBasePtr> const& txs,
+                      uint32_t ledgerVersion) const;
 
     // Checks whether a provided transaction could fit into this queue without
     // violating the `laneConfig` limits while evicting some lower fee rate
@@ -195,12 +214,15 @@ class SurgePricingPriorityQueue
     // queue until the lane limits are reached.
     // This is a destructive method that removes all or most of the queue
     // elements and thus should be used with care.
+    // If `customLimits` is provided, use those instead of mLaneLimits.
     void popTopTxs(
         bool allowGaps,
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit,
-        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+        std::optional<std::vector<Resource>> const& customLimits =
+            std::nullopt);
 
   private:
     class TxComparator

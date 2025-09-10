@@ -160,6 +160,41 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+
+    bool allFit = true;
+    auto res = queue.countTxsResources(txs, ledgerVersion);
+    releaseAssert(!res.empty());
+    auto totalResources = Resource::makeEmpty(res[0].size());
+
+    for (int i = 0; i < static_cast<int>(queue.getNumLanes()); ++i)
+    {
+        // First check if each individual lane fits within its own limit
+        auto const& limit = queue.laneLimits(i);
+        if (anyGreater(res.at(i), limit))
+        {
+            allFit = false;
+            break;
+        }
+
+        // Check against GENERIC_LANE limit
+        totalResources += res.at(i);
+        if (anyGreater(
+                totalResources,
+                queue.laneLimits(SurgePricingPriorityQueue::GENERIC_LANE)))
+        {
+            allFit = false;
+            break;
+        }
+    }
+
+    if (allFit)
+    {
+        // If all lanes are within limits, we can include everything
+        hadTxNotFittingLane.assign(queue.getNumLanes(), false);
+        return txs;
+    }
+
+    // Otherwise, do normal surge pricing processing
     for (auto const& tx : txs)
     {
         queue.add(tx, ledgerVersion);
@@ -177,19 +212,14 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
 
 void
 SurgePricingPriorityQueue::visitTopTxs(
-    std::vector<TransactionFrameBasePtr> const& txs,
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
-    std::vector<Resource>& laneLeftUntilLimit, uint32_t ledgerVersion)
+    std::vector<Resource>& laneLeftUntilLimit, uint32_t ledgerVersion,
+    std::optional<std::vector<Resource>> const& customLimits)
 {
     ZoneScoped;
-
-    for (auto const& tx : txs)
-    {
-        add(tx, ledgerVersion);
-    }
     std::vector<bool> hadTxNotFittingLane;
     popTopTxs(/* allowGaps */ false, visitor, laneLeftUntilLimit,
-              hadTxNotFittingLane, ledgerVersion);
+              hadTxNotFittingLane, ledgerVersion, customLimits);
 }
 
 void
@@ -204,6 +234,25 @@ SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx,
         mLaneCurrentCount[lane] +=
             mLaneConfig->getTxResources(*tx, ledgerVersion);
     }
+}
+
+std::vector<Resource>
+SurgePricingPriorityQueue::countTxsResources(
+    std::vector<TransactionFrameBasePtr> const& txs,
+    uint32_t ledgerVersion) const
+{
+    ZoneScoped;
+
+    std::vector<Resource> laneResources;
+    laneResources.resize(
+        mLaneConfig->getLaneLimits().size(),
+        Resource::makeEmpty(mLaneConfig->getLaneLimits()[0].size()));
+    for (auto const& tx : txs)
+    {
+        auto lane = mLaneConfig->getLane(*tx);
+        laneResources[lane] += mLaneConfig->getTxResources(*tx, ledgerVersion);
+    }
+    return laneResources;
 }
 
 void
@@ -242,12 +291,15 @@ SurgePricingPriorityQueue::popTopTxs(
     bool allowGaps,
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
     std::vector<Resource>& laneLeftUntilLimit,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+    std::optional<std::vector<Resource>> const& customLimits)
 {
     ZoneScoped;
 
-    laneLeftUntilLimit = mLaneLimits;
-    hadTxNotFittingLane.assign(mLaneLimits.size(), false);
+    // Use custom limits if provided, otherwise use mLaneLimits
+    auto const& limits = customLimits ? *customLimits : mLaneLimits;
+    laneLeftUntilLimit = limits;
+    hadTxNotFittingLane.assign(limits.size(), false);
     while (true)
     {
         auto currIt = getTop();
