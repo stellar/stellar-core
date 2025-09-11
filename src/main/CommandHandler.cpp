@@ -1232,12 +1232,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         cfg.skipLowFeeTxs =
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
 
-        if (cfg.mode == LoadGenMode::MIXED_CLASSIC)
-        {
-            cfg.getMutDexTxPercent() =
-                parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
-        }
-
         if (cfg.isSoroban())
         {
             uint32_t minPercentSuccess = parseOptionalParamOrDefault<uint32_t>(
