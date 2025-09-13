@@ -116,7 +116,8 @@ jobs:
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             sudo apt-get -y install cpp-10 gcc-10 g++-10
           else
-            sudo apt-get -y install clang-12 llvm-12
+            sudo apt-get -y install clang-19 llvm-19
+            sudo apt-get -y install libc++-19-dev libc++abi-19-dev
           fi
       - name: install rustup components
         if: steps.cache.outputs.cache-hit != 'true'
@@ -129,7 +130,7 @@ jobs:
         run: cargo install --locked cargo-sweep --version 0.7.0
       - name: install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
+        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel sed perl ccache
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -139,6 +140,10 @@ jobs:
           else
             export CC='clang'
             export CXX='clang++'
+            export CLANG_VERSION='19'
+
+            # Skip clang-format check since we don't have clang-format-19
+            export SKIP_FORMAT_CHECK=1
           fi
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
