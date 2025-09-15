@@ -56,6 +56,9 @@ bucketlistDB.cache.bytes                  | counter   | estimated size in bytes 
 crypto.verify.hit                         | meter     | number of signature cache hits
 crypto.verify.miss                        | meter     | number of signature cache misses
 crypto.verify.total                       | meter     | sum of both hits and misses
+crypto.verify.tx-check-valid-hit          | meter     | signature cache hits that occurred while validating transactions via checkValid
+crypto.verify.tx-check-valid-miss         | meter     | signature cache misses that occurred while validating transactions via checkValid
+crypto.verify.tx-check-valid-total        | meter     | sum of both hits and misses during transaction validation via checkValid
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions

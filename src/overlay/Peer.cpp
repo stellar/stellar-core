@@ -74,7 +74,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
     SignatureChecker signatureChecker(
         ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
-        signatures);
+        signatures, false);
 
     // NOTE: Use getFeeSourceID so that this works for both TransactionFrame and
     // FeeBumpTransactionFrame
@@ -1094,7 +1094,8 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
         auto& envelope = msg.v0().message.envelope();
         PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
                                xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_SCP,
-                                                  envelope.statement));
+                                                  envelope.statement),
+                               false);
     }
 
     // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
