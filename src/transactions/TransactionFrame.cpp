@@ -1692,7 +1692,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 
     SignatureChecker signatureChecker{
         ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
-        getSignatures(mEnvelope)};
+        getSignatures(mEnvelope), true};
 
     std::optional<FeePair> sorobanResourceFee;
     SorobanNetworkConfig const* sorobanConfig = nullptr;
@@ -1847,7 +1847,7 @@ TransactionFrame::commonPreApply(
     {
 #endif // BUILD_TESTS
         signatureChecker = std::make_unique<SignatureChecker>(
-            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+            ledgerVersion, getContentsHash(), getSignatures(mEnvelope), true);
 #ifdef BUILD_TESTS
     }
 #endif // BUILD_TESTS

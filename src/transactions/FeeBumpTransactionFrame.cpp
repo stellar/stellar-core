@@ -290,7 +290,7 @@ FeeBumpTransactionFrame::checkValid(
 
     SignatureChecker signatureChecker{
         ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
-        mEnvelope.feeBump().signatures};
+        mEnvelope.feeBump().signatures, true};
     if (commonValid(signatureChecker, ls, false, *txResult) !=
         ValidationType::kFullyValid)
     {

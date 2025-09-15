@@ -18,9 +18,14 @@ namespace stellar
 class SignatureChecker
 {
   public:
+    // Construct a checker for validating `signatures` over `contentsHash`.
+    // Set `isCheckValidTxSig` to true only in the transaction checkValid flow;
+    // when true, verification is counted in crypto.verify.tx-check-valid-*
+    // metrics.
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures);
+        xdr::xvector<DecoratedSignature, 20> const& signatures,
+        bool isCheckValidTxSig);
 #ifdef BUILD_TESTS
     virtual bool checkSignature(std::vector<Signer> const& signersV,
                                 int32_t neededWeight);
@@ -35,6 +40,7 @@ class SignatureChecker
     uint32_t mProtocolVersion;
     Hash const& mContentsHash;
     xdr::xvector<DecoratedSignature, 20> const& mSignatures;
+    bool mIsCheckValidTxSig{false};
 
     std::vector<bool> mUsedSignatures;
 };
@@ -46,7 +52,7 @@ class AlwaysValidSignatureChecker : public SignatureChecker
     AlwaysValidSignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
         xdr::xvector<DecoratedSignature, 20> const& signatures)
-        : SignatureChecker(protocolVersion, contentsHash, signatures)
+        : SignatureChecker(protocolVersion, contentsHash, signatures, false)
     {
     }
 

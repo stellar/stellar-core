@@ -19,11 +19,12 @@ namespace SignatureUtils
 
 DecoratedSignature sign(SecretKey const& secretKey, Hash const& hash);
 bool verify(DecoratedSignature const& sig, SignerKey const& signerKey,
-            Hash const& hash);
+            Hash const& hash, bool isCheckValidTxSig);
 bool verify(DecoratedSignature const& sig, PublicKey const& signerKey,
-            Hash const& hash);
+            Hash const& hash, bool isCheckValidTxSig);
 bool verifyEd25519SignedPayload(DecoratedSignature const& sig,
-                                SignerKey const& signer);
+                                SignerKey const& signer,
+                                bool isCheckValidTxSig);
 
 DecoratedSignature signHashX(const ByteSlice& x);
 bool verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey);

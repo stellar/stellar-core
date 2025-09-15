@@ -46,6 +46,11 @@ static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 
+// Cache hit/miss counters specific to cache lookups on the transaction
+// `checkValid` path.
+static uint64_t gVerifyCacheHitCheckValidTx = 0;
+static uint64_t gVerifyCacheMissCheckValidTx = 0;
+
 static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
                   ByteSlice const& bin)
@@ -81,6 +86,16 @@ SecretKey::Seed::~Seed()
     std::memset(mSeed.data(), 0, mSeed.size());
 }
 
+void
+PubKeyUtils::flushVerifySigCacheCheckValidTxCounts(uint64_t& hits,
+                                                   uint64_t& misses)
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    hits = gVerifyCacheHitCheckValidTx;
+    misses = gVerifyCacheMissCheckValidTx;
+    gVerifyCacheHitCheckValidTx = 0;
+    gVerifyCacheMissCheckValidTx = 0;
+}
 PublicKey const&
 SecretKey::getPublicKey() const
 {
@@ -173,7 +188,7 @@ struct SignVerifyTestcase
     void
     verify()
     {
-        if (!PubKeyUtils::verifySig(key.getPublicKey(), sig, msg))
+        if (!PubKeyUtils::verifySig(key.getPublicKey(), sig, msg, false))
         {
             throw std::runtime_error("verify failed");
         }
@@ -433,7 +448,7 @@ KeyFunctions<PublicKey>::setKeyValue(PublicKey& key,
 
 bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
-                       ByteSlice const& bin)
+                       ByteSlice const& bin, bool isCheckValidTxSig)
 {
     ZoneScoped;
     releaseAssert(key.type() == PUBLIC_KEY_TYPE_ED25519);
@@ -449,6 +464,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         if (gVerifySigCache.exists(cacheKey))
         {
             ++gVerifyCacheHit;
+            gVerifyCacheHitCheckValidTx += isCheckValidTxSig;
             std::string hitStr("hit");
             ZoneText(hitStr.c_str(), hitStr.size());
             return gVerifySigCache.get(cacheKey);
@@ -462,6 +478,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                                      key.ed25519().data()) == 0);
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     ++gVerifyCacheMiss;
+    gVerifyCacheMissCheckValidTx += isCheckValidTxSig;
     gVerifySigCache.put(cacheKey, ok);
     return ok;
 }

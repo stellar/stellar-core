@@ -1255,6 +1255,17 @@ ApplicationImpl::syncOwnMetrics()
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
         .Mark(vhit + vmiss);
 
+    // Flush scoped checkValid stats accumulated in the crypto layer.
+    uint64_t vhitCv = 0, vmissCv = 0;
+    PubKeyUtils::flushVerifySigCacheCheckValidTxCounts(vhitCv, vmissCv);
+    mMetrics->NewMeter({"crypto", "verify", "tx-check-valid-hit"}, "signature")
+        .Mark(vhitCv);
+    mMetrics->NewMeter({"crypto", "verify", "tx-check-valid-miss"}, "signature")
+        .Mark(vmissCv);
+    mMetrics
+        ->NewMeter({"crypto", "verify", "tx-check-valid-total"}, "signature")
+        .Mark(vhitCv + vmissCv);
+
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
         .set_count(mProcessManager->getNumRunningProcesses());

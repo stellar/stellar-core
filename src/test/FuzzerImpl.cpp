@@ -931,7 +931,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // committing the LedgerTxn
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
-            mEnvelope.v1().signatures};
+            mEnvelope.v1().signatures, false};
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {

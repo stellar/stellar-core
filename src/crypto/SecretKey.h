@@ -135,13 +135,19 @@ template <> struct KeyFunctions<PublicKey>
 // public key utility functions
 namespace PubKeyUtils
 {
-// Return true iff `signature` is valid for `bin` under `key`.
+// Return true iff `signature` is valid for `bin` under `key`. Set
+// `isCheckValidTxSig` to `true` if this signature check is being performed as
+// part of the transaction `checkValid` flow.
 bool verifySig(PublicKey const& key, Signature const& signature,
-               ByteSlice const& bin);
+               ByteSlice const& bin, bool isCheckValidTxSig);
 
 void clearVerifySigCache();
 void seedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
+
+// Reset and return the counts of signature checks performed as part of
+// transaction `checkValid` flow.
+void flushVerifySigCacheCheckValidTxCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();
 #ifdef BUILD_TESTS

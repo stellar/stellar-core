@@ -29,25 +29,27 @@ sign(SecretKey const& secretKey, Hash const& hash)
 
 bool
 verify(DecoratedSignature const& sig, SignerKey const& signerKey,
-       Hash const& hash)
+       Hash const& hash, bool isCheckValidTxSig)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    return verify(sig, pubKey, hash);
+    return verify(sig, pubKey, hash, isCheckValidTxSig);
 }
 
 bool
-verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
+verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash,
+       bool isCheckValidTxSig)
 {
     if (!doesHintMatch(pubKey.ed25519(), sig.hint))
     {
         return false;
     }
-    return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
+    return PubKeyUtils::verifySig(pubKey, sig.signature, hash,
+                                  isCheckValidTxSig);
 }
 
 bool
 verifyEd25519SignedPayload(DecoratedSignature const& sig,
-                           SignerKey const& signer)
+                           SignerKey const& signer, bool isCheckValidTxSig)
 {
     auto const& signedPayload = signer.ed25519SignedPayload();
 
@@ -57,7 +59,8 @@ verifyEd25519SignedPayload(DecoratedSignature const& sig,
     PublicKey pubKey;
     pubKey.ed25519() = signedPayload.ed25519;
 
-    return PubKeyUtils::verifySig(pubKey, sig.signature, signedPayload.payload);
+    return PubKeyUtils::verifySig(pubKey, sig.signature, signedPayload.payload,
+                                  isCheckValidTxSig);
 }
 
 DecoratedSignature
