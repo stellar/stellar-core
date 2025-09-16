@@ -207,6 +207,9 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     // and affect this timer test.
     app1->getOverlayManager().shutdown();
     app2->getOverlayManager().shutdown();
+    // Similarly, we need to stop the Herder timers
+    app1->getHerder().shutdown();
+    app2->getHerder().shutdown();
 
     size_t app1Event = 0;
     size_t app2Event = 0;

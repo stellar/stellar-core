@@ -238,6 +238,29 @@ SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     return ret;
 }
 
+std::set<NodeID>
+SCP::getMissingNodes(NodeID const& id, uint64 index)
+{
+    std::set<NodeID> ret;
+    if (index == 0)
+    {
+        index = mKnownSlots.rbegin()->first;
+    }
+    if (getSlot(index, false))
+    {
+        auto qSet = getLocalNode()->getQuorumSet();
+        // Categorize each node's state.
+        LocalNode::forAllNodes(qSet, [&](NodeID const& n) {
+            if (getState(n, index) == SCP::QuorumInfoNodeState::MISSING)
+            {
+                ret.insert(n);
+            }
+            return true;
+        });
+    }
+    return ret;
+}
+
 bool
 SCP::isValidator()
 {

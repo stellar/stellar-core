@@ -918,6 +918,16 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
     {
         mUniqueValues.Update(referencedValues.size());
     }
+
+    // Set mMissingNodes to the intersection of itself and the set of any
+    // nodes missing in the latest slots.
+    std::set<NodeID> missing =
+        getSCP().getMissingNodes(getSCP().getLocalNodeID(), index);
+    std::set<NodeID> prevMissing = std::move(mMissingNodes);
+    mMissingNodes.clear();
+    std::set_intersection(missing.begin(), missing.end(), prevMissing.begin(),
+                          prevMissing.end(),
+                          std::inserter(mMissingNodes, mMissingNodes.begin()));
 }
 
 void
@@ -1031,6 +1041,29 @@ HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
     }
 
     return ret;
+}
+
+Json::Value
+HerderSCPDriver::getMaybeDeadNodes(bool fullKeys)
+{
+    Json::Value maybeDeadNodes(Json::arrayValue);
+    for (const auto& node : mDeadNodes)
+    {
+        maybeDeadNodes.append(mApp.getConfig().toStrKey(node, fullKeys));
+    }
+    return maybeDeadNodes;
+}
+
+void
+HerderSCPDriver::startCheckForDeadNodesInterval()
+{
+    mDeadNodes = std::move(mMissingNodes);
+    mMissingNodes.clear();
+    LocalNode::forAllNodes(getSCP().getLocalNode()->getQuorumSet(),
+                           [this](const NodeID& nodeId) {
+                               mMissingNodes.insert(nodeId);
+                               return true;
+                           });
 }
 
 double

@@ -6688,3 +6688,52 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     REQUIRE(herder.getTriggerTimer().seq() > 0);
     REQUIRE(herder.mTriggerNextLedgerSeq == nextSeq + 2);
 }
+
+TEST_CASE("detect dead nodes in quorum set", "[herder]")
+{
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::core(
+        3, 0.5, Simulation::OVER_LOOPBACK, networkID,
+        [&](int i) { return getTestConfig(i, Config::TESTDB_DEFAULT); });
+
+    simulation->startAllNodes();
+    auto A = simulation->getNodes()[0];
+    auto B = simulation->getNodes()[1];
+    auto C = simulation->getNodes()[2];
+
+    // run normally: run for two intervals to ensure we get a full interval
+    simulation->crankForAtLeast(Herder::CHECK_FOR_DEAD_NODES_MINUTES * 2,
+                                false);
+
+    NodeID const& AKey = A->getConfig().NODE_SEED.getPublicKey();
+
+    auto maybeDead = A->getHerder().getJsonTransitiveQuorumInfo(
+        AKey, true, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+    maybeDead = B->getHerder().getJsonTransitiveQuorumInfo(
+        AKey, true, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+    maybeDead = C->getHerder().getJsonTransitiveQuorumInfo(
+        AKey, true, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+
+    // dropping C should cause A and B report it missing
+    simulation->dropConnection(AKey, C->getConfig().NODE_SEED.getPublicKey());
+    simulation->dropConnection(B->getConfig().NODE_SEED.getPublicKey(),
+                               C->getConfig().NODE_SEED.getPublicKey());
+
+    simulation->crankForAtLeast(Herder::CHECK_FOR_DEAD_NODES_MINUTES * 2,
+                                false);
+
+    maybeDead = A->getHerder().getJsonTransitiveQuorumInfo(
+        AKey, true, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.size() == 1));
+    REQUIRE(maybeDead[0].asString() ==
+            KeyUtils::toStrKey(C->getConfig().NODE_SEED.getPublicKey()));
+    maybeDead = B->getHerder().getJsonTransitiveQuorumInfo(
+        AKey, true, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.size() == 1));
+    REQUIRE(maybeDead[0].asString() ==
+            KeyUtils::toStrKey(C->getConfig().NODE_SEED.getPublicKey()));
+}

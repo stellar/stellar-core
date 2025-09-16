@@ -95,6 +95,7 @@ HerderImpl::HerderImpl(Application& app)
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
+    , mCheckForDeadNodesTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
@@ -277,6 +278,7 @@ HerderImpl::shutdown()
     }
 
     mTxSetGarbageCollectTimer.cancel();
+    mCheckForDeadNodesTimer.cancel();
 }
 
 void
@@ -1716,6 +1718,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
             getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
         ret["qset"]["cost"] =
             mPendingEnvelopes.getJsonValidatorCost(summary, fullKeys, index);
+        ret["maybe_dead_nodes"] = mHerderSCPDriver.getMaybeDeadNodes(fullKeys);
     }
     return ret;
 }
@@ -1842,6 +1845,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
         }
         distance++;
     }
+    ret["maybe_dead_nodes"] = mHerderSCPDriver.getMaybeDeadNodes(fullKeys);
     return ret;
 }
 
@@ -2335,6 +2339,7 @@ HerderImpl::start()
 
     restoreUpgrades();
     startTxSetGCTimer();
+    startCheckForDeadNodesInterval();
 }
 
 void
@@ -2385,6 +2390,18 @@ HerderImpl::purgeOldPersistedTxSets()
     {
         CLOG_ERROR(Herder, "Error while deleting old tx sets: {}", e.what());
     }
+}
+
+void
+HerderImpl::startCheckForDeadNodesInterval()
+{
+    mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
+    mCheckForDeadNodesTimer.async_wait(
+        [this]() {
+            mHerderSCPDriver.startCheckForDeadNodesInterval();
+            startCheckForDeadNodesInterval();
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -2617,5 +2634,4 @@ HerderImpl::getTx(Hash const& hash) const
     }
     return classic;
 }
-
 }
