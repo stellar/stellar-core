@@ -127,7 +127,7 @@ class TCPPeer : public Peer
     // write-buffers freed during the ASIO write into those buffers, which
     // would cause memory corruption.
     //
-    // As a retult, the lifetime of a TCPPeer is _not_ the same as the time it
+    // As a result, the lifetime of a TCPPeer is _not_ the same as the time it
     // is known to the OverlayManager. We can drop a TCPPeer from the
     // OverlayManager's registration a while before it's actually destroyed.
     // To properly manage load, therefore, we have to separately track the
