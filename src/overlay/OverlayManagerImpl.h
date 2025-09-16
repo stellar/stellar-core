@@ -170,6 +170,8 @@ class OverlayManagerImpl : public OverlayManager
 
     SearchableSnapshotConstPtr& getOverlayThreadSnapshot() override;
 
+    std::string_view reverseResolveAddress(const PeerBareAddress& addr) const override;
+
   private:
     struct ResolvedPeers
     {
@@ -179,6 +181,7 @@ class OverlayManagerImpl : public OverlayManager
     };
 
     std::map<PeerType, std::unique_ptr<RandomPeerSource>> mPeerSources;
+    std::map<PeerBareAddress, std::string> mAddressSources;
     std::future<ResolvedPeers> mResolvedPeers;
     bool mResolvingPeersWithBackoff;
     int mResolvingPeersRetryCount;
