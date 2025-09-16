@@ -170,7 +170,8 @@ class OverlayManagerImpl : public OverlayManager
 
     SearchableSnapshotConstPtr& getOverlayThreadSnapshot() override;
 
-    std::string_view reverseResolveAddress(const PeerBareAddress& addr) const override;
+    std::string_view
+    reverseResolveAddress(const PeerBareAddress& addr) const override;
 
   private:
     struct ResolvedPeers
