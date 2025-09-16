@@ -41,8 +41,9 @@ namespace stellar
 // makes all signature-verification in the program faster and
 // has no effect on correctness.
 
+constexpr size_t VERIFY_SIG_CACHE_SIZE = 250'000;
 static std::mutex gVerifySigCacheMutex;
-static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
+static RandomEvictionCache<Hash, bool> gVerifySigCache(VERIFY_SIG_CACHE_SIZE);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 
