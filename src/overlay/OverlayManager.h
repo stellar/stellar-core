@@ -202,6 +202,10 @@ class OverlayManager
                                      Peer::pointer peer) = 0;
     virtual uint32_t getFlowControlBytesTotal() const = 0;
 
+    // Get a name that resolved to the given address
+    virtual std::string_view
+    reverseResolveAddress(const PeerBareAddress& addr) const = 0;
+
     virtual ~OverlayManager()
     {
     }
