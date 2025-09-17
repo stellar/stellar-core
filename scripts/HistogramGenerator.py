@@ -4,94 +4,127 @@
 # under the Apache License, Version 2.0. See the COPYING file at the root
 # of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+import argparse
 from base64 import b64decode
+from concurrent.futures import ProcessPoolExecutor
 import csv
 import json
-from multiprocessing.pool import Pool
-from typing import Any, Optional, Tuple
+from typing import Any, Callable
+from dataclasses import dataclass
 import subprocess
-import sys
 
 import numpy as np
 import numpy.typing as npt
 
-# Sample query to gather history_transactions data:
-# SELECT soroban_resources_instructions, soroban_resources_write_bytes, tx_envelope FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2024-06-24") AND DATETIME("2024-09-24") AND soroban_resources_instructions > 0
 
-# Sample query to gather history_contract_events data:
-# SELECT topics_decoded, data_decoded FROM `crypto-stellar.crypto_stellar.history_contract_events` WHERE type = 2 AND TIMESTAMP_TRUNC(closed_at, MONTH) between TIMESTAMP("2024-06-27") AND TIMESTAMP("2024-09-27") AND contains_substr(topics_decoded, "write_entry")
-# NOTE: this query filters out anything that isn't a write_entry. This is
-# required for the script to work correctly!
+@dataclass(slots=True)
+class WasmUpload:
+    size: int
 
-# Threads to use for parallel processing
-WORKERS=9
 
-# Maximum number of histogram bins to generate
-MAX_BINS=100
+@dataclass(slots=True)
+class InvokeTransaction:
+    instructions: int
+    write_bytes: int
+    tx_size: int
 
-# Maximum number of histogram bins to output. This is much lower than MAX_BINS,
-# because most bins will be empty (and therefore pruned from the output). If
-# there are too many bins with nonzero values, the script will reduce the number
-# of bins until there are at most MAX_OUTPUT_BINS bins with nonzero values.
-MAX_OUTPUT_BINS=10
 
-def decode_xdr(xdr: str) -> dict[str, Any]:
-    """ Decode a TransactionEnvelope using the stellar-xdr tool. """
-    decoded = subprocess.check_output(
-            ["stellar-xdr", "decode",
-            "--type", "TransactionEnvelope",
-            "--input", "single-base64",
-            "--output", "json"
-            ],
-            input=xdr.encode("utf-8"))
-    return json.loads(decoded)
+def make_decoder() -> Callable[[bytes], dict[str, Any]]:
+    process = subprocess.Popen(
+        [
+            "stellar",
+            "xdr",
+            "decode",
+            "--type",
+            "TransactionEnvelope",
+            "--input",
+            "stream",
+            "--output",
+            "json",
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+    )
 
-def process_history_row(row: dict[str, str]) -> Tuple[Optional[Tuple[int, int, int]], Optional[int]]:
+    # asserts and assignment to satisfy typechecker that these really are streams
+    assert process.stdin
+    assert process.stdout
+    stdin = process.stdin
+    stdout = process.stdout
+
+    def decode_xdr(xdr: bytes) -> dict[str, Any]:
+        """Decode a TransactionEnvelope using the stellar-xdr tool."""
+        stdin.write(xdr)
+        stdin.flush()
+        return json.loads(stdout.readline())
+
+    return decode_xdr
+
+
+# Note: decode_xdr is a global that gets initialized in process_history_row so
+# that each Python subprocess runs an independent copy of stellar xdr decode
+decode_xdr = None
+
+
+def process_history_row(
+    row: dict[str, str],
+) -> WasmUpload | InvokeTransaction:
     """
-    Process a row from the history_transactions table. Returns:
-    * (None, None) if the row is not a transaction
-    * (None, wasm_size) if the row is a wasm upload
-    * ((instructions, write_bytes, tx_size), None) if the row is an invoke
-      transaction
+    Process a soroban row from the history_transactions table.
     """
-    envelope_xdr = row["tx_envelope"]
-    assert isinstance(envelope_xdr, str)
+    global decode_xdr
+    if decode_xdr is None:
+        decode_xdr = make_decoder()
+
+    envelope_xdr = b64decode(row["tx_envelope"], validate=True)
     envelope = decode_xdr(envelope_xdr)
-    if "tx" not in envelope:
-        # Skip anything that isn't a transaction (such as a fee bump)
-        return (None, None)
+
+    # Grab inner transaction from fee bump frames
+    if "tx_fee_bump" in envelope:
+        envelope = envelope["tx_fee_bump"]["tx"]["inner_tx"]
     operations = envelope["tx"]["tx"]["operations"]
     assert len(operations) == 1
     body = operations[0]["body"]
-    if "invoke_host_function" in body:
-        ihf = body["invoke_host_function"]
-        if "upload_contract_wasm" in ihf["host_function"]:
-            # Count wasm bytes
-            wasm = ihf["host_function"]["upload_contract_wasm"]
-            return (None, len(bytes.fromhex(wasm)))
-        else:
-            # Treat as a "normal" invoke
-            instructions = row["soroban_resources_instructions"]
-            write_bytes = row["soroban_resources_write_bytes"]
-            return ( ( int(instructions),
-                       int(write_bytes),
-                       len(b64decode(envelope_xdr, validate=True))),
-                     None)
-    return (None, None)
+
+    ihf = body["invoke_host_function"]
+    if "upload_contract_wasm" in ihf["host_function"]:
+        # Count wasm bytes
+        wasm = ihf["host_function"]["upload_contract_wasm"]
+        return WasmUpload(len(bytes.fromhex(wasm)))
+    else:
+        # Treat as a "normal" invoke
+        instructions = row["soroban_resources_instructions"]
+        write_bytes = row["soroban_resources_write_bytes"]
+        return InvokeTransaction(
+            int(instructions),
+            int(write_bytes),
+            len(envelope_xdr),
+        )
+
 
 def process_event_row(row: dict[str, str]) -> int:
     """
     Process a row from the history_events table. Must already be filtered to
     contain only write entries. Returns an int with the number of write entries.
     """
-    return int(json.loads(row["data_decoded"])["value"])
+    return int(json.loads(row["data_decoded"])["u64"])
 
-def to_normalized_histogram(data: npt.ArrayLike) -> None:
+
+def process_classic_transaction(row: dict[str, str]) -> int:
+    """
+    Process a classic row from the history_transactions table.
+    """
+    return int(row["envelope_size"])
+
+
+def to_normalized_histogram(
+    data: npt.ArrayLike, max_bins: int, max_output_bins: int
+) -> None:
     """
     Given a set of data, print a normalized histogram with at most
     MAX_OUTPUT_BINS bins formatted for easy pasting into supercluster.
     """
-    for i in range(MAX_BINS, MAX_OUTPUT_BINS-1, -1):
+    for i in range(max_bins, max_output_bins - 1, -1):
         hist, bins = np.histogram(data, bins=i)
 
         # Add up counts in each bin
@@ -103,10 +136,14 @@ def to_normalized_histogram(data: npt.ArrayLike) -> None:
         # Convert to ints
         normalized = normalized.round().astype(int)
 
-        if len([x for x in normalized if x != 0]) <= MAX_OUTPUT_BINS:
+        if len([x for x in normalized if x != 0]) <= max_output_bins:
             break
         # We have too many non-zero output bins. Reduce the number of total bins
         # and try again.
+    else:
+        raise RuntimeError(
+            f"Could not generate {max_output_bins} bins (make sure max_output_bins is less than max_bins)!"
+        )
 
     # Find midpoint of each bin
     midpoints = np.empty(len(bins) - 1)
@@ -125,40 +162,43 @@ def to_normalized_histogram(data: npt.ArrayLike) -> None:
         print(f"({point}, {count}); ", end="")
     print("]")
 
-def process_soroban_history(history_transactions_csv: str) -> None:
-    """ Generate histograms from data in the history_transactions table. """
+
+def process_soroban_history(
+    history_transactions_csv: str, workers: int, max_bins: int, max_output_bins: int
+) -> None:
+    """Generate histograms from data in the history_transactions table."""
     with open(history_transactions_csv) as f:
         reader = csv.DictReader(f)
 
         # Decode XDR in parallel
-        with Pool(WORKERS) as p:
-            processed_rows = p.imap_unordered(process_history_row, reader)
+        with ProcessPoolExecutor(workers) as executor:
+            processed_rows = list(executor.map(process_history_row, reader))
 
-            # Filter to just valid rows
-            valid = [row for row in processed_rows if row != (None, None)]
+        invokes = [x for x in processed_rows if isinstance(x, InvokeTransaction)]
+        wasms = [x.size for x in processed_rows if isinstance(x, WasmUpload)]
 
-            # Parse out invokes
-            invokes = [i for (i, u) in valid if i is not None]
-            wasms = [u for (i, u) in valid if u is not None]
+        print("Instructions:")
+        to_normalized_histogram(
+            [i.instructions for i in invokes], max_bins, max_output_bins
+        )
 
-            # Decompose into instructions, write bytes, and tx size
-            instructions, write_bytes, tx_size = zip(*invokes)
+        # Convert write_bytes to kilobytes
+        write_kilobytes = (
+            (np.array([i.write_bytes for i in invokes]) / 1024).round().astype(int)
+        )
+        print("\nI/O Kilobytes:")
+        to_normalized_histogram(write_kilobytes, max_bins, max_output_bins)
 
-            print("Instructions:")
-            to_normalized_histogram(instructions)
+        print("\nTransaction Size Bytes:")
+        to_normalized_histogram([i.tx_size for i in invokes], max_bins, max_output_bins)
 
-            # Convert write_bytes to kilobytes
-            write_kilobytes = (np.array(write_bytes) / 1024).round().astype(int)
-            print("\nI/O Kilobytes:")
-            to_normalized_histogram(write_kilobytes)
+        print("\nWasm Size Bytes:")
+        to_normalized_histogram(wasms, max_bins, max_output_bins)
 
-            print("\nTransaction Size Bytes:")
-            to_normalized_histogram(tx_size)
 
-            print("\nWasm Size Bytes:")
-            to_normalized_histogram(wasms)
-
-def process_soroban_events(history_contract_events_csv) -> None:
+def process_soroban_events(
+    history_contract_events_csv: str, workers: int, max_bins: int, max_output_bins: int
+) -> None:
     """
     Generate a histogram for data entries from data in the
     history_contract_events table.
@@ -167,28 +207,93 @@ def process_soroban_events(history_contract_events_csv) -> None:
         reader = csv.DictReader(f)
 
         # Process CSV in parallel
-        with Pool(WORKERS) as p:
-            processed_rows = list(p.imap_unordered(process_event_row, reader))
+        with ProcessPoolExecutor(workers) as executor:
+            processed_rows = list(executor.map(process_event_row, reader))
 
-            print("Data Entries:")
-            to_normalized_histogram(processed_rows)
+        print("Data Entries:")
+        to_normalized_histogram(processed_rows, max_bins, max_output_bins)
 
-def help_and_exit() -> None:
-    print(f"Usage: {sys.argv[0]} <history_transactions data> "
-          "<history_contract_events data>")
-    print("See the comments at the top of this file for sample Hubble queries "
-          "to generate the appropriate data.")
-    sys.exit(1)
+
+def process_classic_transactions(
+    history_contract_events_csv: str, workers: int, max_bins: int, max_output_bins: int
+) -> None:
+    """
+    Generate a histogram for classic data entries from data in the
+    history_transactions table.
+    """
+    with open(history_contract_events_csv) as f:
+        reader = csv.DictReader(f)
+
+        # Process CSV in parallel
+        with ProcessPoolExecutor(workers) as executor:
+            processed_rows = list(executor.map(process_classic_transaction, reader))
+
+        print("Classic Transaction Sizes:")
+        to_normalized_histogram(processed_rows, max_bins, max_output_bins)
+
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        help_and_exit()
+    parser = argparse.ArgumentParser(
+        description="See the comments at the end of this help for sample Hubble queries to generate the appropriate data.",
+        epilog="""You can use the following sample queries as a jumping off point for writing your own queries to generate these CSV files:
+
+history_transactions sample query
+SELECT soroban_resources_instructions, soroban_resources_write_bytes, tx_envelope FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2024-06-24") AND DATETIME("2024-09-24") AND soroban_resources_instructions > 0
+
+history_contract_events sample query
+SELECT topics_decoded, data_decoded FROM `crypto-stellar.crypto_stellar.history_contract_events` WHERE type = 2 AND TIMESTAMP_TRUNC(closed_at, MONTH) between TIMESTAMP("2024-06-27") AND TIMESTAMP("2024-09-27") AND contains_substr(topics_decoded, "write_entry")
+
+NOTE: this query filters out anything that isn't a write_entry. This is required for the script to work correctly!
+
+classic_transactions sample query
+SELECT LENGTH(FROM_BASE64(tx_envelope)) as envelope_size FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2025-09-09") AND DATETIME("2025-09-09") AND soroban_resources_instructions = 0
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "history_transactions", type=str, help="history_transactions csv file"
+    )
+    parser.add_argument(
+        "history_contract_events", type=str, help="history_contract events csv file."
+    )
+    parser.add_argument(
+        "classic_transactions", type=str, help="classic_transactions csv file."
+    )
+    parser.add_argument(
+        "-j",
+        "--workers",
+        type=int,
+        default=9,
+        help="Number of Python subprocesses to run in parallel",
+    )
+    parser.add_argument(
+        "--max-bins",
+        type=int,
+        default=100,
+        help="Maximum number of histogram bins to generate",
+    )
+    parser.add_argument(
+        "--max-output-bins",
+        type=int,
+        default=10,
+        help="Maximum number of histogram bins to output. This is much lower than MAX_BINS, because most bins will be empty (and therefore pruned from the output). If there are too many bins with nonzero values, the script will reduce the number of bins until there are at most MAX_OUTPUT_BINS bins with nonzero values.",
+    )
+    args = parser.parse_args()
 
     print("Processing data. This might take a few minutes...")
 
-    process_soroban_history(sys.argv[1])
-    print("")
-    process_soroban_events(sys.argv[2])
+    process_soroban_history(
+        args.history_transactions, args.workers, args.max_bins, args.max_output_bins
+    )
+    print()
+    process_soroban_events(
+        args.history_contract_events, args.workers, args.max_bins, args.max_output_bins
+    )
+    print()
+    process_classic_transactions(
+        args.classic_transactions, args.workers, args.max_bins, args.max_output_bins
+    )
+
 
 if __name__ == "__main__":
     main()
