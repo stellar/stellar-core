@@ -242,6 +242,31 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, neededWeight);
 }
 
+bool
+FeeBumpTransactionFrame::checkOperationSignatures(
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    MutableTransactionResultBase* txResult) const
+{
+    // Fee bumps do not contain explicit operations, so this check trivially
+    // passes.
+    return true;
+}
+
+bool
+FeeBumpTransactionFrame::checkAllTransactionSignatures(
+    SignatureChecker& signatureChecker, LedgerEntryWrapper const& feeSource,
+    uint32_t ledgerVersion) const
+{
+    if (!feeSource)
+    {
+        return false;
+    }
+
+    return checkSignature(
+        signatureChecker, feeSource,
+        feeSource.current().data.account().thresholds[THRESHOLD_LOW]);
+}
+
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
@@ -266,7 +291,7 @@ FeeBumpTransactionFrame::checkValid(
 
     SignatureChecker signatureChecker{
         ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
-        mEnvelope.feeBump().signatures};
+        mEnvelope.feeBump().signatures, true};
     if (commonValid(signatureChecker, ls, false, *txResult) !=
         ValidationType::kFullyValid)
     {
@@ -388,9 +413,9 @@ FeeBumpTransactionFrame::commonValid(
         return res;
     }
 
-    if (!checkSignature(
+    if (!checkAllTransactionSignatures(
             signatureChecker, *feeSource,
-            feeSource->current().data.account().thresholds[THRESHOLD_LOW]))
+            ls.getLedgerHeader().current().ledgerVersion))
     {
         txResult.setError(txBAD_AUTH);
         return res;
@@ -682,4 +707,12 @@ FeeBumpTransactionFrame::toStellarMessage() const
     msg->transaction() = mEnvelope;
     return msg;
 }
+
+void
+FeeBumpTransactionFrame::withInnerTx(
+    std::function<void(TransactionFrameBaseConstPtr)> fn) const
+{
+    fn(mInnerTx);
+}
+
 }

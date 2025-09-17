@@ -19,10 +19,12 @@ namespace stellar
 
 SignatureChecker::SignatureChecker(
     uint32_t protocolVersion, Hash const& contentsHash,
-    xdr::xvector<DecoratedSignature, 20> const& signatures)
+    xdr::xvector<DecoratedSignature, 20> const& signatures,
+    bool isCheckValidTxSig)
     : mProtocolVersion{protocolVersion}
     , mContentsHash{contentsHash}
     , mSignatures{signatures}
+    , mIsCheckValidTxSig{isCheckValidTxSig}
 {
     mUsedSignatures.resize(mSignatures.size());
 }
@@ -114,7 +116,8 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     verified = verifyAll(
         signers[SIGNER_KEY_TYPE_ED25519],
         [&](DecoratedSignature const& sig, Signer const& signerKey) {
-            return SignatureUtils::verify(sig, signerKey.key, mContentsHash);
+            return SignatureUtils::verify(sig, signerKey.key, mContentsHash,
+                                          mIsCheckValidTxSig);
         });
     if (verified)
     {
@@ -125,7 +128,7 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
         verifyAll(signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
                   [&](DecoratedSignature const& sig, Signer const& signerKey) {
                       return SignatureUtils::verifyEd25519SignedPayload(
-                          sig, signerKey.key);
+                          sig, signerKey.key, mIsCheckValidTxSig);
                   });
     if (verified)
     {

@@ -25,8 +25,8 @@ TEST_CASE("Pubkey signature", "[signature]")
             auto signature = SignatureUtils::sign(secretKey, hash);
             REQUIRE(SignatureUtils::verify(
                 signature,
-                KeyUtils::convertKey<SignerKey>(secretKey.getPublicKey()),
-                hash));
+                KeyUtils::convertKey<SignerKey>(secretKey.getPublicKey()), hash,
+                false));
         }
     }
 }

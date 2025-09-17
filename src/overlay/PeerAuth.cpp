@@ -65,7 +65,7 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
         mApp.getNetworkID(), ENVELOPE_TYPE_AUTH, cert.expiration, cert.pubkey));
 
     CLOG_DEBUG(Overlay, "PeerAuth verifying cert hash: {}", hexAbbrev(hash));
-    return PubKeyUtils::verifySig(remoteNode, cert.sig, hash);
+    return PubKeyUtils::verifySig(remoteNode, cert.sig, hash, false);
 }
 
 HmacSha256Key
