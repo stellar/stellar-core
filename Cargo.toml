@@ -5,3 +5,7 @@ members = ["src/rust"]
 [profile.release]
 codegen-units = 1
 lto = true
+
+# Override only test wasms to use local paths
+[patch."https://github.com/SirTyson/rs-soroban-env"]
+soroban-test-wasms = { path = "/home/user/src/rs-soroban-env/soroban-test-wasms" }

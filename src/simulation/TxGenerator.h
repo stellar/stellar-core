@@ -87,6 +87,9 @@ class TxGenerator
         uint32_t contractEntriesSize = 0;
     };
 
+    static constexpr uint64_t BATCH_TRANSFER_TX_INSTRUCTIONS = 500'000;
+    static uint64_t const ROOT_ACCOUNT_ID;
+
     using TestAccountPtr = std::shared_ptr<TestAccount>;
     TxGenerator(Application& app);
 
@@ -151,6 +154,26 @@ class TxGenerator
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  uint32_t inclusionFee);
+
+    // Instantiate SAC contract for a given asset
+    std::pair<ContractInstance, TransactionFrameBaseConstPtr>
+    instantiateSACContract(uint32_t ledgerNum, Asset const& asset,
+                          LedgerKey const& contractCodeLedgerKey,
+                          std::optional<uint32_t> maxGeneratedFeeRate);
+
+    // Invoke SAC payment
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
+                     SCAddress const& toAddress,
+                     ContractInstance const& instance, uint64_t amount,
+                     std::optional<uint32_t> maxGeneratedFeeRate);
+
+    // Invoke batch transfer (multiple SAC payments in one transaction)
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeBatchTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
+                        ContractInstance const& batchTransferInstance,
+                        ContractInstance const& sacInstance,
+                        std::vector<SCAddress> const& destinations);
 
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     pretendTransaction(uint32_t numAccounts, uint32_t offset,

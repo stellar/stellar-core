@@ -320,6 +320,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_USES_IN_MEMORY_LEDGER = false;
     SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = false;
 #endif
+    IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
 
 #ifdef BEST_OFFER_DEBUGGING
     BEST_OFFER_DEBUGGING_ENABLED = false;
@@ -1186,6 +1187,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readBool(item);
                  }},
 #endif // BUILD_TESTS
+                {"IGNORE_MESSAGE_LIMITS_FOR_TESTING",
+                 [&]() { IGNORE_MESSAGE_LIMITS_FOR_TESTING = readBool(item); }},
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = readBool(item);
@@ -1663,6 +1666,36 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_MAX_TX_COUNT",
                  [&]() { APPLY_LOAD_MAX_TX_COUNT = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_MIN_TPS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_MAX_TPS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_NUM_ACCOUNTS",
+                 [&]() {
+                     APPLY_LOAD_NUM_ACCOUNTS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_BATCH_SAC_COUNT",
+                 [&]() {
+                     APPLY_LOAD_BATCH_SAC_COUNT = readInt<uint32_t>(item, 1);
+                 }},
+                {"APPLY_LOAD_TIME_WRITES",
+                 [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
+                {"APPLY_LOAD_NUM_LEDGERS",
+                 [&]() { APPLY_LOAD_NUM_LEDGERS = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS =
+                         readInt<uint32_t>(item);
+                 }},
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
@@ -2467,6 +2500,34 @@ Config::skipHighCriticalValidatorChecks() const
     return SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING;
 #endif
     return false;
+}
+
+size_t
+Config::getSorobanByteAllowance() const
+{
+    // Return a big number, but not big enough that it will overflow
+    if (IGNORE_MESSAGE_LIMITS_FOR_TESTING)
+    {
+        return std::numeric_limits<size_t>::max() / 2;
+    }
+    // Return default Soroban byte allowance
+    // This is a placeholder - in the actual implementation this would return
+    // the actual Soroban byte allowance from network config
+    return 1024 * 1024;  // 1MB default
+}
+
+size_t
+Config::getClassicByteAllowance() const
+{
+    // Return a big number, but not big enough that it will overflow
+    if (IGNORE_MESSAGE_LIMITS_FOR_TESTING)
+    {
+        return std::numeric_limits<size_t>::max() / 2;
+    }
+    // Return default Classic byte allowance
+    // This is a placeholder - in the actual implementation this would return
+    // the actual Classic byte allowance from network config
+    return 1024 * 1024;  // 1MB default
 }
 
 SCPQuorumSet

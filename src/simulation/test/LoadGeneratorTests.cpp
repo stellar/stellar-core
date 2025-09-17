@@ -875,6 +875,7 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
 
     cfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING = 1000;
 
@@ -987,4 +988,47 @@ TEST_CASE("apply load", "[loadgen][applyload]")
               al.getReadEntryUtilization().mean() / 1000.0);
     CLOG_INFO(Perf, "Write entry utilization {}%",
               al.getWriteEntryUtilization().mean() / 1000.0);
+}
+
+TEST_CASE("basic MAX_SAC_TPS functionality", "[loadgen][applyload][soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+
+    // Configure test parameters for MAX_SAC_TPS mode with small, fast values
+    cfg.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 500;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+    cfg.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 200;
+    cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 220;
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_NUM_ACCOUNTS = 500;
+    cfg.APPLY_LOAD_BATCH_SAC_COUNT = 10;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    // Override the default test network config to allow more than 100 txs
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxTxCount = 10000; // Allow up to 10000 txs per ledger
+    });
+
+    // Create ApplyLoad with MAX_SAC_TPS mode
+    ApplyLoad al(*app, ApplyLoadMode::MAX_SAC_TPS);
+
+    // Verify the SAC was created successfully during setup
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+    auto initialSuccessCount = successCountMetric.count();
+    CLOG_INFO(Perf, "Initial soroban success count: {}", initialSuccessCount);
+    REQUIRE(initialSuccessCount > 0);
+
+    // Run the actual MAX_SAC_TPS test
+    al.findMaxSacTps();
+
+    // Verify that more transactions were applied successfully
+    REQUIRE(successCountMetric.count() > initialSuccessCount);
 }

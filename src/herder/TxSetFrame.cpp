@@ -500,7 +500,7 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
         auto maxOps =
             Resource({static_cast<uint32_t>(
                           app.getLedgerManager().getLastMaxTxSetSizeOps()),
-                      MAX_CLASSIC_BYTE_ALLOWANCE});
+                      static_cast<int64_t>(app.getConfig().getClassicByteAllowance())});
         std::optional<Resource> dexOpsLimit;
         if (app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET)
         {
@@ -509,7 +509,7 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
             // is only possible with generalized tx set.
             dexOpsLimit =
                 Resource({*app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET,
-                          MAX_CLASSIC_BYTE_ALLOWANCE});
+                          static_cast<int64_t>(app.getConfig().getClassicByteAllowance())});
         }
 
         surgePricingLaneConfig =
@@ -522,9 +522,9 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
         auto limits = app.getLedgerManager().maxLedgerResources(
             /* isSoroban */ true);
 
-        auto byteLimit =
-            std::min(static_cast<int64_t>(MAX_SOROBAN_BYTE_ALLOWANCE),
-                     limits.getVal(Resource::Type::TX_BYTE_SIZE));
+        auto byteLimit = std::min(
+            static_cast<int64_t>(app.getConfig().getSorobanByteAllowance()),
+            limits.getVal(Resource::Type::TX_BYTE_SIZE));
         limits.setVal(Resource::Type::TX_BYTE_SIZE, byteLimit);
 
         surgePricingLaneConfig =

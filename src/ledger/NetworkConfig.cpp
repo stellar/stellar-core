@@ -2056,7 +2056,10 @@ SorobanNetworkConfig::flatRateFeeWrite1KB() const
 Resource
 SorobanNetworkConfig::maxLedgerResources() const
 {
-    std::vector<int64_t> limits = {ledgerMaxTxCount(),
+    // Resource enum order: OPERATIONS, INSTRUCTIONS, TX_BYTE_SIZE, READ_BYTES,
+    // WRITE_BYTES, READ_LEDGER_ENTRIES, WRITE_LEDGER_ENTRIES
+    // For Soroban, OPERATIONS represents TX count (one op per Soroban TX)
+    std::vector<int64_t> limits = {ledgerMaxTxCount(),  // Maps to OPERATIONS
                                    ledgerMaxInstructions(),
                                    ledgerMaxTransactionSizesBytes(),
                                    ledgerMaxReadBytes(),

@@ -1755,34 +1755,101 @@ runGenFuzz(CommandLineArgs const& args)
         });
 }
 
+clara::Opt
+applyLoadModeParser(std::string& modeArg)
+{
+    return clara::Opt{modeArg, "MODE"}["--mode"](
+        "set the apply-load mode. Expected modes: soroban, classic, "
+        "mix, max_sac_tps. "
+        "Defaults to soroban.");
+}
+
 int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    ApplyLoadMode mode{ApplyLoadMode::SOROBAN};
+    std::string modeArg = "soroban";
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        auto config = configOption.getConfig();
-        config.RUN_STANDALONE = true;
-        config.MANUAL_CLOSE = true;
-        config.USE_CONFIG_FOR_GENESIS = true;
-        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-        config.LEDGER_PROTOCOL_VERSION =
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), applyLoadModeParser(modeArg)},
+        [&] {
+            // Parse mode from modeArg
+            if (iequals(modeArg, "soroban"))
+            {
+                mode = ApplyLoadMode::SOROBAN;
+            }
+            else if (iequals(modeArg, "classic"))
+            {
+                mode = ApplyLoadMode::CLASSIC;
+            }
+            else if (iequals(modeArg, "mix"))
+            {
+                mode = ApplyLoadMode::MIX;
+            }
+            else if (iequals(modeArg, "max_sac_tps"))
+            {
+                mode = ApplyLoadMode::MAX_SAC_TPS;
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "Unrecognized apply-load mode. Please select 'soroban', "
+                    "'classic', 'mix', or 'max_sac_tps'.");
+            }
 
-        TmpDirManager tdm(std::string("soroban-storage-meta-"));
-        TmpDir td = tdm.tmpDir("soroban-meta-ok");
-        std::string metaPath = td.getName() + "/stream.xdr";
+            auto config = configOption.getConfig();
+            config.RUN_STANDALONE = true;
+            config.MANUAL_CLOSE = true;
+            config.USE_CONFIG_FOR_GENESIS = true;
+            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100000;
+            config.LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            // Apply Load may exceed TX_SET byte size limits, so ignore them
+            config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
 
-        config.METADATA_OUTPUT_STREAM = metaPath;
+            // Validate config for max_sac_tps mode
+            if (mode == ApplyLoadMode::MAX_SAC_TPS)
+            {
+                // Enable high limit override for MAX_SAC_TPS mode to start with 100 tx limit
+                // instead of 1 (this will be upgraded further during the test)
+                config.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
 
-        VirtualClock clock(VirtualClock::REAL_TIME);
-        auto appPtr = Application::create(clock, config);
+                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >=
+                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+                {
+                    throw std::runtime_error(
+                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must be less than "
+                        "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
+                }
+                // We reuse accounts in max TPS tests, so we just need enough
+                // for a single ledger's worth of TXs
+                config.APPLY_LOAD_NUM_ACCOUNTS =
+                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
+                    (config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS /
+                     1000) *
+                    2;
+                // Apply Load may exceed TX_SET byte size limits
+            }
 
-        auto& app = *appPtr;
-        {
-            app.start();
+            TmpDirManager tdm(std::string("soroban-storage-meta-"));
+            TmpDir td = tdm.tmpDir("soroban-meta-ok");
+            std::string metaPath = td.getName() + "/stream.xdr";
 
-            ApplyLoad al(app);
+            if (mode != ApplyLoadMode::MAX_SAC_TPS)
+            {
+                config.METADATA_OUTPUT_STREAM = metaPath;
+            }
+
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto appPtr = Application::create(clock, config);
+
+            auto& app = *appPtr;
+            {
+                app.start();
+
+                ApplyLoad al(app, mode);
 
             auto& ledgerClose =
                 app.getMetrics().NewTimer({"ledger", "ledger", "close"});
@@ -1805,13 +1872,20 @@ runApplyLoad(CommandLineArgs const& args)
                 {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
             ledgerCpuInsRatioExclVm.Clear();
 
-            for (size_t i = 0; i < 100; ++i)
+            if (mode == ApplyLoadMode::MAX_SAC_TPS)
             {
-                app.getBucketManager().getLiveBucketList().resolveAllFutures();
-                releaseAssert(app.getBucketManager()
-                                  .getLiveBucketList()
-                                  .futuresAllResolved());
-                al.benchmark();
+                al.findMaxSacTps();
+            }
+            else
+            {
+                for (size_t i = 0; i < 100; ++i)
+                {
+                    app.getBucketManager().getLiveBucketList().resolveAllFutures();
+                    releaseAssert(app.getBucketManager()
+                                      .getLiveBucketList()
+                                      .futuresAllResolved());
+                    al.benchmark();
+                }
             }
 
             CLOG_INFO(Perf, "Max ledger close: {} milliseconds",

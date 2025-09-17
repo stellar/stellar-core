@@ -4,6 +4,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include <cmath>
+#include <climits>
 #include <crypto/SHA.h>
 
 namespace stellar
@@ -38,6 +39,8 @@ sampleDiscrete(std::vector<T> const& values,
     return values.at(distribution(gRandomEngine));
 }
 } // namespace
+
+uint64_t const TxGenerator::ROOT_ACCOUNT_ID = UINT64_MAX;
 
 uint64_t
 footprintSize(Application& app, xdr::xvector<stellar::LedgerKey> const& keys)
@@ -151,6 +154,12 @@ TxGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
 TxGenerator::TestAccountPtr
 TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
 {
+    // Special handling for root account
+    if (accountId == ROOT_ACCOUNT_ID)
+    {
+        return mApp.getRoot();
+    }
+
     // Load account and cache it.
     TxGenerator::TestAccountPtr newAccountPtr;
 
@@ -1180,6 +1189,250 @@ TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
     }
     return std::make_pair(
         acc, createTransactionFramePtr(acc, ops, true, maxGeneratedFeeRate));
+}
+
+std::pair<TxGenerator::ContractInstance, TransactionFrameBaseConstPtr>
+TxGenerator::instantiateSACContract(uint32_t ledgerNum, Asset const& asset,
+                                   LedgerKey const& contractCodeLedgerKey,
+                                   std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    // Use the proper SAC creation method
+    ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    idPreimage.fromAsset() = asset;
+
+    // Calculate the contract address
+    auto fullPreimage = makeFullContractIdPreimage(mApp.getNetworkID(), idPreimage);
+    auto contractID = xdrSha256(fullPreimage);
+    SCAddress contractAddr = makeContractAddress(contractID);
+
+    // Create the instance
+    ContractInstance instance;
+    instance.contractID = contractAddr;
+
+    // Create footprint
+    LedgerKey instanceKey = makeContractInstanceKey(contractAddr);
+    instance.readOnlyKeys = {};
+    instance.contractEntriesSize = 1000; // Estimate
+
+    // Create the transaction - SACs are created with CREATE_CONTRACT host function
+    // Use the root account for SAC instantiation
+    auto acc = mApp.getRoot();
+
+    // Set up soroban resources for SAC creation
+    SorobanResources resources;
+    resources.instructions = 400'000;
+    resources.readBytes = 1000;
+    resources.writeBytes = 1000;
+    resources.footprint.readOnly = {};
+    resources.footprint.readWrite = {instanceKey};
+
+    // Create the SAC using makeSorobanCreateContractTx
+    auto executable = makeAssetExecutable(asset);
+    auto tx = makeSorobanCreateContractTx(
+        mApp, *acc, idPreimage, executable, resources,
+        generateFee(maxGeneratedFeeRate, /* opsCnt */ 1));
+
+    return std::make_pair(instance, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
+                              SCAddress const& toAddress,
+                              ContractInstance const& instance, uint64_t amount,
+                              std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto acc = findAccount(fromAccountId, ledgerNum);
+    std::vector<Operation> ops;
+
+    // Create invoke contract for SAC transfer
+    InvokeContractArgs invokeArgs;
+    invokeArgs.contractAddress = instance.contractID;
+    invokeArgs.functionName = makeSymbol("transfer");
+
+    // Add from address (account)
+    SCVal fromVal;
+    fromVal.type(SCV_ADDRESS);
+    fromVal.address().type(SC_ADDRESS_TYPE_ACCOUNT);
+    fromVal.address().accountId() = acc->getPublicKey();
+    invokeArgs.args.push_back(fromVal);
+
+    // Add to address
+    SCVal toVal;
+    toVal.type(SCV_ADDRESS);
+    toVal.address() = toAddress;
+    invokeArgs.args.push_back(toVal);
+
+    // Add amount
+    SCVal amountVal;
+    amountVal.type(SCV_I128);
+    amountVal.i128().lo = amount;
+    amountVal.i128().hi = 0;
+    invokeArgs.args.push_back(amountVal);
+
+    auto op = Operation{};
+    op.body.type(INVOKE_HOST_FUNCTION);
+    op.body.invokeHostFunctionOp().hostFunction.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    op.body.invokeHostFunctionOp().hostFunction.invokeContract() = invokeArgs;
+
+    ops.push_back(op);
+
+    // Set up auth after creating the operation - using simpler approach
+    SorobanAuthorizedInvocation invocation;
+    invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    invocation.function.contractFn() = op.body.invokeHostFunctionOp().hostFunction.invokeContract();
+
+    SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+
+    ops.back().body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    // Set up soroban resources
+    SorobanResources resources;
+    resources.instructions = 250'000;
+    resources.readBytes = 5'000;
+    resources.writeBytes = 5'000;
+
+    // For native XLM SAC, we need account keys in the footprint, not Balance contract data
+    // The SAC instance key needs to be read-only
+    LedgerKey instanceKey;
+    instanceKey.type(CONTRACT_DATA);
+    instanceKey.contractData().contract = instance.contractID;
+    instanceKey.contractData().key.type(SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+    instanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
+
+    // Account keys for from and to
+    LedgerKey fromAccountKey;
+    fromAccountKey.type(ACCOUNT);
+    fromAccountKey.account().accountID = acc->getPublicKey();
+
+    LedgerKey toAccountKey;
+    if (toAddress.type() == SC_ADDRESS_TYPE_ACCOUNT)
+    {
+        toAccountKey.type(ACCOUNT);
+        toAccountKey.account().accountID = toAddress.accountId();
+        resources.footprint.readOnly = {instanceKey};
+        resources.footprint.readWrite = {fromAccountKey, toAccountKey};
+    }
+    else
+    {
+        // For contract addresses, we need to use the balance entry
+        toAccountKey.type(CONTRACT_DATA);
+        toAccountKey.contractData().contract = instance.contractID;
+
+        // Create balance key for the contract
+        SCVal balanceKey;
+        balanceKey.type(SCV_VEC);
+        balanceKey.vec().activate();  // Allocate the vector
+
+        SCVal balanceSym;
+        balanceSym.type(SCV_SYMBOL);
+        balanceSym.sym() = makeSymbol("Balance");
+
+        SCVal contractAddrVal;
+        contractAddrVal.type(SCV_ADDRESS);
+        contractAddrVal.address() = toAddress;
+
+        balanceKey.vec()->emplace_back(balanceSym);
+        balanceKey.vec()->emplace_back(contractAddrVal);
+
+        toAccountKey.contractData().key = balanceKey;
+        toAccountKey.contractData().durability = ContractDataDurability::PERSISTENT;
+
+        // When funding a contract for the first time, the balance entry might not exist
+        // so we may need to create it. Include it in readWrite
+        resources.footprint.readOnly = {instanceKey};
+        resources.footprint.readWrite = {fromAccountKey, toAccountKey};
+    }
+
+    int64_t resourceFee = sorobanResourceFee(mApp, resources, 5'000, 100);
+    resourceFee += 1'000'000;
+
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *acc, ops, {}, resources,
+        generateFee(maxGeneratedFeeRate, /* opsCnt */ 1), resourceFee);
+
+    return std::make_pair(acc, tx);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeBatchTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
+                                 ContractInstance const& batchTransferInstance,
+                                 ContractInstance const& sacInstance,
+                                 std::vector<SCAddress> const& destinations)
+{
+    auto sourceAccount = findAccount(fromAccountId, ledgerNum);
+    sourceAccount->loadSequenceNumber();
+
+    // Create the destinations vector as SCVal
+    std::vector<SCVal> destVals;
+    destVals.reserve(destinations.size());
+    for (auto const& dest : destinations)
+    {
+        SCVal destVal(SCV_ADDRESS);
+        destVal.address() = dest;
+        destVals.push_back(destVal);
+    }
+    SCVal destinationsVec = makeVecSCVal(destVals);
+
+    // Create the SAC contract address SCVal
+    SCVal sacAddressVal(SCV_ADDRESS);
+    sacAddressVal.address() = sacInstance.contractID;
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = batchTransferInstance.contractID;
+    ihf.invokeContract().functionName = makeSymbol("batch_transfer");
+    ihf.invokeContract().args = {sacAddressVal, destinationsVec};
+
+    SorobanResources resources;
+    uint32_t batchSize = destinations.size();
+    resources.writeBytes = 800 * batchSize;
+    resources.readBytes = 800;
+    resources.instructions = BATCH_TRANSFER_TX_INSTRUCTIONS * batchSize;
+
+    // The batch_transfer contract needs both its instance and code keys
+    resources.footprint.readOnly = batchTransferInstance.readOnlyKeys;
+
+    // Add the SAC contract's keys
+    resources.footprint.readOnly.insert(resources.footprint.readOnly.end(),
+                                        sacInstance.readOnlyKeys.begin(),
+                                        sacInstance.readOnlyKeys.end());
+
+    // Helper to create balance keys
+    auto getBalanceKey = [&](SCAddress const& address) {
+        SCVal addressVal(SCV_ADDRESS);
+        addressVal.address() = address;
+
+        // Create Balance(address) key
+        SCVal balanceSymbol(SCV_SYMBOL);
+        balanceSymbol.sym() = makeSymbol("Balance");
+
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = sacInstance.contractID;
+        balanceKey.contractData().key = makeVecSCVal({balanceSymbol, addressVal});
+        balanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
+        return balanceKey;
+    };
+
+    // Add batch transfer contract's balance to readWrite (source of funds)
+    resources.footprint.readWrite.push_back(getBalanceKey(batchTransferInstance.contractID));
+
+    // Add destination balance keys to readWrite
+    for (auto const& dest : destinations)
+    {
+        resources.footprint.readWrite.push_back(getBalanceKey(dest));
+    }
+
+    // Calculate fees
+    int64_t resourceFee = sorobanResourceFee(mApp, resources, 5'000, 100);
+    resourceFee += 1'000'000 * batchSize;
+
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *sourceAccount, {op}, {}, resources,
+        generateFee(std::nullopt, 1), resourceFee);
+
+    return std::make_pair(sourceAccount, tx);
 }
 
 }

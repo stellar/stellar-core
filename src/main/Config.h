@@ -392,6 +392,15 @@ class Config : public std::enable_shared_from_this<Config>
     // Number of events to generate in the apply-load transactions.
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_FOR_TESTING;
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING;
+    // MAX_SAC_TPS mode specific parameters
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
+    uint32_t APPLY_LOAD_BATCH_SAC_COUNT = 1;
+    bool APPLY_LOAD_TIME_WRITES = false;
+    uint32_t APPLY_LOAD_NUM_LEDGERS = 3;
+    uint32_t APPLY_LOAD_NUM_ACCOUNTS = 100000;
+    uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
@@ -798,6 +807,13 @@ class Config : public std::enable_shared_from_this<Config>
     void
     generateQuorumSetForTesting(std::vector<ValidatorEntry> const& validators);
 #endif
+
+    // When set to true, ignores all message and tx set size limits for testing
+    bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
+
+    // Helper methods for getting byte allowances with IGNORE_MESSAGE_LIMITS_FOR_TESTING support
+    size_t getSorobanByteAllowance() const;
+    size_t getClassicByteAllowance() const;
 
 #ifdef BEST_OFFER_DEBUGGING
     bool BEST_OFFER_DEBUGGING_ENABLED;
