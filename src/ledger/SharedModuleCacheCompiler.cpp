@@ -145,6 +145,7 @@ SharedModuleCacheCompiler::start()
     mThreads.emplace_back(std::thread([this]() {
         ZoneScopedN("load wasm contracts");
         std::unordered_set<Hash> seenContracts;
+        size_t liveContracts{0};
         this->mSnap->scanForEntriesOfType(
             CONTRACT_CODE, [&](BucketEntry const& entry) {
                 Hash h;
@@ -155,6 +156,7 @@ SharedModuleCacheCompiler::start()
                     h = entry.liveEntry().data.contractCode().hash;
                     if (seenContracts.find(h) == seenContracts.end())
                     {
+                        ++liveContracts;
                         this->pushWasm(
                             entry.liveEntry().data.contractCode().code);
                     }
@@ -168,7 +170,7 @@ SharedModuleCacheCompiler::start()
                 seenContracts.insert(h);
                 return Loop::INCOMPLETE;
             });
-        this->setFinishedLoading(seenContracts.size());
+        this->setFinishedLoading(liveContracts);
     }));
 
     for (auto thread = 1; thread < this->mNumThreads; ++thread)
