@@ -95,6 +95,7 @@ HerderImpl::HerderImpl(Application& app)
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
+    , mCheckForDeadNodesTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
@@ -860,6 +861,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
+    mLiveNodes.insert(envelope.statement.nodeID);
 
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
@@ -2335,6 +2337,7 @@ HerderImpl::start()
 
     restoreUpgrades();
     startTxSetGCTimer();
+    startCheckForDeadNodesTimer();
 }
 
 void
@@ -2385,6 +2388,33 @@ HerderImpl::purgeOldPersistedTxSets()
     {
         CLOG_ERROR(Herder, "Error while deleting old tx sets: {}", e.what());
     }
+}
+
+void
+HerderImpl::startCheckForDeadNodesTimer()
+{
+    mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
+    mCheckForDeadNodesTimer.async_wait([this]() { checkForDeadNodes(); },
+                                       &VirtualTimer::onFailureNoop);
+}
+
+void
+HerderImpl::checkForDeadNodes()
+{
+    LocalNode::forAllNodes(
+        getSCP().getLocalNode()->getQuorumSet(), [this](const NodeID& nodeId) {
+            if (mLiveNodes.find(nodeId) == mLiveNodes.end())
+            {
+                CLOG_WARNING(Herder,
+                             "NodeID {} from local quorum set not "
+                             "participating in latest rounds of consensus: "
+                             "check that this node is still alive.",
+                             KeyUtils::toStrKey(nodeId));
+            }
+            return true;
+        });
+    mLiveNodes.clear();
+    startCheckForDeadNodesTimer();
 }
 
 void
