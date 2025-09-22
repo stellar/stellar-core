@@ -652,7 +652,6 @@ ApplyLoad::setupBucketList()
                                   archivedEntries, {});
         }
     }
-    lh.ledgerSeq++;
     mDataEntryCount = currentLiveKey;
     releaseAssertOrThrow(mTotalHotArchiveEntries <= currentHotArchiveKey);
 
