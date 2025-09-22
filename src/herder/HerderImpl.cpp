@@ -2401,18 +2401,20 @@ HerderImpl::startCheckForDeadNodesTimer()
 void
 HerderImpl::checkForDeadNodes()
 {
-    LocalNode::forAllNodes(
-        getSCP().getLocalNode()->getQuorumSet(), [this](const NodeID& nodeId) {
-            if (mLiveNodes.find(nodeId) == mLiveNodes.end())
-            {
-                CLOG_WARNING(Herder,
-                             "NodeID {} from local quorum set not "
-                             "participating in latest rounds of consensus: "
-                             "check that this node is still alive.",
-                             KeyUtils::toStrKey(nodeId));
-            }
-            return true;
-        });
+    auto ln = getSCP().getLocalNode();
+    const auto& localId = ln->getNodeID();
+    LocalNode::forAllNodes(ln->getQuorumSet(), [this,
+                                                localId](const NodeID& nodeId) {
+        if (mLiveNodes.find(nodeId) == mLiveNodes.end() && !(nodeId == localId))
+        {
+            CLOG_WARNING(Herder,
+                         "NodeID {} from local quorum set not "
+                         "participating in latest rounds of consensus: "
+                         "check that this node is still alive.",
+                         KeyUtils::toStrKey(nodeId));
+        }
+        return true;
+    });
     mLiveNodes.clear();
     startCheckForDeadNodesTimer();
 }
