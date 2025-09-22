@@ -321,7 +321,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
                      mApp.getConfig().TARGET_PEER_CONNECTIONS, mSurveyManager)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
-    , mScheduledMessages(100000, true)
+    , mScheduledMessages(100000)
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
