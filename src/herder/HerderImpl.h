@@ -315,10 +315,12 @@ class HerderImpl : public Herder
     // for every node in the local quorum set that didn't send an envelope
     // during this time.
     VirtualTimer mCheckForDeadNodesTimer;
-    void startCheckForDeadNodesTimer();
-    void checkForDeadNodes();
-    // The nodes that have sent a valid SCP envelope during the current period.
-    std::set<NodeID> mLiveNodes;
+    void startCheckForDeadNodesInterval();
+    void endCheckForDeadNodesInterval();
+    // The nodes that have not sent a valid SCP envelope during the current
+    // period. Note: we keep track of dead nodes instead of live ones to limit
+    // max memory size.
+    std::set<NodeID> mDeadNodes;
 
     Application& mApp;
     LedgerManager& mLedgerManager;

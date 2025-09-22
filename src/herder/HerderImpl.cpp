@@ -861,7 +861,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
-    mLiveNodes.insert(envelope.statement.nodeID);
+    mDeadNodes.erase(envelope.statement.nodeID);
 
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
@@ -2337,7 +2337,7 @@ HerderImpl::start()
 
     restoreUpgrades();
     startTxSetGCTimer();
-    startCheckForDeadNodesTimer();
+    startCheckForDeadNodesInterval();
 }
 
 void
@@ -2391,32 +2391,32 @@ HerderImpl::purgeOldPersistedTxSets()
 }
 
 void
-HerderImpl::startCheckForDeadNodesTimer()
+HerderImpl::startCheckForDeadNodesInterval()
 {
+    auto ln = getSCP().getLocalNode();
+    LocalNode::forAllNodes(ln->getQuorumSet(), [this](const NodeID& nodeId) {
+        mDeadNodes.insert(nodeId);
+        return true;
+    });
+    mDeadNodes.erase(ln->getNodeID());
     mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
-    mCheckForDeadNodesTimer.async_wait([this]() { checkForDeadNodes(); },
-                                       &VirtualTimer::onFailureNoop);
+    mCheckForDeadNodesTimer.async_wait(
+        [this]() { endCheckForDeadNodesInterval(); },
+        &VirtualTimer::onFailureNoop);
 }
 
 void
-HerderImpl::checkForDeadNodes()
+HerderImpl::endCheckForDeadNodesInterval()
 {
-    auto ln = getSCP().getLocalNode();
-    const auto& localId = ln->getNodeID();
-    LocalNode::forAllNodes(ln->getQuorumSet(), [this,
-                                                localId](const NodeID& nodeId) {
-        if (mLiveNodes.find(nodeId) == mLiveNodes.end() && !(nodeId == localId))
-        {
-            CLOG_WARNING(Herder,
-                         "NodeID {} from local quorum set not "
-                         "participating in latest rounds of consensus: "
-                         "check that this node is still alive.",
-                         KeyUtils::toStrKey(nodeId));
-        }
-        return true;
-    });
-    mLiveNodes.clear();
-    startCheckForDeadNodesTimer();
+    for (const auto& node : mDeadNodes)
+    {
+        CLOG_WARNING(Herder,
+                     "NodeID {} from local quorum set not "
+                     "participating in latest rounds of consensus: "
+                     "check that this node is still alive.",
+                     KeyUtils::toStrKey(node));
+    }
+    startCheckForDeadNodesInterval();
 }
 
 void
