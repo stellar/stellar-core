@@ -278,6 +278,7 @@ HerderImpl::shutdown()
     }
 
     mTxSetGarbageCollectTimer.cancel();
+    mCheckForDeadNodesTimer.cancel();
 }
 
 void
