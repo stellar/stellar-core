@@ -205,7 +205,7 @@ class VirtualClock
     system_time_point system_now() const noexcept;
 
     void enqueue(std::shared_ptr<VirtualClockEvent> ve);
-    void flushCancelledEvents();
+    void flushCancelledEvents(bool batchCancellations = true);
     bool cancelAllEvents();
 
     // Only valid with VIRTUAL_TIME: sets the current value of the
@@ -278,7 +278,7 @@ class VirtualTimer : private NonMovableOrCopyable
                     std::function<void(asio::error_code)> const& onFailure);
     void cancel();
 
-    static void onFailureNoop(asio::error_code const&){};
+    static void onFailureNoop(asio::error_code const&) {};
 };
 
 // This is almost certainly not the type you want to use. So much so
