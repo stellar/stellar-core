@@ -40,6 +40,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
+#include "xdrpp/depth_checker.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
@@ -1725,8 +1726,7 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use
     // `checkValidWithOptionallyChargedFee` for the inner tx).
-    if (!checkVNext(ls.getLedgerHeader().current().ledgerVersion,
-                    app.getConfig(), mEnvelope))
+    if (!xdr::check_xdr_depth(mEnvelope, 500))
     {
         return MutableTransactionResult::createTxError(txMALFORMED);
     }

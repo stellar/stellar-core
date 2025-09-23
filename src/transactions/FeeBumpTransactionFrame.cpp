@@ -23,6 +23,7 @@
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
+#include "xdrpp/depth_checker.h"
 #include "xdrpp/marshal.h"
 
 #include <numeric>
@@ -248,9 +249,7 @@ FeeBumpTransactionFrame::checkValid(
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents) const
 {
-    if (!checkVNext(ls.getLedgerHeader().current().ledgerVersion,
-                    app.getConfig(), mEnvelope) ||
-        !XDRProvidesValidFee())
+    if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
     {
         return FeeBumpMutableTransactionResult::createTxError(txMALFORMED);
     }
