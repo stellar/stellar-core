@@ -13,6 +13,14 @@
 namespace stellar
 {
 
+// The global prng generator can only be accessed from the main thread, but
+// there's no reason RandomEvictionCache should be main-thread only. To get
+// around this, each RandomEvictionCache will have a local prng generator by
+// default with a seed specific to the cache. While technically there is a race
+// on this seed since it's managed via main thread's `initializeAllGlobalState`
+// functions, we only actually reset the seed in tests.
+static unsigned int randomEvictionCacheSeed{0};
+
 // Implements a simple fixed-size cache that does
 // least-recent-out-of-2-random-choices eviction. Degrades more-gracefully
 // across pathological load patterns than LRU, and also takes somewhat less
@@ -89,7 +97,9 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
   public:
     explicit RandomEvictionCache(size_t maxSize)
-        : mMaxSize(maxSize), mSeparatePRNG(true)
+        : mMaxSize(maxSize)
+        , mSeparatePRNG(true)
+        , mRandEngine(randomEvictionCacheSeed)
     {
         mValueMap.reserve(maxSize + 1);
         mValuePtrs.reserve(maxSize + 1);
