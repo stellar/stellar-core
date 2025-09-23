@@ -65,8 +65,6 @@ class RandomEvictionCache : public NonMovableOrCopyable
     // Each cache keeps some counters just to monitor its performance.
     Counters mCounters;
 
-    // Use a dedicated random engine, with an option to disable
-    bool const mSeparatePRNG{true};
     stellar_default_random_engine mRandEngine;
 
     // Randomly pick two elements and evict the less-recently-used one.
@@ -79,11 +77,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
             return;
         }
         auto getRandIndex = [&]() {
-            if (mSeparatePRNG)
-            {
-                return rand_uniform<size_t>(0, sz - 1, mRandEngine);
-            }
-            return rand_uniform<size_t>(0, sz - 1);
+            return rand_uniform<size_t>(0, sz - 1, mRandEngine);
         };
         MapValueType*& vp1 = mValuePtrs.at(getRandIndex());
         MapValueType*& vp2 = mValuePtrs.at(getRandIndex());
@@ -97,28 +91,16 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
   public:
     explicit RandomEvictionCache(size_t maxSize)
-        : mMaxSize(maxSize)
-        , mSeparatePRNG(true)
-        , mRandEngine(randomEvictionCacheSeed)
-    {
-        mValueMap.reserve(maxSize + 1);
-        mValuePtrs.reserve(maxSize + 1);
-    }
-
-    RandomEvictionCache(size_t maxSize, bool separatePRNG)
-        : mMaxSize(maxSize), mSeparatePRNG(separatePRNG)
+        : mMaxSize(maxSize), mRandEngine(randomEvictionCacheSeed)
     {
         mValueMap.reserve(maxSize + 1);
         mValuePtrs.reserve(maxSize + 1);
     }
 
     void
-    maybeSeed(unsigned int seed)
+    seed(unsigned int seed)
     {
-        if (mSeparatePRNG)
-        {
-            mRandEngine.seed(seed);
-        }
+        mRandEngine.seed(seed);
     }
 
     size_t
