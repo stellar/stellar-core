@@ -420,6 +420,61 @@ TEST_CASE("Native stellar asset contract",
                          0, 2);
         checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
     }
+
+    // Test batch_transfer with 5 destinations
+    {
+        auto batchDest1 = root.create("batchDest1", minBalance);
+        auto batchDest2 = root.create("batchDest2", minBalance);
+        auto batchDest3 = root.create("batchDest3", minBalance);
+        auto batchDest4 = root.create("batchDest4", minBalance);
+        auto batchDest5 = root.create("batchDest5", minBalance);
+
+        auto batchDestAddr1 = makeAccountAddress(batchDest1);
+        auto batchDestAddr2 = makeAccountAddress(batchDest2);
+        auto batchDestAddr3 = makeAccountAddress(batchDest3);
+        auto batchDestAddr4 = makeAccountAddress(batchDest4);
+        auto batchDestAddr5 = makeAccountAddress(batchDest5);
+
+        // Get initial balances
+        auto batchDest1InitialBalance = batchDest1.getBalance();
+        auto batchDest2InitialBalance = batchDest2.getBalance();
+        auto batchDest3InitialBalance = batchDest3.getBalance();
+        auto batchDest4InitialBalance = batchDest4.getBalance();
+        auto batchDest5InitialBalance = batchDest5.getBalance();
+
+        // Prepare the destination addresses vector with 5 addresses
+        std::vector<SCVal> destinations = {
+            makeAddressSCVal(batchDestAddr1), makeAddressSCVal(batchDestAddr2),
+            makeAddressSCVal(batchDestAddr3), makeAddressSCVal(batchDestAddr4),
+            makeAddressSCVal(batchDestAddr5)};
+        SCVal destinationsVec = makeVecSCVal(destinations);
+
+        auto batchSpec = invocationSpec.extendReadWriteFootprint(
+            {fromBalanceKey, // transferContract's balance
+             client.makeBalanceKey(batchDestAddr1),
+             client.makeBalanceKey(batchDestAddr2),
+             client.makeBalanceKey(batchDestAddr3),
+             client.makeBalanceKey(batchDestAddr4),
+             client.makeBalanceKey(batchDestAddr5)});
+
+        auto batchInvocation = transferContract.prepareInvocation(
+            "batch_transfer",
+            {makeAddressSCVal(client.getContract().getAddress()),
+             destinationsVec},
+            batchSpec);
+
+        REQUIRE(batchInvocation.invoke());
+
+        // Check that all transfers succeeded:
+        // - transferContract balance should decrease by 5 (from 8 to 3)
+        // - Each destination should receive 1 stroop
+        REQUIRE(client.getBalance(transferContract.getAddress()) == 3);
+        REQUIRE(batchDest1.getBalance() == batchDest1InitialBalance + 1);
+        REQUIRE(batchDest2.getBalance() == batchDest2InitialBalance + 1);
+        REQUIRE(batchDest3.getBalance() == batchDest3InitialBalance + 1);
+        REQUIRE(batchDest4.getBalance() == batchDest4InitialBalance + 1);
+        REQUIRE(batchDest5.getBalance() == batchDest5InitialBalance + 1);
+    }
 }
 
 TEST_CASE("Stellar asset contract transfer with CAP-67 address types",

@@ -1035,8 +1035,9 @@ TEST_CASE("basic MAX_SAC_TPS functionality",
     cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
     cfg.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 200;
     cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 220;
-    cfg.APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS = 2;
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
     cfg.APPLY_LOAD_NUM_ACCOUNTS = 500;
+    cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);

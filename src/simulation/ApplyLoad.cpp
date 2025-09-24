@@ -106,29 +106,31 @@ getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
     upgradeConfig.ledgerMaxDependentTxClusters =
         cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
 
-    // Set arbitrarily high limits for everything except instructions
-    // and tx count
-    upgradeConfig.maxContractSizeBytes = 65536;
-    upgradeConfig.maxContractDataKeySizeBytes = 250;
-    upgradeConfig.maxContractDataEntrySizeBytes = 65536;
-    upgradeConfig.txMemoryLimit = 41943040;
-    upgradeConfig.liveSorobanStateSizeWindowSampleSize = 30;
-    upgradeConfig.evictionScanSize = 100000;
+    // Set high limits to avoid resource constraints during testing
+    constexpr uint32_t LEDGER_MAX_LIMIT = UINT32_MAX / 2;
+    constexpr uint32_t TX_MAX_LIMIT = UINT32_MAX / 4;
+
+    upgradeConfig.maxContractSizeBytes = LEDGER_MAX_LIMIT;
+    upgradeConfig.maxContractDataKeySizeBytes = LEDGER_MAX_LIMIT;
+    upgradeConfig.maxContractDataEntrySizeBytes = LEDGER_MAX_LIMIT;
+    upgradeConfig.txMemoryLimit = LEDGER_MAX_LIMIT;
+    upgradeConfig.evictionScanSize = 100;
     upgradeConfig.startingEvictionScanLevel = 7;
 
-    upgradeConfig.ledgerMaxDiskReadEntries = 100'000'000;
-    upgradeConfig.ledgerMaxDiskReadBytes = 100'000'000;
-    upgradeConfig.ledgerMaxWriteLedgerEntries = 100'000'000;
-    upgradeConfig.ledgerMaxWriteBytes = 100'000'000;
-    upgradeConfig.txMaxDiskReadEntries = 5;
-    upgradeConfig.txMaxFootprintEntries = 5;
-    upgradeConfig.txMaxDiskReadBytes = 10'000;
-    upgradeConfig.txMaxWriteLedgerEntries = 5;
-    upgradeConfig.txMaxWriteBytes = 10'000;
-    upgradeConfig.ledgerMaxTransactionsSizeBytes = 100'000'000;
-    upgradeConfig.txMaxSizeBytes = 10'000;
-    upgradeConfig.txMaxInstructions = 3'000'000;
-    upgradeConfig.txMaxContractEventsSizeBytes = 100'000'000;
+    upgradeConfig.ledgerMaxDiskReadEntries = LEDGER_MAX_LIMIT;
+    upgradeConfig.ledgerMaxDiskReadBytes = LEDGER_MAX_LIMIT;
+    upgradeConfig.ledgerMaxWriteLedgerEntries = LEDGER_MAX_LIMIT;
+    upgradeConfig.ledgerMaxWriteBytes = LEDGER_MAX_LIMIT;
+
+    upgradeConfig.txMaxDiskReadEntries = TX_MAX_LIMIT;
+    upgradeConfig.txMaxFootprintEntries = TX_MAX_LIMIT;
+    upgradeConfig.txMaxDiskReadBytes = TX_MAX_LIMIT;
+    upgradeConfig.txMaxWriteLedgerEntries = TX_MAX_LIMIT;
+    upgradeConfig.txMaxWriteBytes = TX_MAX_LIMIT;
+
+    upgradeConfig.ledgerMaxTransactionsSizeBytes = LEDGER_MAX_LIMIT;
+    upgradeConfig.txMaxSizeBytes = TX_MAX_LIMIT;
+    upgradeConfig.txMaxContractEventsSizeBytes = TX_MAX_LIMIT;
 
     // Increase the default TTL and reduce the rent rate in order to avoid the
     // state archival and too high rent fees. The apply load test is generally
@@ -144,6 +146,7 @@ getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
     // parallelism.
     upgradeConfig.ledgerMaxInstructions = instructionsPerCluster;
     upgradeConfig.ledgerMaxTxCount = totalTxs;
+    upgradeConfig.txMaxInstructions = instructionsPerCluster;
 
     releaseAssert(*upgradeConfig.ledgerMaxInstructions > 0);
     releaseAssert(*upgradeConfig.txMaxInstructions > 0);
@@ -157,6 +160,18 @@ getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
 }
 }
 
+uint64_t
+ApplyLoad::calculateInstructionsPerTx() const
+{
+    uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+    if (batchSize > 1)
+    {
+        // Conservative estimate: each transfer in batch costs same as SAC
+        return batchSize * TxGenerator::BATCH_TRANSFER_TX_INSTRUCTIONS;
+    }
+    return TxGenerator::SAC_TX_INSTRUCTIONS;
+}
+
 void
 ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
 {
@@ -165,14 +180,17 @@ ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
     // order to have max parallelism, we want each cluster to be full, so
     // upgrade settings such that we have just enough capacity across all
     // clusters.
+
+    uint64_t instructionsPerTx = calculateInstructionsPerTx();
+
     uint64_t totalInstructions =
-        static_cast<uint64_t>(txsToGenerate) * TxGenerator::SAC_TX_INSTRUCTIONS;
+        static_cast<uint64_t>(txsToGenerate) * instructionsPerTx;
     uint64_t instructionsPerCluster =
         totalInstructions /
         mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
 
     // Ensure all transactions can fit
-    instructionsPerCluster += TxGenerator::SAC_TX_INSTRUCTIONS - 1;
+    instructionsPerCluster += instructionsPerTx - 1;
 
     auto upgradeConfig = getUpgradeConfigForMaxTPS(
         mApp.getConfig(), instructionsPerCluster, txsToGenerate);
@@ -298,6 +316,11 @@ ApplyLoad::setup()
         if (mMode == ApplyLoadMode::MIX || mMode == ApplyLoadMode::MAX_SAC_TPS)
         {
             setupXLMContract();
+            if (mMode == ApplyLoadMode::MAX_SAC_TPS &&
+                mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
+            {
+                setupBatchTransferContracts();
+            }
         }
     }
     else
@@ -504,6 +527,85 @@ ApplyLoad::setupXLMContract()
     mSACInstanceXLM.contractID = instanceKey.contractData().contract;
     mSACInstanceXLM.contractEntriesSize =
         footprintSize(mApp, mSACInstanceXLM.readOnlyKeys);
+}
+
+void
+ApplyLoad::setupBatchTransferContracts()
+{
+    auto const& lm = mApp.getLedgerManager();
+
+    // First, upload the batch_transfer contract WASM
+    auto wasm = rust_bridge::get_test_contract_sac_transfer();
+    xdr::opaque_vec<> wasmBytes;
+    wasmBytes.assign(wasm.data.begin(), wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(wasmBytes);
+
+    SorobanResources uploadResources;
+    uploadResources.instructions = 5000000;
+    uploadResources.diskReadBytes = wasmBytes.size() + 500;
+    uploadResources.writeBytes = wasmBytes.size() + 500;
+
+    auto uploadTx = mTxGenerator.createUploadWasmTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        wasmBytes, contractCodeLedgerKey, std::nullopt, uploadResources);
+    closeLedger({uploadTx.second});
+
+    // Since we transfer from the batch transfer contract balance, deploy one
+    // contract for each cluster to maximize parallelism
+    uint32_t numClusters =
+        mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
+    mBatchTransferInstances.reserve(numClusters);
+
+    for (uint32_t i = 0; i < numClusters; ++i)
+    {
+        auto successCountBefore = mTxGenerator.getApplySorobanSuccess().count();
+        auto salt = sha256(std::to_string(i));
+
+        auto createTx = mTxGenerator.createContractTransaction(
+            lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+            contractCodeLedgerKey, wasmBytes.size() + 160, salt, std::nullopt);
+        closeLedger({createTx.second});
+
+        auto instanceKey =
+            createTx.second->sorobanResources().footprint.readWrite.back();
+
+        TxGenerator::ContractInstance instance;
+        instance.readOnlyKeys.emplace_back(contractCodeLedgerKey);
+        instance.readOnlyKeys.emplace_back(instanceKey);
+        instance.contractID = instanceKey.contractData().contract;
+        instance.contractEntriesSize =
+            footprintSize(mApp, instance.readOnlyKeys);
+
+        mBatchTransferInstances.push_back(instance);
+
+        // Initialize XLM balance for the batch_transfer contract
+        // We need to transfer enough XLM to cover all batch transfers
+        // Each batch will transfer APPLY_LOAD_BATCH_SAC_COUNT * 1 stroop
+        int64_t maxTxsPerCluster =
+            mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS / numClusters;
+        int64_t amountToTransfer =
+            mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT * // Sent per tx
+            maxTxsPerCluster * // Max txs per ledger per cluster
+            mApp.getConfig().APPLY_LOAD_NUM_LEDGERS * // Number of ledgers
+            10;                                       // Buffer
+
+        auto transferTx = mTxGenerator.invokeSACPayment(
+            lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+            instance.contractID, mSACInstanceXLM, amountToTransfer, 10'000'000);
+        closeLedger({transferTx.second});
+
+        auto successCountAfter = mTxGenerator.getApplySorobanSuccess().count();
+
+        // Verify both instantiate and fund transactions succeeded
+        releaseAssertOrThrow(successCountAfter == successCountBefore + 2);
+        releaseAssertOrThrow(mTxGenerator.getApplySorobanFailure().count() ==
+                             0);
+    }
+
+    releaseAssertOrThrow(mBatchTransferInstances.size() == numClusters);
 }
 
 void
@@ -973,6 +1075,12 @@ ApplyLoad::findMaxSacTps()
 
         // Round down to nearest multiple of cluster count so each cluster has
         // an even distribution
+        if (mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
+        {
+            txsPerLedger =
+                txsPerLedger / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+        }
+
         txsPerLedger = (txsPerLedger / numClusters) * numClusters;
         CLOG_WARNING(Perf, "Testing {} TPS with {} TXs per ledger.", testTps,
                      txsPerLedger);
@@ -1010,20 +1118,22 @@ ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
     // For timing, we just want to track the TX application itself. This
     // includes charging fees, applying transactions, and post apply work (like
     // meta). It does not include writing the results to disk.
+    // When APPLY_LOAD_TIME_WRITES is true, use the ledger close timer instead
+    // which includes database writes.
     auto& totalTxApplyTimer =
-        mApp.getMetrics().NewTimer({"ledger", "transaction", "total-apply"});
+        mApp.getConfig().APPLY_LOAD_TIME_WRITES
+            ? mApp.getMetrics().NewTimer({"ledger", "ledger", "close"})
+            : mApp.getMetrics().NewTimer(
+                  {"ledger", "transaction", "total-apply"});
+    totalTxApplyTimer.Clear();
 
-    std::vector<double> closeTimes;
-    uint32_t iterations =
-        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS;
-
-    for (uint32_t iter = 0; iter < iterations; ++iter)
+    uint32_t numLedgers = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
+    for (uint32_t iter = 0; iter < numLedgers; ++iter)
     {
         warmAccountCache();
 
         int64_t initialSuccessCount =
             mTxGenerator.getApplySorobanSuccess().count();
-        totalTxApplyTimer.Clear();
 
         // Generate exactly enough SAC payment transactions
         std::vector<TransactionFrameBasePtr> txs;
@@ -1038,10 +1148,7 @@ ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
 
         closeLedger(txs);
 
-        double applyTime = totalTxApplyTimer.sum();
-        closeTimes.push_back(applyTime);
-        CLOG_WARNING(Perf, "  Iteration {}: {:.2f}ms (total tx apply time)",
-                     iter + 1, applyTime);
+        CLOG_WARNING(Perf, "  Ledger {}/{} completed", iter + 1, numLedgers);
 
         // Check transaction success rate. We should never have any failures,
         // and all TXs should have been executed.
@@ -1064,23 +1171,14 @@ ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
             mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
     }
 
-    // Calculate average close time
-    double avgTime =
-        std::accumulate(closeTimes.begin(), closeTimes.end(), 0.0) /
-        closeTimes.size();
+    // Calculate average close time from all closed ledgers
+    double totalTime = totalTxApplyTimer.sum();
+    double avgTime = totalTime / numLedgers;
 
-    // Log standard deviation
-    double variance = 0.0;
-    for (double time : closeTimes)
-    {
-        variance += (time - avgTime) * (time - avgTime);
-    }
-    double stdDev = std::sqrt(variance / closeTimes.size());
-
-    CLOG_INFO(Perf,
-              "  Average total tx apply time: {:.2f}ms (std dev: {:.2f}ms), "
-              "all {} txs succeeded",
-              avgTime, stdDev, txsPerLedger * iterations);
+    CLOG_WARNING(Perf, "  Total time: {:.2f}ms for {} ledgers", totalTime,
+                 numLedgers);
+    CLOG_WARNING(Perf, "  Average total tx apply time per ledger: {:.2f}ms",
+                 avgTime);
 
     return avgTime;
 }
@@ -1094,22 +1192,71 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
 
     releaseAssert(accounts.size() >= count);
 
-    // To maximize parallelism, every payment will have a different source
-    // account and have a new, unique destination C address.
-    for (uint32_t i = 0; i < count; ++i)
+    // Use batch_transfer
+    uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+    if (batchSize > 1)
     {
-        SCAddress toAddress(SC_ADDRESS_TYPE_CONTRACT);
-        toAddress.contractId() =
-            sha256(fmt::format("dest_{}_{}", i, lm.getLastClosedLedgerNum()));
+        uint32_t numClusters =
+            mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
+        releaseAssert(mBatchTransferInstances.size() == numClusters);
 
-        auto it = accounts.find(i);
-        releaseAssert(it != accounts.end());
+        // Calculate how many batch transfer transactions we need. Wrt to TPS,
+        // here we consider one transfer a "transaction"
+        uint32_t txsPerCluster = count / numClusters;
 
-        auto tx = mTxGenerator.invokeSACPayment(lm.getLastClosedLedgerNum() + 1,
-                                                i, toAddress, mSACInstanceXLM,
-                                                100, 1'000'000);
+        for (uint32_t clusterId = 0; clusterId < numClusters; ++clusterId)
+        {
+            for (uint32_t i = 0; i < txsPerCluster; ++i)
+            {
+                // Use a different source account for each transaction to avoid
+                // conflicts
+                uint32_t accountIdx =
+                    (clusterId * txsPerCluster + i) % mNumAccounts;
 
-        txs.push_back(tx.second);
+                auto it = accounts.find(accountIdx);
+                releaseAssert(it != accounts.end());
+
+                // Make sure all destination addresses are unique to avoid rw
+                // conflicts
+                std::vector<SCAddress> destinations;
+                destinations.reserve(batchSize);
+                for (uint32_t j = 0; j < batchSize; ++j)
+                {
+                    SCAddress dest(SC_ADDRESS_TYPE_CONTRACT);
+                    dest.contractId() = sha256(std::to_string(mDestCounter++));
+                    destinations.push_back(dest);
+                }
+
+                // Create batch transfer transaction
+                auto tx = mTxGenerator.invokeBatchTransfer(
+                    lm.getLastClosedLedgerNum() + 1, accountIdx,
+                    mBatchTransferInstances[clusterId], mSACInstanceXLM,
+                    destinations);
+
+                txs.push_back(tx.second);
+            }
+        }
+    }
+    else
+    {
+        // Individual transfers via direct SAC invocation
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            SCAddress toAddress(SC_ADDRESS_TYPE_CONTRACT);
+            toAddress.contractId() = sha256(
+                fmt::format("dest_{}_{}", i, lm.getLastClosedLedgerNum()));
+
+            // Use a different account for each transaction to avoid conflicts
+            uint32_t accountIdx = i % mNumAccounts;
+            auto it = accounts.find(accountIdx);
+            releaseAssert(it != accounts.end());
+
+            auto tx = mTxGenerator.invokeSACPayment(
+                lm.getLastClosedLedgerNum() + 1, accountIdx, toAddress,
+                mSACInstanceXLM, 100, 1'000'000);
+
+            txs.push_back(tx.second);
+        }
     }
 }
 }
