@@ -77,8 +77,8 @@ hash -r
 
 if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
-    # Use CLANG_VERSION environment variable if set, otherwise default to 12
-    CLANG_VER=${CLANG_VERSION:-12}
+    # Use CLANG_VERSION environment variable if set, otherwise default to 20
+    CLANG_VER=${CLANG_VERSION:-20}
     which clang-${CLANG_VER}
     ln -sf `which clang-${CLANG_VER}` bin/clang
     which clang++-${CLANG_VER}
@@ -89,10 +89,10 @@ if test $CXX = 'clang++'; then
     llvm-symbolizer --version || true
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
-    which gcc-10
-    ln -sf `which gcc-10` bin/gcc
-    which g++-10
-    ln -sf `which g++-10` bin/g++
+    which gcc-14
+    ln -sf `which gcc-14` bin/gcc
+    which g++-14
+    ln -sf `which g++-14` bin/g++
     which g++
     g++ -v
 fi
