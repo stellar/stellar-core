@@ -814,6 +814,12 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
+SearchableHotArchiveSnapshotConstPtr const&
+ThreadParallelApplyLedgerState::getHotArchiveSnapshot() const
+{
+    return mHotArchiveSnapshot;
+}
+
 OpParallelApplyLedgerState::OpParallelApplyLedgerState(
     ThreadParallelApplyLedgerState const& parent)
     : mThreadState(parent)

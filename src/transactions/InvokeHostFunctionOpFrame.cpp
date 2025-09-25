@@ -268,7 +268,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
-        SorobanNetworkConfig const& sorobanConfig)
+        SorobanNetworkConfig const& sorobanConfig,
+        SearchableHotArchiveSnapshotConstPtr hotArchive)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -279,7 +280,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics())
-        , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
+        , mHotArchive(hotArchive)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
         mMetrics.mDeclaredCpuInsn = mResources.instructions;
@@ -404,6 +405,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         continue;
                     }
 
+                    releaseAssertOrThrow(mHotArchive);
                     auto archiveEntry = mHotArchive->load(lk);
                     if (archiveEntry)
                     {
@@ -910,7 +912,8 @@ class InvokeHostFunctionPreV23ApplyHelper
         SorobanNetworkConfig const& sorobanConfig)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
                                         refundableFeeTracker, opMeta, opFrame,
-                                        sorobanConfig)
+                                        sorobanConfig,
+                                        nullptr) // No hot archive before p23
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1069,9 +1072,11 @@ class InvokeHostFunctionParallelApplyHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
                                         refundableFeeTracker, opMeta, opFrame,
-                                        threadState.getSorobanConfig())
+                                        threadState.getSorobanConfig(),
+                                        threadState.getHotArchiveSnapshot())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
+        ZoneScoped;
         // Initialize the autorestore lookup vector
         auto const& resourceExt = mOpFrame.getResourcesExt();
         auto const& rwFootprint = mResources.footprint.readWrite;

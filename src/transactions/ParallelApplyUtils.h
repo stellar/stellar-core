@@ -166,6 +166,8 @@ class ThreadParallelApplyLedgerState
     uint32_t getSnapshotLedgerSeq() const;
 
     SorobanNetworkConfig const& getSorobanConfig() const;
+
+    SearchableHotArchiveSnapshotConstPtr const& getHotArchiveSnapshot() const;
 };
 
 class GlobalParallelApplyLedgerState
