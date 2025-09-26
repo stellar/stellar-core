@@ -1152,9 +1152,10 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
                                 PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
 
     // Create ApplyHelper and delegate processing to it
+    auto moduleCache = app.getModuleCache();
     InvokeHostFunctionPreV23ApplyHelper helper(
         app, ltx, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta, *this,
-        sorobanConfig, app.getModuleCache());
+        sorobanConfig, moduleCache);
     return helper.apply();
 }
 

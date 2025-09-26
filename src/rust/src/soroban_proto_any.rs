@@ -768,7 +768,6 @@ impl ProtocolSpecificModuleCache {
     // (threadsafe) ModuleCache to pass to separate C++-launched threads, to
     // allow multithreaded compilation.
     pub(crate) fn shallow_clone(&self) -> Result<Self, Box<dyn std::error::Error>> {
-        let compilation_context = CoreCompilationContext::new()?;
         let module_cache = self.module_cache.clone();
         Ok(ProtocolSpecificModuleCache {
             module_cache,

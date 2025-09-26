@@ -8719,8 +8719,6 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
     test.invokeExtendOp(client.getContract().getKeys(), 10'000);
 
     auto& lm = app.getLedgerManager();
-    auto& root = test.getRoot();
-    const int64_t startingBalance = lm.getLastMinBalance(50);
 
     stellar::uniform_int_distribution<uint32_t> keyDist(0, keys.size() - 1);
     stellar::uniform_int_distribution<uint32_t> actionDist(0,
