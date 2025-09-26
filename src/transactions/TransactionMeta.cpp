@@ -405,6 +405,7 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
     ThreadParallelApplyLedgerState const& threadState,
     ParallelTxReturnVal const& res, uint32_t ledgerSeq)
 {
+    ZoneScoped;
     if (!mEnabled)
     {
         return;

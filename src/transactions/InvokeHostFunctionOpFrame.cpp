@@ -261,6 +261,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
     SearchableHotArchiveSnapshotConstPtr mHotArchive;
+    rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
     DiagnosticEventManager& mDiagnosticEvents;
 
     InvokeHostFunctionApplyHelper(
@@ -269,7 +270,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
-        SearchableHotArchiveSnapshotConstPtr hotArchive)
+        SearchableHotArchiveSnapshotConstPtr hotArchive,
+        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -281,6 +283,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics())
         , mHotArchive(hotArchive)
+        , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
         mMetrics.mDeclaredCpuInsn = mResources.instructions;
@@ -339,6 +342,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     bool
     addReads(xdr::xvector<LedgerKey> const& footprintKeys, bool isReadOnly)
     {
+        ZoneScoped;
         auto ledgerSeq = getLedgerSeq();
         auto ledgerVersion = getLedgerVersion();
         auto restoredLiveUntilLedger =
@@ -486,6 +490,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     bool
     addFootprint()
     {
+        ZoneScoped;
         if (!addReads(mResources.footprint.readOnly,
                       /*isReadOnly=*/true))
         {
@@ -504,6 +509,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     bool
     invokeHostFunction(InvokeHostFunctionOutput& out)
     {
+        ZoneScoped;
         rust::Vec<CxxBuf> authEntryCxxBufs;
         authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
         for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
@@ -518,7 +524,6 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
             basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
                                          mSorobanBasePrngSeed.end());
-            auto moduleCache = mApp.getModuleCache();
 
             out = rust_bridge::invoke_host_function(
                 mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
@@ -529,7 +534,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
                 getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
                 basePrngSeedBuf,
-                mSorobanConfig.rustBridgeRentFeeConfiguration(), *moduleCache);
+                mSorobanConfig.rustBridgeRentFeeConfiguration(), *mModuleCache);
             mMetrics.mCpuInsn = out.cpu_insns;
             mMetrics.mMemByte = out.mem_bytes;
             mMetrics.mInvokeTimeNsecs = out.time_nsecs;
@@ -588,6 +593,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     bool
     recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
+        ZoneScoped;
         // Create or update every entry returned.
         UnorderedSet<LedgerKey> createdAndModifiedKeys;
         UnorderedSet<LedgerKey> createdKeys;
@@ -595,16 +601,16 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         {
             LedgerEntry le;
             xdr::xdr_from_opaque(buf.data, le);
+            auto lk = LedgerEntryKey(le);
             if (!validateContractLedgerEntry(
-                    LedgerEntryKey(le), buf.data.size(), mSorobanConfig,
-                    mAppConfig, mOpFrame.mParentTx, mDiagnosticEvents))
+                    lk, buf.data.size(), mSorobanConfig, mAppConfig,
+                    mOpFrame.mParentTx, mDiagnosticEvents))
             {
                 mOpFrame.innerResult(mRes).code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
 
-            auto lk = LedgerEntryKey(le);
             createdAndModifiedKeys.insert(lk);
 
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -677,6 +683,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     collectEvents(InvokeHostFunctionOutput const& out,
                   InvokeHostFunctionSuccessPreImage& success)
     {
+        ZoneScoped;
         // We collect the events into a preimage that will be hashed
         // into the ledger.
         success.events.reserve(out.contract_events.size());
@@ -909,11 +916,13 @@ class InvokeHostFunctionPreV23ApplyHelper
         Hash const& sorobanBasePrngSeed, OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
-        SorobanNetworkConfig const& sorobanConfig)
+        SorobanNetworkConfig const& sorobanConfig,
+        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
                                         refundableFeeTracker, opMeta, opFrame,
                                         sorobanConfig,
-                                        nullptr) // No hot archive before p23
+                                        nullptr, // No hot archive before p23
+                                        moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1070,10 +1079,10 @@ class InvokeHostFunctionParallelApplyHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame)
-        : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
-                                        refundableFeeTracker, opMeta, opFrame,
-                                        threadState.getSorobanConfig(),
-                                        threadState.getHotArchiveSnapshot())
+        : InvokeHostFunctionApplyHelper(
+              app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
+              opFrame, threadState.getSorobanConfig(),
+              threadState.getHotArchiveSnapshot(), threadState.getModuleCache())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         ZoneScoped;
@@ -1143,9 +1152,9 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
                                 PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
 
     // Create ApplyHelper and delegate processing to it
-    InvokeHostFunctionPreV23ApplyHelper helper(app, ltx, sorobanBasePrngSeed,
-                                               res, refundableFeeTracker,
-                                               opMeta, *this, sorobanConfig);
+    InvokeHostFunctionPreV23ApplyHelper helper(
+        app, ltx, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta, *this,
+        sorobanConfig, app.getModuleCache());
     return helper.apply();
 }
 

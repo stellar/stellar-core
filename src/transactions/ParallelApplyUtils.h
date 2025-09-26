@@ -80,6 +80,8 @@ class ThreadParallelApplyLedgerState
     // and thus common for all the threads.
     SorobanNetworkConfig const& mSorobanConfig;
 
+    rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
+
     // Contains entries restored by any tx/op in the current thread's tx cluster
     // from the current stage of the parallel apply phase. Any entry should only
     // be in one of the two sub-maps here, live or hot. The entry in the map is
@@ -168,6 +170,8 @@ class ThreadParallelApplyLedgerState
     SorobanNetworkConfig const& getSorobanConfig() const;
 
     SearchableHotArchiveSnapshotConstPtr const& getHotArchiveSnapshot() const;
+
+    rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
 };
 
 class GlobalParallelApplyLedgerState

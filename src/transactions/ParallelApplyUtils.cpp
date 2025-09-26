@@ -596,6 +596,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
+    , mModuleCache(app.getModuleCache())
 {
     releaseAssertOrThrow(global.getSnapshotLedgerSeq() ==
                          getSnapshotLedgerSeq());
@@ -745,6 +746,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
     ParallelTxReturnVal const& res, ParallelLedgerInfo const& ledgerInfo,
     TxEffects& effects) const
 {
+    ZoneScoped;
     releaseAssertOrThrow(res.getSuccess());
     for (auto const& [lk, le] : res.getModifiedEntryMap())
     {
@@ -820,6 +822,12 @@ ThreadParallelApplyLedgerState::getHotArchiveSnapshot() const
     return mHotArchiveSnapshot;
 }
 
+rust::Box<rust_bridge::SorobanModuleCache> const&
+ThreadParallelApplyLedgerState::getModuleCache() const
+{
+    return mModuleCache;
+}
+
 OpParallelApplyLedgerState::OpParallelApplyLedgerState(
     ThreadParallelApplyLedgerState const& parent)
     : mThreadState(parent)
@@ -851,6 +859,7 @@ OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                                         LedgerEntry const& entry,
                                         uint32_t ledgerSeq)
 {
+    ZoneScoped;
     // There are 4 cases:
     //
     //  1. The entry exists in the parent maps (thread state or live snapshot)
