@@ -53,8 +53,6 @@ while [[ -n "$1" ]]; do
 
 done
 
-echo $TRAVIS_PULL_REQUEST
-
 NPROCS=$(getconf _NPROCESSORS_ONLN)
 
 echo "Found $NPROCS processors"
