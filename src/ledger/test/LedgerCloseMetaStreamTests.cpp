@@ -515,13 +515,11 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
             if (ledgerSeq == targetSeq)
             {
-                std::string refJsonPath;
-                refJsonPath = fmt::format(
-                    FMT_STRING(
-                        "testdata/ledger-close-meta{}-v{}-protocol-{}{}.json"),
+                auto refJsonPath = getSrcTestDataPath(fmt::format(
+                    FMT_STRING("ledger-close-meta{}-v{}-protocol-{}{}.json"),
                     enableClassicEvents ? "-enable-classic-events" : "",
                     lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    isSoroban ? "-soroban" : "");
+                    isSoroban ? "-soroban" : ""));
                 normalizeMeta(lcm);
                 std::string have = xdrToCerealString(lcm, "LedgerCloseMeta");
                 if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))

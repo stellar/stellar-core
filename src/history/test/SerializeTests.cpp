@@ -4,6 +4,7 @@
 
 #include "history/HistoryArchive.h"
 #include "test/Catch2.h"
+#include "test/test.h"
 
 #include <fstream>
 #include <string>
@@ -19,9 +20,8 @@ TEST_CASE("Serialization round trip", "[history]")
         "stellar-history.testnet.6714239.networkPassphrase.v2.json"};
     for (size_t i = 0; i < testFiles.size(); i++)
     {
-        std::string fnPath = "testdata/";
-        std::string testFilePath = fnPath + testFiles[i];
-        SECTION("Serialize " + testFilePath)
+        auto testFilePath = getBuildTestDataPath(testFiles[i]);
+        SECTION("Serialize " + testFilePath.string())
         {
             std::ifstream in(testFilePath);
             REQUIRE(in);
