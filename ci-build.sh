@@ -26,14 +26,6 @@ while [[ -n "$1" ]]; do
             export TEMP_POSTGRES=1
             echo Using temp database
             ;;
-    "--check-test-tx-meta")
-            if [[ -z "${PROTOCOL}" ]]; then
-                echo 'must specify --protocol before --check-test-tx-meta'
-                exit 1
-            fi
-            export TEST_SPEC='[tx]'
-            export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${PWD}/test-tx-meta-baseline-${PROTOCOL}"
-            ;;
     "--protocol")
             PROTOCOL="$1"
             shift
@@ -185,6 +177,11 @@ export RUN_PARTITIONS
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
 ulimit -n 256
+time make check
+
+echo Running fixed check-test-tx-meta tests
+export TEST_SPEC='[tx]'
+export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${PWD}/../test-tx-meta-baseline-${PROTOCOL}"
 time make check
 
 echo All done
