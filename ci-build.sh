@@ -176,7 +176,7 @@ export NUM_PARTITIONS=$((NPROCS*2))
 export RUN_PARTITIONS
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
-ulimit -n 256
+ulimit -n 4096
 time make check
 
 echo Running fixed check-test-tx-meta tests
