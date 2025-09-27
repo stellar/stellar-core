@@ -7,6 +7,8 @@
 # is version-controlled and run in CI to make the dependency explicit (and to
 # use a version newer than the debian packages).
 
+rustup --version >/dev/null 2>&1 && exit 0
+
 # Fail on any error
 set -e
 
