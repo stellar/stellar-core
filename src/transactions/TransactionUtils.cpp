@@ -2164,22 +2164,6 @@ hasMuxedAccount(TransactionEnvelope const& e)
     return c.mHasMuxedAccount;
 }
 
-bool
-checkVNext(uint32_t currProtocol, Config const& cfg,
-           TransactionEnvelope const& envelope)
-{
-    uint32_t maxProtocol = cfg.CURRENT_LEDGER_PROTOCOL_VERSION;
-    if (!xdr::check_xdr_depth(envelope, 500))
-    {
-        return false;
-    }
-
-    auto cxxBuf = CxxBuf{
-        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(envelope))};
-    return rust_bridge::can_parse_transaction(maxProtocol, currProtocol, cxxBuf,
-                                              1000);
-}
-
 ClaimAtom
 makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
               int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
