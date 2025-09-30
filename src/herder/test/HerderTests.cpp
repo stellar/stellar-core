@@ -3291,6 +3291,10 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(500);
                 cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
+                // Tune DB-related parameters to trigger as many scenarios as
+                // possible for testing (cache evictions, batching etc)
+                cfg.ENTRY_CACHE_SIZE = 1;
+                cfg.PREFETCH_BATCH_SIZE = 1;
                 return cfg;
             });
     }
