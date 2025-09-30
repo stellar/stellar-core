@@ -27,40 +27,37 @@ sign(SecretKey const& secretKey, Hash const& hash)
     return result;
 }
 
-bool
+PubKeyUtils::VerifySigResult
 verify(DecoratedSignature const& sig, SignerKey const& signerKey,
-       Hash const& hash, bool isCheckValidTxSig)
+       Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    return verify(sig, pubKey, hash, isCheckValidTxSig);
+    return verify(sig, pubKey, hash);
 }
 
-bool
-verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash,
-       bool isCheckValidTxSig)
+PubKeyUtils::VerifySigResult
+verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
 {
     if (!doesHintMatch(pubKey.ed25519(), sig.hint))
     {
-        return false;
+        return {false, PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP};
     }
-    return PubKeyUtils::verifySig(pubKey, sig.signature, hash,
-                                  isCheckValidTxSig);
+    return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
 }
 
-bool
+PubKeyUtils::VerifySigResult
 verifyEd25519SignedPayload(DecoratedSignature const& sig,
-                           SignerKey const& signer, bool isCheckValidTxSig)
+                           SignerKey const& signer)
 {
     auto const& signedPayload = signer.ed25519SignedPayload();
 
     if (!doesHintMatch(getSignedPayloadHint(signedPayload), sig.hint))
-        return false;
+        return {false, PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP};
 
     PublicKey pubKey;
     pubKey.ed25519() = signedPayload.ed25519;
 
-    return PubKeyUtils::verifySig(pubKey, sig.signature, signedPayload.payload,
-                                  isCheckValidTxSig);
+    return PubKeyUtils::verifySig(pubKey, sig.signature, signedPayload.payload);
 }
 
 DecoratedSignature

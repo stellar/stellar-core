@@ -286,14 +286,14 @@ TEST_CASE("sign tests", "[crypto]")
     LOG_DEBUG(DEFAULT_LOG, "formed signature: {}", binToHex(sig));
 
     LOG_DEBUG(DEFAULT_LOG, "checking signature-verify");
-    CHECK(PubKeyUtils::verifySig(pk, sig, msg, false));
+    CHECK(PubKeyUtils::verifySig(pk, sig, msg).valid);
 
     LOG_DEBUG(DEFAULT_LOG, "checking verify-failure on bad message");
-    CHECK(!PubKeyUtils::verifySig(pk, sig, std::string("helloo"), false));
+    CHECK(!PubKeyUtils::verifySig(pk, sig, std::string("helloo")).valid);
 
     LOG_DEBUG(DEFAULT_LOG, "checking verify-failure on bad signature");
     sig[4] ^= 1;
-    CHECK(!PubKeyUtils::verifySig(pk, sig, msg, false));
+    CHECK(!PubKeyUtils::verifySig(pk, sig, msg).valid);
 }
 
 TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
@@ -635,7 +635,7 @@ TEST_CASE("Ed25519 test vectors from IACR 2020/1244", "[crypto]")
         REQUIRE(s.size() == 64);
         Signature sig;
         sig.assign(s.begin(), s.end());
-        REQUIRE(PubKeyUtils::verifySig(pk, sig, hexToBin(tv.message), false) !=
+        REQUIRE(PubKeyUtils::verifySig(pk, sig, hexToBin(tv.message)).valid !=
                 tv.should_fail);
     }
 }
@@ -1639,6 +1639,6 @@ TEST_CASE("Ed25519 test vectors from Zcash", "[crypto]")
         REQUIRE(s.size() == 64);
         Signature sig;
         sig.assign(s.begin(), s.end());
-        REQUIRE(!PubKeyUtils::verifySig(pk, sig, std::string("Zcash"), false));
+        REQUIRE(!PubKeyUtils::verifySig(pk, sig, std::string("Zcash")).valid);
     }
 }

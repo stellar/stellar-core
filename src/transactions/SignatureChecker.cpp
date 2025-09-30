@@ -16,15 +16,16 @@
 
 namespace stellar
 {
+std::mutex SignatureChecker::gCheckValidOrApplyTxSigCacheMetricsMutex;
+uint64_t SignatureChecker::gCheckValidOrApplyTxSigCacheHits = 0;
+uint64_t SignatureChecker::gCheckValidOrApplyTxSigCacheLookups = 0;
 
 SignatureChecker::SignatureChecker(
     uint32_t protocolVersion, Hash const& contentsHash,
-    xdr::xvector<DecoratedSignature, 20> const& signatures,
-    bool isCheckValidTxSig)
+    xdr::xvector<DecoratedSignature, 20> const& signatures)
     : mProtocolVersion{protocolVersion}
     , mContentsHash{contentsHash}
     , mSignatures{signatures}
-    , mIsCheckValidTxSig{isCheckValidTxSig}
 {
     mUsedSignatures.resize(mSignatures.size());
 }
@@ -113,23 +114,27 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
         return true;
     }
 
-    verified = verifyAll(
-        signers[SIGNER_KEY_TYPE_ED25519],
-        [&](DecoratedSignature const& sig, Signer const& signerKey) {
-            return SignatureUtils::verify(sig, signerKey.key, mContentsHash,
-                                          mIsCheckValidTxSig);
-        });
+    verified =
+        verifyAll(signers[SIGNER_KEY_TYPE_ED25519],
+                  [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                      auto [valid, cacheLookupRes] = SignatureUtils::verify(
+                          sig, signerKey.key, mContentsHash);
+                      updateTxSigCacheMetrics(cacheLookupRes);
+                      return valid;
+                  });
     if (verified)
     {
         return true;
     }
 
-    verified =
-        verifyAll(signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
-                  [&](DecoratedSignature const& sig, Signer const& signerKey) {
-                      return SignatureUtils::verifyEd25519SignedPayload(
-                          sig, signerKey.key, mIsCheckValidTxSig);
-                  });
+    verified = verifyAll(
+        signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
+        [&](DecoratedSignature const& sig, Signer const& signerKey) {
+            auto [valid, cacheLookupRes] =
+                SignatureUtils::verifyEd25519SignedPayload(sig, signerKey.key);
+            updateTxSigCacheMetrics(cacheLookupRes);
+            return valid;
+        });
     if (verified)
     {
         return true;
@@ -158,5 +163,43 @@ SignatureChecker::checkAllSignaturesUsed() const
         }
     }
     return true;
+}
+
+std::pair<uint64_t, uint64_t>
+SignatureChecker::flushTxSigCacheCounts()
+{
+    std::lock_guard<std::mutex> lock(gCheckValidOrApplyTxSigCacheMetricsMutex);
+    auto res = std::make_pair(gCheckValidOrApplyTxSigCacheHits,
+                              gCheckValidOrApplyTxSigCacheLookups);
+    gCheckValidOrApplyTxSigCacheHits = 0;
+    gCheckValidOrApplyTxSigCacheLookups = 0;
+    return res;
+}
+
+void
+SignatureChecker::disableCacheMetricsTracking()
+{
+    mTrackCacheMetrics = false;
+}
+
+void
+SignatureChecker::updateTxSigCacheMetrics(
+    PubKeyUtils::VerifySigCacheLookupResult cacheLookupRes)
+{
+    if (!mTrackCacheMetrics)
+    {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(gCheckValidOrApplyTxSigCacheMetricsMutex);
+    if (cacheLookupRes != PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP)
+    {
+        ++gCheckValidOrApplyTxSigCacheLookups;
+    }
+
+    if (cacheLookupRes == PubKeyUtils::VerifySigCacheLookupResult::HIT)
+    {
+        ++gCheckValidOrApplyTxSigCacheHits;
+    }
 }
 };

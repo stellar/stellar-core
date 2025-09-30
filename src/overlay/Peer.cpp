@@ -66,46 +66,63 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
     releaseAssert(app.getConfig().EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
                   app.threadIsType(Application::ThreadType::OVERLAY));
 
-    auto const& hash = tx->getContentsHash();
-    auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
     auto& snapshot = app.getOverlayThreadSnapshot();
     app.maybeCopySearchableBucketListSnapshot(snapshot);
     LedgerSnapshot ledgerSnapshot(snapshot);
 
-    SignatureChecker signatureChecker(
-        ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
-        signatures, false);
+    // Use ledgerSnapshot to check all transactions in `tx`. We use a lambda to
+    // simplify checking of both outer and inner transactions in the case of fee
+    // bumps.
+    auto const checkTxSignatures = [&ledgerSnapshot](
+                                       TransactionFrameBaseConstPtr tx) {
+        auto const& hash = tx->getContentsHash();
+        auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
 
-    // NOTE: Use getFeeSourceID so that this works for both TransactionFrame and
-    // FeeBumpTransactionFrame
-    auto const sourceAccount = ledgerSnapshot.getAccount(tx->getFeeSourceID());
+        SignatureChecker signatureChecker(
+            ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
+            signatures);
 
-    if (!sourceAccount)
-    {
-        return;
-    }
+        // Do not report signature cache metrics during background validation.
+        // This allows us to more accurately measure the impact of background
+        // signature checking on cache hits during critical path signature
+        // checking.
+        signatureChecker.disableCacheMetricsTracking();
 
-    // Check signatures, which will add the results to the signature cache.
-    // This is safe to do here (pre-validation) because:
-    // 1. The signatures themselves are fixed and cannot change, and
-    // 2. In the unlikely case that the account's signers or thresholds have
-    //    changed (and we haven't heard of it yet), the validation and apply
-    //    functions always directly call the same signature checking functions
-    //    which will fail upon detecting a different expected signer/threshold.
-    //    The cache *only* contains results for the low level cryptographic
-    //    signature checks, which cannot change (see point (1) above).
+        // NOTE: Use getFeeSourceID so that this works for both TransactionFrame
+        // and FeeBumpTransactionFrame
+        auto const sourceAccount =
+            ledgerSnapshot.getAccount(tx->getFeeSourceID());
 
-    // Check all transaction signatures
-    tx->checkAllTransactionSignatures(
-        signatureChecker, sourceAccount,
-        ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+        if (!sourceAccount)
+        {
+            return;
+        }
 
-    // Check all operation signatures.
-    tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+        // Check signatures, which will add the results to the signature cache.
+        // This is safe to do here (pre-validation) because:
+        // 1. The signatures themselves are fixed and cannot change, and
+        // 2. In the unlikely case that the account's signers or thresholds have
+        //    changed (and we haven't heard of it yet), the validation and apply
+        //    functions always directly call the same signature checking
+        //    functions which will fail upon detecting a different expected
+        //    signer/threshold. The cache *only* contains results for the low
+        //    level cryptographic signature checks, which cannot change (see
+        //    point (1) above).
 
-    // Recurse on inner transaction if there is one
-    tx->withInnerTx([&app](TransactionFrameBaseConstPtr innerTx) {
-        populateSignatureCache(app, innerTx);
+        // Check all transaction signatures
+        tx->checkAllTransactionSignatures(
+            signatureChecker, sourceAccount,
+            ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+
+        // Check all operation signatures.
+        tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+    };
+
+    checkTxSignatures(tx);
+
+    // Check signatures on inner transaction if there is one
+    tx->withInnerTx([&](TransactionFrameBaseConstPtr innerTx) {
+        checkTxSignatures(innerTx);
     });
 }
 } // namespace
@@ -1094,8 +1111,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
         auto& envelope = msg.v0().message.envelope();
         PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
                                xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_SCP,
-                                                  envelope.statement),
-                               false);
+                                                  envelope.statement));
     }
 
     // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure

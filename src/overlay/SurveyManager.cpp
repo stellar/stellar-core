@@ -808,7 +808,7 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
                                     Signature const& signature,
                                     ByteSlice const& bin, Peer::pointer peer)
 {
-    bool success = PubKeyUtils::verifySig(key, signature, bin, false);
+    bool success = PubKeyUtils::verifySig(key, signature, bin).valid;
 
     if (!success && peer)
     {

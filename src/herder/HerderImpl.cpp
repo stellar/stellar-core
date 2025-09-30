@@ -2524,11 +2524,10 @@ bool
 HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
-    auto b = PubKeyUtils::verifySig(
+    auto [b, _] = PubKeyUtils::verifySig(
         envelope.statement.nodeID, envelope.signature,
         xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCP,
-                           envelope.statement),
-        false);
+                           envelope.statement));
     if (b)
     {
         mSCPMetrics.mEnvelopeValidSig.Mark();
@@ -2551,11 +2550,10 @@ bool
 HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
     ZoneScoped;
-    auto b = PubKeyUtils::verifySig(
+    auto [b, _] = PubKeyUtils::verifySig(
         sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
         xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
-                           sv.txSetHash, sv.closeTime),
-        false);
+                           sv.txSetHash, sv.closeTime));
     return b;
 }
 

@@ -3174,29 +3174,18 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
 
     // Helper function to run `populateSignatureCache` on overlay thread
     auto invokePopulateSignatureCache = [&](TransactionTestFramePtr tx) {
-        bool completed = false;
+        std::atomic<bool> completed(false);
         app->postOnOverlayThread(
             [&]() {
                 Peer::populateSignatureCacheForTesting(app->getAppConnector(),
                                                        tx);
-                completed = true;
+                completed.store(true);
             },
             "populate signature cache test");
 
         testutil::crankUntil(
-            app, [&completed]() { return completed; },
+            app, [&completed]() { return completed.load(); },
             std::chrono::seconds{30});
-    };
-
-    // Helper function to create test accounts in ledger
-    auto createTestAccounts = [&](std::vector<TestAccount const*> accounts) {
-        auto root = app->getRoot();
-        for (auto account : accounts)
-        {
-            txtest::applyTx(
-                root->tx({txtest::createAccount(*account, INITIAL_BALANCE)}),
-                *app);
-        }
     };
 
     // Helper function to clear cache and reset counters
@@ -3206,67 +3195,41 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         PubKeyUtils::flushVerifySigCacheCounts(discardHits, discardMisses);
     };
 
-    // Helper function to invalidate signature
-    auto invalidateSignature = [&](TransactionTestFramePtr tx) {
-        auto& signatures = txbridge::getSignatures(tx);
-        REQUIRE(!signatures.empty());
-        // Replace signature with unrelated value
-        signatures[0].signature = Signature(64, 123);
-    };
+    // Set up accounts
+    auto testAccountSk = txtest::getAccount("testaccount");
+    auto testAccount = app->getRoot()->create(testAccountSk, INITIAL_BALANCE);
+    auto feeSourceSk = txtest::getAccount("feesource");
+    auto feeSource = app->getRoot()->create(feeSourceSk, INITIAL_BALANCE);
+    auto nonExistentAccountSk = SecretKey::pseudoRandomForTesting();
+    auto nonExistentFeeSourceSk = SecretKey::pseudoRandomForTesting();
+    auto nonExistentFeeSource = TestAccount{*app, nonExistentFeeSourceSk};
 
-    SECTION("Normal transaction with valid signature")
+    resetCache();
+
+    SECTION("Normal transaction")
     {
-        auto testAccountSk = txtest::getAccount("testaccount");
-        auto testAccount = TestAccount{*app, testAccountSk};
-
-        createTestAccounts({&testAccount});
-        resetCache();
-
         auto tx = txtest::transactionFromOperations(
             *app, testAccountSk, testAccount.nextSequenceNumber(),
             {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
 
         invokePopulateSignatureCache(tx);
 
-        uint64_t finalHits, finalMisses;
-        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
 
         // Should be a single cache miss for the single signature
-        REQUIRE(finalMisses == 1);
+        REQUIRE(misses == 1);
+
+        // Call to checkValid should experience only cache hits
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(hits > 0);
+        REQUIRE(misses == 0);
     }
 
-    SECTION("Normal transaction with invalid signature")
+    SECTION("Fee bump transaction")
     {
-        auto testAccountSk = txtest::getAccount("testaccount");
-        auto testAccount = TestAccount{*app, testAccountSk};
-
-        createTestAccounts({&testAccount});
-        resetCache();
-
-        auto tx = txtest::transactionFromOperations(
-            *app, testAccountSk, testAccount.nextSequenceNumber(),
-            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
-
-        invalidateSignature(tx);
-        invokePopulateSignatureCache(tx);
-
-        uint64_t finalHits, finalMisses;
-        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
-
-        // Should be a single cache miss for the single signature
-        REQUIRE(finalMisses == 1);
-    }
-
-    SECTION("Fee bump transaction with valid signature")
-    {
-        auto testAccountSk = txtest::getAccount("testaccount");
-        auto feeSourceSk = txtest::getAccount("feesource");
-        auto testAccount = TestAccount{*app, testAccountSk};
-        auto feeSource = TestAccount{*app, feeSourceSk};
-
-        createTestAccounts({&testAccount, &feeSource});
-        resetCache();
-
         auto innerTx = txtest::transactionFromOperations(
             *app, testAccountSk, testAccount.nextSequenceNumber(),
             {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
@@ -3275,47 +3238,25 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
 
         invokePopulateSignatureCache(feeBumpTx);
 
-        uint64_t finalHits, finalMisses;
-        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
 
         // Should be two misses: one for outer and one for inner tx
-        REQUIRE(finalMisses == 2);
-    }
+        REQUIRE(misses == 2);
 
-    SECTION("Fee bump transaction with invalid signature")
-    {
-        auto testAccountSk = txtest::getAccount("testaccount");
-        auto feeSourceSk = txtest::getAccount("feesource");
-        auto testAccount = TestAccount{*app, testAccountSk};
-        auto feeSource = TestAccount{*app, feeSourceSk};
-
-        createTestAccounts({&testAccount, &feeSource});
-        resetCache();
-
-        auto innerTx = txtest::transactionFromOperations(
-            *app, testAccountSk, testAccount.nextSequenceNumber(),
-            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
-        auto feeBumpTx =
-            txtest::feeBump(*app, feeSource, innerTx, FEE_BUMP_FEE);
-
-        invalidateSignature(feeBumpTx);
-        invokePopulateSignatureCache(feeBumpTx);
-
-        uint64_t finalHits, finalMisses;
-        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
-
-        // Should be two misses: one for outer and one for inner tx
-        REQUIRE(finalMisses == 2);
+        // Call to checkValid should experience only cache hits
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        feeBumpTx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(hits > 0);
+        REQUIRE(misses == 0);
     }
 
     SECTION("Normal transaction with invalid source account")
     {
-        resetCache();
-
-        auto nonExistentAccount = SecretKey::pseudoRandomForTesting();
         auto tx = txtest::transactionFromOperations(
-            *app, nonExistentAccount, 1,
-            {txtest::payment(nonExistentAccount.getPublicKey(),
+            *app, nonExistentAccountSk, 1,
+            {txtest::payment(nonExistentAccountSk.getPublicKey(),
                              PAYMENT_AMOUNT)});
 
         invokePopulateSignatureCache(tx);
@@ -3328,17 +3269,12 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(finalMisses == 0);
     }
 
-    SECTION("Fee bump transaction with invalid fee source account")
+    SECTION("Fee bump transaction with invalid accounts")
     {
-        resetCache();
-
-        auto testAccountSk = txtest::getAccount("testaccount");
-        auto nonExistentFeeSourceSk = SecretKey::pseudoRandomForTesting();
-        auto nonExistentFeeSource = TestAccount{*app, nonExistentFeeSourceSk};
-
         auto innerTx = txtest::transactionFromOperations(
-            *app, testAccountSk, 1,
-            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+            *app, nonExistentAccountSk, 1,
+            {txtest::payment(nonExistentAccountSk.getPublicKey(),
+                             PAYMENT_AMOUNT)});
         auto feeBumpTx =
             txtest::feeBump(*app, nonExistentFeeSource, innerTx, FEE_BUMP_FEE);
 
@@ -3347,7 +3283,8 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         uint64_t finalHits, finalMisses;
         PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
 
-        // Transaction shouldn't even make it to the cache stage
+        // Transaction shouldn't even make it to the cache stage for inner or
+        // outer transaction
         REQUIRE(finalHits == 0);
         REQUIRE(finalMisses == 0);
     }
@@ -3356,10 +3293,6 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
     {
         // Create an additional signer for this test
         auto additionalSignerSk = txtest::getAccount("additionalsigner");
-        auto testAccountSk = txtest::getAccount("testaccount");
-        auto testAccount = TestAccount{*app, testAccountSk};
-
-        createTestAccounts({&testAccount});
 
         // Add the additional signer to the account
         auto addSignerTx = testAccount.tx({txtest::setOptions(
@@ -3411,6 +3344,11 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         auto result = paymentTx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
                                             diagnostics);
         REQUIRE(result->getResultCode() == txBAD_AUTH);
+
+        // We expect a single cache miss at this point from the application of
+        // `removeSignerTx`
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 1);
     }
 }
 }

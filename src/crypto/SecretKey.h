@@ -135,19 +135,36 @@ template <> struct KeyFunctions<PublicKey>
 // public key utility functions
 namespace PubKeyUtils
 {
-// Return true iff `signature` is valid for `bin` under `key`. Set
-// `isCheckValidTxSig` to `true` if this signature check is being performed as
-// part of the transaction `checkValid` flow.
-bool verifySig(PublicKey const& key, Signature const& signature,
-               ByteSlice const& bin, bool isCheckValidTxSig);
+
+// Represents the result of a signature verification cache lookup.
+enum class VerifySigCacheLookupResult
+{
+    // A cache miss occurred on lookup
+    MISS,
+    // A cache hit occurred on lookup
+    HIT,
+    // No lookup was performed
+    NO_LOOKUP
+};
+
+// The result type for `verifySig`.
+struct VerifySigResult
+{
+    // The result of signature verification
+    bool valid;
+    // Whether the signature cache contained the result at lookup time
+    VerifySigCacheLookupResult cacheResult;
+};
+
+// Returns a `VerifySigResult` where the `valid` field is true iff
+// `signature` is valid for `bin` under `key`, and the `cacheResult` field
+// indicates whether the signature verification cache contained the signature.
+VerifySigResult verifySig(PublicKey const& key, Signature const& signature,
+                          ByteSlice const& bin);
 
 void clearVerifySigCache();
 void seedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
-
-// Reset and return the counts of signature checks performed as part of
-// transaction `checkValid` flow.
-void flushVerifySigCacheCheckValidTxCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();
 #ifdef BUILD_TESTS
