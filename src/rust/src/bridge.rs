@@ -206,7 +206,7 @@ pub(crate) mod rust_bridge {
         fn get_test_wasm_complex() -> Result<RustBuf>;
         fn get_test_wasm_loadgen() -> Result<RustBuf>;
         fn get_test_wasm_err() -> Result<RustBuf>;
-        fn get_test_contract_sac_transfer() -> Result<RustBuf>;
+        fn get_test_contract_sac_transfer(protocol_version: u32) -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
         fn get_invoke_contract_wasm() -> Result<RustBuf>;
 

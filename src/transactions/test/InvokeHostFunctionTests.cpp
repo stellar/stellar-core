@@ -280,8 +280,11 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
         REQUIRE(!client.transfer(acc, acc2Addr, 10));
 
         // Now transfer from a contract
-        TestContract& transferContract = test.deployWasmContract(
-            rust_bridge::get_test_contract_sac_transfer());
+        TestContract& transferContract =
+            test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer(
+                app.getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion));
 
         REQUIRE(client.mint(issuer, transferContract.getAddress(), 10));
 
@@ -372,7 +375,8 @@ TEST_CASE("Native stellar asset contract",
     // Now test xlm transfer from a contract to another contract and then to an
     // account.
     TestContract& transferContract =
-        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer());
+        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer(
+            app.getConfig().LEDGER_PROTOCOL_VERSION));
 
     REQUIRE(client.transfer(a1, transferContract.getAddress(), 10));
 
@@ -421,7 +425,8 @@ TEST_CASE("Native stellar asset contract",
         checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
     }
 
-    // Test batch_transfer with 5 destinations
+    // Test batch_transfer with 5 destinations (protocol 23+)
+    if (app.getConfig().LEDGER_PROTOCOL_VERSION >= 23)
     {
         auto batchDest1 = root.create("batchDest1", minBalance);
         auto batchDest2 = root.create("batchDest2", minBalance);
@@ -497,7 +502,8 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
     auto a1Address = makeAccountAddress(a1.getPublicKey());
     auto a2Address = makeAccountAddress(a2.getPublicKey());
     TestContract& transferContract =
-        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer());
+        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer(
+            test.getApp().getConfig().LEDGER_PROTOCOL_VERSION));
 
     auto runTest = [&](bool useNativeAsset) {
         Asset tokenAsset = useNativeAsset ? txtest::makeNativeAsset() : asset;

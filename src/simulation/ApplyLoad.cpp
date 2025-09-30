@@ -535,7 +535,8 @@ ApplyLoad::setupBatchTransferContracts()
     auto const& lm = mApp.getLedgerManager();
 
     // First, upload the batch_transfer contract WASM
-    auto wasm = rust_bridge::get_test_contract_sac_transfer();
+    auto wasm = rust_bridge::get_test_contract_sac_transfer(
+        mApp.getConfig().LEDGER_PROTOCOL_VERSION);
     xdr::opaque_vec<> wasmBytes;
     wasmBytes.assign(wasm.data.begin(), wasm.data.end());
 
