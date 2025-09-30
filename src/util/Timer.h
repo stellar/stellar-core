@@ -165,23 +165,10 @@ class VirtualClock
         std::tuple<std::function<void()>, std::string, Scheduler::ActionType>>
         mPendingActionQueue;
 
-    class PrQueue : public std::priority_queue<
-                        std::shared_ptr<VirtualClockEvent>,
-                        std::vector<std::shared_ptr<VirtualClockEvent>>,
-                        VirtualClockEventCompare>
-    {
-      public:
-        using std::priority_queue<
-            std::shared_ptr<VirtualClockEvent>,
-            std::vector<std::shared_ptr<VirtualClockEvent>>,
-            VirtualClockEventCompare>::priority_queue;
-
-        const std::vector<std::shared_ptr<VirtualClockEvent>>&
-        getVector() const
-        {
-            return c;
-        }
-    };
+    using PrQueue =
+        std::priority_queue<std::shared_ptr<VirtualClockEvent>,
+                            std::vector<std::shared_ptr<VirtualClockEvent>>,
+                            VirtualClockEventCompare>;
     PrQueue mEvents;
     size_t mFlushesIgnored = 0;
 

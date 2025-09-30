@@ -216,12 +216,14 @@ VirtualClock::flushCancelledEvents(bool batchCancellations)
     auto toKeep = vector<shared_ptr<VirtualClockEvent>>();
     toKeep.reserve(mEvents.size());
 
-    for (auto const& e : mEvents.getVector())
+    while (!mEvents.empty())
     {
+        auto const& e = mEvents.top();
         if (!e->getTriggered())
         {
             toKeep.emplace_back(e);
         }
+        mEvents.pop();
     }
     mFlushesIgnored = 0;
     mEvents = PrQueue(toKeep.begin(), toKeep.end());
