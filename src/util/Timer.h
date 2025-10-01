@@ -135,12 +135,32 @@ class VirtualClock
         return mMode;
     }
 
+    void
+    newBackgroundWork()
+    {
+        if (mMode == VIRTUAL_TIME)
+        {
+            mBackgroundWorkCount++;
+        }
+    }
+
+    void
+    finishedBackgroundWork()
+    {
+        if (mMode == VIRTUAL_TIME)
+        {
+            mBackgroundWorkCount--;
+        }
+    }
+
   private:
     asio::io_context mIOContext;
     Mode const mMode;
 
     size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;
+
+    std::atomic<int> mBackgroundWorkCount{0};
 
     // There are three separate queue-like things in a given VirtualClock.
     //

@@ -388,7 +388,8 @@ VirtualClock::crank(bool block)
 
         // Subtract out any timer cancellations from the above two steps.
         progressCount -= nRealTimerCancelEvents;
-        if (mMode == VIRTUAL_TIME && progressCount == 0)
+        if (mMode == VIRTUAL_TIME && progressCount == 0 &&
+            mBackgroundWorkCount.load() == 0)
         {
             // If we did nothing and we're in virtual mode, we're idle and can
             // skip time forward, dispatching all timers at the next time-step.
@@ -417,6 +418,12 @@ VirtualClock::crank(bool block)
         // If we didn't make progress and caller wants blocking, block now.
         progressCount += mIOContext.run_one();
     }
+
+    if (mMode == VIRTUAL_TIME)
+    {
+        progressCount += mBackgroundWorkCount.load();
+    }
+
     return progressCount;
 }
 

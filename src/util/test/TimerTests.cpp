@@ -97,6 +97,45 @@ TEST_CASE("VirtualClock from_time_t", "[timer]")
     CHECK(now == VirtualClock::from_time_t(133818));
 }
 
+#ifdef USE_POSTGRES
+TEST_CASE("virtual time with background work", "[timer]")
+{
+    // Verify that parallel apply background work is properly accounted for in
+    // virtual time mode, i.e. we don't forward the time while background work
+    // is outstanding.
+    Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
+    cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+
+    VirtualClock clock;
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    // cancel the timer
+    appPtr->getHerder().shutdown();
+    // cancel the demand timer for tx pull-mode flooding
+    appPtr->getOverlayManager().shutdown();
+
+    std::atomic<bool> timerFired = false;
+    std::atomic<int> backgroundTasks{0};
+
+    VirtualTimer timer1(*appPtr);
+    timer1.expires_from_now(std::chrono::milliseconds(100));
+    timer1.async_wait([&](asio::error_code const& e) {
+        REQUIRE(backgroundTasks == 1);
+        timerFired = true;
+    });
+
+    appPtr->postOnLedgerCloseThread(
+        [&]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            ++backgroundTasks;
+            REQUIRE(!timerFired);
+        },
+        "test background task 1");
+
+    while (clock.crank(false) > 0)
+        ;
+}
+#endif
+
 TEST_CASE("virtual event dispatch order and times", "[timer]")
 {
     Config cfg(getTestConfig(0));
