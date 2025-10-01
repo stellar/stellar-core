@@ -457,6 +457,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                          gap, fw.write(slotInfo));
         }
 
+        // Set mMissingNodes to the intersection of itself and the set of any
+        // nodes missing in the latest slots.
         auto slotInfo = getSCP().getJsonQuorumInfo(getSCP().getLocalNodeID(),
                                                    false, true, slotIndex);
         std::set<std::string> missing;
