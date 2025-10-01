@@ -537,14 +537,7 @@ OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
     {
         try
         {
-            auto address = PeerBareAddress::resolve(peer, mApp);
-            addresses.push_back(address);
-            auto entry = mAddressSources.insert({address, peer});
-            if (!entry.second && entry.first->second != peer)
-            {
-                CLOG_WARNING(Overlay, "Both {} and {} resolve to {}",
-                             entry.first->second, peer, address.toString());
-            }
+            addresses.push_back(PeerBareAddress::resolve(peer, mApp));
         }
         catch (std::runtime_error& e)
         {
@@ -1449,17 +1442,6 @@ OverlayManagerImpl::getOverlayThreadSnapshot()
                                      .copySearchableLiveBucketListSnapshot();
     }
     return mOverlayThreadSnapshot;
-}
-
-std::string_view
-OverlayManagerImpl::reverseResolveAddress(const PeerBareAddress& addr) const
-{
-    auto name = mAddressSources.find(addr);
-    if (name != mAddressSources.end())
-    {
-        return name->second;
-    }
-    return "unknown";
 }
 
 }

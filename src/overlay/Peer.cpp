@@ -381,19 +381,9 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
 
     if (state != GOT_AUTH)
     {
-        CLOG_INFO(Overlay, "Dropping peer {} with state {}, role {}, reason {}",
-                  toString(), format_as(state), format_as(mRole), reason);
-        if (state == CONNECTING && mRole == WE_CALLED_REMOTE)
-        {
-            CLOG_WARNING(
-                Overlay,
-                "Outbound peer {} (source name: {}) failed to connect "
-                "(reason {}); check that this node is still alive",
-                toString(),
-                mAppConnector.getOverlayManager().reverseResolveAddress(
-                    mAddress),
-                reason);
-        }
+        CLOG_DEBUG(Overlay,
+                   "Dropping peer {} with state {}, role {}, reason {}",
+                   toString(), format_as(state), format_as(mRole), reason);
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
