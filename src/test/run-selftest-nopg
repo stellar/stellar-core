@@ -7,7 +7,7 @@
 BASE_INSTANCE="$1"
 TESTS="$2"
 
-STELLAR_CORE_DEFAULT_TEST_PARAMS="--ll fatal -w NoTests -a -r simple"
+STELLAR_CORE_DEFAULT_TEST_PARAMS="--break --ll fatal -w NoTests -a -r simple"
 if [[ "$ALL_VERSIONS" != "" ]]; then
     STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --all-versions"
 fi
