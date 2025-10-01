@@ -6684,3 +6684,65 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     REQUIRE(herder.getTriggerTimer().seq() > 0);
     REQUIRE(herder.mTriggerNextLedgerSeq == nextSeq + 2);
 }
+
+TEST_CASE("detect dead nodes in quorum set", "[herder]")
+{
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::core(
+        3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+            // We set SET_CLOSE_TIME_FOR_TESTING to shorten the testing period
+            cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    auto A = simulation->getNodes()[0];
+    auto B = simulation->getNodes()[1];
+    auto C = simulation->getNodes()[2];
+
+    // run normally: run for two intervals to ensure we get a full interval
+    simulation->crankForAtLeast(Herder::CHECK_FOR_DEAD_NODES_MINUTES * 2,
+                                false);
+
+    auto maybeDead = A->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+    maybeDead = B->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+    maybeDead = C->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+
+    // dropping the A->C connection should not cause C to be reported missing
+    simulation->dropConnection(A->getConfig().NODE_SEED.getPublicKey(),
+                               C->getConfig().NODE_SEED.getPublicKey());
+
+    simulation->crankForAtLeast(Herder::CHECK_FOR_DEAD_NODES_MINUTES * 2,
+                                false);
+
+    maybeDead = A->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+    maybeDead = B->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+    maybeDead = C->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
+
+    // fully dropping C should cause A and B report it missing
+    simulation->dropConnection(B->getConfig().NODE_SEED.getPublicKey(),
+                               C->getConfig().NODE_SEED.getPublicKey());
+
+    simulation->crankForAtLeast(Herder::CHECK_FOR_DEAD_NODES_MINUTES * 2,
+                                false);
+
+    maybeDead = A->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.size() == 1));
+    REQUIRE(maybeDead[0].asString() ==
+            KeyUtils::toStrKey(C->getConfig().NODE_SEED.getPublicKey()));
+    maybeDead = B->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
+    REQUIRE((maybeDead.isArray() && maybeDead.size() == 1));
+    REQUIRE(maybeDead[0].asString() ==
+            KeyUtils::toStrKey(C->getConfig().NODE_SEED.getPublicKey()));
+}

@@ -457,6 +457,20 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                          gap, fw.write(slotInfo));
         }
 
+        auto slotInfo = getSCP().getJsonQuorumInfo(getSCP().getLocalNodeID(),
+                                                   false, true, slotIndex);
+        std::set<std::string> missing;
+        for (const auto& node : slotInfo["missing"])
+        {
+            missing.insert(node.asString());
+        }
+        std::set<std::string> prevMissing = std::move(mMissingNodes);
+        mMissingNodes.clear();
+        std::set_intersection(
+            missing.begin(), missing.end(), prevMissing.begin(),
+            prevMissing.end(),
+            std::inserter(mMissingNodes, mMissingNodes.begin()));
+
         // trigger will be recreated when the ledger is closed
         // we do not want it to trigger while downloading the current set
         // and there is no point in taking a position after the round is over
@@ -862,7 +876,6 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
-    mDeadNodes.erase(envelope.statement.nodeID);
 
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
@@ -1646,6 +1659,20 @@ HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 
     ret["scp"] = getSCP().getJsonInfo(limit, fullKeys);
     ret["queue"] = mPendingEnvelopes.getJsonInfo(limit);
+
+    Json::Value maybeDeadNodes(Json::arrayValue);
+    for (const auto& node : mDeadNodes)
+    {
+        if (fullKeys)
+        {
+            maybeDeadNodes.append(node);
+        }
+        else
+        {
+            maybeDeadNodes.append(node.substr(0, 5));
+        }
+    }
+    ret["maybe_dead_nodes"] = maybeDeadNodes;
     return ret;
 }
 
@@ -2394,12 +2421,11 @@ HerderImpl::purgeOldPersistedTxSets()
 void
 HerderImpl::startCheckForDeadNodesInterval()
 {
-    auto ln = getSCP().getLocalNode();
-    LocalNode::forAllNodes(ln->getQuorumSet(), [this](const NodeID& nodeId) {
-        mDeadNodes.insert(nodeId);
-        return true;
-    });
-    mDeadNodes.erase(ln->getNodeID());
+    LocalNode::forAllNodes(getSCP().getLocalNode()->getQuorumSet(),
+                           [this](const NodeID& nodeId) {
+                               mMissingNodes.insert(KeyUtils::toStrKey(nodeId));
+                               return true;
+                           });
     mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
     mCheckForDeadNodesTimer.async_wait(
         [this]() { endCheckForDeadNodesInterval(); },
@@ -2409,14 +2435,7 @@ HerderImpl::startCheckForDeadNodesInterval()
 void
 HerderImpl::endCheckForDeadNodesInterval()
 {
-    for (const auto& node : mDeadNodes)
-    {
-        CLOG_WARNING(Herder,
-                     "NodeID {} from local quorum set not "
-                     "participating in latest rounds of consensus: "
-                     "check that this node is still alive.",
-                     KeyUtils::toStrKey(node));
-    }
+    mDeadNodes = mMissingNodes;
     startCheckForDeadNodesInterval();
 }
 

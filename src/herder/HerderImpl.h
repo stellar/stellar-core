@@ -310,17 +310,16 @@ class HerderImpl : public Herder
 
     VirtualTimer mTxSetGarbageCollectTimer;
 
-    // We measure all nodes that send a valid SCP envelope during every
-    // CHECK_FOR_DEAD_NODES_MINUTES. After the timer expires, we send a warning
-    // for every node in the local quorum set that didn't send an envelope
-    // during this time.
+    // Every CHECK_FOR_DEAD_NODES_MINUTES, we keep track of all nodes that SCP
+    // reports as missing throughout the interval.
     VirtualTimer mCheckForDeadNodesTimer;
     void startCheckForDeadNodesInterval();
     void endCheckForDeadNodesInterval();
-    // The nodes that have not sent a valid SCP envelope during the current
-    // period. Note: we keep track of dead nodes instead of live ones to limit
-    // max memory size.
-    std::set<NodeID> mDeadNodes;
+    // The nodes that have exclusively been marked missing during the current
+    // interval.
+    std::set<std::string> mMissingNodes;
+    // The nodes that were missing during the previous interval.
+    std::set<std::string> mDeadNodes;
 
     Application& mApp;
     LedgerManager& mLedgerManager;
