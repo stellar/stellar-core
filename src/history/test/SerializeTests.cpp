@@ -41,3 +41,8 @@ TEST_CASE("Serialization round trip", "[history]")
         }
     }
 }
+
+TEST_CASE("fail")
+{
+    REQUIRE(false);
+}
