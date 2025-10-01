@@ -1496,11 +1496,13 @@ ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName)
 {
     releaseAssert(mLedgerCloseIOContext);
+    getClock().newBackgroundWork();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
         mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
         f();
+        getClock().finishedBackgroundWork();
     });
 }
 
