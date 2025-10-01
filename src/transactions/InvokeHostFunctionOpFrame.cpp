@@ -107,6 +107,7 @@ maybePopulateOutputDiagnosticEvents(Config const& cfg,
 struct HostFunctionMetrics
 {
     SorobanMetrics& mMetrics;
+    bool const mDisableMetrics;
 
     uint32_t mReadEntry{0};
     uint32_t mWriteEntry{0};
@@ -142,12 +143,18 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
+    HostFunctionMetrics(SorobanMetrics& metrics, bool disableMetrics)
+        : mMetrics(metrics), mDisableMetrics(disableMetrics)
     {
     }
 
     ~HostFunctionMetrics()
     {
+        if (mDisableMetrics)
+        {
+            return;
+        }
+
         mMetrics.mHostFnOpReadEntry.Mark(mReadEntry);
         mMetrics.mHostFnOpWriteEntry.Mark(mWriteEntry);
 
@@ -235,10 +242,14 @@ struct HostFunctionMetrics
         }
     }
 
-    medida::TimerContext
+    std::optional<medida::TimerContext>
     getExecTimer()
     {
-        return mMetrics.mHostFnOpExec.TimeScope();
+        if (!mDisableMetrics)
+        {
+            return mMetrics.mHostFnOpExec.TimeScope();
+        }
+        return std::nullopt;
     }
 };
 
@@ -281,7 +292,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mResources(mOpFrame.mParentTx.sorobanResources())
         , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
-        , mMetrics(app.getSorobanMetrics())
+        , mMetrics(app.getSorobanMetrics(),
+                   app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
         , mHotArchive(hotArchive)
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
