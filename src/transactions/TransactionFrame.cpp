@@ -1945,12 +1945,9 @@ TransactionFrame::parallelApply(
         return {false, {}};
     }
 
-    auto& internalErrorCounter = app.getMetrics().NewCounter(
-        {"ledger", "transaction", "internal-error"});
     bool reportInternalErrOnException = true;
     try
     {
-        auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
         // We do not want to increase the internal-error metric count for
         // older ledger versions. The minimum ledger version for which we
         // start internal-error counting is defined in the app config.
@@ -2026,6 +2023,8 @@ TransactionFrame::parallelApply(
     // ledger is a newer version.
     if (reportInternalErrOnException)
     {
+        auto& internalErrorCounter = app.getMetrics().NewCounter(
+            {"ledger", "transaction", "internal-error"});
         internalErrorCounter.inc();
     }
     return {false, {}};

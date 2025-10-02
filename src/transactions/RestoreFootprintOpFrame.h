@@ -27,7 +27,7 @@ class RestoreFootprintOpFrame : public OperationFrame
                       SorobanNetworkConfig const& sorobanConfig,
                       Hash const& sorobanBasePrngSeed, OperationResult& res,
                       std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const;
+                      OperationMetaBuilder& opMeta) const override;
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;

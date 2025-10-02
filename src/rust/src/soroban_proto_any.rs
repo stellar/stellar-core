@@ -768,8 +768,10 @@ impl ProtocolSpecificModuleCache {
     // (threadsafe) ModuleCache to pass to separate C++-launched threads, to
     // allow multithreaded compilation.
     pub(crate) fn shallow_clone(&self) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut new = Self::new()?;
-        new.module_cache = self.module_cache.clone();
-        Ok(new)
+        let module_cache = self.module_cache.clone();
+        Ok(ProtocolSpecificModuleCache {
+            module_cache,
+            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
+        })
     }
 }
