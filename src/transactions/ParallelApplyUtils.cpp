@@ -8,13 +8,13 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
-#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <fmt/core.h>
 #include <fmt/std.h>
+#include <future>
 #include <thread>
 
 namespace
@@ -143,15 +143,71 @@ maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
 }
 
 void
-preParallelApplyAndCollectModifiedClassicEntries(
+preParallelApplyAndCollectModifiedEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
-    ParallelApplyEntryMap& globalEntryMap,
+    std::vector<ApplyStage> const& stages, GlobalEntryMap& globalEntryMap,
     SorobanNetworkConfig const& sorobanConfig)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
 
+    // Step 1: Build index by iterating over all footprints and assigning
+    // indices to unique keys. Each key gets a slot in the entry data vector.
+    // For Soroban entries, also add their associated TTL key.
+    size_t idx = 0;
+    auto addKeyToIndex = [&idx, &map = globalEntryMap](LedgerKey const& key) {
+        auto [it, inserted] = map.keyToIndex.try_emplace(key, idx);
+        if (inserted)
+        {
+            ++idx;
+        }
+
+        // For Soroban entries, also add the TTL key
+        if (isSorobanEntry(key))
+        {
+            auto ttlKey = getTTLKey(key);
+            auto [ttlIt, ttlInserted] = map.keyToIndex.try_emplace(ttlKey, idx);
+            if (ttlInserted)
+            {
+                ++idx;
+            }
+        }
+    };
+
+    for (auto const& stage : stages)
+    {
+        for (auto const& txBundle : stage)
+        {
+            auto const& fp = txBundle.getTx()->sorobanResources().footprint;
+            for (auto const& key : fp.readWrite)
+            {
+                addKeyToIndex(key);
+            }
+            for (auto const& key : fp.readOnly)
+            {
+                addKeyToIndex(key);
+            }
+        }
+    }
+
+    // Step 2: Allocate vector with nullopt (uninitialized) for all indexed
+    // keys
+    globalEntryMap.entryData.resize(idx);
+
+    // Step 3: Call preParallelApply on all transactions to modify fee source
+    // accounts
+    for (auto const& stage : stages)
+    {
+        for (auto const& txBundle : stage)
+        {
+            txBundle.getTx()->preParallelApply(
+                app, ltx, txBundle.getEffects().getMeta(),
+                txBundle.getResPayload(), sorobanConfig);
+        }
+    }
+
+    // Step 4: Populate classic entries directly into globalEntryMap.entryData
     auto fetchInMemoryClassicEntries =
         [&](xdr::xvector<LedgerKey> const& keys) {
             for (auto const& lk : keys)
@@ -172,27 +228,15 @@ preParallelApplyAndCollectModifiedClassicEntries(
                                            entryPair.second->ledgerEntry())
                                      : std::nullopt;
 
-                globalEntryMap.emplace(lk, ParallelApplyEntry{entry, false});
+                auto it = globalEntryMap.keyToIndex.find(lk);
+                releaseAssert(it != globalEntryMap.keyToIndex.end());
+                globalEntryMap.entryData[it->second] =
+                    ParallelApplyEntry{entry, false};
             }
         };
 
-    // First call preParallelApply on all transactions,
-    // and then load from footprints. This order is important
-    // because preParallelApply modifies the fee source accounts
-    // and those accounts could show up in the footprint
-    // of a different transaction.
-    for (auto const& stage : stages)
-    {
-        for (auto const& txBundle : stage)
-        {
-            // Make sure to call preParallelApply on all txs because this will
-            // modify the fee source accounts sequence numbers.
-            txBundle.getTx()->preParallelApply(
-                app, ltx, txBundle.getEffects().getMeta(),
-                txBundle.getResPayload(), sorobanConfig);
-        }
-    }
-
+    ZoneNamedN(_fetchInMemoryClassicEntries, "fetchInMemoryClassicEntries",
+               true);
     for (auto const& stage : stages)
     {
         for (auto const& txBundle : stage)
@@ -405,27 +449,36 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     // had their sequence numbers bumped and fees charged. preParallelApply will
     // update sequence numbers so it needs to be called before we check
     // LedgerTxn.
-    preParallelApplyAndCollectModifiedClassicEntries(
-        app, ltx, stages, mGlobalEntryMap, mSorobanConfig);
+    preParallelApplyAndCollectModifiedEntries(app, ltx, stages, mGlobalEntryMap,
+                                              sorobanConfig);
 }
 
 void
 GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     AbstractLedgerTxn& ltx) const
 {
+    ZoneScoped;
     LedgerTxn ltxInner(ltx);
-    for (auto const& entry : mGlobalEntryMap)
+    for (auto const& [key, idx] : mGlobalEntryMap.keyToIndex)
     {
-        // Only update if dirty bit is set
-        if (!entry.second.mIsDirty)
+        auto const& slot = mGlobalEntryMap.entryData[idx];
+
+        // Skip uninitialized slots
+        if (!slot)
         {
             continue;
         }
 
-        if (entry.second.mLedgerEntry)
+        // Only update if dirty bit is set
+        if (!slot->mIsDirty)
         {
-            auto const& updatedEntry = *entry.second.mLedgerEntry;
-            auto ltxe = ltxInner.load(entry.first);
+            continue;
+        }
+
+        if (slot->mLedgerEntry)
+        {
+            auto const& updatedEntry = slot->mLedgerEntry.value();
+            auto ltxe = ltxInner.load(key);
             if (ltxe)
             {
                 ltxe.current() = updatedEntry;
@@ -437,10 +490,10 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
         }
         else
         {
-            auto ltxe = ltxInner.load(entry.first);
+            auto ltxe = ltxInner.load(key);
             if (ltxe)
             {
-                ltxInner.erase(entry.first);
+                ltxInner.erase(key);
             }
         }
     }
@@ -473,12 +526,6 @@ GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
     return mLiveSnapshot->getLedgerSeq();
 }
 
-ParallelApplyEntryMap const&
-GlobalParallelApplyLedgerState::getGlobalEntryMap() const
-{
-    return mGlobalEntryMap;
-}
-
 RestoredEntries const&
 GlobalParallelApplyLedgerState::getRestoredEntries() const
 {
@@ -486,35 +533,34 @@ GlobalParallelApplyLedgerState::getRestoredEntries() const
 }
 
 void
-GlobalParallelApplyLedgerState::commitChangeFromThread(
-    LedgerKey const& key, ParallelApplyEntry const& parEntry,
-    std::unordered_set<LedgerKey> const& readWriteSet)
+GlobalParallelApplyLedgerState::maybeCopyEntryIntoThreadMap(
+    LedgerKey const& key, ParallelApplyEntryMap& threadMap) const
 {
-    if (!parEntry.mIsDirty)
+    if (threadMap.find(key) != threadMap.end())
     {
         return;
     }
-    auto [it, inserted] = mGlobalEntryMap.emplace(key, parEntry);
-    if (!inserted)
+
+    // All footprint keys must be in the index
+    auto indexIt = mGlobalEntryMap.keyToIndex.find(key);
+    releaseAssert(indexIt != mGlobalEntryMap.keyToIndex.end());
+
+    auto const& slot = mGlobalEntryMap.entryData[indexIt->second];
+
+    // Only copy if initialized (classic entries)
+    if (slot)
     {
-        if (!maybeMergeRoTTLBumps(key, parEntry, it->second, readWriteSet))
+        if (slot->mLedgerEntry)
         {
-            it->second = parEntry;
+            threadMap.emplace(key, ParallelApplyEntry::cleanPopulated(
+                                       slot->mLedgerEntry.value()));
+        }
+        else
+        {
+            threadMap.emplace(key, ParallelApplyEntry::cleanEmpty());
         }
     }
-}
-
-void
-GlobalParallelApplyLedgerState::commitChangesFromThread(
-    AppConnector& app, ThreadParallelApplyLedgerState const& thread,
-    ApplyStage const& stage)
-{
-    auto readWriteSet = getReadWriteKeysForStage(stage);
-    for (auto const& [key, entry] : thread.getEntryMap())
-    {
-        commitChangeFromThread(key, entry, readWriteSet);
-    }
-    mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
+    // If nullopt (uninitialized), thread will load from DB later
 }
 
 void
@@ -523,12 +569,79 @@ GlobalParallelApplyLedgerState::commitChangesFromThreads(
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const& threads,
     ApplyStage const& stage)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
 
+    // Phase 1: Parallel write of non-TTL entries from threads to global state.
+    // All threads are guaranteed to have no read-write conflicts between
+    // non-TTL entries, so these parallel writes are safe.
+    std::vector<std::future<void>> futures;
     for (auto const& thread : threads)
     {
-        commitChangesFromThread(app, *thread, stage);
+        futures.push_back(std::async(std::launch::async, [&]() {
+            ZoneNamedN(commitChangesFromThread, "commitChangesFromThread",
+                       true);
+            for (auto const& [key, entry] : thread->getEntryMap())
+            {
+                // Skip non-dirty and TTL entries
+                if (!entry.mIsDirty || key.type() == TTL)
+                {
+                    continue;
+                }
+
+                size_t idx = mGlobalEntryMap.keyToIndex.at(key);
+                mGlobalEntryMap.entryData[idx] = entry;
+            }
+        }));
+    }
+
+    // Wait for all parallel writes
+    for (auto& f : futures)
+    {
+        f.get();
+    }
+
+    // Phase 2: Serial handling of TTL entries. Since TTL entries can still have
+    // read-write conflicts, we commit these in serial.
+    auto readWriteSet = getReadWriteKeysForStage(stage);
+
+    for (auto const& thread : threads)
+    {
+        for (auto const& [key, entry] : thread->getEntryMap())
+        {
+            if (key.type() == TTL && entry.mIsDirty)
+            {
+                size_t idx = mGlobalEntryMap.keyToIndex.at(key);
+                auto& slot = mGlobalEntryMap.entryData[idx];
+
+                if (readWriteSet.find(key) == readWriteSet.end())
+                {
+                    // special case: readOnly TTL writes require merge logic.
+                    if (slot)
+                    {
+                        maybeMergeRoTTLBumps(key, entry, *slot, readWriteSet);
+                    }
+                    // Here we wrote a readOnly TTL, but it didn't exist
+                    // previously, so we can just write it directly.
+                    else
+                    {
+                        slot = entry;
+                    }
+                }
+                else
+                {
+                    // TTL key in readWrite footprint, we can set it directly.
+                    slot = entry;
+                }
+            }
+        }
+    }
+
+    // Phase 3: Merge restored entries
+    for (auto const& thread : threads)
+    {
+        mGlobalRestoredEntries.addRestoresFrom(thread->getRestoredEntries());
     }
 }
 
@@ -541,33 +654,9 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                   app.threadIsType(Application::ThreadType::APPLY));
 
     // As part of the initialization of this thread state, we need to
-    // collect all the keys that are in the global state map. For any keys
-    // we need not in the global state, we will fetch them from the live
+    // collect all the keys that are in the global indexed state. For any keys
+    // not in the global state, we will fetch them from the live
     // snapshot, in memory soroban state, or the hot archive later.
-    auto const& globalEntryMap = global.getGlobalEntryMap();
-
-    auto fetchFromGlobal = [&](LedgerKey const& key) {
-        if (mThreadEntryMap.find(key) != mThreadEntryMap.end())
-        {
-            return;
-        }
-
-        auto entryIt = globalEntryMap.find(key);
-        if (entryIt != globalEntryMap.end())
-        {
-            if (entryIt->second.mLedgerEntry)
-            {
-                mThreadEntryMap.emplace(
-                    key, ParallelApplyEntry::cleanPopulated(
-                             entryIt->second.mLedgerEntry.value()));
-            }
-            else
-            {
-                mThreadEntryMap.emplace(key, ParallelApplyEntry::cleanEmpty());
-            }
-        }
-    };
-
     for (auto const& txBundle : cluster)
     {
         auto const& footprint = txBundle.getTx()->sorobanResources().footprint;
@@ -575,11 +664,11 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
         {
             for (auto const& key : keys)
             {
-                fetchFromGlobal(key);
+                global.maybeCopyEntryIntoThreadMap(key, mThreadEntryMap);
                 if (isSorobanEntry(key))
                 {
                     auto ttlKey = getTTLKey(key);
-                    fetchFromGlobal(ttlKey);
+                    global.maybeCopyEntryIntoThreadMap(ttlKey, mThreadEntryMap);
                 }
             }
         }
