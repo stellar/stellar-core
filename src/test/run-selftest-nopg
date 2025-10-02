@@ -19,6 +19,6 @@ R=$?
 if [[ $R -ne 0 ]] ; then
     echo "Test failed, rerunning with debugger"
     echo ./stellar-core test $STELLAR_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "$TESTS"
-    lldb -o 'r'  -o 'bt' -o 'exit' -- ./stellar-core test $STELLAR_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "$TESTS"
+    lldb -o 'breakpoint set -E c++' -o 'breakpoint command add' -o 'bt' -o 'c' -o 'DONE' -o 'r' -o 'bt' -o 'exit' -- ./stellar-core test $STELLAR_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "$TESTS"
 fi
 exit $R
