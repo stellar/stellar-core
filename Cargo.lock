@@ -1314,8 +1314,8 @@ dependencies = [
 
 [[package]]
 name = "soroban-test-wasms"
-version = "23.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=688bc34e6cd15c71742139e625268c7f30f55a92#688bc34e6cd15c71742139e625268c7f30f55a92"
+version = "23.0.2"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=30249f0549141dbe7fdce84b6401a4235dbad64f#30249f0549141dbe7fdce84b6401a4235dbad64f"
 
 [[package]]
 name = "soroban-wasmi"

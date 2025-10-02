@@ -40,12 +40,16 @@ pub(crate) fn get_test_wasm_loadgen() -> Result<RustBuf, Box<dyn std::error::Err
     })
 }
 
-pub(crate) fn get_test_contract_sac_transfer() -> Result<RustBuf, Box<dyn std::error::Error>> {
+pub(crate) fn get_test_contract_sac_transfer(
+    protocol_version: u32,
+) -> Result<RustBuf, Box<dyn std::error::Error>> {
+    let wasm_bytes = if protocol_version >= 23 {
+        soroban_test_wasms::CONTRACT_SAC_TRANSFER_CONTRACT_P23
+    } else {
+        soroban_test_wasms::CONTRACT_SAC_TRANSFER_CONTRACT
+    };
     Ok(RustBuf {
-        data: soroban_test_wasms::CONTRACT_SAC_TRANSFER_CONTRACT
-            .iter()
-            .cloned()
-            .collect(),
+        data: wasm_bytes.iter().cloned().collect(),
     })
 }
 

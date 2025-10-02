@@ -45,7 +45,16 @@
 	],
 	"Module cache miss on immediate execution" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
 	"Module cache miss on immediate execution|same ledger upload and execution" : [ "otnd+GHMKpE=", "/VLp/3iN+To=", "NDnBxhxdn4o=", "RCvKpCbS0VA=" ],
-	"Native stellar asset contract" : [ "+cR3oq2qY0I=", "DUET1r2TwOg=" ],
+	"Native stellar asset contract" : 
+	[
+		"+cR3oq2qY0I=",
+		"DUET1r2TwOg=",
+		"j3E4E4zpoHM=",
+		"nOOGkrrnOFw=",
+		"UivZvwUUrZ0=",
+		"HnO1VwITuAw=",
+		"NC1BmSQafHo="
+	],
 	"Soroban authorization" : 
 	[
 		"+cR3oq2qY0I=",

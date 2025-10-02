@@ -1345,4 +1345,80 @@ TxGenerator::sorobanRandomUploadResources()
 
     return {resources, wasmSize};
 }
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeBatchTransfer(uint32_t ledgerNum, uint64_t sourceAccountId,
+                                 ContractInstance const& batchTransferInstance,
+                                 ContractInstance const& sacInstance,
+                                 std::vector<SCAddress> const& destinations)
+{
+    auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
+    sourceAccount->loadSequenceNumber();
+
+    // First invoke param: SAC contract address
+    SCVal sacAddressVal(SCV_ADDRESS);
+    sacAddressVal.address() = sacInstance.contractID;
+
+    // Second invoke param: vector of destination addresses
+    std::vector<SCVal> destVals;
+    destVals.reserve(destinations.size());
+    for (auto const& dest : destinations)
+    {
+        SCVal destVal(SCV_ADDRESS);
+        destVal.address() = dest;
+        destVals.push_back(destVal);
+    }
+    SCVal destinationsVec = makeVecSCVal(destVals);
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = batchTransferInstance.contractID;
+    ihf.invokeContract().functionName = "batch_transfer";
+    ihf.invokeContract().args = {sacAddressVal, destinationsVec};
+
+    SorobanResources resources;
+    uint32_t batchSize = destinations.size();
+    resources.writeBytes = 800 * batchSize;
+    resources.diskReadBytes = 800;
+    resources.instructions = BATCH_TRANSFER_TX_INSTRUCTIONS * batchSize;
+
+    // Need both SAC instance and batch transfer code/instance keys
+    resources.footprint.readOnly = batchTransferInstance.readOnlyKeys;
+    resources.footprint.readOnly.insert(resources.footprint.readOnly.end(),
+                                        sacInstance.readOnlyKeys.begin(),
+                                        sacInstance.readOnlyKeys.end());
+
+    // Returns LedgerKey for the given XLM C address
+    auto getBalanceKey = [&](SCAddress const& address) {
+        SCVal addressVal(SCV_ADDRESS);
+        addressVal.address() = address;
+
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = sacInstance.contractID;
+        balanceKey.contractData().key =
+            makeVecSCVal({makeSymbolSCVal("Balance"), addressVal});
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+        return balanceKey;
+    };
+
+    // Add source account (batch transfer contract XLM balance)
+    resources.footprint.readWrite.emplace_back(
+        getBalanceKey(batchTransferInstance.contractID));
+    for (auto const& dest : destinations)
+    {
+        resources.footprint.readWrite.emplace_back(getBalanceKey(dest));
+    }
+
+    auto resourceFee = sorobanResourceFee(mApp, resources, 350, 200);
+    resourceFee += 5'000'000 * batchSize;
+
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *sourceAccount, {op}, {}, resources,
+        generateFee(1'000'000, /* opsCnt */ 1), resourceFee);
+
+    return std::make_pair(sourceAccount, tx);
+}
 }

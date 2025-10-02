@@ -387,12 +387,6 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_NUM_ACCOUNTS = 0;
     uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
 
-    // MAX_SAC_TPS mode specific parameters
-    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
-    uint32_t APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS = 3;
-    uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
-    uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
-
     // Number of read-only and read-write entries in the apply-load
     // transactions. Every entry will have
     // `APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING` size.
@@ -404,6 +398,22 @@ class Config : public std::enable_shared_from_this<Config>
     // Number of events to generate in the apply-load transactions.
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_FOR_TESTING;
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING;
+
+    // MAX_SAC_TPS mode specific parameters
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
+
+    // Number of SAC payments to include in each tx for MAX_SAC_TPS mode.
+    // If set to 1, each TX will be a single SAC invocation.
+    // If set to > 1, each TX will invoke the specified number of SAC sub
+    // invocations. Note that TPS measurement count each SAC invocation as one
+    // "transaction".
+    uint32_t APPLY_LOAD_BATCH_SAC_COUNT = 1;
+
+    // If set to true, database writes will count towards TPS calculation.
+    // Otherwise, BucketList writes will not be counted.
+    bool APPLY_LOAD_TIME_WRITES = true;
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;

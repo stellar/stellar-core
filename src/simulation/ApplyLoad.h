@@ -71,6 +71,7 @@ class ApplyLoad
     void setupUpgradeContract();
     void setupLoadContract();
     void setupXLMContract();
+    void setupBatchTransferContracts();
     void setupBucketList();
 
     // Run iterations at the given TPS. Reports average time over all runs, in
@@ -81,6 +82,9 @@ class ApplyLoad
     // conflicts.
     void generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
                              uint32_t count);
+
+    // Calculate instructions per transaction based on batch size
+    uint64_t calculateInstructionsPerTx() const;
 
     // Iterate over all available accounts to make sure they are loaded into the
     // BucketListDB cache. Note that this should be run everytime an account
@@ -104,6 +108,8 @@ class ApplyLoad
     TxGenerator::ContractInstance mLoadInstance;
     // Used to generate XLM payments
     TxGenerator::ContractInstance mSACInstanceXLM;
+    // Used for batch transfers, one instance for each cluster
+    std::vector<TxGenerator::ContractInstance> mBatchTransferInstances;
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
 
@@ -123,6 +129,9 @@ class ApplyLoad
 
     ApplyLoadMode mMode;
     TxGenerator mTxGenerator;
+
+    // Counter for generating unique destination addresses for SAC payments
+    uint32_t mDestCounter = 0;
 };
 
 }

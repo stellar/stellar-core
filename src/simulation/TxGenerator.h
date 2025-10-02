@@ -90,6 +90,7 @@ class TxGenerator
   public:
     // Instructions per SAC transaction
     static constexpr uint64_t SAC_TX_INSTRUCTIONS = 250'000;
+    static constexpr uint64_t BATCH_TRANSFER_TX_INSTRUCTIONS = 500'000;
 
     // Special account ID to represent the root account
     static uint64_t const ROOT_ACCOUNT_ID;
@@ -174,6 +175,12 @@ class TxGenerator
                      SCAddress const& toAddress,
                      ContractInstance const& instance, uint64_t amount,
                      std::optional<uint32_t> maxGeneratedFeeRate);
+
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeBatchTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
+                        ContractInstance const& batchTransferInstance,
+                        ContractInstance const& sacInstance,
+                        std::vector<SCAddress> const& destinations);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,

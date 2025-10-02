@@ -1681,11 +1681,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS =
                          readInt<uint32_t>(item, 10);
                  }},
-                {"APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS",
-                 [&]() {
-                     APPLY_LOAD_MAX_SAC_TPS_TEST_ITERATIONS =
-                         readInt<uint32_t>(item);
-                 }},
                 {"APPLY_LOAD_MAX_SAC_TPS_MIN_TPS",
                  [&]() {
                      APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = readInt<uint32_t>(item);
@@ -1694,6 +1689,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = readInt<uint32_t>(item);
                  }},
+                {"APPLY_LOAD_BATCH_SAC_COUNT",
+                 [&]() {
+                     APPLY_LOAD_BATCH_SAC_COUNT = readInt<uint32_t>(item, 1);
+                 }},
+                {"APPLY_LOAD_TIME_WRITES",
+                 [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
