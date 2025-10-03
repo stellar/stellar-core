@@ -508,10 +508,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
     }
     else
     {
-        // If we're out of sync, we don't track missing nodes (to avoid
-        // misreporting when we're behind and others are correctly ahead of us)
-        mMissingNodes.clear();
-
         // This call may trigger application of buffered ledgers and in some
         // cases a ledger trigger
         processExternalized(slotIndex, value, isLatestSlot);
