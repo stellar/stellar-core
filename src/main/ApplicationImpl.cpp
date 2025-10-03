@@ -1454,16 +1454,32 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
         std::move(name), type);
 }
 
+// Helper to post work to an IO context with background work accounting
+static void
+postWithBackgroundWorkAccounting(VirtualClock& clock,
+                                 asio::io_context& ioContext,
+                                 std::function<void()>&& f,
+                                 medida::Timer& delayMetric,
+                                 LogSlowExecution&& slowExec)
+{
+    clock.newBackgroundWork();
+    asio::post(ioContext, [&clock, &delayMetric, f = std::move(f),
+                           slowExec = std::move(slowExec)]() {
+        delayMetric.Update(slowExec.checkElapsedTime());
+        f();
+        clock.finishedBackgroundWork();
+    });
+}
+
 void
 ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName)
 {
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
-        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
-    });
+    postWithBackgroundWorkAccounting(getClock(), getWorkerIOContext(),
+                                     std::move(f), mPostOnBackgroundThreadDelay,
+                                     std::move(isSlow));
 }
 
 void
@@ -1472,10 +1488,9 @@ ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
 {
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow]() {
-        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
-    });
+    postWithBackgroundWorkAccounting(getClock(), getEvictionIOContext(),
+                                     std::move(f), mPostOnBackgroundThreadDelay,
+                                     std::move(isSlow));
 }
 
 void
@@ -1485,10 +1500,9 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
     releaseAssert(mOverlayIOContext);
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow]() {
-        mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
-    });
+    postWithBackgroundWorkAccounting(getClock(), *mOverlayIOContext,
+                                     std::move(f), mPostOnOverlayThreadDelay,
+                                     std::move(isSlow));
 }
 
 void
@@ -1496,14 +1510,11 @@ ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName)
 {
     releaseAssert(mLedgerCloseIOContext);
-    getClock().newBackgroundWork();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
-        mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
-        getClock().finishedBackgroundWork();
-    });
+    postWithBackgroundWorkAccounting(
+        getClock(), *mLedgerCloseIOContext, std::move(f),
+        mPostOnLedgerCloseThreadDelay, std::move(isSlow));
 }
 
 void
