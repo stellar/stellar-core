@@ -225,6 +225,7 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     VirtualTimer timer(*app1);
     timer.expires_from_now(std::chrono::seconds(1));
     timer.async_wait([&](asio::error_code const& e) { ++timerFired; });
+    clock.flushCancelledEvents(false);
     clock.crank(false);
     CHECK(app1Event == 1);
     CHECK(app2Event == 0);

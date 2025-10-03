@@ -95,6 +95,7 @@ HerderImpl::HerderImpl(Application& app)
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
+    , mCheckForDeadNodesTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
@@ -277,6 +278,7 @@ HerderImpl::shutdown()
     }
 
     mTxSetGarbageCollectTimer.cancel();
+    mCheckForDeadNodesTimer.cancel();
 }
 
 void
@@ -454,6 +456,22 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
             CLOG_WARNING(Herder, "Ledger took {} seconds, SCP information:{}",
                          gap, fw.write(slotInfo));
         }
+
+        // Set mMissingNodes to the intersection of itself and the set of any
+        // nodes missing in the latest slots.
+        auto slotInfo = getSCP().getJsonQuorumInfo(getSCP().getLocalNodeID(),
+                                                   false, true, slotIndex);
+        std::set<std::string> missing;
+        for (const auto& node : slotInfo["missing"])
+        {
+            missing.insert(node.asString());
+        }
+        std::set<std::string> prevMissing = std::move(mMissingNodes);
+        mMissingNodes.clear();
+        std::set_intersection(
+            missing.begin(), missing.end(), prevMissing.begin(),
+            prevMissing.end(),
+            std::inserter(mMissingNodes, mMissingNodes.begin()));
 
         // trigger will be recreated when the ledger is closed
         // we do not want it to trigger while downloading the current set
@@ -1643,6 +1661,20 @@ HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 
     ret["scp"] = getSCP().getJsonInfo(limit, fullKeys);
     ret["queue"] = mPendingEnvelopes.getJsonInfo(limit);
+
+    Json::Value maybeDeadNodes(Json::arrayValue);
+    for (const auto& node : mDeadNodes)
+    {
+        if (fullKeys)
+        {
+            maybeDeadNodes.append(node);
+        }
+        else
+        {
+            maybeDeadNodes.append(node.substr(0, 5));
+        }
+    }
+    ret["maybe_dead_nodes"] = maybeDeadNodes;
     return ret;
 }
 
@@ -2335,6 +2367,7 @@ HerderImpl::start()
 
     restoreUpgrades();
     startTxSetGCTimer();
+    startCheckForDeadNodesInterval();
 }
 
 void
@@ -2385,6 +2418,27 @@ HerderImpl::purgeOldPersistedTxSets()
     {
         CLOG_ERROR(Herder, "Error while deleting old tx sets: {}", e.what());
     }
+}
+
+void
+HerderImpl::startCheckForDeadNodesInterval()
+{
+    LocalNode::forAllNodes(getSCP().getLocalNode()->getQuorumSet(),
+                           [this](const NodeID& nodeId) {
+                               mMissingNodes.insert(KeyUtils::toStrKey(nodeId));
+                               return true;
+                           });
+    mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
+    mCheckForDeadNodesTimer.async_wait(
+        [this]() { endCheckForDeadNodesInterval(); },
+        &VirtualTimer::onFailureNoop);
+}
+
+void
+HerderImpl::endCheckForDeadNodesInterval()
+{
+    mDeadNodes = mMissingNodes;
+    startCheckForDeadNodesInterval();
 }
 
 void

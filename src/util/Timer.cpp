@@ -194,14 +194,14 @@ VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
 }
 
 void
-VirtualClock::flushCancelledEvents()
+VirtualClock::flushCancelledEvents(bool batchCancellations)
 {
     ZoneScoped;
     if (mDestructing)
     {
         return;
     }
-    if (mFlushesIgnored <= mEvents.size())
+    if (batchCancellations && mFlushesIgnored <= mEvents.size())
     {
         // Flushing all the canceled events immediately can lead to
         // a O(n^2) loop if many events in the queue are canceled one a time.

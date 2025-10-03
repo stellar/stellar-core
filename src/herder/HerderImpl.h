@@ -310,6 +310,17 @@ class HerderImpl : public Herder
 
     VirtualTimer mTxSetGarbageCollectTimer;
 
+    // Every CHECK_FOR_DEAD_NODES_MINUTES, we keep track of all nodes that SCP
+    // reports as missing throughout the interval.
+    VirtualTimer mCheckForDeadNodesTimer;
+    void startCheckForDeadNodesInterval();
+    void endCheckForDeadNodesInterval();
+    // The nodes that have exclusively been marked missing during the current
+    // interval.
+    std::set<std::string> mMissingNodes;
+    // The nodes that were missing during the previous interval.
+    std::set<std::string> mDeadNodes;
+
     Application& mApp;
     LedgerManager& mLedgerManager;
 

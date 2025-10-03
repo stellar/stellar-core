@@ -58,6 +58,11 @@ class Herder
     // How many seconds of inactivity before evicting a node.
     static std::chrono::seconds const NODE_EXPIRATION_SECONDS;
 
+    // How often to check for dead nodes in local quorum set: every
+    // CHECK_FOR_DEAD_NODES_MINUTES minutes, warn about any node that didn't
+    // send an SCP message in the last interval
+    static std::chrono::minutes const CHECK_FOR_DEAD_NODES_MINUTES;
+
     // How many ledger in the future we consider an envelope viable.
     static uint32 const LEDGER_VALIDITY_BRACKET;
 
