@@ -330,6 +330,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.HTTP_QUERY_PORT = 0;
         thisConfig.QUERY_SNAPSHOT_LEDGERS = 0;
 
+        // Enable experimental Rust dalek signature verification for tests
+        thisConfig.EXPERIMENTAL_RUST_DALEK_SIG_VERIFY = true;
+
 #ifdef BEST_OFFER_DEBUGGING
         thisConfig.BEST_OFFER_DEBUGGING_ENABLED = true;
 #endif

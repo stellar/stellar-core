@@ -143,6 +143,9 @@ void clearVerifySigCache();
 void seedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
+// Enable or disable using Rust ed25519-dalek for signature verification.
+void setUseRustDalekVerify(bool useRust);
+
 PublicKey random();
 #ifdef BUILD_TESTS
 PublicKey pseudoRandomForTesting();

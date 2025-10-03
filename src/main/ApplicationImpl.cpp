@@ -135,6 +135,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
 
+    PubKeyUtils::setUseRustDalekVerify(
+        mConfig.EXPERIMENTAL_RUST_DALEK_SIG_VERIFY);
+
     TracyAppInfo(STELLAR_CORE_VERSION.c_str(), STELLAR_CORE_VERSION.size());
     TracyAppInfo(mConfig.NETWORK_PASSPHRASE.c_str(),
                  mConfig.NETWORK_PASSPHRASE.size());

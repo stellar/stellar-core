@@ -523,6 +523,10 @@ class Config : public std::enable_shared_from_this<Config>
     // also enabled. (experimental)
     bool EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION;
 
+    // Use ed25519-dalek Rust library for signature verification instead of
+    // libsodium. (experimental)
+    bool EXPERIMENTAL_RUST_DALEK_SIG_VERIFY;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes

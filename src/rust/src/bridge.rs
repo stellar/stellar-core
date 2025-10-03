@@ -180,6 +180,16 @@ pub(crate) mod rust_bridge {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
+
+        // Ed25519 signature verification using dalek library.
+        // Returns true if signature is valid, false otherwise.
+        // This function never throws/panics - it returns false for any invalid input.
+        unsafe fn verify_ed25519_signature_dalek(
+            public_key_ptr: *const u8,
+            signature_ptr: *const u8,
+            message_ptr: *const u8,
+            message_len: usize,
+        ) -> bool;
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
@@ -376,6 +386,7 @@ pub(crate) mod rust_bridge {
 // code so they have to be in scope here.
 use crate::b64::*;
 use crate::common::*;
+use crate::ed25519_verify::*;
 use crate::i128::*;
 use crate::log::*;
 use crate::quorum_checker::*;
