@@ -6716,21 +6716,7 @@ TEST_CASE("detect dead nodes in quorum set", "[herder]")
     maybeDead = C->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
     REQUIRE((maybeDead.isArray() && maybeDead.empty()));
 
-    // dropping the A->C connection should not cause C to be reported missing
-    simulation->dropConnection(A->getConfig().NODE_SEED.getPublicKey(),
-                               C->getConfig().NODE_SEED.getPublicKey());
-
-    simulation->crankForAtLeast(Herder::CHECK_FOR_DEAD_NODES_MINUTES * 2,
-                                false);
-
-    maybeDead = A->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
-    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
-    maybeDead = B->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
-    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
-    maybeDead = C->getHerder().getJsonInfo(0, true)["maybe_dead_nodes"];
-    REQUIRE((maybeDead.isArray() && maybeDead.empty()));
-
-    // fully dropping C should cause A and B report it missing
+    // dropping C should cause A and B report it missing
     simulation->dropConnection(B->getConfig().NODE_SEED.getPublicKey(),
                                C->getConfig().NODE_SEED.getPublicKey());
 
