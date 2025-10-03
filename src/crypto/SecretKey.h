@@ -166,6 +166,13 @@ void clearVerifySigCache();
 void seedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
+// Enable Rust ed25519-dalek for signature verification
+// Once enabled, it cannot be disabled. It should be enabled at the protocol 24
+// boundary.
+// Note: This should be removed following the protocol 24 upgrade, rust ed25519
+// can be used unconditionally after upgrade, even for replay.
+void enableRustDalekVerify();
+
 PublicKey random();
 #ifdef BUILD_TESTS
 PublicKey pseudoRandomForTesting();

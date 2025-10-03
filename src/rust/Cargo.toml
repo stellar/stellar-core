@@ -20,6 +20,9 @@ rand = "=0.8.5"
 
 itertools = "=0.10.5"
 
+# ed25519-dalek for faster signature verification
+ed25519-dalek = "2.1.1"
+
 # NB: tracy is quite particular about version compatibility. There must only be
 # one _implementation_ of the C++ tracy symbols in the final binary (brought in
 # by the tracy-client-sys crate) and the version and all feature flags must

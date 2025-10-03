@@ -11,6 +11,7 @@
 #include "crypto/Random.h"
 #include "crypto/StrKey.h"
 #include "main/Config.h"
+#include "rust/RustBridge.h"
 #include "transactions/SignatureUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
@@ -46,6 +47,10 @@ static std::mutex gVerifySigCacheMutex;
 static RandomEvictionCache<Hash, bool> gVerifySigCache(VERIFY_SIG_CACHE_SIZE);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
+
+// Global flag to use Rust ed25519-dalek for signature verification
+// Protected by gVerifySigCacheMutex
+static bool gUseRustDalekVerify = false;
 
 static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
@@ -322,6 +327,13 @@ PubKeyUtils::clearVerifySigCache()
 }
 
 void
+PubKeyUtils::enableRustDalekVerify()
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    gUseRustDalekVerify = true;
+}
+
+void
 PubKeyUtils::seedVerifySigCache(unsigned int seed)
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
@@ -444,6 +456,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     }
 
     auto cacheKey = verifySigCacheKey(key, signature, bin);
+    bool shouldUseRustDalekVerify;
 
     {
         std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
@@ -455,13 +468,26 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
             return {gVerifySigCache.get(cacheKey),
                     VerifySigCacheLookupResult::HIT};
         }
+
+        shouldUseRustDalekVerify = gUseRustDalekVerify;
     }
 
     std::string missStr("miss");
     ZoneText(missStr.c_str(), missStr.size());
-    bool ok =
-        (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
-                                     key.ed25519().data()) == 0);
+
+    bool ok;
+    if (shouldUseRustDalekVerify)
+    {
+        ok = stellar::rust_bridge::verify_ed25519_signature_dalek(
+            key.ed25519().data(), signature.data(), bin.data(), bin.size());
+    }
+    else
+    {
+        ok = (crypto_sign_verify_detached(signature.data(), bin.data(),
+                                          bin.size(),
+                                          key.ed25519().data()) == 0);
+    }
+
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     ++gVerifyCacheMiss;
     gVerifySigCache.put(cacheKey, ok);

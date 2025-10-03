@@ -29,6 +29,7 @@ pub(crate) mod common;
 pub(crate) mod soroban_proto_all;
 
 mod b64;
+mod ed25519_verify;
 mod i128;
 mod log;
 mod quorum_checker;
