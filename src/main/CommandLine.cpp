@@ -1918,6 +1918,8 @@ runApplyLoad(CommandLineArgs const& args)
                         "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
                 }
 
+                config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
+
                 // We reuse accounts in max TPS tests, so we just need enough
                 // for a single ledger's worth of TXs
                 config.APPLY_LOAD_NUM_ACCOUNTS =

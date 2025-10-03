@@ -6,16 +6,41 @@
 
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
-#include <unordered_set>
+#include <optional>
 
 namespace stellar
 {
 
 class InMemorySorobanState;
 class GlobalParallelApplyLedgerState;
+
+// Encapsulates the global entry map data structure which uses an index-based
+// lookup to allow lockless parallel updates to disjoint entries.
+//
+// keysToIndex is a mapping of all LedgerKeys across all
+// footprints (and their TTL keys) to a slot in entry that
+// contains the actual data. Before applying any TXs, mGlobalEntryKeyToIndex
+// will be populated, then will be immutable during actual TX application.
+// This level of indirection allows lockless parallel updates to the global
+// state from different apply threads. We guarantee there are no read-write
+// conflicts between threads for code/data, but UnorderedMap writes are not
+// threadsafe due to possible rehashing. Writes to different slots in a
+// reallocated vector is thread safe, so this indirection allows multiple
+// thread commitments back to the shared global state.
+struct GlobalEntryMap
+{
+    // Mapping of LedgerKey -> slot in entryData
+    UnorderedMap<LedgerKey, size_t> keyToIndex;
+
+    // Two states for indexed parallel apply entries:
+    // - std::nullopt: Slot uninitialized (not loaded from DB yet)
+    // - ParallelApplyEntry: Loaded. Note that a "loaded" entry may or may not
+    // exist. A "loaded" entry that does not exist will be represented by a
+    // populated ParallelApplyEntry whose mLedgerEntry member is std::nullopt
+    std::vector<std::optional<ParallelApplyEntry>> entryData;
+};
 
 class ParallelLedgerInfo
 {
@@ -221,16 +246,7 @@ class GlobalParallelApplyLedgerState
     //    These are propagated from stage to stage of the parallel soroban phase
     //    -- split into disjoint per-thread maps during execution and merged
     //    after -- as well as written back to the ltx at the phase's end.
-    ParallelApplyEntryMap mGlobalEntryMap;
-
-    void
-    commitChangeFromThread(LedgerKey const& key,
-                           ParallelApplyEntry const& parEntry,
-                           std::unordered_set<LedgerKey> const& readWriteSet);
-
-    void commitChangesFromThread(AppConnector& app,
-                                 ThreadParallelApplyLedgerState const& thread,
-                                 ApplyStage const& stage);
+    GlobalEntryMap mGlobalEntryMap;
 
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
@@ -238,8 +254,12 @@ class GlobalParallelApplyLedgerState
                                    InMemorySorobanState const& inMemoryState,
                                    SorobanNetworkConfig const& sorobanConfig);
 
-    ParallelApplyEntryMap const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
+
+    // Copy an entry from the global map into the thread map if it doesn't
+    // already exist in the thread map and the slot is initialized.
+    void maybeCopyEntryIntoThreadMap(LedgerKey const& key,
+                                     ParallelApplyEntryMap& threadMap) const;
 
     void commitChangesFromThreads(
         AppConnector& app,
