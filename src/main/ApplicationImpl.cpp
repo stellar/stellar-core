@@ -51,6 +51,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "process/ProcessManager.h"
+#include "transactions/SignatureChecker.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
@@ -1254,6 +1255,13 @@ ApplicationImpl::syncOwnMetrics()
     mMetrics->NewMeter({"crypto", "verify", "miss"}, "signature").Mark(vmiss);
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
         .Mark(vhit + vmiss);
+
+    // Flush scoped tx validation stats accumulated in the crypto layer.
+    auto const [vhitCv, vtotalCv] = SignatureChecker::flushTxSigCacheCounts();
+    mMetrics->NewMeter({"crypto", "verify", "tx-valid-hit"}, "signature")
+        .Mark(vhitCv);
+    mMetrics->NewMeter({"crypto", "verify", "tx-valid-total"}, "signature")
+        .Mark(vtotalCv);
 
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
