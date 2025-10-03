@@ -6690,15 +6690,8 @@ TEST_CASE("detect dead nodes in quorum set", "[herder]")
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::core(
-        3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
-            // We set SET_CLOSE_TIME_FOR_TESTING to shorten the testing period
-            cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
-            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            return cfg;
-        });
+        3, 0.5, Simulation::OVER_LOOPBACK, networkID,
+        [&](int i) { return getTestConfig(i, Config::TESTDB_DEFAULT); });
 
     simulation->startAllNodes();
     auto A = simulation->getNodes()[0];
