@@ -182,7 +182,7 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # variable empty (and include or exclude submodules from the list of
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
-ALL_SOROBAN_PROTOCOLS=p21 p22 p23
+ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24
 WIP_SOROBAN_PROTOCOL=
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

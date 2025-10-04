@@ -16,17 +16,19 @@
 
 use crate::{
     rust_bridge::CxxBuf,
-    soroban_proto_all::{get_host_module_for_protocol, p23, protocol_agnostic},
+    soroban_proto_all::{get_host_module_for_protocol, p23, p24, protocol_agnostic},
 };
 
 pub(crate) struct SorobanModuleCache {
     pub(crate) p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache,
+    pub(crate) p24_cache: p24::soroban_proto_any::ProtocolSpecificModuleCache,
 }
 
 impl SorobanModuleCache {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
+            p24_cache: p24::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
         })
     }
     pub fn compile(
@@ -36,10 +38,11 @@ impl SorobanModuleCache {
     ) -> Result<(), Box<dyn std::error::Error>> {
         match ledger_protocol {
             23 => self.p23_cache.compile(_wasm),
-            // Currently p24 uses the same env as p23 and thus can keep using
-            // p23 module cache.
+            24 => self.p24_cache.compile(_wasm),
+            // Currently p25 uses the same env as p24 and thus can keep using
+            // p24 module cache.
             #[cfg(feature = "next")]
-            24 => self.p23_cache.compile(_wasm),
+            25 => self.p24_cache.compile(_wasm),
             // Add other protocols here as needed.
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
@@ -47,6 +50,7 @@ impl SorobanModuleCache {
     pub fn shallow_clone(&self) -> Result<Box<Self>, Box<dyn std::error::Error>> {
         Ok(Box::new(Self {
             p23_cache: self.p23_cache.shallow_clone()?,
+            p24_cache: self.p24_cache.shallow_clone()?,
         }))
     }
 
@@ -56,10 +60,12 @@ impl SorobanModuleCache {
             .try_into()
             .map_err(|_| "Invalid contract-code key length")?;
         self.p23_cache.evict(&_hash)?;
+        self.p24_cache.evict(&_hash)?;
         Ok(())
     }
     pub fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.p23_cache.clear()?;
+        self.p24_cache.clear()?;
         Ok(())
     }
 
@@ -74,15 +80,25 @@ impl SorobanModuleCache {
             .map_err(|_| "Invalid contract-code key length")?;
         match protocol {
             23 => self.p23_cache.contains_module(&_hash),
+            24 => self.p24_cache.contains_module(&_hash),
             #[cfg(feature = "next")]
-            24 => self.p23_cache.contains_module(&_hash),
+            25 => self.p24_cache.contains_module(&_hash),
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
-    pub fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_mem_bytes_consumed(
+        &self,
+        ledger_protocol: u32,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
         #[allow(unused_mut)]
         let mut bytes = 0;
-        bytes = bytes.max(self.p23_cache.get_mem_bytes_consumed()?);
+        match ledger_protocol {
+            23 => bytes = bytes.max(self.p23_cache.get_mem_bytes_consumed()?),
+            24 => bytes = bytes.max(self.p24_cache.get_mem_bytes_consumed()?),
+            #[cfg(feature = "next")]
+            25 => bytes = bytes.max(self.p24_cache.get_mem_bytes_consumed()?),
+            _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
+        }
         Ok(bytes)
     }
 }

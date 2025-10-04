@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 23,
+	"!cfg protocol version" : 24,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -28,7 +28,8 @@
 		20,
 		21,
 		22,
-		23
+		23,
+		24
 	],
 	"confirm and clear sponsor|protocol version 13|not supported" : [ "QJDMJ0PvkYA=" ],
 	"confirm and clear sponsor|protocol version 14|not sponsored" : [ "QJDMJ0PvkYA=" ],
@@ -40,5 +41,6 @@
 	"confirm and clear sponsor|protocol version 20|not sponsored" : [ "0rCskf3w41Q=" ],
 	"confirm and clear sponsor|protocol version 21|not sponsored" : [ "0rCskf3w41Q=" ],
 	"confirm and clear sponsor|protocol version 22|not sponsored" : [ "0rCskf3w41Q=" ],
-	"confirm and clear sponsor|protocol version 23|not sponsored" : [ "5KjEutNtf8g=" ]
+	"confirm and clear sponsor|protocol version 23|not sponsored" : [ "5KjEutNtf8g=" ],
+	"confirm and clear sponsor|protocol version 24|not sponsored" : [ "5KjEutNtf8g=" ]
 }

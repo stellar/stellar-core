@@ -320,7 +320,7 @@ pub(crate) mod rust_bridge {
         fn evict_contract_code(self: &mut SorobanModuleCache, key: &[u8]) -> Result<()>;
         fn clear(self: &mut SorobanModuleCache) -> Result<()>;
         fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
-        fn get_mem_bytes_consumed(self: &SorobanModuleCache) -> Result<u64>;
+        fn get_mem_bytes_consumed(self: &SorobanModuleCache, protocol: u32) -> Result<u64>;
 
         // Given a quorum set configuration, checks if quorum intersection is
         // enjoyed among all possible quorums. Returns `Ok(status)` where

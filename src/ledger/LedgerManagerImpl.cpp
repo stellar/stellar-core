@@ -1027,13 +1027,19 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     auto lastBytesCompiled =
         getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.count();
     uint64_t limit = 2 * lastBytesCompiled * linearTerm / scale;
-    if (mModuleCache->get_mem_bytes_consumed() > limit)
+
+    for (auto const& v : mModuleCacheProtocols)
     {
-        CLOG_DEBUG(Ledger,
-                   "Rebuilding module cache: worst-case estimate {} "
-                   "model-bytes consumed of {} limit",
-                   mModuleCache->get_mem_bytes_consumed(), limit);
-        startCompilingAllContracts(snap, minLedgerVersion);
+        auto bytesConsumed = mModuleCache->get_mem_bytes_consumed(v);
+        if (bytesConsumed > limit)
+        {
+            CLOG_DEBUG(Ledger,
+                       "Rebuilding module cache: worst-case estimate {} "
+                       "model-bytes consumed of {} limit",
+                       bytesConsumed, limit);
+            startCompilingAllContracts(snap, minLedgerVersion);
+            break;
+        }
     }
 }
 
