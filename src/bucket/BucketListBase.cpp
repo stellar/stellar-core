@@ -225,11 +225,10 @@ BucketLevel<LiveBucket>::prepareFirstLevel(Application& app,
     // This bucket is the "level -1" snap bucket, which is created and
     // immediately merges with level 0 curr. This merge will produce a
     // BucketIndex for the result, so there's no reason to index this Bucket
-    // before it merges.
-    auto snap = LiveBucket::fresh(
+    // before it merges or write it to disk since it's merged in-memory.
+    auto snap = LiveBucket::freshInMemoryOnly(
         app.getBucketManager(), currLedgerProtocol, inputVectors...,
-        countMergeEvents, app.getClock().getIOContext(), doFsync,
-        /*storeInMemory=*/true, /*shouldIndex=*/false);
+        countMergeEvents);
 
     auto& bucketManager = app.getBucketManager();
     auto& ctx = app.getClock().getIOContext();

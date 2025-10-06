@@ -168,8 +168,7 @@ template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,
-    std::optional<std::vector<typename BucketT::EntryT>> inMemoryState,
-    bool shouldIndex)
+    std::optional<std::vector<typename BucketT::EntryT>> inMemoryState)
 {
     ZoneScoped;
     if (mBuf)
@@ -199,7 +198,7 @@ BucketOutputIterator<BucketT>::getBucket(
     // either it's a new bucket or we just reconstructed a bucket
     // we already have, in any case ensure we have an index
     if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
-        ((!b || !b->isIndexed()) && shouldIndex))
+        (!b || !b->isIndexed()))
     {
         // Create index using in-memory state instead of file IO if available
         if constexpr (std::is_same_v<BucketT, LiveBucket>)

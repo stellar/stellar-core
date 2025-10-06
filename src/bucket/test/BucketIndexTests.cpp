@@ -1046,22 +1046,31 @@ TEST_CASE("in-memory index construction", "[bucket][bucketindex]")
         cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
         Application::pointer app = createTestApplication(clock, cfg);
 
-        // Create a bucket with in-memory entries and manually index it, once
+        // Create a bucket and manually index it, once
         // using file IO and once with in-memory state
         auto b = LiveBucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, entries, {},
             /*countMergeEvents=*/true, clock.getIOContext(),
-            /*doFsync=*/true, /*storeInMemory=*/true,
-            /*shouldIndex=*/false);
+            /*doFsync=*/true);
+
+        // Free the automatically created index so we can test creating it
+        // manually
+        b->freeIndex();
 
         auto indexFromFile = createIndex<LiveBucket>(
             app->getBucketManager(), b->getFilename(), b->getHash(),
             clock.getIOContext(), nullptr);
 
+        // Convert entries to BucketEntry for in-memory index construction
+        auto bucketEntries = LiveBucket::convertToBucketEntry(
+            protocolVersionStartsFrom(
+                getAppLedgerVersion(app),
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+            {}, entries, {});
+
         LiveBucketInputIterator iter(b);
         auto indexFromMemory = std::make_unique<LiveBucketIndex>(
-            app->getBucketManager(), b->getInMemoryEntries(),
-            iter.getMetadata());
+            app->getBucketManager(), bucketEntries, iter.getMetadata());
 
         REQUIRE(indexFromFile);
         REQUIRE(indexFromMemory);
