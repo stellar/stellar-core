@@ -107,6 +107,14 @@ class TransactionTestFrame : public TransactionFrameBase
                         LedgerEntryWrapper const& account,
                         int32_t neededWeight) const override;
 
+    bool checkOperationSignatures(
+        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        MutableTransactionResultBase* txResult) const override;
+
+    bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
+                                       LedgerEntryWrapper const& sourceAccount,
+                                       uint32_t ledgerVersion) const override;
+
     Hash const& getContentsHash() const override;
     Hash const& getFullHash() const override;
 
@@ -168,6 +176,9 @@ class TransactionTestFrame : public TransactionFrameBase
     int64 declaredSorobanResourceFee() const override;
     bool XDRProvidesValidFee() const override;
     bool isRestoreFootprintTx() const override;
+
+    void withInnerTx(
+        std::function<void(TransactionFrameBaseConstPtr)> fn) const override;
 
     bool
     isTestTx() const override

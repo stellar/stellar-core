@@ -41,8 +41,9 @@ namespace stellar
 // makes all signature-verification in the program faster and
 // has no effect on correctness.
 
+constexpr size_t VERIFY_SIG_CACHE_SIZE = 250'000;
 static std::mutex gVerifySigCacheMutex;
-static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
+static RandomEvictionCache<Hash, bool> gVerifySigCache(VERIFY_SIG_CACHE_SIZE);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 
@@ -173,7 +174,7 @@ struct SignVerifyTestcase
     void
     verify()
     {
-        if (!PubKeyUtils::verifySig(key.getPublicKey(), sig, msg))
+        if (!PubKeyUtils::verifySig(key.getPublicKey(), sig, msg).valid)
         {
             throw std::runtime_error("verify failed");
         }
@@ -431,7 +432,7 @@ KeyFunctions<PublicKey>::setKeyValue(PublicKey& key,
     }
 }
 
-bool
+PubKeyUtils::VerifySigResult
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
@@ -439,7 +440,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     releaseAssert(key.type() == PUBLIC_KEY_TYPE_ED25519);
     if (signature.size() != 64)
     {
-        return false;
+        return {false, VerifySigCacheLookupResult::NO_LOOKUP};
     }
 
     auto cacheKey = verifySigCacheKey(key, signature, bin);
@@ -451,7 +452,8 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
             ++gVerifyCacheHit;
             std::string hitStr("hit");
             ZoneText(hitStr.c_str(), hitStr.size());
-            return gVerifySigCache.get(cacheKey);
+            return {gVerifySigCache.get(cacheKey),
+                    VerifySigCacheLookupResult::HIT};
         }
     }
 
@@ -463,7 +465,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     ++gVerifyCacheMiss;
     gVerifySigCache.put(cacheKey, ok);
-    return ok;
+    return {ok, VerifySigCacheLookupResult::MISS};
 }
 
 PublicKey

@@ -419,6 +419,52 @@ TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker) const
     return true;
 }
 
+bool
+TransactionFrame::checkOperationSignatures(
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    MutableTransactionResultBase* txResult) const
+{
+    ZoneScoped;
+    bool allOpsValid = true;
+    for (size_t i = 0; i < mOperations.size(); ++i)
+    {
+        auto const& op = mOperations[i];
+        auto opResult = txResult ? &txResult->getOpResultAt(i) : nullptr;
+        if (!op->checkSignature(signatureChecker, ls, opResult, false))
+        {
+            allOpsValid = false;
+        }
+    }
+    return allOpsValid;
+}
+
+bool
+TransactionFrame::checkAllTransactionSignatures(
+    SignatureChecker& signatureChecker, LedgerEntryWrapper const& sourceAccount,
+    uint32_t ledgerVersion) const
+{
+    ZoneScoped;
+    if (!sourceAccount)
+    {
+        return false;
+    }
+
+    if (!checkSignature(
+            signatureChecker, sourceAccount,
+            sourceAccount.current().data.account().thresholds[THRESHOLD_LOW]))
+    {
+        return false;
+    }
+
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19) &&
+        !checkExtraSigners(signatureChecker))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 LedgerTxnEntry
 TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
                                     LedgerTxnHeader const& header) const
@@ -1357,15 +1403,7 @@ TransactionFrame::processSignatures(
         code == txSUCCESS || code == txFAILED)
     {
         LedgerSnapshot ls(ltxOuter);
-        for (size_t i = 0; i < mOperations.size(); ++i)
-        {
-            auto const& op = mOperations[i];
-            auto& opResult = txResult.getOpResultAt(i);
-            if (!op->checkSignature(signatureChecker, ls, opResult, false))
-            {
-                allOpsValid = false;
-            }
-        }
+        allOpsValid = checkOperationSignatures(signatureChecker, ls, &txResult);
     }
 
     removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
@@ -1479,18 +1517,8 @@ TransactionFrame::commonValid(AppConnector& app,
             return;
         }
 
-        if (!checkSignature(signatureChecker, *sourceAccount,
-                            sourceAccount->current()
-                                .data.account()
-                                .thresholds[THRESHOLD_LOW]))
-        {
-            txResult.setInnermostError(txBAD_AUTH);
-            return;
-        }
-
-        if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                      ProtocolVersion::V_19) &&
-            !checkExtraSigners(signatureChecker))
+        if (!checkAllTransactionSignatures(signatureChecker, *sourceAccount,
+                                           header.current().ledgerVersion))
         {
             txResult.setInnermostError(txBAD_AUTH);
             return;
@@ -2371,6 +2399,13 @@ TransactionFrame::maybeAdoptFailedReplayResult(
     }
 #endif
     return true;
+}
+
+void
+TransactionFrame::withInnerTx(
+    std::function<void(TransactionFrameBaseConstPtr)> fn) const
+{
+    // Nothing to do. TransactionFrame does not have an inner transaction.
 }
 
 } // namespace stellar
