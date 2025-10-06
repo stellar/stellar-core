@@ -99,6 +99,7 @@ using namespace stellar;
 std::unordered_set<LedgerKey>
 getReadWriteKeysForStage(ApplyStage const& stage)
 {
+    ZoneScoped;
     std::unordered_set<LedgerKey> res;
 
     for (auto const& txBundle : stage)
@@ -507,9 +508,9 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
 void
 GlobalParallelApplyLedgerState::commitChangesFromThread(
     AppConnector& app, ThreadParallelApplyLedgerState const& thread,
-    ApplyStage const& stage)
+    std::unordered_set<LedgerKey> const& readWriteSet)
 {
-    auto readWriteSet = getReadWriteKeysForStage(stage);
+    ZoneScoped;
     for (auto const& [key, entry] : thread.getEntryMap())
     {
         commitChangeFromThread(key, entry, readWriteSet);
@@ -523,12 +524,14 @@ GlobalParallelApplyLedgerState::commitChangesFromThreads(
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const& threads,
     ApplyStage const& stage)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
 
+    auto readWriteSet = getReadWriteKeysForStage(stage);
     for (auto const& thread : threads)
     {
-        commitChangesFromThread(app, *thread, stage);
+        commitChangesFromThread(app, *thread, readWriteSet);
     }
 }
 
