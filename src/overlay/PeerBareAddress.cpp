@@ -97,7 +97,8 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     if (ip.empty())
     {
         throw std::runtime_error(fmt::format(
-            FMT_STRING("Could not resolve '{}': {}"), ipPort, ec.message()));
+            FMT_STRING("Could not resolve '{}': no IPv4 addresses found"),
+            ipPort));
     }
 
     unsigned short port = defaultPort;
@@ -106,9 +107,9 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
         int parsedPort = atoi(m[3].str().c_str());
         if (parsedPort <= 0 || parsedPort > UINT16_MAX)
         {
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("Could not resolve '{}': {}"), ipPort,
-                            ec.message()));
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("Could not resolve '{}': port out of range"),
+                ipPort));
         }
         port = static_cast<unsigned short>(parsedPort);
     }

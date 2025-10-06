@@ -306,6 +306,10 @@ Most commands return their results in JSON format.
   * `delayed`: participating in the latest consensus rounds, but slower than others.
   * `agree`: running just fine.
 
+  If `transitive` is set or the node is the local node, the returned object has
+  a `maybe_dead_nodes` key with an array value containing nodes in the local
+  quorum set that might be dead (were `missing` for a 15 minute period).
+
 * **scp**
   `scp?[limit=n][&fullkeys=false]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last

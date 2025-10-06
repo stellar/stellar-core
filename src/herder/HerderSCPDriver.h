@@ -137,6 +137,14 @@ class HerderSCPDriver : public SCPDriver
 
     Json::Value getQsetLagInfo(bool summary, bool fullKeys);
 
+    // report the nodes identified as maybe dead (missing in SCP during the last
+    // CHECK_FOR_DEAD_NODES_MINUTES interval)
+    Json::Value getMaybeDeadNodes(bool fullKeys);
+
+    // Begin a new interval for checking for dead nodes--set current dead nodes
+    // as missing nodes from previous interval
+    void startCheckForDeadNodesInterval();
+
     // Application-specific weight function. This function uses the quality
     // levels from automatic quorum set generation to determine the weight of a
     // validator. It is designed to ensure that:
@@ -231,6 +239,12 @@ class HerderSCPDriver : public SCPDriver
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
+
+    // The nodes that have exclusively been marked missing during the current
+    // interval.
+    std::set<NodeID> mMissingNodes;
+    // The nodes that were missing during the previous interval.
+    std::set<NodeID> mDeadNodes;
 
     // validity of txSet
     mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
