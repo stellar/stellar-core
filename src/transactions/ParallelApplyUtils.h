@@ -228,9 +228,10 @@ class GlobalParallelApplyLedgerState
                            ParallelApplyEntry const& parEntry,
                            std::unordered_set<LedgerKey> const& readWriteSet);
 
-    void commitChangesFromThread(AppConnector& app,
-                                 ThreadParallelApplyLedgerState const& thread,
-                                 ApplyStage const& stage);
+    void
+    commitChangesFromThread(AppConnector& app,
+                            ThreadParallelApplyLedgerState const& thread,
+                            std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,

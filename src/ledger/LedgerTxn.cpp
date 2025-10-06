@@ -254,6 +254,7 @@ void
 RestoredEntries::addRestoresFrom(RestoredEntries const& other,
                                  bool allowDuplicates)
 {
+    ZoneScoped;
     // This method is called from three different call sites. In 2 of them it is
     // correct to assert that each restore is new/disjoint from any existing
     // restore:
