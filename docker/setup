@@ -9,6 +9,16 @@ apt-get update
 # We need apt-transport-https for adding apt.stellar.org in the Dockerfile
 apt-get install -y wget curl python3-six python3-colorama python3-pip postgresql-client sqlite3 apt-transport-https gnupg2
 
+if grep "VERSION_CODENAME=focal" /etc/os-release; then
+  echo "Setting up LLVM repo in the 20.04 Ubuntu base"
+  wget -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key
+
+  cat > /etc/apt/sources.list.d/llvm.list <<EOF
+  deb http://apt.llvm.org/focal/ llvm-toolchain-focal-19 main
+  deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-19 main
+EOF
+fi
+
 if grep "VERSION_CODENAME=jammy" /etc/os-release; then
   echo "Setting up LLVM repo in the 22.04 Ubuntu base"
   wget -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key
@@ -20,7 +30,7 @@ EOF
 fi
 
 # Install aws cli for uploading history to S3
-if grep "VERSION_CODENAME=jammy" /etc/os-release; then
+if grep -E "VERSION_CODENAME=(focal|jammy)" /etc/os-release; then
   pip3 install awscli --upgrade
 else
   # Ubuntu 24.04 or later need extra flag
