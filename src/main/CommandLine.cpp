@@ -1908,6 +1908,11 @@ runApplyLoad(CommandLineArgs const& args)
             config.LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
+            TmpDirManager tdm(std::string("soroban-storage-meta-"));
+            TmpDir td = tdm.tmpDir("soroban-meta-ok");
+            std::string metaPath = td.getName() + "/stream.xdr";
+            config.METADATA_OUTPUT_STREAM = metaPath;
+
             if (mode == ApplyLoadMode::MAX_SAC_TPS)
             {
                 if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >=
@@ -1918,7 +1923,12 @@ runApplyLoad(CommandLineArgs const& args)
                         "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
                 }
 
+                // For now, metrics are expensive at high, parallel load. We
+                // disable them so they don't bottleneck the test, but this
+                // should be addressed in the future.
                 config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
+                config.METADATA_OUTPUT_STREAM = "";
+                config.METADATA_DEBUG_LEDGERS = 0;
 
                 // We reuse accounts in max TPS tests, so we just need enough
                 // for a single ledger's worth of TXs
@@ -1931,11 +1941,6 @@ runApplyLoad(CommandLineArgs const& args)
                 // Apply Load may exceed TX_SET byte size limits, so ignore them
                 config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
             }
-
-            TmpDirManager tdm(std::string("soroban-storage-meta-"));
-            TmpDir td = tdm.tmpDir("soroban-meta-ok");
-            std::string metaPath = td.getName() + "/stream.xdr";
-            config.METADATA_OUTPUT_STREAM = metaPath;
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto appPtr = Application::create(clock, config);
