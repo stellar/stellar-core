@@ -55,7 +55,6 @@ template <typename BucketT> class BucketOutputIterator
     std::shared_ptr<BucketT> getBucket(
         BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
         std::optional<std::vector<typename BucketT::EntryT>> inMemoryState =
-            std::nullopt,
-        bool shouldIndex = true);
+            std::nullopt);
 };
 }

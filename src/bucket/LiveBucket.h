@@ -108,14 +108,22 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
     // be sorted, hashed, and adopted in the provided BucketManager.
-    // If storeInMemory is true, populates mEntries.
     static std::shared_ptr<LiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
           std::vector<LedgerEntry> const& initEntries,
           std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
-          asio::io_context& ctx, bool doFsync, bool storeInMemory = false,
-          bool shouldIndex = true);
+          asio::io_context& ctx, bool doFsync);
+
+    // Create a fresh bucket that exists only in memory, without writing to
+    // disk, calculating a hash, or indexing. This should only be used for
+    // "level -1" snap buckets that are immediately merged into level 0.
+    static std::shared_ptr<LiveBucket>
+    freshInMemoryOnly(BucketManager& bucketManager, uint32_t protocolVersion,
+                      std::vector<LedgerEntry> const& initEntries,
+                      std::vector<LedgerEntry> const& liveEntries,
+                      std::vector<LedgerKey> const& deadEntries,
+                      bool countMergeEvents);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
     // level bucket (i.e. DEADENTRY)

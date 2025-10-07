@@ -382,7 +382,11 @@ LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerEntry> const& liveEntries,
                                  std::vector<LedgerKey> const& deadEntries)
 {
+    ZoneScoped;
     std::vector<BucketEntry> bucket;
+    bucket.reserve(initEntries.size() + liveEntries.size() +
+                   deadEntries.size());
+
     for (auto const& e : initEntries)
     {
         BucketEntry ce;
@@ -420,8 +424,7 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries,
-                  bool countMergeEvents, asio::io_context& ctx, bool doFsync,
-                  bool storeInMemory, bool shouldIndex)
+                  bool countMergeEvents, asio::io_context& ctx, bool doFsync)
 {
     ZoneScoped;
     // When building fresh buckets after protocol version 10 (i.e. version
@@ -457,13 +460,42 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
-    if (storeInMemory)
+    return out.getBucket(bucketManager);
+}
+
+std::shared_ptr<LiveBucket>
+LiveBucket::freshInMemoryOnly(BucketManager& bucketManager,
+                              uint32_t protocolVersion,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries,
+                              bool countMergeEvents)
+{
+    ZoneScoped;
+    // When building fresh buckets after protocol version 10 (i.e. version
+    // 11-or-after) we differentiate INITENTRY from LIVEENTRY. In older
+    // protocols, for compatibility sake, we mark both cases as LIVEENTRY.
+    bool useInit = protocolVersionStartsFrom(
+        protocolVersion, FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+
+    auto entries =
+        convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
+    if (countMergeEvents)
     {
-        return out.getBucket(bucketManager, nullptr, std::move(entries),
-                             shouldIndex);
+        MergeCounters mc;
+        for (auto const& e : entries)
+        {
+            countNewEntryType(mc, e);
+        }
+        bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
-    return out.getBucket(bucketManager);
+    // This is just a "shell" bucket for in-memory merges, so we'll forgo the
+    // expensive BucketOutputIterator construction and just directly populate
+    // the in-memory state of an empty bucket.
+    auto b = std::make_shared<LiveBucket>();
+    b->setInMemoryEntries(std::move(entries));
+    return b;
 }
 
 void
