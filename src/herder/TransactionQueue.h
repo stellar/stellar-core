@@ -200,7 +200,10 @@ class TransactionQueue
                      medida::Counter& transactionsDelayAccumulator,
                      medida::Counter& transactionsDelayCounter,
                      medida::Counter& transactionsSelfDelayAccumulator,
-                     medida::Counter& transactionsSelfDelayCounter)
+                     medida::Counter& transactionsSelfDelayCounter,
+                     medida::Counter& txsEvictedByHigherFeeTxCounter,
+                     medida::Counter& txsEvictedDueToAgeCounter,
+                     medida::Counter& txsNotAcceptedDueToLowFeeCounter)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelayAccumulator(transactionsDelayAccumulator)
@@ -208,6 +211,10 @@ class TransactionQueue
                   transactionsSelfDelayAccumulator)
             , mTransactionsDelayCounter(transactionsDelayCounter)
             , mTransactionsSelfDelayCounter(transactionsSelfDelayCounter)
+            , mTxsEvictedByHigherFeeTxCounter(txsEvictedByHigherFeeTxCounter)
+            , mTxsEvictedDueToAgeCounter(txsEvictedDueToAgeCounter)
+            , mTxsNotAcceptedDueToLowFeeCounter(
+                  txsNotAcceptedDueToLowFeeCounter)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
@@ -220,6 +227,19 @@ class TransactionQueue
         // Count of transactions delay events
         medida::Counter& mTransactionsDelayCounter;
         medida::Counter& mTransactionsSelfDelayCounter;
+
+        // The following metrics provided more detailed insight into banned
+        // transactions: mBannedTransactionsCounter includes all these, as well
+        // as invalid transactions.
+        // Count of transactions evicted by higher fee txs when queue is
+        // near its capacity.
+        medida::Counter& mTxsEvictedByHigherFeeTxCounter;
+        // Count of transactions that had low fee for too long and have not
+        // been included into several ledgers in a row.
+        medida::Counter& mTxsEvictedDueToAgeCounter;
+        // Count of transactions that were not included into queue because it
+        // is at capacity and the fee is too low to replace other txs.
+        medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;
