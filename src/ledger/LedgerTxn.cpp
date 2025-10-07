@@ -3601,90 +3601,55 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         return nullptr;
     }
     auto const& key = gkey.ledgerKey();
-
-    // If everything is cached in-memory, don't check or populate the cache
-    if (mApp.getConfig().allBucketsInMemory())
+    if (mEntryCache.exists(key))
     {
-        std::shared_ptr<LedgerEntry const> entry;
-        try
-        {
-            entry = getSearchableLiveBucketListSnapshot().load(key);
-        }
-        catch (std::exception& e)
-        {
-            printErrorAndAbort(
-                "fatal error when loading ledger entry from LedgerTxnRoot: ",
-                e.what());
-        }
-        catch (...)
-        {
-            printErrorAndAbort(
-                "unknown fatal error when loading ledger entry from "
-                "LedgerTxnRoot");
-        }
-
-        if (entry)
-        {
-            return std::make_shared<InternalLedgerEntry const>(*entry);
-        }
-        else
-        {
-            return nullptr;
-        }
+        std::string zoneTxt("hit");
+        ZoneText(zoneTxt.c_str(), zoneTxt.size());
+        return getFromEntryCache(key);
     }
     else
     {
-        if (mEntryCache.exists(key))
+        std::string zoneTxt("miss");
+        ZoneText(zoneTxt.c_str(), zoneTxt.size());
+        ++mPrefetchMisses;
+    }
+
+    std::shared_ptr<LedgerEntry const> entry = nullptr;
+    try
+    {
+        if (InMemorySorobanState::isInMemoryType(key))
         {
-            std::string zoneTxt("hit");
-            ZoneText(zoneTxt.c_str(), zoneTxt.size());
-            return getFromEntryCache(key);
+            entry = mInMemorySorobanState.get(key);
+        }
+        else if (!mApp.getConfig().allBucketsInMemory() && key.type() == OFFER)
+        {
+            entry = loadOffer(key);
         }
         else
         {
-            std::string zoneTxt("miss");
-            ZoneText(zoneTxt.c_str(), zoneTxt.size());
-            ++mPrefetchMisses;
+            entry = getSearchableLiveBucketListSnapshot().load(key);
         }
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort(
+            "fatal error when loading ledger entry from LedgerTxnRoot: ",
+            e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("unknown fatal error when loading ledger entry from "
+                           "LedgerTxnRoot");
+    }
 
-        std::shared_ptr<LedgerEntry const> entry = nullptr;
-        try
-        {
-            if (InMemorySorobanState::isInMemoryType(key))
-            {
-                entry = mInMemorySorobanState.get(key);
-            }
-            else if (key.type() == OFFER)
-            {
-                entry = loadOffer(key);
-            }
-            else
-            {
-                entry = getSearchableLiveBucketListSnapshot().load(key);
-            }
-        }
-        catch (std::exception& e)
-        {
-            printErrorAndAbort(
-                "fatal error when loading ledger entry from LedgerTxnRoot: ",
-                e.what());
-        }
-        catch (...)
-        {
-            printErrorAndAbort(
-                "unknown fatal error when loading ledger entry from "
-                "LedgerTxnRoot");
-        }
-
-        putInEntryCache(key, entry, LoadType::IMMEDIATE);
-        if (entry)
-        {
-            return std::make_shared<InternalLedgerEntry const>(*entry);
-        }
-        else
-        {
-            return nullptr;
-        }
+    putInEntryCache(key, entry, LoadType::IMMEDIATE);
+    if (entry)
+    {
+        return std::make_shared<InternalLedgerEntry const>(*entry);
+    }
+    else
+    {
+        return nullptr;
     }
 }
 

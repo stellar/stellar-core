@@ -414,6 +414,7 @@ void
 GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     AbstractLedgerTxn& ltx) const
 {
+    ZoneScoped;
     LedgerTxn ltxInner(ltx);
     for (auto const& entry : mGlobalEntryMap)
     {
