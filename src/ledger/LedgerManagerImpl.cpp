@@ -1704,7 +1704,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
 void
 LedgerManagerImpl::setLastClosedLedger(
-    LedgerHeaderHistoryEntry const& lastClosed)
+    LedgerHeaderHistoryEntry const& lastClosed, bool rebuildInMemoryState)
 {
     // NB: this method is a sort of half-apply that runs on main thread and
     // updates LCL without apply having happened any txs. It's only relevant
@@ -1731,16 +1731,19 @@ LedgerManagerImpl::setLastClosedLedger(
         PubKeyUtils::enableRustDalekVerify();
     }
 
-    // This should not be additionally conditionalized on lv >= anything,
-    // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
-    //
-    // Again, since we are only called during catchup and just got a full
-    // bucket state, there's no tx-apply state to snapshot, in this one
-    // case we will prime the tx-apply-state's soroban module cache using
-    // a snapshot _from_ the LCL state.
-    auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
-    mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
-    mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
+    if (rebuildInMemoryState)
+    {
+        // This should not be additionally conditionalized on lv >= anything,
+        // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
+        //
+        // Again, since we are only called during catchup and just got a full
+        // bucket state, there's no tx-apply state to snapshot, in this one
+        // case we will prime the tx-apply-state's soroban module cache using
+        // a snapshot _from_ the LCL state.
+        auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
+        mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
+        mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
+    }
     mApplyState.markEndOfSetupPhase();
 }
 

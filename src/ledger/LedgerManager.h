@@ -337,8 +337,13 @@ class LedgerManager
     }
 #endif
 
-    virtual void
-    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
+    // This function is called in the context of catchup when we start from
+    // genesis ledger. When buckets are done applying, set LCL based on the new
+    // state of the bucketlist. If rebuildInMemoryState is true, rebuild the
+    // in-memory soroban state. rebuildInMemoryState is not necessary for some
+    // offline catchup configurations.
+    virtual void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
+                                     bool rebuildInMemoryState) = 0;
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 
