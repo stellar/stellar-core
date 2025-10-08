@@ -132,7 +132,13 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter({"herder", "pending-txs", "sum"}),
         app.getMetrics().NewCounter({"herder", "pending-txs", "count"}),
         app.getMetrics().NewCounter({"herder", "pending-txs", "self-sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "self-count"}));
+        app.getMetrics().NewCounter({"herder", "pending-txs", "self-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "evicted-due-too-low-fee-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "evicted-due-too-age-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "not-included-due-too-low-fee-count"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
@@ -415,6 +421,7 @@ TransactionQueue::canAdd(
     if (!canAddRes.first)
     {
         ban({tx});
+        mQueueMetrics->mTxsNotAcceptedDueToLowFeeCounter.inc();
         if (canAddRes.second != 0)
         {
             auto txResult = tx->createValidationSuccessResult();
@@ -687,9 +694,14 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
 
     // make space so that we can add this transaction
     // this will succeed as `canAdd` ensures that this is the case
+    int evictedCount = 0;
     mTxQueueLimiter->evictTransactions(
         txsToEvict, *tx,
-        [this](TransactionFrameBasePtr const& txToEvict) { ban({txToEvict}); });
+        [this, &evictedCount](TransactionFrameBasePtr const& txToEvict) {
+            ++evictedCount;
+            ban({txToEvict});
+        });
+    mQueueMetrics->mTxsEvictedByHigherFeeTxCounter.inc(evictedCount);
     mTxQueueLimiter->addTransaction(tx);
     mKnownTxHashes[tx->getFullHash()] = tx;
 
@@ -871,6 +883,7 @@ TransactionQueue::shift()
     auto& bannedFront = mBannedTransactions.front();
     auto end = std::end(mAccountStates);
     auto it = std::begin(mAccountStates);
+    int evictedDueToAge = 0;
     while (it != end)
     {
         // If mTransactions is empty then mAge is always 0. This can occur
@@ -896,6 +909,7 @@ TransactionQueue::shift()
                 bannedFront.insert(it->second.mTransaction->mTx->getFullHash());
                 mQueueMetrics->mBannedTransactionsCounter.inc();
                 it->second.mTransaction.reset();
+                ++evictedDueToAge;
             }
             if (it->second.mTotalFees == 0)
             {
@@ -913,7 +927,7 @@ TransactionQueue::shift()
             ++it;
         }
     }
-
+    mQueueMetrics->mTxsEvictedDueToAgeCounter.inc(evictedDueToAge);
     for (size_t i = 0; i < sizes.size(); i++)
     {
         mQueueMetrics->mSizeByAge[i]->set_count(sizes[i]);
@@ -1071,7 +1085,13 @@ SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "self-sum"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "self-count"}));
+            {"herder", "pending-soroban-txs", "self-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "evicted-due-too-low-fee-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "evicted-due-too-age-count"}),
+        app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
+                                     "not-included-due-too-low-fee-count"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
 }
 
