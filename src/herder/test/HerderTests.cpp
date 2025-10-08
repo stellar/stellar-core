@@ -5685,7 +5685,8 @@ simpleThreeNode()
     int constexpr numValidators = 3;
     for (int i = 0; i < numValidators; ++i)
     {
-        SecretKey const& key = sks.emplace_back(SecretKey::random());
+        SecretKey const& key =
+            sks.emplace_back(SecretKey::pseudoRandomForTesting());
         ValidatorEntry& entry = validators.emplace_back();
         entry.mName = fmt::format("validator-{}", i);
         entry.mHomeDomain = "A";
@@ -5718,7 +5719,8 @@ unbalancedOrgs()
             org = "B";
         }
 
-        SecretKey const& key = sks.emplace_back(SecretKey::random());
+        SecretKey const& key =
+            sks.emplace_back(SecretKey::pseudoRandomForTesting());
         ValidatorEntry& entry = validators.emplace_back();
         entry.mName = fmt::format("validator-{}", i);
         entry.mHomeDomain = org;
@@ -5744,7 +5746,8 @@ teir1Like()
         int const numValidators = i == 0 ? 5 : 3;
         for (int j = 0; j < numValidators; ++j)
         {
-            SecretKey const& key = sks.emplace_back(SecretKey::random());
+            SecretKey const& key =
+                sks.emplace_back(SecretKey::pseudoRandomForTesting());
             ValidatorEntry& entry = validators.emplace_back();
             entry.mName = fmt::format("validator-{}-{}", i, j);
             entry.mHomeDomain = org;
@@ -5809,7 +5812,7 @@ randomTopology(int maxValidators)
         }
 
         std::string const org = fmt::format("org-{}", curOrg);
-        SecretKey const& key = sks.at(i) = SecretKey::random();
+        SecretKey const& key = sks.at(i) = SecretKey::pseudoRandomForTesting();
 
         ValidatorEntry& entry = validators.at(i);
         entry.mName = fmt::format("validator-{}", i);
@@ -6188,7 +6191,8 @@ replaceOneOrg(Topology const& t)
     int constexpr numValidators = 3;
     for (int j = 0; j < numValidators; ++j)
     {
-        SecretKey const& key = sks.emplace_back(SecretKey::random());
+        SecretKey const& key =
+            sks.emplace_back(SecretKey::pseudoRandomForTesting());
         ValidatorEntry& entry = validators.emplace_back();
         entry.mName = fmt::format("validator-replaced-{}", j);
         entry.mHomeDomain = orgName;
@@ -6216,7 +6220,8 @@ addOrgs(int orgsToAdd, Topology const& t)
         int constexpr numValidators = 3;
         for (int j = 0; j < numValidators; ++j)
         {
-            SecretKey const& key = sks.emplace_back(SecretKey::random());
+            SecretKey const& key =
+                sks.emplace_back(SecretKey::pseudoRandomForTesting());
             ValidatorEntry& entry = validators.emplace_back();
             entry.mName = fmt::format("new-validator-{}-{}", i, j);
             entry.mHomeDomain = org;
