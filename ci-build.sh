@@ -183,6 +183,7 @@ export RUN_PARTITIONS
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
 ulimit -n 256
+export PARALLEL_PROGRESS=0
 time make check
 
 echo All done

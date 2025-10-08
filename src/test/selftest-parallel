@@ -27,6 +27,9 @@ fi
 if [[ -z "$RND_SEED" ]]; then
     RND_SEED=1
 fi
+if [[ -z "$PARALLEL_PROGRESS" ]]; then
+    PARALLEL_PROGRESS=1
+fi
 
 cleanup() {
     rm -rf $TEST_PARTITIONS_DIR
@@ -89,5 +92,8 @@ for i in $RUN_PARTITIONS; do
   cat $TEST_PARTITIONS_DIR/test-partition-$i.txt >> $TESTS
 done
 
-cat $TESTS | parallel -j $nparts -n $BATCHSIZE --line-buffer --tag-string '{%}' --progress --halt-on-error 2 runpart '{%}' "{}"
-
+PROGRESS=
+if [[ $PARALLEL_PROGRESS -ne 0 ]]; then
+    PROGRESS="--progress"
+fi
+cat $TESTS | parallel -j $nparts -n $BATCHSIZE --line-buffer --tag-string '{%}' $PROGRESS --halt-on-error 2 runpart '{%}' "{}"
