@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "herder/Herder.h"
@@ -1224,6 +1225,10 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     if (needUpgradeToVersion(ProtocolVersion::V_23, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
+    }
+    if (needUpgradeToVersion(ProtocolVersion::V_24, prevVersion, newVersion))
+    {
+        PubKeyUtils::enableRustDalekVerify();
     }
 
     // Starting from protocol 23 we need to fully override the Soroban in-memory

@@ -1357,6 +1357,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.13.1",
  "cxx",
+ "ed25519-dalek",
  "itertools 0.10.5",
  "log",
  "rand",

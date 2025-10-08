@@ -1726,6 +1726,11 @@ LedgerManagerImpl::setLastClosedLedger(
     advanceLastClosedLedgerState(output);
 
     auto ledgerVersion = lastClosed.header.ledgerVersion;
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_24))
+    {
+        PubKeyUtils::enableRustDalekVerify();
+    }
+
     // This should not be additionally conditionalized on lv >= anything,
     // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
     //
