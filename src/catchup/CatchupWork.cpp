@@ -470,11 +470,16 @@ CatchupWork::runCatchupStep()
             if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS &&
                 !mBucketsAppliedEmitted)
             {
+                // Do not rebuild state if we're simply applying buckets in
+                // offline mode
+                bool rebuildInMemoryState = !mCatchupConfiguration.offline() ||
+                                            mCatchupConfiguration.count() != 0;
+
                 // If we crash before this call to setLastClosedLedger, then
                 // the node will have to catch up again and it will clear the
                 // ledger because clearRebuildForType has not been called yet.
                 mApp.getLedgerManager().setLastClosedLedger(
-                    mVerifiedLedgerRangeStart);
+                    mVerifiedLedgerRangeStart, rebuildInMemoryState);
                 mBucketsAppliedEmitted = true;
                 mLiveBuckets.clear();
                 mHotBuckets.clear();

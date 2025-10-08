@@ -510,8 +510,8 @@ class LedgerManagerImpl : public LedgerManager
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData,
                              bool queueRebuildNeeded);
-    void
-    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
+    void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
+                             bool rebuildInMemoryState) override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 
