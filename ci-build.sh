@@ -32,7 +32,7 @@ while [[ -n "$1" ]]; do
                 exit 1
             fi
             export TEST_SPEC='[tx]'
-            export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${PWD}/test-tx-meta-baseline-${PROTOCOL}"
+            export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versions --rng-seed 12345 --check-test-tx-meta ${PWD}/test-tx-meta-baseline-${PROTOCOL}"
             ;;
     "--protocol")
             PROTOCOL="$1"
@@ -185,6 +185,7 @@ export RUN_PARTITIONS
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
 ulimit -n 256
+export INTERACTIVE=0
 time make check
 
 echo All done
