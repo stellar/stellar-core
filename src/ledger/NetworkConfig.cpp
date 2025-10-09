@@ -552,6 +552,68 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+void
+updateCpuCostParamsEntryForV24(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // Resize to fit the last cost type added in v24
+    params.resize(static_cast<uint32>(ContractCostType::Bn254EncodeFp) + 1);
+
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have either been updated, or newly created in p24
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        case Bn254EncodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 345, 0);
+            break;
+        case Bn254DecodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 433, 0);
+            break;
+        case Bn254G1CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 858, 0);
+            break;
+        case Bn254G2CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2642, 0);
+            break;
+        case Bn254G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2930793, 0);
+            break;
+        case Bn254G1ProjectiveToAffine:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 63, 0);
+            break;
+        case Bn254G1Add:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 3465, 0);
+            break;
+        case Bn254G1Mul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1034667, 0);
+            break;
+        case Bn254Pairing:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 5263357, 391912693);
+            break;
+        case Bn254FrFromU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1940, 0);
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
 {
@@ -902,6 +964,69 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
             break;
         case Bls12381FrInv:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    ltx.commit();
+}
+
+void
+updateMemCostParamsEntryForV24(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // Resize to fit the last cost type added in v24
+    params.resize(static_cast<uint32>(ContractCostType::Bn254EncodeFp) + 1);
+
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // adding new cost types introduced in p24
+        case Bn254EncodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254DecodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G2CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1ProjectiveToAffine:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1Add:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1Mul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254Pairing:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 1833, 6231032);
+            break;
+        case Bn254FrFromU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
             break;
 
         default:
@@ -1291,6 +1416,15 @@ SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
     ZoneScoped;
     updateCpuCostParamsEntryForV22(ltx);
     updateMemCostParamsEntryForV22(ltx);
+}
+
+void
+SorobanNetworkConfig::createCostTypesForV24(AbstractLedgerTxn& ltx,
+                                            Application& app)
+{
+    ZoneScoped;
+    updateCpuCostParamsEntryForV24(ltx);
+    updateMemCostParamsEntryForV24(ltx);
 }
 
 void

@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 23,
+	"!cfg protocol version" : 24,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -28,7 +28,8 @@
 		20,
 		21,
 		22,
-		23
+		23,
+		24
 	],
 	"bump sequence|protocol version 0" : 
 	[
@@ -396,6 +397,31 @@
 	"bump sequence|protocol version 23|test success|large bump" : [ "KDk3TqUQkEU=" ],
 	"bump sequence|protocol version 23|test success|large bump|no more tx when INT64_MAX is reached" : [ "R6/tPSYNWDY=" ],
 	"bump sequence|protocol version 23|test success|small bump" : [ "1x5MkE51m4M=" ],
+	"bump sequence|protocol version 24" : 
+	[
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80=",
+		"DKQqbAOaoas=",
+		"aFvubGY3q80="
+	],
+	"bump sequence|protocol version 24|seqnum equals starting sequence" : [ "l7Jo9jHXv6w=", "R6/tPSYNWDY=" ],
+	"bump sequence|protocol version 24|test success|backward jump (no-op)" : [ "SEHtVmEF8Dc=" ],
+	"bump sequence|protocol version 24|test success|bad seq" : [ "261VQSEf710=", "2TinaXRxsJU=" ],
+	"bump sequence|protocol version 24|test success|large bump" : [ "KDk3TqUQkEU=" ],
+	"bump sequence|protocol version 24|test success|large bump|no more tx when INT64_MAX is reached" : [ "R6/tPSYNWDY=" ],
+	"bump sequence|protocol version 24|test success|small bump" : [ "1x5MkE51m4M=" ],
 	"bump sequence|protocol version 2|not supported" : [ "/lfj8xIFS8I=" ],
 	"bump sequence|protocol version 3" : 
 	[
