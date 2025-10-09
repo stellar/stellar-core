@@ -199,8 +199,8 @@ class TransactionQueue
         QueueMetrics(
             std::vector<medida::Counter*> sizeByAge,
             medida::Counter& bannedTransactionsCounter,
-            SimpleTimer<std::chrono::milliseconds>&& transactionsDelay,
-            SimpleTimer<std::chrono::milliseconds>&& transactionsSelfDelay,
+            const SimpleTimer<std::chrono::milliseconds>& transactionsDelay,
+            const SimpleTimer<std::chrono::milliseconds>& transactionsSelfDelay,
             medida::Counter& txsEvictedByHigherFeeTxCounter,
             medida::Counter& txsEvictedDueToAgeCounter,
             medida::Counter& txsNotAcceptedDueToLowFeeCounter,
