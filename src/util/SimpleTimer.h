@@ -34,7 +34,7 @@ template <typename Duration> class SimpleTimer
 
   public:
     SimpleTimer(medida::MetricsRegistry& registry, const std::string& domain,
-                const std::string& type, const std::string& base_name);
+                const std::string& type, const std::string& baseName);
 
     // Add a sample with length `n`
     void inc(std::int64_t n);
