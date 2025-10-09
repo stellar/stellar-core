@@ -110,7 +110,7 @@ template <typename Duration>
 std::int64_t
 SimpleTimer<Duration>::count() const
 {
-    return mSum.count();
+    return mCount.count();
 }
 
 template <typename Duration>
