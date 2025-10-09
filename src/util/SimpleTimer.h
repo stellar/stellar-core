@@ -6,16 +6,12 @@
 namespace stellar
 {
 
-template <typename, typename = std::void_t<>>
-struct IsDuration : std::false_type
+template <typename> struct IsDuration : std::false_type
 {
 };
 
-template <typename T>
-struct IsDuration<
-    T, std::enable_if_t<std::is_same_v<
-           T, std::chrono::duration<typename T::rep, typename T::period>>>>
-    : std::true_type
+template <typename Rep, typename Period>
+struct IsDuration<std::chrono::duration<Rep, Period>> : std::true_type
 {
 };
 
@@ -28,7 +24,7 @@ template <typename T> class SimpleTimerContext;
 template <typename Duration> class SimpleTimer
 {
     static_assert(
-        IsDuration<Duration>(),
+        IsDuration<Duration>::value,
         "SimpleTimer must be instantiated with a std::chrono::duration");
     medida::Counter& mSum;
     medida::Counter& mCount;
