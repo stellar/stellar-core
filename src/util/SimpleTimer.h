@@ -36,9 +36,6 @@ template <typename Duration> class SimpleTimer
     SimpleTimer(medida::MetricsRegistry& registry, const std::string& domain,
                 const std::string& type, const std::string& baseName);
 
-    // Add a sample with length `n`
-    void inc(std::int64_t n);
-
     // Reset the max counter
     void clearMax();
 
@@ -84,15 +81,6 @@ SimpleTimer<Duration>::SimpleTimer(medida::MetricsRegistry& registry,
 
 template <typename Duration>
 void
-SimpleTimer<Duration>::inc(std::int64_t n)
-{
-    mSum.inc(n);
-    mCount.inc(1);
-    mMax.set_count(std::max(mMax.count(), n));
-}
-
-template <typename Duration>
-void
 SimpleTimer<Duration>::clearMax()
 {
     mMax.clear();
@@ -117,7 +105,9 @@ template <typename Duration>
 void
 SimpleTimer<Duration>::Update(Duration d)
 {
-    inc(d.count());
+    mSum.inc(d.count());
+    mCount.inc(1);
+    mMax.set_count(std::max(mMax.count(), d.count()));
 }
 
 template <typename Duration>
