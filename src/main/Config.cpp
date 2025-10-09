@@ -1239,6 +1239,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
                 {"BUCKET_DIR_PATH",
                  [&]() { BUCKET_DIR_PATH = readString(item); }},
+                {"FILTERED_SOROBAN_KEYS_PATH",
+                 [&]() { FILTERED_SOROBAN_KEYS_PATH = readString(item); }},
                 {"NODE_NAMES",
                  [&]() {
                      auto names = readArray<std::string>(item);

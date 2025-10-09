@@ -191,6 +191,7 @@ class TransactionQueue
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
+    UnorderedSet<LedgerKey> mKeysToFilter;
 
     // counters
     struct QueueMetrics
@@ -203,7 +204,8 @@ class TransactionQueue
                      medida::Counter& transactionsSelfDelayCounter,
                      medida::Counter& txsEvictedByHigherFeeTxCounter,
                      medida::Counter& txsEvictedDueToAgeCounter,
-                     medida::Counter& txsNotAcceptedDueToLowFeeCounter)
+                     medida::Counter& txsNotAcceptedDueToLowFeeCounter,
+                     medida::Counter& txsFilteredDueToFpKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelayAccumulator(transactionsDelayAccumulator)
@@ -215,6 +217,7 @@ class TransactionQueue
             , mTxsEvictedDueToAgeCounter(txsEvictedDueToAgeCounter)
             , mTxsNotAcceptedDueToLowFeeCounter(
                   txsNotAcceptedDueToLowFeeCounter)
+            , mTxsFilteredDueToFootprintKeys(txsFilteredDueToFpKeys)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
@@ -240,6 +243,8 @@ class TransactionQueue
         // Count of transactions that were not included into queue because it
         // is at capacity and the fee is too low to replace other txs.
         medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
+        
+        medida::Counter& mTxsFilteredDueToFootprintKeys;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;

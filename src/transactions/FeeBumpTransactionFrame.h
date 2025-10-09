@@ -125,6 +125,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     TransactionEnvelope const& getEnvelope() const override;
 
+    bool validateSorobanTxForFlooding(
+        UnorderedSet<LedgerKey> const& keysToFilter) const override;
     bool validateSorobanMemoForFlooding() const override;
 
     int64_t getFullFee() const override;

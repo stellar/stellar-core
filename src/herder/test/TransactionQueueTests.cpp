@@ -11,6 +11,7 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -1144,10 +1145,31 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
     REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
 }
 
-TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
+TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
 {
-    Config cfg = getTestConfig();
     VirtualClock clock;
+    TmpDirManager tdm("txq-soroban-filter");
+    XDROutputFileStream keysToFilterStream(clock.getIOContext(), true);
+    std::string keysToFilterPath = "txq-soroban-filter/keys-to-filter.xdr";
+    keysToFilterStream.open(keysToFilterPath);
+    auto keysToFilter = std::vector<std::string>{
+        "AAAABgAAAAGt785ZruUpaPdgYdSUwlJbdWWfpClqZfSZ7ynlZHfklgAAABAAAAABAAAAAg"
+        "AAAA8AAAAIQmFsYW5jZTIAAAASAAAAAdF5YHH8uuXPvks+buOrOfzSFQ3LiawbU0kuc+"
+        "LKXXZRAAAAAQ==",
+        "AAAABgAAAAGt785ZruUpaPdgYdSUwlJbdWWfpClqZfSZ7ynlZHfklgAAABAAAAABAAAAAg"
+        "AAAA8AAAAIQmFsYW5jZTMAAAASAAAAAdF5YHH8uuXPvks+buOrOfzSFQ3LiawbU0kuc+"
+        "LKXXZRAAAAAQ=="};
+    for (auto const& key : keysToFilter)
+    {
+        LedgerKey lk;
+        fromOpaqueBase64(lk, key);
+        keysToFilterStream.writeOne(lk);
+    }
+    keysToFilterStream.close();
+
+    Config cfg = getTestConfig();
+    cfg.FILTERED_SOROBAN_KEYS_PATH = keysToFilterPath;
+
     auto app = createTestApplication(clock, cfg);
 
     const int64_t startingBalance =
@@ -1260,6 +1282,59 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
                                  uploadResourceFee + 200);
         REQUIRE(app->getHerder().recvTransaction(feeBumpTx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+
+    SECTION("key filter")
+    {
+        auto runTestForKey = [&](std::string const& keyStr) {
+            LedgerKey key;
+            fromOpaqueBase64(key, keyStr);
+            auto runTest = [&](SorobanResources const& resources,
+                               Operation op) {
+                auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                    app->getNetworkID(), a1, {op}, {}, resources,
+                    uploadResourceFee + 100, uploadResourceFee);
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                        TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+                auto feeBumpTx =
+                    feeBump(*app, feeBumper, tx, uploadResourceFee + 200);
+                REQUIRE(
+                    app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+            };
+            Operation restoreOp;
+            restoreOp.body.type(RESTORE_FOOTPRINT);
+            Operation extendOp;
+            extendOp.body.type(EXTEND_FOOTPRINT_TTL);
+            auto ops = std::vector<Operation>{uploadOp, restoreOp, extendOp};
+            auto resourcesRo = resources;
+            resourcesRo.footprint.readOnly.push_back(key);
+            auto resourcesRw = resources;
+            resourcesRw.footprint.readWrite.push_back(key);
+            for (auto const& op : ops)
+            {
+                INFO("Op type: " +
+                     std::to_string(static_cast<int>(op.body.type())));
+                runTest(resourcesRo, op);
+                runTest(resourcesRw, op);
+            }
+        };
+        SECTION("hardcoded filter")
+        {
+            std::string keyStr =
+                "AAAABgAAAAGt785ZruUpaPdgYdSUwlJbdWWfpClqZfSZ7ynlZHfklgAAABAAAA"
+                "ABAA"
+                "AAAgAAAA8AAAAHQmFsYW5jZQAAAAASAAAAAdF5YHH8uuXPvks+"
+                "buOrOfzSFQ3LiawbU0kuc+LKXXZRAAAAAQ==";
+            runTestForKey(keyStr);
+        }
+        SECTION("key from file")
+        {
+            for (auto const& keyStr : keysToFilter)
+            {
+                runTestForKey(keyStr);
+            }
+        }
     }
 }
 
