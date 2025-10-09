@@ -473,7 +473,7 @@ CatchupWork::runCatchupStep()
                 // Do not rebuild state if we're simply applying buckets in
                 // offline mode
                 bool rebuildInMemoryState = !mCatchupConfiguration.offline() ||
-                                            mCatchupConfiguration.count() != 0;
+                                            catchupRange.replayLedgers();
 
                 // If we crash before this call to setLastClosedLedger, then
                 // the node will have to catch up again and it will clear the
