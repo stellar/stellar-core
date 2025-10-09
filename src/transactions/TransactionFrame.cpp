@@ -278,6 +278,36 @@ TransactionFrame::getRawOperations() const
 }
 
 bool
+TransactionFrame::validateSorobanTxForFlooding(
+    UnorderedSet<LedgerKey> const& keysToFilter) const
+{
+    if (!isSoroban() || mEnvelope.type() != ENVELOPE_TYPE_TX)
+    {
+        return true;
+    }
+
+    if (mEnvelope.v1().tx.ext.v() != 1)
+    {
+        return true;
+    }
+
+    auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
+    auto checkKeys = [&keysToFilter](auto const& keys) {
+        for (auto const& key : keys)
+        {
+            if (keysToFilter.find(key) != keysToFilter.end())
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    return checkKeys(sorobanData.resources.footprint.readOnly) &&
+           checkKeys(sorobanData.resources.footprint.readWrite);
+}
+
+bool
 TransactionFrame::validateSorobanMemoForFlooding() const
 {
     if (!isSoroban())
@@ -292,6 +322,7 @@ TransactionFrame::validateSorobanMemoForFlooding() const
     }
 
     auto const& op = ops.at(0);
+
     if (op.body.type() != INVOKE_HOST_FUNCTION)
     {
         return true;

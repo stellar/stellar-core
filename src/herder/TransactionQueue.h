@@ -192,6 +192,7 @@ class TransactionQueue
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
+    UnorderedSet<LedgerKey> mKeysToFilter;
 
     // counters
     struct QueueMetrics
@@ -201,7 +202,8 @@ class TransactionQueue
                      medida::Counter& transactionsDelayAccumulator,
                      medida::Counter& transactionsDelayCounter,
                      medida::Counter& transactionsSelfDelayAccumulator,
-                     medida::Counter& transactionsSelfDelayCounter)
+                     medida::Counter& transactionsSelfDelayCounter,
+                     medida::Counter& txsFilteredDueToFpKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelayAccumulator(transactionsDelayAccumulator)
@@ -209,6 +211,7 @@ class TransactionQueue
                   transactionsSelfDelayAccumulator)
             , mTransactionsDelayCounter(transactionsDelayCounter)
             , mTransactionsSelfDelayCounter(transactionsSelfDelayCounter)
+            , mTxsFilteredDueToFootprintKeys(txsFilteredDueToFpKeys)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
@@ -221,6 +224,8 @@ class TransactionQueue
         // Count of transactions delay events
         medida::Counter& mTransactionsDelayCounter;
         medida::Counter& mTransactionsSelfDelayCounter;
+
+        medida::Counter& mTxsFilteredDueToFootprintKeys;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;

@@ -436,6 +436,13 @@ FeeBumpTransactionFrame::clearCached() const
 #endif
 
 bool
+FeeBumpTransactionFrame::validateSorobanTxForFlooding(
+    UnorderedSet<LedgerKey> const& keysToFilter) const
+{
+    return mInnerTx->validateSorobanTxForFlooding(keysToFilter);
+}
+
+bool
 FeeBumpTransactionFrame::validateSorobanMemoForFlooding() const
 {
     return mInnerTx->validateSorobanMemoForFlooding();

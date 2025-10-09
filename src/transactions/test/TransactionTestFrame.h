@@ -88,6 +88,8 @@ class TransactionTestFrame : public TransactionFrameBase
     // clear pre-computed hashes
     void clearCached() const override;
 
+    bool validateSorobanTxForFlooding(
+        UnorderedSet<LedgerKey> const& keysToFilter) const override;
     bool validateSorobanMemoForFlooding() const override;
 
     // Returns the total fee of this transaction, including the 'flat',
