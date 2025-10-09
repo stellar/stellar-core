@@ -131,10 +131,10 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
     mQueueMetrics = std::make_unique<QueueMetrics>(
         sizeByAge,
         app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "count"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "self-sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "self-count"}),
+        SimpleTimer<std::chrono::milliseconds>(app.getMetrics(), "herder",
+                                               "pending-txs", ""),
+        SimpleTimer<std::chrono::milliseconds>(app.getMetrics(), "herder",
+                                               "pending-txs", "self-"),
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "evicted-due-too-low-fee-count"}),
         app.getMetrics().NewCounter(
@@ -784,14 +784,11 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                         auto elapsed = std::chrono::duration_cast<
                             std::chrono::milliseconds>(
                             now - transaction->mInsertionTime);
-                        mQueueMetrics->mTransactionsDelayAccumulator.inc(
-                            elapsed.count());
-                        mQueueMetrics->mTransactionsDelayCounter.inc();
+                        mQueueMetrics->mTransactionsDelay.Update(elapsed);
                         if (transaction->mSubmittedFromSelf)
                         {
-                            mQueueMetrics->mTransactionsSelfDelayAccumulator
-                                .inc(elapsed.count());
-                            mQueueMetrics->mTransactionsSelfDelayCounter.inc();
+                            mQueueMetrics->mTransactionsSelfDelay.Update(
+                                elapsed);
                         }
                     }
 
@@ -1087,12 +1084,10 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         sizeByAge,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "banned"}),
-        app.getMetrics().NewCounter({"herder", "pending-soroban-txs", "sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-soroban-txs", "count"}),
-        app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "self-sum"}),
-        app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "self-count"}),
+        SimpleTimer<std::chrono::milliseconds>(app.getMetrics(), "herder",
+                                               "pending-txs", ""),
+        SimpleTimer<std::chrono::milliseconds>(app.getMetrics(), "herder",
+                                               "pending-txs", "self-"),
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "evicted-due-too-low-fee-count"}),
         app.getMetrics().NewCounter(

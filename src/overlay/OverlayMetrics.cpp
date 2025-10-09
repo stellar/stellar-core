@@ -47,10 +47,7 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mRecvGetTxSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
     , mRecvTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "txset"}))
-    , mRecvTransactionAccumulator(
-          app.getMetrics().NewCounter({"overlay", "recv-transaction", "sum"}))
-    , mRecvTransactionCounter(
-          app.getMetrics().NewCounter({"overlay", "recv-transaction", "count"}))
+    , mRecvTransactionTimer(app.getMetrics(), "overlay", "recv-transaction", "")
     , mRecvGetSCPQuorumSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-qset"}))
     , mRecvSCPQuorumSetTimer(
