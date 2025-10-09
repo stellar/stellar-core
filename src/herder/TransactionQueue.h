@@ -195,13 +195,14 @@ class TransactionQueue
     // counters
     struct QueueMetrics
     {
-        QueueMetrics(std::vector<medida::Counter*> sizeByAge,
-                     medida::Counter& bannedTransactionsCounter,
-                     SimpleTimer<std::chrono::milliseconds>&& transactionsDelay,
-                     SimpleTimer<std::chrono::milliseconds>&& transactionsSelfDelay,
-                     medida::Counter& txsEvictedByHigherFeeTxCounter,
-                     medida::Counter& txsEvictedDueToAgeCounter,
-                     medida::Counter& txsNotAcceptedDueToLowFeeCounter)
+        QueueMetrics(
+            std::vector<medida::Counter*> sizeByAge,
+            medida::Counter& bannedTransactionsCounter,
+            SimpleTimer<std::chrono::milliseconds>&& transactionsDelay,
+            SimpleTimer<std::chrono::milliseconds>&& transactionsSelfDelay,
+            medida::Counter& txsEvictedByHigherFeeTxCounter,
+            medida::Counter& txsEvictedDueToAgeCounter,
+            medida::Counter& txsNotAcceptedDueToLowFeeCounter)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelay(transactionsDelay)
