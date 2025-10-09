@@ -1078,9 +1078,9 @@ SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "banned"}),
         SimpleTimer<std::chrono::milliseconds>(app.getMetrics(), "herder",
-                                               "pending-txs", ""),
+                                               "pending-soroban-txs", ""),
         SimpleTimer<std::chrono::milliseconds>(app.getMetrics(), "herder",
-                                               "pending-txs", "self-"),
+                                               "pending-soroban-txs", "self-"),
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "evicted-due-too-low-fee-count"}),
         app.getMetrics().NewCounter(
