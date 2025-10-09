@@ -219,6 +219,11 @@ Database::applySchemaUpgrade(unsigned long vers)
         getRawSession() << "DROP TABLE IF EXISTS pubsub;";
         mApp.getPersistentState().migrateToSlotStateTable();
         break;
+    case 25:
+        // Remove deprecated dbbackend entry from storestate table
+        getRawSession() << "DELETE FROM storestate WHERE statename = "
+                           "'dbbackend';";
+        break;
     default:
         throw std::runtime_error("Unknown DB schema version");
     }
@@ -252,56 +257,8 @@ Database::upgradeToCurrentSchema()
         putSchemaVersion(vers);
     }
 
-    maybeUpgradeToBucketListDB();
-
     CLOG_INFO(Database, "DB schema is in current version");
     releaseAssert(vers == SCHEMA_VERSION);
-}
-
-void
-Database::maybeUpgradeToBucketListDB()
-{
-    if (mApp.getPersistentState().getState(PersistentState::kDBBackend,
-                                           getSession()) !=
-        LiveBucketIndex::DB_BACKEND_STATE)
-    {
-        CLOG_INFO(Database, "Upgrading to BucketListDB");
-
-        // Drop all LedgerEntry tables except for offers
-        CLOG_INFO(Database, "Dropping table accounts");
-        getRawSession() << "DROP TABLE IF EXISTS accounts;";
-
-        CLOG_INFO(Database, "Dropping table signers");
-        getRawSession() << "DROP TABLE IF EXISTS signers;";
-
-        CLOG_INFO(Database, "Dropping table claimablebalance");
-        getRawSession() << "DROP TABLE IF EXISTS claimablebalance;";
-
-        CLOG_INFO(Database, "Dropping table configsettings");
-        getRawSession() << "DROP TABLE IF EXISTS configsettings;";
-
-        CLOG_INFO(Database, "Dropping table contractcode");
-        getRawSession() << "DROP TABLE IF EXISTS contractcode;";
-
-        CLOG_INFO(Database, "Dropping table contractdata");
-        getRawSession() << "DROP TABLE IF EXISTS contractdata;";
-
-        CLOG_INFO(Database, "Dropping table accountdata");
-        getRawSession() << "DROP TABLE IF EXISTS accountdata;";
-
-        CLOG_INFO(Database, "Dropping table liquiditypool");
-        getRawSession() << "DROP TABLE IF EXISTS liquiditypool;";
-
-        CLOG_INFO(Database, "Dropping table trustlines");
-        getRawSession() << "DROP TABLE IF EXISTS trustlines;";
-
-        CLOG_INFO(Database, "Dropping table ttl");
-        getRawSession() << "DROP TABLE IF EXISTS ttl;";
-
-        mApp.getPersistentState().setState(PersistentState::kDBBackend,
-                                           LiveBucketIndex::DB_BACKEND_STATE,
-                                           getSession());
-    }
 }
 
 void

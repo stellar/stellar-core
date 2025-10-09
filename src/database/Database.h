@@ -31,7 +31,7 @@ using PreparedStatementCache =
 
 // smallest schema version supported
 static constexpr unsigned long MIN_SCHEMA_VERSION = 21;
-static constexpr unsigned long SCHEMA_VERSION = 24;
+static constexpr unsigned long SCHEMA_VERSION = 25;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -211,7 +211,6 @@ class Database : NonMovableOrCopyable
     void upgradeToCurrentSchema();
 
     void dropTxMetaIfExists();
-    void maybeUpgradeToBucketListDB();
 
     // Soci named session wrapper
     SessionWrapper& getSession();

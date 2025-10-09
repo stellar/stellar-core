@@ -19,9 +19,10 @@ namespace stellar
 using namespace std;
 
 std::string PersistentState::mapping[kLastEntry] = {
-    "lastclosedledger",  "historyarchivestate", "databaseschema",
-    "networkpassphrase", "dbbackend",           "rebuildledger",
-    "ledgerupgrades",    "lastscpdataxdr",      "txset"};
+    "lastclosedledger", "historyarchivestate",
+    "databaseschema",   "networkpassphrase",
+    "rebuildledger",    "ledgerupgrades",
+    "lastscpdataxdr",   "txset"};
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("

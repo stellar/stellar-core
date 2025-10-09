@@ -28,8 +28,6 @@ class PersistentState
         kHistoryArchiveState,
         kDatabaseSchema,
         kNetworkPassphrase,
-        // https://github.com/stellar/stellar-core/issues/4582
-        kDBBackend,
         kRebuildLedger,
         // SCP-related entries
         kLedgerUpgrades,
