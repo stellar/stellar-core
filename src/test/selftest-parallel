@@ -27,8 +27,8 @@ fi
 if [[ -z "$RND_SEED" ]]; then
     RND_SEED=1
 fi
-if [[ -z "$PARALLEL_PROGRESS" ]]; then
-    PARALLEL_PROGRESS=1
+if [[ -z "$INTERACTIVE" ]]; then
+    INTERACTIVE=1
 fi
 
 cleanup() {
@@ -92,8 +92,8 @@ for i in $RUN_PARTITIONS; do
   cat $TEST_PARTITIONS_DIR/test-partition-$i.txt >> $TESTS
 done
 
-PROGRESS=
-if [[ $PARALLEL_PROGRESS -ne 0 ]]; then
-    PROGRESS="--progress"
+FLAGS="--group"
+if [[ $INTERACTIVE -ne 0 ]]; then
+    FLAGS="--progress --line-buffer"
 fi
-cat $TESTS | parallel -j $nparts -n $BATCHSIZE --line-buffer --tag-string '{%}' $PROGRESS --halt-on-error 2 runpart '{%}' "{}"
+cat $TESTS | parallel -j $nparts -n $BATCHSIZE $FLAGS --tag-string '{%}' --halt-on-error 2 runpart '{%}' "{}"
