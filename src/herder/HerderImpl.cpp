@@ -217,6 +217,11 @@ HerderImpl::syncMetrics()
     int64_t count = getSCP().getCumulativeStatemtCount();
     mSCPMetrics.mCumulativeStatements.set_count(count);
     TracyPlot("scp.memory.cumulative-statements", count);
+    mTransactionQueue.syncMetrics();
+    if (mSorobanTransactionQueue)
+    {
+        mSorobanTransactionQueue->syncMetrics();
+    }
 }
 
 std::string

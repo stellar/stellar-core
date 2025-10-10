@@ -162,6 +162,10 @@ class TransactionQueue
     TxFrameList getTransactions(LedgerHeader const& lcl) const;
     bool sourceAccountPending(AccountID const& accountID) const;
 
+    // Ensure any metrics that are "current state" gauge-like counters reflect
+    // the current reality as best as possible.
+    void syncMetrics();
+
     virtual size_t getMaxQueueSizeOps() const = 0;
 
 #ifdef BUILD_TESTS
