@@ -14,7 +14,7 @@ STELLAR_CORE_DEFAULT_TEST_PARAMS="--ll fatal -w NoTests -a -r simple"
 if [[ "$ALL_VERSIONS" != "" ]]; then
     STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --all-versions"
 fi
-if [[ "$INTERACTIVE" -eq 0 ]]; then
+if [[ "$INTERACTIVE" == "0" ]]; then
     STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --disable-dots"
 fi
 
