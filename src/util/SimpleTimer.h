@@ -2,6 +2,7 @@
 
 #include <medida/counter.h>
 #include <medida/metrics_registry.h>
+#include <mutex>
 
 namespace stellar
 {
