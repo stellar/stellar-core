@@ -154,6 +154,7 @@ class OverlayManagerImpl : public OverlayManager
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
     OverlayMetrics& getOverlayMetrics() override;
+    void syncMetrics() override;
     PeerAuth& getPeerAuth() override;
 
     PeerManager& getPeerManager() override;
