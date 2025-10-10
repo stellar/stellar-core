@@ -1336,8 +1336,7 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
         auto start = mAppConnector.now();
         recvTransaction(*msgTracker);
         auto end = mAppConnector.now();
-        mOverlayMetrics.mRecvTransactionTimer.Update(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start));
+        mOverlayMetrics.mRecvTransactionTimer.Update(end - start);
     }
     break;
 
@@ -1440,9 +1439,8 @@ Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
         auto start = mAppConnector.now();
         mAppConnector.getOverlayManager().recvTransaction(
             tx, shared_from_this(), blake2Hash);
-        mOverlayMetrics.mRecvTransactionTimer.Update(
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                mAppConnector.now() - start));
+        mOverlayMetrics.mRecvTransactionTimer.Update(mAppConnector.now() -
+                                                     start);
     }
 }
 #endif

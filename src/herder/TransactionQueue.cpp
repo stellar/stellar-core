@@ -772,9 +772,7 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                     if (transaction->mTx->getFullHash() ==
                         appliedTx->getFullHash())
                     {
-                        auto elapsed = std::chrono::duration_cast<
-                            std::chrono::milliseconds>(
-                            now - transaction->mInsertionTime);
+                        auto elapsed = now - transaction->mInsertionTime;
                         mQueueMetrics->mTransactionsDelay.Update(elapsed);
                         if (transaction->mSubmittedFromSelf)
                         {
