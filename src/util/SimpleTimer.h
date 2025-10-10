@@ -46,7 +46,7 @@ template <typename Duration> class SimpleTimer
     std::int64_t count() const;
 
     // Record a sample of length duration
-    void Update(Duration duration);
+    void Update(std::chrono::nanoseconds duration);
 
     SimpleTimerContext<Duration> TimeScope();
 };
@@ -64,7 +64,7 @@ template <typename Duration> class SimpleTimerContext
     SimpleTimerContext(SimpleTimer<Duration>& timer);
     ~SimpleTimerContext();
     void Reset();
-    Duration Stop();
+    std::chrono::nanoseconds Stop();
 };
 
 template <typename Duration>
@@ -103,11 +103,12 @@ SimpleTimer<Duration>::count() const
 
 template <typename Duration>
 void
-SimpleTimer<Duration>::Update(Duration d)
+SimpleTimer<Duration>::Update(std::chrono::nanoseconds d)
 {
-    mSum.inc(d.count());
+    auto converted = std::chrono::duration_cast<Duration>(d);
+    mSum.inc(converted.count());
     mCount.inc(1);
-    mMax.set_count(std::max(mMax.count(), d.count()));
+    mMax.set_count(std::max(mMax.count(), converted.count()));
 }
 
 template <typename Duration>
@@ -138,13 +139,12 @@ SimpleTimerContext<Duration>::Reset()
 }
 
 template <typename Duration>
-Duration
+std::chrono::nanoseconds
 SimpleTimerContext<Duration>::Stop()
 {
     if (mActive)
     {
-        auto dur = std::chrono::duration_cast<Duration>(
-            std::chrono::steady_clock::now() - mStart);
+        auto dur = std::chrono::steady_clock::now() - mStart;
         mTimer.Update(dur);
         mActive = false;
         return dur;
