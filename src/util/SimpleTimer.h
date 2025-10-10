@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/ThreadAnnotations.h"
 #include <medida/counter.h>
 #include <medida/metrics_registry.h>
 
@@ -29,18 +30,16 @@ template <typename Duration> class SimpleTimer
     medida::Counter& mSum;
     medida::Counter& mCount;
     // Note that we use a counter for `mMax` so it gets displayed in the
-    // metrics.
-    medida::Counter& mMax;
+    // metrics, but this is only synced on `syncMetrics()` to avoid races.
+    medida::Counter& mMaxCounter GUARDED_BY(mMaxLock);
+    std::mutex mMaxLock;
+    std::int64_t mMax;
 
   public:
     SimpleTimer(medida::MetricsRegistry& registry, const std::string& domain,
                 const std::string& type, const std::string& baseName);
 
-    // Reset the max counter
-    void clearMax();
-
-    // Reset all internal counters
-    void clear();
+    SimpleTimer(SimpleTimer<Duration>&& other);
 
     // Get the value of the internal `count` counter
     std::int64_t count() const;
@@ -75,24 +74,17 @@ SimpleTimer<Duration>::SimpleTimer(medida::MetricsRegistry& registry,
     : mSum{registry.NewCounter({domain, type, std::string{base_name} + "sum"})}
     , mCount{registry.NewCounter(
           {domain, type, std::string{base_name} + "count"})}
-    , mMax{registry.NewCounter({domain, type, std::string{base_name} + "max"})}
+    , mMaxCounter{registry.NewCounter(
+          {domain, type, std::string{base_name} + "max"})}
+    , mMax{0}
 {
 }
-
 template <typename Duration>
-void
-SimpleTimer<Duration>::clearMax()
-{
-    mMax.clear();
-}
-
-template <typename Duration>
-void
-SimpleTimer<Duration>::clear()
-{
-    mSum.clear();
-    mCount.clear();
-}
+SimpleTimer<Duration>::SimpleTimer(SimpleTimer<Duration>&& other)
+    : mSum{other.mSum}
+    , mCount{other.mCount}
+    , mMaxCounter{other.mMaxCounter}
+    , mMax{other.mMax} {};
 
 template <typename Duration>
 std::int64_t
@@ -105,10 +97,13 @@ template <typename Duration>
 void
 SimpleTimer<Duration>::Update(std::chrono::nanoseconds d)
 {
-    auto converted = std::chrono::duration_cast<Duration>(d);
-    mSum.inc(converted.count());
+    auto converted = std::chrono::duration_cast<Duration>(d).count();
+    mSum.inc(converted);
     mCount.inc(1);
-    mMax.set_count(std::max(mMax.count(), converted.count()));
+    {
+        std::lock_guard<std::mutex> lock{mMaxLock};
+        mMax = std::max(mMax, converted);
+    }
 }
 
 template <typename Duration>
