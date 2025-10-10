@@ -185,7 +185,7 @@ class OverlayManager
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.
-    virtual void syncMetrics();
+    virtual void syncMetrics() = 0;
 
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;
