@@ -41,6 +41,10 @@ template <typename Duration> class SimpleTimer
 
     SimpleTimer(SimpleTimer<Duration>&& other);
 
+    // Update the value of the max metric to the value of the tracked max and
+    // reset the tracked max
+    void syncMax();
+
     // Get the value of the internal `count` counter
     std::int64_t count() const;
 
@@ -79,12 +83,23 @@ SimpleTimer<Duration>::SimpleTimer(medida::MetricsRegistry& registry,
     , mMax{0}
 {
 }
+
 template <typename Duration>
 SimpleTimer<Duration>::SimpleTimer(SimpleTimer<Duration>&& other)
     : mSum{other.mSum}
     , mCount{other.mCount}
     , mMaxCounter{other.mMaxCounter}
     , mMax{other.mMax} {};
+
+template <typename Duration>
+void
+SimpleTimer<Duration>::syncMax()
+{
+
+    std::lock_guard<std::mutex> lock{mMaxLock};
+    mMaxCounter.set_count(mMax);
+    mMax = 0;
+}
 
 template <typename Duration>
 std::int64_t

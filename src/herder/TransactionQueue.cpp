@@ -299,6 +299,13 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
     return mAccountStates.find(accountID) != mAccountStates.end();
 }
 
+void
+TransactionQueue::syncMetrics()
+{
+    mQueueMetrics->mTransactionsDelay.syncMax();
+    mQueueMetrics->mTransactionsSelfDelay.syncMax();
+}
+
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
