@@ -1,20 +1,15 @@
 #pragma once
 
-#include "util/ThreadAnnotations.h"
 #include <medida/counter.h>
 #include <medida/metrics_registry.h>
 
 namespace stellar
 {
 
-template <typename> struct IsDuration : std::false_type
-{
-};
+template <typename> constexpr bool isDuration = false;
 
 template <typename Rep, typename Period>
-struct IsDuration<std::chrono::duration<Rep, Period>> : std::true_type
-{
-};
+constexpr bool isDuration<std::chrono::duration<Rep, Period>> = true;
 
 template <typename T> class SimpleTimerContext;
 
@@ -25,7 +20,7 @@ template <typename T> class SimpleTimerContext;
 template <typename Duration> class SimpleTimer
 {
     static_assert(
-        IsDuration<Duration>::value,
+        isDuration<Duration>,
         "SimpleTimer must be instantiated with a std::chrono::duration");
     medida::Counter& mSum;
     medida::Counter& mCount;
@@ -57,7 +52,7 @@ template <typename Duration> class SimpleTimer
 template <typename Duration> class SimpleTimerContext
 {
     static_assert(
-        IsDuration<Duration>(),
+        isDuration<Duration>,
         "SimpleTimerContext must be instantiated with a std::chrono::duration");
     SimpleTimer<Duration>& mTimer;
     bool mActive;
