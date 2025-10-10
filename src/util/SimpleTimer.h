@@ -31,7 +31,7 @@ template <typename Duration> class SimpleTimer
     medida::Counter& mCount;
     // Note that we use a counter for `mMax` so it gets displayed in the
     // metrics, but this is only synced on `syncMetrics()` to avoid races.
-    medida::Counter& mMaxCounter GUARDED_BY(mMaxLock);
+    medida::Counter& mMaxCounter;
     std::mutex mMaxLock;
     std::int64_t mMax;
 
