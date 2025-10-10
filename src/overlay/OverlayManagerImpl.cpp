@@ -1303,6 +1303,12 @@ OverlayManagerImpl::getOverlayMetrics()
     return mOverlayMetrics;
 }
 
+void
+OverlayManagerImpl::syncMetrics()
+{
+    mOverlayMetrics.mRecvTransactionTimer.syncMax();
+}
+
 PeerAuth&
 OverlayManagerImpl::getPeerAuth()
 {
