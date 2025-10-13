@@ -12,7 +12,7 @@ template <typename> constexpr bool isDuration = false;
 template <typename Rep, typename Period>
 constexpr bool isDuration<std::chrono::duration<Rep, Period>> = true;
 
-template <typename T> class SimpleTimerContext;
+template <typename Duration> class SimpleTimerContext;
 
 // Simple replacement for medida timer that uses an accumulator and counter,
 // while keeping track of the maximums. Names are based on the constructor with
