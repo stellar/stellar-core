@@ -11,7 +11,7 @@ namespace Catch
 
 struct SimpleTestReporter : public ConsoleReporter
 {
-    static bool disableDots;
+    static bool gDisableDots;
 
     SimpleTestReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
     {
@@ -43,7 +43,7 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     sectionStarting(SectionInfo const& _sectionInfo) override
     {
-        if (!disableDots)
+        if (!gDisableDots)
         {
             printDot();
         }

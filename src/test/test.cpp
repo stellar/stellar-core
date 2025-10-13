@@ -42,7 +42,7 @@
 #endif
 
 #include "test/SimpleTestReporter.h"
-bool Catch::SimpleTestReporter::disableDots{false};
+bool Catch::SimpleTestReporter::gDisableDots{false};
 
 namespace Catch
 {
@@ -379,7 +379,7 @@ runTest(CommandLineArgs const& args)
         Catch::clara::Opt(debugTestTxMeta, "FILENAME")["--debug-test-tx-meta"](
             "dump full TxMeta from all tests to FILENAME");
     parser |= Catch::clara::Opt(
-        Catch::SimpleTestReporter::disableDots)["--disable-dots"];
+        Catch::SimpleTestReporter::gDisableDots)["--disable-dots"];
 
     session.cli(parser);
 
