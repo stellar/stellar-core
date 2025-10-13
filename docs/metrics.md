@@ -165,7 +165,7 @@ overlay.outbound.establish                | meter     | outbound connection esta
 overlay.recv.<X>                          | timer     | received message <X> (except transaction)
 overlay.recv-transaction.sum              | counter   | sum of time (microseconds) to receive transaction message
 overlay.recv-transaction.count            | counter   | number of transaction messages received
-overlay.recv-transaction.max              | counter   | maximum time (microseconds) to receiv transaction message since last metrics call
+overlay.recv-transaction.max              | counter   | maximum time (microseconds) to receive transaction message since last metrics call
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout
