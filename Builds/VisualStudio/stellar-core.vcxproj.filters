@@ -1420,6 +1420,9 @@
     <ClCompile Include="..\..\src\overlay\OverlayUtils.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\P23HotArchiveFix.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2517,6 +2520,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\OverlayUtils.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\P23HotArchiveFix.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

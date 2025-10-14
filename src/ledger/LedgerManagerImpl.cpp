@@ -28,6 +28,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/P23HotArchiveFix.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -525,7 +526,8 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(ltx, /*ledgerCloseMeta*/ nullptr,
-                                            /*initialLedgerVers*/ 0);
+                                            /*initialLedgerVers*/ 0,
+                                            /*isP24UpgradeLedger*/ false);
     advanceLastClosedLedgerState(output);
 
     ltx.commit();
@@ -1649,8 +1651,11 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         updateSorobanNetworkConfigForCommit(ltx);
     }
 
+    bool isP24UpgradeLedger =
+        protocolVersionIsBefore(initialLedgerVers, ProtocolVersion::V_24) &&
+        protocolVersionStartsFrom(maybeNewVersion, ProtocolVersion::V_24);
     auto appliedLedgerState = sealLedgerTxnAndStoreInBucketsAndDB(
-        ltx, ledgerCloseMeta, initialLedgerVers);
+        ltx, ledgerCloseMeta, initialLedgerVers, isP24UpgradeLedger);
 
     if (ledgerData.getExpectedHash() &&
         *ledgerData.getExpectedHash() !=
@@ -2732,7 +2737,7 @@ void
 LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    LedgerHeader lh, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
@@ -2771,8 +2776,18 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                         restoredEntries.push_back(key);
                     }
                 }
-                mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries, restoredEntries);
+                if (isP24UpgradeLedger)
+                {
+                    addHotArchiveBatchWithP23HotArchiveFix(
+                        ltxEvictions, mApp, lh, evictedState.archivedEntries,
+                        restoredEntries);
+                }
+                else
+                {
+                    mApp.getBucketManager().addHotArchiveBatch(
+                        mApp, lh, evictedState.archivedEntries,
+                        restoredEntries);
+                }
             }
 
             if (ledgerCloseMeta)
@@ -2811,7 +2826,7 @@ CompleteConstLedgerStatePtr
 LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t initialLedgerVers)
+    uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
@@ -2843,7 +2858,8 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     // initial protocol version of ledger instead of the ledger version of
     // the current ltx header, which may have been modified via an upgrade.
     sealLedgerTxnAndTransferEntriesToBucketList(
-        ltx, ledgerCloseMeta, ltx.loadHeader().current(), initialLedgerVers);
+        ltx, ledgerCloseMeta, ltx.loadHeader().current(), initialLedgerVers,
+        isP24UpgradeLedger);
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
