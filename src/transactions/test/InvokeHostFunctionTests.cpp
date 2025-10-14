@@ -7344,6 +7344,113 @@ TEST_CASE("multiple version of same key in a single eviction scan",
     REQUIRE_NOTHROW(evictEntry());
 }
 
+TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
+{
+    // This tests persistent eviction. There is a bug in protocol 23 where if an
+    // outdated version of an entry is scanned, the outdated version will be
+    // added to the archive.
+    auto cfg = getTestConfig(0);
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+    cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+    cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+    cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 100;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    for_versions_from(23, *app, [&] {
+        SorobanTest test(app, cfg, false);
+
+        ContractStorageTestClient client(test);
+        auto& snapshotManager =
+            test.getApp().getBucketManager().getBucketSnapshotManager();
+
+        // WASM and instance should not expire
+        test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+        int const oldVal = 123;
+        int const currVal = 456;
+
+        // First, write an entry with oldVal
+        auto lk = client.getContract().getDataKey(
+            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+        REQUIRE(client.put("key", ContractDataDurability::PERSISTENT, oldVal) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+
+        auto evictionLedger =
+            test.getLCLSeq() +
+            MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+        // Close ledgers until one ledger before eviction
+        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
+             ledgerSeq < evictionLedger - 1; ++ledgerSeq)
+        {
+            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        }
+
+        // Update entry to currVal
+        REQUIRE(client.put("key", ContractDataDurability::PERSISTENT,
+                           currVal) == INVOKE_HOST_FUNCTION_SUCCESS);
+
+        // Close one more ledger to trigger eviction. The newest version of
+        // the entry is in level 0 of the BucketList, so only the outdated
+        // version on level 1 will be scanned.
+        closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
+
+        // Check the eviction results.
+        // Entry should be archived and not in the live BucketList
+        auto liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
+        REQUIRE(!liveBL->load(lk));
+
+        auto hotArchive =
+            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+
+        auto hotLoad = hotArchive->load(lk);
+        REQUIRE(hotLoad);
+        REQUIRE(hotLoad->type() == HOT_ARCHIVE_ARCHIVED);
+
+        // In protocol 23, the outdated version is archived. In protocol
+        // 24+, the newest version is archived.
+        if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                    ProtocolVersion::V_24))
+        {
+            REQUIRE(hotLoad->archivedEntry().data.contractData().val ==
+                    makeU64SCVal(oldVal));
+        }
+        else
+        {
+            REQUIRE(hotLoad->archivedEntry().data.contractData().val ==
+                    makeU64SCVal(currVal));
+        }
+
+        // Restore entry and make sure the correct value is restored
+        test.invokeRestoreOp({lk}, 20166);
+
+        hotArchive =
+            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+        auto hotLoadAfterRestore = hotArchive->load(lk);
+        REQUIRE(!hotLoadAfterRestore);
+
+        // Check that restored value matches what was archived
+        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
+        auto liveLoadAfterRestore = liveBL->load(lk);
+        REQUIRE(liveLoadAfterRestore);
+
+        if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                    ProtocolVersion::V_24))
+        {
+            REQUIRE(liveLoadAfterRestore->data.contractData().val ==
+                    makeU64SCVal(oldVal));
+        }
+        else
+        {
+            REQUIRE(liveLoadAfterRestore->data.contractData().val ==
+                    makeU64SCVal(currVal));
+        }
+    });
+}
+
 TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
 {
     VirtualClock clock;
