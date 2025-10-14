@@ -75,7 +75,8 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     void finalizeLedgerTxnChanges(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t initialLedgerVers) override;
+        LedgerHeader lh, uint32_t initialLedgerVers,
+        bool isP24UpgradeLedger) override;
 
   public:
     void

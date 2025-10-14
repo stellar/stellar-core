@@ -189,9 +189,8 @@ void
 LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
-    auto lh = ltx.loadHeader().current();
     if (mUseTestEntries)
     {
         // Seal the ltx but throw its entries away.
@@ -275,9 +274,9 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                 ltxEvictions.commit();
             }
             SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
-                lh.ledgerSeq,
+                    lh.ledgerSeq,
                 mApp.getLedgerManager().getSorobanInMemoryStateSizeForTesting(),
-                ltx, mApp);
+                    ltx, mApp);
         }
 
         // Load the final Soroban config just before sealing the ltx.
@@ -314,7 +313,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                                      return LedgerEntryKey(e) ==
                                             LedgerEntryKey(liveEntry);
                                  }) == mTestLiveEntries.end())
-                {
+            {
                     mTestLiveEntries.push_back(liveEntry);
                 }
             }
@@ -343,8 +342,8 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     }
     else
     {
-        LedgerManagerImpl::finalizeLedgerTxnChanges(ltx, ledgerCloseMeta,
-                                                    initialLedgerVers);
+        LedgerManagerImpl::finalizeLedgerTxnChanges(
+        	ltx, ledgerCloseMeta, lh, initialLedgerVers, isP24UpgradeLedger);
     }
 }
 
