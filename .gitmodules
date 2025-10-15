@@ -42,4 +42,4 @@
 	url = https://github.com/stellar/rs-soroban-env.git
 [submodule "src/rust/soroban/p24"]
 	path = src/rust/soroban/p24
-	url = https://github.com/stellar/rs-soroban-env.git
+	url = git@github.com:stellar/internal-soroban-env

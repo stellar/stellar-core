@@ -39,13 +39,168 @@ pub(crate) use p24 as soroban_curr;
 // only compatible with with, say, a rust Dyn interface like Box<dyn Error>).
 pub(crate) mod protocol_agnostic {
     pub(crate) fn make_error(msg: &'static str) -> Box<dyn std::error::Error> {
-        super::p23::soroban_proto_any::CoreHostError::General(msg.into()).into()
+        super::p24::soroban_proto_any::CoreHostError::General(msg.into()).into()
     }
 
     // The i128 functions are protocol-agnostic because they're too simple to
     // ever plausibly change. If they ever _do_ change we can switch this (and
     // the callers) to pass a protocol number but it seems unlikely.
-    pub(crate) use super::p23::soroban_env_host::xdr::int128_helpers;
+    pub(crate) use super::p24::soroban_env_host::xdr::int128_helpers;
+}
+
+#[path = "."]
+pub(crate) mod p24 {
+    pub(crate) extern crate soroban_env_host_p24;
+    use crate::{
+        bridge::rust_bridge::CxxLedgerEntryRentChange,
+        rust_bridge::{
+            CxxFeeConfiguration, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration,
+            CxxTransactionResources,
+        },
+        SorobanModuleCache,
+    };
+    use soroban_env_host::{
+        budget::Budget,
+        e2e_invoke::{self, InvokeHostFunctionResult},
+        fees::{
+            compute_rent_write_fee_per_1kb, FeeConfiguration, LedgerEntryRentChange,
+            RentFeeConfiguration, RentWriteFeeConfiguration, TransactionResources,
+        },
+        vm::wasm_module_memory_cost,
+        xdr::{ContractCodeEntry, DiagnosticEvent},
+        HostError, LedgerInfo, TraceHook,
+    };
+    pub(crate) use soroban_env_host_p24 as soroban_env_host;
+
+    pub(crate) mod soroban_proto_any;
+
+    // We do some more local re-exports here of things used in soroban_proto_any.rs that
+    // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
+    // these imports).
+    pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
+
+    // An adapter for some API breakage between p21 and p22.
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        v.interface.pre_release
+    }
+
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        v.interface.protocol
+    }
+
+    pub fn invoke_host_function_with_trace_hook_and_module_cache<
+        T: AsRef<[u8]>,
+        I: ExactSizeIterator<Item = T>,
+    >(
+        budget: &Budget,
+        enable_diagnostics: bool,
+        encoded_host_fn: T,
+        encoded_resources: T,
+        restored_rw_entry_indices: &[u32],
+        encoded_source_account: T,
+        encoded_auth_entries: I,
+        ledger_info: LedgerInfo,
+        encoded_ledger_entries: I,
+        encoded_ttl_entries: I,
+        base_prng_seed: T,
+        diagnostic_events: &mut Vec<DiagnosticEvent>,
+        trace_hook: Option<TraceHook>,
+        module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionResult, HostError> {
+        e2e_invoke::invoke_host_function(
+            budget,
+            enable_diagnostics,
+            encoded_host_fn,
+            encoded_resources,
+            restored_rw_entry_indices,
+            encoded_source_account,
+            encoded_auth_entries,
+            ledger_info,
+            encoded_ledger_entries,
+            encoded_ttl_entries,
+            base_prng_seed,
+            diagnostic_events,
+            trace_hook,
+            Some(module_cache.p24_cache.module_cache.clone()),
+        )
+    }
+
+    pub(crate) fn wasm_module_memory_cost_wrapper(
+        budget: &Budget,
+        contract_code_entry: &ContractCodeEntry,
+    ) -> Result<u64, HostError> {
+        wasm_module_memory_cost(budget, contract_code_entry)
+    }
+
+    pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
+        bucket_list_size: i64,
+        fee_config: CxxRentWriteFeeConfiguration,
+    ) -> i64 {
+        compute_rent_write_fee_per_1kb(bucket_list_size, &fee_config.into())
+    }
+
+    pub(crate) fn convert_transaction_resources(
+        value: &CxxTransactionResources,
+    ) -> TransactionResources {
+        TransactionResources {
+            instructions: value.instructions,
+            disk_read_entries: value.disk_read_entries,
+            write_entries: value.write_entries,
+            disk_read_bytes: value.disk_read_bytes,
+            write_bytes: value.write_bytes,
+            contract_events_size_bytes: value.contract_events_size_bytes,
+            transaction_size_bytes: value.transaction_size_bytes,
+        }
+    }
+
+    impl From<CxxRentWriteFeeConfiguration> for RentWriteFeeConfiguration {
+        fn from(value: CxxRentWriteFeeConfiguration) -> Self {
+            Self {
+                state_target_size_bytes: value.state_target_size_bytes,
+                rent_fee_1kb_state_size_low: value.rent_fee_1kb_state_size_low,
+                rent_fee_1kb_state_size_high: value.rent_fee_1kb_state_size_high,
+                state_size_rent_fee_growth_factor: value.state_size_rent_fee_growth_factor,
+            }
+        }
+    }
+
+    pub(crate) fn convert_rent_fee_configuration(
+        value: &CxxRentFeeConfiguration,
+    ) -> RentFeeConfiguration {
+        RentFeeConfiguration {
+            fee_per_rent_1kb: value.fee_per_rent_1kb,
+            fee_per_write_1kb: value.fee_per_write_1kb,
+            fee_per_write_entry: value.fee_per_write_entry,
+            persistent_rent_rate_denominator: value.persistent_rent_rate_denominator,
+            temporary_rent_rate_denominator: value.temporary_rent_rate_denominator,
+        }
+    }
+
+    pub(crate) fn convert_fee_configuration(value: CxxFeeConfiguration) -> FeeConfiguration {
+        FeeConfiguration {
+            fee_per_instruction_increment: value.fee_per_instruction_increment,
+            fee_per_disk_read_entry: value.fee_per_disk_read_entry,
+            fee_per_write_entry: value.fee_per_write_entry,
+            fee_per_disk_read_1kb: value.fee_per_disk_read_1kb,
+            fee_per_write_1kb: value.fee_per_write_1kb,
+            fee_per_historical_1kb: value.fee_per_historical_1kb,
+            fee_per_contract_event_1kb: value.fee_per_contract_event_1kb,
+            fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
+        }
+    }
+
+    pub(crate) fn convert_ledger_entry_rent_change(
+        value: &CxxLedgerEntryRentChange,
+    ) -> LedgerEntryRentChange {
+        LedgerEntryRentChange {
+            is_persistent: value.is_persistent,
+            is_code_entry: value.is_code_entry,
+            old_size_bytes: value.old_size_bytes,
+            new_size_bytes: value.new_size_bytes,
+            old_live_until_ledger: value.old_live_until_ledger,
+            new_live_until_ledger: value.new_live_until_ledger,
+        }
+    }
 }
 
 #[path = "."]
@@ -897,6 +1052,7 @@ fn protocol_dispatches_as_expected() {
     assert_eq!(get_host_module_for_protocol(21, 21).unwrap().max_proto, 21);
     assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
     assert_eq!(get_host_module_for_protocol(23, 23).unwrap().max_proto, 23);
+    assert_eq!(get_host_module_for_protocol(24, 24).unwrap().max_proto, 24);
 
     // No protocols past the max known.
     let last_proto = HOST_MODULES.last().unwrap().max_proto;
