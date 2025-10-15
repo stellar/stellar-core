@@ -9,6 +9,7 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "herder/FilteredEntries.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
@@ -17,6 +18,7 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -2266,7 +2268,8 @@ HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
                 std::make_unique<SorobanTransactionQueue>(
                     mApp, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
                     TRANSACTION_QUEUE_BAN_LEDGERS,
-                    mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
+                    mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER,
+                    recomputeKeysToFilter(protocolVersion));
         }
     }
     else if (mSorobanTransactionQueue)
@@ -2436,6 +2439,40 @@ HerderImpl::trackingHeartBeat()
         &VirtualTimer::onFailureNoop);
 }
 
+UnorderedSet<LedgerKey>
+HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
+{
+#ifndef BUILD_TESTS
+    if (!gIsProductionNetwork)
+    {
+        return UnorderedSet<LedgerKey>{};
+    }
+#endif
+
+    auto filteredSet = [](size_t count,
+                          auto const& arr) mutable -> UnorderedSet<LedgerKey> {
+        UnorderedSet<LedgerKey> result;
+        for (size_t i = 0; i < count; ++i)
+        {
+            LedgerKey key;
+            fromOpaqueBase64(key, arr[i]);
+            result.insert(key);
+        }
+        return result;
+    };
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_24))
+    {
+
+        return filteredSet(KEYS_TO_FILTER_P24_COUNT, KEYS_TO_FILTER_P24);
+    }
+    else
+    {
+        // We're past p23 so it's fine to use p23 filter for all
+        // previous protocols
+        return filteredSet(KEYS_TO_FILTER_P23_COUNT, KEYS_TO_FILTER_P23);
+    }
+}
+
 void
 HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
                                    bool queueRebuildNeeded)
@@ -2458,7 +2495,8 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
 
         if (isSoroban && queueRebuildNeeded)
         {
-            mSorobanTransactionQueue->resetAndRebuild();
+            auto keys = recomputeKeysToFilter(lhhe.header.ledgerVersion);
+            mSorobanTransactionQueue->resetAndRebuild(keys);
         }
 
         auto txs = queue.getTransactions(lhhe.header);

@@ -361,5 +361,8 @@ class HerderImpl : public Herder
     ConsensusData mTrackingSCP;
 
     uint32_t mMaxTxSize{0};
+
+    UnorderedSet<LedgerKey>
+    recomputeKeysToFilter(uint32_t protocolVersion) const;
 };
 }

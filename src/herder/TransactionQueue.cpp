@@ -1071,13 +1071,11 @@ TransactionQueue::broadcastTx(TransactionFrameBasePtr const& tx)
                : BroadcastStatus::BROADCAST_STATUS_ALREADY;
 }
 
-SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
-                                                 uint32 pendingDepth,
-                                                 uint32 banDepth,
-                                                 uint32 poolLedgerMultiplier)
+SorobanTransactionQueue::SorobanTransactionQueue(
+    Application& app, uint32 pendingDepth, uint32 banDepth,
+    uint32 poolLedgerMultiplier, UnorderedSet<LedgerKey> const& keysToFilter)
     : TransactionQueue(app, pendingDepth, banDepth, poolLedgerMultiplier, true)
 {
-
     std::vector<medida::Counter*> sizeByAge;
     for (uint32 i = 0; i < mPendingDepth; i++)
     {
@@ -1104,33 +1102,7 @@ SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
-
-    for (size_t i = 0; i < KEYS_TO_FILTER_COUNT; ++i)
-    {
-        LedgerKey key;
-        fromOpaqueBase64(key, KEYS_TO_FILTER_BASE64[i]);
-        mKeysToFilter.insert(key);
-    }
-
-    auto const& additionalKeysToFilterPath =
-        app.getConfig().FILTERED_SOROBAN_KEYS_PATH;
-    if (!additionalKeysToFilterPath.empty())
-    {
-        if (!fs::exists(additionalKeysToFilterPath))
-        {
-            throw std::runtime_error(
-                "The file with filtered Soroban keys does not exist: " +
-                additionalKeysToFilterPath);
-        }
-        XDRInputFileStream stream{};
-        stream.open(additionalKeysToFilterPath);
-        LedgerKey key;
-        while (stream.readOne(key))
-        {
-            mKeysToFilter.insert(key);
-        }
-        stream.close();
-    }
+    mKeysToFilter = keysToFilter;
 }
 
 std::pair<Resource, std::optional<Resource>>
@@ -1220,12 +1192,16 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
 }
 
 void
-SorobanTransactionQueue::resetAndRebuild()
+SorobanTransactionQueue::resetAndRebuild(
+    UnorderedSet<LedgerKey> const& keysToFilter)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
 
     CLOG_DEBUG(Herder, "Resetting Soroban transaction queue due to upgrade");
+
+    // Re-compute keys to filter
+    mKeysToFilter = keysToFilter;
 
     // Extract all current transactions before clearing state
     std::vector<TransactionFrameBasePtr> existingTxs;

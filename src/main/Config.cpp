@@ -1240,7 +1240,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"BUCKET_DIR_PATH",
                  [&]() { BUCKET_DIR_PATH = readString(item); }},
                 {"FILTERED_SOROBAN_KEYS_PATH",
-                 [&]() { FILTERED_SOROBAN_KEYS_PATH = readString(item); }},
+                 [&]() {
+                     LOG_WARNING(DEFAULT_LOG,
+                                 "FILTERED_SOROBAN_KEYS_PATH is "
+                                 "deprecated and ignored. Please remove "
+                                 "this from config");
+                 }},
                 {"NODE_NAMES",
                  [&]() {
                      auto names = readArray<std::string>(item);
