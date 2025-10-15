@@ -2442,12 +2442,10 @@ HerderImpl::trackingHeartBeat()
 UnorderedSet<LedgerKey>
 HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
 {
-#ifndef BUILD_TESTS
     if (!gIsProductionNetwork)
     {
         return UnorderedSet<LedgerKey>{};
     }
-#endif
 
     auto filteredSet = [](size_t count,
                           auto const& arr) mutable -> UnorderedSet<LedgerKey> {

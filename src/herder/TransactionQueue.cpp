@@ -1198,7 +1198,7 @@ SorobanTransactionQueue::resetAndRebuild(
     ZoneScoped;
     releaseAssert(threadIsMain());
 
-    CLOG_DEBUG(Herder, "Resetting Soroban transaction queue due to upgrade");
+    CLOG_INFO(Herder, "Resetting Soroban transaction queue due to upgrade");
 
     // Re-compute keys to filter
     mKeysToFilter = keysToFilter;
