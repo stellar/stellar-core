@@ -1239,6 +1239,14 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
             ltx);
     }
+
+    if (protocolVersionStartsFrom(newVersion, ProtocolVersion::V_24) &&
+        gIsProductionNetwork)
+    {
+        auto header = ltx.loadHeader();
+        // Reflect the 3.1879035 XLM burn in p23 in the fee pool for p24
+        header.current().feePool += 31879035;
+    }
 }
 
 void
