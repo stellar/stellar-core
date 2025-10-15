@@ -290,6 +290,9 @@ class SorobanTransactionQueue : public TransactionQueue
   public:
     SorobanTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier);
+    SorobanTransactionQueue(Application& app, uint32 pendingDepth,
+                            uint32 banDepth, uint32 poolLedgerMultiplier,
+                            UnorderedSet<LedgerKey> const& keysToFilter);
     int
     getFloodPeriod() const override
     {
@@ -305,7 +308,7 @@ class SorobanTransactionQueue : public TransactionQueue
      * sorting/evictions. Should be called synchronously during protocol or
      * network config upgrades.
      */
-    void resetAndRebuild();
+    void resetAndRebuild(UnorderedSet<LedgerKey> const& keysToFilter);
 
 #ifdef BUILD_TESTS
     void
