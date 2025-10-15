@@ -2674,6 +2674,29 @@ TEST_CASE("upgrade to version 12", "[upgrades][acceptance]")
         }
     }
 }
+
+TEST_CASE("upgrade to version 24 and check feePool", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+
+    // The feePool adjustment only happens if the network is pubnet
+    gIsProductionNetwork = true;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(23));
+
+    auto p23feePool = lm.getLastClosedLedgerHeader().header.feePool;
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(24));
+
+    REQUIRE(lm.getLastClosedLedgerHeader().header.feePool ==
+            p23feePool + 31879035);
+}
+
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
