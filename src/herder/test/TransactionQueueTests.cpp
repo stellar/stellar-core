@@ -1266,6 +1266,7 @@ TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
 
 TEST_CASE("TransactionQueue Key Filtering")
 {
+    gIsProductionNetwork = true;
     auto runTestForKey = [&](std::string const& keyStr,
                              uint32_t protocolVersion, bool shouldFilter = true,
                              bool doUpgrade = false) {
@@ -1399,7 +1400,18 @@ TEST_CASE("TransactionQueue Key Filtering")
         {
             for (auto const& keysToFilter : KEYS_TO_FILTER_P23)
             {
-                runTestForKey(keysToFilter, 24, /* shouldFilter */ false);
+                if (std::find(KEYS_TO_FILTER_P24.begin(),
+                              KEYS_TO_FILTER_P24.end(),
+                              keysToFilter) == KEYS_TO_FILTER_P24.end())
+                {
+                    // p23 key isn't in the p24 list, don't filter the tx
+                    runTestForKey(keysToFilter, 24, /* shouldFilter */ false);
+                }
+                else
+                {
+                    // p23 key is in the p24 list, filter the tx
+                    runTestForKey(keysToFilter, 24);
+                }
             }
         }
     }
