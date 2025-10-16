@@ -37,9 +37,12 @@ else
   pip3 install awscli --upgrade --break-system-packages
 fi
 
-
 # install test dependencies if STELLAR_CORE_VERSION ends with '~buildtests'
 if [[ "$STELLAR_CORE_VERSION" == *~buildtests ]]; then
+  apt-get install -y redis-tools
+fi
+# install test dependencies if STELLAR_CORE_VERSION ends with '~perftests'
+if [[ "$STELLAR_CORE_VERSION" == *~perftests ]]; then
   apt-get install -y redis-tools
 fi
 
