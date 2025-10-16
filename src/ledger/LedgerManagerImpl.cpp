@@ -2787,6 +2787,15 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                     mApp.getBucketManager().addHotArchiveBatch(
                         mApp, lh, evictedState.archivedEntries,
                         restoredEntries);
+                    // Validate evicted entries against Protocol 23 corruption
+                    // data if configured
+                    if (mApp.getProtocol23CorruptionDataVerifier())
+                    {
+                        mApp.getProtocol23CorruptionDataVerifier()
+                            ->verifyArchivalOfCorruptedEntry(evictedState, mApp,
+                                                             lh.ledgerSeq,
+                                                             lh.ledgerVersion);
+                    }
                 }
             }
 
@@ -2803,9 +2812,9 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
         // Subtle: we snapshot the state size *before* flushing the updated
         // entries into in-memory state (doing that after would be really
         // tricky, as we seal LTX before flushing). So the snapshot taken at
-        // ledger `N` will have the state size for ledger `N - 1`. That doesn't
-        // really change anything for the size accounting, but is important to
-        // maintain as a protocol implementation detail.
+        // ledger `N` will have the state size for ledger `N - 1`. That
+        // doesn't really change anything for the size accounting, but is
+        // important to maintain as a protocol implementation detail.
         mApplyState.getSorobanNetworkConfigForCommit()
             .maybeSnapshotSorobanStateSize(
                 lh.ledgerSeq, mApplyState.getSorobanInMemoryStateSize(), ltx,

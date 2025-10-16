@@ -3,6 +3,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "main/Application.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
@@ -182,6 +183,12 @@ SearchableSnapshotConstPtr&
 AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();
+}
+
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+AppConnector::getProtocol23CorruptionDataVerifier()
+{
+    return mApp.getProtocol23CorruptionDataVerifier();
 }
 
 #ifdef BUILD_TESTS
