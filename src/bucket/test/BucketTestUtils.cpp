@@ -189,7 +189,7 @@ void
 LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    LedgerHeader lh, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
     if (mUseTestEntries)
     {
@@ -316,7 +316,7 @@ LedgerManagerForBucketTests::sealLedgerTxnAndTransferEntriesToBucketList(
     else
     {
         LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
-            ltx, ledgerCloseMeta, lh, initialLedgerVers);
+            ltx, ledgerCloseMeta, lh, initialLedgerVers, isP24UpgradeLedger);
     }
 }
 

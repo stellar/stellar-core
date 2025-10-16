@@ -17,8 +17,10 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "ledger/TrustLineWrapper.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
@@ -3907,4 +3909,128 @@ TEST_CASE("upgrade state size window", "[bucketlist][upgrades]")
 
     // Check window after upgrade
     check();
+}
+
+TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
+          "[archive][upgrades]")
+{
+    uint32_t const corruptedProtocolVersion = 23;
+    uint32_t const fixedProtocolVersion = corruptedProtocolVersion + 1;
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = corruptedProtocolVersion;
+    auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+
+    auto parseEntries = [](std::vector<std::string> const& encoded) {
+        UnorderedMap<LedgerKey, LedgerEntry> entryByKey;
+        std::vector<LedgerEntry> entries;
+
+        for (auto const& encodedEntry : encoded)
+        {
+            LedgerEntry le;
+            fromOpaqueBase64(le, encodedEntry);
+            entryByKey[LedgerEntryKey(le)] = le;
+            entries.push_back(le);
+        }
+        return std::make_pair(entryByKey, entries);
+    };
+    auto runUpgradeAndGetSnapshot = [&]() {
+        executeUpgrade(*app, makeProtocolVersionUpgrade(fixedProtocolVersion));
+        return app->getAppConnector()
+            .copySearchableHotArchiveBucketListSnapshot();
+    };
+    auto const& corruptedEntries =
+        p23_hot_archive_bug::internal::P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
+    std::vector<std::string> allEncodedCorruptedEntries(
+        corruptedEntries.begin(), corruptedEntries.end());
+    auto [allCorruptedEntriesByKey, allCorruptedEntries] =
+        parseEntries(allEncodedCorruptedEntries);
+    auto const& correctEntries = p23_hot_archive_bug::internal::
+        P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE;
+    std::vector<std::string> allEncodedExpectedFixedEntries(
+        correctEntries.begin(), correctEntries.end());
+    auto [allExpectedFixedByKey, allExpectedFixed] =
+        parseEntries(allEncodedExpectedFixedEntries);
+
+    SECTION("all corrupted entries are archived and fixed")
+    {
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
+            allCorruptedEntries, {});
+        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        for (auto const& [key, expectedEntry] : allExpectedFixedByKey)
+        {
+            auto actual = hotArchiveSnapshot->load(key);
+            REQUIRE(actual);
+            REQUIRE(actual->archivedEntry() == expectedEntry);
+        }
+    }
+    SECTION("entries not in hot archive are not changed")
+    {
+        auto removedKey = LedgerEntryKey(allCorruptedEntries.back());
+        allCorruptedEntries.pop_back();
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
+            allCorruptedEntries, {});
+        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        auto actual = hotArchiveSnapshot->load(removedKey);
+        REQUIRE(!actual);
+    }
+    SECTION("archived entries that don't match expected corrupted state are "
+            "not changed")
+    {
+        allCorruptedEntries[1].lastModifiedLedgerSeq += 1;
+        REQUIRE(allCorruptedEntries[1] != allExpectedFixed[1]);
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
+            allCorruptedEntries, {});
+        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        auto actual =
+            hotArchiveSnapshot->load(LedgerEntryKey(allCorruptedEntries[1]));
+        REQUIRE(actual);
+        REQUIRE(actual->archivedEntry() == allCorruptedEntries[1]);
+    }
+    SECTION("entries in the live state are not updated")
+    {
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
+            allCorruptedEntries, {});
+        Operation op;
+        op.body.type(RESTORE_FOOTPRINT);
+        SorobanResources resources;
+        resources.writeBytes = 10000;
+        resources.diskReadBytes = 10000;
+
+        std::vector<LedgerEntry> liveEntries = {allCorruptedEntries[2],
+                                                allCorruptedEntries[100],
+                                                allCorruptedEntries[200]};
+        for (auto const& le : liveEntries)
+        {
+            resources.footprint.readWrite.push_back(LedgerEntryKey(le));
+        }
+
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(),
+                                                 *app->getRoot(), {op}, {},
+                                                 resources, 100, 100'000'000);
+        {
+            LedgerSnapshot ls(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
+        }
+        closeLedger(*app, {tx});
+
+        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        for (auto const& le : liveEntries)
+        {
+            auto actual = hotArchiveSnapshot->load(LedgerEntryKey(le));
+            REQUIRE(!actual);
+        }
+        // Spot check a non-live entries is fixed
+        auto actual =
+            hotArchiveSnapshot->load(LedgerEntryKey(allCorruptedEntries[0]));
+        REQUIRE(actual);
+        REQUIRE(actual->archivedEntry() == allExpectedFixed[0]);
+    }
 }
