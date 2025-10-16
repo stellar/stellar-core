@@ -97,6 +97,12 @@ the upgrade from protocol 22 to 23:
   9. We also update the module cache to have a copy for the new soroban
      version in `src/rust/src/soroban_module_cache.rs`
 
+  10. We also add a new block in `src/rust/Cargo.toml` for
+      `dependencies.soroban-env-host-p23` that declares the optional
+      dependency for the unified build, and add a reference
+      `"dep:soroban-env-host-p23"` to the list of deps activated by
+      the `unified` feature near the bottom of the file.
+
   10. We then copy the "expected dependency tree" file from protocol 22 to 23:
 
      - `cp src/rust/src/dep-trees/p22-expect.txt src/rust/src/dep-trees/p23-expect.txt`
