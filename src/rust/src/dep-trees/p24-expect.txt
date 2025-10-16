@@ -247,7 +247,7 @@ soroban-env-host v24.0.0 (src/rust/soroban/p24/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v23.0.0
+│   │   ├── stellar-xdr v24.0.0
 │   │   │   ├── cfg_eval v0.1.2 (proc-macro)
 │   │   │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   ├── quote v1.0.33 (*)
@@ -278,7 +278,7 @@ soroban-env-host v24.0.0 (src/rust/soroban/p24/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v23.0.0
+│   ├── stellar-xdr v24.0.0
 │   │   ├── base64 v0.22.1
 │   │   ├── cfg_eval v0.1.2 (proc-macro) (*)
 │   │   ├── escape-bytes v0.1.1
