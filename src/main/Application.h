@@ -22,7 +22,6 @@ class MetricsRegistry;
 
 namespace stellar
 {
-
 class VirtualClock;
 class TmpDirManager;
 class LedgerManager;
@@ -47,6 +46,10 @@ class BasicWork;
 enum class LoadGenMode;
 struct GeneratedLoadConfig;
 class AppConnector;
+namespace p23_hot_archive_bug
+{
+class Protocol23CorruptionDataVerifier;
+} // namespace p23_hot_archive_bug
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
@@ -233,6 +236,13 @@ class Application
     virtual WorkScheduler& getWorkScheduler() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
+
+    // Protocol 23 data corruption bug data verifier. This typically is null,
+    // unless a path to a CSV file containing the corruption data was provided
+    // in the config at startup.
+    virtual std::unique_ptr<
+        p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+    getProtocol23CorruptionDataVerifier() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_context will execute in parallel with the calling thread, so use

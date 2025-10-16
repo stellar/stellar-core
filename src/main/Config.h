@@ -653,6 +653,10 @@ class Config : public std::enable_shared_from_this<Config>
     bool LOG_COLOR;
     std::string BUCKET_DIR_PATH;
 
+    // Path to Protocol 23 corruption CSV file for testing/recovery
+    std::string PATH_TO_PROTOCOL_23_CORRUPTION_FILE;
+
+  public:
     // Ledger protocol version for testing purposes. Defaulted to
     // LEDGER_PROTOCOL_VERSION. Used in the following scenarios: 1. to specify
     // the genesis ledger version (only when USE_CONFIG_FOR_GENESIS is true) 2.

@@ -27,6 +27,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "rust/RustBridge.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/MutableTransactionResult.h"
@@ -1028,6 +1029,17 @@ class InvokeHostFunctionParallelApplyHelper
             auto ttlBuf = toCxxBuf(ttlEntry.data.ttl());
             mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
             mAutoRestoredRwEntryIndices.push_back(index);
+
+            // Validate restored entry against Protocol 23 corruption data if
+            // configured. Note that the bug only affects evicted entries, so we
+            // only assert against entries being restored from the hot archive.
+            if (isHotArchiveEntry && mApp.getProtocol23CorruptionDataVerifier())
+            {
+                mApp.getProtocol23CorruptionDataVerifier()
+                    ->verifyRestorationOfCorruptedEntry(
+                        lk, le, mLedgerInfo.getLedgerSeq(),
+                        mLedgerInfo.getLedgerVersion());
+            }
 
             return true;
         }

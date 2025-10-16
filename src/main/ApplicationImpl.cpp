@@ -37,6 +37,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
@@ -267,6 +268,20 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
+
+    // Load Protocol 23 corruption data if path to CSV is specified
+    if (!mConfig.PATH_TO_PROTOCOL_23_CORRUPTION_FILE.empty())
+    {
+        mProtocol23CorruptionDataVerifier = std::make_unique<
+            p23_hot_archive_bug::Protocol23CorruptionDataVerifier>();
+        if (!mProtocol23CorruptionDataVerifier->loadFromFile(
+                mConfig.PATH_TO_PROTOCOL_23_CORRUPTION_FILE))
+        {
+            throw std::invalid_argument(
+                "Failed to load Protocol 23 corruption file: " +
+                mConfig.PATH_TO_PROTOCOL_23_CORRUPTION_FILE);
+        }
+    }
 
     if (mConfig.ENTRY_CACHE_SIZE < 20000)
     {
@@ -1604,5 +1619,10 @@ AppConnector&
 ApplicationImpl::getAppConnector()
 {
     return *mAppConnector;
+}
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+ApplicationImpl::getProtocol23CorruptionDataVerifier()
+{
+    return mProtocol23CorruptionDataVerifier;
 }
 }
