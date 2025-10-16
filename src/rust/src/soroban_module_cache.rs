@@ -82,7 +82,7 @@ impl SorobanModuleCache {
             23 => self.p23_cache.contains_module(&_hash),
             24 => self.p24_cache.contains_module(&_hash),
             #[cfg(feature = "next")]
-            25 => self.p25_cache.contains_module(&_hash),
+            25 => self.p24_cache.contains_module(&_hash),
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
