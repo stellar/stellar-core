@@ -1420,8 +1420,11 @@
     <ClCompile Include="..\..\src\overlay\OverlayUtils.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\P23HotArchiveFix.cpp">
-      <Filter>herder</Filter>
+    <ClCompile Include="..\..\src\ledger\P23HotArchiveBug.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\P23HotArchiveBugData.cpp">
+      <Filter>ledger</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2521,7 +2524,10 @@
     <ClInclude Include="..\..\src\overlay\OverlayUtils.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\P23HotArchiveFix.h">
+    <ClInclude Include="..\..\src\ledger\P23HotArchiveBug.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\FilteredEntries.h">
       <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>

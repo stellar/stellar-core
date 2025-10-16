@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderImpl.h"
+
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
@@ -19,11 +20,15 @@
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
@@ -31,16 +36,12 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
+#include "util/Decoder.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
-
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "util/Decoder.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-internal.h"
 #include "xdrpp/marshal.h"
@@ -2465,9 +2466,12 @@ HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
     }
     else
     {
+        // Filter all the transactions that interact with any corrupted
+        // entries.
         // We're past p23 so it's fine to use p23 filter for all
-        // previous protocols
-        return filteredSet(KEYS_TO_FILTER_P23_COUNT, KEYS_TO_FILTER_P23);
+        // previous protocols.
+        auto keys = p23_hot_archive_bug::getP23CorruptedHotArchiveKeys();
+        return UnorderedSet<LedgerKey>(keys.begin(), keys.end());
     }
 }
 
