@@ -13,6 +13,7 @@
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -1264,12 +1265,11 @@ TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
     }
 }
 
-TEST_CASE("TransactionQueue Key Filtering")
+TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
 {
     gIsProductionNetwork = true;
-    auto runTestForKey = [&](std::string const& keyStr,
-                             uint32_t protocolVersion, bool shouldFilter = true,
-                             bool doUpgrade = false) {
+    auto runTestForKey = [&](LedgerKey const& key, uint32_t protocolVersion,
+                             bool shouldFilter = true, bool doUpgrade = false) {
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -1305,8 +1305,6 @@ TEST_CASE("TransactionQueue Key Filtering")
         auto uploadResourceFee =
             sorobanResourceFee(*app, resources, 1000 + wasm.data.size(), 40) +
             DEFAULT_TEST_RESOURCE_FEE;
-        LedgerKey key;
-        fromOpaqueBase64(key, keyStr);
         auto runTest = [&](SorobanResources const& resources, Operation op,
                            bool filter) {
             auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
@@ -1379,45 +1377,50 @@ TEST_CASE("TransactionQueue Key Filtering")
             }
         }
     };
-
+    auto keysToFilterP23 = p23_hot_archive_bug::getP23CorruptedHotArchiveKeys();
+    UnorderedSet<LedgerKey> keysToFilterP24;
+    for (auto const& keyStr : KEYS_TO_FILTER_P24)
+    {
+        LedgerKey key;
+        fromOpaqueBase64(key, keyStr);
+        keysToFilterP24.insert(key);
+    }
     SECTION("protocol version 23")
     {
-        for (auto const& keysToFilter : KEYS_TO_FILTER_P23)
+        for (auto const& keyToFilter : keysToFilterP23)
         {
-            runTestForKey(keysToFilter, 23);
+            runTestForKey(keyToFilter, 23);
         }
     }
     SECTION("protocol version 24")
     {
         SECTION("should filter")
         {
-            for (auto const& keysToFilter : KEYS_TO_FILTER_P24)
+            for (auto const& keyToFilter : keysToFilterP24)
             {
-                runTestForKey(keysToFilter, 24);
+                runTestForKey(keyToFilter, 24);
             }
         }
         SECTION("ignore p23 keys")
         {
-            for (auto const& keysToFilter : KEYS_TO_FILTER_P23)
+            for (auto const& keyToFilter : keysToFilterP23)
             {
-                if (std::find(KEYS_TO_FILTER_P24.begin(),
-                              KEYS_TO_FILTER_P24.end(),
-                              keysToFilter) == KEYS_TO_FILTER_P24.end())
+                if (keysToFilterP24.find(keyToFilter) == keysToFilterP24.end())
                 {
                     // p23 key isn't in the p24 list, don't filter the tx
-                    runTestForKey(keysToFilter, 24, /* shouldFilter */ false);
+                    runTestForKey(keyToFilter, 24, /* shouldFilter */ false);
                 }
                 else
                 {
                     // p23 key is in the p24 list, filter the tx
-                    runTestForKey(keysToFilter, 24);
+                    runTestForKey(keyToFilter, 24);
                 }
             }
         }
     }
     SECTION("recompute keys on upgrade")
     {
-        for (auto const& p23Key : KEYS_TO_FILTER_P23)
+        for (auto const& p23Key : keysToFilterP23)
         {
             runTestForKey(p23Key, 23, /* shouldFilter */ true,
                           /* doUpgrade */ true);

@@ -28,7 +28,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTypeUtils.h"
-#include "ledger/P23HotArchiveFix.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -2778,7 +2778,7 @@ LedgerManagerImpl::sealLedgerTxnAndTransferEntriesToBucketList(
                 }
                 if (isP24UpgradeLedger)
                 {
-                    addHotArchiveBatchWithP23HotArchiveFix(
+                    p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
                         ltxEvictions, mApp, lh, evictedState.archivedEntries,
                         restoredEntries);
                 }

@@ -20,7 +20,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
-#include "ledger/P23HotArchiveFix.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "ledger/TrustLineWrapper.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
@@ -3941,13 +3941,16 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
         return app->getAppConnector()
             .copySearchableHotArchiveBucketListSnapshot();
     };
-
+    auto const& corruptedEntries =
+        p23_hot_archive_bug::internal::P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
     std::vector<std::string> allEncodedCorruptedEntries(
-        P23_CORRUPTED_ENTRIES.begin(), P23_CORRUPTED_ENTRIES.end());
+        corruptedEntries.begin(), corruptedEntries.end());
     auto [allCorruptedEntriesByKey, allCorruptedEntries] =
         parseEntries(allEncodedCorruptedEntries);
+    auto const& correctEntries = p23_hot_archive_bug::internal::
+        P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE;
     std::vector<std::string> allEncodedExpectedFixedEntries(
-        P23_CORRUPTED_ENTRY_FIXES.begin(), P23_CORRUPTED_ENTRY_FIXES.end());
+        correctEntries.begin(), correctEntries.end());
     auto [allExpectedFixedByKey, allExpectedFixed] =
         parseEntries(allEncodedExpectedFixedEntries);
 
