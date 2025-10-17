@@ -70,7 +70,7 @@ class TestInvariantManager : public InvariantManagerImpl
 
   private:
     virtual void
-    handleInvariantFailure(std::shared_ptr<Invariant> invariant,
+    handleInvariantFailure(bool isStrict,
                            std::string const& message) const override;
 };
 

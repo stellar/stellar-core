@@ -25,6 +25,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
+#include "invariant/ArchivedStateConsistency.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/ConstantProductInvariant.h"
@@ -320,6 +321,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     SponsorshipCountIsValid::registerInvariant(*this);
     ConstantProductInvariant::registerInvariant(*this);
     EventsAreConsistentWithEntryDiffs::registerInvariant(*this);
+    ArchivedStateConsistency::registerInvariant(*this);
 
     enableInvariantsFromConfig();
 
@@ -778,6 +780,8 @@ ApplicationImpl::validateAndLogConfig()
 void
 ApplicationImpl::startServices()
 {
+    mInvariantManager->start(*this);
+
     // restores Herder's state before starting overlay
     mHerder->start();
     mMaintainer->start();

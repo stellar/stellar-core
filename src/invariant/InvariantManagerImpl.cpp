@@ -3,22 +3,27 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/InvariantManagerImpl.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
+#include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "crypto/Hex.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
+#include "medida/counter.h"
+#include "medida/metrics_registry.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
-
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
 
 #include <memory>
 #include <numeric>
@@ -158,6 +163,33 @@ InvariantManagerImpl::checkOnOperationApply(
 }
 
 void
+InvariantManagerImpl::checkOnLedgerCommit(
+    SearchableSnapshotConstPtr lclLiveState,
+    SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+    std::vector<LedgerEntry> const& evictedFromLive,
+    std::vector<LedgerKey> deletedKeysFromLive,
+    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+{
+    for (auto invariant : mEnabled)
+    {
+        auto result = invariant->checkOnLedgerCommit(
+            lclLiveState, lclHotArchiveState, evictedFromLive,
+            deletedKeysFromLive, restoredFromArchive, restoredFromLiveState);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
+            invariant->getName(), result);
+        onInvariantFailure(invariant, message,
+                           lclLiveState->getLedgerSeq() + 1);
+    }
+}
+
+void
 InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
 {
     auto name = invariant->getName();
@@ -244,17 +276,17 @@ InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
 {
     mInvariantFailureCount.inc();
     mFailureInformation[invariant->getName()] = {ledger, message};
-    handleInvariantFailure(invariant, message);
+    handleInvariantFailure(invariant->isStrict(), message);
 }
 
 void
-InvariantManagerImpl::handleInvariantFailure(
-    std::shared_ptr<Invariant> invariant, std::string const& message) const
+InvariantManagerImpl::handleInvariantFailure(bool isStrict,
+                                             std::string const& message) const
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     abort();
 #endif
-    if (invariant->isStrict())
+    if (isStrict)
     {
         CLOG_FATAL(Invariant, "{}", message);
         CLOG_FATAL(Invariant, "{}", REPORT_INTERNAL_BUG);
@@ -264,6 +296,25 @@ InvariantManagerImpl::handleInvariantFailure(
     {
         CLOG_ERROR(Invariant, "{}", message);
         CLOG_ERROR(Invariant, "{}", REPORT_INTERNAL_BUG);
+    }
+}
+
+void
+InvariantManagerImpl::start(Application& app)
+{
+    for (auto invariant : mEnabled)
+    {
+        auto result = invariant->start(app);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
+            invariant->getName(), result);
+        onInvariantFailure(invariant, message,
+                           app.getLedgerManager().getLastClosedLedgerNum());
     }
 }
 

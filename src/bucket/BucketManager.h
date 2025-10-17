@@ -4,6 +4,7 @@
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/TmpDir.h"
+#include "util/UnorderedMap.h"
 #include "util/types.h"
 #include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
@@ -377,6 +378,9 @@ class BucketManager : NonMovableOrCopyable
     // public nodes. The whole ledger. Call carefully, and only offline.
     std::map<LedgerKey, LedgerEntry>
     loadCompleteLedgerState(HistoryArchiveState const& has);
+
+    std::map<LedgerKey, LedgerEntry>
+    loadCompleteHotArchiveState(HistoryArchiveState const& has);
 
     // Merge the bucket list of the provided HAS into a single "super bucket"
     // consisting of only live entries, and return it.

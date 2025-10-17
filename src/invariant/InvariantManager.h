@@ -15,6 +15,7 @@ class AppConnector;
 class Application;
 class Bucket;
 class Invariant;
+struct EvictedStateVectors;
 struct LedgerTxnDelta;
 struct Operation;
 
@@ -51,9 +52,19 @@ class InvariantManager
                                        std::vector<ContractEvent> const& events,
                                        AppConnector& app) = 0;
 
+    virtual void checkOnLedgerCommit(
+        SearchableSnapshotConstPtr lclLiveState,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        std::vector<LedgerEntry> const& evictedFromLive,
+        std::vector<LedgerKey> deletedKeysFromLive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState) = 0;
+
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 
     virtual void enableInvariant(std::string const& name) = 0;
+
+    virtual void start(Application& app) = 0;
 
 #ifdef BUILD_TESTS
     virtual void snapshotForFuzzer() = 0;

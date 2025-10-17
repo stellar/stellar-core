@@ -375,6 +375,8 @@ class LedgerManagerImpl : public LedgerManager
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
     CompleteConstLedgerStatePtr sealLedgerTxnAndStoreInBucketsAndDB(
+        SearchableSnapshotConstPtr lclSnapshot,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
@@ -418,6 +420,8 @@ class LedgerManagerImpl : public LedgerManager
     // NB: LedgerHeader is a copy here to prevent footguns in case ltx
     // invalidates any header references
     virtual void finalizeLedgerTxnChanges(
+        SearchableSnapshotConstPtr lclSnapshot,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
