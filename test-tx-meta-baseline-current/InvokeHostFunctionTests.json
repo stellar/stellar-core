@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 23,
+	"!cfg protocol version" : 24,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -28,7 +28,8 @@
 		20,
 		21,
 		22,
-		23
+		23,
+		24
 	],
 	"Failed write still causes ttl observation" : [ "+cR3oq2qY0I=", "qJ8KIK1AUN8=", "mvtbiiIU4+E=", "tLtF1ukXymY=" ],
 	"Module cache" : [ "MR6BJ3xmn2c=" ],
@@ -1331,6 +1332,16 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
+	"Soroban non-refundable resource fees are stable|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
 	"Stellar asset contract transfer with CAP-67 address types" : 
 	[
 		"+cR3oq2qY0I=",
@@ -1388,6 +1399,19 @@
 		"wHwgNBvEIfA="
 	],
 	"Trustline stellar asset contract|protocol version 23" : 
+	[
+		"NTGGdj1offM=",
+		"9zf1xeYVpiw=",
+		"m7dhjUPnS7c=",
+		"B9+yIyawSCU=",
+		"iDdf31JTovI=",
+		"7d7/qzY17/o=",
+		"CouIL70NruM=",
+		"yYwUqope2ZU=",
+		"Xl79rsoQeGo=",
+		"wHwgNBvEIfA="
+	],
+	"Trustline stellar asset contract|protocol version 24" : 
 	[
 		"NTGGdj1offM=",
 		"9zf1xeYVpiw=",
@@ -2035,6 +2059,61 @@
 		"+cR3oq2qY0I=",
 		"lCieN6G6nuM="
 	],
+	"archival meta|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM=",
+		"+cR3oq2qY0I=",
+		"lCieN6G6nuM="
+	],
 	"autorestore contract instance" : 
 	[
 		"+cR3oq2qY0I=",
@@ -2116,6 +2195,21 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
+	"basic contract invocation|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
 	"buying liabilities plus refund is greater than INT64_MAX" : 
 	[
 		"+cR3oq2qY0I=",
@@ -2128,17 +2222,21 @@
 	"classic payment source same as soroban fee bump source|protocol version 21" : [ "NTGGdj1offM=", "WQxK0L0eSCg=", "XYBFgdXMM2Q=", "qTDm8RGyn5o=" ],
 	"classic payment source same as soroban fee bump source|protocol version 22" : [ "NTGGdj1offM=", "tiYHFp7ZbdQ=", "vS8mT2cRBfk=", "jdmkrqFPYzY=" ],
 	"classic payment source same as soroban fee bump source|protocol version 23" : [ "NTGGdj1offM=", "/BL0GVDK25E=", "el74K0RTG3s=", "G2A+Ze4n0j0=" ],
+	"classic payment source same as soroban fee bump source|protocol version 24" : [ "NTGGdj1offM=", "/BL0GVDK25E=", "el74K0RTG3s=", "G2A+Ze4n0j0=" ],
 	"classic payment to soroban fee bump account|protocol version 21" : [ "NTGGdj1offM=", "fjoLcDhWHYA=", "4IRpUOj0+wQ=", "sSgQaOxyoRw=" ],
 	"classic payment to soroban fee bump account|protocol version 22" : [ "NTGGdj1offM=", "uATUQupgc10=", "Bm2FUdIKm9s=", "lvpJjIticYI=" ],
 	"classic payment to soroban fee bump account|protocol version 23" : [ "NTGGdj1offM=", "Q863mNGKGLA=", "GoSyXOxdw1s=", "02AVQAnH7qc=" ],
+	"classic payment to soroban fee bump account|protocol version 24" : [ "NTGGdj1offM=", "Q863mNGKGLA=", "GoSyXOxdw1s=", "02AVQAnH7qc=" ],
 	"classic phase bumps sequence of soroban source account|protocol version 20" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "9Rpfyyb4ewI=" ],
 	"classic phase bumps sequence of soroban source account|protocol version 21" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "9Rpfyyb4ewI=" ],
 	"classic phase bumps sequence of soroban source account|protocol version 22" : [ "NTGGdj1offM=", "CTLGLR5LLHY=", "xXpwdFz6+Uc=" ],
 	"classic phase bumps sequence of soroban source account|protocol version 23" : [ "NTGGdj1offM=", "jcAe7jOvF7U=", "3KNBsUHfZIc=" ],
+	"classic phase bumps sequence of soroban source account|protocol version 24" : [ "NTGGdj1offM=", "jcAe7jOvF7U=", "3KNBsUHfZIc=" ],
 	"classic phase sets master weight of soroban source account to 0|protocol version 20" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "Xrc/DmdG8do=" ],
 	"classic phase sets master weight of soroban source account to 0|protocol version 21" : [ "NTGGdj1offM=", "FVbub/Ss/Xg=", "Xrc/DmdG8do=" ],
 	"classic phase sets master weight of soroban source account to 0|protocol version 22" : [ "NTGGdj1offM=", "CTLGLR5LLHY=", "FBx7+A8nzD8=" ],
 	"classic phase sets master weight of soroban source account to 0|protocol version 23" : [ "NTGGdj1offM=", "jcAe7jOvF7U=", "CpEmfvshkZs=" ],
+	"classic phase sets master weight of soroban source account to 0|protocol version 24" : [ "NTGGdj1offM=", "jcAe7jOvF7U=", "CpEmfvshkZs=" ],
 	"complex contract|diagnostics disabled" : [ "+cR3oq2qY0I=" ],
 	"complex contract|diagnostics enabled" : [ "+cR3oq2qY0I=" ],
 	"contract constructor support" : 
@@ -2202,6 +2300,17 @@
 		"+cR3oq2qY0I="
 	],
 	"contract storage|protocol version 23|footprint|unused readWrite key" : [ "DoR65weeeAk=" ],
+	"contract storage|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"contract storage|protocol version 24|footprint|unused readWrite key" : [ "DoR65weeeAk=" ],
 	"create in first stage delete in second stage" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=", "9ztD9SE/Uek=" ],
 	"delete in first stage extend in second stage" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=", "9ztD9SE/Uek=" ],
 	"delete non existent entry with parallel apply" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=" ],
@@ -2223,6 +2332,14 @@
 		"OFY4I7dpXag="
 	],
 	"fee bump inner account merged then used as inner account on soroban fee bump|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"BKc5Rrh5e2Y=",
+		"GdHrnqOgZkE=",
+		"4wVGUgmORrk=",
+		"9/RHd8t1ab4="
+	],
+	"fee bump inner account merged then used as inner account on soroban fee bump|protocol version 24" : 
 	[
 		"+cR3oq2qY0I=",
 		"BKc5Rrh5e2Y=",
@@ -2255,6 +2372,14 @@
 		"LVQ9V0yxHlw="
 	],
 	"fee bump refund account merged|protocol version 23" : 
+	[
+		"NTGGdj1offM=",
+		"6peNuI0WUWU=",
+		"Fwl38theYqY=",
+		"VANzopQnZEI=",
+		"5SMRvgvDsPg="
+	],
+	"fee bump refund account merged|protocol version 24" : 
 	[
 		"NTGGdj1offM=",
 		"6peNuI0WUWU=",
@@ -2324,6 +2449,21 @@
 		"XgQ36O588Cw=",
 		"AeLB0v5FV3E="
 	],
+	"merge account then SAC payment scenarios|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E=",
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E=",
+		"+cR3oq2qY0I=",
+		"kDMMDQdWWBg=",
+		"XgQ36O588Cw=",
+		"AeLB0v5FV3E="
+	],
 	"multiple soroban ops in a tx|protocol version 20" : [ "bKDF6V5IzTo=", "n9Sc/mMA2VA=", "bKDF6V5IzTo=", "n9Sc/mMA2VA=" ],
 	"multiple soroban ops in a tx|protocol version 20|with fee bump" : [ "nfyrGO2ZGaM=" ],
 	"multiple soroban ops in a tx|protocol version 21" : [ "bKDF6V5IzTo=", "SStJyt3nT/c=", "bKDF6V5IzTo=", "SStJyt3nT/c=" ],
@@ -2332,10 +2472,13 @@
 	"multiple soroban ops in a tx|protocol version 22|with fee bump" : [ "GBxu8O7r00s=" ],
 	"multiple soroban ops in a tx|protocol version 23" : [ "+cR3oq2qY0I=", "dVqD6K4nmbM=", "+cR3oq2qY0I=", "dVqD6K4nmbM=" ],
 	"multiple soroban ops in a tx|protocol version 23|with fee bump" : [ "+6PP7MKB9TU=" ],
+	"multiple soroban ops in a tx|protocol version 24" : [ "+cR3oq2qY0I=", "dVqD6K4nmbM=", "+cR3oq2qY0I=", "dVqD6K4nmbM=" ],
+	"multiple soroban ops in a tx|protocol version 24|with fee bump" : [ "+6PP7MKB9TU=" ],
 	"non-fee source account is recipient of payment in both classic and soroban|protocol version 20" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
 	"non-fee source account is recipient of payment in both classic and soroban|protocol version 21" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
 	"non-fee source account is recipient of payment in both classic and soroban|protocol version 22" : [ "NTGGdj1offM=", "uXD8Cnl+z1A=", "geKndLx9Dwk=", "up/hSXkPDJo=" ],
 	"non-fee source account is recipient of payment in both classic and soroban|protocol version 23" : [ "NTGGdj1offM=", "iA54BbkrMmc=", "KLpBGpyr9Fg=", "7yXpRaCKcqw=" ],
+	"non-fee source account is recipient of payment in both classic and soroban|protocol version 24" : [ "NTGGdj1offM=", "iA54BbkrMmc=", "KLpBGpyr9Fg=", "7yXpRaCKcqw=" ],
 	"overly large soroban values are handled gracefully" : 
 	[
 		"+cR3oq2qY0I=",
@@ -3063,18 +3206,22 @@
 	"refund account merged|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=", "l3luGRqcBNU=" ],
 	"refund account merged|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=", "51g/NdOY708=", "qBAN8h2uYsI=" ],
 	"refund account merged|protocol version 23" : [ "NTGGdj1offM=", "6peNuI0WUWU=", "Fwl38theYqY=", "VANzopQnZEI=" ],
+	"refund account merged|protocol version 24" : [ "NTGGdj1offM=", "6peNuI0WUWU=", "Fwl38theYqY=", "VANzopQnZEI=" ],
 	"refund is sent to fee-bump source|protocol version 20" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=" ],
 	"refund is sent to fee-bump source|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=" ],
 	"refund is sent to fee-bump source|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=", "51g/NdOY708=" ],
 	"refund is sent to fee-bump source|protocol version 23" : [ "NTGGdj1offM=", "6peNuI0WUWU=", "Fwl38theYqY=" ],
+	"refund is sent to fee-bump source|protocol version 24" : [ "NTGGdj1offM=", "6peNuI0WUWU=", "Fwl38theYqY=" ],
 	"refund still happens on bad auth|protocol version 20" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=" ],
 	"refund still happens on bad auth|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=", "lDIOdHQWnno=" ],
 	"refund still happens on bad auth|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=", "51g/NdOY708=" ],
 	"refund still happens on bad auth|protocol version 23" : [ "NTGGdj1offM=", "6peNuI0WUWU=", "Fwl38theYqY=" ],
+	"refund still happens on bad auth|protocol version 24" : [ "NTGGdj1offM=", "6peNuI0WUWU=", "Fwl38theYqY=" ],
 	"refund test with closeLedger|protocol version 20" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=" ],
 	"refund test with closeLedger|protocol version 21" : [ "NTGGdj1offM=", "4gCiTRsvvQQ=" ],
 	"refund test with closeLedger|protocol version 22" : [ "NTGGdj1offM=", "g3gHe/+0R0s=" ],
 	"refund test with closeLedger|protocol version 23" : [ "NTGGdj1offM=", "6peNuI0WUWU=" ],
+	"refund test with closeLedger|protocol version 24" : [ "NTGGdj1offM=", "6peNuI0WUWU=" ],
 	"refund to source in tx1 and SAC transfer from same account in tx2|protocol version 20" : 
 	[
 		"NTGGdj1offM=",
@@ -3103,6 +3250,15 @@
 		"geKndLx9Dwk="
 	],
 	"refund to source in tx1 and SAC transfer from same account in tx2|protocol version 23" : 
+	[
+		"NTGGdj1offM=",
+		"iA54BbkrMmc=",
+		"KLpBGpyr9Fg=",
+		"NTGGdj1offM=",
+		"iA54BbkrMmc=",
+		"KLpBGpyr9Fg="
+	],
+	"refund to source in tx1 and SAC transfer from same account in tx2|protocol version 24" : 
 	[
 		"NTGGdj1offM=",
 		"iA54BbkrMmc=",
@@ -3155,6 +3311,7 @@
 	"source account of first tx is in second txs footprint|protocol version 21" : [ "NTGGdj1offM=", "YDNTfJslOvc=", "0lSgIUSYUl4=", "hoRx9d0FZhY=" ],
 	"source account of first tx is in second txs footprint|protocol version 22" : [ "NTGGdj1offM=", "uXD8Cnl+z1A=", "geKndLx9Dwk=", "up/hSXkPDJo=" ],
 	"source account of first tx is in second txs footprint|protocol version 23" : [ "NTGGdj1offM=", "iA54BbkrMmc=", "KLpBGpyr9Fg=", "7yXpRaCKcqw=" ],
+	"source account of first tx is in second txs footprint|protocol version 24" : [ "NTGGdj1offM=", "iA54BbkrMmc=", "KLpBGpyr9Fg=", "7yXpRaCKcqw=" ],
 	"state archival operation errors|protocol version 20" : 
 	[
 		"bKDF6V5IzTo=",
@@ -3189,6 +3346,17 @@
 		"bKDF6V5IzTo="
 	],
 	"state archival operation errors|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
+	"state archival operation errors|protocol version 24" : 
 	[
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I=",
@@ -3271,6 +3439,24 @@
 		"+cR3oq2qY0I=",
 		"+cR3oq2qY0I="
 	],
+	"state archival|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I=",
+		"+cR3oq2qY0I="
+	],
 	"transaction validation diagnostics" : [ "+cR3oq2qY0I=" ],
 	"trustline deletion then SAC payment|protocol version 20" : 
 	[
@@ -3316,6 +3502,17 @@
 		"T452ExvJRU0=",
 		"U3cl0rcrkIE="
 	],
+	"trustline deletion then SAC payment|protocol version 24" : 
+	[
+		"+cR3oq2qY0I=",
+		"g6QB9gqh5xo=",
+		"TKzkuxMfH18=",
+		"b3iiNQt8Cb0=",
+		"r2H4hw9Ij8A=",
+		"8+WGK0Ogv8k=",
+		"T452ExvJRU0=",
+		"U3cl0rcrkIE="
+	],
 	"validate return values|protocol version 20" : 
 	[
 		"bKDF6V5IzTo=",
@@ -3350,6 +3547,17 @@
 		"Tk7Z7LgjVIM="
 	],
 	"validate return values|protocol version 23" : 
+	[
+		"+cR3oq2qY0I=",
+		"dVqD6K4nmbM=",
+		"uoPEAi87aTU=",
+		"CsReMTmwolg=",
+		"hNENG/eaDPo=",
+		"AtSaF+1Mu20=",
+		"q25JLYe6/DE=",
+		"n3yV5IX7urw="
+	],
+	"validate return values|protocol version 24" : 
 	[
 		"+cR3oq2qY0I=",
 		"dVqD6K4nmbM=",
