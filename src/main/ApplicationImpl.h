@@ -36,6 +36,10 @@ class InMemoryLedgerTxn;
 class InMemoryLedgerTxnRoot;
 class LoadGenerator;
 class AppConnector;
+namespace p23_hot_archive_bug
+{
+class Protocol23CorruptionDataVerifier;
+}
 
 class ApplicationImpl : public Application
 {
@@ -78,6 +82,8 @@ class ApplicationImpl : public Application
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
     virtual AppConnector& getAppConnector() override;
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+    getProtocol23CorruptionDataVerifier() override;
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
@@ -191,6 +197,9 @@ class ApplicationImpl : public Application
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<AbstractLedgerTxnParent> mLedgerTxnRoot;
     std::unique_ptr<AppConnector> mAppConnector;
+
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>
+        mProtocol23CorruptionDataVerifier;
 
     // These two exist for use in MODE_USES_IN_MEMORY_LEDGER only: the
     // mInMemoryLedgerTxnRoot is a _stub_ AbstractLedgerTxnParent that refuses
