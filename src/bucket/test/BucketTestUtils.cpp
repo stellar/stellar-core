@@ -274,9 +274,9 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                 ltxEvictions.commit();
             }
             SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
-                    lh.ledgerSeq,
+                lh.ledgerSeq,
                 mApp.getLedgerManager().getSorobanInMemoryStateSizeForTesting(),
-                    ltx, mApp);
+                ltx, mApp);
         }
 
         // Load the final Soroban config just before sealing the ltx.
@@ -313,7 +313,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                                      return LedgerEntryKey(e) ==
                                             LedgerEntryKey(liveEntry);
                                  }) == mTestLiveEntries.end())
-            {
+                {
                     mTestLiveEntries.push_back(liveEntry);
                 }
             }
@@ -343,7 +343,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     else
     {
         LedgerManagerImpl::finalizeLedgerTxnChanges(
-        	ltx, ledgerCloseMeta, lh, initialLedgerVers, isP24UpgradeLedger);
+            ltx, ledgerCloseMeta, lh, initialLedgerVers, isP24UpgradeLedger);
     }
 }
 

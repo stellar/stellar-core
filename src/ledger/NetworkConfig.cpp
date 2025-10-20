@@ -552,8 +552,9 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-updateCpuCostParamsEntryForV24(AbstractLedgerTxn& ltxRoot)
+updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -613,6 +614,7 @@ updateCpuCostParamsEntryForV24(AbstractLedgerTxn& ltxRoot)
     }
     ltx.commit();
 }
+#endif
 
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
@@ -974,8 +976,9 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-updateMemCostParamsEntryForV24(AbstractLedgerTxn& ltxRoot)
+updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -1036,6 +1039,7 @@ updateMemCostParamsEntryForV24(AbstractLedgerTxn& ltxRoot)
 
     ltx.commit();
 }
+#endif
 
 ConfigSettingEntry
 initialParallelComputeEntry()
@@ -1419,12 +1423,14 @@ SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
 }
 
 void
-SorobanNetworkConfig::createCostTypesForV24(AbstractLedgerTxn& ltx,
+SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
                                             Application& app)
 {
     ZoneScoped;
-    updateCpuCostParamsEntryForV24(ltx);
-    updateMemCostParamsEntryForV24(ltx);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    updateCpuCostParamsEntryForV25(ltx);
+    updateMemCostParamsEntryForV25(ltx);
+#endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 }
 
 void

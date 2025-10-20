@@ -1390,8 +1390,8 @@ dependencies = [
 
 [[package]]
 name = "soroban-test-wasms"
-version = "23.0.0"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=688bc34e6cd15c71742139e625268c7f30f55a92#688bc34e6cd15c71742139e625268c7f30f55a92"
+version = "23.0.2"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=30249f0549141dbe7fdce84b6401a4235dbad64f#30249f0549141dbe7fdce84b6401a4235dbad64f"
 
 [[package]]
 name = "soroban-wasmi"
@@ -1433,6 +1433,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.13.1",
  "cxx",
+ "ed25519-dalek",
  "itertools 0.10.5",
  "log",
  "rand",
@@ -1450,14 +1451,14 @@ dependencies = [
 [[package]]
 name = "stellar-quorum-analyzer"
 version = "0.1.0"
-source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=19a94f05018c5db45daa0d62de7b3282b61f276b#19a94f05018c5db45daa0d62de7b3282b61f276b"
+source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=d7d920c5476af0c0bb93b551c956077033328a7b#d7d920c5476af0c0bb93b551c956077033328a7b"
 dependencies = [
  "batsat",
  "itertools 0.10.5",
  "log",
  "petgraph",
  "stellar-strkey 0.0.13",
- "stellar-xdr 23.0.0",
+ "stellar-xdr 24.0.0",
 ]
 
 [[package]]

@@ -1226,7 +1226,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     {
         SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
     }
-    if (needUpgradeToVersion(ProtocolVersion::V_24, prevVersion, newVersion))
+    if (needUpgradeToVersion(ProtocolVersion::V_25, prevVersion, newVersion))
     {
         PubKeyUtils::enableRustDalekVerify();
     }

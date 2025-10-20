@@ -219,7 +219,7 @@ class LedgerManagerImpl : public LedgerManager
         // thread (either main or parallel apply thread).
         void updateInMemorySorobanState(
             std::vector<LedgerEntry> const& initEntries,
-                                   std::vector<LedgerEntry> const& liveEntries,
+            std::vector<LedgerEntry> const& liveEntries,
             std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
             std::optional<SorobanNetworkConfig const> const& sorobanConfig);
 
@@ -323,7 +323,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyParallelPhase(
         TxSetPhaseFrame const& phase, std::vector<ApplyStage>& applyStages,
-                       std::vector<MutableTxResultPtr> const& mutableTxResults,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
         uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
         SorobanNetworkConfig const& sorobanConfig,
         Hash const& sorobanBasePrngSeed);

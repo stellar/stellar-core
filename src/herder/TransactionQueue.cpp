@@ -1098,7 +1098,7 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "evicted-due-too-age-count"}),
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
-                                     "not-included-due-too-low-fee-count"}));
+                                     "not-included-due-too-low-fee-count"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());

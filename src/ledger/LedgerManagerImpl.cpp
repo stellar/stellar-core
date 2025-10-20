@@ -1034,12 +1034,12 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     {
         auto bytesConsumed = mModuleCache->get_mem_bytes_consumed(v);
         if (bytesConsumed > limit)
-    {
-        CLOG_DEBUG(Ledger,
-                   "Rebuilding module cache: worst-case estimate {} "
-                   "model-bytes consumed of {} limit",
+        {
+            CLOG_DEBUG(Ledger,
+                       "Rebuilding module cache: worst-case estimate {} "
+                       "model-bytes consumed of {} limit",
                        bytesConsumed, limit);
-        startCompilingAllContracts(snap, minLedgerVersion);
+            startCompilingAllContracts(snap, minLedgerVersion);
             break;
         }
     }
@@ -1737,23 +1737,23 @@ LedgerManagerImpl::setLastClosedLedger(
     advanceLastClosedLedgerState(output);
 
     auto ledgerVersion = lastClosed.header.ledgerVersion;
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_24))
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_25))
     {
         PubKeyUtils::enableRustDalekVerify();
     }
 
     if (rebuildInMemoryState)
     {
-    // This should not be additionally conditionalized on lv >= anything,
-    // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
-    //
-    // Again, since we are only called during catchup and just got a full
-    // bucket state, there's no tx-apply state to snapshot, in this one
-    // case we will prime the tx-apply-state's soroban module cache using
-    // a snapshot _from_ the LCL state.
-    auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
-    mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
-    mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
+        // This should not be additionally conditionalized on lv >= anything,
+        // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
+        //
+        // Again, since we are only called during catchup and just got a full
+        // bucket state, there's no tx-apply state to snapshot, in this one
+        // case we will prime the tx-apply-state's soroban module cache using
+        // a snapshot _from_ the LCL state.
+        auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
+        mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
+        mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
     }
     mApplyState.markEndOfSetupPhase();
 }
@@ -1955,9 +1955,9 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 
-        return std::make_shared<CompleteConstLedgerState const>(
+    return std::make_shared<CompleteConstLedgerState const>(
         bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(),
-            lcl, has);
+        lcl, has);
 }
 }
 
@@ -2200,9 +2200,9 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
         releaseAssert(threadFuture.valid());
         try
         {
-        auto futureResult = threadFuture.get();
-        threadStates.emplace_back(std::move(futureResult));
-    }
+            auto futureResult = threadFuture.get();
+            threadStates.emplace_back(std::move(futureResult));
+        }
         catch (const std::exception& e)
         {
             printErrorAndAbort("Exception on apply thread: ", e.what());
@@ -2691,13 +2691,12 @@ void
 LedgerManagerImpl::finalizeLedgerTxnChanges(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    LedgerHeader lh, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
-    auto lh = ltx.loadHeader().current();
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
@@ -2796,11 +2795,10 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
-    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto currLedgerVers = ltx.loadHeader().current().ledgerVersion;
+    auto ledgerHeader = ltx.loadHeader().current();
     CLOG_TRACE(Ledger,
                "sealing ledger {} with version {}, sending to bucket list",
-               ledgerSeq, currLedgerVers);
+               ledgerHeader.ledgerSeq, ledgerHeader.ledgerVersion);
 
     // There is a subtle bug in the upgrade path that wasn't noticed until
     // protocol 20. For a ledger that upgrades from protocol vN to vN+1,
@@ -2823,15 +2821,8 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     // protocol version prior to the upgrade. Due to this, we must check the
     // initial protocol version of ledger instead of the ledger version of
     // the current ltx header, which may have been modified via an upgrade.
-    sealLedgerTxnAndTransferEntriesToBucketList(
-        ltx, ledgerCloseMeta, ltx.loadHeader().current(), initialLedgerVers);
-    if (ledgerCloseMeta &&
-        protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
-    {
-        ledgerCloseMeta->setNetworkConfiguration(
-            mApplyState.getSorobanNetworkConfigForCommit(),
-            mApp.getConfig().EMIT_LEDGER_CLOSE_META_EXT_V1);
-    }
+    finalizeLedgerTxnChanges(ltx, ledgerCloseMeta, ledgerHeader,
+                             initialLedgerVers, isP24UpgradeLedger);
 
     CompleteConstLedgerStatePtr res;
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {

@@ -86,11 +86,19 @@ impl SorobanModuleCache {
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
-    pub fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_mem_bytes_consumed(
+        &self,
+        ledger_protocol: u32,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
         #[allow(unused_mut)]
         let mut bytes = 0;
-        bytes = bytes.max(self.p23_cache.get_mem_bytes_consumed()?);
-        bytes = bytes.max(self.p24_cache.get_mem_bytes_consumed()?);
+        match ledger_protocol {
+            23 => bytes = bytes.max(self.p23_cache.get_mem_bytes_consumed()?),
+            24 => bytes = bytes.max(self.p24_cache.get_mem_bytes_consumed()?),
+            #[cfg(feature = "next")]
+            25 => bytes = bytes.max(self.p24_cache.get_mem_bytes_consumed()?),
+            _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
+        }
         Ok(bytes)
     }
 }

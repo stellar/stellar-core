@@ -243,7 +243,7 @@ class TransactionQueue
         // Count of transactions that were not included into queue because it
         // is at capacity and the fee is too low to replace other txs.
         medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
-        
+
         medida::Counter& mTxsFilteredDueToFootprintKeys;
     };
 
