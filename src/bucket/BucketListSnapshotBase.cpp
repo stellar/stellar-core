@@ -171,15 +171,19 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 }
 
 template <class BucketT>
+static UnorderedMap<
+    medida::MetricsRegistry*,
+    UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>>
+    gPointTimers;
+
+template <class BucketT> static std::mutex gPointTimerLock;
+
+template <class BucketT>
 static UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>&
 getPointTimers(medida::MetricsRegistry& registry)
 {
-    static UnorderedMap<
-        medida::MetricsRegistry*,
-        UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>>
-        timers;
-    static std::mutex lock;
-    auto& res = timers[&registry];
+    std::lock_guard guard{gPointTimerLock<BucketT>};
+    auto& res = gPointTimers<BucketT>[&registry];
     if (res.empty())
     {
         // Initialize point load timers for each LedgerEntry type
@@ -195,6 +199,19 @@ getPointTimers(medida::MetricsRegistry& registry)
         }
     }
     return res;
+}
+
+void
+unregisterSimpleTimers(medida::MetricsRegistry& registry)
+{
+    {
+        std::lock_guard guard{gPointTimerLock<LiveBucket>};
+        gPointTimers<LiveBucket>.erase(&registry);
+    }
+    {
+        std::lock_guard guard{gPointTimerLock<HotArchiveBucket>};
+        gPointTimers<HotArchiveBucket>.erase(&registry);
+    }
 }
 
 template <class BucketT>

@@ -144,4 +144,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     std::shared_ptr<typename BucketT::LoadT const>
     load(LedgerKey const& k) const;
 };
+
+// Remove the storage holding the SimpleTimers associated with the given
+// registry
+void unregisterSimpleTimers(medida::MetricsRegistry& registry);
 }

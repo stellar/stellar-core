@@ -256,6 +256,7 @@ BucketManager::getBucketDir() const
 BucketManager::~BucketManager()
 {
 
+    unregisterSimpleTimers(mApp.getMetrics());
     deleteTmpDirAndUnlockBucketDir();
 }
 
