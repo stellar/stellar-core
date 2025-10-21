@@ -49,6 +49,7 @@ bucketlistDB-live.bulk.eviction           | timer     | time to load for evictio
 bucketlistDB-live.bulk.query              | timer     | time to load for query server
 bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
+bucketlistDB-<X>.<Y>.max                  | counter   | max (over 30 second window) of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-cache.hit                    | meter     | number of cache hits on Live BucketList Disk random eviction cache
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
 bucketlistDB.cache.entries                | counter   | number of entries currently in Live BucketList index cache
