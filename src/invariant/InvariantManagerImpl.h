@@ -38,11 +38,11 @@ class InvariantManagerImpl : public InvariantManager
     virtual std::vector<std::string> getEnabledInvariants() const override;
     bool isBucketApplyInvariantEnabled() const override;
 
-    virtual void
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& opres,
-                          LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events) override;
+    virtual void checkOnOperationApply(Operation const& operation,
+                                       OperationResult const& opres,
+                                       LedgerTxnDelta const& ltxDelta,
+                                       std::vector<ContractEvent> const& events,
+                                       AppConnector& app) override;
 
     virtual void checkOnBucketApply(
         std::shared_ptr<LiveBucket const> bucket, uint32_t ledger,

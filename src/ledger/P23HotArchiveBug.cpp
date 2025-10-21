@@ -451,5 +451,166 @@ Protocol23CorruptionDataVerifier::verifyEntryFixesOnP24Upgrade(
     }
 }
 
+Protocol23CorruptionEventReconciler::Protocol23CorruptionEventReconciler(
+    Hash const& networkID)
+{
+    for (size_t i = 0; i < P23_CORRUPTED_AFFECTED_ASSETS_COUNT; ++i)
+    {
+        Asset asset;
+        fromOpaqueBase64(asset, P23_CORRUPTED_AFFECTED_ASSETS[i]);
+
+        SCAddress address;
+        address.type(SC_ADDRESS_TYPE_CONTRACT);
+        address.contractId() = getAssetContractID(networkID, asset);
+
+        auto [_i, inserted] = mSACAssetMap.emplace(address, asset);
+        releaseAssert(inserted);
+    }
+
+    for (size_t i = 0; i < P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT; ++i)
+    {
+        LedgerEntry corruptedEntry =
+            decodeLedgerEntry(P23_CORRUPTED_HOT_ARCHIVE_ENTRIES[i]);
+
+        LedgerEntry correctEntry =
+            decodeLedgerEntry(P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE[i]);
+
+        mKeyToEntries.emplace(LedgerEntryKey(corruptedEntry),
+                              std::make_pair(correctEntry, corruptedEntry));
+    }
+}
+
+// This returns an int64_t because we know that for the affected SACs
+// the balances always fit in the [0, INT64_MAX] range.
+// We know that the only SAC entries that were incorrectly restored were
+// Balances, so we can be strict with our check here.
+std::pair<int64_t, SCAddress /*owner*/>
+getSACBalance(LedgerEntry const& le)
+{
+    releaseAssert(le.data.type() == CONTRACT_DATA);
+    auto const& cd = le.data.contractData();
+
+    releaseAssert(cd.durability == ContractDataDurability::PERSISTENT &&
+                  cd.key.type() == SCV_VEC && cd.key.vec() &&
+                  cd.key.vec()->size() == 2);
+
+    SCVal balanceSymbol(SCV_SYMBOL);
+    balanceSymbol.sym() = "Balance";
+
+    // The balanceSymbol should be the first entry in the SCVec
+    releaseAssert(cd.key.vec()->at(0) == balanceSymbol);
+
+    // Now that we know this is an SAC balance entry, assert on the rest of the
+    // assumptions.
+    auto const& balanceOwner = cd.key.vec()->at(1);
+    releaseAssert(balanceOwner.type() == SCV_ADDRESS);
+    releaseAssert(cd.val.type() == SCV_MAP && cd.val.map() &&
+                  cd.val.map()->size() == 3);
+
+    SCVal amountSymbol(SCV_SYMBOL);
+    amountSymbol.sym() = "amount";
+
+    auto const& amountEntry = cd.val.map()->at(0);
+    releaseAssert(amountEntry.key == amountSymbol &&
+                  amountEntry.val.type() == SCV_I128);
+
+    auto lo = amountEntry.val.i128().lo;
+    auto hi = amountEntry.val.i128().hi;
+    // For the range in question, we know hi is always 0.
+    releaseAssert(hi == 0);
+    releaseAssert(lo <= std::numeric_limits<std::int64_t>::max());
+
+    return std::make_pair(static_cast<int64_t>(lo), balanceOwner.address());
+}
+
+std::optional<Protocol23CorruptionEventReconciler::SACReconciliationInfo>
+Protocol23CorruptionEventReconciler::getSACReconciliationEventAndTrackDiff(
+    LedgerKey const& restoredKey, LedgerEntry const& restoredEntry,
+    uint32_t ledgerSeq, uint32_t protocolVersion)
+{
+    if (!protocolVersionEquals(protocolVersion, ProtocolVersion::V_23))
+    {
+        return std::nullopt;
+    }
+
+    // Modify state using mutex just in case, even though in
+    // p23 we haven't increased the number of threads.
+    // Not optimal, but this function is only called infrequently during
+    // p23 catchup.
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    auto entryIter = mKeyToEntries.find(restoredKey);
+    if (entryIter == mKeyToEntries.end())
+    {
+        return std::nullopt;
+    }
+
+    if (restoredEntry.data.type() != CONTRACT_DATA)
+    {
+        return std::nullopt;
+    }
+
+    auto const& contractId = restoredEntry.data.contractData().contract;
+    auto it = mSACAssetMap.find(contractId);
+    if (it == mSACAssetMap.end())
+    {
+        return std::nullopt;
+    }
+
+    auto restoredBalance = getSACBalance(restoredEntry);
+
+    auto const& [correctEntry, corruptedEntry] = entryIter->second;
+    releaseAssert(restoredEntry == corruptedEntry);
+
+    auto correctBalance = getSACBalance(correctEntry);
+
+    // The balance addresses must match.
+    releaseAssert(correctBalance.second == restoredBalance.second);
+
+    if (correctBalance.first == restoredBalance.first)
+    {
+        // No change in amount, no reconciliation event.
+        return std::nullopt;
+    }
+
+    auto diff = restoredBalance.first - correctBalance.first;
+
+    Protocol23CorruptionEventReconciler::SACReconciliationInfo info;
+    info.asset = it->second;
+    info.mintOrBurnAddress = correctBalance.second;
+    info.amount = diff;
+
+    mReconciliationAmounts[correctBalance.second][it->second].emplace_back(
+        diff);
+
+    return info;
+}
+
+bool
+Protocol23CorruptionEventReconciler::hasReconciliationAmount(
+    Asset const& asset, SCAddress const& address, CxxI128 const& amount) const
+{
+    auto addrIt = mReconciliationAmounts.find(address);
+    if (addrIt == mReconciliationAmounts.end())
+    {
+        return false;
+    }
+
+    auto assetIt = addrIt->second.find(asset);
+    if (assetIt == addrIt->second.end())
+    {
+        return false;
+    }
+
+    for (auto const& a : assetIt->second)
+    {
+        if (rust_bridge::i128_i64_eq(amount, a))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace p23_hot_archive_bug
 } // namespace stellar

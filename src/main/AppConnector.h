@@ -81,6 +81,9 @@ class AppConnector
     std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
     getProtocol23CorruptionDataVerifier();
 
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+    getProtocol23CorruptionEventReconciler();
+
 #ifdef BUILD_TESTS
     // Access the runtime overlay-only mode flag for testing
     bool getRunInOverlayOnlyMode() const;

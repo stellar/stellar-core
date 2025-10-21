@@ -65,3 +65,9 @@ pub(crate) fn i128_is_negative(val: &CxxI128) -> Result<bool, Box<dyn std::error
     let res: i128 = i128_from_pieces(val.hi, val.lo);
     Ok(res.is_negative())
 }
+
+pub(crate) fn i128_i64_eq(lhs: &CxxI128, rhs: i64) -> Result<bool, Box<dyn std::error::Error>> {
+    use int128_helpers::i128_from_pieces;
+    let l: i128 = i128_from_pieces(lhs.hi, lhs.lo);
+    Ok(l == i128::from(rhs))
+}

@@ -283,6 +283,13 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
         }
     }
 
+    if (mConfig.BACKFILL_STELLAR_ASSET_EVENTS)
+    {
+        mProtocol23CorruptionEventReconciler = std::make_unique<
+            p23_hot_archive_bug::Protocol23CorruptionEventReconciler>(
+            getNetworkID());
+    }
+
     if (mConfig.ENTRY_CACHE_SIZE < 20000)
     {
         LOG_WARNING(DEFAULT_LOG,
@@ -1624,5 +1631,10 @@ std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
 ApplicationImpl::getProtocol23CorruptionDataVerifier()
 {
     return mProtocol23CorruptionDataVerifier;
+}
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+ApplicationImpl::getProtocol23CorruptionEventReconciler()
+{
+    return mProtocol23CorruptionEventReconciler;
 }
 }

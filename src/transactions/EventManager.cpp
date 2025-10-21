@@ -373,15 +373,10 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
     mContractEvents.emplace_back(std::move(ev));
 }
 
-void
-OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
-                             int64 amount, bool allowMuxedIdOrMemo,
-                             bool insertAtBeginning)
+ContractEvent
+OpEventManager::makeMintEvent(Asset const& asset, SCAddress const& to,
+                              int64 amount, bool allowMuxedIdOrMemo)
 {
-    if (!mEnabled)
-    {
-        return;
-    }
     releaseAssert(!mFinalized);
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
@@ -394,6 +389,41 @@ OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
 
     ev.body.v0().data =
         getPossibleMuxedData(to, amount, mMemo, allowMuxedIdOrMemo);
+
+    return ev;
+}
+
+ContractEvent
+OpEventManager::makeBurnEvent(Asset const& asset, SCAddress const& from,
+                              int64 amount)
+{
+    releaseAssert(!mFinalized);
+    ContractEvent ev;
+    ev.type = ContractEventType::CONTRACT;
+    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
+
+    SCVec topics = {makeSymbolSCVal("burn"),
+                    makeAddressSCVal(getAddressWithDroppedMuxedInfo(from)),
+                    makeSep0011AssetStringSCVal(asset)};
+    ev.body.v0().topics = topics;
+
+    ev.body.v0().data = makeI128SCVal(amount);
+
+    return ev;
+}
+
+void
+OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
+                             int64 amount, bool allowMuxedIdOrMemo,
+                             bool insertAtBeginning)
+{
+    if (!mEnabled)
+    {
+        return;
+    }
+    releaseAssert(!mFinalized);
+
+    auto ev = makeMintEvent(asset, to, amount, allowMuxedIdOrMemo);
 
     if (insertAtBeginning)
     {
@@ -417,16 +447,7 @@ OpEventManager::newBurnEvent(Asset const& asset, SCAddress const& from,
         return;
     }
     releaseAssert(!mFinalized);
-    ContractEvent ev;
-    ev.type = ContractEventType::CONTRACT;
-    ev.contractID.activate() = getAssetContractID(mNetworkID, asset);
-
-    SCVec topics = {makeSymbolSCVal("burn"),
-                    makeAddressSCVal(getAddressWithDroppedMuxedInfo(from)),
-                    makeSep0011AssetStringSCVal(asset)};
-    ev.body.v0().topics = topics;
-
-    ev.body.v0().data = makeI128SCVal(amount);
+    auto ev = makeBurnEvent(asset, from, amount);
 
     mContractEvents.emplace_back(std::move(ev));
 }

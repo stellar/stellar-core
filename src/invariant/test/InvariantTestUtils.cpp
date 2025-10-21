@@ -112,8 +112,8 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
     bool doInvariantsHold = true;
     try
     {
-        app.getInvariantManager().checkOnOperationApply({}, *resPtr,
-                                                        ltxPtr->getDelta(), {});
+        app.getInvariantManager().checkOnOperationApply(
+            {}, *resPtr, ltxPtr->getDelta(), {}, app.getAppConnector());
     }
     catch (InvariantDoesNotHold&)
     {

@@ -163,7 +163,8 @@ getDeltaSponsoringAndSponsored(std::shared_ptr<InternalLedgerEntry const> le,
 std::string
 SponsorshipCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
+    AppConnector&)
 {
     // No sponsorships prior to protocol 14
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;

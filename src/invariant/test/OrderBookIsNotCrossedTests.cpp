@@ -132,7 +132,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         ltx.create(offer);
 
         invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
-                                         {});
+                                         {}, app->getAppConnector());
         auto const& orders = invariant->getOrderBook().at({cur1, cur2});
 
         REQUIRE(orders.size() == 1);
@@ -156,7 +156,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         entry.current() = offer;
 
         invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
-                                         {});
+                                         {}, app->getAppConnector());
         auto const& orders = invariant->getOrderBook().at({cur1, cur2});
 
         REQUIRE(orders.size() == 1);
@@ -177,7 +177,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         entry.erase();
 
         invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
-                                         {});
+                                         {}, app->getAppConnector());
 
         REQUIRE(invariant->getOrderBook().at({cur1, cur2}).size() == 0);
     }
