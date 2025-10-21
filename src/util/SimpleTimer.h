@@ -14,7 +14,7 @@ constexpr bool isDuration<std::chrono::duration<Rep, Period>> = true;
 
 template <typename Duration> class SimpleTimerContext;
 
-// Simple replacement for medida timer that uses an accumulator and counter,
+// Simple replacement for medida timer that uses an accumulator and counter
 // while keeping track of the maximums. Names are based on the constructor with
 // a suffix of `sum`, `count`, or `max`. Timers can be expensive, so this class
 // replaces them with a subset of the functionality using Counters internally.
@@ -26,7 +26,7 @@ template <typename Duration> class SimpleTimer
     medida::Counter& mSum;
     medida::Counter& mCount;
     // Note that we use a counter for `mMax` so it gets displayed in the
-    // metrics, but this is only synced on `syncMetrics()` to avoid races.
+    // metrics, but this is only synced on `syncMax()` to avoid races.
     medida::Counter& mMaxCounter;
     std::mutex mMaxLock;
     std::int64_t mMax;
