@@ -28,12 +28,23 @@ template <typename Duration> class SimpleTimer
     // Note that we use a counter for `mMax` so it gets displayed in the
     // metrics, but this is only synced on `syncMax()` to avoid races.
     medida::Counter& mMaxCounter;
-    std::mutex mMaxLock;
     std::int64_t mMax;
 
+    std::chrono::steady_clock::time_point mLastUpdate;
+    const std::optional<std::chrono::nanoseconds> mWindowSize;
+
+    // Protects access to mMax and mLastUpdate
+    std::mutex mLock;
+
+    void syncMaxUnlocked();
+
   public:
-    SimpleTimer(medida::MetricsRegistry& registry, const std::string& domain,
-                const std::string& type, const std::string& baseName);
+    // Specify `windowSize` to auto-call `syncMax` on every `Update` that takes
+    // place at least `windowSize` since the last `syncMax`.
+    SimpleTimer(
+        medida::MetricsRegistry& registry, const std::string& domain,
+        const std::string& type, const std::string& baseName,
+        std::optional<std::chrono::nanoseconds> windowSize = std::nullopt);
 
     SimpleTimer(SimpleTimer<Duration>&& other);
 
@@ -67,16 +78,18 @@ template <typename Duration> class SimpleTimerContext
 };
 
 template <typename Duration>
-SimpleTimer<Duration>::SimpleTimer(medida::MetricsRegistry& registry,
-                                   const std::string& domain,
-                                   const std::string& type,
-                                   const std::string& base_name)
+SimpleTimer<Duration>::SimpleTimer(
+    medida::MetricsRegistry& registry, const std::string& domain,
+    const std::string& type, const std::string& base_name,
+    std::optional<std::chrono::nanoseconds> windowSize)
     : mSum{registry.NewCounter({domain, type, std::string{base_name} + "sum"})}
     , mCount{registry.NewCounter(
           {domain, type, std::string{base_name} + "count"})}
     , mMaxCounter{registry.NewCounter(
           {domain, type, std::string{base_name} + "max"})}
     , mMax{0}
+    , mLastUpdate{std::chrono::steady_clock::now()}
+    , mWindowSize{windowSize}
 {
 }
 
@@ -85,16 +98,27 @@ SimpleTimer<Duration>::SimpleTimer(SimpleTimer<Duration>&& other)
     : mSum{other.mSum}
     , mCount{other.mCount}
     , mMaxCounter{other.mMaxCounter}
-    , mMax{other.mMax} {};
+    , mMax{other.mMax}
+    , mLastUpdate{other.mLastUpdate}
+    , mWindowSize{other.mWindowSize} {};
 
 template <typename Duration>
 void
 SimpleTimer<Duration>::syncMax()
 {
 
-    std::lock_guard<std::mutex> lock{mMaxLock};
+    std::lock_guard<std::mutex> lock{mLock};
+    syncMaxUnlocked();
+}
+
+template <typename Duration>
+void
+SimpleTimer<Duration>::syncMaxUnlocked()
+{
+
     mMaxCounter.set_count(mMax);
     mMax = 0;
+    mLastUpdate = std::chrono::steady_clock::now();
 }
 
 template <typename Duration>
@@ -112,8 +136,13 @@ SimpleTimer<Duration>::Update(std::chrono::nanoseconds d)
     mSum.inc(converted);
     mCount.inc(1);
     {
-        std::lock_guard<std::mutex> lock{mMaxLock};
+        std::lock_guard<std::mutex> lock{mLock};
         mMax = std::max(mMax, converted);
+        if (mWindowSize.has_value() && std::chrono::steady_clock::now() >=
+                                           mWindowSize.value() + mLastUpdate)
+        {
+            syncMaxUnlocked();
+        }
     }
 }
 

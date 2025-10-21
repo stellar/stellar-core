@@ -93,9 +93,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     // Tracks the sum of point load times for each LedgerEntryType, in
     // microseconds. For point loads, Timers are too expensive to maintain, so
     // we use SimpleTimer.
-    mutable UnorderedMap<LedgerEntryType,
-                         SimpleTimer<std::chrono::microseconds>>
-        mPointTimers{};
+    UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>&
+        mPointTimers;
 
     // Bulk load timers take significantly longer, so the timer overhead is
     // comparatively negligible.
