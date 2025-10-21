@@ -28,6 +28,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -469,7 +470,8 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(ltx, /*ledgerCloseMeta*/ nullptr,
-                                            /*initialLedgerVers*/ 0);
+                                            /*initialLedgerVers*/ 0,
+                                            /*isP24UpgradeLedger*/ false);
     advanceLastClosedLedgerState(output);
 
     ltx.commit();
@@ -1576,8 +1578,11 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
+    bool isP24UpgradeLedger =
+        protocolVersionIsBefore(initialLedgerVers, ProtocolVersion::V_24) &&
+        protocolVersionStartsFrom(maybeNewVersion, ProtocolVersion::V_24);
     auto appliedLedgerState = sealLedgerTxnAndStoreInBucketsAndDB(
-        ltx, ledgerCloseMeta, initialLedgerVers);
+        ltx, ledgerCloseMeta, initialLedgerVers, isP24UpgradeLedger);
     // NB: from now on, the ledger state may not change, but LCL still hasn't
     // advanced properly. Hence when requesting the ledger state data (such as
     // Soroban network config or header) we should use the `appliedLedgerState`
@@ -1732,7 +1737,7 @@ LedgerManagerImpl::setLastClosedLedger(
     advanceLastClosedLedgerState(output);
 
     auto ledgerVersion = lastClosed.header.ledgerVersion;
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_24))
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_25))
     {
         PubKeyUtils::enableRustDalekVerify();
     }
@@ -2686,13 +2691,12 @@ void
 LedgerManagerImpl::finalizeLedgerTxnChanges(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
-    auto lh = ltx.loadHeader().current();
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
@@ -2722,8 +2726,27 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                         restoredEntries.push_back(key);
                     }
                 }
-                mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries, restoredEntries);
+                if (isP24UpgradeLedger)
+                {
+                    p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
+                        ltxEvictions, mApp, lh, evictedState.archivedEntries,
+                        restoredEntries);
+                }
+                else
+                {
+                    mApp.getBucketManager().addHotArchiveBatch(
+                        mApp, lh, evictedState.archivedEntries,
+                        restoredEntries);
+                    // Validate evicted entries against Protocol 23 corruption
+                    // data if configured
+                    if (mApp.getProtocol23CorruptionDataVerifier())
+                    {
+                        mApp.getProtocol23CorruptionDataVerifier()
+                            ->verifyArchivalOfCorruptedEntry(evictedState, mApp,
+                                                             lh.ledgerSeq,
+                                                             lh.ledgerVersion);
+                    }
+                }
             }
 
             if (ledgerCloseMeta)
@@ -2739,9 +2762,9 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         // Subtle: we snapshot the state size *before* flushing the updated
         // entries into in-memory state (doing that after would be really
         // tricky, as we seal LTX before flushing). So the snapshot taken at
-        // ledger `N` will have the state size for ledger `N - 1`. That doesn't
-        // really change anything for the size accounting, but is important to
-        // maintain as a protocol implementation detail.
+        // ledger `N` will have the state size for ledger `N - 1`. That
+        // doesn't really change anything for the size accounting, but is
+        // important to maintain as a protocol implementation detail.
         SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
             lh.ledgerSeq, mApplyState.getSorobanInMemoryStateSize(), ltx, mApp);
     }
@@ -2768,15 +2791,14 @@ CompleteConstLedgerStatePtr
 LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t initialLedgerVers)
+    uint32_t initialLedgerVers, bool isP24UpgradeLedger)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
-    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto currLedgerVers = ltx.loadHeader().current().ledgerVersion;
+    auto ledgerHeader = ltx.loadHeader().current();
     CLOG_TRACE(Ledger,
                "sealing ledger {} with version {}, sending to bucket list",
-               ledgerSeq, currLedgerVers);
+               ledgerHeader.ledgerSeq, ledgerHeader.ledgerVersion);
 
     // There is a subtle bug in the upgrade path that wasn't noticed until
     // protocol 20. For a ledger that upgrades from protocol vN to vN+1,
@@ -2799,7 +2821,8 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     // protocol version prior to the upgrade. Due to this, we must check the
     // initial protocol version of ledger instead of the ledger version of
     // the current ltx header, which may have been modified via an upgrade.
-    finalizeLedgerTxnChanges(ltx, ledgerCloseMeta, initialLedgerVers);
+    finalizeLedgerTxnChanges(ltx, ledgerCloseMeta, ledgerHeader,
+                             initialLedgerVers, isP24UpgradeLedger);
 
     CompleteConstLedgerStatePtr res;
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {

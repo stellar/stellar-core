@@ -71,7 +71,6 @@ the upgrade from protocol 22 to 23:
      This submodule has _another copy_ of the `soroban-env-host` repository,
      but checked out at the `v23.0.0` tag. We do this with something like
 
-       - `mkdir src/rust/soroban/p23`
        - `git submodule add https://github.com/stellar/rs-soroban-env src/rust/soroban/p23`
        - `cd src/rust/soroban/p23`
        - `git checkout v23.0.0`
@@ -80,9 +79,11 @@ the upgrade from protocol 22 to 23:
      protocol submodules to be built, `ALL_SOROBAN_PROTOCOLS`, possibly clearing
      `WIP_SOROBAN_PROTOCOL` too if it previously contained `p23`.
 
-  6. We wire that new protocol into `src/rust/src/lib.rs` by copying the
-     existing highest-numbered protocol-pecific module, say `mod p22 { ... }`
-     that exists inline in that file, to a new copy say `mod p23 { ... }`.
+  6. We wire that new protocol into
+     `src/rust/src/soroban_proto_all.rs` by copying the existing
+     highest-numbered protocol-pecific module, say `mod p22 { ... }`
+     that exists inline in that file, to a new copy say `mod p23 {
+     ... }`.
 
   7. We also update the module alias `soroban_curr`, by changing a line like
      `use p22 as soroban_curr` to say `use p23 as soroban_curr`.
@@ -93,11 +94,20 @@ the upgrade from protocol 22 to 23:
      module. The module self-identifies the protocol it's responsible for
      handling.
 
-  9. We then copy the "expected dependency tree" file from protocol 22 to 23:
+  9. We also update the module cache to have a copy for the new soroban
+     version in `src/rust/src/soroban_module_cache.rs`
+
+  10. We also add a new block in `src/rust/Cargo.toml` for
+      `dependencies.soroban-env-host-p23` that declares the optional
+      dependency for the unified build, and add a reference
+      `"dep:soroban-env-host-p23"` to the list of deps activated by
+      the `unified` feature near the bottom of the file.
+
+  10. We then copy the "expected dependency tree" file from protocol 22 to 23:
 
      - `cp src/rust/src/dep-trees/p22-expect.txt src/rust/src/dep-trees/p23-expect.txt`
 
-  10. We then attempt to rebuild. The rebuild will probably fail because the
+  11. We then attempt to rebuild. The rebuild will probably fail because the
       _actual_ dependencies of the p23 soroban are _different_ from those listed
       in the `p23-expect.txt` file. These files are just here to ensure we
       notice unintentional changes to dependencies, and the build system should
@@ -109,11 +119,11 @@ the upgrade from protocol 22 to 23:
 
       And then rebuild.
 
-  11. Technically that's it! We should have a copy of stellar-core that will run
+  12. Technically that's it! We should have a copy of stellar-core that will run
       soroban 22.x.y when given a protocol 22 ledger, and soroban 23.0.0 when
       given a protocol 23 ledger. There is one final step to consider later.
 
-  12. _After the protocol 23 upgrade_, we can try _commenting out_ the
+  13. _After the protocol 23 upgrade_, we can try _commenting out_ the
       `proto_versioned_functions_for_module!(p22),` line to see if we can still
       replay the recorded history of protocol 22 (which is set in stone now) on
       soroban 23.x.y. If so, we can just delete that line and the corresponding

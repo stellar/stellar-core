@@ -39,13 +39,13 @@ pub(crate) use p24 as soroban_curr;
 // only compatible with with, say, a rust Dyn interface like Box<dyn Error>).
 pub(crate) mod protocol_agnostic {
     pub(crate) fn make_error(msg: &'static str) -> Box<dyn std::error::Error> {
-        super::p23::soroban_proto_any::CoreHostError::General(msg.into()).into()
+        super::p24::soroban_proto_any::CoreHostError::General(msg.into()).into()
     }
 
     // The i128 functions are protocol-agnostic because they're too simple to
     // ever plausibly change. If they ever _do_ change we can switch this (and
     // the callers) to pass a protocol number but it seems unlikely.
-    pub(crate) use super::p23::soroban_env_host::xdr::int128_helpers;
+    pub(crate) use super::p24::soroban_env_host::xdr::int128_helpers;
 }
 
 #[path = "."]
@@ -897,6 +897,7 @@ fn protocol_dispatches_as_expected() {
     assert_eq!(get_host_module_for_protocol(21, 21).unwrap().max_proto, 21);
     assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
     assert_eq!(get_host_module_for_protocol(23, 23).unwrap().max_proto, 23);
+    assert_eq!(get_host_module_for_protocol(24, 24).unwrap().max_proto, 24);
 
     // No protocols past the max known.
     let last_proto = HOST_MODULES.last().unwrap().max_proto;

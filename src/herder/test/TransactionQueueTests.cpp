@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "herder/FilteredEntries.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/SurgePricingUtils.h"
@@ -11,6 +12,9 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTxnImpl.h"
+#include "ledger/P23HotArchiveBug.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -23,7 +27,6 @@
 #include "util/Timer.h"
 #include "util/numeric128.h"
 #include "xdr/Stellar-transaction.h"
-
 #include "xdrpp/autocheck.h"
 
 #include <chrono>
@@ -1144,11 +1147,10 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
     REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
 }
 
-TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
+TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
 {
-    Config cfg = getTestConfig();
     VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, getTestConfig());
 
     const int64_t startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
@@ -1260,6 +1262,169 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
                                  uploadResourceFee + 200);
         REQUIRE(app->getHerder().recvTransaction(feeBumpTx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+}
+
+TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
+{
+    gIsProductionNetwork = true;
+    auto runTestForKey = [&](LedgerKey const& key, uint32_t protocolVersion,
+                             bool shouldFilter = true, bool doUpgrade = false) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+        auto app = createTestApplication(clock, cfg);
+
+        const int64_t startingBalance =
+            app->getLedgerManager().getLastMinBalance(50);
+
+        auto root = app->getRoot();
+        auto a1 = root->create("A", startingBalance);
+        auto feeBumper = root->create("feeBumper", startingBalance);
+
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(*app));
+        resources.instructions = 0;
+
+        Operation uploadOp;
+        uploadOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+        uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+        uploadHF.wasm().assign(wasm.data.begin(), wasm.data.end());
+
+        SorobanAuthorizationEntry sae;
+        SorobanCredentials sc(SOROBAN_CREDENTIALS_ADDRESS);
+        sae.credentials = sc;
+
+        if (resources.footprint.readWrite.empty())
+        {
+            resources.footprint.readWrite = {
+                contractCodeKey(sha256(uploadHF.wasm()))};
+        }
+        auto uploadResourceFee =
+            sorobanResourceFee(*app, resources, 1000 + wasm.data.size(), 40) +
+            DEFAULT_TEST_RESOURCE_FEE;
+        auto runTest = [&](SorobanResources const& resources, Operation op,
+                           bool filter) {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), a1, {op}, {}, resources,
+                uploadResourceFee + 100, uploadResourceFee);
+            auto feeBumpTx =
+                feeBump(*app, feeBumper, tx, uploadResourceFee + 200);
+
+            if (filter)
+            {
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                        TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+                REQUIRE(
+                    app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+            }
+            else
+            {
+                // Allow the tx to make it past the filter check
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code !=
+                        TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+                REQUIRE(
+                    app->getHerder().recvTransaction(feeBumpTx, false).code !=
+                    TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+            }
+        };
+        Operation restoreOp;
+        restoreOp.body.type(RESTORE_FOOTPRINT);
+        Operation extendOp;
+        extendOp.body.type(EXTEND_FOOTPRINT_TTL);
+        auto ops = std::vector<Operation>{uploadOp, restoreOp, extendOp};
+        auto resourcesRo = resources;
+        resourcesRo.footprint.readOnly.push_back(key);
+        auto resourcesRw = resources;
+        resourcesRw.footprint.readWrite.push_back(key);
+        for (auto const& op : ops)
+        {
+            INFO("Op type: " +
+                 std::to_string(static_cast<int>(op.body.type())));
+            runTest(resourcesRo, op, shouldFilter);
+            runTest(resourcesRw, op, shouldFilter);
+        }
+
+        if (doUpgrade)
+        {
+            REQUIRE(protocolVersion == 23);
+            auto const& lm = app->getLedgerManager();
+
+            auto lclHeader = lm.getLastClosedLedgerHeader();
+            TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
+
+            auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+            upgrade.newLedgerVersion() = 24;
+
+            app->getHerder().externalizeValue(
+                TxSetXDRFrame::makeEmpty(lclHeader),
+                lclHeader.header.ledgerSeq + 1, closeTime,
+                {LedgerTestUtils::toUpgradeType(upgrade)});
+            app->getRoot()->loadSequenceNumber();
+
+            // Verify upgrade went through
+            REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion == 24);
+
+            // After the upgrade, re-submitting the same txs should not get
+            // impacted by filtering
+            for (auto const& op : ops)
+            {
+                runTest(resourcesRo, op, false);
+                runTest(resourcesRw, op, false);
+            }
+        }
+    };
+    auto keysToFilterP23 = p23_hot_archive_bug::getP23CorruptedHotArchiveKeys();
+    UnorderedSet<LedgerKey> keysToFilterP24;
+    for (auto const& keyStr : KEYS_TO_FILTER_P24)
+    {
+        LedgerKey key;
+        fromOpaqueBase64(key, keyStr);
+        keysToFilterP24.insert(key);
+    }
+    SECTION("protocol version 23")
+    {
+        for (auto const& keyToFilter : keysToFilterP23)
+        {
+            runTestForKey(keyToFilter, 23);
+        }
+    }
+    SECTION("protocol version 24")
+    {
+        SECTION("should filter")
+        {
+            for (auto const& keyToFilter : keysToFilterP24)
+            {
+                runTestForKey(keyToFilter, 24);
+            }
+        }
+        SECTION("ignore p23 keys")
+        {
+            for (auto const& keyToFilter : keysToFilterP23)
+            {
+                if (keysToFilterP24.find(keyToFilter) == keysToFilterP24.end())
+                {
+                    // p23 key isn't in the p24 list, don't filter the tx
+                    runTestForKey(keyToFilter, 24, /* shouldFilter */ false);
+                }
+                else
+                {
+                    // p23 key is in the p24 list, filter the tx
+                    runTestForKey(keyToFilter, 24);
+                }
+            }
+        }
+    }
+    SECTION("recompute keys on upgrade")
+    {
+        for (auto const& p23Key : keysToFilterP23)
+        {
+            runTestForKey(p23Key, 23, /* shouldFilter */ true,
+                          /* doUpgrade */ true);
+        }
     }
 }
 
@@ -2669,7 +2834,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
     }
     SECTION("soroban")
     {
-        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        auto queue = SorobanTransactionQueue{*app, 4, 2, 2, {}};
         testFeeBump(queue, /* isSoroban */ true);
     }
 }
@@ -2846,7 +3011,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
     }
     SECTION("soroban")
     {
-        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        auto queue = SorobanTransactionQueue{*app, 4, 2, 2, {}};
         testReplaceByFee(queue, /* isSoroban */ true);
     }
 }

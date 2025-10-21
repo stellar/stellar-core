@@ -181,6 +181,13 @@ TransactionTestFrame::getTxFramePtr() const
 }
 
 bool
+TransactionTestFrame::validateSorobanTxForFlooding(
+    UnorderedSet<LedgerKey> const& keysToFilter) const
+{
+    return mTransactionFrame->validateSorobanTxForFlooding(keysToFilter);
+}
+
+bool
 TransactionTestFrame::validateSorobanMemoForFlooding() const
 {
     return mTransactionFrame->validateSorobanMemoForFlooding();

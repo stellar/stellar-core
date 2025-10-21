@@ -8,6 +8,7 @@
 #include "bucket/HotArchiveBucket.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "transactions/MutableTransactionResult.h"
@@ -153,6 +154,14 @@ class RestoreFootprintApplyHelper : virtual public LedgerAccessHelper
             if (hotArchiveEntryOpt)
             {
                 entry = hotArchiveEntryOpt.value();
+                if (mApp.getProtocol23CorruptionDataVerifier())
+                {
+                    // Validate restored entry against Protocol 23 corruption
+                    // data if configured.
+                    mApp.getProtocol23CorruptionDataVerifier()
+                        ->verifyRestorationOfCorruptedEntry(
+                            lk, entry, ledgerSeq, getLedgerVersion());
+                }
 
                 // Update last modified ledger seq to the current ledger seq
                 // since we're rewriting this entry. ltx will update this for

@@ -231,6 +231,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     LOG_FILE_PATH = "stellar-core-{datetime:%Y-%m-%d_%H-%M-%S}.log";
     BUCKET_DIR_PATH = "buckets";
+    PATH_TO_PROTOCOL_23_CORRUPTION_FILE = "";
 
     LOG_COLOR = false;
 
@@ -1239,6 +1240,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
                 {"BUCKET_DIR_PATH",
                  [&]() { BUCKET_DIR_PATH = readString(item); }},
+                {"FILTERED_SOROBAN_KEYS_PATH",
+                 [&]() {
+                     LOG_WARNING(DEFAULT_LOG,
+                                 "FILTERED_SOROBAN_KEYS_PATH is "
+                                 "deprecated and ignored. Please remove "
+                                 "this from config");
+                 }},
+                {"PATH_TO_PROTOCOL_23_CORRUPTION_FILE",
+                 [&]() {
+                     PATH_TO_PROTOCOL_23_CORRUPTION_FILE = readString(item);
+                 }},
                 {"NODE_NAMES",
                  [&]() {
                      auto names = readArray<std::string>(item);

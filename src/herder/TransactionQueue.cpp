@@ -10,6 +10,7 @@
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/FeeBumpTransactionFrame.h"
@@ -45,6 +46,7 @@
 
 namespace stellar
 {
+
 const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
 std::array<const char*,
@@ -138,7 +140,9 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "evicted-due-too-age-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "not-included-due-too-low-fee-count"}));
+            {"herder", "pending-txs", "not-included-due-too-low-fee-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
@@ -318,6 +322,11 @@ TransactionQueue::canAdd(
     }
     if (isFiltered(tx))
     {
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+    if (!tx->validateSorobanTxForFlooding(mKeysToFilter))
+    {
+        mQueueMetrics->mTxsFilteredDueToFootprintKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
@@ -1062,13 +1071,11 @@ TransactionQueue::broadcastTx(TransactionFrameBasePtr const& tx)
                : BroadcastStatus::BROADCAST_STATUS_ALREADY;
 }
 
-SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
-                                                 uint32 pendingDepth,
-                                                 uint32 banDepth,
-                                                 uint32 poolLedgerMultiplier)
+SorobanTransactionQueue::SorobanTransactionQueue(
+    Application& app, uint32 pendingDepth, uint32 banDepth,
+    uint32 poolLedgerMultiplier, UnorderedSet<LedgerKey> const& keysToFilter)
     : TransactionQueue(app, pendingDepth, banDepth, poolLedgerMultiplier, true)
 {
-
     std::vector<medida::Counter*> sizeByAge;
     for (uint32 i = 0; i < mPendingDepth; i++)
     {
@@ -1091,8 +1098,11 @@ SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "evicted-due-too-age-count"}),
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
-                                     "not-included-due-too-low-fee-count"}));
+                                     "not-included-due-too-low-fee-count"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
+    mKeysToFilter = keysToFilter;
 }
 
 std::pair<Resource, std::optional<Resource>>
@@ -1182,12 +1192,16 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
 }
 
 void
-SorobanTransactionQueue::resetAndRebuild()
+SorobanTransactionQueue::resetAndRebuild(
+    UnorderedSet<LedgerKey> const& keysToFilter)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
 
-    CLOG_DEBUG(Herder, "Resetting Soroban transaction queue due to upgrade");
+    CLOG_INFO(Herder, "Resetting Soroban transaction queue due to upgrade");
+
+    // Re-compute keys to filter
+    mKeysToFilter = keysToFilter;
 
     // Extract all current transactions before clearing state
     std::vector<TransactionFrameBasePtr> existingTxs;

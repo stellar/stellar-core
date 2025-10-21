@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
+#include "bucket/BucketIndexUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/SearchableBucketList.h"
@@ -235,8 +236,25 @@ LiveBucketSnapshot::scanForEviction(
                 // If TTL of entry is expired
                 if (!isLive(*ttl, ledgerSeq))
                 {
-                    // If entry is expired but not yet deleted, add it to
-                    // evictable entries
+                    // Note: There was a bug in protocol 23 where we would
+                    // not check if an entry was the newest version and would
+                    // evict whatever version was scanned.
+                    if (protocolVersionStartsFrom(ledgerVers,
+                                                  ProtocolVersion::V_24) &&
+                        isPersistentEntry(e.entry.data))
+                    {
+                        // Make sure we only ever evict the most recent version
+                        // of persistent entries. Make sure we use the entry
+                        // from loadKeys, as they are guaranteed to be the
+                        // newest version. We could have scanned and populated
+                        // `e` with an older version.
+                        auto newestVersionIter =
+                            loadResult.find(LedgerEntryKey(e.entry));
+                        releaseAssertOrThrow(newestVersionIter !=
+                                             loadResult.end());
+                        e.entry = *newestVersionIter->second;
+                    }
+
                     e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
                     evictableEntries.emplace_back(e);
                     keysInEvictableEntries.insert(LedgerEntryKey(e.entry));
@@ -290,6 +308,17 @@ LiveBucketSnapshot::scanForEviction(
                     keysInEvictableEntries.end())
             {
                 keysToSearch.emplace(getTTLKey(le));
+
+                // For temp entries, we don't care if we evict the newest
+                // version of the entry, since it's just a deletion. However,
+                // for persistent entries, we need to make sure we evict the
+                // newest version of the entry, since it will be persisted in
+                // the hot archive. So we add persistent entries to our DB
+                // lookup to find the newest version.
+                if (isPersistentEntry(le.data))
+                {
+                    keysToSearch.emplace(LedgerEntryKey(le));
+                }
 
                 // Set lifetime to 0 as default, will be updated after TTL keys
                 // loaded

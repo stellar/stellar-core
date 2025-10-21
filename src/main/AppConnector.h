@@ -75,6 +75,12 @@ class AppConnector
     // only be called from the overlay thread.
     SearchableSnapshotConstPtr& getOverlayThreadSnapshot();
 
+    // Protocol 23 data corruption bug data verifier. This typically is null,
+    // unless a path to a CSV file containing the corruption data was provided
+    // in the config at startup.
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+    getProtocol23CorruptionDataVerifier();
+
 #ifdef BUILD_TESTS
     // Access the runtime overlay-only mode flag for testing
     bool getRunInOverlayOnlyMode() const;

@@ -191,6 +191,7 @@ class TransactionQueue
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
+    UnorderedSet<LedgerKey> mKeysToFilter;
 
     // counters
     struct QueueMetrics
@@ -203,7 +204,8 @@ class TransactionQueue
                      medida::Counter& transactionsSelfDelayCounter,
                      medida::Counter& txsEvictedByHigherFeeTxCounter,
                      medida::Counter& txsEvictedDueToAgeCounter,
-                     medida::Counter& txsNotAcceptedDueToLowFeeCounter)
+                     medida::Counter& txsNotAcceptedDueToLowFeeCounter,
+                     medida::Counter& txsFilteredDueToFpKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelayAccumulator(transactionsDelayAccumulator)
@@ -215,6 +217,7 @@ class TransactionQueue
             , mTxsEvictedDueToAgeCounter(txsEvictedDueToAgeCounter)
             , mTxsNotAcceptedDueToLowFeeCounter(
                   txsNotAcceptedDueToLowFeeCounter)
+            , mTxsFilteredDueToFootprintKeys(txsFilteredDueToFpKeys)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
@@ -240,6 +243,8 @@ class TransactionQueue
         // Count of transactions that were not included into queue because it
         // is at capacity and the fee is too low to replace other txs.
         medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
+
+        medida::Counter& mTxsFilteredDueToFootprintKeys;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;
@@ -304,6 +309,9 @@ class SorobanTransactionQueue : public TransactionQueue
   public:
     SorobanTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier);
+    SorobanTransactionQueue(Application& app, uint32 pendingDepth,
+                            uint32 banDepth, uint32 poolLedgerMultiplier,
+                            UnorderedSet<LedgerKey> const& keysToFilter);
     int
     getFloodPeriod() const override
     {
@@ -319,7 +327,7 @@ class SorobanTransactionQueue : public TransactionQueue
      * sorting/evictions. Should be called synchronously during protocol or
      * network config upgrades.
      */
-    void resetAndRebuild();
+    void resetAndRebuild(UnorderedSet<LedgerKey> const& keysToFilter);
 
 #ifdef BUILD_TESTS
     void
