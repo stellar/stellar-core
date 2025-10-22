@@ -48,7 +48,7 @@ struct GeneratedLoadConfig;
 class AppConnector;
 namespace p23_hot_archive_bug
 {
-class Protocol23CorruptionDataVerifier;
+struct Protocol23CorruptionDataVerifier;
 } // namespace p23_hot_archive_bug
 
 #ifdef BUILD_TESTS
