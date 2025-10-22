@@ -1229,6 +1229,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     if (needUpgradeToVersion(ProtocolVersion::V_25, prevVersion, newVersion))
     {
         PubKeyUtils::enableRustDalekVerify();
+        SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
 
     // Starting from protocol 23 we need to fully override the Soroban in-memory
