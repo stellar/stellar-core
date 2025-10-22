@@ -12,7 +12,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Thread.h"
 
-#include <signal.h>
 #include <sstream>
 #include <thread>
 #include <utility>
@@ -24,21 +23,9 @@ namespace server
 
 server::server(const std::string& address, unsigned short port, int maxClient,
                std::size_t threadPoolSize)
-    : thread_pool_size_(threadPoolSize)
-    , signals_(io_context_)
-    , acceptor_(io_context_)
+    : thread_pool_size_(threadPoolSize), acceptor_(io_context_)
 {
     releaseAssertOrThrow(threadPoolSize > 0);
-    // Register to handle the signals that indicate when the server should exit.
-    // It is safe to register for the same signal multiple times in a program,
-    // provided all registration for the specified signal is made through Asio.
-    signals_.add(SIGINT);
-    signals_.add(SIGTERM);
-#if defined(SIGQUIT)
-    signals_.add(SIGQUIT);
-#endif // defined(SIGQUIT)
-
-    do_await_stop();
 
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(address),
                                      port);
@@ -114,13 +101,6 @@ server::stop()
     {
         t.join();
     }
-}
-
-void
-server::do_await_stop()
-{
-    signals_.async_wait(
-        [this](std::error_code /*ec*/, int /*signo*/) { this->stop(); });
 }
 
 server::~server()
