@@ -192,4 +192,19 @@ BucketSnapshotManager::updateCurrentSnapshot(
     updateSnapshot(mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots,
                    hotArchiveSnapshot);
 }
+
+SimpleTimer<std::chrono::microseconds>&
+BucketSnapshotManager::getTimer(std::string const& domain,
+                                std::string const& type) const
+{
+    auto key = std::make_pair(domain, type);
+    MutexLocker lock{mSimpleTimerRegistryMutex};
+    if (mSimpleTimerRegistry.find(key) == mSimpleTimerRegistry.end())
+    {
+        mSimpleTimerRegistry.try_emplace(key, mAppConnector.getMetrics(),
+                                         domain, type, "",
+                                         std::chrono::seconds{30});
+    }
+    return mSimpleTimerRegistry.find(key)->second;
+}
 }

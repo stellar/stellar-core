@@ -3140,7 +3140,7 @@ TEST_CASE("background signature verification with missing account",
     // Track number of transactions received by receiverPeer
     auto const& recvTxCount = receiverNode->getOverlayManager()
                                   .getOverlayMetrics()
-                                  .mRecvTransactionCounter;
+                                  .mRecvTransactionTimer;
     REQUIRE(recvTxCount.count() == 0);
 
     // Send the transaction
