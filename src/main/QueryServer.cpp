@@ -98,6 +98,12 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
     }
 }
 
+void
+QueryServer::shutdown()
+{
+    mServer.shutdown();
+}
+
 bool
 QueryServer::notFound(std::string const& params, std::string const& body,
                       std::string& retStr)

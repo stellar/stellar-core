@@ -43,6 +43,10 @@ server::start()
 {
     std::vector<std::thread::id> pids;
 
+    // Create work guard to keep io_context alive even if there are no pending
+    // operations.
+    work_guard_.emplace(asio::make_work_guard(io_context_));
+
     // Create a pool of threads to run the io_context.
     for (std::size_t i = 0; i < thread_pool_size_; ++i)
     {
@@ -94,8 +98,17 @@ server::do_accept()
 }
 
 void
-server::stop()
+server::shutdown()
 {
+    if (mIsShutdown.exchange(true))
+    {
+        return;
+    }
+
+    // Reset work guard to allow io_context to finish naturally
+    work_guard_.reset();
+
+    // Stop the io_context, causing all worker threads to exit
     io_context_.stop();
     for (auto& t : worker_threads_)
     {
@@ -105,7 +118,7 @@ server::stop()
 
 server::~server()
 {
-    stop();
+    shutdown();
 }
 
 void
