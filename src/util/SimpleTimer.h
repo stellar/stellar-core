@@ -38,7 +38,7 @@ template <typename Duration> class SimpleTimer
     // Protects access to mMax and mLastUpdate
     Mutex mLock;
 
-    void syncMaxUnlocked();
+    void syncMaxUnlocked() REQUIRES(mLock);
 
   public:
     // Specify `windowSize` to auto-call `syncMax` on every `Update` that takes
