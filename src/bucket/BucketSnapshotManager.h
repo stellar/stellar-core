@@ -127,6 +127,6 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Called in SearchableBucketListSnapshotBase to get access to the same
     // SimpleTimers across snapshots
     SimpleTimer<std::chrono::microseconds>&
-    getTimer(const std::string& domain, const std::string& type) const;
+    getTimer(std::string const& domain, std::string const& type) const;
 };
 }

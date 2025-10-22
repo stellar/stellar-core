@@ -194,8 +194,8 @@ BucketSnapshotManager::updateCurrentSnapshot(
 }
 
 SimpleTimer<std::chrono::microseconds>&
-BucketSnapshotManager::getTimer(const std::string& domain,
-                                const std::string& type) const
+BucketSnapshotManager::getTimer(std::string const& domain,
+                                std::string const& type) const
 {
     auto key = std::make_pair(domain, type);
     MutexLocker lock{mSimpleTimerRegistryMutex};

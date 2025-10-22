@@ -33,7 +33,7 @@ template <typename Duration> class SimpleTimer
     std::int64_t mMax;
 
     std::chrono::steady_clock::time_point mLastUpdate GUARDED_BY(mLock);
-    const std::optional<std::chrono::nanoseconds> mWindowSize GUARDED_BY(mLock);
+    std::optional<std::chrono::nanoseconds> const mWindowSize GUARDED_BY(mLock);
 
     // Protects access to mMax and mLastUpdate
     Mutex mLock;
@@ -44,8 +44,8 @@ template <typename Duration> class SimpleTimer
     // Specify `windowSize` to auto-call `syncMax` on every `Update` that takes
     // place at least `windowSize` since the last `syncMax`.
     SimpleTimer(
-        medida::MetricsRegistry& registry, const std::string& domain,
-        const std::string& type, const std::string& baseName,
+        medida::MetricsRegistry& registry, std::string const& domain,
+        std::string const& type, std::string const& baseName,
         std::optional<std::chrono::nanoseconds> windowSize = std::nullopt);
 
     SimpleTimer(SimpleTimer<Duration>&& other);
@@ -81,8 +81,8 @@ template <typename Duration> class SimpleTimerContext
 
 template <typename Duration>
 SimpleTimer<Duration>::SimpleTimer(
-    medida::MetricsRegistry& registry, const std::string& domain,
-    const std::string& type, const std::string& base_name,
+    medida::MetricsRegistry& registry, std::string const& domain,
+    std::string const& type, std::string const& base_name,
     std::optional<std::chrono::nanoseconds> windowSize)
     : mSum{registry.NewCounter({domain, type, std::string{base_name} + "sum"})}
     , mCount{registry.NewCounter(
