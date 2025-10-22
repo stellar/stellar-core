@@ -64,9 +64,6 @@ class server
 
     void stop();
 
-    /// Wait for a request to stop the server.
-    void do_await_stop();
-
     /// Perform URL-decoding on a string. Returns false if the encoding was
     /// invalid.
     static bool url_decode(const std::string& in, std::string& out);
@@ -76,10 +73,6 @@ class server
 
     /// The io_context used to perform asynchronous operations.
     asio::io_context io_context_;
-
-    /// The signal_set is used to register for process termination
-    /// notifications.
-    asio::signal_set signals_;
 
     /// Acceptor used to listen for incoming connections.
     asio::ip::tcp::acceptor acceptor_;
