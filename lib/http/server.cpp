@@ -79,10 +79,21 @@ server::do_accept()
     });
 }
 
-server::~server()
+void
+server::shutdown()
 {
+    if (mIsShutdown.exchange(true))
+    {
+        return;
+    }
+
     acceptor_.close();
     connection_manager_.stop_all();
+}
+
+server::~server()
+{
+    shutdown();
 }
 
 void

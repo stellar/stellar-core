@@ -15,9 +15,10 @@
 // else.
 #include "util/asio.h"
 
-#include <string>
-#include <map>
+#include <atomic>
 #include <functional>
+#include <map>
+#include <string>
 #include "connection.hpp"
 #include "connection_manager.hpp"
 
@@ -46,6 +47,9 @@ public:
 
     void handle_request(const request& req, reply& rep);
 
+    /// Shutdown the server
+    void shutdown();
+
     static void parseParams(const std::string& params, std::map<std::string, std::string>& retMap);
 
 private:
@@ -70,6 +74,8 @@ private:
 
     /// The next socket to be accepted.
     asio::ip::tcp::socket socket_;
+
+    std::atomic<bool> mIsShutdown{false};
 
     std::map<std::string, routeHandler> mRoutes;
 };
