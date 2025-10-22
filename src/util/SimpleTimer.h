@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/ThreadAnnotations.h"
 #include <medida/counter.h>
 #include <medida/metrics_registry.h>
 #include <mutex>
@@ -31,11 +32,11 @@ template <typename Duration> class SimpleTimer
     medida::Counter& mMaxCounter;
     std::int64_t mMax;
 
-    std::chrono::steady_clock::time_point mLastUpdate;
-    const std::optional<std::chrono::nanoseconds> mWindowSize;
+    std::chrono::steady_clock::time_point mLastUpdate GUARDED_BY(mLock);
+    const std::optional<std::chrono::nanoseconds> mWindowSize GUARDED_BY(mLock);
 
     // Protects access to mMax and mLastUpdate
-    std::mutex mLock;
+    Mutex mLock;
 
     void syncMaxUnlocked();
 
@@ -108,7 +109,7 @@ void
 SimpleTimer<Duration>::syncMax()
 {
 
-    std::lock_guard<std::mutex> lock{mLock};
+    MutexLocker lock{mLock};
     syncMaxUnlocked();
 }
 
@@ -137,7 +138,7 @@ SimpleTimer<Duration>::Update(std::chrono::nanoseconds d)
     mSum.inc(converted);
     mCount.inc(1);
     {
-        std::lock_guard<std::mutex> lock{mLock};
+        MutexLocker lock{mLock};
         mMax = std::max(mMax, converted);
         if (mWindowSize.has_value() && std::chrono::steady_clock::now() >=
                                            mWindowSize.value() + mLastUpdate)

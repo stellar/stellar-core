@@ -53,7 +53,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     mutable Mutex mSimpleTimerRegistryMutex;
     mutable std::map<std::pair<std::string, std::string>,
                      SimpleTimer<std::chrono::microseconds>>
-        mSimpleTimerRegistry;
+        mSimpleTimerRegistry GUARDED_BY(mSimpleTimerRegistryMutex);
 
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
