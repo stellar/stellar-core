@@ -2459,20 +2459,7 @@ HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
         }
         return result;
     };
-    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_24))
-    {
-
-        return filteredSet(KEYS_TO_FILTER_P24_COUNT, KEYS_TO_FILTER_P24);
-    }
-    else
-    {
-        // Filter all the transactions that interact with any corrupted
-        // entries.
-        // We're past p23 so it's fine to use p23 filter for all
-        // previous protocols.
-        auto keys = p23_hot_archive_bug::getP23CorruptedHotArchiveKeys();
-        return UnorderedSet<LedgerKey>(keys.begin(), keys.end());
-    }
+    return filteredSet(KEYS_TO_FILTER_P24_COUNT, KEYS_TO_FILTER_P24);
 }
 
 void
@@ -2517,9 +2504,9 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
                     false);
     }
 
-    // Even if we're in protocol 20, still check for number of phases, in case
-    // we're dealing with the upgrade ledger that contains old-style transaction
-    // set
+    // Even if we're in protocol 20, still check for number of phases, in
+    // case we're dealing with the upgrade ledger that contains old-style
+    // transaction set
     if (mSorobanTransactionQueue != nullptr &&
         txsPerPhase.size() > static_cast<size_t>(TxSetPhase::SOROBAN))
     {
@@ -2533,12 +2520,12 @@ void
 HerderImpl::herderOutOfSync()
 {
     ZoneScoped;
-    // State switch from "tracking" to "out of sync" should only happen if there
-    // are no ledgers queued to be applied. If there are ledgers queued, it's
-    // possible the rest of the network is waiting for this node to vote. In
-    // this case we should _still_ remain in tracking and emit nomination; If
-    // the node does not hear anything from the network after that, then node
-    // can go into out of sync recovery.
+    // State switch from "tracking" to "out of sync" should only happen if
+    // there are no ledgers queued to be applied. If there are ledgers
+    // queued, it's possible the rest of the network is waiting for this
+    // node to vote. In this case we should _still_ remain in tracking and
+    // emit nomination; If the node does not hear anything from the network
+    // after that, then node can go into out of sync recovery.
     releaseAssert(threadIsMain());
     releaseAssert(!mLedgerManager.isApplying());
 

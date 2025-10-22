@@ -136,11 +136,11 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter({"herder", "pending-txs", "self-sum"}),
         app.getMetrics().NewCounter({"herder", "pending-txs", "self-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "evicted-due-too-low-fee-count"}),
+            {"herder", "pending-txs", "evicted-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "evicted-due-too-age-count"}),
+            {"herder", "pending-txs", "evicted-due-to-age-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "not-included-due-too-low-fee-count"}),
+            {"herder", "pending-txs", "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1,
@@ -1094,11 +1094,11 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "self-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "evicted-due-too-low-fee-count"}),
+            {"herder", "pending-soroban-txs", "evicted-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "evicted-due-too-age-count"}),
+            {"herder", "pending-soroban-txs", "evicted-due-to-age-count"}),
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
-                                     "not-included-due-too-low-fee-count"}),
+                                     "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());

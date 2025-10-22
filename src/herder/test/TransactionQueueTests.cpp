@@ -1269,7 +1269,7 @@ TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
 {
     gIsProductionNetwork = true;
     auto runTestForKey = [&](LedgerKey const& key, uint32_t protocolVersion,
-                             bool shouldFilter = true, bool doUpgrade = false) {
+                             bool shouldFilter = true) {
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -1347,50 +1347,13 @@ TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
             runTest(resourcesRo, op, shouldFilter);
             runTest(resourcesRw, op, shouldFilter);
         }
-
-        if (doUpgrade)
-        {
-            REQUIRE(protocolVersion == 23);
-            auto const& lm = app->getLedgerManager();
-
-            auto lclHeader = lm.getLastClosedLedgerHeader();
-            TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
-
-            auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
-            upgrade.newLedgerVersion() = 24;
-
-            app->getHerder().externalizeValue(
-                TxSetXDRFrame::makeEmpty(lclHeader),
-                lclHeader.header.ledgerSeq + 1, closeTime,
-                {LedgerTestUtils::toUpgradeType(upgrade)});
-            app->getRoot()->loadSequenceNumber();
-
-            // Verify upgrade went through
-            REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion == 24);
-
-            // After the upgrade, re-submitting the same txs should not get
-            // impacted by filtering
-            for (auto const& op : ops)
-            {
-                runTest(resourcesRo, op, false);
-                runTest(resourcesRw, op, false);
-            }
-        }
     };
-    auto keysToFilterP23 = p23_hot_archive_bug::getP23CorruptedHotArchiveKeys();
     UnorderedSet<LedgerKey> keysToFilterP24;
     for (auto const& keyStr : KEYS_TO_FILTER_P24)
     {
         LedgerKey key;
         fromOpaqueBase64(key, keyStr);
         keysToFilterP24.insert(key);
-    }
-    SECTION("protocol version 23")
-    {
-        for (auto const& keyToFilter : keysToFilterP23)
-        {
-            runTestForKey(keyToFilter, 23);
-        }
     }
     SECTION("protocol version 24")
     {
@@ -1400,30 +1363,6 @@ TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
             {
                 runTestForKey(keyToFilter, 24);
             }
-        }
-        SECTION("ignore p23 keys")
-        {
-            for (auto const& keyToFilter : keysToFilterP23)
-            {
-                if (keysToFilterP24.find(keyToFilter) == keysToFilterP24.end())
-                {
-                    // p23 key isn't in the p24 list, don't filter the tx
-                    runTestForKey(keyToFilter, 24, /* shouldFilter */ false);
-                }
-                else
-                {
-                    // p23 key is in the p24 list, filter the tx
-                    runTestForKey(keyToFilter, 24);
-                }
-            }
-        }
-    }
-    SECTION("recompute keys on upgrade")
-    {
-        for (auto const& p23Key : keysToFilterP23)
-        {
-            runTestForKey(p23Key, 23, /* shouldFilter */ true,
-                          /* doUpgrade */ true);
         }
     }
 }

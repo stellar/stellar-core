@@ -67,9 +67,9 @@ herder.pending[-soroban]-txs.sum          | counter   | sum of time (millisecond
 herder.pending[-soroban]-txs.count        | counter   | number of transactions to be included in a ledger
 herder.pending[-soroban]-txs.self-sum     | counter   | sum of time (milliseconds) for transactions submitted from this node to be included in a ledger
 herder.pending[-soroban]-txs.self-count   | counter   | number of transactions submitted from this node to be included in a ledger
-herder.pending[-soroban]-txs.evicted-due-too-low-fee-count   | counter   | Count of transactions evicted by higher fee txs when queue is near its capacity.
-herder.pending[-soroban]-txs.evicted-due-too-age-count   | counter   | Count of transactions that had low fee for too long and have not been included into several ledgers in a row.
-herder.pending[-soroban]-txs.not-included-due-too-low-fee-count   | counter   | Count of transactions that were not included into queue because it is at capacity and the fee is too low to replace other txs.
+herder.pending[-soroban]-txs.evicted-due-to-low-fee-count   | counter   | Count of transactions evicted by higher fee txs when queue is near its capacity.
+herder.pending[-soroban]-txs.evicted-due-to-age-count   | counter   | Count of transactions that had low fee for too long and have not been included into several ledgers in a row.
+herder.pending[-soroban]-txs.not-included-due-to-low-fee-count   | counter   | Count of transactions that were not included into queue because it is at capacity and the fee is too low to replace other txs.
 history.check.failure                     | meter     | history archive status checks failed
 history.check.success                     | meter     | history archive status checks succeeded
 history.publish.failure                   | meter     | published failed

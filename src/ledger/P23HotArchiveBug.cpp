@@ -32,19 +32,6 @@ decodeLedgerEntry(std::string const& encodedBase64)
 
 using namespace internal;
 
-std::vector<LedgerKey>
-getP23CorruptedHotArchiveKeys()
-{
-    std::vector<LedgerKey> result;
-    for (size_t i = 0; i < P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT; ++i)
-    {
-        LedgerEntry corruptedEntry =
-            decodeLedgerEntry(P23_CORRUPTED_HOT_ARCHIVE_ENTRIES[i]);
-        result.push_back(LedgerEntryKey(corruptedEntry));
-    }
-    return result;
-}
-
 void
 addHotArchiveBatchWithP23HotArchiveFix(
     AbstractLedgerTxn& ltx, Application& app, LedgerHeader header,
@@ -77,10 +64,6 @@ addHotArchiveBatchWithP23HotArchiveFix(
 
         // Perform several checks to ensure that we only fix the entries in
         // Hot Archive that match our expectations for the corrupted entries.
-        // All these checks are highly likely to pass in practice, but since
-        // restoration of the corrupted entries is not prohibited at the
-        // protocol level, we have to account for all the possibilities just in
-        // case.
 
         // Ensure that the entry exists in Hot Archive.
         auto hotArchiveEntry = hotArchiveSnapshot->load(corruptedEntryKey);
@@ -95,40 +78,18 @@ addHotArchiveBatchWithP23HotArchiveFix(
         }
 
         // Ensure that the entry state matches our expectations for the
-        // corrupted entry.
-        if (hotArchiveEntry->archivedEntry() != corruptedEntry)
-        {
-            CLOG_WARNING(
-                Ledger,
-                "Skipping fix of the entry with key '{}' as it does not match "
-                "the expected corrupted value: '{}' vs '{}'",
-                xdr::xdr_to_string(corruptedEntryKey),
-                xdr::xdr_to_string(corruptedEntry),
-                xdr::xdr_to_string(hotArchiveEntry->archivedEntry()));
-            continue;
-        }
+        // corrupted entry. This technically could be violated before p24 vote,
+        // but we know that it hasn't been the case.
+        releaseAssert(hotArchiveEntry->archivedEntry() == corruptedEntry);
 
-        // Ensure that the entry does not exist in the live state.
-        if (ltx.loadWithoutRecord(corruptedEntryKey))
-        {
-            CLOG_WARNING(Ledger,
-                         "Skipping fix of the entry with key '{}' as it exists "
-                         "in the live state",
-                         xdr::xdr_to_string(corruptedEntryKey));
-            continue;
-        }
+        // Ensure that the entry does not exist in the live state - at this
+        // point we've ensured it's in the Hot Archive.
+        releaseAssert(!ltx.loadWithoutRecord(corruptedEntryKey));
         // Make sure we're not trying to overwrite any entries that are being
         // archived in this batch, as these aren't in the live state anymore,
         // but also don't have the right state in the hot archive.
-        if (currentBatchKeys.find(corruptedEntryKey) != currentBatchKeys.end())
-        {
-            CLOG_WARNING(
-                Ledger,
-                "Skipping fix of the entry with key '{}' as it's present in "
-                "the hot archive batch",
-                xdr::xdr_to_string(corruptedEntryKey));
-            continue;
-        }
+        releaseAssert(currentBatchKeys.find(corruptedEntryKey) ==
+                      currentBatchKeys.end());
         CLOG_INFO(Ledger, "Applied fix to the Hot Archive entry {}: '{}'->'{}'",
                   i, xdr::xdr_to_string(corruptedEntry),
                   xdr::xdr_to_string(fixedEntry));

@@ -3931,6 +3931,7 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = corruptedProtocolVersion;
     auto app = createTestApplication(clock, cfg);
+    gIsProductionNetwork = true;
     overrideSorobanNetworkConfigForTest(*app);
 
     auto parseEntries = [](std::vector<std::string> const& encoded) {
@@ -3987,60 +3988,5 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
         auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
         auto actual = hotArchiveSnapshot->load(removedKey);
         REQUIRE(!actual);
-    }
-    SECTION("archived entries that don't match expected corrupted state are "
-            "not changed")
-    {
-        allCorruptedEntries[1].lastModifiedLedgerSeq += 1;
-        REQUIRE(allCorruptedEntries[1] != allExpectedFixed[1]);
-        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
-            allCorruptedEntries, {});
-        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
-        auto actual =
-            hotArchiveSnapshot->load(LedgerEntryKey(allCorruptedEntries[1]));
-        REQUIRE(actual);
-        REQUIRE(actual->archivedEntry() == allCorruptedEntries[1]);
-    }
-    SECTION("entries in the live state are not updated")
-    {
-        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
-            allCorruptedEntries, {});
-        Operation op;
-        op.body.type(RESTORE_FOOTPRINT);
-        SorobanResources resources;
-        resources.writeBytes = 10000;
-        resources.diskReadBytes = 10000;
-
-        std::vector<LedgerEntry> liveEntries = {allCorruptedEntries[2],
-                                                allCorruptedEntries[100],
-                                                allCorruptedEntries[200]};
-        for (auto const& le : liveEntries)
-        {
-            resources.footprint.readWrite.push_back(LedgerEntryKey(le));
-        }
-
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(),
-                                                 *app->getRoot(), {op}, {},
-                                                 resources, 100, 100'000'000);
-        {
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
-                        ->isSuccess());
-        }
-        closeLedger(*app, {tx});
-
-        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
-        for (auto const& le : liveEntries)
-        {
-            auto actual = hotArchiveSnapshot->load(LedgerEntryKey(le));
-            REQUIRE(!actual);
-        }
-        // Spot check a non-live entries is fixed
-        auto actual =
-            hotArchiveSnapshot->load(LedgerEntryKey(allCorruptedEntries[0]));
-        REQUIRE(actual);
-        REQUIRE(actual->archivedEntry() == allExpectedFixed[0]);
     }
 }
