@@ -93,8 +93,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     // Tracks the sum of point load times for each LedgerEntryType, in
     // microseconds. For point loads, Timers are too expensive to maintain, so
     // we use SimpleTimer.
-    UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>&
-        mPointTimers;
+    UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>&>
+        mPointTimers{};
 
     // Bulk load timers take significantly longer, so the timer overhead is
     // comparatively negligible.
@@ -144,8 +144,4 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     std::shared_ptr<typename BucketT::LoadT const>
     load(LedgerKey const& k) const;
 };
-
-// Remove the storage holding the SimpleTimers associated with the given
-// registry
-void unregisterSimpleTimers(medida::MetricsRegistry& registry);
 }

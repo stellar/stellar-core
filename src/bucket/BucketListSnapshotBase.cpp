@@ -171,50 +171,6 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 }
 
 template <class BucketT>
-static UnorderedMap<
-    medida::MetricsRegistry*,
-    UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>>
-    gPointTimers;
-
-template <class BucketT> static std::mutex gPointTimerLock;
-
-template <class BucketT>
-static UnorderedMap<LedgerEntryType, SimpleTimer<std::chrono::microseconds>>&
-getPointTimers(medida::MetricsRegistry& registry)
-{
-    std::lock_guard guard{gPointTimerLock<BucketT>};
-    auto& res = gPointTimers<BucketT>[&registry];
-    if (res.empty())
-    {
-        // Initialize point load timers for each LedgerEntry type
-        for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
-        {
-            auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
-                static_cast<LedgerEntryType>(t));
-            res.emplace(std::piecewise_construct,
-                        std::forward_as_tuple(static_cast<LedgerEntryType>(t)),
-                        std::forward_as_tuple(registry, BucketT::METRIC_STRING,
-                                              label, "",
-                                              std::chrono::seconds(30)));
-        }
-    }
-    return res;
-}
-
-void
-unregisterSimpleTimers(medida::MetricsRegistry& registry)
-{
-    {
-        std::lock_guard guard{gPointTimerLock<LiveBucket>};
-        gPointTimers<LiveBucket>.erase(&registry);
-    }
-    {
-        std::lock_guard guard{gPointTimerLock<HotArchiveBucket>};
-        gPointTimers<HotArchiveBucket>.erase(&registry);
-    }
-}
-
-template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     BucketSnapshotManager const& snapshotManager, AppConnector const& app,
     SnapshotPtrT<BucketT>&& snapshot,
@@ -223,7 +179,6 @@ SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     , mSnapshot(std::move(snapshot))
     , mHistoricalSnapshots(std::move(historicalSnapshots))
     , mAppConnector(app)
-    , mPointTimers{getPointTimers<BucketT>(app.getMetrics())}
     , mBulkLoadMeter(app.getMetrics().NewMeter(
           {BucketT::METRIC_STRING, "query", "loads"}, "query"))
     , mBloomMisses(app.getMetrics().NewMeter(
@@ -231,6 +186,13 @@ SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     , mBloomLookups(app.getMetrics().NewMeter(
           {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom"))
 {
+    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
+            static_cast<LedgerEntryType>(t));
+        auto& timer = mSnapshotManager.getTimer(BucketT::METRIC_STRING, label);
+        mPointTimers.emplace(static_cast<LedgerEntryType>(t), timer);
+    }
 }
 
 template <class BucketT>

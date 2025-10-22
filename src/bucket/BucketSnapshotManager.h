@@ -9,6 +9,7 @@
 #include "bucket/LiveBucket.h"
 #include "main/AppConnector.h"
 #include "util/NonCopyable.h"
+#include "util/SimpleTimer.h"
 #include "util/ThreadAnnotations.h"
 
 #include <map>
@@ -48,6 +49,11 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     // Lock must be held when accessing any member variables holding snapshots
     mutable SharedMutex mSnapshotMutex;
+
+    mutable Mutex mSimpleTimerRegistryMutex;
+    mutable std::map<std::pair<std::string, std::string>,
+                     SimpleTimer<std::chrono::microseconds>>
+        mSimpleTimerRegistry;
 
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
@@ -117,5 +123,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
         SearchableSnapshotConstPtr& liveSnapshot,
         SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
         LOCKS_EXCLUDED(mSnapshotMutex);
+
+    // Called in SearchableBucketListSnapshotBase to get access to the same
+    // SimpleTimers across snapshots
+    SimpleTimer<std::chrono::microseconds>&
+    getTimer(const std::string& domain, const std::string& type) const;
 };
 }
