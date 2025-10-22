@@ -12,15 +12,17 @@ class Application;
 
 class ArchivedStateConsistency : public Invariant
 {
-    std::string
-    checkEvictionInvariants(SearchableSnapshotConstPtr lclLiveState,
-                            SearchableHotArchiveSnapshotConstPtr archivedState,
-                            std::vector<LedgerKey> const& deletedTempAndTTLKeys,
-                            std::vector<LedgerEntry> const& archivedEntries,
-                            uint32_t ledgerSeq, uint32_t ledgerVer);
+    std::string checkEvictionInvariants(
+        UnorderedMap<LedgerKey, LedgerEntry> const& preloadedLiveEntries,
+        UnorderedMap<LedgerKey, HotArchiveBucketEntry> const&
+            preloadedArchivedEntries,
+        UnorderedSet<LedgerKey> const& deletedKeys,
+        std::vector<LedgerEntry> const& archivedEntries, uint32_t ledgerSeq,
+        uint32_t ledgerVer);
     std::string checkRestoreInvariants(
-        SearchableSnapshotConstPtr lclLiveState,
-        SearchableHotArchiveSnapshotConstPtr archivedState,
+        UnorderedMap<LedgerKey, LedgerEntry> const& preloadedLiveEntries,
+        UnorderedMap<LedgerKey, HotArchiveBucketEntry> const&
+            preloadedArchivedEntries,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
         uint32_t ledgerSeq, uint32_t ledgerVer);
