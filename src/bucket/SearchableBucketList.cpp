@@ -51,6 +51,15 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     auto startIter = evictionIter;
     auto scanSize = sas.evictionScanSize;
 
+    // exit scan early if there's nothing to scan. We still need to call
+    // `updateStartingEvictionIterator` before exiting early in case the
+    // underlying bucket has changed, since even when scanning is disabled, it's
+    // important to maintain a valid iterator.
+    if (scanSize == 0)
+    {
+        return result;
+    }
+
     for (;;)
     {
         auto const& b = getBucketFromIter(evictionIter);
