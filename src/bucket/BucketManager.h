@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
+#include "history/HistoryArchive.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/TmpDir.h"
@@ -171,6 +172,13 @@ class BucketManager : NonMovableOrCopyable
                                       FutureMapT<BucketT>& futureMap);
 
     void reportLiveBucketIndexCacheMetrics();
+
+    template <class BucketT>
+    std::map<LedgerKey, LedgerEntry> loadCompleteBucketListStateHelper(
+        std::vector<HistoryStateBucket<BucketT>> const& buckets,
+        std::function<void(std::shared_ptr<BucketT>, std::string const&,
+                           std::map<LedgerKey, LedgerEntry>&)>
+            loadFunc);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};

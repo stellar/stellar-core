@@ -1478,18 +1478,21 @@ loadEntriesFromHotArchiveBucket(std::shared_ptr<HotArchiveBucket> b,
               b->getSize(), name, ms, formatSize(bytesPerSec));
 }
 
-// Loads the complete state of the live BucketList into a map
+template <typename BucketT>
 std::map<LedgerKey, LedgerEntry>
-BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
+BucketManager::loadCompleteBucketListStateHelper(
+    std::vector<HistoryStateBucket<BucketT>> const& buckets,
+    std::function<void(std::shared_ptr<BucketT>, std::string const&,
+                       std::map<LedgerKey, LedgerEntry>&)>
+        loadFunc)
 {
     ZoneScoped;
 
     std::map<LedgerKey, LedgerEntry> ledgerMap;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
+    for (uint32_t i = BucketListBase<BucketT>::kNumLevels; i > 0; --i)
     {
-        HistoryStateBucket<LiveBucket> const& hsb =
-            has.currentBuckets.at(i - 1);
+        HistoryStateBucket<BucketT> const& hsb = buckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
                             fmt::format(FMT_STRING("snap {:d}"), i - 1));
         hashes.emplace_back(hexToBin256(hsb.curr),
@@ -1501,51 +1504,34 @@ BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
         {
             continue;
         }
-        auto b = getBucketByHashInternal(pair.first, mSharedLiveBuckets);
+        auto b = getBucketByHash<BucketT>(pair.first);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
                                      binToHex(pair.first));
         }
-        loadEntriesFromBucket(b, pair.second, ledgerMap);
+
+        loadFunc(b, pair.second, ledgerMap);
     }
     return ledgerMap;
+}
+
+// Loads the complete state of the live BucketList into a map
+std::map<LedgerKey, LedgerEntry>
+BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
+{
+    CLOG_INFO(Bucket, "Loading complete live ledger state");
+    return loadCompleteBucketListStateHelper<LiveBucket>(has.currentBuckets,
+                                                         loadEntriesFromBucket);
 }
 
 // Loads the complete state of the hot archive BucketList into a map
 std::map<LedgerKey, LedgerEntry>
 BucketManager::loadCompleteHotArchiveState(HistoryArchiveState const& has)
 {
-    ZoneScoped;
-
-    std::map<LedgerKey, LedgerEntry> ledgerMap;
-    std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = HotArchiveBucketList::kNumLevels; i > 0; --i)
-    {
-        CLOG_INFO(Bucket, "Loading hot archive level {}", i - 1);
-        HistoryStateBucket<HotArchiveBucket> const& hsb =
-            has.hotArchiveBuckets.at(i - 1);
-        hashes.emplace_back(hexToBin256(hsb.snap),
-                            fmt::format(FMT_STRING("snap {:d}"), i - 1));
-        hashes.emplace_back(hexToBin256(hsb.curr),
-                            fmt::format(FMT_STRING("curr {:d}"), i - 1));
-    }
-    for (auto const& pair : hashes)
-    {
-        if (isZero(pair.first))
-        {
-            continue;
-        }
-        auto b = getBucketByHashInternal(pair.first, mSharedHotArchiveBuckets);
-        if (!b)
-        {
-            throw std::runtime_error(std::string("missing bucket: ") +
-                                     binToHex(pair.first));
-        }
-        CLOG_INFO(Bucket, "Loading hot archive bucket: {}", pair.second);
-        loadEntriesFromHotArchiveBucket(b, pair.second, ledgerMap);
-    }
-    return ledgerMap;
+    CLOG_INFO(Bucket, "Loading complete hot archive state");
+    return loadCompleteBucketListStateHelper<HotArchiveBucket>(
+        has.hotArchiveBuckets, loadEntriesFromHotArchiveBucket);
 }
 
 std::shared_ptr<LiveBucket>
