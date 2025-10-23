@@ -569,7 +569,7 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
     // Resize to fit the last cost type added in v25
-    params.resize(static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
 
     // While we loop over the full ContractCostType enum, we only set the
     // entries that have either been updated, or newly created in v25
@@ -607,22 +607,6 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
             break;
         case Bn254FrFromU256:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1940, 0);
-            break;
-        // TODO: Set calibrated values for the new cost types below
-        case Bn254FrToU256:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrAddSub:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrMul:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrPow:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrInv:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
             break;
         default:
             break;
@@ -1009,7 +993,7 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
     // Resize to fit the last cost type added in v25
-    params.resize(static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
 
     for (auto val : vals)
     {
@@ -1047,23 +1031,6 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
         case Bn254FrFromU256:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
             break;
-        // TODO: Set calibrated values for the new cost types below
-        case Bn254FrToU256:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrAddSub:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrMul:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrPow:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-        case Bn254FrInv:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
-            break;
-
         default:
             break;
         }
