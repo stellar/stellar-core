@@ -25,7 +25,6 @@ class Timer;
 namespace stellar
 {
 
-class Application;
 class LiveBucketList;
 template <class BucketT> class BucketListSnapshot;
 class SearchableLiveBucketListSnapshot;
@@ -75,7 +74,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].
-    BucketSnapshotManager(Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
+    BucketSnapshotManager(AppConnector& app,
+                          SnapshotPtrT<LiveBucket>&& snapshot,
                           SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
                           uint32_t numHistoricalLedgers);
 

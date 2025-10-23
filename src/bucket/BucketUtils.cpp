@@ -6,6 +6,7 @@
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -167,7 +168,7 @@ EvictionResultCandidates::isValid(uint32_t currLedgerSeq,
                currSas.startingEvictionScanLevel;
 }
 
-EvictionCounters::EvictionCounters(Application& app)
+EvictionCounters::EvictionCounters(AppConnector& app)
     : entriesEvicted(app.getMetrics().NewCounter(
           {"state-archival", "eviction", "entries-evicted"}))
     , bytesScannedForEviction(app.getMetrics().NewCounter(

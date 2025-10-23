@@ -50,6 +50,10 @@ class AppConnector
         Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION);
     void postOnOverlayThread(std::function<void()>&& f,
                              std::string const& message);
+    void postOnBackgroundThread(std::function<void()>&& f,
+                                std::string const& jobName);
+    void postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                        std::string const& jobName);
     VirtualClock::time_point now() const;
     Config const& getConfig() const;
     rust::Box<rust_bridge::SorobanModuleCache> getModuleCache();

@@ -104,7 +104,8 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
     class BucketManagerTest : public BucketManager
     {
       public:
-        BucketManagerTest(Application& app) : BucketManager(app)
+        BucketManagerTest(Application& app)
+            : BucketManager(app.getAppConnector())
         {
         }
         void

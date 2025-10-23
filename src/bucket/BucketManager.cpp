@@ -52,7 +52,7 @@ namespace stellar
 {
 
 std::unique_ptr<BucketManager>
-BucketManager::create(Application& app)
+BucketManager::create(AppConnector& app)
 {
     auto bucketManagerPtr =
         std::unique_ptr<BucketManager>(new BucketManager(app));
@@ -99,7 +99,7 @@ BucketManager::initialize()
     mLiveBucketList = std::make_unique<LiveBucketList>();
     mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
     mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-        mApp,
+        mAppConnector,
         std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
                                                          LedgerHeader()),
         std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
@@ -131,40 +131,41 @@ BucketManager::getTmpDirManager()
     return *mTmpDirManager;
 }
 
-BucketManager::BucketManager(Application& app)
-    : mApp(app)
+BucketManager::BucketManager(AppConnector& appConnector)
+    : mAppConnector(appConnector)
     , mLiveBucketList(nullptr)
     , mHotArchiveBucketList(nullptr)
     , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
-    , mBucketLiveObjectInsertBatch(app.getMetrics().NewMeter(
+    , mBucketLiveObjectInsertBatch(appConnector.getMetrics().NewMeter(
           {"bucket", "batch", "objectsadded"}, "object"))
-    , mBucketArchiveObjectInsertBatch(app.getMetrics().NewMeter(
+    , mBucketArchiveObjectInsertBatch(appConnector.getMetrics().NewMeter(
           {"bucket", "batch-archive", "objectsadded"}, "object"))
     , mBucketAddLiveBatch(
-          app.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
-    , mBucketAddArchiveBatch(
-          app.getMetrics().NewTimer({"bucket", "batch-archive", "addtime"}))
-    , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
+          appConnector.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
+    , mBucketAddArchiveBatch(appConnector.getMetrics().NewTimer(
+          {"bucket", "batch-archive", "addtime"}))
+    , mBucketSnapMerge(
+          appConnector.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
-          app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
+          appConnector.getMetrics().NewCounter({"bucket", "memory", "shared"}))
     , mLiveBucketListSizeCounter(
-          app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
-    , mArchiveBucketListSizeCounter(
-          app.getMetrics().NewCounter({"bucketlist-archive", "size", "bytes"}))
-    , mCacheHitMeter(app.getMetrics().NewMeter({"bucketlistDB", "cache", "hit"},
-                                               "bucketlistDB"))
-    , mCacheMissMeter(app.getMetrics().NewMeter(
+          appConnector.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
+    , mArchiveBucketListSizeCounter(appConnector.getMetrics().NewCounter(
+          {"bucketlist-archive", "size", "bytes"}))
+    , mCacheHitMeter(appConnector.getMetrics().NewMeter(
+          {"bucketlistDB", "cache", "hit"}, "bucketlistDB"))
+    , mCacheMissMeter(appConnector.getMetrics().NewMeter(
           {"bucketlistDB", "cache", "miss"}, "bucketlistDB"))
-    , mLiveBucketIndexCacheEntries(
-          app.getMetrics().NewCounter({"bucketlistDB", "cache", "entries"}))
-    , mLiveBucketIndexCacheBytes(
-          app.getMetrics().NewCounter({"bucketlistDB", "cache", "bytes"}))
-    , mBucketListEvictionCounters(app)
+    , mLiveBucketIndexCacheEntries(appConnector.getMetrics().NewCounter(
+          {"bucketlistDB", "cache", "entries"}))
+    , mLiveBucketIndexCacheBytes(appConnector.getMetrics().NewCounter(
+          {"bucketlistDB", "cache", "bytes"}))
+    , mBucketListEvictionCounters(appConnector)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
-    , mConfig(app.getConfig())
+    , mConfig(appConnector.getConfig())
 {
     for (uint32_t t =
              static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
@@ -174,10 +175,10 @@ BucketManager::BucketManager(Application& app)
         auto type = static_cast<LedgerEntryTypeAndDurability>(t);
         auto typeString = toString(type);
         mBucketListEntryCountCounters.emplace(
-            type, app.getMetrics().NewCounter(
+            type, appConnector.getMetrics().NewCounter(
                       {"bucketlist", "entryCounts", typeString}));
         mBucketListEntrySizeCounters.emplace(
-            type, app.getMetrics().NewCounter(
+            type, appConnector.getMetrics().NewCounter(
                       {"bucketlist", "entrySizes", typeString}));
     }
 }
@@ -334,7 +335,7 @@ medida::Meter&
 BucketManager::getBloomMissMeter() const
 {
     BUCKET_TYPE_ASSERT(BucketT);
-    return mApp.getMetrics().NewMeter(
+    return mAppConnector.getMetrics().NewMeter(
         {BucketT::METRIC_STRING, "bloom", "misses"}, "bloom");
 }
 
@@ -343,7 +344,7 @@ medida::Meter&
 BucketManager::getBloomLookupMeter() const
 {
     BUCKET_TYPE_ASSERT(BucketT);
-    return mApp.getMetrics().NewMeter(
+    return mAppConnector.getMetrics().NewMeter(
         {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom");
 }
 
@@ -843,8 +844,8 @@ BucketManager::getAllReferencedBuckets(HistoryArchiveState const& has) const
     }
 
     // retain buckets that are referenced by a state in the publish queue.
-    for (auto const& h :
-         HistoryManager::getBucketsReferencedByPublishQueue(mApp.getConfig()))
+    for (auto const& h : HistoryManager::getBucketsReferencedByPublishQueue(
+             mAppConnector.getConfig()))
     {
         auto rhash = hexToBin256(h);
         auto rit = referenced.emplace(rhash);
@@ -1158,7 +1159,7 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
         });
 
     mEvictionFuture = task->get_future();
-    mApp.postOnEvictionBackgroundThread(
+    mAppConnector.postOnEvictionBackgroundThread(
         bind(&task_t::operator(), task),
         "SearchableLiveBucketListSnapshot: eviction scan");
 }
@@ -1295,7 +1296,7 @@ BucketManager::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 }
 
 void
-BucketManager::assumeState(HistoryArchiveState const& has,
+BucketManager::assumeState(Application& app, HistoryArchiveState const& has,
                            uint32_t maxProtocolVersion, bool restartMerges)
 {
     ZoneScoped;
@@ -1355,11 +1356,11 @@ BucketManager::assumeState(HistoryArchiveState const& has,
 
     if (restartMerges)
     {
-        mLiveBucketList->restartMerges(mApp, maxProtocolVersion,
+        mLiveBucketList->restartMerges(app, maxProtocolVersion,
                                        has.currentLedger);
         if (has.hasHotArchiveBuckets())
         {
-            mHotArchiveBucketList->restartMerges(mApp, maxProtocolVersion,
+            mHotArchiveBucketList->restartMerges(app, maxProtocolVersion,
                                                  has.currentLedger);
         }
     }
@@ -1462,14 +1463,14 @@ BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
 }
 
 std::shared_ptr<LiveBucket>
-BucketManager::mergeBuckets(HistoryArchiveState const& has)
+BucketManager::mergeBuckets(asio::io_context& ctx,
+                            HistoryArchiveState const& has)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
     BucketMetadata meta;
     MergeCounters mc;
-    auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mConfig.LEDGER_PROTOCOL_VERSION;
     LiveBucketOutputIterator out(getTmpDir(), /*keepTombstoneEntries=*/false,
                                  meta, mc, ctx, /*doFsync=*/true);
@@ -1656,7 +1657,7 @@ BucketManager::visitLedgerEntries(
 
 std::shared_ptr<BasicWork>
 BucketManager::scheduleVerifyReferencedBucketsWork(
-    HistoryArchiveState const& has)
+    Application& app, HistoryArchiveState const& has)
 {
     releaseAssert(threadIsMain());
     std::set<Hash> hashes = getAllReferencedBuckets(has);
@@ -1699,7 +1700,7 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
 
             seq.emplace_back(
                 std::make_shared<VerifyBucketWork<HotArchiveBucket>>(
-                    mApp, filename, hash, indexIter->second, nullptr));
+                    app, filename, hash, indexIter->second, nullptr));
         }
         else
         {
@@ -1708,10 +1709,10 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
             auto [indexIter, _] = liveIndexMap.emplace(i++, nullptr);
 
             seq.emplace_back(std::make_shared<VerifyBucketWork<LiveBucket>>(
-                mApp, filename, hash, indexIter->second, nullptr));
+                app, filename, hash, indexIter->second, nullptr));
         }
     }
-    return mApp.getWorkScheduler().scheduleWork<WorkSequence>(
+    return app.getWorkScheduler().scheduleWork<WorkSequence>(
         "verify-referenced-buckets", seq);
 }
 
@@ -1734,7 +1735,7 @@ BucketManager::reportBucketEntryCountMetrics()
             countCounter =
                 mBucketListEntryCountCounters
                     .emplace(type,
-                             mApp.getMetrics().NewCounter(
+                             mAppConnector.getMetrics().NewCounter(
                                  {"bucketlist", "entryCounts", typeString}))
                     .first;
         }
@@ -1747,7 +1748,7 @@ BucketManager::reportBucketEntryCountMetrics()
             sizeCounter =
                 mBucketListEntrySizeCounters
                     .emplace(type,
-                             mApp.getMetrics().NewCounter(
+                             mAppConnector.getMetrics().NewCounter(
                                  {"bucketlist", "entrySizes", typeString}))
                     .first;
         }

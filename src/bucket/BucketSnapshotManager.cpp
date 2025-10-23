@@ -37,7 +37,7 @@ copyHistoricalSnapshots(
 }
 
 BucketSnapshotManager::BucketSnapshotManager(
-    Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
+    AppConnector& app, SnapshotPtrT<LiveBucket>&& snapshot,
     SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
     uint32_t numLiveHistoricalSnapshots)
     : mAppConnector(app)

@@ -97,6 +97,20 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
     mApp.postOnOverlayThread(std::move(f), message);
 }
 
+void
+AppConnector::postOnBackgroundThread(std::function<void()>&& f,
+                                     std::string const& jobName)
+{
+    mApp.postOnBackgroundThread(std::move(f), jobName);
+}
+
+void
+AppConnector::postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                             std::string const& jobName)
+{
+    mApp.postOnEvictionBackgroundThread(std::move(f), jobName);
+}
+
 Config const&
 AppConnector::getConfig() const
 {
