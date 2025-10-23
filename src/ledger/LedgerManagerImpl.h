@@ -377,7 +377,7 @@ class LedgerManagerImpl : public LedgerManager
     CompleteConstLedgerStatePtr sealLedgerTxnAndStoreInBucketsAndDB(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t initialLedgerVers, bool isP24UpgradeLedger);
+        uint32_t initialLedgerVers);
 
     HistoryArchiveState
     storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
@@ -420,7 +420,7 @@ class LedgerManagerImpl : public LedgerManager
     virtual void finalizeLedgerTxnChanges(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger);
+        LedgerHeader lh, uint32_t initialLedgerVers);
 
     // Update bucket list snapshot, and construct LedgerState return
     // value, which contains all information relevant to ledger state (HAS,

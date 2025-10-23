@@ -189,7 +189,7 @@ void
 LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    LedgerHeader lh, uint32_t initialLedgerVers, bool isP24UpgradeLedger)
+    LedgerHeader lh, uint32_t initialLedgerVers)
 {
     if (mUseTestEntries)
     {
@@ -342,8 +342,8 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     }
     else
     {
-        LedgerManagerImpl::finalizeLedgerTxnChanges(
-            ltx, ledgerCloseMeta, lh, initialLedgerVers, isP24UpgradeLedger);
+        LedgerManagerImpl::finalizeLedgerTxnChanges(ltx, ledgerCloseMeta, lh,
+                                                    initialLedgerVers);
     }
 }
 

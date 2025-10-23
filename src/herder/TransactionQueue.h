@@ -308,8 +308,6 @@ class SorobanTransactionQueue : public TransactionQueue
 {
   public:
     SorobanTransactionQueue(Application& app, uint32 pendingDepth,
-                            uint32 banDepth, uint32 poolLedgerMultiplier);
-    SorobanTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier,
                             UnorderedSet<LedgerKey> const& keysToFilter);
     int

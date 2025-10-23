@@ -52,7 +52,7 @@ extern const std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT>
 // - That `P23_CORRUPTED_HOT_ARCHIVE_ENTRIES` and
 // `P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE` match the provided file as
 // an additional sanity check.
-struct Protocol23CorruptionDataVerifier
+class Protocol23CorruptionDataVerifier
 {
   public:
     // Load corruption data from CSV file at given path
@@ -127,8 +127,6 @@ struct Protocol23CorruptionDataVerifier
 
     std::mutex mMutex;
 };
-
-std::vector<LedgerKey> getP23CorruptedHotArchiveKeys();
 
 void addHotArchiveBatchWithP23HotArchiveFix(
     AbstractLedgerTxn& ltx, Application& app, LedgerHeader header,
