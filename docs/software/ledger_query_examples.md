@@ -65,6 +65,12 @@ ledger to JSON files for further analysis.
    "(data.type == 'CONTRACT_DATA' || data.type == 'CONTRACT_CODE') && ttl() < 61000000" 
    --limit 10`
 
+* Output 10 contract code entries from the Hot Archive.
+  `./stellar-core dump-ledger --conf ../stellar-core_pubnet.cfg 
+   --hot-archive --output-file q10.json --filter-query 
+   "data.type == 'CONTRACT_CODE'" 
+   --limit 10`
+
 ## Aggregating ledger entries
 
 The following examples demonstrate how to aggregate parts of the ledger into CSV tables.
@@ -87,4 +93,8 @@ The following examples demonstrate how to aggregate parts of the ledger into CSV
 
 * Find the entry size distribution: 
 
-  `./stellar-core dump-ledger --output-file entry_stats.json --group-by data.type --agg sum(entry_size()),avg(entry_size())`
+  `./stellar-core dump-ledger --output-file entry_stats.csv --group-by data.type --agg sum(entry_size()),avg(entry_size())`
+
+* Find the number of entries in Hot Archive by type:
+
+  `./stellar-core dump-ledger  --hot-archive --output-file hot_archive_stats.csv --group-by data.type --agg count()`

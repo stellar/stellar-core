@@ -444,6 +444,13 @@ limitParser(std::optional<std::uint64_t>& limit)
 }
 
 clara::Opt
+dumpHotArchiveParser(bool& dumpHotArchive)
+{
+    return clara::Opt{dumpHotArchive}["--hot-archive"](
+        "run query on Hot Archive instead of the Live ledger state");
+}
+
+clara::Opt
 includeAllStatesParser(bool& include)
 {
     return clara::Opt{include}["--include-all-states"](
@@ -1175,6 +1182,7 @@ runDumpLedger(CommandLineArgs const& args)
     std::optional<uint64_t> limit;
     std::optional<std::string> groupBy;
     std::optional<std::string> aggregate;
+    bool dumpHotArchive = false;
     bool includeAllStates = false;
     return runWithHelp(
         args,
@@ -1183,11 +1191,12 @@ runDumpLedger(CommandLineArgs const& args)
          filterQueryParser(filterQuery),
          lastModifiedLedgerCountParser(lastModifiedLedgerCount),
          limitParser(limit), groupByParser(groupBy), aggregateParser(aggregate),
+         dumpHotArchiveParser(dumpHotArchive),
          includeAllStatesParser(includeAllStates)},
         [&] {
             return dumpLedger(configOption.getConfig(), outputFile, filterQuery,
                               lastModifiedLedgerCount, limit, groupBy,
-                              aggregate, includeAllStates);
+                              aggregate, dumpHotArchive, includeAllStates);
         });
 }
 

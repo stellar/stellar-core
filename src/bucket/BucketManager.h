@@ -443,7 +443,8 @@ class BucketManager : NonMovableOrCopyable
     // equivalent to iterating over `loadCompleteLedgerState`, so the same
     // memory/runtime implications apply.
     void visitLedgerEntries(
-        HistoryArchiveState const& has, std::optional<int64_t> minLedger,
+        bool visitLiveBucketList, HistoryArchiveState const& has,
+        std::optional<uint32_t> minLedger,
         std::function<bool(LedgerEntry const&)> const& filterEntry,
         std::function<bool(LedgerEntry const&)> const& acceptEntry,
         bool includeAllStates);
