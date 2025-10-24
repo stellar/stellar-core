@@ -23,6 +23,7 @@ namespace stellar
 {
 
 class Application;
+class AppConnector;
 class LiveBucket;
 class HotArchiveBucket;
 template <class BucketT> class BucketListSnapshot;
@@ -156,7 +157,7 @@ struct EvictionCounters
     medida::Counter& evictionCyclePeriod;
     medida::Counter& averageEvictedEntryAge;
 
-    EvictionCounters(Application& app);
+    EvictionCounters(AppConnector& app);
 };
 
 class EvictionStatistics

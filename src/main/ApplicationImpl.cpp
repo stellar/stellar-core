@@ -244,7 +244,8 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // Subtle: initialize the bucket manager first before initializing the
     // database. This is needed as some modes in core (such as in-memory) use a
     // small database inside the bucket directory.
-    mBucketManager = BucketManager::create(*this);
+    mAppConnector = std::make_unique<AppConnector>(*this);
+    mBucketManager = BucketManager::create(getAppConnector());
 
     bool initNewDB =
         createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
@@ -254,7 +255,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     }
 
     mDatabase = createDatabase();
-    mAppConnector = std::make_unique<AppConnector>(*this);
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();

@@ -92,7 +92,7 @@ AssumeStateWork::doWork()
                               &liveBuckets = mLiveBuckets,
                               &hotArchiveBuckets =
                                   mHotArchiveBuckets](Application& app) {
-            app.getBucketManager().assumeState(has, maxProtocolVersion,
+            app.getBucketManager().assumeState(app, has, maxProtocolVersion,
                                                restartMerges);
 
             // Drop bucket references once assume state complete since buckets

@@ -32,7 +32,7 @@ namespace stellar
 
 class TmpDir;
 class AbstractLedgerTxn;
-class Application;
+class AppConnector;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;
@@ -74,12 +74,10 @@ class BucketManager : NonMovableOrCopyable
 
     static std::string const kLockFilename;
 
-    // NB: ideally, BucketManager should have no access to mApp, as it's too
-    // dangerous in the context of parallel application. BucketManager is quite
-    // bloated, with lots of legacy code, so to ensure safety, annotate all
-    // functions using mApp with `releaseAssert(threadIsMain())` and avoid
-    // accessing mApp in the background.
-    Application& mApp;
+    // BucketManager uses AppConnector for thread-safe access to Application
+    // services. AppConnector methods are either explicitly main-thread only
+    // (with releaseAssert) or documented as thread-safe.
+    AppConnector& mAppConnector;
     std::unique_ptr<LiveBucketList> mLiveBucketList;
     std::unique_ptr<HotArchiveBucketList> mHotArchiveBucketList;
     std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
@@ -181,13 +179,13 @@ class BucketManager : NonMovableOrCopyable
 #endif
 
   protected:
-    BucketManager(Application& app);
+    BucketManager(AppConnector& appConnector);
     void calculateSkipValues(LedgerHeader& currentHeader);
     std::string bucketFilename(std::string const& bucketHexHash);
     std::string bucketFilename(Hash const& hash);
 
   public:
-    static std::unique_ptr<BucketManager> create(Application& app);
+    static std::unique_ptr<BucketManager> create(AppConnector& app);
     virtual ~BucketManager();
 
     void initialize();
@@ -361,7 +359,7 @@ class BucketManager : NonMovableOrCopyable
 
     // Assume state from `has` in BucketList: find and attach all buckets in
     // `has`, set current BL.
-    void assumeState(HistoryArchiveState const& has,
+    void assumeState(Application& app, HistoryArchiveState const& has,
                      uint32_t maxProtocolVersion, bool restartMerges);
 
     void shutdown();
@@ -382,7 +380,8 @@ class BucketManager : NonMovableOrCopyable
 
     // Merge the bucket list of the provided HAS into a single "super bucket"
     // consisting of only live entries, and return it.
-    std::shared_ptr<LiveBucket> mergeBuckets(HistoryArchiveState const& has);
+    std::shared_ptr<LiveBucket> mergeBuckets(asio::io_context& ctx,
+                                             HistoryArchiveState const& has);
 
     // Visits all the active ledger entries or subset thereof.
     //
@@ -410,7 +409,8 @@ class BucketManager : NonMovableOrCopyable
     // Schedule a Work class that verifies the hashes of all referenced buckets
     // on background threads.
     std::shared_ptr<BasicWork>
-    scheduleVerifyReferencedBucketsWork(HistoryArchiveState const& has);
+    scheduleVerifyReferencedBucketsWork(Application& app,
+                                        HistoryArchiveState const& has);
 
     Config const& getConfig() const;
     void reportBucketEntryCountMetrics();

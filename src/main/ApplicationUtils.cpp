@@ -311,7 +311,7 @@ selfCheck(Config cfg)
     // Then we scan all the buckets to check they have expected hashes.
     LOG_INFO(DEFAULT_LOG, "Self-check phase 2: bucket hash verification");
     auto seq2 = app->getBucketManager().scheduleVerifyReferencedBucketsWork(
-        app->getLedgerManager().getLastClosedLedgerHAS());
+        *app, app->getLedgerManager().getLastClosedLedgerHAS());
     while (clock.crank(true) && !seq2->isDone())
         ;
 
@@ -383,7 +383,7 @@ mergeBucketList(Config cfg, std::string const& outputDir)
 
     lm.loadLastKnownLedger(/* restoreBucketlist */ false);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
-    auto bucket = bm.mergeBuckets(has);
+    auto bucket = bm.mergeBuckets(app->getClock().getIOContext(), has);
 
     using std::filesystem::path;
     path bpath(bucket->getFilename());
