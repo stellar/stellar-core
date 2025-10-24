@@ -166,6 +166,24 @@ EntrySizeNode::getName() const
 }
 
 ResultType
+TTLNode::eval(DynamicXDRGetter const& xdrGetter) const
+{
+    return xdrGetter.getLiveUntilLedger();
+}
+
+EvalNodeType
+TTLNode::getType() const
+{
+    return EvalNodeType::COLUMN;
+}
+
+std::string
+TTLNode::getName() const
+{
+    return "ttl";
+}
+
+ResultType
 BoolEvalNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return evalBool(xdrGetter);

@@ -1577,18 +1577,18 @@ visitLiveEntriesInBucket(
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
                 auto const& liveEntry = e.liveEntry();
+                if (!processedEntries
+                         .insert(xdrBlake2(LedgerEntryKey(liveEntry)))
+                         .second)
+                {
+                    continue;
+                }
                 if (minLedger && liveEntry.lastModifiedLedgerSeq < *minLedger)
                 {
                     stopIteration = true;
                     continue;
                 }
                 if (!filterEntry(liveEntry))
-                {
-                    continue;
-                }
-                if (!processedEntries
-                         .insert(xdrBlake2(LedgerEntryKey(liveEntry)))
-                         .second)
                 {
                     continue;
                 }

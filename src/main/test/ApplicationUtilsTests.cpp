@@ -178,13 +178,13 @@ TEST_CASE("standalone quorum intersection check", "[applicationutils]")
     SECTION("enjoys quorum intersection")
     {
         REQUIRE(checkQuorumIntersectionFromJson(
-            JSON_ROOT / "enjoys-intersection.json", cfg));
+            (JSON_ROOT / "enjoys-intersection.json").string(), cfg));
     }
 
     SECTION("does not enjoy quorum intersection")
     {
         REQUIRE(!checkQuorumIntersectionFromJson(
-            JSON_ROOT / "no-intersection.json", cfg));
+            (JSON_ROOT / "no-intersection.json").string(), cfg));
     }
 
     SECTION("malformed JSON")
@@ -192,18 +192,19 @@ TEST_CASE("standalone quorum intersection check", "[applicationutils]")
         // Test various bad JSON inputs
 
         // Malformed key
-        REQUIRE_THROWS_AS(
-            checkQuorumIntersectionFromJson(JSON_ROOT / "bad-key.json", cfg),
-            KeyUtils::InvalidStrKey);
+        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
+                              (JSON_ROOT / "bad-key.json").string(), cfg),
+                          KeyUtils::InvalidStrKey);
 
         // Wrong datatype
-        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
-                              JSON_ROOT / "bad-threshold-type.json", cfg),
-                          std::runtime_error);
+        REQUIRE_THROWS_AS(
+            checkQuorumIntersectionFromJson(
+                (JSON_ROOT / "bad-threshold-type.json").string(), cfg),
+            std::runtime_error);
 
         // No such file
-        REQUIRE_THROWS_AS(
-            checkQuorumIntersectionFromJson(JSON_ROOT / "no-file.json", cfg),
-            std::runtime_error);
+        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
+                              (JSON_ROOT / "no-file.json").string(), cfg),
+                          std::runtime_error);
     }
 }

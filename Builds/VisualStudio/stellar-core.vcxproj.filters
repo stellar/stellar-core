@@ -1426,6 +1426,9 @@
     <ClCompile Include="..\..\src\ledger\P23HotArchiveBugData.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2529,6 +2532,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\FilteredEntries.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h">
+      <Filter>invariant</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

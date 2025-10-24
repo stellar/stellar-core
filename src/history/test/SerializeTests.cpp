@@ -36,7 +36,7 @@ TEST_CASE("Serialization round trip", "[history]")
 
             // Test load
             HistoryArchiveState hasLoad;
-            hasLoad.load(testFilePath);
+            hasLoad.load(testFilePath.string());
             REQUIRE(hasString == hasLoad.toString());
         }
     }

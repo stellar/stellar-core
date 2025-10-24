@@ -51,6 +51,10 @@ struct DynamicXDRGetter
     // Gets the serialized XDR size of the entire struct.
     virtual uint64_t getSize() const = 0;
 
+    // Gets the live-until-ledger of the entire entry.
+    // Returns UINT32_MAX for the entries without TTL.
+    virtual uint32_t getLiveUntilLedger() const = 0;
+
     virtual ~DynamicXDRGetter() = default;
 };
 
@@ -122,6 +126,16 @@ struct FieldNode : public ColumnNode
 
 // Node representing the size of an XDR entry in expression.
 struct EntrySizeNode : public ColumnNode
+{
+    ResultType eval(DynamicXDRGetter const& xdrGetter) const override;
+
+    EvalNodeType getType() const override;
+
+    virtual std::string getName() const override;
+};
+
+// Node representing the live-until-ledger of an XDR entry in expression.
+struct TTLNode : public ColumnNode
 {
     ResultType eval(DynamicXDRGetter const& xdrGetter) const override;
 

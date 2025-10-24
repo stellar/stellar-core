@@ -577,6 +577,7 @@ exit /b 0
     <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp" />
     <ClCompile Include="..\..\src\history\test\SerializeTests.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
+    <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp" />
     <ClCompile Include="..\..\src\invariant\ConstantProductInvariant.cpp" />
@@ -1043,6 +1044,7 @@ exit /b 0
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\history\test\HistoryTestsUtils.h" />
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
+    <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h" />
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
     <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h" />
     <ClInclude Include="..\..\src\invariant\ConstantProductInvariant.h" />

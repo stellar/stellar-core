@@ -301,7 +301,14 @@ class LedgerManager
     // parameter:
     //  * restoreBucketlist indicates whether to restore the bucket list fully,
     //  and restart merges
-    virtual void loadLastKnownLedger(bool restoreBucketlist) = 0;
+    virtual void loadLastKnownLedger() = 0;
+
+    // Helper for a faster load of the last closed ledger used only for various
+    // diagnostics utils outside of the main application flow. This skips
+    // restoring the bucket list and building in-memory Soroban state.
+    // This should not be used in any context where it's necessary to close the
+    // ledgers.
+    virtual void partiallyLoadLastKnownLedgerForUtils() = 0;
 
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers

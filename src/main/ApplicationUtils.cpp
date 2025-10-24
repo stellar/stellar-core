@@ -19,6 +19,7 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
 #include "main/Maintainer.h"
@@ -299,7 +300,7 @@ selfCheck(Config cfg)
 
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
+    app->getLedgerManager().partiallyLoadLastKnownLedgerForUtils();
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -381,7 +382,7 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    lm.partiallyLoadLastKnownLedgerForUtils();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto bucket = bm.mergeBuckets(app->getClock().getIOContext(), has);
 
@@ -484,7 +485,7 @@ dumpStateArchivalStatistics(Config cfg)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
+    app->getLedgerManager().partiallyLoadLastKnownLedgerForUtils();
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
@@ -597,7 +598,25 @@ dumpLedger(Config cfg, std::string const& outputFile,
     Application::pointer app = Application::create(clock, cfg, false);
     auto& lm = app->getLedgerManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    lm.partiallyLoadLastKnownLedgerForUtils();
+    auto liveSnapshot =
+        app->getAppConnector().copySearchableLiveBucketListSnapshot();
+    auto ttlGetter = [&liveSnapshot,
+                      includeAllStates](LedgerKey const& key) -> uint32_t {
+        if (includeAllStates)
+        {
+            throw std::runtime_error(
+                "TTL is undefined when includeAllStates is set.");
+        }
+        auto entry = liveSnapshot->load(key);
+        if (!entry)
+        {
+            throw std::runtime_error("No TTL entry found for key: " +
+                                     xdrToCerealString(key, "key"));
+        }
+        return entry->data.ttl().liveUntilLedgerSeq;
+    };
+
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)
@@ -615,13 +634,13 @@ dumpLedger(Config cfg, std::string const& outputFile,
     std::optional<xdrquery::XDRMatcher> matcher;
     if (filterQuery)
     {
-        matcher.emplace(*filterQuery);
+        matcher.emplace(*filterQuery, ttlGetter);
     }
 
     std::optional<xdrquery::XDRFieldExtractor> groupByExtractor;
     if (groupBy)
     {
-        groupByExtractor.emplace(*groupBy);
+        groupByExtractor.emplace(*groupBy, ttlGetter);
     }
 
     std::map<std::vector<xdrquery::ResultType>, xdrquery::XDRAccumulator>
@@ -650,15 +669,30 @@ dumpLedger(Config cfg, std::string const& outputFile,
                     if (it == accumulators.end())
                     {
                         it = accumulators
-                                 .emplace(key,
-                                          xdrquery::XDRAccumulator(*aggregate))
+                                 .emplace(key, xdrquery::XDRAccumulator(
+                                                   *aggregate, ttlGetter))
                                  .first;
                     }
                     it->second.addEntry(entry);
                 }
                 else
                 {
-                    ofs << xdrToCerealString(entry, "entry", true) << std::endl;
+                    // When only live state is included, we can also output
+                    // TTL for the Soroban entries.
+                    bool addTTL =
+                        !includeAllStates && isSorobanEntry(entry.data);
+                    if (!addTTL)
+                    {
+                        ofs << xdrToCerealString(entry, "entry") << std::endl;
+                    }
+                    else
+                    {
+                        uint32_t liveUntilLedger = ttlGetter(getTTLKey(entry));
+                        std::string s = xdrToCerealString(entry, "entry");
+                        s.erase(s.size() - 3, 2); // remove '\n}'
+                        ofs << s << ",\n    \"liveUntilLedgerSeq\": "
+                            << liveUntilLedger << "\n\}\n";
+                    }
                 }
                 ++entryCount;
                 return !limit || entryCount < *limit;
@@ -687,7 +721,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
     auto& lm = app->getLedgerManager();
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    lm.partiallyLoadLastKnownLedgerForUtils();
     auto writeBlob = [&](ContractCodeEntry const& entry) {
         std::string filename;
         if (dir.empty())

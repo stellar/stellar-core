@@ -500,7 +500,7 @@ LedgerManagerImpl::startNewLedger()
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
+LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 {
     ZoneScoped;
     mApplyState.assertSetupPhase();
@@ -561,7 +561,8 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // (standalone offline commands, in-memory setup) do not need to
     // spin up expensive merge processes.
     auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-        has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+        has, latestLedgerHeader->ledgerVersion,
+        /* restartMerges */ !skipBuildingFullState);
     if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
         CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
@@ -586,11 +587,26 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     // here because we just started and there is no apply-state yet and no apply
     // thread to hold such state.
     auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
-    mApplyState.compileAllContractsInLedger(snapshot,
-                                            latestLedgerHeader->ledgerVersion);
-    mApplyState.populateInMemorySorobanState(snapshot,
-                                             latestLedgerHeader->ledgerVersion);
+    if (!skipBuildingFullState)
+    {
+        mApplyState.compileAllContractsInLedger(
+            snapshot, latestLedgerHeader->ledgerVersion);
+        mApplyState.populateInMemorySorobanState(
+            snapshot, latestLedgerHeader->ledgerVersion);
+    }
     mApplyState.markEndOfSetupPhase();
+}
+
+void
+LedgerManagerImpl::loadLastKnownLedger()
+{
+    loadLastKnownLedgerInternal(/* skipBuildingFullState */ false);
+}
+
+void
+LedgerManagerImpl::partiallyLoadLastKnownLedgerForUtils()
+{
+    loadLastKnownLedgerInternal(/* skipBuildingFullState */ true);
 }
 
 Database&
