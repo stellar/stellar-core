@@ -2273,7 +2273,7 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     // since we aren't actually starting app.
     LedgerManagerImpl& lm =
         static_cast<LedgerManagerImpl&>(app->getLedgerManager());
-    lm.loadLastKnownLedger(false);
+    lm.loadLastKnownLedgerForUtils();
     om.start();
 
     // Must wait 2 seconds as `OverlayManagerImpl::start()`

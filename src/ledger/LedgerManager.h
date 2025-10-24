@@ -301,7 +301,7 @@ class LedgerManager
     // parameter:
     //  * restoreBucketlist indicates whether to restore the bucket list fully,
     //  and restart merges
-    virtual void loadLastKnownLedger(bool restoreBucketlist) = 0;
+    virtual void loadLastKnownLedger() = 0;
 
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers

@@ -554,7 +554,8 @@ ApplicationImpl::getJsonInfo(bool verbose)
 void
 ApplicationImpl::reportInfo(bool verbose)
 {
-    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ false);
+    static_cast<LedgerManagerImpl&>(*mLedgerManager)
+        .loadLastKnownLedgerForUtils();
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
@@ -826,7 +827,7 @@ ApplicationImpl::start()
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ true);
+    mLedgerManager->loadLastKnownLedger();
 
     // Check if we're already on protocol V_24 or later and enable Rust Dalek
     auto const& lcl = mLedgerManager->getLastClosedLedgerHeader();
