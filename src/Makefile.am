@@ -199,6 +199,9 @@ endif
 
 SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
 
+# Export the list of protocols to test for the check-sorobans test script
+export SOROBAN_PROTOCOLS_TO_TEST=$(ALL_SOROBAN_PROTOCOLS)
+
 define soroban_lib_dir
 $(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
 endef

@@ -23,6 +23,12 @@ then
     exit 0
 fi
 
+if [ -z "${SOROBAN_PROTOCOLS_TO_TEST}" ];
+then
+    echo "SOROBAN_PROTOCOLS_TO_TEST must be set to the list of soroban protocols to test"
+    exit 1
+fi
+
 # Define tests to skip
 # `test_expected_size` tests the actual memory sizes of types used in memory metering.
 # This test is skipped because memory sizes vary based on Rust compiler version and 
@@ -35,8 +41,8 @@ set -e
 set -x
 
 cd "${top_srcdir}/src/rust/soroban"
-for i in p??; do
-    cd $i
+for i in ${SOROBAN_PROTOCOLS_TO_TEST}; do
+    cd "$i"
     CARGO_TARGET_DIR="${top_builddir}/src/rust/soroban/${i}/target" \
     RUSTFLAGS="-Cmetadata=${i}" cargo +${RUST_TOOLCHAIN_CHANNEL} \
         test \
