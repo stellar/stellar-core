@@ -331,12 +331,12 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
         // Create test entries that will remain live
         auto [liveTempEntry, liveTempTTL] =
             createContractDataWithTTL(TEMPORARY, evictionLedger + 100);
-        auto [livePeristentEntry, livePersistentTTL] =
+        auto [livePersistentEntry, livePersistentTTL] =
             createContractDataWithTTL(PERSISTENT, evictionLedger + 100);
 
         lm.setNextLedgerEntryBatchForBucketTesting(
             {tempEntry, tempTTL, persistentEntry, persistentTTL, liveTempEntry,
-             liveTempTTL, livePeristentEntry, livePersistentTTL},
+             liveTempTTL, livePersistentEntry, livePersistentTTL},
             {}, {});
         closeLedger(*app);
 
@@ -484,9 +484,9 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             {
                 // Add live data key and TTL to evicted state (they shouldn't be
                 // evicted since TTL is not expired)
-                evictedState.archivedEntries.push_back(livePeristentEntry);
+                evictedState.archivedEntries.push_back(livePersistentEntry);
                 evictedState.deletedKeys.push_back(
-                    getTTLKey(livePeristentEntry));
+                    getTTLKey(livePersistentEntry));
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(

@@ -1581,9 +1581,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
     auto& appConnector = mApp.getAppConnector();
-    bool isP24UpgradeLedger =
-        protocolVersionIsBefore(initialLedgerVers, ProtocolVersion::V_24) &&
-        protocolVersionStartsFrom(maybeNewVersion, ProtocolVersion::V_24);
     auto appliedLedgerState = sealLedgerTxnAndStoreInBucketsAndDB(
         appConnector.copySearchableLiveBucketListSnapshot(),
         appConnector.copySearchableHotArchiveBucketListSnapshot(), ltx,

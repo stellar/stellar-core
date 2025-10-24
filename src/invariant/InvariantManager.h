@@ -55,8 +55,8 @@ class InvariantManager
     virtual void checkOnLedgerCommit(
         SearchableSnapshotConstPtr lclLiveState,
         SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-        std::vector<LedgerEntry> const& evictedFromLive,
-        std::vector<LedgerKey> deletedKeysFromLive,
+        std::vector<LedgerEntry> const& persitentEvictedFromLive,
+        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState) = 0;
 

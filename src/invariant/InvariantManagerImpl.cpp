@@ -166,16 +166,17 @@ void
 InvariantManagerImpl::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-    std::vector<LedgerEntry> const& evictedFromLive,
-    std::vector<LedgerKey> deletedKeysFromLive,
+    std::vector<LedgerEntry> const& persitentEvictedFromLive,
+    std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
 {
     for (auto invariant : mEnabled)
     {
         auto result = invariant->checkOnLedgerCommit(
-            lclLiveState, lclHotArchiveState, evictedFromLive,
-            deletedKeysFromLive, restoredFromArchive, restoredFromLiveState);
+            lclLiveState, lclHotArchiveState, persitentEvictedFromLive,
+            tempAndTTLEvictedFromLive, restoredFromArchive,
+            restoredFromLiveState);
         if (result.empty())
         {
             continue;
@@ -311,7 +312,7 @@ InvariantManagerImpl::start(Application& app)
         }
 
         auto message = fmt::format(
-            FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
+            FMT_STRING(R"(Invariant "{}" does not hold on startup: {})"),
             invariant->getName(), result);
         onInvariantFailure(invariant, message,
                            app.getLedgerManager().getLastClosedLedgerNum());

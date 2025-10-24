@@ -95,8 +95,8 @@ std::string
 ArchivedStateConsistency::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-    std::vector<LedgerEntry> const& evictedFromLive,
-    std::vector<LedgerKey> const& deletedKeysFromLive,
+    std::vector<LedgerEntry> const& persitentEvictedFromLive,
+    std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
 {
@@ -108,10 +108,6 @@ ArchivedStateConsistency::checkOnLedgerCommit(
             lclLiveState->getLedgerHeader().ledgerVersion,
             LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
-        CLOG_INFO(Invariant,
-                  "Skipping ArchivedStateConsistency invariant for "
-                  "protocol version {}",
-                  lclLiveState->getLedgerHeader().ledgerVersion);
         return std::string{};
     }
     auto ledgerSeq = lclLiveState->getLedgerSeq() + 1;
@@ -121,42 +117,28 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     LedgerKeySet allKeys;
 
     // Keys for evicted from live entries
-    for (auto const& e : evictedFromLive)
+    for (auto const& e : persitentEvictedFromLive)
     {
         auto key = LedgerEntryKey(e);
+        releaseAssertOrThrow(isPersistentEntry(key));
         allKeys.insert(key);
-        if (isPersistentEntry(key))
-        {
-            allKeys.insert(getTTLKey(e));
-        }
     }
 
     // Keys for deleted from live (temp and TTLs)
-    for (auto const& k : deletedKeysFromLive)
+    for (auto const& k : tempAndTTLEvictedFromLive)
     {
+        releaseAssertOrThrow(!isPersistentEntry(k));
         allKeys.insert(k);
-        if (isPersistentEntry(k))
-        {
-            allKeys.insert(getTTLKey(k));
-        }
     }
 
     // Keys for restored entries
     for (auto const& [key, entry] : restoredFromArchive)
     {
         allKeys.insert(key);
-        if (isPersistentEntry(key))
-        {
-            allKeys.insert(getTTLKey(entry));
-        }
     }
     for (auto const& [key, entry] : restoredFromLiveState)
     {
         allKeys.insert(key);
-        if (isPersistentEntry(key))
-        {
-            allKeys.insert(getTTLKey(entry));
-        }
     }
 
     // Preload from both live and archived state
@@ -180,14 +162,14 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     }
 
     UnorderedSet<LedgerKey> deletedKeys;
-    for (auto const& k : deletedKeysFromLive)
+    for (auto const& k : tempAndTTLEvictedFromLive)
     {
         deletedKeys.insert(k);
     }
 
     auto evictionRes = checkEvictionInvariants(
         preloadedLiveEntries, preloadedArchivedEntries, deletedKeys,
-        evictedFromLive, ledgerSeq, ledgerVers);
+        persitentEvictedFromLive, ledgerSeq, ledgerVers);
 
     auto restoreRes = checkRestoreInvariants(
         preloadedLiveEntries, preloadedArchivedEntries, restoredFromArchive,
@@ -450,20 +432,22 @@ ArchivedStateConsistency::checkRestoreInvariants(
         // Skip this check prior to protocol 24, since there was a bug in 23
         // Don't check lastModifiedLedgerSeq, since it may have been updated by
         // the ltx
-        else if (!(hotArchiveEntry->second.archivedEntry().data ==
-                   entry.data) ||
-                 !(hotArchiveEntry->second.archivedEntry().ext == entry.ext) &&
-                     protocolVersionStartsFrom(ledgerVer,
-                                               ProtocolVersion::V_24))
+        else if (protocolVersionStartsFrom(ledgerVer, ProtocolVersion::V_24))
         {
-            return fmt::format(
-                FMT_STRING(
-                    "ArchivedStateConsistency invariant failed: "
-                    "Restored entry from archive has incorrect value: Entry to "
-                    "Restore: {}, Hot Archive Entry: {}"),
-                xdrToCerealString(entry, "entry_to_restore"),
-                xdrToCerealString(hotArchiveEntry->second.archivedEntry(),
-                                  "hot_archive_entry"));
+            bool isValid =
+                hotArchiveEntry->second.archivedEntry().data == entry.data &&
+                hotArchiveEntry->second.archivedEntry().ext == entry.ext;
+            if (!isValid)
+            {
+                return fmt::format(
+                    FMT_STRING("ArchivedStateConsistency invariant failed: "
+                               "Restored entry from archive has incorrect "
+                               "value: Entry to "
+                               "Restore: {}, Hot Archive Entry: {}"),
+                    xdrToCerealString(entry, "entry_to_restore"),
+                    xdrToCerealString(hotArchiveEntry->second.archivedEntry(),
+                                      "hot_archive_entry"));
+            }
         }
     }
 

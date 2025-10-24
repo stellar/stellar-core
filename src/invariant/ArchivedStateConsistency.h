@@ -36,8 +36,8 @@ class ArchivedStateConsistency : public Invariant
     virtual std::string checkOnLedgerCommit(
         SearchableSnapshotConstPtr lclLiveState,
         SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-        std::vector<LedgerEntry> const& evictedFromLive,
-        std::vector<LedgerKey> const& deletedKeysFromLive,
+        std::vector<LedgerEntry> const& persitentEvictedFromLive,
+        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
         override;
