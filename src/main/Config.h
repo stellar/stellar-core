@@ -850,11 +850,14 @@ class Config : public std::enable_shared_from_this<Config>
     // events.
     bool EMIT_CLASSIC_EVENTS;
 
-    // Controls events emission in protocols <= 22. When turned on, transactions
-    // will emit V4 meta (`TransactionMetaV4`) and
+    // When turned on, transactions will emit V4
+    // meta (`TransactionMetaV4`), even in protocols <= 22 and
     // 1. Classic operations will emit events where applicable.
     // 2. Stellar Asset Contract (SAC) events will be retroactively emitted in
     //    V23 specification.
+    // 3. Additional SAC events will be emitted to handle the p23 mint/burns due
+    // to the p23 state archival bug. This is only relevant for a small number
+    // of p23 ledgers.
     //
     // Note: `BACKFILL_STELLAR_ASSET_EVENTS` requires `EMIT_CLASSIC_EVENTS` to
     // be enabled
