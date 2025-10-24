@@ -497,7 +497,8 @@ LedgerManagerImpl::startNewLedger()
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
+LedgerManagerImpl::loadLastKnownLedgerInternal(bool restoreBucketlist,
+                                               bool populateInMemoryState)
 {
     ZoneScoped;
     mApplyState.assertSetupPhase();
@@ -585,9 +586,27 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
     auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
     mApplyState.compileAllContractsInLedger(snapshot,
                                             latestLedgerHeader->ledgerVersion);
-    mApplyState.populateInMemorySorobanState(snapshot,
-                                             latestLedgerHeader->ledgerVersion);
+    if (populateInMemoryState)
+    {
+        mApplyState.populateInMemorySorobanState(
+            snapshot, latestLedgerHeader->ledgerVersion);
+    }
     mApplyState.markEndOfSetupPhase();
+}
+
+void
+LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
+{
+    loadLastKnownLedgerInternal(restoreBucketlist,
+                                /* populateInMemoryState */ true);
+}
+
+void
+LedgerManagerImpl::loadLastKnownLedgerWithoutInMemoryState(
+    bool restoreBucketlist)
+{
+    loadLastKnownLedgerInternal(restoreBucketlist,
+                                /* populateInMemoryState */ false);
 }
 
 Database&

@@ -408,6 +408,9 @@ class LedgerManagerImpl : public LedgerManager
     void
     advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
 
+    void loadLastKnownLedgerInternal(bool restoreBucketlist,
+                                     bool populateInMemoryState);
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -490,6 +493,7 @@ class LedgerManagerImpl : public LedgerManager
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
     void loadLastKnownLedger(bool restoreBucketlist) override;
+    void loadLastKnownLedgerWithoutInMemoryState(bool restoreBucketlist);
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
