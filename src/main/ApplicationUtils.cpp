@@ -477,6 +477,271 @@ processArchivalMetrics(
     }
 }
 
+uint64_t
+getAssetBalance(LedgerEntry const& le, Asset const& asset,
+                AssetContractInfo const& assetContractInfo)
+{
+    switch (le.data.type())
+    {
+    case ACCOUNT:
+        if (asset.type() == ASSET_TYPE_NATIVE)
+        {
+            return le.data.account().balance;
+        }
+        break;
+    case TRUSTLINE:
+    {
+        auto const& tl = le.data.trustLine();
+        if (compareAsset(tl.asset, asset))
+        {
+            return tl.balance;
+        }
+        break;
+    }
+    case OFFER:
+        break;
+    case DATA:
+        break;
+    case CLAIMABLE_BALANCE:
+    {
+        if (compareAsset(le.data.claimableBalance().asset, asset))
+        {
+            return le.data.claimableBalance().amount;
+        }
+        break;
+    }
+    case LIQUIDITY_POOL:
+    {
+        auto const& body = le.data.liquidityPool().body.constantProduct();
+        if (compareAsset(body.params.assetA, asset))
+        {
+            return body.reserveA;
+        }
+        if (compareAsset(body.params.assetB, asset))
+        {
+            return body.reserveB;
+        }
+        break;
+    }
+    case CONTRACT_DATA:
+    {
+        auto const& contractData = le.data.contractData();
+        if (contractData.contract.type() != SC_ADDRESS_TYPE_CONTRACT ||
+            contractData.contract.contractId() !=
+                assetContractInfo.mAssetContractID ||
+            contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
+            contractData.key.vec().size() == 0)
+        {
+            return 0;
+        }
+
+        // The balanceSymbol should be the first entry in the SCVec
+        if (!(contractData.key.vec()->at(0) ==
+              assetContractInfo.mBalanceSymbol))
+        {
+            return 0;
+        }
+
+        auto const& val = le.data.contractData().val;
+        if (val.type() == SCV_MAP && val.map() && val.map()->size() != 0)
+        {
+            auto const& amountEntry = val.map()->at(0);
+            if (amountEntry.key == assetContractInfo.mAmountSymbol)
+            {
+                if (amountEntry.val.type() == SCV_I128)
+                {
+                    auto lo = amountEntry.val.i128().lo;
+                    auto hi = amountEntry.val.i128().hi;
+                    if (lo > INT64_MAX || hi > 0)
+                    {
+                        throw std::runtime_error(
+                            "Asset contractData balance amount out of range");
+                    }
+                    return static_cast<int64_t>(lo);
+                }
+            }
+        }
+        return 0;
+    }
+    case CONTRACT_CODE:
+        break;
+    case CONFIG_SETTING:
+        break;
+    case TTL:
+        break;
+    }
+    return 0;
+}
+
+int64_t
+getHotArchiveListBalanceForAsset(Application& app,
+                                 HistoryArchiveState const& has,
+                                 Asset const& asset,
+                                 AssetContractInfo const& assetContractInfo)
+{
+    // hot archive buckets
+    std::vector<Hash> hotHashes;
+    for (uint32_t i = 0; i < has.hotArchiveBuckets.size(); ++i)
+    {
+        HistoryStateBucket<HotArchiveBucket> const& hsb =
+            has.hotArchiveBuckets.at(i);
+        hotHashes.emplace_back(hexToBin256(hsb.curr));
+        hotHashes.emplace_back(hexToBin256(hsb.snap));
+    }
+
+    auto& bm = app.getBucketManager();
+    int64_t sumBalance = 0;
+
+    std::unordered_set<LedgerKey> seenKeys;
+    for (auto const& hash : hotHashes)
+    {
+        if (isZero(hash))
+        {
+            continue;
+        }
+        auto b = bm.getBucketByHash<HotArchiveBucket>(hash);
+        if (!b)
+        {
+            throw std::runtime_error(std::string("missing bucket: ") +
+                                     binToHex(hash));
+        }
+
+        for (HotArchiveBucketInputIterator in(b); in; ++in)
+        {
+            auto const& be = *in;
+            if (be.type() != HOT_ARCHIVE_ARCHIVED)
+            {
+                if (be.type() == HOT_ARCHIVE_LIVE)
+                {
+                    seenKeys.emplace(be.key());
+                }
+                continue;
+            }
+            if (seenKeys.emplace(LedgerEntryKey(be.archivedEntry())).second ==
+                false)
+            {
+                // duplicate key, skip
+                continue;
+            }
+
+            auto balance =
+                getAssetBalance(be.archivedEntry(), asset, assetContractInfo);
+            sumBalance += balance;
+        }
+    }
+
+    return sumBalance;
+}
+
+int64_t
+getLiveBucketListBalanceForAsset(Application& app,
+                                 HistoryArchiveState const& has,
+                                 Asset const& asset,
+                                 AssetContractInfo const& assetContractInfo)
+{
+    std::vector<Hash> liveHashes;
+    std::unordered_set<LedgerKey> seenKeys;
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
+        liveHashes.emplace_back(hexToBin256(hsb.curr));
+        liveHashes.emplace_back(hexToBin256(hsb.snap));
+    }
+
+    auto& bm = app.getBucketManager();
+    int64_t sumBalance = 0;
+    for (auto const& hash : liveHashes)
+    {
+        if (isZero(hash))
+        {
+            continue;
+        }
+        auto b = bm.getBucketByHash<LiveBucket>(hash);
+        if (!b)
+        {
+            throw std::runtime_error(std::string("missing bucket: ") +
+                                     binToHex(hash));
+        }
+
+        for (LiveBucketInputIterator in(b); in; ++in)
+        {
+            auto const& be = *in;
+            if (be.type() != LIVEENTRY && be.type() != INITENTRY)
+            {
+                if (be.type() == DEADENTRY)
+                {
+                    seenKeys.emplace(be.deadEntry());
+                }
+                continue;
+            }
+            LedgerKey k = LedgerEntryKey(be.liveEntry());
+            if (seenKeys.emplace(k).second == false)
+            {
+                // duplicate key, skip
+                continue;
+            }
+            auto balance =
+                getAssetBalance(be.liveEntry(), asset, assetContractInfo);
+            sumBalance += balance;
+        }
+    }
+    return sumBalance;
+}
+
+int
+calculateAssetSupply(Config cfg, Asset const& asset)
+{
+    ZoneScoped;
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
+    auto& lm = app->getLedgerManager();
+
+    HistoryArchiveState has = lm.getLastClosedLedgerHAS();
+    auto assetContractInfo = getAssetContractInfo(asset, app->getNetworkID());
+
+    int64_t sumBalance = 0;
+
+    // For native asset, include the fee pool
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto feePool = lm.getLastClosedLedgerHeader().header.feePool;
+        sumBalance = feePool;
+        CLOG_INFO(Bucket, "Fee pool balance: {}", feePool);
+    }
+
+    sumBalance +=
+        getLiveBucketListBalanceForAsset(*app, has, asset, assetContractInfo);
+
+    sumBalance +=
+        getHotArchiveListBalanceForAsset(*app, has, asset, assetContractInfo);
+
+    CLOG_INFO(Bucket, "Total asset supply in Hot/Live buckets and feePool: {}",
+              sumBalance);
+
+    // For native asset, validate against totalCoins
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto totalCoins = lm.getLastClosedLedgerHeader().header.totalCoins;
+        CLOG_INFO(Bucket, "Total Coins in ledgerHeader: {}", totalCoins);
+
+        if (sumBalance != totalCoins)
+        {
+            CLOG_WARNING(Bucket,
+                         "Total XLM mismatch! totalCoins-bucketBalance: {}",
+                         totalCoins - sumBalance);
+            return 1;
+        }
+        else
+        {
+            CLOG_INFO(Bucket, "Total XLM matches");
+        }
+    }
+
+    return 0;
+}
+
 int
 dumpStateArchivalStatistics(Config cfg)
 {

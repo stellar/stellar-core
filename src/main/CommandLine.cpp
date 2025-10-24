@@ -1053,39 +1053,46 @@ runDumpWasm(CommandLineArgs const& args)
                        });
 }
 
+Asset
+parseCodeAndIssuer(std::string const& code, std::string const& issuer)
+{
+    Asset asset;
+    if (code.empty() && issuer.empty())
+    {
+        asset.type(ASSET_TYPE_NATIVE);
+    }
+    else if (code.empty() || issuer.empty())
+    {
+        throw std::runtime_error("If one of code or issuer is defined, the "
+                                 "other must be defined");
+    }
+    else if (code.size() <= 4)
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        strToAssetCode(asset.alphaNum4().assetCode, code);
+        asset.alphaNum4().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
+    }
+    else if (code.size() <= 12)
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+        strToAssetCode(asset.alphaNum12().assetCode, code);
+        asset.alphaNum12().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
+    }
+    else
+    {
+        throw std::runtime_error("Asset code must be <= 12 characters");
+    }
+    return asset;
+}
+
 int
 runEncodeAsset(CommandLineArgs const& args)
 {
     std::string code, issuer;
 
     return runWithHelp(args, {codeParser(code), issuerParser(issuer)}, [&] {
-        Asset asset;
-        if (code.empty() && issuer.empty())
-        {
-            asset.type(ASSET_TYPE_NATIVE);
-        }
-        else if (code.empty() || issuer.empty())
-        {
-            throw std::runtime_error("If one of code or issuer is defined, the "
-                                     "other must be defined");
-        }
-        else if (code.size() <= 4)
-        {
-            asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(asset.alphaNum4().assetCode, code);
-            asset.alphaNum4().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
-        }
-        else if (code.size() <= 12)
-        {
-            asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
-            strToAssetCode(asset.alphaNum12().assetCode, code);
-            asset.alphaNum12().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
-        }
-        else
-        {
-            throw std::runtime_error("Asset code must be <= 12 characters");
-        }
-        std::cout << decoder::encode_b64(xdr::xdr_to_opaque(asset))
+        std::cout << decoder::encode_b64(
+                         xdr::xdr_to_opaque(parseCodeAndIssuer(code, issuer)))
                   << std::endl;
         return 0;
     });
@@ -1163,6 +1170,22 @@ runDumpStateArchivalStatistics(CommandLineArgs const& args)
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
         return dumpStateArchivalStatistics(configOption.getConfig());
     });
+}
+
+int
+runCalculateAssetSupply(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string code, issuer;
+
+    return runWithHelp(args,
+                       {configurationParser(configOption), codeParser(code),
+                        issuerParser(issuer)},
+                       [&] {
+                           Asset asset = parseCodeAndIssuer(code, issuer);
+                           return calculateAssetSupply(configOption.getConfig(),
+                                                       asset);
+                       });
 }
 
 int
@@ -2155,6 +2178,11 @@ handleCommandLine(int argc, char* const* argv)
          {"dump-archival-stats",
           "prints statistics about expired/evicted entries in the BucketList",
           runDumpStateArchivalStatistics},
+         {"calculate-asset-supply",
+          "calculates total supply of an asset from the live and hot archive "
+          "bucket lists. Also validates against totalCoins for native asset. "
+          "Uses the Native asset by default if no input is provided.",
+          runCalculateAssetSupply},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},

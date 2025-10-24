@@ -32,6 +32,7 @@ apply.
 * There are additional `APPLY_LOAD_*` related config settings that can be used to configure
 `apply-load`, and you can learn more about these from the comments in `Config.h`.
 
+* **calculate-asset-supply**: Calculates total supply of an asset from the live and hot archive bucket lists. Also validates against totalCoins for the native asset. Uses `--code <CODE>` and `--issuer <ISSUER>` to specify the asset. Uses the native asset if neither `--code` nor `--issuer` is given.
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
   archives without connecting to network. For new instances (with empty history
   tables - only ledger 1 present in the database) it will respect LEDGER-COUNT
