@@ -37,6 +37,7 @@ Command options can only by placed after command.
     using SAC transfers. It can be invoked by passing `max-sac-tps` as
     `apply-load` argument.
 
+* **calculate-asset-supply**: Calculates total supply of an asset from the live and hot archive bucket lists IF the total supply fits in a 64 bit signed integer. Also validates against totalCoins for the native asset. Uses `--code <CODE>` and `--issuer <ISSUER>` to specify the asset. Uses the native asset if neither `--code` nor `--issuer` is given.
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
   archives without connecting to network. For new instances (with empty history
   tables - only ledger 1 present in the database) it will respect LEDGER-COUNT

@@ -326,6 +326,16 @@ AssetContractInfo getAssetContractInfo(Asset const& asset,
                                        Hash const& networkID);
 Hash getAssetContractID(Hash const& networkID, Asset const& asset);
 
+struct AssetBalanceResult
+{
+    bool overflowed{false};
+    bool assetMatched{false};
+    std::optional<int64_t> balance; // Only set if !overflowed && assetMatched
+};
+
+AssetBalanceResult getAssetBalance(LedgerEntry const& le, Asset const& asset,
+                                   AssetContractInfo const& assetContractInfo);
+
 SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
@@ -353,6 +363,7 @@ SCAddress makeClaimableBalanceAddress(ClaimableBalanceID const& id);
 SCAddress makeLiquidityPoolAddress(PoolID const& id);
 SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr);
 bool isIssuer(SCAddress const& addr, Asset const& asset);
+bool canHoldAsset(LedgerEntryType type, Asset const& asset);
 
 template <typename T>
 CxxBuf

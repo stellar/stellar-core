@@ -1924,6 +1924,103 @@ getAssetContractID(Hash const& networkID, Asset const& asset)
     return xdrSha256(preImage);
 }
 
+AssetBalanceResult
+getAssetBalance(LedgerEntry const& le, Asset const& asset,
+                AssetContractInfo const& assetContractInfo)
+{
+    switch (le.data.type())
+    {
+    case ACCOUNT:
+        if (asset.type() == ASSET_TYPE_NATIVE)
+        {
+            return {false, true, le.data.account().balance};
+        }
+        break;
+    case TRUSTLINE:
+    {
+        auto const& tl = le.data.trustLine();
+        if (compareAsset(tl.asset, asset))
+        {
+            return {false, true, tl.balance};
+        }
+        break;
+    }
+    case OFFER:
+        break;
+    case DATA:
+        break;
+    case CLAIMABLE_BALANCE:
+    {
+        if (compareAsset(le.data.claimableBalance().asset, asset))
+        {
+            return {false, true, le.data.claimableBalance().amount};
+        }
+        break;
+    }
+    case LIQUIDITY_POOL:
+    {
+        auto const& body = le.data.liquidityPool().body.constantProduct();
+        if (compareAsset(body.params.assetA, asset))
+        {
+            return {false, true, body.reserveA};
+        }
+        if (compareAsset(body.params.assetB, asset))
+        {
+            return {false, true, body.reserveB};
+        }
+        break;
+    }
+    case CONTRACT_DATA:
+    {
+        auto const& contractData = le.data.contractData();
+        if (contractData.contract.type() != SC_ADDRESS_TYPE_CONTRACT ||
+            contractData.contract.contractId() !=
+                assetContractInfo.mAssetContractID ||
+            contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
+            contractData.key.vec().size() == 0)
+        {
+            break;
+        }
+
+        // The balanceSymbol should be the first entry in the SCVec
+        if (!(contractData.key.vec()->at(0) ==
+              assetContractInfo.mBalanceSymbol))
+        {
+            break;
+        }
+
+        auto const& val = le.data.contractData().val;
+        if (val.type() == SCV_MAP && val.map() && val.map()->size() != 0)
+        {
+            auto const& amountEntry = val.map()->at(0);
+            if (amountEntry.key == assetContractInfo.mAmountSymbol)
+            {
+                if (amountEntry.val.type() == SCV_I128)
+                {
+                    auto lo = amountEntry.val.i128().lo;
+                    auto hi = amountEntry.val.i128().hi;
+                    if (lo > static_cast<uint64_t>(
+                                 std::numeric_limits<int64_t>::max()) ||
+                        hi > 0)
+                    {
+                        return {true, true, std::nullopt};
+                    }
+                    return {false, true, static_cast<int64_t>(lo)};
+                }
+            }
+        }
+        return {false, true, std::nullopt};
+    }
+    case CONTRACT_CODE:
+        break;
+    case CONFIG_SETTING:
+        break;
+    case TTL:
+        break;
+    }
+    return {false, false, std::nullopt};
+}
+
 SCVal
 makeSymbolSCVal(std::string&& str)
 {
@@ -2075,6 +2172,25 @@ isIssuer(SCAddress const& addr, Asset const& asset)
 
     default:
         return false;
+    }
+}
+
+bool
+canHoldAsset(LedgerEntryType type, Asset const& asset)
+{
+    if (type == CLAIMABLE_BALANCE || type == LIQUIDITY_POOL ||
+        type == CONTRACT_DATA)
+    {
+        return true;
+    }
+
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return type == ACCOUNT;
+    }
+    else
+    {
+        return type == TRUSTLINE;
     }
 }
 

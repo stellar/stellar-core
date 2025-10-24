@@ -30,7 +30,7 @@ bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
 bool isStringValid(std::string const& str);
 
 // returns true if the currencies are the same
-bool compareAsset(Asset const& first, Asset const& second);
+template <typename T> bool compareAsset(T const& first, Asset const& second);
 
 // returns the int32_t of a non-negative uint32_t if it fits,
 // otherwise throws.
