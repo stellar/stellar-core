@@ -2400,14 +2400,15 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
                 continue;
             }
 
-            // Because we added more cost types in v21, the initial
+            // Because we added more cost types in v21 and later, the initial
             // contractDataEntrySizeBytes setting of 2000 is too low to write
             // all settings at once. This isn't an issue in practice because 1.
             // the setting on pubnet and testnet is much higher, and two, we
             // don't need to upgrade every setting at once. To get around this
             // in the test, we will remove the memory bytes cost types from the
             // upgrade.
-            if (type == CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
+            if (type == CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES ||
+                type == CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS)
             {
                 continue;
             }
