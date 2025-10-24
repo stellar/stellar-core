@@ -15,7 +15,7 @@ namespace stellar
 {
 
 static int64_t
-calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
+calculateDeltaBalance(AssetContractInfo const& lumenContractInfo,
                       LedgerEntry const* current, LedgerEntry const* previous)
 {
     releaseAssert(current || previous);
@@ -77,7 +77,7 @@ calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
                                            : previous->data.contractData();
         if (contractData.contract.type() != SC_ADDRESS_TYPE_CONTRACT ||
             contractData.contract.contractId() !=
-                lumenContractInfo.mLumenContractID ||
+                lumenContractInfo.mAssetContractID ||
             contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
             contractData.key.vec().size() == 0)
         {
@@ -136,7 +136,7 @@ calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
 
 static int64_t
 calculateDeltaBalance(
-    LumenContractInfo const& lumenContractInfo,
+    AssetContractInfo const& lumenContractInfo,
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
@@ -153,7 +153,7 @@ calculateDeltaBalance(
 }
 
 ConservationOfLumens::ConservationOfLumens(
-    LumenContractInfo const& lumenContractInfo)
+    AssetContractInfo const& lumenContractInfo)
     : Invariant(false), mLumenContractInfo(lumenContractInfo)
 {
 }
@@ -161,10 +161,11 @@ ConservationOfLumens::ConservationOfLumens(
 std::shared_ptr<Invariant>
 ConservationOfLumens::registerInvariant(Application& app)
 {
+    Asset native(ASSET_TYPE_NATIVE);
     // We need to keep track of lumens in the Stellar Asset Contract, so
     // calculate the lumen contractID, the key of the Balance entry, and the
     // amount field within that entry.
-    auto lumenInfo = getLumenContractInfo(app.getNetworkID());
+    auto lumenInfo = getAssetContractInfo(native, app.getNetworkID());
 
     return app.getInvariantManager().registerInvariant<ConservationOfLumens>(
         lumenInfo);
