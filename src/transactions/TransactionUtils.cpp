@@ -1896,13 +1896,10 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     return true;
 }
 
-LumenContractInfo
-getLumenContractInfo(Hash const& networkID)
+AssetContractInfo
+getAssetContractInfo(Asset const& asset, Hash const& networkID)
 {
-    Asset native;
-
-    native.type(ASSET_TYPE_NATIVE);
-    auto lumenContractID = getAssetContractID(networkID, native);
+    auto assetContractID = getAssetContractID(networkID, asset);
 
     // Calculate SCVal for balance key
     SCVal balanceSymbol(SCV_SYMBOL);
@@ -1912,7 +1909,7 @@ getLumenContractInfo(Hash const& networkID)
     SCVal amountSymbol(SCV_SYMBOL);
     amountSymbol.sym() = "amount";
 
-    return {lumenContractID, balanceSymbol, amountSymbol};
+    return {assetContractID, balanceSymbol, amountSymbol};
 }
 
 Hash
