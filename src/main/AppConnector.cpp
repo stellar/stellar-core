@@ -73,7 +73,7 @@ AppConnector::checkOnOperationApply(Operation const& operation,
                                     std::vector<ContractEvent> const& events)
 {
     mApp.getInvariantManager().checkOnOperationApply(operation, opres, ltxDelta,
-                                                     events);
+                                                     events, *this);
 }
 
 Hash const&
@@ -183,6 +183,12 @@ std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
 AppConnector::getProtocol23CorruptionDataVerifier()
 {
     return mApp.getProtocol23CorruptionDataVerifier();
+}
+
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+AppConnector::getProtocol23CorruptionEventReconciler()
+{
+    return mApp.getProtocol23CorruptionEventReconciler();
 }
 
 #ifdef BUILD_TESTS

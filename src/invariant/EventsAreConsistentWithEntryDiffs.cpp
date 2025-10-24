@@ -6,6 +6,8 @@
 #include "crypto/SHA.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/P23HotArchiveBug.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include "rust/RustBridge.h"
 #include "transactions/EventManager.h"
@@ -187,7 +189,8 @@ checkAuthorization(AggregatedEvents& agg, SCAddress const& trustlineOwner,
 std::string
 calculateDeltaBalance(AggregatedEvents& agg,
                       UnorderedMap<Hash, Asset> const& stellarAssetContractIDs,
-                      LedgerEntry const* current, LedgerEntry const* previous)
+                      LedgerEntry const* current, LedgerEntry const* previous,
+                      AppConnector& app, uint32_t protocolVersion)
 {
     releaseAssert(current || previous);
     auto lk = current ? LedgerEntryKey(*current) : LedgerEntryKey(*previous);
@@ -356,9 +359,40 @@ calculateDeltaBalance(AggregatedEvents& agg,
         };
         auto entryDiff =
             rust_bridge::i128_sub(getAmount(current), getAmount(previous));
-        return entryDiff == eventDiff
-                   ? ""
-                   : "ContractData diff does not match events";
+
+        if (entryDiff == eventDiff)
+        {
+            return "";
+        }
+
+        // Before reporting an error, check if there's a reconciliation event
+        // from p23_hot_archive_bug that accounts for the difference
+        // This isn't a perfect check because it assumes that the mint/burn
+        // amount for an asset/address pair is unique, but we only had 24
+        // total instances of these mint/burns and none of them had
+        // duplicate amounts, so this should be sufficient.
+        if (maybeAddress &&
+            protocolVersionEquals(protocolVersion, ProtocolVersion::V_23))
+        {
+            auto const& reconciler =
+                app.getProtocol23CorruptionEventReconciler();
+            if (reconciler)
+            {
+                // The difference between eventDiff and entryDiff should be
+                // accounted for by a reconciliation event
+                auto diff = rust_bridge::i128_sub(eventDiff, entryDiff);
+
+                if (reconciler->hasReconciliationAmount(asset, *maybeAddress,
+                                                        diff))
+                {
+                    // The difference is accounted for by a reconciliation
+                    // event
+                    return "";
+                }
+            }
+        }
+
+        return "ContractData diff does not match events";
     }
     case CONTRACT_CODE:
         break;
@@ -374,7 +408,8 @@ std::string
 verifyEventsDelta(AggregatedEvents& agg,
                   UnorderedMap<Hash, Asset> const& stellarAssetContractIDs,
                   std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
-                  std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
+                  std::shared_ptr<InternalLedgerEntry const> const& genPrevious,
+                  AppConnector& app, uint32_t protocolVersion)
 {
     auto type = genCurrent ? genCurrent->type() : genPrevious->type();
     if (type == InternalLedgerEntryType::LEDGER_ENTRY)
@@ -384,7 +419,7 @@ verifyEventsDelta(AggregatedEvents& agg,
             genPrevious ? &genPrevious->ledgerEntry() : nullptr;
 
         return calculateDeltaBalance(agg, stellarAssetContractIDs, current,
-                                     previous);
+                                     previous, app, protocolVersion);
     }
     return "";
 }
@@ -549,7 +584,8 @@ EventsAreConsistentWithEntryDiffs::getName() const
 std::string
 EventsAreConsistentWithEntryDiffs::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
+    AppConnector& app)
 {
     UnorderedMap<Hash, Asset> stellarAssetContractIDs;
     auto maybeAggregatedEventAmounts =
@@ -563,7 +599,8 @@ EventsAreConsistentWithEntryDiffs::checkOnOperationApply(
     {
         auto res = verifyEventsDelta(
             *maybeAggregatedEventAmounts, stellarAssetContractIDs,
-            delta.second.current, delta.second.previous);
+            delta.second.current, delta.second.previous, app,
+            ltxDelta.header.current.ledgerVersion);
         if (!res.empty())
         {
             return res;

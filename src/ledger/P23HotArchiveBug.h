@@ -4,8 +4,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <optional>
 #include <vector>
 
+#include "rust/RustBridge.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 
@@ -26,10 +28,13 @@ namespace p23_hot_archive_bug
 namespace internal
 {
 constexpr size_t P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT = 478;
+constexpr size_t P23_CORRUPTED_AFFECTED_ASSETS_COUNT = 12;
 extern const std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT>
     P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
 extern const std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT>
     P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE;
+extern const std::array<std::string, P23_CORRUPTED_AFFECTED_ASSETS_COUNT>
+    P23_CORRUPTED_AFFECTED_ASSETS;
 } // namespace internal
 
 // Verifier for protocol 23 Hot Archive corruption data.
@@ -124,6 +129,43 @@ class Protocol23CorruptionDataVerifier
     // Keys of the entries that have been evicted during catchup in corrupted
     // state. This is populated in `verifyArchivalOfCorruptedEntry` calls.
     UnorderedSet<LedgerKey> mKeysEvictedDuringCatchup;
+
+    std::mutex mMutex;
+};
+
+class Protocol23CorruptionEventReconciler
+{
+  public:
+    Protocol23CorruptionEventReconciler(Hash const& networkID);
+
+    struct SACReconciliationInfo
+    {
+        Asset asset;
+        SCAddress mintOrBurnAddress;
+        int64 amount;
+    };
+
+    // Generates a SACReconciliationInfo for reconciliation of a restored
+    // corrupted entry where an asset was minted or burned.
+    std::optional<SACReconciliationInfo> getSACReconciliationEventAndTrackDiff(
+        LedgerKey const& restoredKey, LedgerEntry const& restoredEntry,
+        uint32_t ledgerSeq, uint32_t protocolVersion);
+
+    // Check if there is a reconciliation event matching the given asset,
+    // address, and amount. Returns true if found, false otherwise.
+    bool hasReconciliationAmount(Asset const& asset, SCAddress const& address,
+                                 CxxI128 const& amount) const;
+
+  private:
+    UnorderedMap<SCAddress /*SAC ContractId*/, Asset> mSACAssetMap;
+
+    // Map from ledger key to pair of correct and corrupted ledger entries
+    // pair.first = correct entry, pair.second = corrupted entry
+    UnorderedMap<LedgerKey, std::pair<LedgerEntry, LedgerEntry>> mKeyToEntries;
+
+    // Track reconciliation amounts: Address -> Asset -> list of amounts
+    UnorderedMap<SCAddress, UnorderedMap<Asset, std::vector<int64_t>>>
+        mReconciliationAmounts;
 
     std::mutex mMutex;
 };

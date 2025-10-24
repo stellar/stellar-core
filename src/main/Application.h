@@ -49,6 +49,7 @@ class AppConnector;
 namespace p23_hot_archive_bug
 {
 class Protocol23CorruptionDataVerifier;
+class Protocol23CorruptionEventReconciler;
 } // namespace p23_hot_archive_bug
 
 #ifdef BUILD_TESTS
@@ -243,6 +244,10 @@ class Application
     virtual std::unique_ptr<
         p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
     getProtocol23CorruptionDataVerifier() = 0;
+
+    virtual std::unique_ptr<
+        p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+    getProtocol23CorruptionEventReconciler() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_context will execute in parallel with the calling thread, so use

@@ -127,7 +127,7 @@ TEST_CASE("Total coins change without inflation",
     ltx.loadHeader().current().totalCoins = dist(getGlobalRandomEngine());
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                          {}, res, ltx.getDelta(), {}),
+                          {}, res, ltx.getDelta(), {}, app->getAppConnector()),
                       InvariantDoesNotHold);
 }
 
@@ -146,7 +146,7 @@ TEST_CASE("Fee pool change without inflation",
     ltx.loadHeader().current().feePool = dist(getGlobalRandomEngine());
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                          {}, res, ltx.getDelta(), {}),
+                          {}, res, ltx.getDelta(), {}, app->getAppConnector()),
                       InvariantDoesNotHold);
 }
 
@@ -269,9 +269,10 @@ TEST_CASE("Inflation changes are consistent",
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             ltx.loadHeader().current().feePool += deltaFeePool;
-            REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                                  {}, opRes, ltx.getDelta(), {}),
-                              InvariantDoesNotHold);
+            REQUIRE_THROWS_AS(
+                app->getInvariantManager().checkOnOperationApply(
+                    {}, opRes, ltx.getDelta(), {}, app->getAppConnector()),
+                InvariantDoesNotHold);
         }
 
         {
@@ -279,9 +280,10 @@ TEST_CASE("Inflation changes are consistent",
             ltx.loadHeader().current().feePool += deltaFeePool;
             ltx.loadHeader().current().totalCoins +=
                 deltaFeePool + inflationAmount;
-            REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                                  {}, opRes, ltx.getDelta(), {}),
-                              InvariantDoesNotHold);
+            REQUIRE_THROWS_AS(
+                app->getInvariantManager().checkOnOperationApply(
+                    {}, opRes, ltx.getDelta(), {}, app->getAppConnector()),
+                InvariantDoesNotHold);
         }
 
         auto entries2 = updateBalances(entries1, *app, inflationAmount, true);

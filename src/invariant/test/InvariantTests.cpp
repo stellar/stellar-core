@@ -72,7 +72,8 @@ class TestInvariant : public Invariant
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events) override
+                          std::vector<ContractEvent> const& events,
+                          AppConnector& app) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -208,9 +209,10 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
             TestInvariant::toString(0, true));
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                              {}, res, ltx.getDelta(), {}),
-                          InvariantDoesNotHold);
+        REQUIRE_THROWS_AS(
+            app->getInvariantManager().checkOnOperationApply(
+                {}, res, ltx.getDelta(), {}, app->getAppConnector()),
+            InvariantDoesNotHold);
     }
     SECTION("Succeed")
     {
@@ -220,7 +222,7 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE_NOTHROW(app->getInvariantManager().checkOnOperationApply(
-            {}, res, ltx.getDelta(), {}));
+            {}, res, ltx.getDelta(), {}, app->getAppConnector()));
     }
 }
 
@@ -252,14 +254,15 @@ TEST_CASE_VERSIONS("EventsAreConsistentWithEntryDiffs invariant", "[invariant]")
         OperationResult res;
         if (enableInvariant)
         {
-            REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
-                                  {}, res, ltx.getDelta(), {}),
-                              InvariantDoesNotHold);
+            REQUIRE_THROWS_AS(
+                app->getInvariantManager().checkOnOperationApply(
+                    {}, res, ltx.getDelta(), {}, app->getAppConnector()),
+                InvariantDoesNotHold);
         }
         else
         {
             REQUIRE_NOTHROW(app->getInvariantManager().checkOnOperationApply(
-                {}, res, ltx.getDelta(), {}));
+                {}, res, ltx.getDelta(), {}, app->getAppConnector()));
         }
     };
 

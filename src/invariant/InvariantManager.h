@@ -11,6 +11,7 @@
 namespace stellar
 {
 
+class AppConnector;
 class Application;
 class Bucket;
 class Invariant;
@@ -44,11 +45,11 @@ class InvariantManager
 
     virtual void checkAfterAssumeState(uint32_t newestLedger) = 0;
 
-    virtual void
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& opres,
-                          LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events) = 0;
+    virtual void checkOnOperationApply(Operation const& operation,
+                                       OperationResult const& opres,
+                                       LedgerTxnDelta const& ltxDelta,
+                                       std::vector<ContractEvent> const& events,
+                                       AppConnector& app) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 

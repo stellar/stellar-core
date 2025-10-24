@@ -103,6 +103,16 @@ class OpEventManager
 
     // contract: asset, topics: ["mint", to:Address, sep0011_asset:String],
     // data: { amount:i128 }
+    ContractEvent makeMintEvent(Asset const& asset, SCAddress const& to,
+                                int64 amount, bool allowMuxedIdOrMemo);
+
+    // contract: asset, topics: ["burn", from:Address, sep0011_asset:String],
+    // data: { amount:i128 }
+    ContractEvent makeBurnEvent(Asset const& asset, SCAddress const& from,
+                                int64 amount);
+
+    // contract: asset, topics: ["mint", to:Address, sep0011_asset:String],
+    // data: { amount:i128 }
     void newMintEvent(Asset const& asset, SCAddress const& to, int64 amount,
                       bool allowMuxedIdOrMemo, bool insertAtBeginning = false);
 

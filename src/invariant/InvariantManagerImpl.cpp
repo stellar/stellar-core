@@ -129,7 +129,8 @@ InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
 void
 InvariantManagerImpl::checkOnOperationApply(
     Operation const& operation, OperationResult const& opres,
-    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events)
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
+    AppConnector& app)
 {
     for (auto invariant : mEnabled)
     {
@@ -141,7 +142,7 @@ InvariantManagerImpl::checkOnOperationApply(
         }
 
         auto result = invariant->checkOnOperationApply(operation, opres,
-                                                       ltxDelta, events);
+                                                       ltxDelta, events, app);
         if (result.empty())
         {
             continue;

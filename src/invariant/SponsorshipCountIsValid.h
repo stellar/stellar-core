@@ -27,10 +27,9 @@ class SponsorshipCountIsValid : public Invariant
 
     virtual std::string getName() const override;
 
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events) override;
+    virtual std::string checkOnOperationApply(
+        Operation const& operation, OperationResult const& result,
+        LedgerTxnDelta const& ltxDelta,
+        std::vector<ContractEvent> const& events, AppConnector& app) override;
 };
 }

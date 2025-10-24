@@ -14,6 +14,7 @@
 namespace stellar
 {
 
+class AppConnector;
 class LiveBucket;
 enum LedgerEntryType : std::int32_t;
 struct LedgerTxnDelta;
@@ -63,7 +64,8 @@ class Invariant
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events)
+                          std::vector<ContractEvent> const& events,
+                          AppConnector& app)
     {
         return std::string{};
     }
