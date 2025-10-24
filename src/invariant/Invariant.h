@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
 #include "xdr/Stellar-ledger.h"
 #include <cstdint>
 #include <functional>
@@ -66,6 +68,24 @@ class Invariant
                           LedgerTxnDelta const& ltxDelta,
                           std::vector<ContractEvent> const& events,
                           AppConnector& app)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
+    checkOnLedgerCommit(
+        SearchableSnapshotConstPtr lclLiveState,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        std::vector<LedgerEntry> const& persitentEvictedFromLive,
+        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
+    start(Application& app)
     {
         return std::string{};
     }

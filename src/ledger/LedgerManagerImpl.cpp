@@ -468,9 +468,12 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
 
-    auto output =
-        sealLedgerTxnAndStoreInBucketsAndDB(ltx, /*ledgerCloseMeta*/ nullptr,
-                                            /*initialLedgerVers*/ 0);
+    auto& appConnector = mApp.getAppConnector();
+    auto output = sealLedgerTxnAndStoreInBucketsAndDB(
+        appConnector.copySearchableLiveBucketListSnapshot(),
+        appConnector.copySearchableHotArchiveBucketListSnapshot(), ltx,
+        /*ledgerCloseMeta*/ nullptr,
+        /*initialLedgerVers*/ 0);
     advanceLastClosedLedgerState(output);
 
     ltx.commit();
@@ -1577,8 +1580,12 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
+    auto& appConnector = mApp.getAppConnector();
     auto appliedLedgerState = sealLedgerTxnAndStoreInBucketsAndDB(
-        ltx, ledgerCloseMeta, initialLedgerVers);
+        appConnector.copySearchableLiveBucketListSnapshot(),
+        appConnector.copySearchableHotArchiveBucketListSnapshot(), ltx,
+        ledgerCloseMeta, initialLedgerVers);
+
     // NB: from now on, the ledger state may not change, but LCL still hasn't
     // advanced properly. Hence when requesting the ledger state data (such as
     // Soroban network config or header) we should use the `appliedLedgerState`
@@ -2685,6 +2692,8 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
 // NB: This is a separate method so a testing subclass can override it.
 void
 LedgerManagerImpl::finalizeLedgerTxnChanges(
+    SearchableSnapshotConstPtr lclSnapshot,
+    SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
@@ -2710,18 +2719,26 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                     initialLedgerVers,
                     LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
-                std::vector<LedgerKey> restoredEntries;
-                auto const& restoredKeyMap =
+                std::vector<LedgerKey> restoredHotArchiveKeys;
+
+                auto const& restoredHotArchiveKeyMap =
                     ltxEvictions.getRestoredHotArchiveKeys();
-                for (auto const& [key, entry] : restoredKeyMap)
+                for (auto const& [key, entry] : restoredHotArchiveKeyMap)
                 {
                     // TTL keys are not recorded in the hot archive BucketList
                     if (key.type() == CONTRACT_DATA ||
                         key.type() == CONTRACT_CODE)
                     {
-                        restoredEntries.push_back(key);
+                        restoredHotArchiveKeys.push_back(key);
                     }
                 }
+
+                mApp.getInvariantManager().checkOnLedgerCommit(
+                    lclSnapshot, lclHotArchiveSnapshot,
+                    evictedState.archivedEntries, evictedState.deletedKeys,
+                    restoredHotArchiveKeyMap,
+                    ltxEvictions.getRestoredLiveBucketListKeys());
+
                 bool isP24UpgradeLedger =
                     protocolVersionIsBefore(initialLedgerVers,
                                             ProtocolVersion::V_24) &&
@@ -2731,13 +2748,13 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                 {
                     p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
                         ltxEvictions, mApp, lh, evictedState.archivedEntries,
-                        restoredEntries);
+                        restoredHotArchiveKeys);
                 }
                 else
                 {
                     mApp.getBucketManager().addHotArchiveBatch(
                         mApp, lh, evictedState.archivedEntries,
-                        restoredEntries);
+                        restoredHotArchiveKeys);
                     // Validate evicted entries against Protocol 23 corruption
                     // data if configured
                     if (mApp.getProtocol23CorruptionDataVerifier())
@@ -2790,6 +2807,8 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
 
 CompleteConstLedgerStatePtr
 LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
+    SearchableSnapshotConstPtr lclSnapshot,
+    SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     uint32_t initialLedgerVers)
@@ -2822,8 +2841,8 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     // protocol version prior to the upgrade. Due to this, we must check the
     // initial protocol version of ledger instead of the ledger version of
     // the current ltx header, which may have been modified via an upgrade.
-    finalizeLedgerTxnChanges(ltx, ledgerCloseMeta, ledgerHeader,
-                             initialLedgerVers);
+    finalizeLedgerTxnChanges(lclSnapshot, lclHotArchiveSnapshot, ltx,
+                             ledgerCloseMeta, ledgerHeader, initialLedgerVers);
 
     CompleteConstLedgerStatePtr res;
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {

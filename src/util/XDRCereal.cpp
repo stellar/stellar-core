@@ -29,9 +29,43 @@ cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
     case stellar::SC_ADDRESS_TYPE_ACCOUNT:
         xdr::archive(ar, stellar::KeyUtils::toStrKey(addr.accountId()), field);
         return;
+    case stellar::SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+        ar.setNextName(field);
+        ar.startNode();
+        xdr::archive(ar, addr.muxedAccount().id, "id");
+        xdr::archive(ar,
+                     stellar::binToHex(stellar::ByteSlice(
+                         addr.muxedAccount().ed25519.data(),
+                         addr.muxedAccount().ed25519.size())),
+                     "ed25519");
+        ar.finishNode();
+        return;
+    case stellar::SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+    {
+        auto const& cbID = addr.claimableBalanceId();
+        if (cbID.type() == stellar::CLAIMABLE_BALANCE_ID_TYPE_V0)
+        {
+            xdr::archive(ar,
+                         stellar::binToHex(stellar::ByteSlice(
+                             cbID.v0().data(), cbID.v0().size())),
+                         field);
+        }
+        return;
+    }
+    case stellar::SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+        xdr::archive(
+            ar,
+            stellar::binToHex(stellar::ByteSlice(
+                addr.liquidityPoolId().data(), addr.liquidityPoolId().size())),
+            field);
+        return;
     default:
-        // this would be a bug
-        abort();
+        // Unknown address type - serialize as "Unknown(type_id)"
+        xdr::archive(ar,
+                     std::string("Unknown(") +
+                         std::to_string(static_cast<int>(addr.type())) + ")",
+                     field);
+        return;
     }
 }
 

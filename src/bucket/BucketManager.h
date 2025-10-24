@@ -1,9 +1,11 @@
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
+#include "history/HistoryArchive.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/TmpDir.h"
+#include "util/UnorderedMap.h"
 #include "util/types.h"
 #include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
@@ -170,6 +172,13 @@ class BucketManager : NonMovableOrCopyable
                                       FutureMapT<BucketT>& futureMap);
 
     void reportLiveBucketIndexCacheMetrics();
+
+    template <class BucketT>
+    std::map<LedgerKey, LedgerEntry> loadCompleteBucketListStateHelper(
+        std::vector<HistoryStateBucket<BucketT>> const& buckets,
+        std::function<void(std::shared_ptr<BucketT>, std::string const&,
+                           std::map<LedgerKey, LedgerEntry>&)>
+            loadFunc);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
@@ -377,6 +386,9 @@ class BucketManager : NonMovableOrCopyable
     // public nodes. The whole ledger. Call carefully, and only offline.
     std::map<LedgerKey, LedgerEntry>
     loadCompleteLedgerState(HistoryArchiveState const& has);
+
+    std::map<LedgerKey, LedgerEntry>
+    loadCompleteHotArchiveState(HistoryArchiveState const& has);
 
     // Merge the bucket list of the provided HAS into a single "super bucket"
     // consisting of only live entries, and return it.

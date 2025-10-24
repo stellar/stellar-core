@@ -49,12 +49,23 @@ class InvariantManagerImpl : public InvariantManager
         uint32_t level, bool isCurr,
         std::unordered_set<LedgerKey> const& shadowedKeys) override;
 
+    virtual void checkOnLedgerCommit(
+        SearchableSnapshotConstPtr lclLiveState,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        std::vector<LedgerEntry> const& persitentEvictedFromLive,
+        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+        override;
+
     virtual void checkAfterAssumeState(uint32_t newestLedger) override;
 
     virtual void
     registerInvariant(std::shared_ptr<Invariant> invariant) override;
 
     virtual void enableInvariant(std::string const& name) override;
+
+    virtual void start(Application& app) override;
 
 #ifdef BUILD_TESTS
     void snapshotForFuzzer() override;
@@ -65,7 +76,7 @@ class InvariantManagerImpl : public InvariantManager
     void onInvariantFailure(std::shared_ptr<Invariant> invariant,
                             std::string const& message, uint32_t ledger);
 
-    virtual void handleInvariantFailure(std::shared_ptr<Invariant> invariant,
+    virtual void handleInvariantFailure(bool isStrict,
                                         std::string const& message) const;
 };
 }

@@ -16,6 +16,7 @@
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -28,6 +29,7 @@
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/TmpDir.h"
+#include "util/UnorderedMap.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
 #include <filesystem>
@@ -1144,6 +1146,9 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
 
     auto searchableBL =
         mSnapshotManager->copySearchableLiveBucketListSnapshot();
+
+    // Snapshot should be based on the lcl ledger
+    releaseAssertOrThrow(searchableBL->getLedgerSeq() == ledgerSeq - 1);
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t =
@@ -1429,17 +1434,65 @@ loadEntriesFromBucket(std::shared_ptr<LiveBucket> b, std::string const& name,
               b->getSize(), name, ms, formatSize(bytesPerSec));
 }
 
+// Loads a single bucket worth of entries into `map`, deleting tombstone entries
+// and inserting archived entries. Should be called in a loop over a BL, from
+// old to new.
+static void
+loadEntriesFromHotArchiveBucket(std::shared_ptr<HotArchiveBucket> b,
+                                std::string const& name,
+                                std::map<LedgerKey, LedgerEntry>& map)
+{
+    ZoneScoped;
+
+    using namespace std::chrono;
+    medida::Timer timer;
+    HotArchiveBucketInputIterator in(b);
+    timer.Time([&]() {
+        while (in)
+        {
+            HotArchiveBucketEntry const& e = *in;
+            if (e.type() == HOT_ARCHIVE_ARCHIVED)
+            {
+                map[LedgerEntryKey(e.archivedEntry())] = e.archivedEntry();
+            }
+            else
+            {
+                if (e.type() != HOT_ARCHIVE_LIVE)
+                {
+                    std::string err =
+                        "Malformed hot archive bucket: unexpected "
+                        "non-HOT_ARCHIVE_LIVE entry.";
+                    CLOG_ERROR(Bucket, "{}", err);
+                    throw std::runtime_error(err);
+                }
+                map.erase(e.key());
+            }
+            ++in;
+        }
+    });
+    nanoseconds ns =
+        timer.duration_unit() * static_cast<nanoseconds::rep>(timer.max());
+    milliseconds ms = duration_cast<milliseconds>(ns);
+    size_t bytesPerSec = (b->getSize() * 1000 / (1 + ms.count()));
+    CLOG_INFO(Bucket, "Read {}-byte bucket file '{}' in {} ({}/s)",
+              b->getSize(), name, ms, formatSize(bytesPerSec));
+}
+
+template <typename BucketT>
 std::map<LedgerKey, LedgerEntry>
-BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
+BucketManager::loadCompleteBucketListStateHelper(
+    std::vector<HistoryStateBucket<BucketT>> const& buckets,
+    std::function<void(std::shared_ptr<BucketT>, std::string const&,
+                       std::map<LedgerKey, LedgerEntry>&)>
+        loadFunc)
 {
     ZoneScoped;
 
     std::map<LedgerKey, LedgerEntry> ledgerMap;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
+    for (uint32_t i = BucketListBase<BucketT>::kNumLevels; i > 0; --i)
     {
-        HistoryStateBucket<LiveBucket> const& hsb =
-            has.currentBuckets.at(i - 1);
+        HistoryStateBucket<BucketT> const& hsb = buckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
                             fmt::format(FMT_STRING("snap {:d}"), i - 1));
         hashes.emplace_back(hexToBin256(hsb.curr),
@@ -1451,15 +1504,34 @@ BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
         {
             continue;
         }
-        auto b = getBucketByHashInternal(pair.first, mSharedLiveBuckets);
+        auto b = getBucketByHash<BucketT>(pair.first);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
                                      binToHex(pair.first));
         }
-        loadEntriesFromBucket(b, pair.second, ledgerMap);
+
+        loadFunc(b, pair.second, ledgerMap);
     }
     return ledgerMap;
+}
+
+// Loads the complete state of the live BucketList into a map
+std::map<LedgerKey, LedgerEntry>
+BucketManager::loadCompleteLedgerState(HistoryArchiveState const& has)
+{
+    CLOG_INFO(Bucket, "Loading complete live ledger state");
+    return loadCompleteBucketListStateHelper<LiveBucket>(has.currentBuckets,
+                                                         loadEntriesFromBucket);
+}
+
+// Loads the complete state of the hot archive BucketList into a map
+std::map<LedgerKey, LedgerEntry>
+BucketManager::loadCompleteHotArchiveState(HistoryArchiveState const& has)
+{
+    CLOG_INFO(Bucket, "Loading complete hot archive state");
+    return loadCompleteBucketListStateHelper<HotArchiveBucket>(
+        has.hotArchiveBuckets, loadEntriesFromHotArchiveBucket);
 }
 
 std::shared_ptr<LiveBucket>

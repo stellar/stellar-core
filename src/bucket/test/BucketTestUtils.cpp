@@ -187,6 +187,8 @@ template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
 LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
+    SearchableSnapshotConstPtr lclSnapshot,
+    SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
@@ -342,8 +344,9 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     }
     else
     {
-        LedgerManagerImpl::finalizeLedgerTxnChanges(ltx, ledgerCloseMeta, lh,
-                                                    initialLedgerVers);
+        LedgerManagerImpl::finalizeLedgerTxnChanges(
+            lclSnapshot, lclHotArchiveSnapshot, ltx, ledgerCloseMeta, lh,
+            initialLedgerVers);
     }
 }
 
