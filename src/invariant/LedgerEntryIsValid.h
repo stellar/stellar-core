@@ -22,7 +22,7 @@ struct LedgerTxnDelta;
 class LedgerEntryIsValid : public Invariant
 {
   public:
-    LedgerEntryIsValid(LumenContractInfo const& lumenContractInfo);
+    LedgerEntryIsValid(AssetContractInfo const& lumenContractInfo);
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
     virtual std::string getName() const override;
@@ -60,6 +60,6 @@ class LedgerEntryIsValid : public Invariant
 
     bool validatePredicate(ClaimPredicate const& pred, uint32_t depth) const;
 
-    LumenContractInfo const mLumenContractInfo;
+    AssetContractInfo const mLumenContractInfo;
 };
 }

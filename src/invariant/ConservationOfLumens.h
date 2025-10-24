@@ -22,7 +22,7 @@ struct LedgerTxnDelta;
 class ConservationOfLumens : public Invariant
 {
   public:
-    ConservationOfLumens(LumenContractInfo const& lumenContractInfo);
+    ConservationOfLumens(AssetContractInfo const& lumenContractInfo);
 
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
@@ -35,6 +35,6 @@ class ConservationOfLumens : public Invariant
                           std::vector<ContractEvent> const& events) override;
 
   private:
-    LumenContractInfo const mLumenContractInfo;
+    AssetContractInfo const mLumenContractInfo;
 };
 }
