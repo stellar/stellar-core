@@ -611,10 +611,12 @@ TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount,
         return;
     }
     releaseAssert(!mFinalized);
+
+    Asset native(ASSET_TYPE_NATIVE);
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
     ev.contractID.activate() =
-        getLumenContractInfo(mNetworkID).mLumenContractID;
+        getAssetContractInfo(native, mNetworkID).mAssetContractID;
 
     SCVec topics = {makeSymbolSCVal("fee"), makeAccountIDSCVal(feeSource)};
     ev.body.v0().topics = topics;
