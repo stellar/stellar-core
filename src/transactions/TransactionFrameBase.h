@@ -6,6 +6,7 @@
 
 #include <optional>
 
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "ledger/NetworkConfig.h"
@@ -43,26 +44,29 @@ using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
-// Tracks entry updates within an operation during parallel apply phases. If the
-// transaction succeeds, the thread's ParallelApplyEntryMap should be updated
-// with the entries from the OpModifiedEntryMap.
-using OpModifiedEntryMap = UnorderedMap<LedgerKey, std::optional<LedgerEntry>>;
+// Tracks entry updates within a transaction during parallel apply phases. If
+// the transaction succeeds, the thread's ParallelApplyEntryMap should be
+// updated with the entries from the TxModifiedEntryMap.
+using TxLedgerEntry =
+    ScopedLedgerEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
+using TxModifiedEntryMap =
+    UnorderedMap<LedgerKey, std::optional<TxLedgerEntry>>;
 
 // Used to track the current state of an entry during parallel apply phases. Can
 // be updated by successful transactions.
-struct ParallelApplyEntry
+template <StaticLedgerEntryScope S> struct ParallelApplyEntry
 {
     // Will not be set if the entry doesn't exist, or if no tx was able to load
     // it due to hitting read limits.
-    std::optional<LedgerEntry> mLedgerEntry;
+    std::optional<ScopedLedgerEntry<S>> mLedgerEntry;
     bool mIsDirty;
     static ParallelApplyEntry
-    cleanPopulated(LedgerEntry const& e)
+    cleanPopulated(ScopedLedgerEntry<S> const& e)
     {
         return ParallelApplyEntry{e, false};
     }
     static ParallelApplyEntry
-    dirtyPopulated(LedgerEntry const& e)
+    dirtyPopulated(ScopedLedgerEntry<S> const& e)
     {
         return ParallelApplyEntry{e, true};
     }
@@ -76,31 +80,68 @@ struct ParallelApplyEntry
     {
         return ParallelApplyEntry{std::nullopt, true};
     }
+    template <StaticLedgerEntryScope S2>
+    ParallelApplyEntry<S2>
+    rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) const
+    {
+        if (mLedgerEntry)
+        {
+            auto adoptedEntry =
+                s2.scope_adopt_entry_from(mLedgerEntry.value(), s1);
+            return ParallelApplyEntry<S2>{std::make_optional(adoptedEntry),
+                                          mIsDirty};
+        }
+        return ParallelApplyEntry<S2>{std::nullopt, mIsDirty};
+    }
 };
+using GlobalParallelApplyEntry =
+    ParallelApplyEntry<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>;
+using ThreadParallelApplyEntry =
+    ParallelApplyEntry<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>;
+using TxParallelApplyEntry =
+    ParallelApplyEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
 
 // This is a map of all entries that will be read and/or written during parallel
 // apply phases: there is one such "global" map which disjoint per-thread maps
 // get split off of, modified during applyThread, and merged back into. Once all
 // threads return, the updates from each threads entry map should be committed
 // to LedgerTxn.
-using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry>;
+template <StaticLedgerEntryScope S>
+using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry<S>>;
+using GlobalParallelApplyEntryMap =
+    ParallelApplyEntryMap<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>;
+using ThreadParallelApplyEntryMap =
+    ParallelApplyEntryMap<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>;
+using TxParallelApplyEntryMap =
+    ParallelApplyEntryMap<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
 
 // Returned by each parallel transaction. It will contain the entries modified
 // by the transaction, the success status of the transaction, and the keys
 // restored.
 class ParallelTxReturnVal
+    : public LedgerEntryScope<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>
 {
   public:
-    ParallelTxReturnVal(bool success, OpModifiedEntryMap&& modifiedEntryMap)
-        : mSuccess(success), mModifiedEntryMap(std::move(modifiedEntryMap))
+    ParallelTxReturnVal(bool success, TxModifiedEntryMap&& modifiedEntryMap,
+                        ScopeIdT txScopeID)
+        : LedgerEntryScope(txScopeID)
+        , mSuccess(success)
+        , mModifiedEntryMap(std::move(modifiedEntryMap))
     {
+        // The ModifiedEntryMap should not be used for reading entries, only
+        // to serve as a source for thread state to scope_adopt_entry_from. So
+        // we deactivate ourselves as a LedgerEntryScope on construction, to
+        // prevent accidental reads.
+        scope_deactivate();
     }
-    ParallelTxReturnVal(bool success, OpModifiedEntryMap&& modifiedEntryMap,
-                        RestoredEntries&& restoredEntries)
-        : mSuccess(success)
+    ParallelTxReturnVal(bool success, TxModifiedEntryMap&& modifiedEntryMap,
+                        RestoredEntries&& restoredEntries, ScopeIdT txScopeID)
+        : LedgerEntryScope(txScopeID)
+        , mSuccess(success)
         , mModifiedEntryMap(std::move(modifiedEntryMap))
         , mRestoredEntries(std::move(restoredEntries))
     {
+        scope_deactivate();
     }
 
     bool
@@ -108,7 +149,7 @@ class ParallelTxReturnVal
     {
         return mSuccess;
     }
-    OpModifiedEntryMap const&
+    TxModifiedEntryMap const&
     getModifiedEntryMap() const
     {
         return mModifiedEntryMap;
@@ -119,10 +160,12 @@ class ParallelTxReturnVal
         return mRestoredEntries;
     }
 
+    friend class TxParallelApplyLedgerState;
+
   private:
     bool mSuccess;
     // This will contain a key for every entry modified by a transaction
-    OpModifiedEntryMap mModifiedEntryMap;
+    TxModifiedEntryMap mModifiedEntryMap;
     RestoredEntries mRestoredEntries;
 };
 
