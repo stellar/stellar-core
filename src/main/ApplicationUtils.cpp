@@ -19,6 +19,7 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
 #include "main/Maintainer.h"
@@ -595,9 +596,27 @@ dumpLedger(Config cfg, std::string const& outputFile,
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    auto& lm = app->getLedgerManager();
+    auto& lm = static_cast<LedgerManagerImpl&>(app->getLedgerManager());
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    lm.loadLastKnownLedgerWithoutInMemoryState(/* restoreBucketlist */ false);
+    auto liveSnapshot =
+        app->getAppConnector().copySearchableLiveBucketListSnapshot();
+    auto ttlGetter = [&liveSnapshot,
+                      includeAllStates](LedgerKey const& key) -> uint32_t {
+        if (includeAllStates)
+        {
+            LOG_FATAL(DEFAULT_LOG,
+                      "TTL is undefined when includeAllStates is set.");
+        }
+        auto entry = liveSnapshot->load(key);
+        if (!entry)
+        {
+            LOG_FATAL(DEFAULT_LOG, "No TTL entry found for key: {}",
+                      xdrToCerealString(key, "key"));
+        }
+        return entry->data.ttl().liveUntilLedgerSeq;
+    };
+
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)
@@ -615,13 +634,13 @@ dumpLedger(Config cfg, std::string const& outputFile,
     std::optional<xdrquery::XDRMatcher> matcher;
     if (filterQuery)
     {
-        matcher.emplace(*filterQuery);
+        matcher.emplace(*filterQuery, ttlGetter);
     }
 
     std::optional<xdrquery::XDRFieldExtractor> groupByExtractor;
     if (groupBy)
     {
-        groupByExtractor.emplace(*groupBy);
+        groupByExtractor.emplace(*groupBy, ttlGetter);
     }
 
     std::map<std::vector<xdrquery::ResultType>, xdrquery::XDRAccumulator>
@@ -650,15 +669,31 @@ dumpLedger(Config cfg, std::string const& outputFile,
                     if (it == accumulators.end())
                     {
                         it = accumulators
-                                 .emplace(key,
-                                          xdrquery::XDRAccumulator(*aggregate))
+                                 .emplace(key, xdrquery::XDRAccumulator(
+                                                   *aggregate, ttlGetter))
                                  .first;
                     }
                     it->second.addEntry(entry);
                 }
                 else
                 {
-                    ofs << xdrToCerealString(entry, "entry", true) << std::endl;
+                    // When only live state is included, we can also output
+                    // TTL for the Soroban entries.
+                    bool addTTL = !includeAllStates &&
+                                  (entry.data.type() == CONTRACT_DATA ||
+                                   entry.data.type() == CONTRACT_CODE);
+                    if (!addTTL)
+                    {
+                        ofs << xdrToCerealString(entry, "entry") << std::endl;
+                    }
+                    else
+                    {
+                        uint32_t liveUntilLedger = ttlGetter(getTTLKey(entry));
+                        std::string s = xdrToCerealString(entry, "entry");
+                        s.erase(s.size() - 3, 2); // remove '\n}'
+                        ofs << s << ",\n    \"liveUntilLedgerSeq\": "
+                            << liveUntilLedger << "\n\}\n";
+                    }
                 }
                 ++entryCount;
                 return !limit || entryCount < *limit;

@@ -355,6 +355,47 @@ TEST_CASE("XDR matcher", "[xdrquery]")
             testMatches("entry_size() <= 192", {true, true, true, true});
             testMatches("156 >= entry_size()", {false, true, true, true});
         }
+        SECTION("ttl")
+        {
+            LedgerEntry contractDataEntry;
+            contractDataEntry.data.type(CONTRACT_DATA);
+            auto contractDataTTLEntry =
+                getTTLEntryForTTLKey(getTTLKey(contractDataEntry), 200);
+
+            LedgerEntry contractCodeEntry;
+            contractCodeEntry.data.type(CONTRACT_CODE);
+            auto contractCodeTTLEntry =
+                getTTLEntryForTTLKey(getTTLKey(contractCodeEntry), 201);
+            std::vector<LedgerEntry> entries = {
+                contractDataEntry, contractDataTTLEntry, contractCodeEntry,
+                contractCodeTTLEntry, makeAccountEntry(100)};
+            auto ttlGetter = [&](LedgerKey const& key) {
+                if (key == LedgerEntryKey(contractDataTTLEntry))
+                {
+                    return contractDataTTLEntry.data.ttl().liveUntilLedgerSeq;
+                }
+                if (key == LedgerEntryKey(contractCodeTTLEntry))
+                {
+                    return contractCodeTTLEntry.data.ttl().liveUntilLedgerSeq;
+                }
+                throw std::runtime_error("no TTL entry");
+            };
+            auto testTTLMatches =
+                [&](std::string const& query,
+                    std::vector<bool> const& expectedMatches) {
+                    XDRMatcher matcher(query, ttlGetter);
+                    for (int i = 0; i < expectedMatches.size(); ++i)
+                    {
+                        REQUIRE(matcher.matchXDR(entries[i]) ==
+                                expectedMatches[i]);
+                    }
+                };
+            testTTLMatches("ttl() == 200", {true, true, false, false, false});
+            testTTLMatches("200 != ttl()", {false, false, true, true, true});
+            testTTLMatches("ttl() > 200", {false, false, true, true, true});
+            testTTLMatches("ttl() < 202", {true, true, true, true, false});
+            testTTLMatches("200 > ttl()", {false, false, false, false, false});
+        }
     }
 
     SECTION("queries with operators")

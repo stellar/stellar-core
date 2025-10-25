@@ -41,6 +41,7 @@ parseXDRQuery(std::string const& query);
 %token AVG
 %token COUNT
 %token ENTRY_SIZE
+%token TTL
 
 %token AND "&&"
 %token OR "||"
@@ -69,6 +70,7 @@ parseXDRQuery(std::string const& query);
 %type <std::shared_ptr<ColumnNode>> column
 %type <std::shared_ptr<FieldNode>> field
 %type <std::shared_ptr<EntrySizeNode>> entry_size
+%type <std::shared_ptr<TTLNode>> ttl
 
 %type <std::shared_ptr<Accumulator>> accumulator
 %type <std::shared_ptr<AccumulatorList>> accumulator_list
@@ -118,8 +120,10 @@ literal: INT { $$ = std::make_shared<LiteralNode>(LiteralNodeType::INT, $1); }
 
 column: field { $$ = std::move($1); }
       | entry_size { $$ = std::move($1); }
+      | ttl { $$ = std::move($1); }
 
 entry_size: ENTRY_SIZE "(" ")" { $$ = std::make_shared<EntrySizeNode>(); }
+ttl: TTL "(" ")" { $$ = std::make_shared<TTLNode>(); }
 
 field: ID { $$ = std::make_shared<FieldNode>($1); }
      | field "." ID { $1->mFieldPath.push_back($3); $$ = std::move($1); }
