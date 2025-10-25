@@ -5,10 +5,12 @@
 #pragma once
 
 #include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <unordered_set>
 
 namespace stellar
@@ -66,6 +68,7 @@ class ParallelLedgerInfo
 };
 
 class ThreadParallelApplyLedgerState
+    : public LedgerEntryScope<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>
 {
     // Copies of snapshots from the global state.
     SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
@@ -100,7 +103,7 @@ class ThreadParallelApplyLedgerState
     // tx cluster from the current stage of the parallel apply phase. As with
     // the live entry map, any soroban entry in here must have an associated TTL
     // entry.
-    ParallelApplyEntryMap mThreadEntryMap;
+    ParallelApplyEntryMap<staticScope> mThreadEntryMap;
 
     // Contains a buffered set of RO TTL bumps that should only be observed
     // when/if the corresponding entry is modified, otherwise they are merged
@@ -111,18 +114,17 @@ class ThreadParallelApplyLedgerState
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
-    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
+    void upsertEntry(LedgerKey const& key, ThreadLedgerEntry const& entry,
                      uint32_t ledgerSeq);
     void eraseEntry(LedgerKey const& key);
-    void
-    commitChangeFromSuccessfulOp(LedgerKey const& key,
-                                 std::optional<LedgerEntry> const& entryOpt,
-                                 UnorderedSet<LedgerKey> const& roTTLSet);
+    void commitChangeFromSuccessfulTx(
+        LedgerKey const& key, std::optional<ThreadLedgerEntry> const& entryOpt,
+        UnorderedSet<LedgerKey> const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
                                    GlobalParallelApplyLedgerState const& global,
-                                   Cluster const& cluster);
+                                   Cluster const& cluster, size_t clusterIdx);
 
     // For every soroban LE in `txBundle`s RW footprint, ensure we've flushed
     // any buffered RO TTL bumps stored in `mRoTTLBumps` to the
@@ -149,18 +151,18 @@ class ThreadParallelApplyLedgerState
     // TTL entry is present in the `mThreadEntryMap` and is >= the bump TTL.
     void flushRemainingRoTTLBumps();
 
-    ParallelApplyEntryMap const& getEntryMap() const;
+    ParallelApplyEntryMap<staticScope> const& getEntryMap() const;
 
     RestoredEntries const& getRestoredEntries() const;
 
-    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    std::optional<EntryT> getLiveEntryOpt(LedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
 
-    void setEffectsDeltaFromSuccessfulOp(ParallelTxReturnVal const& res,
+    void setEffectsDeltaFromSuccessfulTx(ParallelTxReturnVal const& res,
                                          ParallelLedgerInfo const& ledgerInfo,
                                          TxEffects& effects) const;
 
-    void commitChangesFromSuccessfulOp(ParallelTxReturnVal const& res,
+    void commitChangesFromSuccessfulTx(ParallelTxReturnVal const& res,
                                        TxBundle const& txBundle);
 
     // The snapshot ledger sequence number is one less than the
@@ -175,6 +177,7 @@ class ThreadParallelApplyLedgerState
 };
 
 class GlobalParallelApplyLedgerState
+    : public LedgerEntryScope<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>
 {
     // Contains the hot archive state from the start of the ledger close. If a
     // key is in here, it is "evicted". An invariant is that if a key is in here
@@ -221,11 +224,22 @@ class GlobalParallelApplyLedgerState
     //    These are propagated from stage to stage of the parallel soroban phase
     //    -- split into disjoint per-thread maps during execution and merged
     //    after -- as well as written back to the ltx at the phase's end.
-    ParallelApplyEntryMap mGlobalEntryMap;
+    ParallelApplyEntryMap<staticScope> mGlobalEntryMap;
+
+    void preParallelApplyAndCollectModifiedClassicEntries(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        std::vector<ApplyStage> const& stages);
+
+    bool
+    maybeMergeRoTTLBumps(LedgerKey const& key,
+                         GlobalParallelApplyEntry const& newEntry,
+                         GlobalParallelApplyEntry& oldEntry,
+                         std::unordered_set<LedgerKey> const& readWriteSet);
 
     void
-    commitChangeFromThread(LedgerKey const& key,
-                           ParallelApplyEntry const& parEntry,
+    commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
+                           LedgerKey const& key,
+                           ThreadParallelApplyEntry const& parEntry,
                            std::unordered_set<LedgerKey> const& readWriteSet);
 
     void
@@ -239,7 +253,7 @@ class GlobalParallelApplyLedgerState
                                    InMemorySorobanState const& inMemoryState,
                                    SorobanNetworkConfig const& sorobanConfig);
 
-    ParallelApplyEntryMap const& getGlobalEntryMap() const;
+    ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
 
     void commitChangesFromThreads(
@@ -257,24 +271,32 @@ class GlobalParallelApplyLedgerState
     // Constructor requires access to mInMemorySorobanState
     friend ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
-        Cluster const& cluster);
+        Cluster const& cluster, size_t clusterIdx);
 };
 
-class OpParallelApplyLedgerState
+class TxParallelApplyLedgerState
+    : public LedgerEntryScope<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>
 {
     // Read-only access to the parent stage-spanning state.
     ThreadParallelApplyLedgerState const& mThreadState;
 
-    // Contains keys restored during this op. As with the thread RestoredEntries
+    // Guard that _deactivates reading_ ScopedLedgerEntries from the
+    // mThreadState while this tx state is alive, to prevent accidental
+    // access to stale data. Any access must scope_adopt_entry_from the thread
+    // state first.
+    DeactivateScopeGuard<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>
+        mThreadStateDeactivateGuard;
+
+    // Contains keys restored during this tx. As with the thread RestoredEntries
     // set, this is not just a key set but also contains entry values at the
     // point in time the entry was restored, and can be overridden by entries
-    // in the mOpEntryMap.
-    RestoredEntries mOpRestoredEntries;
+    // in the mTxEntryMap.
+    RestoredEntries mTxRestoredEntries;
 
-    // Contains entries changed during this op. As with all such maps, if a
+    // Contains entries changed during this tx. As with all such maps, if a
     // soroban entry is in this map, it must also have a TTL entry. Entries in
     // this map may also be set to nullopt, indicating that the entry was
-    // _deleted_ in this op.
+    // _deleted_ in this tx.
     //
     // Deletions will only be added if there was a previously-existing entry to
     // delete in the parent (thread or live snapshot) maps. A stray delete here
@@ -282,11 +304,11 @@ class OpParallelApplyLedgerState
     //
     // Any entry in this map is implicitly dirty. Merely loading data from the
     // thread map or the live snapshot does not add an entry to this map.
-    OpModifiedEntryMap mOpEntryMap;
+    TxModifiedEntryMap mTxEntryMap;
 
   public:
-    OpParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent);
-    std::optional<LedgerEntry> getLiveEntryOpt(LedgerKey const& key) const;
+    TxParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent);
+    std::optional<EntryT> getLiveEntryOpt(LedgerKey const& key) const;
 
     // Upsert the entry and sets the lastModifiedLedgerSeq to the given ledger
     // sequence number.
@@ -355,7 +377,7 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
         ParallelLedgerInfo const& ledgerInfo);
 
     ParallelLedgerInfo const& mLedgerInfo;
-    OpParallelApplyLedgerState mOpState;
+    TxParallelApplyLedgerState mTxState;
 
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
     bool upsertLedgerEntry(LedgerKey const& key,

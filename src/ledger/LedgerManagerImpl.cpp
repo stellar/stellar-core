@@ -22,6 +22,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -2281,7 +2282,7 @@ LedgerManagerImpl::applyThread(
 
         if (res.getSuccess())
         {
-            threadState->commitChangesFromSuccessfulOp(res, txBundle);
+            threadState->commitChangesFromSuccessfulTx(res, txBundle);
         }
         else
         {
@@ -2316,16 +2317,29 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 
     auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
 
+    // First build all the threads states, inertly. This will copy data
+    // needed from the global state into the thread states.
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         auto const& cluster = stage.getCluster(i);
         auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
-            app, globalState, cluster);
+            app, globalState, cluster, i);
+        threadStates.emplace_back(std::move(threadStatePtr));
+    }
+
+    // Now deactivate global scope and launch async tasks on threads. Global
+    // will be re-enabled when the guard goes out of scope.
+    DeactivateScopeGuard globalStateDeactivateGuard(globalState);
+    for (size_t i = 0; i < stage.numClusters(); ++i)
+    {
+        auto const& cluster = stage.getCluster(i);
+        auto threadStatePtr = std::move(threadStates.at(i));
         threadFutures.emplace_back(std::async(
             std::launch::async, &LedgerManagerImpl::applyThread, this,
             std::ref(app), std::move(threadStatePtr), std::cref(cluster),
             std::cref(config), ledgerInfo, sorobanBasePrngSeed));
     }
+    threadStates.clear();
 
     for (auto& threadFuture : threadFutures)
     {

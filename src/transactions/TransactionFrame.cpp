@@ -14,6 +14,7 @@
 #include "herder/TxSetFrame.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -30,6 +31,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
+#include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
@@ -2016,12 +2018,20 @@ TransactionFrame::parallelApply(
     // This tx failed validation earlier, do not apply it
     if (!txResult.isSuccess())
     {
-        return {false, {}};
+        return ParallelTxReturnVal{
+            false,
+            {},
+            LedgerEntryScopeID<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>(0,
+                                                                           0)};
     }
 
     if (!maybeAdoptFailedReplayResult(txResult))
     {
-        return {false, {}};
+        return ParallelTxReturnVal{
+            false,
+            {},
+            LedgerEntryScopeID<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>(0,
+                                                                           0)};
     }
 
     bool reportInternalErrOnException = true;
@@ -2058,7 +2068,7 @@ TransactionFrame::parallelApply(
 
         if (res.getSuccess())
         {
-            threadState.setEffectsDeltaFromSuccessfulOp(res, ledgerInfo,
+            threadState.setEffectsDeltaFromSuccessfulTx(res, ledgerInfo,
                                                         effects);
             opMeta.setLedgerChangesFromSuccessfulOp(threadState, res,
                                                     ledgerInfo.getLedgerSeq());
@@ -2110,7 +2120,10 @@ TransactionFrame::parallelApply(
             {"ledger", "transaction", "internal-error"});
         internalErrorCounter.inc();
     }
-    return {false, {}};
+    return ParallelTxReturnVal{
+        false,
+        {},
+        LedgerEntryScopeID<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>(0, 0)};
 }
 
 bool

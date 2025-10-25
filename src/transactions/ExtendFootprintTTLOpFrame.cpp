@@ -4,6 +4,7 @@
 
 #include "transactions/ExtendFootprintTTLOpFrame.h"
 #include "TransactionUtils.h"
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "medida/meter.h"
@@ -252,10 +253,16 @@ class ExtendFootprintTTLParallelApplyHelper
         return true;
     }
 
-    OpModifiedEntryMap
-    takeOpEntryMap()
+    ParallelTxReturnVal
+    takeSuccess()
     {
-        return std::move(mOpState.takeSuccess().getModifiedEntryMap());
+        return mTxState.takeSuccess();
+    }
+
+    ParallelTxReturnVal
+    takeFailure()
+    {
+        return mTxState.takeFailure();
     }
 };
 
@@ -276,11 +283,11 @@ ExtendFootprintTTLOpFrame::doParallelApply(
         app, threadState, ledgerInfo, res, refundableFeeTracker, opMeta, *this);
     if (helper.apply())
     {
-        return {true, helper.takeOpEntryMap()};
+        return helper.takeSuccess();
     }
     else
     {
-        return {false, {}};
+        return helper.takeFailure();
     }
 }
 
