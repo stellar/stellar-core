@@ -16,8 +16,10 @@
 #include "util/asio.h"
 
 #include "connection.hpp"
+#include <atomic>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -52,6 +54,9 @@ class server
     /// Start the server's io_context loop. Returns PIDs of all worker threads.
     std::vector<std::thread::id> start();
 
+    /// Shutdown the server and join all worker threads
+    void shutdown();
+
     static void parseParams(const std::string& params,
                             std::map<std::string, std::string>& retMap);
     static void
@@ -61,11 +66,6 @@ class server
   private:
     /// Perform an asynchronous accept operation.
     void do_accept();
-
-    void stop();
-
-    /// Wait for a request to stop the server.
-    void do_await_stop();
 
     /// Perform URL-decoding on a string. Returns false if the encoding was
     /// invalid.
@@ -77,14 +77,16 @@ class server
     /// The io_context used to perform asynchronous operations.
     asio::io_context io_context_;
 
-    /// The signal_set is used to register for process termination
-    /// notifications.
-    asio::signal_set signals_;
+    /// Work guard to keep io_context alive until explicitly stopped
+    std::optional<asio::executor_work_guard<asio::io_context::executor_type>>
+        work_guard_;
 
     /// Acceptor used to listen for incoming connections.
     asio::ip::tcp::acceptor acceptor_;
 
     std::vector<std::thread> worker_threads_{};
+
+    std::atomic<bool> mIsShutdown{false};
 
     std::map<std::string, routeHandler> mRoutes;
 };

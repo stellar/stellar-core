@@ -847,6 +847,10 @@ ApplicationImpl::gracefulStop()
         return;
     }
     mStopping = true;
+    if (mCommandHandler)
+    {
+        mCommandHandler->shutdown();
+    }
     shutdownLedgerCloseThread();
     if (mOverlayManager)
     {
