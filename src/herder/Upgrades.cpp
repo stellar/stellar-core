@@ -1240,7 +1240,8 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
             ltx);
     }
 
-    if (protocolVersionStartsFrom(newVersion, ProtocolVersion::V_24) &&
+    if (protocolVersionEquals(prevVersion, ProtocolVersion::V_23) &&
+        protocolVersionEquals(newVersion, ProtocolVersion::V_24) &&
         gIsProductionNetwork)
     {
         auto header = ltx.loadHeader();

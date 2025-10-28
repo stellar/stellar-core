@@ -2691,7 +2691,8 @@ TEST_CASE("upgrade to version 12", "[upgrades][acceptance]")
     }
 }
 
-TEST_CASE("upgrade to version 24 and check feePool", "[upgrades]")
+TEST_CASE("upgrade to 24 and then latest from 23 and check feePool",
+          "[upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -2708,7 +2709,13 @@ TEST_CASE("upgrade to version 24 and check feePool", "[upgrades]")
     auto p23feePool = lm.getLastClosedLedgerHeader().header.feePool;
 
     executeUpgrade(*app, makeProtocolVersionUpgrade(24));
+    REQUIRE(lm.getLastClosedLedgerHeader().header.feePool ==
+            p23feePool + 31879035);
 
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+
+    // No change
     REQUIRE(lm.getLastClosedLedgerHeader().header.feePool ==
             p23feePool + 31879035);
 }
