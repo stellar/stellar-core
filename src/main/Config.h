@@ -751,6 +751,11 @@ class Config : public std::enable_shared_from_this<Config>
     // Invariants
     std::vector<std::string> INVARIANT_CHECKS;
 
+    // Enable extra invariant checks that provide additional consistency
+    // verification but may be slow or resource-intensive. The default value is
+    // false.
+    bool INVARIANT_EXTRA_CHECKS;
+
     std::map<std::string, std::string> VALIDATOR_NAMES;
 
     // Information necessary to compute the weight of a validator for leader
