@@ -7501,6 +7501,141 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
     });
 }
 
+TEST_CASE("disable eviction scan", "[archival][soroban]")
+{
+    // This test verifies that when the eviction scan size is set to 0,
+    // no entries are evicted and the eviction iterator does not advance.
+    auto cfg = getTestConfig(0);
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+    cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+    cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+    cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 1;
+
+    SorobanTest test(cfg, false);
+    ContractStorageTestClient client(test);
+    auto& snapshotManager =
+        test.getApp().getBucketManager().getBucketSnapshotManager();
+
+    // WASM and instance should not expire
+    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+    // We'll create two evictable entries, one persistent and one temporary.
+    auto persistentKey = client.getContract().getDataKey(
+        makeSymbolSCVal("persistent_key"), ContractDataDurability::PERSISTENT);
+    client.put("persistent_key", ContractDataDurability::PERSISTENT, 123);
+
+    auto firstEvictionLedger =
+        test.getLCLSeq() +
+        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+
+    auto temporaryKey = client.getContract().getDataKey(
+        makeSymbolSCVal("temporary_key"), ContractDataDurability::TEMPORARY);
+    client.put("temporary_key", ContractDataDurability::TEMPORARY, 456);
+
+    // modifySorobanNetworkConfig will close 4 ledgers before the upgrade will
+    // take affect, so close enough ledgers here such that the persistent entry
+    // would be evicted on the ledger immediately following the upgrade.
+    for (auto ledgerSeq = test.getLCLSeq() + 1;
+         ledgerSeq < firstEvictionLedger - 4; ++ledgerSeq)
+    {
+        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+    }
+
+    // Disable eviction scan by setting evictionScanSize to 0
+    modifySorobanNetworkConfig(test.getApp(), [](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.evictionScanSize = 0;
+    });
+
+    // Capture the eviction iterator after disabling eviction scan
+    auto initialIterator = test.getNetworkCfg().evictionIterator();
+
+    // Close ledgers well beyond when the entries would have been evicted.
+    auto closeLedgersUntil = test.getLCLSeq() + 20;
+    for (auto ledgerSeq = test.getLCLSeq() + 1; ledgerSeq <= closeLedgersUntil;
+         ++ledgerSeq)
+    {
+        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+
+        // Verify iterator has not changed
+        REQUIRE(initialIterator == test.getNetworkCfg().evictionIterator());
+    }
+
+    auto liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
+    auto hotArchive =
+        snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+
+    auto assertTemp = [&](bool isLive) {
+        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
+        hotArchive =
+            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+        auto tempLiveLoad = liveBL->load(temporaryKey);
+        REQUIRE(static_cast<bool>(tempLiveLoad) == isLive);
+
+        // Temp entries are never archived
+        REQUIRE(!hotArchive->load(temporaryKey));
+    };
+
+    auto assertPersistent = [&](bool isLive) {
+        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
+        hotArchive =
+            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+
+        auto persistentLiveLoad = liveBL->load(persistentKey);
+        REQUIRE(static_cast<bool>(persistentLiveLoad) == isLive);
+
+        auto hotArchiveLoad = hotArchive->load(persistentKey);
+        REQUIRE(static_cast<bool>(hotArchiveLoad) != isLive);
+    };
+
+    // Verify entries are not evicted
+    assertPersistent(true);
+    assertTemp(true);
+
+    // Now, re-enable eviction. maxEntriesToArchive = 1 limits archiving to
+    // one entry per ledger. Note that the first eviction will actually occur on
+    // the upgrade ledger itself.
+    modifySorobanNetworkConfig(test.getApp(), [](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.evictionScanSize = 10000;
+        cfg.mStateArchivalSettings.maxEntriesToArchive = 1;
+    });
+
+    auto iteratorAfterUpgrade = test.getNetworkCfg().evictionIterator();
+
+    // Iterator should have advanced from initial position during the upgrade
+    // ledger.
+    REQUIRE(!(initialIterator == iteratorAfterUpgrade));
+    initialIterator = iteratorAfterUpgrade;
+
+    // Check that exactly one entry has been evicted
+    liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
+    hotArchive = snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+
+    auto persistentLiveLoad = liveBL->load(persistentKey);
+    if (persistentLiveLoad)
+    {
+        // If perstent entry is live, assert that the temp entry is evicted.
+        assertPersistent(true);
+        assertTemp(false);
+    }
+    else
+    {
+        // If perstent entry is evicted, assert that the temp entry is live.
+        assertPersistent(false);
+        assertTemp(true);
+    }
+
+    // Close one more ledger to evict the last remaining entry.
+    closeLedgerOn(test.getApp(), test.getLCLSeq() + 1, 2, 1, 2016);
+
+    // check that the iterator has advanced
+    REQUIRE(!(initialIterator == test.getNetworkCfg().evictionIterator()));
+
+    // Verify both entries have been evicted
+    assertPersistent(false);
+    assertTemp(false);
+}
+
 TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
 {
     VirtualClock clock;

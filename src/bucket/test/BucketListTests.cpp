@@ -1550,61 +1550,135 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
                     closeLedger(*app);
                 }
 
-                updateStateArchivalSettings(
-                    [&](StateArchivalSettings& sa) {
-                        // Scan meta entry + one other entry in initial scan
-                        sa.evictionScanSize = metadataSize + 1;
-                        // Reset eviction iter start of bucket being tested
-                        sa.startingEvictionScanLevel = levelToTest;
-                    },
-                    [&](EvictionIterator& ei) {
-                        ei.bucketFileOffset = 0;
-                        ei.isCurrBucket = isCurr;
-                        ei.bucketListLevel = 1;
-                    });
+                auto f = [&](bool disableEviction) {
+                    updateStateArchivalSettings(
+                        [&](StateArchivalSettings& sa) {
+                            // Scan meta entry + one other entry in initial
+                            // scan, or disable scan entirely
+                            sa.evictionScanSize =
+                                disableEviction ? 0 : metadataSize + 1;
+                            // Reset eviction iter start of bucket being tested
+                            sa.startingEvictionScanLevel = levelToTest;
+                        },
+                        [&](EvictionIterator& ei) {
+                            // If scanning is enabled, reset iterator to the
+                            // start. Otherwise, set the iterator to some
+                            // arbitrary location so we can see if it was
+                            // changed properly.
+                            ei.bucketFileOffset = disableEviction ? 10 : 0;
+                            ei.isCurrBucket = isCurr;
+                            ei.bucketListLevel = 1;
+                        });
 
-                // Advance until one ledger before bucket is updated
-                auto ledgersUntilUpdate =
-                    LiveBucketList::bucketUpdatePeriod(levelToTest,
-                                                       isCurr) -
-                    1; // updateStateArchivalSettings closes a ledger that we
-                       // need to count
-                REQUIRE(ledgersUntilUpdate >= 1);
-                for (uint32_t i = 0; i < ledgersUntilUpdate - 1; ++i)
-                {
-                    auto startingIter = evictionIter();
+                    // Advance until one ledger before bucket is updated
+                    auto ledgersUntilUpdate =
+                        LiveBucketList::bucketUpdatePeriod(levelToTest,
+                                                           isCurr) -
+                        1; // updateStateArchivalSettings closes a ledger that
+                           // we need to count
+                    REQUIRE(ledgersUntilUpdate >= 1);
+                    for (uint32_t i = 0; i < ledgersUntilUpdate - 1; ++i)
+                    {
+                        auto startingIter = evictionIter();
+                        closeLedger(*app);
+                        ++ledgerSeq;
+
+                        if (disableEviction)
+                        {
+                            // Make sure scan doesn't advance iterator when
+                            // disabled
+                            REQUIRE(evictionIter() == startingIter);
+                        }
+                        else
+                        {
+                            // Check that iterator is making progress correctly
+                            REQUIRE(evictionIter().bucketFileOffset >
+                                    startingIter.bucketFileOffset);
+                            REQUIRE(evictionIter().bucketListLevel ==
+                                    levelToTest);
+                            REQUIRE(evictionIter().isCurrBucket == isCurr);
+                        }
+                    }
+
+                    auto iterBeforeBucketChange = evictionIter();
+
+                    // Next ledger close should update bucket
+                    auto startingHash = bucket()->getHash();
                     closeLedger(*app);
                     ++ledgerSeq;
 
-                    // Check that iterator is making progress correctly
-                    REQUIRE(evictionIter().bucketFileOffset >
-                            startingIter.bucketFileOffset);
+                    // Check that bucket actually changed
+                    REQUIRE(bucket()->getHash() != startingHash);
+
+                    // The iterator retroactively checks if the Bucket has
+                    // changed, so close one additional ledger to check if the
+                    // iterator has reset. This is due to the scan using a
+                    // BucketList snapshot of the lcl ledger.
+                    closeLedger(*app);
+                    ++ledgerSeq;
+
+                    LiveBucketInputIterator in(bucket());
+
+                    // Check that iterator has reset to beginning of bucket
+                    if (disableEviction)
+                    {
+                        REQUIRE(evictionIter().bucketFileOffset == 0);
+                    }
+                    else
+                    {
+                        // If scan is enabled, we should reset then scan the
+                        // first entry (not including meta)
+                        REQUIRE(evictionIter().bucketFileOffset ==
+                                metadataSize + xdr::xdr_size(*in) +
+                                    xdrOverheadBytes);
+                    }
                     REQUIRE(evictionIter().bucketListLevel == levelToTest);
                     REQUIRE(evictionIter().isCurrBucket == isCurr);
+
+                    // Check that the iterator actually changed
+                    REQUIRE(!(iterBeforeBucketChange == evictionIter()));
+
+                    // If eviction was disabled, re-enable it and verify we
+                    // start making progress again
+                    if (disableEviction)
+                    {
+                        // Re-enable eviction scan
+                        updateStateArchivalSettings(
+                            [&](StateArchivalSettings& sa) {
+                                sa.evictionScanSize = metadataSize + 1;
+                            },
+                            [](EvictionIterator&) {
+                                // Don't modify iterator, let it continue from
+                                // where it reset to
+                            });
+
+                        // Close a few ledgers and verify iterator advances
+                        for (uint32_t i = 0; i < 2; ++i)
+                        {
+                            auto prevIter = evictionIter();
+                            closeLedger(*app);
+                            ++ledgerSeq;
+
+                            // Iterator should be making progress now that
+                            // eviction is re-enabled
+                            REQUIRE(evictionIter().bucketFileOffset >
+                                    prevIter.bucketFileOffset);
+                            REQUIRE(evictionIter().bucketListLevel ==
+                                    levelToTest);
+                            REQUIRE(evictionIter().isCurrBucket == isCurr);
+                        }
+                    }
+                };
+
+                SECTION("eviction disabled")
+                {
+                    f(true);
                 }
 
-                // Next ledger close should update bucket
-                auto startingHash = bucket()->getHash();
-                closeLedger(*app);
-                ++ledgerSeq;
-
-                // Check that bucket actually changed
-                REQUIRE(bucket()->getHash() != startingHash);
-
-                // The iterator retroactively checks if the Bucket has
-                // changed, so close one additional ledger to check if the
-                // iterator has reset
-                closeLedger(*app);
-                ++ledgerSeq;
-
-                LiveBucketInputIterator in(bucket());
-
-                // Check that iterator has reset to beginning of bucket and
-                // read meta entry + one additional entry
-                REQUIRE(evictionIter().bucketFileOffset ==
-                        metadataSize + xdr::xdr_size(*in) + xdrOverheadBytes);
-                REQUIRE(evictionIter().bucketListLevel == levelToTest);
-                REQUIRE(evictionIter().isCurrBucket == isCurr);
+                SECTION("eviction enabled")
+                {
+                    f(false);
+                }
             };
 
             SECTION("curr bucket")

@@ -314,8 +314,11 @@ LiveBucketSnapshot::scanForEviction(
                 // for persistent entries, we need to make sure we evict the
                 // newest version of the entry, since it will be persisted in
                 // the hot archive. So we add persistent entries to our DB
-                // lookup to find the newest version.
-                if (isPersistentEntry(le.data))
+                // lookup to find the newest version. Note that there was a
+                // bug in protocol 23 where this check was not performed.
+                if (isPersistentEntry(le.data) &&
+                    protocolVersionStartsFrom(ledgerVers,
+                                              ProtocolVersion::V_24))
                 {
                     keysToSearch.emplace(LedgerEntryKey(le));
                 }
