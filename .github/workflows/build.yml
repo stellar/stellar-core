@@ -18,7 +18,7 @@ jobs:
 
   complete:
     if: always()
-    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build]
+    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build-linux, build-mac]
     runs-on:
       - namespace-profile-jammy-1-stellar-core
       - nscloud-cache-exp-do-not-commit
@@ -73,7 +73,7 @@ jobs:
           submodules: recursive
       - uses: stellar/actions/rust-check-git-rev-deps@main
 
-  build:
+  build-linux:
     runs-on:
       - namespace-profile-jammy-32-stellar-core;overrides.cache-tag=config-${{ matrix.toolchain }}-${{ matrix.protocol }}
     strategy:
@@ -124,3 +124,51 @@ jobs:
           fi
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+
+  build-mac:
+    runs-on:
+      - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
+    steps:
+
+      - name: Checkout with Namespace Git mirrors cache
+        uses: namespacelabs/nscloud-checkout-action@v7
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Configure Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.cargo
+            build-clang-current
+
+      - name: install prerequisites and uninstall brew rust, add rustup
+        run: |
+          brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
+          brew uninstall rust rustup
+          brew install rustup
+
+      - name: install rustup components
+        run: |
+          rustup-init -y
+          rustup component add rustfmt rustc cargo clippy rust-src rust-std
+
+      - name: install cargo-cache
+        run: |
+          cargo install --locked cargo-cache --version 0.8.3
+
+      - name: install cargo-sweep
+        run: |
+          cargo install --locked cargo-sweep --version 0.7.0
+
+      - name: Build
+        run: |
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
+          export PATH="$(brew --prefix bison)/bin:$PATH"
+          export CC='clang'
+          export CXX='clang++'
+          export CLANG_VERSION=none
+          export SKIP_FORMAT_CHECK=1
+          ./ci-build.sh --disable-postgres --protocol current
