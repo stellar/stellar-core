@@ -11,6 +11,8 @@ namespace Catch
 
 struct SimpleTestReporter : public ConsoleReporter
 {
+    static bool gDisableDots;
+
     SimpleTestReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
     {
     }
@@ -41,7 +43,10 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     sectionStarting(SectionInfo const& _sectionInfo) override
     {
-        printDot();
+        if (!gDisableDots)
+        {
+            printDot();
+        }
         ConsoleReporter::sectionStarting(_sectionInfo);
     }
 
