@@ -2720,6 +2720,84 @@ TEST_CASE("upgrade to 24 and then latest from 23 and check feePool",
             p23feePool + 31879035);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("upgrade to version 25 and check cost types", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(24));
+
+    // Load CPU and memory cost params before upgrade
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        LedgerKey cpuKey(CONFIG_SETTING);
+        cpuKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+        // Before v25, the params should only go up to the last v24 cost type
+        REQUIRE(ltx.load(cpuKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsCpuInsns()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bls12381FrInv) + 1);
+
+        LedgerKey memKey(CONFIG_SETTING);
+        memKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+        // Before v25, memory params should also only go up to the last v24 cost
+        // type
+        REQUIRE(ltx.load(memKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsMemBytes()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bls12381FrInv) + 1);
+    }
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(25));
+
+    // After upgrade to v25, verify BN254 cost types were added
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        // Check CPU cost params
+        LedgerKey cpuKey(CONFIG_SETTING);
+        cpuKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+        // After v25, params should include all BN254 cost types (up to
+        // Bn254FrInv)
+        REQUIRE(ltx.load(cpuKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsCpuInsns()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
+
+        // Check memory cost params
+        LedgerKey memKey(CONFIG_SETTING);
+        memKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+        // After v25, params should include all BN254 cost types (up to
+        // Bn254FrInv)
+        REQUIRE(ltx.load(memKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsMemBytes()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
+    }
+}
+#endif
+
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
