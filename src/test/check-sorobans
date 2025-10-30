@@ -28,9 +28,10 @@ SKIP_TESTS="host::declared_size::test::test_expected_size"
 set -e
 set -x
 
-cd rust/soroban
+cd "${top_srcdir}/src/rust/soroban"
 for i in p??; do
     cd $i
+    CARGO_TARGET_DIR="${top_builddir}/src/rust/soroban/${i}/target" \
     RUSTFLAGS="-Cmetadata=${i}" cargo +${RUST_TOOLCHAIN_CHANNEL} \
         test \
         --locked \

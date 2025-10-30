@@ -26,13 +26,9 @@ while [[ -n "$1" ]]; do
             export TEMP_POSTGRES=1
             echo Using temp database
             ;;
-    "--check-test-tx-meta")
-            if [[ -z "${PROTOCOL}" ]]; then
-                echo 'must specify --protocol before --check-test-tx-meta'
-                exit 1
-            fi
-            export TEST_SPEC='[tx]'
-            export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${PWD}/test-tx-meta-baseline-${PROTOCOL}"
+    "--disable-postgres")
+            export DISABLE_POSTGRES='--disable-postgres'
+            echo Disabling postgres
             ;;
     "--protocol")
             PROTOCOL="$1"
@@ -54,19 +50,22 @@ while [[ -n "$1" ]]; do
             ;;
     *)
             echo Unknown parameter ${COMMAND}
-            echo Usage: $0 "[--disable-tests][--use-temp-db]"
+            echo Usage: $0 "[--disable-tests][--use-temp-db][--disable-postgres]"
             exit 1
             ;;
     esac
 
 done
 
-echo $TRAVIS_PULL_REQUEST
-
 NPROCS=$(getconf _NPROCESSORS_ONLN)
 
 echo "Found $NPROCS processors"
 date
+
+SRC_DIR=$(pwd)
+
+mkdir -p "build-${CC}-${PROTOCOL}"
+cd "build-${CC}-${PROTOCOL}"
 
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir -p bin
@@ -79,14 +78,16 @@ if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
     # Use CLANG_VERSION environment variable if set, otherwise default to 12
     CLANG_VER=${CLANG_VERSION:-12}
-    which clang-${CLANG_VER}
-    ln -sf `which clang-${CLANG_VER}` bin/clang
-    which clang++-${CLANG_VER}
-    ln -sf `which clang++-${CLANG_VER}` bin/clang++
-    which llvm-symbolizer-${CLANG_VER}
-    ln -sf `which llvm-symbolizer-${CLANG_VER}` bin/llvm-symbolizer
-    clang -v
-    llvm-symbolizer --version || true
+    if test ${CLANG_VER} != 'none'; then
+	which clang-${CLANG_VER}
+	ln -sf `which clang-${CLANG_VER}` bin/clang
+	which clang++-${CLANG_VER}
+	ln -sf `which clang++-${CLANG_VER}` bin/clang++
+	which llvm-symbolizer-${CLANG_VER}
+	ln -sf `which llvm-symbolizer-${CLANG_VER}` bin/llvm-symbolizer
+	clang -v
+	llvm-symbolizer --version || true
+    fi
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
     which gcc-10
@@ -97,7 +98,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG}"
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
 export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
 export CXXFLAGS="$CFLAGS"
 
@@ -111,11 +112,11 @@ export ASAN_OPTIONS="quarantine_size_mb=100:malloc_context_size=4:detect_leaks=0
 echo "config_flags = $config_flags"
 
 #### ccache config
-export CCACHE_DIR=$HOME/.ccache
+export CCACHE_DIR=$(pwd)/.ccache
 export CCACHE_COMPRESS=true
 export CCACHE_COMPRESSLEVEL=9
 # cache size should be large enough for a full build
-export CCACHE_MAXSIZE=500M
+export CCACHE_MAXSIZE=800M
 export CCACHE_CPP2=true
 
 # periodically check to see if caches are old and purge them if so
@@ -127,11 +128,11 @@ if [ -d "$CCACHE_DIR" ] ; then
 fi
 
 ccache -p
-
 ccache -s
+ccache -z
 date
-time ./autogen.sh
-time ./configure $config_flags
+time (cd "${SRC_DIR}" && ./autogen.sh)
+time "${SRC_DIR}/configure" $config_flags
 if [ -z "${SKIP_FORMAT_CHECK}" ]; then
     make format
     d=`git diff | wc -l`
@@ -155,28 +156,27 @@ date
 time make -j$(($NPROCS - 1))
 
 ccache -s
-### incrementally purge old content from cargo source cache and target directory
-cargo cache trim --limit 100M
-cargo sweep --maxsize 500MB
+### incrementally purge old content from target directory
+(cd "${SRC_DIR}" && CARGO_TARGET_DIR="build-${CC}-${PROTOCOL}/target" cargo sweep --maxsize 800MB)
 
 if [ $WITH_TESTS -eq 0 ] ; then
     echo "Build done, skipping tests"
     exit 0
 fi
 
-if [ $TEMP_POSTGRES -eq 0 ] ; then
-    # Create postgres databases (drop first if they exist to ensure clean state)
-    export PGUSER=postgres
-    psql -c "drop database if exists test;" 2>/dev/null || true
-    psql -c "create database test;"
-    # we run NPROCS jobs in parallel
-    for j in $(seq 0 $((NPROCS-1))); do
-        base_instance=$((j*50))
-        for i in $(seq $base_instance $((base_instance+15))); do
-            psql -c "drop database if exists test$i;" 2>/dev/null || true
-            psql -c "create database test$i;"
-        done
-    done
+if [ $DISABLE_POSTGRES != '--disable-postgres' ] ; then
+    if [ $TEMP_POSTGRES -eq 0 ] ; then
+	# Create postgres databases
+	export PGUSER=postgres
+	psql -c "create database test;"
+	# we run NPROCS jobs in parallel
+	for j in $(seq 0 $((NPROCS-1))); do
+            base_instance=$((j*50))
+            for i in $(seq $base_instance $((base_instance+15))); do
+		psql -c "create database test$i;"
+            done
+	done
+    fi
 fi
 
 export ALL_VERSIONS=1
@@ -184,7 +184,12 @@ export NUM_PARTITIONS=$((NPROCS*2))
 export RUN_PARTITIONS
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
-ulimit -n 256
+ulimit -n 4096
+time make check
+
+echo Running fixed check-test-tx-meta tests
+export TEST_SPEC='[tx]'
+export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
 time make check
 
 echo All done

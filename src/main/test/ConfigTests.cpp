@@ -147,7 +147,7 @@ TEST_CASE("resolve node id", "[config]")
 TEST_CASE("load validators config", "[config]")
 {
     Config c;
-    c.load("testdata/stellar-core_example_validators.cfg");
+    c.load(getBuildTestDataPath("stellar-core_example_validators.cfg"));
     auto actualS = c.toString(c.QUORUM_SET);
     std::string expected = R"({
    "t" : 4,
@@ -456,9 +456,8 @@ TEST_CASE("load example configs", "[config]")
         "stellar-core_testnet_validator.cfg"};
     for (auto const& fn : testFiles)
     {
-        std::string fnPath = "testdata/";
-        fnPath += fn;
-        SECTION("load config " + fnPath)
+        auto fnPath = getBuildTestDataPath(fn);
+        SECTION("load config " + fnPath.string())
         {
             c.load(fnPath);
         }

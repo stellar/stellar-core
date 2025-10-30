@@ -65,11 +65,11 @@ endif # !BUILD_TESTS
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 CARGO_FEATURE_NEXT = --features next
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
+	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-next >$@
 else
 CARGO_FEATURE_NEXT =
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
+	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-curr >$@
 endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
@@ -89,6 +89,7 @@ BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp main/XDRFilesSh
 $(SRC_X_FILES:.x=.h): $(XDRC)
 SUFFIXES = .x .h .rs
 .x.h:
+	mkdir -p $(@D)
 	$(XDRC) -hh -pedantic -o $@ $<
 
 BISON=bison
@@ -124,9 +125,11 @@ RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TO
 endif
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
 
-# we pass RUST_TOOLCHAIN_CHANNEL by environment variable
+# we pass some configuration by environment variable
 # to tests since they can't take command-line arguments.
 export RUST_TOOLCHAIN_CHANNEL
+export top_srcdir
+export top_builddir
 
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
@@ -233,11 +236,12 @@ rust/RustBridge.cpp: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRI
 
 $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
+	mkdir -p $(RUST_BUILD_DIR)/src/dep-trees
 	for proto in $(ALL_SOROBAN_PROTOCOLS); \
 	do \
-		$(CARGO) tree --manifest-path rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
+		$(CARGO) tree --manifest-path $(top_srcdir)/src/rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
 		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt ; \
-		if ! diff -u rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
+		if ! diff -u $(top_srcdir)/src/rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
 		then \
 			echo "dep trees differ, please update $${proto}-expect.txt or roll back submodule"; \
 			exit 1; \
@@ -272,6 +276,7 @@ CARGOFLAGS_BUILDSTD := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),-Zbuild-st
 RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
 
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
+	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
@@ -346,9 +351,11 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \
 			;; \
 		esac ; \
-		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
+		mkdir -p $(SOROBAN_BUILD_DIR)/$$proto/target && \
+		cd $(abspath $(top_srcdir))/src/rust/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 		RUSTFLAGS="-Cmetadata=$$proto" \
+		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
 			--package soroban-env-host \
@@ -376,6 +383,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
+	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
