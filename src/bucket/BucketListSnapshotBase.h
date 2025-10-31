@@ -103,12 +103,6 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     medida::Meter& mBloomMisses;
     medida::Meter& mBloomLookups;
 
-    // Loops through all buckets, starting with curr at level 0, then snap at
-    // level 0, etc. Calls f on each bucket. Exits early if function
-    // returns Loop::COMPLETE.
-    void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f,
-                        BucketListSnapshot<BucketT> const& snapshot) const;
-
     SearchableBucketListSnapshotBase(
         BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector, SnapshotPtrT<BucketT>&& snapshot,
@@ -122,6 +116,19 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
                                     size_t numEntries) const;
 
   public:
+    // Loops through all buckets, starting with curr at level 0, then snap at
+    // level 0, etc. Calls f on each bucket. Exits early if function
+    // returns Loop::COMPLETE.
+    void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f,
+                        BucketListSnapshot<BucketT> const& snapshot) const;
+
+    // Overload that uses the internal snapshot
+    void
+    loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f) const
+    {
+        loopAllBuckets(f, *mSnapshot);
+    }
+
     uint32_t
     getLedgerSeq() const
     {

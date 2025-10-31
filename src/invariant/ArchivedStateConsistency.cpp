@@ -27,7 +27,16 @@ ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
 std::string
 ArchivedStateConsistency::start(Application& app)
 {
-    LogSlowExecution logSlow("ArchivedStateConsistency::start");
+    releaseAssert(threadIsMain());
+    LogSlowExecution logSlow("ArchivedStateConsistency startup");
+
+    if (!app.getConfig().INVARIANT_EXTRA_CHECKS)
+    {
+        CLOG_INFO(Invariant,
+                  "Skipping ArchivedStateConsistency startup check - "
+                  "INVARIANT_EXTRA_CHECKS is disabled");
+        return std::string{};
+    }
 
     auto protocolVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
@@ -47,31 +56,58 @@ ArchivedStateConsistency::start(Application& app)
 
     std::map<LedgerKey, LedgerEntry> archived =
         app.getBucketManager().loadCompleteHotArchiveState(has);
-    std::map<LedgerKey, LedgerEntry> live =
-        app.getBucketManager().loadCompleteLedgerState(has);
-    auto archivedIt = archived.begin();
-    auto liveIt = live.begin();
 
-    while (archivedIt != archived.end() && liveIt != live.end())
+    // Get live snapshot for iterating through buckets
+    auto liveSnapshot = app.getBucketManager()
+                            .getBucketSnapshotManager()
+                            .copySearchableLiveBucketListSnapshot();
+
+    // Track which keys we've already seen in live buckets (from level 0 upward)
+    // to avoid checking duplicates
+    UnorderedSet<LedgerKey> seenKeys;
+
+    // Iterate through live buckets from level 0 upward and check if any key
+    // also exists in archived state
+    std::string result;
+    liveSnapshot->loopAllBuckets([&](LiveBucketSnapshot const& bucketSnapshot) {
+        LiveBucketInputIterator it(bucketSnapshot.getRawBucket());
+        while (it && result.empty())
+        {
+            BucketEntry const& e = *it;
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+            {
+                auto key = LedgerEntryKey(e.liveEntry());
+
+                // Skip if we've already seen this key in a more recent
+                // bucket
+                if (seenKeys.find(key) == seenKeys.end())
+                {
+                    seenKeys.insert(key);
+
+                    // Check if this key also exists in archived state
+                    if (archived.find(key) != archived.end())
+                    {
+                        result = fmt::format(
+                            FMT_STRING(
+                                "ArchivedStateConsistency: Entry with the "
+                                "same key is present in both live and "
+                                "archived state. Key: {}"),
+                            xdrToCerealString(key, "entry_key"));
+                    }
+                }
+            }
+            else
+            {
+                seenKeys.insert(e.deadEntry());
+            }
+            ++it;
+        }
+        return result.empty() ? Loop::INCOMPLETE : Loop::COMPLETE;
+    });
+
+    if (!result.empty())
     {
-        if (archivedIt->first < liveIt->first)
-        {
-            archivedIt++;
-            continue;
-        }
-        else if (liveIt->first < archivedIt->first)
-        {
-            liveIt++;
-            continue;
-        }
-        else
-        {
-            return fmt::format(
-                FMT_STRING(
-                    "ArchivedStateConsistency:: Entry with the same key is "
-                    "present in both live and archived state. Key: {}"),
-                xdrToCerealString(archivedIt->first, "entry_key"));
-        }
+        return result;
     }
 
     CLOG_INFO(Invariant, "ArchivedStateConsistency invariant passed");
@@ -134,6 +170,10 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     // Keys for restored entries
     for (auto const& [key, entry] : restoredFromArchive)
     {
+        if (key.type() != TTL)
+        {
+            releaseAssertOrThrow(isPersistentEntry(key));
+        }
         allKeys.insert(key);
     }
     for (auto const& [key, entry] : restoredFromLiveState)
