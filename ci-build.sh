@@ -201,6 +201,7 @@ time make check
 echo Running fixed check-test-tx-meta tests
 export TEST_SPEC='[tx]'
 export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
+export SKIP_SOROBAN_TESTS=true
 time make check
 
 echo All done

@@ -17,6 +17,12 @@ then
     exit 1
 fi
 
+if [ -n "${SKIP_SOROBAN_TESTS}" ];
+then
+    echo "skipping soroban tests"
+    exit 0
+fi
+
 # Define tests to skip
 # `test_expected_size` tests the actual memory sizes of types used in memory metering.
 # This test is skipped because memory sizes vary based on Rust compiler version and 
