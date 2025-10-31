@@ -73,12 +73,12 @@ cd "build-${CC}-${PROTOCOL}"
 if [ -e prev-pass-rev ]
 then
    PREV_REV=$(cat prev-pass-rev)
-   CURR_REV=$(git rev-parse HEAD)
+   CURR_REV=$(git -C "${SRC_DIR}" rev-parse HEAD)
    if [ "${PREV_REV}" = "${CURR_REV}" ]
    then
        exit 0
    fi
-   rm prev-pass-rev
+   rm -f prev-pass-rev
 fi
 
 
@@ -225,5 +225,5 @@ time make check
 echo All done
 date
 
-git rev-parse HEAD >prev-pass-rev
+git -C "${SRC_DIR}" rev-parse HEAD >prev-pass-rev
 exit 0
