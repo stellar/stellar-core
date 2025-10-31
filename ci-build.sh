@@ -67,6 +67,20 @@ SRC_DIR=$(pwd)
 mkdir -p "build-${CC}-${PROTOCOL}"
 cd "build-${CC}-${PROTOCOL}"
 
+# Check to see if we _just_ tested this rev in
+# a merge queue, and if so don't bother doing
+# it again. Wastes billable CPU time.
+if [ -e prev-pass-rev ]
+   PREV_REV=$(cat prev-pass-rev)
+   CURR_REV=$(git rev-parse HEAD)
+   if [ "${PREV_REV}" = "${CURR_REV}" ]
+   then
+       exit 0
+   fi
+   rm prev-pass-rev
+fi
+
+
 # restore source file mtimes based on content hashes
 for DIR in src lib
 do
@@ -206,4 +220,6 @@ time make check
 
 echo All done
 date
+
+git rev-parse HEAD >prev-pass-rev
 exit 0
