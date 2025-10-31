@@ -71,6 +71,7 @@ cd "build-${CC}-${PROTOCOL}"
 # a merge queue, and if so don't bother doing
 # it again. Wastes billable CPU time.
 if [ -e prev-pass-rev ]
+then
    PREV_REV=$(cat prev-pass-rev)
    CURR_REV=$(git rev-parse HEAD)
    if [ "${PREV_REV}" = "${CURR_REV}" ]
@@ -82,7 +83,8 @@ fi
 
 
 # restore source file mtimes based on content hashes
-if which mtime-travel >/dev/null 2>&1; then
+if which mtime-travel >/dev/null 2>&1
+then
     for DIR in src lib
     do
 	if [ -e mtimes-${DIR}.json ]
