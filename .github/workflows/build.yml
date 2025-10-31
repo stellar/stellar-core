@@ -114,6 +114,21 @@ jobs:
           cargo install --locked cargo-sweep --version 0.7.0
           cargo install --locked mtime-travel --version 0.1.0
 
+      # Restore original modification time of files based on the date of the most
+      # recent commit that modified them as mtimes affect the Go test cache.
+      - name: Restore modification time of checkout files
+        shell: bash
+        run: |
+          # Set a base, fixed modification time of all directories.
+          # git-restore-mtime doesn't set the mtime of all directories.
+          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+          # Restore original modification time from git. git clone sets the
+          # modification time to the current time, but Go tests that access fixtures
+          # get invalidated if their modification times change.
+          sudo apt-get install -y git-restore-mtime
+          git restore-mtime
+
       - name: Build
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then
@@ -159,7 +174,21 @@ jobs:
         run: |
           cargo install --locked cargo-cache --version 0.8.3
           cargo install --locked cargo-sweep --version 0.7.0
-          cargo install --locked mtime-travel --version 0.1.0
+
+      # Restore original modification time of files based on the date of the most
+      # recent commit that modified them as mtimes affect the Go test cache.
+      - name: Restore modification time of checkout files
+        shell: bash
+        run: |
+          # Set a base, fixed modification time of all directories.
+          # git-restore-mtime doesn't set the mtime of all directories.
+          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+          # Restore original modification time from git. git clone sets the
+          # modification time to the current time, but Go tests that access fixtures
+          # get invalidated if their modification times change.
+          brew install git-tools
+          git restore-mtime
 
       - name: Build
         run: |
