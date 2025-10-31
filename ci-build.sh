@@ -164,11 +164,11 @@ time (cd "${SRC_DIR}" && ./autogen.sh)
 time "${SRC_DIR}/configure" $config_flags
 if [ -z "${SKIP_FORMAT_CHECK}" ]; then
     make format
-    d=`git diff | wc -l`
+    d=`git -C "${SRC_DIR}" diff | wc -l`
     if [ $d -ne 0 ]
     then
         echo "clang format must be run as part of the pull request, current diff:"
-        git diff
+        git -C "${SRC_DIR}" diff
         exit 1
     fi
 fi
