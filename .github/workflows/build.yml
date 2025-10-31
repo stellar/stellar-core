@@ -18,22 +18,31 @@ jobs:
 
   complete:
     if: always()
-    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build]
-    runs-on: ubuntu-24.04
+    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build-linux, build-mac]
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-small
+      - nscloud-cache-exp-do-not-commit
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
       run: exit 1
 
   fmt:
-    runs-on: ubuntu-24.04
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-small
+      - nscloud-cache-exp-do-not-commit
     steps:
-    - uses: actions/checkout@v4
-    - run: rustup component add rustfmt
-    - run: rustup update
-    - run: cargo fmt --all --check
+      - uses: namespacelabs/nscloud-checkout-action@v7
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - run: rustup component add rustfmt
+      - run: rustup update
+      - run: cargo fmt --all --check
 
   cargo-deny:
-    runs-on: ubuntu-24.04
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-small
+      - nscloud-cache-exp-do-not-commit
     strategy:
       matrix:
         checks:
@@ -42,100 +51,90 @@ jobs:
     # Prevent sudden announcement of a new advisory from failing ci:
     continue-on-error: ${{ matrix.checks == 'advisories' }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
-      with:
-        command: check ${{ matrix.checks }}
-        # leave arguments empty so we don't test --all-features
-        # which will see conflicting env versions
-        arguments:
+      - uses: namespacelabs/nscloud-checkout-action@v7
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
+        with:
+          command: check ${{ matrix.checks }}
+          # leave arguments empty so we don't test --all-features
+          # which will see conflicting env versions
+          arguments:
 
   rust-check-git-rev-deps:
-    runs-on: ubuntu-24.04
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-small
+      - nscloud-cache-exp-do-not-commit
     steps:
-    - uses: actions/checkout@v4
-    - uses: stellar/actions/rust-check-git-rev-deps@main
+      - uses: namespacelabs/nscloud-checkout-action@v7
+        with:
+          fetch-depth: 1
+          submodules: recursive
+      - uses: stellar/actions/rust-check-git-rev-deps@main
 
-  build:
-    runs-on: ubuntu-24.04
-    env:
-      CACHED_PATHS: |
-        ~/.ccache
-        ~/.cargo
-        target
+  build-linux:
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-${{ matrix.toolchain }}-${{ matrix.protocol }}
     strategy:
       fail-fast: false
       matrix:
         toolchain: [ "gcc", "clang"]
         protocol: ["current", "next"]
-        scenario: ["", "--check-test-tx-meta"]
     steps:
       - name: Fix kernel mmap rnd bits
-        # Asan in llvm provided in ubuntu 22.04 is incompatible with
+        # Asan in llvm provided in some ubuntus is incompatible with
         # high-entropy ASLR in much newer kernels that GitHub runners are
         # using leading to random crashes: https://reviews.llvm.org/D148280
         run: sudo sysctl vm.mmap_rnd_bits=28
 
-      # We start with as cheap as possible a cache probe to see if we have an exact hit on this
-      # git commit ID (for a given OS/toolchain/protocol). If so we can skip all subsequent
-      # steps: we already tested this exact SHA.
-      #
-      # Unfortunately due to the way github actions control flow works, we have to repeat the
-      # step 'if' condition in each step, and cannot actually "exit early" and skip the job.
-      # There are a lot of duplicate bug reports filed on this aspect of github actions, don't
-      # bother filing another.
-      - name: Probe Cache
-        id: cache
-        uses: actions/cache/restore@v4
+      - name: Checkout with Namespace Git mirrors cache
+        uses: namespacelabs/nscloud-checkout-action@v7
         with:
-          path: ${{ env.CACHED_PATHS }}
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-${{ github.sha }}
-          lookup-only: true
+          fetch-depth: 1
+          submodules: recursive
 
-      # When we have a cache miss on the exact commit SHA, we restore from the prefix without it.
-      # This will restore the most-recently-written cache (github does this date ordering itself).
-      - name: Restore Cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v4
+      - name: Configure Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
-          path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}
+          path: |
+            ~/.cargo
+            build-${{matrix.toolchain}}-${{matrix.protocol}}
 
-      - uses: actions/checkout@v4
-        if: steps.cache.outputs.cache-hit != 'true'
-        with:
-           fetch-depth: 200
-           submodules: true
-      - name: install core packages
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
-      - name: install tool chain
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get -y install libstdc++-14-dev clang-format-20 ccache lldb
-          if test "${{ matrix.toolchain }}" = "gcc" ; then
-            sudo apt-get -y install cpp-14 gcc-14 g++-14
-          else
-            sudo apt-get -y install clang-20 llvm-20 libc++-20-dev libc++abi-20-dev
-          fi
+      - name: install rustup
+        run: ./install-rust.sh
+
       - name: install rustup components
-        if: steps.cache.outputs.cache-hit != 'true'
         run: rustup component add rustfmt
-      - name: install cargo-cache
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-cache --version 0.8.3
-      - name: install cargo-sweep
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo install --locked cargo-sweep --version 0.7.0
-      - name: install dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
+
+      - uses: stellar/binaries@v50
+        with:
+          name: cargo-cache
+          version: 0.8.3
+
+      - uses: stellar/binaries@v50
+        with:
+          name: cargo-sweep
+          version: 0.7.0
+
+      # Restore original modification time of files based on the date of the most
+      # recent commit that modified them as mtimes affect the Go test cache.
+      - name: Restore modification time of checkout files
+        shell: bash
+        run: |
+          # Set a base, fixed modification time of all directories.
+          # git-restore-mtime doesn't set the mtime of all directories.
+          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+          # Restore original modification time from git. git clone sets the
+          # modification time to the current time, but Go tests that access fixtures
+          # get invalidated if their modification times change.
+          #
+          # Note: git-restore-mtime needs to be baked into the image we're
+          # running on.
+          git restore-mtime
+
       - name: Build
-        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             export CC='gcc'
@@ -145,13 +144,69 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
 
-      # We only _save_ to the cache when we had a cache miss and are running on master.
-      - name: Save cache after first build
-        uses: actions/cache/save@v4
-        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' }}
+  build-mac:
+    runs-on:
+      - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
+    steps:
+
+      - name: Checkout with Namespace Git mirrors cache
+        uses: namespacelabs/nscloud-checkout-action@v7
         with:
-          path: ${{ env.CACHED_PATHS }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
+          fetch-depth: 1
+          submodules: recursive
 
+      - name: Configure Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.cargo
+            build-clang-current
+
+      - name: install prerequisites and uninstall brew rust, add rustup
+        run: |
+          brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
+          brew uninstall rust rustup
+          brew install rustup
+
+      - name: install rustup components
+        run: |
+          rustup-init -y
+          rustup component add rustfmt rustc cargo clippy rust-src rust-std
+
+      - uses: stellar/binaries@v50
+        with:
+          name: cargo-cache
+          version: 0.8.3
+
+      - uses: stellar/binaries@v50
+        with:
+          name: cargo-sweep
+          version: 0.7.0
+
+      # Restore original modification time of files based on the date of the most
+      # recent commit that modified them as mtimes affect the Go test cache.
+      - name: Restore modification time of checkout files
+        shell: bash
+        run: |
+          # Set a base, fixed modification time of all directories.
+          # git-restore-mtime doesn't set the mtime of all directories.
+          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+          # Restore original modification time from git. git clone sets the
+          # modification time to the current time, but Go tests that access fixtures
+          # get invalidated if their modification times change.
+          brew install git-tools
+          git restore-mtime
+
+      - name: Build
+        run: |
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
+          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
+          export PATH="$(brew --prefix bison)/bin:$PATH"
+          export CC='clang'
+          export CXX='clang++'
+          export CLANG_VERSION=none
+          export SKIP_FORMAT_CHECK=1
+          ./ci-build.sh --disable-postgres --protocol current
