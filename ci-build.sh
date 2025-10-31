@@ -82,15 +82,17 @@ fi
 
 
 # restore source file mtimes based on content hashes
-for DIR in src lib
-do
-    if [ -e mtimes-${DIR}.json ]
-    then
-	mtime-travel restore -f mtimes-src.json ${SRC_DIR}/${DIR}
-    fi
-    rm -f mtimes-${DIR}.json
-    mtime-travel save -f mtimes-${DIR}.json ${SRC_DIR}/${DIR}
-done
+if which mtime-travel >/dev/null 2>&1; then
+    for DIR in src lib
+    do
+	if [ -e mtimes-${DIR}.json ]
+	then
+	    mtime-travel restore -f mtimes-${DIR}.json ${SRC_DIR}/${DIR}
+	fi
+	rm -f mtimes-${DIR}.json
+	mtime-travel save -f mtimes-${DIR}.json ${SRC_DIR}/${DIR}
+    done
+fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir -p bin
