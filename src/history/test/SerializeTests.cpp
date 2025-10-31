@@ -41,3 +41,15 @@ TEST_CASE("Serialization round trip", "[history]")
         }
     }
 }
+
+TEST_CASE("fail")
+{
+    try
+    {
+        throw "Caught error (shouldn't trigger backtrace)";
+    }
+    catch (...)
+    {
+    }
+    throw "Failed";
+}
