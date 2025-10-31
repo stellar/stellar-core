@@ -107,11 +107,11 @@ jobs:
       - name: install rustup components
         run: rustup component add rustfmt
 
-      - name: install cargo-cache
-        run: cargo install --locked cargo-cache --version 0.8.3
-
-      - name: install cargo-sweep
-        run: cargo install --locked cargo-sweep --version 0.7.0
+      - name: cargo install tools
+        run: |
+          cargo install --locked cargo-cache --version 0.8.3
+          cargo install --locked cargo-sweep --version 0.7.0
+          cargo install --locked mtime-travel --version 0.1.0
 
       - name: Build
         run: |
@@ -154,13 +154,11 @@ jobs:
           rustup-init -y
           rustup component add rustfmt rustc cargo clippy rust-src rust-std
 
-      - name: install cargo-cache
+      - name: cargo install tools
         run: |
           cargo install --locked cargo-cache --version 0.8.3
-
-      - name: install cargo-sweep
-        run: |
           cargo install --locked cargo-sweep --version 0.7.0
+          cargo install --locked mtime-travel --version 0.1.0
 
       - name: Build
         run: |

@@ -128,6 +128,7 @@ CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
 # we pass some configuration by environment variable
 # to tests since they can't take command-line arguments.
 export RUST_TOOLCHAIN_CHANNEL
+export SKIP_SOROBAN_TESTS
 export top_srcdir
 export top_builddir
 

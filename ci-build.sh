@@ -67,6 +67,35 @@ SRC_DIR=$(pwd)
 mkdir -p "build-${CC}-${PROTOCOL}"
 cd "build-${CC}-${PROTOCOL}"
 
+# Check to see if we _just_ tested this rev in
+# a merge queue, and if so don't bother doing
+# it again. Wastes billable CPU time.
+if [ -e prev-pass-rev ]
+then
+   PREV_REV=$(cat prev-pass-rev)
+   CURR_REV=$(git -C "${SRC_DIR}" rev-parse HEAD)
+   if [ "${PREV_REV}" = "${CURR_REV}" ]
+   then
+       exit 0
+   fi
+   rm -f prev-pass-rev
+fi
+
+
+# restore source file mtimes based on content hashes
+if which mtime-travel >/dev/null 2>&1
+then
+    for DIR in src lib
+    do
+	if [ -e mtimes-${DIR}.json ]
+	then
+	    mtime-travel restore -f mtimes-${DIR}.json ${SRC_DIR}/${DIR}
+	fi
+	rm -f mtimes-${DIR}.json
+	mtime-travel save -f mtimes-${DIR}.json ${SRC_DIR}/${DIR}
+    done
+fi
+
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir -p bin
 
@@ -135,11 +164,11 @@ time (cd "${SRC_DIR}" && ./autogen.sh)
 time "${SRC_DIR}/configure" $config_flags
 if [ -z "${SKIP_FORMAT_CHECK}" ]; then
     make format
-    d=`git diff | wc -l`
+    d=`git -C "${SRC_DIR}" diff | wc -l`
     if [ $d -ne 0 ]
     then
         echo "clang format must be run as part of the pull request, current diff:"
-        git diff
+        git -C "${SRC_DIR}" diff
         exit 1
     fi
 fi
@@ -190,8 +219,11 @@ time make check
 echo Running fixed check-test-tx-meta tests
 export TEST_SPEC='[tx]'
 export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
+export SKIP_SOROBAN_TESTS=true
 time make check
 
 echo All done
 date
+
+git -C "${SRC_DIR}" rev-parse HEAD >prev-pass-rev
 exit 0
