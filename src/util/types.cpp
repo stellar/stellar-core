@@ -214,8 +214,9 @@ template bool isAssetValid<Asset>(Asset const&, uint32_t);
 template bool isAssetValid<TrustLineAsset>(TrustLineAsset const&, uint32_t);
 template bool isAssetValid<ChangeTrustAsset>(ChangeTrustAsset const&, uint32_t);
 
+template <typename T>
 bool
-compareAsset(Asset const& first, Asset const& second)
+compareAsset(T const& first, Asset const& second)
 {
     if (first.type() != second.type())
         return false;
@@ -238,6 +239,9 @@ compareAsset(Asset const& first, Asset const& second)
     }
     return false;
 }
+
+template bool compareAsset<Asset>(Asset const&, Asset const&);
+template bool compareAsset<TrustLineAsset>(TrustLineAsset const&, Asset const&);
 
 int32_t
 unsignedToSigned(uint32_t v)

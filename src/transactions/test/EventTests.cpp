@@ -33,7 +33,8 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
     auto gateway = root->create("gate", paymentAmount);
     Asset idr = makeAsset(gateway, "IDR");
     auto lumenContractID =
-        getLumenContractInfo(app->getNetworkID()).mLumenContractID;
+        getAssetContractInfo(makeNativeAsset(), app->getNetworkID())
+            .mAssetContractID;
     auto idrContractID = getAssetContractID(app->getNetworkID(), idr);
 
     SECTION("a pays b. Also validate fee event")
