@@ -57,6 +57,14 @@ ledger to JSON files for further analysis.
   `./stellar-core dump-ledger --conf ../stellar-core_pubnet.cfg 
    --output-file q8.json --filter-query "entry_size() > 200" --limit 10`
 
+* Output 10 contract entries where TTL (live-until-ledger) is less than 61000000.
+  Note, that for Classic entries TTL is considered to be UINT32_MAX.
+
+  `./stellar-core dump-ledger --conf ../stellar-core_pubnet.cfg 
+   --output-file q9.json --filter-query 
+   "(data.type == 'CONTRACT_DATA' || data.type == 'CONTRACT_CODE') && ttl() < 61000000" 
+   --limit 10`
+
 ## Aggregating ledger entries
 
 The following examples demonstrate how to aggregate parts of the ledger into CSV tables.

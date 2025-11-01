@@ -410,6 +410,8 @@ class LedgerManagerImpl : public LedgerManager
     void
     advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
 
+    void loadLastKnownLedgerInternal(bool fullLoad);
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -493,7 +495,11 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(bool restoreBucketlist) override;
+    void loadLastKnownLedger() override;
+    // Helper for a faster load of the last closed ledger used only for various
+    // diagnostics utils outside of the main application flow. This skips
+    // restoring the bucket list and building in-memory Soroban state.
+    void loadLastKnownLedgerForUtils();
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
