@@ -568,11 +568,11 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
-    // Resize to fit the last cost type added in v24
-    params.resize(static_cast<uint32>(ContractCostType::Bn254EncodeFp) + 1);
+    // Resize to fit the last cost type added in v25
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
 
     // While we loop over the full ContractCostType enum, we only set the
-    // entries that have either been updated, or newly created in p24
+    // entries that have either been updated, or newly created in v25
     for (auto val : vals)
     {
         switch (val)
@@ -992,14 +992,14 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
-    // Resize to fit the last cost type added in v24
-    params.resize(static_cast<uint32>(ContractCostType::Bn254EncodeFp) + 1);
+    // Resize to fit the last cost type added in v25
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
 
     for (auto val : vals)
     {
         switch (val)
         {
-        // adding new cost types introduced in p24
+        // adding new cost types introduced in v25
         case Bn254EncodeFp:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
             break;
@@ -1031,7 +1031,6 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
         case Bn254FrFromU256:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
             break;
-
         default:
             break;
         }
@@ -1494,6 +1493,10 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_23))
     {
         SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
+    }
+    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_25))
+    {
+        SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
 }
 
@@ -2466,9 +2469,17 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
                        ContractCostType::VerifyEcdsaSecp256r1Sig) +
                    1;
         }
-        else
+        else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_25))
         {
             return static_cast<uint32_t>(ContractCostType::Bls12381FrInv) + 1;
+        }
+        else
+        {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            return static_cast<uint32_t>(ContractCostType::Bn254FrFromU256) + 1;
+#else
+            releaseAssert(false);
+#endif
         }
     };
 
