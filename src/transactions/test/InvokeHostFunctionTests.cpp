@@ -2405,8 +2405,8 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             // all settings at once. This isn't an issue in practice because 1.
             // the setting on pubnet and testnet is much higher, and two, we
             // don't need to upgrade every setting at once. To get around this
-            // in the test, we will remove the memory bytes cost types from the
-            // upgrade.
+            // in the test, we will remove the memory bytes and CPU cost types
+            // from the upgrade.
             if (type == CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES ||
                 type == CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS)
             {

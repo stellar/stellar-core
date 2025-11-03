@@ -2476,10 +2476,9 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
         else
         {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            // this is the same thing as below, just defined with vnext
             return static_cast<uint32_t>(ContractCostType::Bn254FrFromU256) + 1;
 #else
-            return 80;
+            releaseAssert(false);
 #endif
         }
     };
