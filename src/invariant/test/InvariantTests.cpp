@@ -423,7 +423,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -441,7 +442,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -456,7 +458,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -476,7 +479,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -491,7 +495,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -511,7 +516,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -531,7 +537,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                         app->getInvariantManager().checkOnLedgerCommit(
                             snapshot, hotArchiveSnap,
                             evictedState.archivedEntries,
-                            evictedState.deletedKeys, emptyMap, emptyMap),
+                            evictedState.deletedKeys, emptyMap, emptyMap, {},
+                            {}, {}, lm.getInMemorySorobanStateForTesting()),
                         InvariantDoesNotHold);
                 }
                 else
@@ -540,7 +547,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                         app->getInvariantManager().checkOnLedgerCommit(
                             snapshot, hotArchiveSnap,
                             evictedState.archivedEntries,
-                            evictedState.deletedKeys, emptyMap, emptyMap));
+                            evictedState.deletedKeys, emptyMap, emptyMap, {},
+                            {}, {}, lm.getInMemorySorobanStateForTesting()));
                 }
             }
 
@@ -551,7 +559,8 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
                         snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                        evictedState.deletedKeys, emptyMap, emptyMap),
+                        evictedState.deletedKeys, emptyMap, emptyMap, {}, {},
+                        {}, lm.getInMemorySorobanStateForTesting()),
                     InvariantDoesNotHold);
             }
 
@@ -561,8 +570,277 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 UnorderedMap<LedgerKey, LedgerEntry> emptyMap;
                 REQUIRE_NOTHROW(app->getInvariantManager().checkOnLedgerCommit(
                     snapshot, hotArchiveSnap, evictedState.archivedEntries,
-                    evictedState.deletedKeys, emptyMap, emptyMap));
+                    evictedState.deletedKeys, emptyMap, emptyMap, {}, {}, {},
+                    lm.getInMemorySorobanStateForTesting()));
             }
         }
     });
+}
+
+TEST_CASE("InMemorySorobanState matches BucketList", "[invariant][soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {"InMemorySorobanStateMatchesBucketList"};
+
+    VirtualClock clock;
+    auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
+        clock, cfg);
+
+    BucketTestUtils::LedgerManagerForBucketTests& lm = app->getLedgerManager();
+
+    // Helper to create contract data with TTL
+    auto createEntryWithTTL = [&](uint32_t valU32, bool isCode) {
+        LedgerEntry entry;
+
+        if (isCode)
+        {
+            entry =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+        }
+        else
+        {
+            entry =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+            entry.data.contractData().durability = PERSISTENT;
+            entry.data.contractData().val.type(SCV_U32);
+            entry.data.contractData().val.u32() = valU32;
+        }
+
+        entry.lastModifiedLedgerSeq = 2;
+
+        LedgerEntry ttl;
+        ttl.data.type(TTL);
+        ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
+        ttl.data.ttl().liveUntilLedgerSeq = 100;
+        ttl.lastModifiedLedgerSeq = 2;
+
+        return std::make_pair(entry, ttl);
+    };
+
+    // Populate initial test entries
+    auto [dataToExtend, dataToExtendTTL] = createEntryWithTTL(10, false);
+    auto [dataToUpdate, dataToUpdateTTL] = createEntryWithTTL(20, false);
+    auto [dataToDelete, dataToDeleteTTL] = createEntryWithTTL(30, false);
+    auto [codeToExtend, codeToExtendTTL] = createEntryWithTTL(50, true);
+    auto [codeToUpdate, codeToUpdateTTL] = createEntryWithTTL(60, true);
+    auto [codeToDelete, codeToDeleteTTL] = createEntryWithTTL(70, true);
+
+    std::vector<LedgerEntry> initEntries = {
+        dataToExtend, dataToExtendTTL, dataToUpdate, dataToUpdateTTL,
+        dataToDelete, dataToDeleteTTL, codeToExtend, codeToExtendTTL,
+        codeToUpdate, codeToUpdateTTL, codeToDelete, codeToDeleteTTL};
+    lm.setNextLedgerEntryBatchForBucketTesting(initEntries, {}, {});
+    closeLedger(*app);
+
+    // Exercise all possible cache updates.
+    // for dataToExtent/codeToExtend: just modify TTL
+    // for dataToUpdate/codeToUpdate: modify data
+    // for dataToDelete/codeToDelete: delete entry
+    auto dataToExtendTTLUpdated = dataToExtendTTL;
+    dataToExtendTTLUpdated.data.ttl().liveUntilLedgerSeq = 200;
+    dataToExtendTTLUpdated.lastModifiedLedgerSeq = 3;
+
+    auto dataToUpdateUpdated = dataToUpdate;
+    dataToUpdateUpdated.data.contractData().val.u32() = 25;
+    dataToUpdateUpdated.lastModifiedLedgerSeq = 3;
+    auto dataToUpdateTTLUpdated = dataToUpdateTTL;
+    dataToUpdateTTLUpdated.lastModifiedLedgerSeq = 3;
+
+    auto codeToExtendTTLUpdated = codeToExtendTTL;
+    codeToExtendTTLUpdated.data.ttl().liveUntilLedgerSeq = 200;
+    codeToExtendTTLUpdated.lastModifiedLedgerSeq = 3;
+
+    auto codeToUpdateUpdated = codeToUpdate;
+    codeToUpdateUpdated.lastModifiedLedgerSeq = 3;
+    auto codeToUpdateTTLUpdated = codeToUpdateTTL;
+    codeToUpdateTTLUpdated.lastModifiedLedgerSeq = 3;
+
+    std::vector<LedgerEntry> liveEntries = {
+        dataToExtendTTLUpdated, dataToUpdateUpdated, dataToUpdateTTLUpdated,
+        codeToExtendTTLUpdated, codeToUpdateUpdated, codeToUpdateTTLUpdated};
+    std::vector<LedgerKey> deadKeys = {
+        LedgerEntryKey(dataToDelete), LedgerEntryKey(dataToDeleteTTL),
+        LedgerEntryKey(codeToDelete), LedgerEntryKey(codeToDeleteTTL)};
+
+    lm.setNextLedgerEntryBatchForBucketTesting({}, liveEntries, deadKeys);
+    closeLedger(*app);
+
+    // Common variables used by all test sections
+    auto& sorobanState = const_cast<InMemorySorobanState&>(
+        lm.getInMemorySorobanStateForTesting());
+    auto snapshot = app->getBucketManager()
+                        .getBucketSnapshotManager()
+                        .copySearchableLiveBucketListSnapshot();
+    auto hotArchiveSnap = app->getBucketManager()
+                              .getBucketSnapshotManager()
+                              .copySearchableHotArchiveBucketListSnapshot();
+
+    SECTION("invariant passes when cache matches BucketList")
+    {
+        // Should pass since cache and BucketList are in sync
+        REQUIRE_NOTHROW(app->getInvariantManager().checkOnLedgerCommit(
+            snapshot, hotArchiveSnap, {}, {}, {}, {}, {}, liveEntries, deadKeys,
+            lm.getInMemorySorobanStateForTesting()));
+    }
+
+    SECTION("CONTRACT_DATA not updated in cache")
+    {
+        // Corrupt dataToUpdate by replacing with original value
+        auto it = sorobanState.mContractDataEntries.find(
+            InternalContractDataMapEntry(LedgerEntryKey(dataToUpdate)));
+        REQUIRE(it != sorobanState.mContractDataEntries.end());
+
+        sorobanState.mContractDataEntries.erase(it);
+        // Use original dataToUpdate instead of dataToUpdateUpdated
+        sorobanState.mContractDataEntries.insert(InternalContractDataMapEntry(
+            std::make_shared<LedgerEntry const>(dataToUpdate),
+            TTLData{dataToUpdateTTL.data.ttl().liveUntilLedgerSeq,
+                    dataToUpdateTTL.lastModifiedLedgerSeq}));
+
+        // Should fail since cache has stale CONTRACT_DATA entry
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("deleted CONTRACT_DATA still in cache")
+    {
+        // Manually re-add dataToDelete to cache
+        sorobanState.mContractDataEntries.insert(InternalContractDataMapEntry(
+            std::make_shared<LedgerEntry const>(dataToDelete),
+            TTLData{dataToDeleteTTL.data.ttl().liveUntilLedgerSeq,
+                    dataToDeleteTTL.lastModifiedLedgerSeq}));
+
+        // Should fail since deleted CONTRACT_DATA is still in cache
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("CONTRACT_DATA TTL updated in cache without BucketList update")
+    {
+        // Corrupt dataToUpdate TTL by using wrong value
+        auto it = sorobanState.mContractDataEntries.find(
+            InternalContractDataMapEntry(LedgerEntryKey(dataToUpdate)));
+        REQUIRE(it != sorobanState.mContractDataEntries.end());
+
+        sorobanState.mContractDataEntries.erase(it);
+        sorobanState.mContractDataEntries.insert(InternalContractDataMapEntry(
+            std::make_shared<LedgerEntry const>(dataToUpdateUpdated),
+            TTLData{999, 3})); // Wrong liveUntilLedgerSeq
+
+        // Should fail since cache has corrupted TTL
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("CONTRACT_DATA TTL not updated in cache")
+    {
+        // Corrupt dataToUpdate TTL by using original value
+        auto it = sorobanState.mContractDataEntries.find(
+            InternalContractDataMapEntry(LedgerEntryKey(dataToUpdate)));
+        REQUIRE(it != sorobanState.mContractDataEntries.end());
+
+        // Use original TTL instead of updated TTL
+        sorobanState.mContractDataEntries.erase(it);
+        sorobanState.mContractDataEntries.insert(InternalContractDataMapEntry(
+            std::make_shared<LedgerEntry const>(dataToUpdateUpdated),
+            TTLData{dataToUpdateTTL.data.ttl().liveUntilLedgerSeq,
+                    dataToUpdateTTL.lastModifiedLedgerSeq}));
+
+        // Should fail since cache has stale TTL
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("CONTRACT_CODE not updated in cache")
+    {
+        // Corrupt codeToUpdate by replacing with original value
+        auto ttlKey = getTTLKey(LedgerEntryKey(codeToUpdate));
+        auto it = sorobanState.mContractCodeEntries.find(ttlKey.ttl().keyHash);
+        REQUIRE(it != sorobanState.mContractCodeEntries.end());
+
+        // Use original codeToUpdate instead of codeToUpdateUpdated
+        it->second.ledgerEntry =
+            std::make_shared<LedgerEntry const>(codeToUpdate);
+
+        // Should fail since cache has stale CONTRACT_CODE entry
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("deleted CONTRACT_CODE still in cache")
+    {
+        // Manually re-add codeToDelete to cache (simulating it not being
+        // deleted)
+        auto ttlKey = getTTLKey(LedgerEntryKey(codeToDelete));
+
+        // Re-insert the deleted code entry
+        sorobanState.mContractCodeEntries.emplace(
+            ttlKey.ttl().keyHash,
+            ContractCodeMapEntryT(
+                std::make_shared<LedgerEntry const>(codeToDelete),
+                TTLData{codeToDeleteTTL.data.ttl().liveUntilLedgerSeq,
+                        codeToDeleteTTL.lastModifiedLedgerSeq},
+                static_cast<uint32_t>(
+                    codeToDelete.data.contractCode().code.size())));
+
+        // Should fail since deleted CONTRACT_CODE is still in cache
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("CONTRACT_CODE TTL updated in cache without BucketList update")
+    {
+        // Corrupt codeToUpdate TTL by using wrong value
+        auto ttlKey = getTTLKey(LedgerEntryKey(codeToUpdate));
+        auto it = sorobanState.mContractCodeEntries.find(ttlKey.ttl().keyHash);
+        REQUIRE(it != sorobanState.mContractCodeEntries.end());
+
+        // Corrupt by changing TTL to wrong value
+        it->second.ttlData.liveUntilLedgerSeq = 999;
+
+        // Should fail since cache has corrupted TTL
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("CONTRACT_CODE TTL not updated in cache")
+    {
+        // Corrupt codeToUpdate TTL by using original value
+        auto ttlKey = getTTLKey(LedgerEntryKey(codeToUpdate));
+        auto it = sorobanState.mContractCodeEntries.find(ttlKey.ttl().keyHash);
+        REQUIRE(it != sorobanState.mContractCodeEntries.end());
+
+        // Use original TTL instead of updated TTL
+        it->second.ttlData =
+            TTLData{codeToUpdateTTL.data.ttl().liveUntilLedgerSeq,
+                    codeToUpdateTTL.lastModifiedLedgerSeq};
+
+        // Should fail since cache has stale TTL
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnLedgerCommit(
+                              snapshot, hotArchiveSnap, {}, {}, {}, {}, {},
+                              liveEntries, deadKeys,
+                              lm.getInMemorySorobanStateForTesting()),
+                          InvariantDoesNotHold);
+    }
 }

@@ -10,26 +10,12 @@ namespace stellar
 {
 class Application;
 
-class ArchivedStateConsistency : public Invariant
+class InMemorySorobanStateMatchesBucketList : public Invariant
 {
-    std::string checkEvictionInvariants(
-        UnorderedMap<LedgerKey, LedgerEntry> const& preloadedLiveEntries,
-        UnorderedMap<LedgerKey, HotArchiveBucketEntry> const&
-            preloadedArchivedEntries,
-        UnorderedSet<LedgerKey> const& deletedKeys,
-        std::vector<LedgerEntry> const& archivedEntries, uint32_t ledgerSeq,
-        uint32_t ledgerVer);
-    std::string checkRestoreInvariants(
-        UnorderedMap<LedgerKey, LedgerEntry> const& preloadedLiveEntries,
-        UnorderedMap<LedgerKey, HotArchiveBucketEntry> const&
-            preloadedArchivedEntries,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
-        uint32_t ledgerSeq, uint32_t ledgerVer);
-
   public:
-    ArchivedStateConsistency();
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
+
+    InMemorySorobanStateMatchesBucketList();
 
     virtual std::string getName() const override;
 
@@ -44,7 +30,5 @@ class ArchivedStateConsistency : public Invariant
         std::vector<LedgerEntry> const& liveEntriesLiveBL,
         std::vector<LedgerKey> const& deadEntriesLiveBL,
         InMemorySorobanState const& inMemorySorobanState) override;
-
-    virtual std::string start(Application& app) override;
 };
 }

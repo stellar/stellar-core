@@ -17,6 +17,7 @@ namespace stellar
 {
 
 class AppConnector;
+class InMemorySorobanState;
 class LiveBucket;
 enum LedgerEntryType : std::int32_t;
 struct LedgerTxnDelta;
@@ -79,7 +80,11 @@ class Invariant
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
+        std::vector<LedgerEntry> const& initEntriesLiveBL,
+        std::vector<LedgerEntry> const& liveEntriesLiveBL,
+        std::vector<LedgerKey> const& deadEntriesLiveBL,
+        InMemorySorobanState const& inMemorySorobanState)
     {
         return std::string{};
     }

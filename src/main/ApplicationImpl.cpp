@@ -30,6 +30,7 @@
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/ConstantProductInvariant.h"
 #include "invariant/EventsAreConsistentWithEntryDiffs.h"
+#include "invariant/InMemorySorobanStateMatchesBucketList.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
@@ -321,6 +322,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     SponsorshipCountIsValid::registerInvariant(*this);
     ConstantProductInvariant::registerInvariant(*this);
     EventsAreConsistentWithEntryDiffs::registerInvariant(*this);
+    InMemorySorobanStateMatchesBucketList::registerInvariant(*this);
     ArchivedStateConsistency::registerInvariant(*this);
 
     enableInvariantsFromConfig();

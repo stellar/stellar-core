@@ -55,8 +55,11 @@ class InvariantManagerImpl : public InvariantManager
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
-        override;
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
+        std::vector<LedgerEntry> const& initEntriesLiveBL,
+        std::vector<LedgerEntry> const& liveEntriesLiveBL,
+        std::vector<LedgerKey> const& deadEntriesLiveBL,
+        InMemorySorobanState const& inMemorySorobanState) override;
 
     virtual void checkAfterAssumeState(uint32_t newestLedger) override;
 

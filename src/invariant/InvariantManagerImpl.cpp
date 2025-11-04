@@ -169,14 +169,19 @@ InvariantManagerImpl::checkOnLedgerCommit(
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
+    std::vector<LedgerEntry> const& initEntriesLiveBL,
+    std::vector<LedgerEntry> const& liveEntriesLiveBL,
+    std::vector<LedgerKey> const& deadEntriesLiveBL,
+    InMemorySorobanState const& inMemorySorobanState)
 {
     for (auto invariant : mEnabled)
     {
         auto result = invariant->checkOnLedgerCommit(
             lclLiveState, lclHotArchiveState, persitentEvictedFromLive,
             tempAndTTLEvictedFromLive, restoredFromArchive,
-            restoredFromLiveState);
+            restoredFromLiveState, initEntriesLiveBL, liveEntriesLiveBL,
+            deadEntriesLiveBL, inMemorySorobanState);
         if (result.empty())
         {
             continue;

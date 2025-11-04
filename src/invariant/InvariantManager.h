@@ -58,7 +58,11 @@ class InvariantManager
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState) = 0;
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
+        std::vector<LedgerEntry> const& initEntriesLiveBL,
+        std::vector<LedgerEntry> const& liveEntriesLiveBL,
+        std::vector<LedgerKey> const& deadEntriesLiveBL,
+        InMemorySorobanState const& inMemorySorobanState) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 
