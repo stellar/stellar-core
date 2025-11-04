@@ -11,6 +11,7 @@
 #include "main/ApplicationImpl.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionMeta.h"
+#include "util/NonCopyable.h"
 #include <memory>
 
 namespace stellar
@@ -156,6 +157,31 @@ class InMemorySorobanState;
 // the actions taken and variables updated by the main thread _after_ apply, and
 // the term "apply" to refer to actions taken and variables updated by the apply
 // thread.
+
+// Consolidated state for ledger commit operations
+struct LedgerCommitState : public NonCopyable
+{
+    // These fields hold the entries that will be commited to the BucketList as
+    // INIT, LIvE, and DEAD entries.
+    std::vector<LedgerEntry> initEntries;
+    std::vector<LedgerEntry> liveEntries;
+    std::vector<LedgerKey> deadEntries;
+
+    // Entries that have been evicted from the live BucketList and will be added
+    // to the Hot Archive
+    std::vector<LedgerEntry> persistentEvictedFromLive;
+
+    // Keys of temp and TTL entries that have been evicted from the live
+    // BucketList
+    std::vector<LedgerKey> tempAndTTLEvictedFromLive;
+
+    // Maps an entry that has been restored to it's original restoration value.
+    // Note that the entry may have been modified after restoration, so this may
+    // not represent the current state of a given key.
+    UnorderedMap<LedgerKey, LedgerEntry> restoredFromArchive;
+    UnorderedMap<LedgerKey, LedgerEntry> restoredFromLiveState;
+};
+
 class LedgerManager
 {
 

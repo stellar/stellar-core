@@ -244,6 +244,14 @@ LedgerManagerImpl::ApplyState::getInMemorySorobanState() const
     return mInMemorySorobanState;
 }
 
+InMemorySorobanState const&
+LedgerManagerImpl::ApplyState::getInMemorySorobanStateForInvariantCheck() const
+{
+    releaseAssert(mPhase == Phase::COMMITTING ||
+                  mPhase == Phase::SETTING_UP_STATE);
+    return mInMemorySorobanState;
+}
+
 #ifdef BUILD_TESTS
 InMemorySorobanState&
 LedgerManagerImpl::ApplyState::getInMemorySorobanStateForTesting()
@@ -2700,8 +2708,9 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
 {
     ZoneScoped;
     // `ledgerApplied` protects this call with a mutex
-    std::vector<LedgerEntry> initEntries, liveEntries;
-    std::vector<LedgerKey> deadEntries;
+
+    // Convenience struct to hold state relevant to ledger commit
+    LedgerCommitState commitState;
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
@@ -2733,11 +2742,13 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                     }
                 }
 
-                mApp.getInvariantManager().checkOnLedgerCommit(
-                    lclSnapshot, lclHotArchiveSnapshot,
-                    evictedState.archivedEntries, evictedState.deletedKeys,
-                    restoredHotArchiveKeyMap,
-                    ltxEvictions.getRestoredLiveBucketListKeys());
+                commitState.persistentEvictedFromLive =
+                    evictedState.archivedEntries;
+                commitState.tempAndTTLEvictedFromLive =
+                    evictedState.deletedKeys;
+                commitState.restoredFromArchive = restoredHotArchiveKeyMap;
+                commitState.restoredFromLiveState =
+                    ltxEvictions.getRestoredLiveBucketListKeys();
 
                 bool isP24UpgradeLedger =
                     protocolVersionIsBefore(initialLedgerVers,
@@ -2796,13 +2807,25 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
     // NB: getAllEntries seals the ltx.
-    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
-    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
-    mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
-                                         deadEntries);
-    mApplyState.updateInMemorySorobanState(initEntries, liveEntries,
-                                           deadEntries, lh, finalSorobanConfig);
+    ltx.getAllEntries(commitState.initEntries, commitState.liveEntries,
+                      commitState.deadEntries);
+    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                             commitState.initEntries);
+    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
+                                             commitState.liveEntries);
+    mApp.getBucketManager().addLiveBatch(mApp, lh, commitState.initEntries,
+                                         commitState.liveEntries,
+                                         commitState.deadEntries);
+    mApplyState.updateInMemorySorobanState(
+        commitState.initEntries, commitState.liveEntries,
+        commitState.deadEntries, lh, finalSorobanConfig);
+
+    // This invariant checks that the in-memory Soroban state has been properly
+    // updated to reflect the committed ledger changes, so we need to call it
+    // after updateInMemorySorobanState.
+    mApp.getInvariantManager().checkOnLedgerCommit(
+        lclSnapshot, lclHotArchiveSnapshot, commitState,
+        mApplyState.getInMemorySorobanStateForInvariantCheck());
 }
 
 CompleteConstLedgerStatePtr

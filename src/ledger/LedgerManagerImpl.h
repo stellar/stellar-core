@@ -203,6 +203,11 @@ class LedgerManagerImpl : public LedgerManager
         // thread for read-only purposes during the APPLYING phase.
         InMemorySorobanState const& getInMemorySorobanState() const;
 
+        // Variant of getInMemorySorobanState for use during commitLedger
+        // invariant checks. Asserts that we are in the COMMITTING phase.
+        InMemorySorobanState const&
+        getInMemorySorobanStateForInvariantCheck() const;
+
 #ifdef BUILD_TESTS
         InMemorySorobanState& getInMemorySorobanStateForTesting();
         ::rust::Box<rust_bridge::SorobanModuleCache> const&

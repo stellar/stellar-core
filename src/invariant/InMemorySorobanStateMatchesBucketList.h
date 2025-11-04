@@ -22,13 +22,7 @@ class InMemorySorobanStateMatchesBucketList : public Invariant
     virtual std::string checkOnLedgerCommit(
         SearchableSnapshotConstPtr lclLiveState,
         SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-        std::vector<LedgerEntry> const& persitentEvictedFromLive,
-        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
-        std::vector<LedgerEntry> const& initEntriesLiveBL,
-        std::vector<LedgerEntry> const& liveEntriesLiveBL,
-        std::vector<LedgerKey> const& deadEntriesLiveBL,
+        LedgerCommitState const& commitState,
         InMemorySorobanState const& inMemorySorobanState) override;
 };
 }

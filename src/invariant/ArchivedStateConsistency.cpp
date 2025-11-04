@@ -131,13 +131,7 @@ std::string
 ArchivedStateConsistency::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-    std::vector<LedgerEntry> const& persitentEvictedFromLive,
-    std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
-    std::vector<LedgerEntry> const& initEntriesLiveBL,
-    std::vector<LedgerEntry> const& liveEntriesLiveBL,
-    std::vector<LedgerKey> const& deadEntriesLiveBL,
+    LedgerCommitState const& commitState,
     InMemorySorobanState const& inMemorySorobanState)
 {
     LogSlowExecution logSlow("ArchivedStateConsistency::checkOnLedgerCommit",
@@ -157,7 +151,7 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     LedgerKeySet allKeys;
 
     // Keys for evicted from live entries
-    for (auto const& e : persitentEvictedFromLive)
+    for (auto const& e : commitState.persistentEvictedFromLive)
     {
         auto key = LedgerEntryKey(e);
         releaseAssertOrThrow(isPersistentEntry(key));
@@ -165,14 +159,14 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     }
 
     // Keys for deleted from live (temp and TTLs)
-    for (auto const& k : tempAndTTLEvictedFromLive)
+    for (auto const& k : commitState.tempAndTTLEvictedFromLive)
     {
         releaseAssertOrThrow(!isPersistentEntry(k));
         allKeys.insert(k);
     }
 
     // Keys for restored entries
-    for (auto const& [key, entry] : restoredFromArchive)
+    for (auto const& [key, entry] : commitState.restoredFromArchive)
     {
         if (key.type() != TTL)
         {
@@ -180,7 +174,7 @@ ArchivedStateConsistency::checkOnLedgerCommit(
         }
         allKeys.insert(key);
     }
-    for (auto const& [key, entry] : restoredFromLiveState)
+    for (auto const& [key, entry] : commitState.restoredFromLiveState)
     {
         allKeys.insert(key);
     }
@@ -206,18 +200,19 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     }
 
     UnorderedSet<LedgerKey> deletedKeys;
-    for (auto const& k : tempAndTTLEvictedFromLive)
+    for (auto const& k : commitState.tempAndTTLEvictedFromLive)
     {
         deletedKeys.insert(k);
     }
 
     auto evictionRes = checkEvictionInvariants(
         preloadedLiveEntries, preloadedArchivedEntries, deletedKeys,
-        persitentEvictedFromLive, ledgerSeq, ledgerVers);
+        commitState.persistentEvictedFromLive, ledgerSeq, ledgerVers);
 
     auto restoreRes = checkRestoreInvariants(
-        preloadedLiveEntries, preloadedArchivedEntries, restoredFromArchive,
-        restoredFromLiveState, ledgerSeq, ledgerVers);
+        preloadedLiveEntries, preloadedArchivedEntries,
+        commitState.restoredFromArchive, commitState.restoredFromLiveState,
+        ledgerSeq, ledgerVers);
 
     if (evictionRes.empty() && restoreRes.empty())
     {

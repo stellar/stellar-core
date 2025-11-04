@@ -166,22 +166,14 @@ void
 InvariantManagerImpl::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-    std::vector<LedgerEntry> const& persitentEvictedFromLive,
-    std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
-    std::vector<LedgerEntry> const& initEntriesLiveBL,
-    std::vector<LedgerEntry> const& liveEntriesLiveBL,
-    std::vector<LedgerKey> const& deadEntriesLiveBL,
+    LedgerCommitState const& commitState,
     InMemorySorobanState const& inMemorySorobanState)
 {
     for (auto invariant : mEnabled)
     {
-        auto result = invariant->checkOnLedgerCommit(
-            lclLiveState, lclHotArchiveState, persitentEvictedFromLive,
-            tempAndTTLEvictedFromLive, restoredFromArchive,
-            restoredFromLiveState, initEntriesLiveBL, liveEntriesLiveBL,
-            deadEntriesLiveBL, inMemorySorobanState);
+        auto result =
+            invariant->checkOnLedgerCommit(lclLiveState, lclHotArchiveState,
+                                           commitState, inMemorySorobanState);
         if (result.empty())
         {
             continue;

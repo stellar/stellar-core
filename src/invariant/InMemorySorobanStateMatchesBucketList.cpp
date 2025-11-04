@@ -74,13 +74,7 @@ std::string
 InMemorySorobanStateMatchesBucketList::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-    std::vector<LedgerEntry> const& persitentEvictedFromLive,
-    std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState,
-    std::vector<LedgerEntry> const& initEntriesLiveBL,
-    std::vector<LedgerEntry> const& liveEntriesLiveBL,
-    std::vector<LedgerKey> const& deadEntriesLiveBL,
+    LedgerCommitState const& commitState,
     InMemorySorobanState const& inMemorySorobanState)
 {
     auto checkEntries =
@@ -101,20 +95,20 @@ InMemorySorobanStateMatchesBucketList::checkOnLedgerCommit(
             return std::string{};
         };
 
-    auto result = checkEntries(initEntriesLiveBL);
+    auto result = checkEntries(commitState.initEntries);
     if (!result.empty())
     {
         return result;
     }
 
-    result = checkEntries(liveEntriesLiveBL);
+    result = checkEntries(commitState.liveEntries);
     if (!result.empty())
     {
         return result;
     }
 
     // Check deleted state from dead entries
-    for (auto const& key : deadEntriesLiveBL)
+    for (auto const& key : commitState.deadEntries)
     {
         if (InMemorySorobanState::isInMemoryType(key))
         {
