@@ -367,8 +367,16 @@ LiveBucketSnapshot::scanForEntriesOfType(
     stream.seek(range->first);
 
     BucketEntry be;
-    while (stream.pos() < range->second && stream.readOne(be))
+    while (stream.readOne(be))
     {
+        if (!isBucketMetaEntry<LiveBucket>(be))
+        {
+            if (LedgerKey key = getBucketLedgerKey(be); key.type() > type)
+            {
+                break;
+            }
+        }
+
         bool matchesType = false;
         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
         {
