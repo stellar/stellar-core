@@ -603,7 +603,7 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
             break;
         case Bn254Pairing:
             params[val] =
-                ContractCostParamEntry(ExtensionPoint{0}, 10117409, 609283036);
+                ContractCostParamEntry(ExtensionPoint{0}, 5263916, 392472814);
             break;
         case Bn254FrFromU256:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2052, 0);
@@ -1041,7 +1041,7 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
             break;
         case Bn254Pairing:
             params[val] =
-                ContractCostParamEntry(ExtensionPoint{0}, 2204, 9340474);
+                ContractCostParamEntry(ExtensionPoint{0}, 1821, 6232546);
             break;
         case Bn254FrFromU256:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
