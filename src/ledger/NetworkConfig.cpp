@@ -569,7 +569,7 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
     // Resize to fit the last cost type added in v25
-    params.resize(static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
 
     // While we loop over the full ContractCostType enum, we only set the
     // entries that have either been updated, or newly created in v25
@@ -607,6 +607,21 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
             break;
         case Bn254FrFromU256:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2052, 0);
+            break;
+        case Bn254FrToU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1133, 0);
+            break;
+        case Bn254FrAddSub:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 74, 0);
+            break;
+        case Bn254FrMul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 332, 0);
+            break;
+        case Bn254FrPow:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 755, 68930);
+            break;
+        case Bn254FrInv:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 33151, 0);
             break;
         default:
             break;
@@ -993,7 +1008,7 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
     // Resize to fit the last cost type added in v25
-    params.resize(static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
 
     for (auto val : vals)
     {
@@ -1029,6 +1044,21 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
                 ContractCostParamEntry(ExtensionPoint{0}, 2204, 9340474);
             break;
         case Bn254FrFromU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrToU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 312, 0);
+            break;
+        case Bn254FrAddSub:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrMul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrPow:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrInv:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
             break;
         default:
@@ -2476,7 +2506,7 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
         else
         {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            return static_cast<uint32_t>(ContractCostType::Bn254FrFromU256) + 1;
+            return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
 #else
             releaseAssert(false);
 #endif

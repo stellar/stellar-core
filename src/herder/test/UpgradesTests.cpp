@@ -2779,7 +2779,7 @@ TEST_CASE("upgrade to version 25 and check cost types", "[upgrades]")
                     .data.configSetting()
                     .contractCostParamsCpuInsns()
                     .size() ==
-                static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
+                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
 
         // Check memory cost params
         LedgerKey memKey(CONFIG_SETTING);
@@ -2793,7 +2793,7 @@ TEST_CASE("upgrade to version 25 and check cost types", "[upgrades]")
                     .data.configSetting()
                     .contractCostParamsMemBytes()
                     .size() ==
-                static_cast<uint32>(ContractCostType::Bn254FrFromU256) + 1);
+                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
     }
 }
 #endif
