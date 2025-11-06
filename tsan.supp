@@ -1,0 +1,8 @@
+# TSAN suppressions for stellar-core
+# False positives and known race conditions
+
+# ASIO kqueue reactor descriptor state allocation
+# Race between kqueue_reactor::allocate_descriptor_state() and scheduler thread
+# This is a false positive - the actual synchronization is handled internally by ASIO
+race:asio::detail::kqueue_reactor::allocate_descriptor_state
+race:asio::detail::kqueue_reactor::run
