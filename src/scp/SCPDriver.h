@@ -167,6 +167,17 @@ class SCPDriver
     combineCandidates(uint64 slotIndex,
                       ValueWrapperPtrSet const& candidates) = 0;
 
+    // Checks whether `v` contains upgrades
+    virtual bool hasUpgrades(Value const& v) = 0;
+
+    // `stripAllUpgrades` returns a new value with all upgrades removed
+    virtual ValueWrapperPtr stripAllUpgrades(Value const& v) = 0;
+
+    // Returns the maximum number of nomination timeouts permitted per slot for
+    // the currently set upgrade. Defaults to the maximum uint32_t value
+    // (effectively unlimited) if the upgrade does not specify a limit.
+    virtual uint32_t getUpgradeNominationTimeoutLimit() const = 0;
+
     // `setupTimer`: requests to trigger 'cb' after timeout
     // if cb is nullptr, the timer is cancelled
     virtual void setupTimer(uint64 slotIndex, int timerID,

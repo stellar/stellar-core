@@ -6881,3 +6881,110 @@ TEST_CASE("detect dead nodes in quorum set", "[herder]")
     REQUIRE(maybeDead[0].asString() ==
             KeyUtils::toStrKey(C->getConfig().NODE_SEED.getPublicKey()));
 }
+
+TEST_CASE("nomination timeouts with partial upgrade arming",
+          "[herder][acceptance]")
+{
+    // Configure simulation to use automatic quorum set configuration so that it
+    // runs with the application-specific leader election algorithm, which does
+    // not introduce its own timeouts.
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::separateAllHighQuality(
+        16, Simulation::OVER_LOOPBACK, networkID,
+        [&](int i) { return getTestConfig(i, Config::TESTDB_DEFAULT); });
+    simulation->fullyConnectAllPending();
+    simulation->startAllNodes();
+    auto nodes = simulation->getNodes();
+    REQUIRE(nodes.size() == 16);
+
+    // Let the network run for a few ledgers normally first
+    auto const expectedLedgerCloseTime =
+        simulation->getExpectedLedgerCloseTime();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(5, 1); },
+        10 * expectedLedgerCloseTime, false);
+
+    // Create an upgrade to arm on a subset of nodes.
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    auto lclCloseTime =
+        VirtualClock::from_time_t(nodes[0]
+                                      ->getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.scpValue.closeTime);
+
+    // Set upgrade time to now so it's active immediately
+    scheduledUpgrades.mUpgradeTime = lclCloseTime;
+
+    // Upgrade the base fee by a small amount
+    auto const currentFee = nodes[0]->getLedgerManager().getLastTxFee();
+    scheduledUpgrades.mBaseFee = currentFee + 100;
+
+    // Limit max timeouts per slot to 1
+    constexpr uint32_t maxTimeouts = 1;
+    scheduledUpgrades.mNominationTimeoutLimit = maxTimeouts;
+
+    // Reduce upgrade window to 4 minutes
+    constexpr std::chrono::minutes upgradeWindow(4);
+    scheduledUpgrades.mExpirationMinutes = upgradeWindow;
+
+    // Number of ledgers to check timeouts during
+    constexpr int ledgersToRun = 20;
+
+    // Maximum total timeout duration for the test. Worst case is that each slot
+    // experiences 1 timeout, which adds 1 second each.
+    constexpr auto maxTotalTimeoutDuration = std::chrono::seconds(ledgersToRun);
+
+    // Ensure upgrade window is set properly so that the upgrade doesn't expire
+    // during the `ledgersToRun` time period
+    REQUIRE(upgradeWindow >
+            expectedLedgerCloseTime * ledgersToRun + maxTotalTimeoutDuration);
+
+    // Arm upgrades on 10 nodes (just 1 shy of a quorum)
+    for (size_t i = 0; i < 10; ++i)
+    {
+        nodes[i]->getHerder().setUpgrades(scheduledUpgrades);
+    }
+
+    // Track initial ledger number
+    auto const startLedger =
+        nodes[0]->getLedgerManager().getLastClosedLedgerNum();
+
+    // Run for `ledgersToRun` more ledgers with mixed upgrade state
+    auto& herder = dynamic_cast<HerderImpl&>(nodes[0]->getHerder());
+    HerderSCPDriver const& driver = herder.getHerderSCPDriver();
+    for (int i = 1; i <= ledgersToRun; ++i)
+    {
+        uint32_t const ledger = startLedger + i;
+        simulation->crankUntil(
+            [&]() { return simulation->haveAllExternalized(ledger, 1); },
+            expectedLedgerCloseTime * 2, false);
+
+        // Should see at most `maxTimeouts` per slot, depending on the round
+        // leaders.
+        std::optional<int64_t> timeouts = driver.getNominationTimeouts(ledger);
+        REQUIRE(timeouts.has_value());
+        REQUIRE(timeouts.value() <= maxTimeouts);
+    }
+
+    // Helper to check whether upgrade is still active by comparing with
+    // `scheduledUpgrades`
+    std::string const upgradeJson = scheduledUpgrades.toJson();
+    auto const upgradeIsActive = [&]() {
+        return herder.getUpgrades().getParameters().toJson() == upgradeJson;
+    };
+
+    // Verify upgrade is still active
+    REQUIRE(upgradeIsActive());
+
+    // Verify that upgrade expires properly after the window
+    simulation->crankUntil(std::not_fn(upgradeIsActive), upgradeWindow, false);
+
+    // Ensure the changed fields are all reset
+    auto const& upgradeParams = herder.getUpgrades().getParameters();
+    REQUIRE(!upgradeParams.mBaseFee.has_value());
+    REQUIRE(!upgradeParams.mNominationTimeoutLimit.has_value());
+    REQUIRE(!upgradeParams.mExpirationMinutes.has_value());
+
+    // Verify the upgrade did not go through
+    REQUIRE(nodes[0]->getLedgerManager().getLastTxFee() == currentFee);
+}

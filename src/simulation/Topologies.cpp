@@ -124,6 +124,36 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
 }
 
 Simulation::pointer
+Topologies::separateAllHighQuality(int nNodes, Simulation::Mode mode,
+                                   Hash const& networkID,
+                                   Simulation::ConfigGen confGen)
+{
+    Simulation::pointer simulation =
+        make_shared<Simulation>(mode, networkID, confGen);
+
+    vector<SecretKey> keys;
+    vector<ValidatorEntry> validatorEntries;
+    for (int i = 0; i < nNodes; i++)
+    {
+        SecretKey const& key = keys.emplace_back(
+            SecretKey::fromSeed(sha256("NODE_SEED_" + to_string(i))));
+        ValidatorEntry& ve = validatorEntries.emplace_back();
+        ve.mName = "validator" + to_string(i);
+        ve.mHomeDomain = "hd" + to_string(i);
+        ve.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
+        ve.mKey = key.getPublicKey();
+        ve.mHasHistory = false;
+    }
+
+    for (auto const& k : keys)
+    {
+        simulation->addNode(k, validatorEntries);
+    }
+
+    return simulation;
+}
+
+Simulation::pointer
 Topologies::core(int nNodes, double quorumThresoldFraction,
                  Simulation::Mode mode, Hash const& networkID,
                  Simulation::ConfigGen confGen,
@@ -135,13 +165,7 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
 
-    for (int from = 0; from < nNodes - 1; from++)
-    {
-        for (int to = from + 1; to < nNodes; to++)
-        {
-            simulation->addPendingConnection(nodes[from], nodes[to]);
-        }
-    }
+    simulation->fullyConnectAllPending();
 
     return simulation;
 }

@@ -94,6 +94,10 @@ class HerderSCPDriver : public SCPDriver
                       ValueWrapperPtrSet const& candidates) override;
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
 
+    bool hasUpgrades(Value const& v) override;
+    ValueWrapperPtr stripAllUpgrades(Value const& v) override;
+    uint32_t getUpgradeNominationTimeoutLimit() const override;
+
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
     void nominate(uint64_t slotIndex, StellarValue const& value,
@@ -170,6 +174,9 @@ class HerderSCPDriver : public SCPDriver
     {
         return mTxSetValidCache;
     }
+
+    // Get the number of nomination timeouts that occurred for a given slot
+    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
 #endif
 
   private:

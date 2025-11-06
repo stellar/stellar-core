@@ -88,7 +88,7 @@ Simulation::setCurrentVirtualTime(VirtualClock::system_time_point t)
 }
 
 Application::pointer
-Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
+Simulation::addNode(SecretKey nodeKey, QuorumSetSpec qSet, Config const* cfg2,
                     bool newDB)
 {
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
@@ -99,13 +99,26 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     auto& parallel = cfg->BACKGROUND_OVERLAY_PROCESSING;
     parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
 
-    if (mQuorumSetAdjuster)
+    if (SCPQuorumSet const* manualQSet = std::get_if<SCPQuorumSet>(&qSet))
     {
-        cfg->QUORUM_SET = mQuorumSetAdjuster(qSet);
+        if (mQuorumSetAdjuster)
+        {
+            cfg->QUORUM_SET = mQuorumSetAdjuster(*manualQSet);
+        }
+        else
+        {
+            cfg->QUORUM_SET = *manualQSet;
+        }
     }
     else
     {
-        cfg->QUORUM_SET = qSet;
+        // Auto quorum set configuration is incompatible with
+        // `QuorumSetAdjuster`
+        releaseAssert(!mQuorumSetAdjuster);
+
+        auto const& validators = std::get<std::vector<ValidatorEntry>>(qSet);
+        cfg->SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = true;
+        cfg->generateQuorumSetForTesting(validators);
     }
 
     if (mMode == OVER_TCP)
@@ -223,6 +236,23 @@ Simulation::dropAllConnections(NodeID const& id)
     else
     {
         throw std::runtime_error("can only drop connections over loopback");
+    }
+}
+
+void
+Simulation::fullyConnectAllPending()
+{
+    auto nodes = getNodeIDs();
+    if (nodes.size() < 2)
+    {
+        return; // No connections needed for 0 or 1 nodes
+    }
+    for (size_t from = 0; from < nodes.size() - 1; from++)
+    {
+        for (size_t to = from + 1; to < nodes.size(); to++)
+        {
+            addPendingConnection(nodes.at(from), nodes.at(to));
+        }
     }
 }
 

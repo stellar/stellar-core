@@ -342,11 +342,13 @@ Most commands return their results in JSON format.
     Retrieves the currently configured upgrade settings.<br>
   * `upgrades?mode=clear`<br>
     Clears any upgrade settings.<br>
-  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsetsize=NUM]&[protocolversion=NUM]&[configupgradesetkey=ConfigUpgradeSetKey]`<br>
+  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsetsize=NUM]&[protocolversion=NUM]&[configupgradesetkey=ConfigUpgradeSetKey]&[nominationtimeoutlimit=NUM]&[expirationminutes=NUM]`<br>
     * `upgradetime` is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
         It is the time the upgrade will be scheduled for. If it is in the past
-        by less than 12 hours, the upgrade will occur immediately. If it's more
-        than 12 hours, then the upgrade will be ignored<br>
+        by less than `expirationminutes` minutes, the upgrade will occur
+        immediately. If it's more than `expirationminutes` minutes, then the
+        upgrade will be ignored. `expirationminutes` defaults to `15` if not
+        provided.<br>
     * `basefee` (uint32) This is what you would prefer the base fee to be. It is in
         stroops<br>
     * `basereserve` (uint32) This is what you would prefer the base reserve to
@@ -362,6 +364,21 @@ Most commands return their results in JSON format.
     * `maxsorobantxsetsize` (uint32) This defines the maximum number of Soroban
        operations in the transaction set to include in a ledger. The semantics is
        the same as for `maxtxsetsize`, but this affects the Soroban slice of traffic.
+       <br>
+    * `nominationtimeoutlimit` (uint32) This defines the maximum number of
+       nomination timeouts this upgrade may experience per slot before SCP
+       strips it out of the Value being voted on. This helps ensure that
+       upgrades that repeatedly fail to achieve consensus are eventually
+       removed from consideration. Defaults to effectively infinite. Should be
+       reduced when there is uncertainty about an upgrade reaching consensus.
+       <br>
+    * `expirationminutes` (uint32) This defines the number of minutes after
+       the scheduled upgrade time before this upgrade is removed (expires).
+       If not specified, a default expiration window of 15 minutes will be used.
+       This prevents upgrades from lingering indefinitely if they are not
+       applied within a reasonable timeframe after their scheduled time. Should
+       be increased when validators may arm for upgrades over a longer period of
+       time.
        <br>
     * `protocolversion` (uint32) defines the protocol version to upgrade to.
         When specified it must match one of the protocol versions supported

@@ -29,9 +29,9 @@ using ConfigUpgradeSetFrameConstPtr =
 class Upgrades
 {
   public:
-    // # of hours after the scheduled upgrade time before we remove pending
-    // upgrades
-    static std::chrono::hours const UPDGRADE_EXPIRATION_HOURS;
+    // Default # of minutes after the scheduled upgrade time before we remove
+    // pending upgrades
+    static std::chrono::minutes const DEFAULT_UPGRADE_EXPIRATION_MINUTES;
 
     struct UpgradeParameters
     {
@@ -59,6 +59,14 @@ class Upgrades
         std::optional<uint32> mFlags;
         std::optional<uint32> mMaxSorobanTxSetSize;
         std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey;
+
+        // The maximum number of nomination timeouts this upgrade may experience
+        // per slot before SCP strips it out of the Value being voted on.
+        std::optional<uint32_t> mNominationTimeoutLimit;
+
+        // The number of minutes after the scheduled upgrade time before this
+        // upgrade is removed (expires).
+        std::optional<std::chrono::minutes> mExpirationMinutes;
 
         std::string toJson() const;
         void fromJson(std::string const& s);

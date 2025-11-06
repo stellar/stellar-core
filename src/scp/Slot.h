@@ -202,7 +202,7 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // The number of times the timer has to expire before we consider the node
     // missing. Used for reporting purposes only.
-    static int32 const NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING = 2;
+    static uint32_t const NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING = 2;
 
   protected:
     std::vector<SCPEnvelope> getEntireCurrentState();

@@ -130,6 +130,10 @@ class NominationProtocol
   private:
     // The number of times the timer has expired
     // Used for the quorum endpoint.
-    int32 mTimerExpCount;
+    uint32_t mTimerExpCount;
+
+    // Strip any upgrades that `value` may have, modifying it in place.  Does
+    // nothing if `value` has no upgrades.
+    void stripUpgrades(ValueWrapperPtr& value) const;
 };
 }

@@ -162,6 +162,26 @@ class TestSCP : public SCPDriver
         return wrapValue(mCompositeValue);
     }
 
+    bool
+    hasUpgrades(Value const& v) override
+    {
+        // Not implemented
+        releaseAssert(false);
+    }
+
+    ValueWrapperPtr
+    stripAllUpgrades(Value const& v) override
+    {
+        // Not implemented
+        releaseAssert(false);
+    }
+
+    uint32_t
+    getUpgradeNominationTimeoutLimit() const override
+    {
+        return std::numeric_limits<uint32_t>::max();
+    }
+
     std::set<Value> mExpectedCandidates;
     Value mCompositeValue;
 

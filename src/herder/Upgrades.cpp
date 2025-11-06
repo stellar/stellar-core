@@ -60,6 +60,14 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
     }
     ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
     ar(make_nvp("maxsorobantxsetsize", p.mMaxSorobanTxSetSize));
+    ar(make_nvp("nominationtimeoutlimit", p.mNominationTimeoutLimit));
+
+    auto const expirationMinutesUint =
+        p.mExpirationMinutes.has_value()
+            ? std::make_optional<uint32_t>(
+                  static_cast<uint32_t>(p.mExpirationMinutes->count()))
+            : std::nullopt;
+    ar(make_nvp("expirationminutes", expirationMinutesUint));
 }
 
 template <class Archive>
@@ -97,6 +105,15 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
         {
             o.mConfigUpgradeSetKey.reset();
         }
+
+        ar(make_nvp("nominationtimeoutlimit", o.mNominationTimeoutLimit));
+
+        std::optional<uint32_t> expirationMinutesUint;
+        ar(make_nvp("expirationminutes", expirationMinutesUint));
+        o.mExpirationMinutes = expirationMinutesUint.has_value()
+                                   ? std::make_optional<std::chrono::minutes>(
+                                         expirationMinutesUint.value())
+                                   : std::nullopt;
     }
     catch (cereal::Exception&)
     {
@@ -137,7 +154,7 @@ upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
         maxTxSetSize;
 }
 } // namespace
-std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
+std::chrono::minutes const Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES(15);
 
 std::string
 Upgrades::UpgradeParameters::toJson() const
@@ -411,13 +428,14 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     updated = false;
     UpgradeParameters res = mParams;
 
-    // If the upgrade time has been surpassed by more than X hours, then remove
-    // all upgrades.  This is done so nodes that come up with outdated upgrades
-    // don't attempt to change the network
-    if (res.mUpgradeTime + Upgrades::UPDGRADE_EXPIRATION_HOURS <=
+    // If the upgrade time has been surpassed by more than X minutes, then
+    // remove all upgrades.  This is done so nodes that come up with outdated
+    // upgrades don't attempt to change the network
+    if (res.mUpgradeTime + res.mExpirationMinutes.value_or(
+                               DEFAULT_UPGRADE_EXPIRATION_MINUTES) <=
         VirtualClock::from_time_t(closeTime))
     {
-        auto resetParamIfSet = [&](std::optional<uint32>& o) {
+        auto resetParamIfSet = [&](auto& o) {
             if (o)
             {
                 o.reset();
@@ -431,6 +449,8 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         resetParamIfSet(res.mMaxSorobanTxSetSize);
         resetParamIfSet(res.mBaseReserve);
         resetParamIfSet(res.mFlags);
+        resetParamIfSet(res.mNominationTimeoutLimit);
+        resetParamIfSet(res.mExpirationMinutes);
         if (res.mConfigUpgradeSetKey)
         {
             res.mConfigUpgradeSetKey.reset();
