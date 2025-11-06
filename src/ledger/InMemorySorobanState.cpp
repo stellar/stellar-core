@@ -361,6 +361,12 @@ InMemorySorobanState::getLedgerSeq() const
     return mLastClosedLedgerSeq;
 }
 
+void
+InMemorySorobanState::assertLastClosedLedger(uint32_t expectedLedgerSeq) const
+{
+    releaseAssertOrThrow(mLastClosedLedgerSeq == expectedLedgerSeq);
+}
+
 std::shared_ptr<LedgerEntry const>
 InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 {

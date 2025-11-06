@@ -22,6 +22,7 @@ class InvariantManagerImpl : public InvariantManager
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
     medida::Counter& mInvariantFailureCount;
+    AppConnector& mAppConnector;
 
     struct InvariantFailureInformation
     {
@@ -31,7 +32,8 @@ class InvariantManagerImpl : public InvariantManager
     std::map<std::string, InvariantFailureInformation> mFailureInformation;
 
   public:
-    InvariantManagerImpl(medida::MetricsRegistry& registry);
+    InvariantManagerImpl(medida::MetricsRegistry& registry,
+                         AppConnector& appConnector);
 
     virtual Json::Value getJsonInfo() override;
 
@@ -65,7 +67,21 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void enableInvariant(std::string const& name) override;
 
-    virtual void start(Application& app) override;
+    virtual void start(LedgerManager const& ledgerManager) override;
+
+    bool hasStateSnapshotInvariantEnabled() const override;
+
+    void runStateSnapshotInvariant(
+        CompleteConstLedgerStatePtr ledgerState,
+        InMemorySorobanState const& inMemorySnapshot) override;
+
+    // Copy InMemorySorobanState for invariant checking. This is the only
+    // method that can access the private copy constructor of
+    // InMemorySorobanState. It includes a runtime check to ensure that
+    // INVARIANT_EXTRA_CHECKS is enabled before allowing the copy.
+    std::unique_ptr<InMemorySorobanState const>
+    copyInMemorySorobanStateForInvariant(
+        InMemorySorobanState const& state) const override;
 
 #ifdef BUILD_TESTS
     void snapshotForFuzzer() override;

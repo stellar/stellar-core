@@ -181,11 +181,12 @@ class LedgerSnapshot : public NonMovableOrCopyable
 // state at a specific ledger sequence. All components are instantiated together
 // and cannot be modified after construction.
 //
-// The four components included are:
-// 1. BucketList snapshot – a read-only view of the database at ledger N
-// 2. Soroban network configuration – the configuration at ledger N
-// 3. Last closed ledger header – the header of ledger N
-// 4. Last closed history archive state – the archive state at ledger N
+// The five components included are:
+// 1. BucketList snapshot – a read-only view of the live bucket list at ledger N
+// 2. Hot Archive snapshot – a read-only view of the hot archive at ledger N
+// 3. Soroban network configuration – the configuration at ledger N
+// 4. Last closed ledger header – the header of ledger N
+// 5. Last closed history archive state – the archive state at ledger N
 //
 // All member objects are immutable. Getters return const references;
 // however, these references should not be assumed to have long lifetimes.
@@ -195,6 +196,7 @@ class CompleteConstLedgerState : public NonMovableOrCopyable
 {
   private:
     SearchableSnapshotConstPtr const mBucketSnapshot;
+    SearchableHotArchiveSnapshotConstPtr const mHotArchiveSnapshot;
     std::optional<SorobanNetworkConfig const> const mSorobanConfig;
     LedgerHeaderHistoryEntry const mLastClosedLedgerHeader;
     HistoryArchiveState const mLastClosedHistoryArchiveState;
@@ -204,10 +206,12 @@ class CompleteConstLedgerState : public NonMovableOrCopyable
   public:
     CompleteConstLedgerState(
         SearchableSnapshotConstPtr searchableSnapshot,
+        SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
         LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
         HistoryArchiveState const& lastClosedHistoryArchiveState);
 
     SearchableSnapshotConstPtr getBucketSnapshot() const;
+    SearchableHotArchiveSnapshotConstPtr getHotArchiveSnapshot() const;
     SorobanNetworkConfig const& getSorobanConfig() const;
     bool hasSorobanConfig() const;
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;

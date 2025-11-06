@@ -761,7 +761,7 @@ ApplicationImpl::validateAndLogConfig()
 void
 ApplicationImpl::startServices()
 {
-    mInvariantManager->start(*this);
+    mInvariantManager->start(*mLedgerManager);
 
     // restores Herder's state before starting overlay
     mHerder->start();

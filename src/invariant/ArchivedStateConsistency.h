@@ -42,6 +42,10 @@ class ArchivedStateConsistency : public Invariant
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
         override;
 
-    virtual std::string start(Application& app) override;
+    bool usesStateSnapshotInvariant() const override;
+
+    std::string stateSnapshotInvariant(
+        CompleteConstLedgerStatePtr ledgerState,
+        InMemorySorobanState const& inMemorySnapshot) override;
 };
 }

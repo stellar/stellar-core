@@ -19,6 +19,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
+#include <atomic>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -202,6 +203,8 @@ class LedgerManagerImpl : public LedgerManager
         // The following methods are const getters, and can be accessed from any
         // thread for read-only purposes during the APPLYING phase.
         InMemorySorobanState const& getInMemorySorobanState() const;
+        InMemorySorobanState const&
+        getInMemorySorobanStateForInvariantCheck() const;
 
 #ifdef BUILD_TESTS
         InMemorySorobanState& getInMemorySorobanStateForTesting();
@@ -306,6 +309,7 @@ class LedgerManagerImpl : public LedgerManager
     // Use in the context of parallel ledger apply to indicate background thread
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
+    mutable std::atomic<bool> mStateSnapshotInvariantRunning{false};
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
@@ -384,6 +388,11 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
+
+    // Runs the state snapshot invariant check if enabled and the ledger
+    // sequence is a multiple of STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY.
+    void
+    maybeRunSnapshotInvariants(CompleteConstLedgerStatePtr const& res) const;
 
     HistoryArchiveState
     storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
@@ -478,6 +487,7 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
+    void runSnapshotInvariantsOnStartup() const override;
     SorobanNetworkConfig const&
     getLastClosedSorobanNetworkConfig() const override;
 
