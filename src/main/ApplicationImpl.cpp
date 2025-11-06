@@ -173,35 +173,36 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mThreadTypes[std::this_thread::get_id()] = ThreadType::MAIN;
 
     // Allocate one thread for Eviction scan
-    mEvictionThread = std::thread{[this]() {
+    mEvictionThread = std::make_unique<std::thread>([this]() {
         runCurrentThreadWithMediumPriority();
         mEvictionIOContext->run();
-    }};
+    });
     mThreadTypes[mEvictionThread->get_id()] = ThreadType::EVICTION;
 
     --t;
 
     while (t--)
     {
-        auto thread = std::thread{[this]() {
+        auto thread = std::make_unique<std::thread>([this]() {
             runCurrentThreadWithLowPriority();
             mWorkerIOContext.run();
-        }};
-        mThreadTypes[thread.get_id()] = ThreadType::WORKER;
+        });
+        mThreadTypes[thread->get_id()] = ThreadType::WORKER;
         mWorkerThreads.emplace_back(std::move(thread));
     }
 
     if (mConfig.BACKGROUND_OVERLAY_PROCESSING)
     {
         // Keep priority unchanged as overlay processes time-sensitive tasks
-        mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
+        mOverlayThread = std::make_unique<std::thread>(
+            [this]() { mOverlayIOContext->run(); });
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
     if (mConfig.parallelLedgerClose())
     {
-        mLedgerCloseThread =
-            std::thread{[this]() { mLedgerCloseIOContext->run(); }};
+        mLedgerCloseThread = std::make_unique<std::thread>(
+            [this]() { mLedgerCloseIOContext->run(); });
         mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
     }
 }
@@ -632,25 +633,7 @@ ApplicationImpl::~ApplicationImpl()
     mStopping = true;
     try
     {
-        // First, shutdown ledger close queue _before_ shutting down all the
-        // subsystems. This ensures that any ledger currently being closed
-        // finishes okay
-        shutdownLedgerCloseThread();
-        shutdownWorkScheduler();
-        if (mProcessManager)
-        {
-            mProcessManager->shutdown();
-        }
-        if (mBucketManager)
-        {
-            mBucketManager->shutdown();
-        }
-        // Peers continue reading and writing in the background, so we need to
-        // issue a signal to start wrapping up
-        if (mOverlayManager)
-        {
-            mOverlayManager->shutdown();
-        }
+        idempotentShutdown();
     }
     catch (std::exception const& e)
     {
@@ -658,8 +641,6 @@ ApplicationImpl::~ApplicationImpl()
                   e.what());
     }
     reportCfgMetrics();
-    shutdownMainIOContext();
-    joinAllThreads();
     LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
@@ -840,14 +821,23 @@ ApplicationImpl::start()
 }
 
 void
-ApplicationImpl::gracefulStop()
+ApplicationImpl::idempotentShutdown()
 {
-    if (mStopping)
-    {
-        return;
-    }
-    mStopping = true;
-    shutdownLedgerCloseThread();
+    // Graceful shutdown sequence:
+    // Perform a graceful shutdown by first signaling all managers to stop
+    // scheduling new work, then stopping the main-thread io_service to prevent
+    // further dispatch. Once no new tasks can be queued, release the io_context
+    // work guard so worker threads exit naturally after completing their
+    // current tasks. Drain any remaining operations while the application state
+    // is still valid, join all worker threads, and finally allow destructors to
+    // run once no asynchronous activity remains.
+
+    // Shutdown state-modifying ledger close thread first, while all subsystems
+    // are live and valid. Note that `joinAllThreads` will also attempt to
+    // shutdown mLedgerCloseThread for completeness, but since this method is
+    // idempotent, the extra call is harmless.
+    shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
@@ -871,6 +861,21 @@ ApplicationImpl::gracefulStop()
     {
         mHerder->shutdown();
     }
+
+    shutdownMainIOContext();
+    joinAllThreads();
+}
+
+void
+ApplicationImpl::gracefulStop()
+{
+    releaseAssert(threadIsMain());
+    if (mStopping)
+    {
+        return;
+    }
+    mStopping = true;
+    idempotentShutdown();
 
     mStoppingTimer.expires_from_now(
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
@@ -896,58 +901,41 @@ ApplicationImpl::shutdownWorkScheduler()
 }
 
 void
-ApplicationImpl::shutdownLedgerCloseThread()
+ApplicationImpl::shutdownThread(
+    std::unique_ptr<std::thread>& threadPtr,
+    std::unique_ptr<asio::io_context::work>& workPtr,
+    std::string const& threadName)
 {
-    if (mLedgerCloseThread && !mLedgerCloseThreadStopped)
+    if (threadPtr)
     {
-        if (mLedgerCloseWork)
+        // We never strictly stop the worker IO service, just release the
+        // work-lock
+        // that keeps the worker threads alive. This gives them the chance to
+        // finish any work that the main thread queued.
+        if (workPtr)
         {
-            mLedgerCloseWork.reset();
+            workPtr.reset();
         }
-        LOG_INFO(DEFAULT_LOG, "Joining the ledger close thread");
-        mLedgerCloseThread->join();
-        mLedgerCloseThreadStopped = true;
+        LOG_INFO(DEFAULT_LOG, "Joining {} thread", threadName);
+        threadPtr->join();
+        threadPtr.reset();
     }
 }
 
 void
 ApplicationImpl::joinAllThreads()
 {
-    // We never strictly stop the worker IO service, just release the work-lock
-    // that keeps the worker threads alive. This gives them the chance to finish
-    // any work that the main thread queued.
-    if (mWork)
-    {
-        mWork.reset();
-    }
-    if (mOverlayWork)
-    {
-        mOverlayWork.reset();
-    }
-    if (mEvictionWork)
-    {
-        mEvictionWork.reset();
-    }
-
-    LOG_INFO(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
+    uint32_t const THREAD_COUNT = 3 + mWorkerThreads.size();
+    shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
     for (auto& w : mWorkerThreads)
     {
-        w.join();
+        shutdownThread(w, mWork, "worker");
     }
+    mWorkerThreads.clear();
 
-    if (mOverlayThread)
-    {
-        LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
-        mOverlayThread->join();
-    }
-
-    if (mEvictionThread)
-    {
-        LOG_INFO(DEFAULT_LOG, "Joining eviction thread");
-        mEvictionThread->join();
-    }
-
-    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", (mWorkerThreads.size() + 1));
+    shutdownThread(mOverlayThread, mOverlayWork, "overlay");
+    shutdownThread(mEvictionThread, mEvictionWork, "eviction");
+    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", THREAD_COUNT);
 }
 
 std::string
