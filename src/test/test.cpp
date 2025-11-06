@@ -237,6 +237,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.INVARIANT_CHECKS = {
             "(?!EventsAreConsistentWithEntryDiffs).*"};
 
+        // Run all invariants on every ledger in tests
+        thisConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 1;
+
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // this forces to pick up any other potential upgrades

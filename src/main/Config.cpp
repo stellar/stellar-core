@@ -356,6 +356,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     REPORT_METRICS = {};
     INVARIANT_CHECKS = {};
     INVARIANT_EXTRA_CHECKS = false;
+    STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 64;
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1467,6 +1468,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { INVARIANT_CHECKS = readArray<std::string>(item); }},
                 {"INVARIANT_EXTRA_CHECKS",
                  [&]() { INVARIANT_EXTRA_CHECKS = readBool(item); }},
+                {"STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY",
+                 [&]() {
+                     STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY =
+                         readInt<uint32_t>(item, 1);
+                 }},
                 {"ENTRY_CACHE_SIZE",
                  [&]() { ENTRY_CACHE_SIZE = readInt<uint32_t>(item); }},
                 {"PREFETCH_BATCH_SIZE",

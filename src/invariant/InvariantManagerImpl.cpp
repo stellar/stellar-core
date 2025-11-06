@@ -13,9 +13,9 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
+#include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "medida/counter.h"
@@ -35,12 +35,15 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return std::make_unique<InvariantManagerImpl>(app.getMetrics());
+    return std::make_unique<InvariantManagerImpl>(app.getMetrics(),
+                                                  app.getAppConnector());
 }
 
-InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
+InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry,
+                                           AppConnector& appConnector)
     : mInvariantFailureCount(
           registry.NewCounter({"ledger", "invariant", "failure"}))
+    , mAppConnector(appConnector)
 {
 }
 
@@ -271,6 +274,14 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
 }
 
 void
+InvariantManagerImpl::start(LedgerManager const& ledgerManager)
+{
+    // When starting up invariants, run all our snapshot based tests on the
+    // initial startup state regardless of the lcl ledger or frequency.
+    ledgerManager.runSnapshotInvariantsOnStartup();
+}
+
+void
 InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
                                          std::string const& message,
                                          uint32_t ledger)
@@ -300,22 +311,56 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
     }
 }
 
-void
-InvariantManagerImpl::start(Application& app)
+bool
+InvariantManagerImpl::hasStateSnapshotInvariantEnabled() const
 {
-    for (auto invariant : mEnabled)
+    if (!mAppConnector.getConfig().INVARIANT_EXTRA_CHECKS)
     {
-        auto result = invariant->start(app);
-        if (result.empty())
-        {
-            continue;
-        }
+        return false;
+    }
 
-        auto message = fmt::format(
-            FMT_STRING(R"(Invariant "{}" does not hold on startup: {})"),
-            invariant->getName(), result);
-        onInvariantFailure(invariant, message,
-                           app.getLedgerManager().getLastClosedLedgerNum());
+    return std::any_of(mEnabled.begin(), mEnabled.end(), [](auto const& inv) {
+        return inv->usesStateSnapshotInvariant();
+    });
+}
+
+std::unique_ptr<InMemorySorobanState const>
+InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
+    InMemorySorobanState const& state) const
+{
+    // This copy is very expensive, so make sure it's only called when required
+    // by an invariant that uses it.
+    releaseAssert(hasStateSnapshotInvariantEnabled());
+
+    return std::unique_ptr<InMemorySorobanState const>(
+        new InMemorySorobanState(state));
+}
+
+void
+InvariantManagerImpl::runStateSnapshotInvariant(
+    CompleteConstLedgerStatePtr ledgerState,
+    InMemorySorobanState const& inMemorySnapshot)
+{
+    for (auto const& invariant : mEnabled)
+    {
+        auto result =
+            invariant->stateSnapshotInvariant(ledgerState, inMemorySnapshot);
+        if (!result.empty())
+        {
+            auto inv = invariant;
+            auto ledgerSeq =
+                ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
+
+            // After hitting an invariant failure, for strict invariants we need
+            // to crash. Post back on the main thread so when
+            // onInvariantFailure throws, we properly crash the main thread.
+            mAppConnector.postOnMainThread(
+                [this, inv, ledgerSeq, result = std::move(result)]() mutable {
+                    onInvariantFailure(inv, result, ledgerSeq);
+                },
+                fmt::format("StateSnapshotInvariant {}", inv->getName()));
+            return;
+        }
     }
 }
 

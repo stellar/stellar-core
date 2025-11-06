@@ -244,6 +244,14 @@ LedgerManagerImpl::ApplyState::getInMemorySorobanState() const
     return mInMemorySorobanState;
 }
 
+InMemorySorobanState const&
+LedgerManagerImpl::ApplyState::getInMemorySorobanStateForInvariantCheck() const
+{
+    releaseAssert(mPhase == Phase::COMMITTING ||
+                  mPhase == Phase::SETTING_UP_STATE);
+    return mInMemorySorobanState;
+}
+
 #ifdef BUILD_TESTS
 InMemorySorobanState&
 LedgerManagerImpl::ApplyState::getInMemorySorobanStateForTesting()
@@ -332,7 +340,7 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mApplyState(app)
     , mLastClosedLedgerState(std::make_shared<CompleteConstLedgerState>(
-          nullptr, LedgerHeaderHistoryEntry(), HistoryArchiveState()))
+          nullptr, nullptr, LedgerHeaderHistoryEntry(), HistoryArchiveState()))
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
@@ -724,6 +732,13 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader().header.ledgerSeq;
+}
+
+void
+LedgerManagerImpl::runSnapshotInvariantsOnStartup() const
+{
+    releaseAssert(threadIsMain());
+    maybeRunSnapshotInvariants(mLastClosedLedgerState);
 }
 
 SorobanNetworkConfig const&
@@ -1639,7 +1654,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         emitNextMeta();
     }
 
-    // The next 7 steps happen in a relatively non-obvious, subtle order.
+    // The next 8 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
     // be so subtle, but for the time being this is where we are.
     //
@@ -1650,22 +1665,29 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // 2. Commit the current transaction.
     //
     // 3. Finalize any new checkpoint files _after_ the commit. If a crash
-    // occurs
-    //   between commit and this step, core will attempt finalizing files again
-    //   on restart.
+    //   occurs between commit and this step, core will attempt finalizing files
+    //   again on restart.
     //
     // 4. Start background eviction scan for the next ledger, _after_ the commit
     //    so that it takes its snapshot of network setting from the
     //    committed state.
     //
-    // 5. Start any queued checkpoint publishing, _after_ the commit so that
+    // 5. Run the state snapshot invariant check if enabled. At
+    //    this point, LedgerManager has finished constructing the set of changes
+    //    for the given ledger. We want to make sure to kick off the invariant
+    //    and copy state over to the invariant thread before we start applying
+    //    another ledger. To do this we need to make sure that the apply thread
+    //    starts the check before posting back to the main thread, since once we
+    //    post to main, apply state may start changing again.
+    //
+    // 6. Start any queued checkpoint publishing, _after_ the commit so that
     //    it takes its snapshot of history-rows from the committed state, but
     //    _before_ we GC any buckets (because this is the step where the
     //    bucket refcounts are incremented for the duration of the publish).
     //
-    // 6. GC unreferenced buckets. Only do this once publishes are in progress.
+    // 7. GC unreferenced buckets. Only do this once publishes are in progress.
     //
-    // 7. Finally, reflect newly closed ledger in LedgerManager's and Herder's
+    // 8. Finally, reflect newly closed ledger in LedgerManager's and Herder's
     // states: maybe move into SYNCED state, trigger next ledger, etc.
 
     // Step 1. Maybe queue the current checkpoint file for publishing; this
@@ -1698,13 +1720,16 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             appliedLedgerState->getSorobanConfig());
     }
 
+    // Step 5
+    maybeRunSnapshotInvariants(appliedLedgerState);
+
     // At this point, we've committed all changes to the Apply State for this
     // ledger. While the following functions will publish this state to other
     // subsystems, that's not relevant for Apply State phases since ApplyState
     // is only accessed by LedgerManager's apply threads.
     mApplyState.markEndOfCommitting();
 
-    // Steps 5, 6, 7 are done in `advanceLedgerStateAndPublish`
+    // Steps 6, 7, 8 are done in `advanceLedgerStateAndPublish`
     // NB: appliedLedgerState is invalidated after this call.
     if (threadIsMain())
     {
@@ -1976,6 +2001,8 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
 
     return std::make_shared<CompleteConstLedgerState const>(
         bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(),
+        bm.getBucketSnapshotManager()
+            .copySearchableHotArchiveBucketListSnapshot(),
         lcl, has);
 }
 }
@@ -2877,6 +2904,87 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     }
 
     return res;
+}
+
+// For some expensive invariants, we want to run them on a background thread
+// with a full copy of relevant state. All the fields in `ledgerState` are
+// stable, thread safe snapshot objects that can be safely used as is. The
+// soroban state cache is not thread safe or included in this struct, so we
+// manually copy it over for the invariant thread.
+void
+LedgerManagerImpl::maybeRunSnapshotInvariants(
+    CompleteConstLedgerStatePtr const& ledgerState) const
+{
+    if (mApp.getInvariantManager().hasStateSnapshotInvariantEnabled())
+    {
+        auto ledgerSeq =
+            ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
+        auto snapshotFrequency =
+            mApp.getConfig().STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
+
+        if (ledgerSeq % snapshotFrequency == 0)
+        {
+            if (mStateSnapshotInvariantRunning.exchange(true))
+            {
+                CLOG_WARNING(Ledger,
+                             "Skipping state snapshot invariant at ledger {} "
+                             "because a previous scan is still running; "
+                             "STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY={} may "
+                             "be too short",
+                             ledgerSeq, snapshotFrequency);
+            }
+            else
+            {
+                // Copy the InMemorySorobanState on the main thread, then
+                // transfer to the background thread.
+                auto inMemorySnapshot =
+                    mApp.getInvariantManager()
+                        .copyInMemorySorobanStateForInvariant(
+                            mApplyState
+                                .getInMemorySorobanStateForInvariantCheck());
+
+                // Verify consistency of all snapshot state on the main thread
+                // before posting to the background thread.
+                auto liveBLSnapshot = ledgerState->getBucketSnapshot();
+                auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
+                releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() ==
+                                     ledgerSeq);
+                releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() ==
+                                     ledgerSeq);
+                inMemorySnapshot->assertLastClosedLedger(ledgerSeq);
+
+                // We need to manually manage the lifetime of inMemorySnapshot
+                // because lambdas requires copyable callables, but
+                // unique_ptr is move-only. We release() the unique_ptr and
+                // reclaim ownership inside the lambda. This is safe because
+                // the lambda is guaranteed to execute exactly once.
+                auto inMemorySnapshotRaw = inMemorySnapshot.release();
+
+                mApp.postOnBackgroundThread(
+                    [&snapshotRunningFlag = mStateSnapshotInvariantRunning,
+                     ledgerState = ledgerState,
+                     &invariantManager = mApp.getInvariantManager(),
+                     inMemorySnapshotRaw]() {
+                        // Reclaim ownership of the InMemorySorobanState
+                        std::unique_ptr<InMemorySorobanState const>
+                            inMemorySnapshot(inMemorySnapshotRaw);
+
+                        // RAII style cleanup
+                        struct ResetFlagOnExit
+                        {
+                            std::atomic<bool>& flag;
+                            ~ResetFlagOnExit()
+                            {
+                                flag.store(false);
+                            }
+                        } reset{snapshotRunningFlag};
+                        invariantManager.runStateSnapshotInvariant(
+                            ledgerState, *inMemorySnapshot);
+                    },
+                    "StateSnapshotInvariant");
+            }
+        }
+    }
 }
 
 void

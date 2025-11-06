@@ -756,6 +756,10 @@ class Config : public std::enable_shared_from_this<Config>
     // false.
     bool INVARIANT_EXTRA_CHECKS;
 
+    // Frequency (in ledgers) at which expensive state snapshot invariants
+    // should run. Defaults to 64 ledgers.
+    uint32_t STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
+
     std::map<std::string, std::string> VALIDATOR_NAMES;
 
     // Information necessary to compute the weight of a validator for leader

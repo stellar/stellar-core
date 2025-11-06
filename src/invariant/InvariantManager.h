@@ -15,6 +15,7 @@ class AppConnector;
 class Application;
 class Bucket;
 class Invariant;
+class LedgerManager;
 struct EvictedStateVectors;
 struct LedgerTxnDelta;
 struct Operation;
@@ -60,11 +61,29 @@ class InvariantManager
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState) = 0;
 
+    // This is used for expensive invariants that can't run in a blocking
+    // fashion, such as invariants that require scanning the entire BucketList.
+    // The invariant will periodically run on a background thread against the
+    // given ledger state snapshot. These invariants will only run if
+    // INVARIANT_EXTRA_CHECKS is enabled.
+    virtual void
+    runStateSnapshotInvariant(CompleteConstLedgerStatePtr ledgerState,
+                              InMemorySorobanState const& inMemorySnapshot) = 0;
+
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 
     virtual void enableInvariant(std::string const& name) = 0;
 
-    virtual void start(Application& app) = 0;
+    virtual void start(LedgerManager const& ledgerManager) = 0;
+
+    virtual bool hasStateSnapshotInvariantEnabled() const = 0;
+
+    // Copy InMemorySorobanState for invariant checking. This is the only
+    // method that can access the private copy constructor of
+    // InMemorySorobanState.
+    virtual std::unique_ptr<InMemorySorobanState const>
+    copyInMemorySorobanStateForInvariant(
+        InMemorySorobanState const& state) const = 0;
 
 #ifdef BUILD_TESTS
     virtual void snapshotForFuzzer() = 0;
