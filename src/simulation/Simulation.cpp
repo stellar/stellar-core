@@ -52,21 +52,19 @@ Simulation::~Simulation()
     // kills all connections
     mLoopbackConnections.clear();
 
+    for (auto& node : mNodes)
+    {
+        node.second.mApp->gracefulStop();
+        crankUntil([node] { return node.second.mApp->getClock().isStopped(); },
+                   std::chrono::seconds(20), false);
+    }
+
     // destroy all nodes first
     mNodes.clear();
 
-    // kill scheduler before the io service
-    testutil::shutdownWorkScheduler(*mIdleApp);
-
-    // shutdown overlay service such that it doesn't post anything to
-    // soon-to-be-dead main io service killed right below
-    mIdleApp->getOverlayManager().shutdown();
-
-    // tear down main app/clock
-    mClock.getIOContext().poll_one();
-    mClock.getIOContext().stop();
-    while (mClock.cancelAllEvents())
-        ;
+    mIdleApp->gracefulStop();
+    crankUntil([this] { return mIdleApp->getClock().isStopped(); },
+               std::chrono::seconds(20), false);
 }
 
 void
