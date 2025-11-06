@@ -62,5 +62,7 @@ class QueryServer
                 bool useMainThreadForTesting = false
 #endif
     );
+
+    void shutdown();
 };
 }
