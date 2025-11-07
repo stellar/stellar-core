@@ -17,7 +17,9 @@ class Counter;
 namespace stellar
 {
 
-class InvariantManagerImpl : public InvariantManager
+class InvariantManagerImpl
+    : public InvariantManager,
+      public std::enable_shared_from_this<InvariantManagerImpl>
 {
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;

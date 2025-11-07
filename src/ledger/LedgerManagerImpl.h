@@ -83,6 +83,7 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mStagesPerLedger;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
+        medida::Counter& mStateSnapshotInvariantSkipped;
         LedgerApplyMetrics(medida::MetricsRegistry& registry);
     };
 
@@ -154,7 +155,7 @@ class LedgerManagerImpl : public LedgerManager
         };
 
       private:
-        LedgerApplyMetrics mMetrics;
+        mutable LedgerApplyMetrics mMetrics;
 
         AppConnector& mAppConnector;
 
@@ -193,7 +194,7 @@ class LedgerManagerImpl : public LedgerManager
         void assertWritablePhase() const;
 
       public:
-        LedgerApplyMetrics& getMetrics();
+        LedgerApplyMetrics& getMetrics() const;
 
         ApplyState(Application& app);
 
@@ -309,7 +310,8 @@ class LedgerManagerImpl : public LedgerManager
     // Use in the context of parallel ledger apply to indicate background thread
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
-    mutable std::atomic<bool> mStateSnapshotInvariantRunning{false};
+    std::shared_ptr<std::atomic<bool>> mStateSnapshotInvariantRunning{
+        std::make_shared<std::atomic<bool>>(false)};
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,

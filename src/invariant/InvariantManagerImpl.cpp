@@ -354,9 +354,10 @@ InvariantManagerImpl::runStateSnapshotInvariant(
             // After hitting an invariant failure, for strict invariants we need
             // to crash. Post back on the main thread so when
             // onInvariantFailure throws, we properly crash the main thread.
+            auto self = shared_from_this();
             mAppConnector.postOnMainThread(
-                [this, inv, ledgerSeq, result = std::move(result)]() mutable {
-                    onInvariantFailure(inv, result, ledgerSeq);
+                [self, inv, ledgerSeq, result = std::move(result)]() mutable {
+                    self->onInvariantFailure(inv, result, ledgerSeq);
                 },
                 fmt::format("StateSnapshotInvariant {}", inv->getName()));
             return;

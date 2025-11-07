@@ -218,6 +218,8 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
     , mMetaStreamBytes(
           registry.NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(registry.NewTimer({"ledger", "metastream", "write"}))
+    , mStateSnapshotInvariantSkipped(registry.NewCounter(
+          {"ledger", "invariant", "state-snapshot-skipped"}))
 {
 }
 
@@ -231,7 +233,7 @@ LedgerManagerImpl::ApplyState::ApplyState(Application& app)
 }
 
 LedgerManagerImpl::LedgerApplyMetrics&
-LedgerManagerImpl::ApplyState::getMetrics()
+LedgerManagerImpl::ApplyState::getMetrics() const
 {
     return mMetrics;
 }
@@ -2924,7 +2926,7 @@ LedgerManagerImpl::maybeRunSnapshotInvariants(
 
         if (ledgerSeq % snapshotFrequency == 0)
         {
-            if (mStateSnapshotInvariantRunning.exchange(true))
+            if (mStateSnapshotInvariantRunning->exchange(true))
             {
                 CLOG_WARNING(Ledger,
                              "Skipping state snapshot invariant at ledger {} "
@@ -2932,57 +2934,54 @@ LedgerManagerImpl::maybeRunSnapshotInvariants(
                              "STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY={} may "
                              "be too short",
                              ledgerSeq, snapshotFrequency);
+                mApplyState.getMetrics().mStateSnapshotInvariantSkipped.inc();
+                return;
             }
-            else
-            {
-                // Copy the InMemorySorobanState on the main thread, then
-                // transfer to the background thread.
-                auto inMemorySnapshot =
-                    mApp.getInvariantManager()
-                        .copyInMemorySorobanStateForInvariant(
-                            mApplyState
-                                .getInMemorySorobanStateForInvariantCheck());
+            // Copy the InMemorySorobanState on the main thread, then
+            // transfer to the background thread.
+            auto inMemorySnapshot =
+                mApp.getInvariantManager().copyInMemorySorobanStateForInvariant(
+                    mApplyState.getInMemorySorobanStateForInvariantCheck());
 
-                // Verify consistency of all snapshot state on the main thread
-                // before posting to the background thread.
-                auto liveBLSnapshot = ledgerState->getBucketSnapshot();
-                auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
-                releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() ==
-                                     ledgerSeq);
-                releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() ==
-                                     ledgerSeq);
-                inMemorySnapshot->assertLastClosedLedger(ledgerSeq);
+            // Verify consistency of all snapshot state on the main thread
+            // before posting to the background thread.
+            auto liveBLSnapshot = ledgerState->getBucketSnapshot();
+            auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
+            releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() == ledgerSeq);
+            releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() ==
+                                 ledgerSeq);
+            inMemorySnapshot->assertLastClosedLedger(ledgerSeq);
 
-                // We need to manually manage the lifetime of inMemorySnapshot
-                // because lambdas requires copyable callables, but
-                // unique_ptr is move-only. We release() the unique_ptr and
-                // reclaim ownership inside the lambda. This is safe because
-                // the lambda is guaranteed to execute exactly once.
-                auto inMemorySnapshotRaw = inMemorySnapshot.release();
+            // We need to manually manage the lifetime of inMemorySnapshot
+            // because lambdas requires copyable callables, but
+            // unique_ptr is move-only. We release() the unique_ptr and
+            // reclaim ownership inside the lambda. This is safe because
+            // the lambda is guaranteed to execute exactly once.
+            auto inMemorySnapshotRaw = inMemorySnapshot.release();
 
-                mApp.postOnBackgroundThread(
-                    [&snapshotRunningFlag = mStateSnapshotInvariantRunning,
-                     ledgerState = ledgerState,
-                     &invariantManager = mApp.getInvariantManager(),
-                     inMemorySnapshotRaw]() {
-                        // Reclaim ownership of the InMemorySorobanState
-                        std::unique_ptr<InMemorySorobanState const>
-                            inMemorySnapshot(inMemorySnapshotRaw);
+            // Note: No race condition acquiring app by reference, as all worker
+            // threads are joined before application destruction.
+            mApp.postOnBackgroundThread(
+                [snapshotRunningFlag = mStateSnapshotInvariantRunning,
+                 ledgerState = ledgerState, &app = mApp,
+                 inMemorySnapshotRaw]() {
+                    // Reclaim ownership of the InMemorySorobanState
+                    std::unique_ptr<InMemorySorobanState const>
+                        inMemorySnapshot(inMemorySnapshotRaw);
 
-                        // RAII style cleanup
-                        struct ResetFlagOnExit
+                    // RAII style cleanup
+                    struct ResetFlagOnExit
+                    {
+                        std::atomic<bool>& flag;
+                        ~ResetFlagOnExit()
                         {
-                            std::atomic<bool>& flag;
-                            ~ResetFlagOnExit()
-                            {
-                                flag.store(false);
-                            }
-                        } reset{snapshotRunningFlag};
-                        invariantManager.runStateSnapshotInvariant(
-                            ledgerState, *inMemorySnapshot);
-                    },
-                    "StateSnapshotInvariant");
-            }
+                            flag.store(false);
+                        }
+                    } reset{*snapshotRunningFlag};
+                    app.getInvariantManager().runStateSnapshotInvariant(
+                        ledgerState, *inMemorySnapshot);
+                },
+                "StateSnapshotInvariant");
         }
     }
 }
