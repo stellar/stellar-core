@@ -87,6 +87,7 @@ ledger.apply-soroban.max-clusters         | counter   | maximum number of cluste
 ledger.apply-soroban.stages               | counter   | number of stages used for parallel apply in a ledger
 ledger.catchup.duration                   | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                  | counter   | number of times invariants failed
+ledger.invariant.state-snapshot-skipped   | counter   | number of times state snapshot invariant was skipped due to previous scan still running
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
 ledger.memory.queued-ledgers              | counter   | number of ledgers queued in memory for replay
 ledger.metastream.bytes                   | meter     | number of bytes written per ledger into meta-stream

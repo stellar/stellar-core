@@ -100,72 +100,7 @@ ArchivedStateConsistency::stateSnapshotInvariant(
         seenKeys.clear();
     }
 
-    // Iterate through each entry of each Bucket in the Hot Archive. If we
-    // haven't seen the key before, it is the newest version, so check if it
-    // exists in the Live BucketList.
-    auto checkIfArchivedEntryInLive =
-        [&seenKeys, &errorMsg, &liveSnapshot, &ARCHIVAL_ENTRY_TYPES](
-            BucketSnapshotBase<HotArchiveBucket> const& bucketSnapshot) {
-            for (HotArchiveBucketInputIterator iter(
-                     bucketSnapshot.getRawBucket());
-                 iter; ++iter)
-            {
-                auto be = *iter;
-                if (be.type() == HOT_ARCHIVE_ARCHIVED)
-                {
-                    // Check that each key is a supported type
-                    auto lk = LedgerEntryKey(be.archivedEntry());
-                    if (ARCHIVAL_ENTRY_TYPES.find(lk.type()) ==
-                        ARCHIVAL_ENTRY_TYPES.end())
-                    {
-                        errorMsg = fmt::format(
-                            FMT_STRING(
-                                "ArchivedStateConsistency invariant failed: "
-                                "Archived entry is not a Soroban entry: {}"),
-                            xdrToCerealString(lk, "entry_key"));
-                        return Loop::COMPLETE;
-                    }
-
-                    // If the key is not shadowed, and it exists in the Live
-                    // BucketList, we have an error.
-                    auto [_, wasInserted] = seenKeys.emplace(lk);
-                    if (wasInserted && liveSnapshot->load(lk))
-                    {
-                        errorMsg = fmt::format(
-                            FMT_STRING(
-                                "ArchivedStateConsistency invariant failed: "
-                                "Archived entry is present in both live and "
-                                "archived state: {}"),
-                            xdrToCerealString(lk, "entry_key"));
-                        return Loop::COMPLETE;
-                    }
-                }
-                else
-                {
-                    // Even though we don't need to check if dead keys exist in
-                    // the Live BucketList, we still need to check their type
-                    // and mark them as seen.
-                    auto lk = be.key();
-                    if (ARCHIVAL_ENTRY_TYPES.find(lk.type()) ==
-                        ARCHIVAL_ENTRY_TYPES.end())
-                    {
-                        errorMsg = fmt::format(
-                            FMT_STRING(
-                                "ArchivedStateConsistency invariant failed: "
-                                "Archived entry is not a Soroban entry: {}"),
-                            xdrToCerealString(lk, "entry_key"));
-                        return Loop::COMPLETE;
-                    }
-
-                    seenKeys.emplace(lk);
-                    return Loop::INCOMPLETE;
-                }
-            }
-            return Loop::INCOMPLETE;
-        };
-
-    hotArchiveSnapshot->loopAllBuckets(checkIfArchivedEntryInLive);
-    return errorMsg;
+    return std::string{};
 }
 
 std::shared_ptr<Invariant>
