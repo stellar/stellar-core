@@ -23,6 +23,7 @@
 #include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/CovMark.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -1205,6 +1206,7 @@ BucketManager::resolveBackgroundEvictionScan(
         }
         else
         {
+            COVMARK_HIT(EVICTION_TTL_MODIFIED_BETWEEN_DECISION_AND_EVICTION);
             iter = eligibleEntries.erase(iter);
         }
     }
@@ -1246,10 +1248,13 @@ BucketManager::resolveBackgroundEvictionScan(
         entryToEvictIter = eligibleEntries.erase(entryToEvictIter);
     }
 
-    // If remainingEntriesToEvict == 0, that means we could not evict the entire
-    // scan region, so the new eviction iterator should be after the last entry
-    // evicted. Otherwise, eviction iterator should be at the end of the scan
-    // region
+    // If remainingEntriesToEvict != 0, that means we evicted the entire set of
+    // eligible entries without hitting our numeric limit, and should advance
+    // newEvictionIterator to the end of the scan region.
+    //
+    // If remainingEntriesToEvict == 0, we _did_ hit our limit, but there's
+    // nothing to do in that case: we already updated newEvictionIterator to
+    // after the the last scanned eligible entry in the body of the loop.
     if (remainingEntriesToEvict != 0)
     {
         newEvictionIterator = evictionCandidates->endOfRegionIterator;

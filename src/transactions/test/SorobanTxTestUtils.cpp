@@ -12,6 +12,7 @@
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDRCereal.h"
+#include "xdr/Stellar-transaction.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
@@ -2166,6 +2167,23 @@ ContractStorageTestClient::extend(std::string const& key,
         *spec);
     invocation.withExactNonRefundableResourceFee().invoke();
     return *invocation.getResultCode();
+}
+
+InvokeHostFunctionResultCode
+ContractStorageTestClient::restore(std::string const& key,
+                                   ContractDataDurability durability,
+                                   std::optional<SorobanInvocationSpec> spec)
+{
+    if (!spec)
+    {
+        spec = writeKeySpec(key, durability);
+    }
+
+    auto tx = mContract.getTest().createRestoreTx(
+        spec->getResources(), spec->getInclusionFee(), spec->getResourceFee());
+
+    auto result = mContract.getTest().invokeTx(tx);
+    return result.result.results()[0].tr().invokeHostFunctionResult().code();
 }
 
 TestContract::Invocation
