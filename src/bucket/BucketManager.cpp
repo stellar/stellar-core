@@ -241,7 +241,7 @@ std::string const&
 BucketManager::getTmpDir()
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    RecursiveMutexLocker lock(mBucketMutex);
     if (!mWorkDir)
     {
         TmpDir t = mTmpDirManager->tmpDir("bucket");
@@ -412,7 +412,7 @@ template <>
 MergeCounters
 BucketManager::readMergeCounters<LiveBucket>()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    RecursiveMutexLocker lock(mBucketMutex);
     return mLiveMergeCounters;
 }
 
@@ -420,7 +420,7 @@ template <>
 MergeCounters
 BucketManager::readMergeCounters<HotArchiveBucket>()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    RecursiveMutexLocker lock(mBucketMutex);
     return mHotArchiveMergeCounters;
 }
 
@@ -428,7 +428,7 @@ template <>
 void
 BucketManager::incrMergeCounters<LiveBucket>(MergeCounters const& delta)
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    RecursiveMutexLocker lock(mBucketMutex);
     mLiveMergeCounters += delta;
 }
 
@@ -436,7 +436,7 @@ template <>
 void
 BucketManager::incrMergeCounters<HotArchiveBucket>(MergeCounters const& delta)
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    RecursiveMutexLocker lock(mBucketMutex);
     mHotArchiveMergeCounters += delta;
 }
 
@@ -461,6 +461,7 @@ BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::unique_ptr<LiveBucket::IndexT const> index)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedLiveBuckets, mLiveBucketFutures);
 }
@@ -471,6 +472,7 @@ BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::unique_ptr<HotArchiveBucket::IndexT const> index)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedHotArchiveBuckets,
                                      mHotArchiveBucketFutures);
@@ -485,7 +487,6 @@ BucketManager::adoptFileAsBucketInternal(
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
 
     if (mergeKey)
     {
@@ -560,6 +561,7 @@ template <>
 void
 BucketManager::noteEmptyMergeOutput<LiveBucket>(MergeKey const& mergeKey)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     noteEmptyMergeOutputInternal(mergeKey, mLiveBucketFutures);
 }
 
@@ -567,6 +569,7 @@ template <>
 void
 BucketManager::noteEmptyMergeOutput<HotArchiveBucket>(MergeKey const& mergeKey)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     noteEmptyMergeOutputInternal(mergeKey, mHotArchiveBucketFutures);
 }
 
@@ -586,7 +589,6 @@ BucketManager::noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
     // because it'd over-identify multiple individual inputs with the empty
     // output, potentially retaining far too many inputs, as lots of different
     // mergeKeys result in an empty output.
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(Bucket, "BucketManager::noteEmptyMergeOutput({})", mergeKey);
     futureMap.erase(mergeKey);
 }
@@ -595,6 +597,7 @@ template <>
 std::shared_ptr<LiveBucket>
 BucketManager::getBucketIfExists(uint256 const& hash)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return getBucketIfExistsInternal(hash, mSharedLiveBuckets);
 }
 
@@ -602,6 +605,7 @@ template <>
 std::shared_ptr<HotArchiveBucket>
 BucketManager::getBucketIfExists(uint256 const& hash)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return getBucketIfExistsInternal(hash, mSharedHotArchiveBuckets);
 }
 
@@ -612,7 +616,6 @@ BucketManager::getBucketIfExistsInternal(
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto i = bucketMap.find(hash);
     if (i != bucketMap.end())
     {
@@ -629,6 +632,7 @@ template <>
 std::shared_ptr<LiveBucket>
 BucketManager::getBucketByHash(uint256 const& hash)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return getBucketByHashInternal(hash, mSharedLiveBuckets);
 }
 
@@ -636,6 +640,7 @@ template <>
 std::shared_ptr<HotArchiveBucket>
 BucketManager::getBucketByHash(uint256 const& hash)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return getBucketByHashInternal(hash, mSharedHotArchiveBuckets);
 }
 
@@ -646,7 +651,6 @@ BucketManager::getBucketByHashInternal(uint256 const& hash,
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
     {
         return std::make_shared<BucketT>();
@@ -679,6 +683,7 @@ template <>
 std::shared_future<std::shared_ptr<LiveBucket>>
 BucketManager::getMergeFuture(MergeKey const& key)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return getMergeFutureInternal(key, mLiveBucketFutures);
 }
 
@@ -686,6 +691,7 @@ template <>
 std::shared_future<std::shared_ptr<HotArchiveBucket>>
 BucketManager::getMergeFuture(MergeKey const& key)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     return getMergeFutureInternal(key, mHotArchiveBucketFutures);
 }
 
@@ -696,7 +702,6 @@ BucketManager::getMergeFutureInternal(MergeKey const& key,
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     MergeCounters mc;
     auto i = futureMap.find(key);
     if (i == futureMap.end())
@@ -741,6 +746,7 @@ void
 BucketManager::putMergeFuture(
     MergeKey const& key, std::shared_future<std::shared_ptr<LiveBucket>> future)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     putMergeFutureInternal(key, future, mLiveBucketFutures);
 }
 
@@ -750,6 +756,7 @@ BucketManager::putMergeFuture(
     MergeKey const& key,
     std::shared_future<std::shared_ptr<HotArchiveBucket>> future)
 {
+    RecursiveMutexLocker lock(mBucketMutex);
     putMergeFutureInternal(key, future, mHotArchiveBucketFutures);
 }
 
@@ -761,7 +768,6 @@ BucketManager::putMergeFutureInternal(
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(
         Bucket,
         "BucketManager::putMergeFuture storing future for running merge {}",
@@ -773,7 +779,7 @@ BucketManager::putMergeFutureInternal(
 void
 BucketManager::clearMergeFuturesForTesting()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    RecursiveMutexLocker lock(mBucketMutex);
     mLiveBucketFutures.clear();
     mHotArchiveBucketFutures.clear();
 }
@@ -828,7 +834,8 @@ BucketManager::getBucketListReferencedBuckets() const
 }
 
 std::set<Hash>
-BucketManager::getAllReferencedBuckets(HistoryArchiveState const& has) const
+BucketManager::getAllReferencedBuckets(HistoryArchiveState const& has,
+                                       RecursiveMutexLocker& lock) const
 {
     ZoneScoped;
     auto referenced = getBucketListReferencedBuckets();
@@ -876,8 +883,8 @@ BucketManager::cleanupStaleFiles(HistoryArchiveState const& has)
         return;
     }
 
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto referenced = getAllReferencedBuckets(has);
+    RecursiveMutexLocker lock(mBucketMutex);
+    auto referenced = getAllReferencedBuckets(has, lock);
     std::transform(std::begin(mSharedLiveBuckets), std::end(mSharedLiveBuckets),
                    std::inserter(referenced, std::end(referenced)),
                    [](std::pair<Hash, std::shared_ptr<LiveBucket>> const& p) {
@@ -914,11 +921,12 @@ void
 BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto referenced = getAllReferencedBuckets(has);
+    RecursiveMutexLocker lock(mBucketMutex);
+    auto referenced = getAllReferencedBuckets(has, lock);
     auto blReferenced = getBucketListReferencedBuckets();
 
-    auto bucketMapLoop = [&](auto& bucketMap, auto& futureMap) {
+    auto bucketMapLoop = [&](auto& bucketMap,
+                             auto& futureMap) REQUIRES(mBucketMutex) {
         for (auto i = bucketMap.begin(); i != bucketMap.end();)
         {
             // Standard says map iterators other than the one you're erasing
@@ -1702,7 +1710,7 @@ BucketManager::visitLedgerEntries(
             {
                 continue;
             }
-            auto b = getBucketByHashInternal(pair.first, mSharedLiveBuckets);
+            auto b = getBucketByHash<LiveBucket>(pair.first);
             if (!b)
             {
                 throw std::runtime_error(std::string("missing bucket: ") +
@@ -1732,7 +1740,8 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
     Application& app, HistoryArchiveState const& has)
 {
     releaseAssert(threadIsMain());
-    std::set<Hash> hashes = getAllReferencedBuckets(has);
+    RecursiveMutexLocker lock(mBucketMutex);
+    std::set<Hash> hashes = getAllReferencedBuckets(has, lock);
     std::vector<std::shared_ptr<BasicWork>> seq;
 
     // Persist a map of indexes so we don't have dangling references in
@@ -1750,11 +1759,10 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
             continue;
         }
 
-        auto maybeLiveBucket = getBucketByHashInternal(h, mSharedLiveBuckets);
+        auto maybeLiveBucket = getBucketByHash<LiveBucket>(h);
         if (!maybeLiveBucket)
         {
-            auto hotBucket =
-                getBucketByHashInternal(h, mSharedHotArchiveBuckets);
+            auto hotBucket = getBucketByHash<HotArchiveBucket>(h);
 
             // Check both live and hot archive buckets for hash. If we don't
             // find it in either, we're missing a bucket. Note that live and
