@@ -806,6 +806,17 @@ HistoryManagerImpl::setPublicationEnabled(bool enabled)
 }
 #endif
 
+void
+HistoryManagerImpl::waitForCheckpointPublish()
+{
+    auto& clock = mApp.getClock();
+    while (!clock.getIOContext().stopped() && mPublishWork &&
+           !mPublishWork->isDone())
+    {
+        clock.crank(true);
+    }
+}
+
 Config const&
 HistoryManagerImpl::getConfig() const
 {

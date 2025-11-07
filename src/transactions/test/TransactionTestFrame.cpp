@@ -188,9 +188,9 @@ TransactionTestFrame::validateSorobanTxForFlooding(
 }
 
 bool
-TransactionTestFrame::validateSorobanMemoForFlooding() const
+TransactionTestFrame::validateSorobanMemo() const
 {
-    return mTransactionFrame->validateSorobanMemoForFlooding();
+    return mTransactionFrame->validateSorobanMemo();
 }
 
 int64_t
