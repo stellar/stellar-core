@@ -293,7 +293,8 @@ class LedgerManagerImpl : public LedgerManager
     VirtualClock::time_point mLastClose;
 
     // Use mutex to guard ledger state during apply
-    mutable std::recursive_mutex mLedgerStateMutex;
+    mutable RecursiveMutex
+        mLedgerStateMutex ACQUIRED_BEFORE(BucketManager::mBucketMutex);
 
     medida::Timer& mCatchupDuration;
 

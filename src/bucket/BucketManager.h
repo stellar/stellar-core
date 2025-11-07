@@ -92,7 +92,21 @@ class BucketManager : NonMovableOrCopyable
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
     // a BucketList (i.e. addLiveBatch).
-    mutable std::recursive_mutex mBucketMutex;
+    //
+    // LOCK ORDERING: This mutex must be acquired AFTER LedgerManagerImpl's
+    // mLedgerStateMutex to prevent deadlocks. Code must NOT hold mBucketMutex
+    // while trying to acquire LedgerManagerImpl::mLedgerStateMutex, as this
+    // will cause a deadlock.
+#ifdef BUILD_TESTS
+  public:
+#endif
+
+    mutable RecursiveMutex mBucketMutex;
+
+#ifdef BUILD_TESTS
+  private:
+#endif
+
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketLiveObjectInsertBatch;
     medida::Meter& mBucketArchiveObjectInsertBatch;
