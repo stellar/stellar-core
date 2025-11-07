@@ -307,14 +307,11 @@ LedgerManagerImpl::ApplyState::isCompilationRunning() const
 
 void
 LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    BucketListCommitEntries const& bucketEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig)
 {
     assertWritablePhase();
-    mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries, lh,
-                                      sorobanConfig,
+    mInMemorySorobanState.updateState(bucketEntries, lh, sorobanConfig,
                                       getMetrics().mSorobanMetrics);
 }
 
@@ -2719,7 +2716,7 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
             auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
-            auto evictedState =
+            commitState.evictedVectors =
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
                     ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
                     sorobanConfig);
@@ -2729,10 +2726,12 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                     LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 std::vector<LedgerKey> restoredHotArchiveKeys;
-
-                auto const& restoredHotArchiveKeyMap =
+                commitState.restoredFromArchive =
                     ltxEvictions.getRestoredHotArchiveKeys();
-                for (auto const& [key, entry] : restoredHotArchiveKeyMap)
+                commitState.restoredFromLiveState =
+                    ltxEvictions.getRestoredLiveBucketListKeys();
+
+                for (auto const& [key, entry] : commitState.restoredFromArchive)
                 {
                     // TTL keys are not recorded in the hot archive BucketList
                     if (key.type() == CONTRACT_DATA ||
@@ -2742,14 +2741,6 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                     }
                 }
 
-                commitState.persistentEvictedFromLive =
-                    evictedState.archivedEntries;
-                commitState.tempAndTTLEvictedFromLive =
-                    evictedState.deletedKeys;
-                commitState.restoredFromArchive = restoredHotArchiveKeyMap;
-                commitState.restoredFromLiveState =
-                    ltxEvictions.getRestoredLiveBucketListKeys();
-
                 bool isP24UpgradeLedger =
                     protocolVersionIsBefore(initialLedgerVers,
                                             ProtocolVersion::V_24) &&
@@ -2758,32 +2749,35 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                 if (isP24UpgradeLedger && gIsProductionNetwork)
                 {
                     p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
-                        ltxEvictions, mApp, lh, evictedState.archivedEntries,
+                        ltxEvictions, mApp, lh,
+                        commitState.evictedVectors.archivedEntries,
                         restoredHotArchiveKeys);
                 }
                 else
                 {
                     mApp.getBucketManager().addHotArchiveBatch(
-                        mApp, lh, evictedState.archivedEntries,
+                        mApp, lh, commitState.evictedVectors.archivedEntries,
                         restoredHotArchiveKeys);
                     // Validate evicted entries against Protocol 23 corruption
                     // data if configured
                     if (mApp.getProtocol23CorruptionDataVerifier())
                     {
                         mApp.getProtocol23CorruptionDataVerifier()
-                            ->verifyArchivalOfCorruptedEntry(evictedState, mApp,
-                                                             lh.ledgerSeq,
-                                                             lh.ledgerVersion);
+                            ->verifyArchivalOfCorruptedEntry(
+                                commitState.evictedVectors, mApp, lh.ledgerSeq,
+                                lh.ledgerVersion);
                     }
                 }
             }
 
             if (ledgerCloseMeta)
             {
-                ledgerCloseMeta->populateEvictedEntries(evictedState);
+                ledgerCloseMeta->populateEvictedEntries(
+                    commitState.evictedVectors);
             }
 
-            mApplyState.evictFromModuleCache(lh.ledgerVersion, evictedState);
+            mApplyState.evictFromModuleCache(lh.ledgerVersion,
+                                             commitState.evictedVectors);
 
             ltxEvictions.commit();
         }
@@ -2807,18 +2801,13 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
     // NB: getAllEntries seals the ltx.
-    ltx.getAllEntries(commitState.initEntries, commitState.liveEntries,
-                      commitState.deadEntries);
+    commitState.bucketListEntries = ltx.getAllEntries();
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
-                                             commitState.initEntries);
-    mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
-                                             commitState.liveEntries);
-    mApp.getBucketManager().addLiveBatch(mApp, lh, commitState.initEntries,
-                                         commitState.liveEntries,
-                                         commitState.deadEntries);
-    mApplyState.updateInMemorySorobanState(
-        commitState.initEntries, commitState.liveEntries,
-        commitState.deadEntries, lh, finalSorobanConfig);
+                                             commitState.bucketListEntries);
+    mApp.getBucketManager().addLiveBatch(mApp, lh,
+                                         commitState.bucketListEntries);
+    mApplyState.updateInMemorySorobanState(commitState.bucketListEntries, lh,
+                                           finalSorobanConfig);
 
     // This invariant checks that the in-memory Soroban state has been properly
     // updated to reflect the committed ledger changes, so we need to call it
@@ -2924,31 +2913,39 @@ LedgerManagerImpl::ApplyState::evictFromModuleCache(
 
 void
 LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
-    uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
+    uint32_t ledgerVersion, BucketListCommitEntries const& bucketEntries)
 {
     ZoneScoped;
     assertWritablePhase();
-    for (auto const& e : le)
-    {
-        if (e.data.type() == CONTRACT_CODE)
+
+    auto processEntries = [&](std::vector<LedgerEntry> const& entries) {
+        for (auto const& e : entries)
         {
-            for (auto const& v : mModuleCacheProtocols)
+            if (e.data.type() == CONTRACT_CODE)
             {
-                if (v >= ledgerVersion)
+                for (auto const& v : mModuleCacheProtocols)
                 {
-                    auto const& wasm = e.data.contractCode().code;
-                    CLOG_DEBUG(Ledger,
-                               "compiling wasm {} for protocol {} module cache",
-                               binToHex(sha256(wasm)), v);
-                    auto slice =
-                        rust::Slice<const uint8_t>(wasm.data(), wasm.size());
-                    getMetrics().mSorobanMetrics.mModuleCacheNumEntries.inc();
-                    auto timer =
+                    if (v >= ledgerVersion)
+                    {
+                        auto const& wasm = e.data.contractCode().code;
+                        CLOG_DEBUG(
+                            Ledger,
+                            "compiling wasm {} for protocol {} module cache",
+                            binToHex(sha256(wasm)), v);
+                        auto slice = rust::Slice<const uint8_t>(wasm.data(),
+                                                                wasm.size());
                         getMetrics()
-                            .mSorobanMetrics.mModuleCompilationTime.TimeScope();
-                    mModuleCache->compile(v, slice);
+                            .mSorobanMetrics.mModuleCacheNumEntries.inc();
+                        auto timer = getMetrics()
+                                         .mSorobanMetrics.mModuleCompilationTime
+                                         .TimeScope();
+                        mModuleCache->compile(v, slice);
+                    }
                 }
             }
         }
-    }
+    };
+
+    processEntries(bucketEntries.initEntries);
+    processEntries(bucketEntries.liveEntries);
 }

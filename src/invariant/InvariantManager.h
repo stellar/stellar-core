@@ -53,11 +53,11 @@ class InvariantManager
                                        std::vector<ContractEvent> const& events,
                                        AppConnector& app) = 0;
 
-    // This checks invariants regarding state commited during ledger N, and is
+    // This checks invariants regarding state committed during ledger N, and is
     // called after all state has been committed. `commitState` and
-    // `inMemorySorobanState` both reflect these commited changes. lclLiveState
+    // `inMemorySorobanState` both reflect these committed changes. lclLiveState
     // and lclHotArchiveState are snapshots from the end of Ledger N - 1 and do
-    // not reflect any state commited during this ledger.
+    // not reflect any state committed during this ledger.
     virtual void
     checkOnLedgerCommit(SearchableSnapshotConstPtr lclLiveState,
                         SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,

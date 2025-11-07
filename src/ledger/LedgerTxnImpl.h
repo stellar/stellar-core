@@ -449,9 +449,7 @@ class LedgerTxn::Impl
                                                        int64_t minBalance);
 
     // getAllEntries has the strong exception safety guarantee
-    void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                       std::vector<LedgerEntry>& liveEntries,
-                       std::vector<LedgerKey>& deadEntries);
+    BucketListCommitEntries getAllEntries();
     // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys
     // have the strong exception safety guarantee
     UnorderedMap<LedgerKey, LedgerEntry> getRestoredHotArchiveKeys() const;

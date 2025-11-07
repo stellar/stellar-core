@@ -38,6 +38,7 @@ class AppConnector;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;
+struct BucketListCommitEntries;
 class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
@@ -285,14 +286,11 @@ class BucketManager : NonMovableOrCopyable
     // independently keep them alive.
     void forgetUnreferencedBuckets(HistoryArchiveState const& has);
 
-    // Feed a new batch of entries to the bucket list. This interface expects to
-    // be given separate init (created) and live (updated) entry vectors. The
+    // Feed a new batch of entries to the bucket list from a ledger commit. The
     // `header` value should be taken from the ledger at which this batch is
     // being added.
     void addLiveBatch(Application& app, LedgerHeader header,
-                      std::vector<LedgerEntry> const& initEntries,
-                      std::vector<LedgerEntry> const& liveEntries,
-                      std::vector<LedgerKey> const& deadEntries);
+                      BucketListCommitEntries const& entries);
     void addHotArchiveBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerEntry> const& archivedEntries,
                             std::vector<LedgerKey> const& restoredEntries);

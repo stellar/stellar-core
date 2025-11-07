@@ -289,7 +289,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
             finalSorobanConfig =
                 std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
         }
-        ltx.getAllEntries(init, live, dead);
+        auto entries = ltx.getAllEntries();
 
         // Add dead entries from ltx to entries that will be added to BucketList
         // so we can test background eviction properly
@@ -297,17 +297,19 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                                       SOROBAN_PROTOCOL_VERSION) ||
             mAlsoAddActualEntries)
         {
-            mTestDeadEntries.insert(mTestDeadEntries.end(), dead.begin(),
-                                    dead.end());
+            mTestDeadEntries.insert(mTestDeadEntries.end(),
+                                    entries.deadEntries.begin(),
+                                    entries.deadEntries.end());
         }
         if (mAlsoAddActualEntries)
         {
-            mTestInitEntries.insert(mTestInitEntries.end(), init.begin(),
-                                    init.end());
+            mTestInitEntries.insert(mTestInitEntries.end(),
+                                    entries.initEntries.begin(),
+                                    entries.initEntries.end());
             // When the actual entries have the same key as test entries, we
             // override the actual entries with the test entries (here we
             // just don't add the actual entries if they're already present).
-            for (auto const& liveEntry : live)
+            for (auto const& liveEntry : entries.liveEntries)
             {
                 if (std::find_if(mTestLiveEntries.begin(),
                                  mTestLiveEntries.end(),
@@ -322,16 +324,14 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         }
 
         // Use the testing values.
-        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
-                                                 mTestInitEntries);
-        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion,
-                                                 mTestLiveEntries);
-        mApp.getBucketManager().addLiveBatch(
-            mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
-
-        mApplyState.updateInMemorySorobanState(
-            mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh,
-            finalSorobanConfig);
+        BucketListCommitEntries testEntries;
+        testEntries.initEntries = mTestInitEntries;
+        testEntries.liveEntries = mTestLiveEntries;
+        testEntries.deadEntries = mTestDeadEntries;
+        mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, testEntries);
+        mApp.getBucketManager().addLiveBatch(mApp, lh, testEntries);
+        mApplyState.updateInMemorySorobanState(testEntries, lh,
+                                               finalSorobanConfig);
 
         mUseTestEntries = false;
         mAlsoAddActualEntries = false;

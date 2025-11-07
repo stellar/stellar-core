@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
@@ -158,24 +159,21 @@ class InMemorySorobanState;
 // the term "apply" to refer to actions taken and variables updated by the apply
 // thread.
 
-// Consolidated state for ledger commit operations
-struct LedgerCommitState : public NonCopyable
+// Entries committed to the Live BucketList during ledger apply
+struct BucketListCommitEntries
 {
-    // These fields hold the entries that will be commited to the BucketList as
-    // INIT, LIvE, and DEAD entries.
     std::vector<LedgerEntry> initEntries;
     std::vector<LedgerEntry> liveEntries;
     std::vector<LedgerKey> deadEntries;
+};
 
-    // Entries that have been evicted from the live BucketList and will be added
-    // to the Hot Archive
-    std::vector<LedgerEntry> persistentEvictedFromLive;
+// Consolidated state for ledger commit operations
+struct LedgerCommitState : public NonCopyable
+{
+    BucketListCommitEntries bucketListEntries;
+    EvictedStateVectors evictedVectors;
 
-    // Keys of temp and TTL entries that have been evicted from the live
-    // BucketList
-    std::vector<LedgerKey> tempAndTTLEvictedFromLive;
-
-    // Maps an entry that has been restored to it's original restoration value.
+    // Maps an entry that has been restored to its original restoration value.
     // Note that the entry may have been modified after restoration, so this may
     // not represent the current state of a given key.
     UnorderedMap<LedgerKey, LedgerEntry> restoredFromArchive;

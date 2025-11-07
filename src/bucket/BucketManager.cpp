@@ -1012,9 +1012,7 @@ BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
 
 void
 BucketManager::addLiveBatch(Application& app, LedgerHeader header,
-                            std::vector<LedgerEntry> const& initEntries,
-                            std::vector<LedgerEntry> const& liveEntries,
-                            std::vector<LedgerKey> const& deadEntries)
+                            BucketListCommitEntries const& entries)
 {
     ZoneScoped;
 #ifdef BUILD_TESTS
@@ -1024,10 +1022,12 @@ BucketManager::addLiveBatch(Application& app, LedgerHeader header,
     }
 #endif
     auto timer = mBucketAddLiveBatch.TimeScope();
-    mBucketLiveObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
-                                      deadEntries.size());
+    mBucketLiveObjectInsertBatch.Mark(entries.initEntries.size() +
+                                      entries.liveEntries.size() +
+                                      entries.deadEntries.size());
     mLiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
-                              initEntries, liveEntries, deadEntries);
+                              entries.initEntries, entries.liveEntries,
+                              entries.deadEntries);
     mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
     reportBucketEntryCountMetrics();
     reportLiveBucketIndexCacheMetrics();

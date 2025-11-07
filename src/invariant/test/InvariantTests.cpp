@@ -408,9 +408,9 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             UnorderedMap<LedgerKey, LedgerEntry> emptyMap;
 
             auto populateCommitState = [&](LedgerCommitState& commitState) {
-                commitState.persistentEvictedFromLive =
+                commitState.evictedVectors.archivedEntries =
                     evictedState.archivedEntries;
-                commitState.tempAndTTLEvictedFromLive =
+                commitState.evictedVectors.deletedKeys =
                     evictedState.deletedKeys;
                 commitState.restoredFromArchive = emptyMap;
                 commitState.restoredFromLiveState = emptyMap;
@@ -696,9 +696,9 @@ TEST_CASE("InMemorySorobanState matches BucketList", "[invariant][soroban]")
                               .copySearchableHotArchiveBucketListSnapshot();
 
     LedgerCommitState commitState;
-    commitState.initEntries = initEntriesForAdd;
-    commitState.liveEntries = liveEntries;
-    commitState.deadEntries = deadKeys;
+    commitState.bucketListEntries.initEntries = initEntriesForAdd;
+    commitState.bucketListEntries.liveEntries = liveEntries;
+    commitState.bucketListEntries.deadEntries = deadKeys;
 
     auto replaceContractData = [&](LedgerEntry const& keyEntry,
                                    LedgerEntry const& newEntry,
@@ -734,7 +734,7 @@ TEST_CASE("InMemorySorobanState matches BucketList", "[invariant][soroban]")
 
     SECTION("CONTRACT_DATA not updated in cache")
     {
-        // Replace an updated data entry with it's original, outdated version in
+        // Replace an updated data entry with its original, outdated version in
         // the cache
         replaceContractData(
             oldDataToUpdate, oldDataToUpdate,
@@ -766,7 +766,7 @@ TEST_CASE("InMemorySorobanState matches BucketList", "[invariant][soroban]")
 
     SECTION("CONTRACT_DATA TTL not updated in cache")
     {
-        // Replace an updated TTL data entry with it's original, outdated
+        // Replace an updated TTL data entry with its original, outdated
         // version in the cache
         replaceContractData(
             oldDataToUpdate, newDataToUpdate,
@@ -778,7 +778,7 @@ TEST_CASE("InMemorySorobanState matches BucketList", "[invariant][soroban]")
 
     SECTION("CONTRACT_CODE not updated in cache")
     {
-        // Replace an updated code entry with it's original, outdated version in
+        // Replace an updated code entry with its original, outdated version in
         // the cache
         auto it = findContractCode(newCodeToUpdate);
         it->second.ledgerEntry =
@@ -816,7 +816,7 @@ TEST_CASE("InMemorySorobanState matches BucketList", "[invariant][soroban]")
 
     SECTION("CONTRACT_CODE TTL not updated in cache")
     {
-        // Replace an updated TTL code entry with it's original, outdated
+        // Replace an updated TTL code entry with its original, outdated
         // version in the cache
         auto it = findContractCode(oldCodeToUpdate);
         it->second.ttlData =

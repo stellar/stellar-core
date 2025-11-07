@@ -412,9 +412,7 @@ class InMemorySorobanState : public NonMovableOrCopyable
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.
     void
-    updateState(std::vector<LedgerEntry> const& initEntries,
-                std::vector<LedgerEntry> const& liveEntries,
-                std::vector<LedgerKey> const& deadEntries,
+    updateState(BucketListCommitEntries const& bucketEntries,
                 LedgerHeader const& lh,
                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                 SorobanMetrics& metrics);

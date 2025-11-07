@@ -67,8 +67,8 @@ InMemorySorobanStateMatchesBucketList::getName() const
 // updated in the in-memory soroban state. We don't want to load from the
 // lcl snapshot here, since this would require many disk reads on ledger
 // close, and the snapshot is out of date. If we just closed ledger N,
-// we want to check the changes commited at the end of N, while the snapshot
-// is based off of N - 1. We have the vectors of entries just commited to the
+// we want to check the changes committed at the end of N, while the snapshot
+// is based off of N - 1. We have the vectors of entries just committed to the
 // BucketList, so we compare against those directly.
 std::string
 InMemorySorobanStateMatchesBucketList::checkOnLedgerCommit(
@@ -95,20 +95,20 @@ InMemorySorobanStateMatchesBucketList::checkOnLedgerCommit(
             return std::string{};
         };
 
-    auto result = checkEntries(commitState.initEntries);
+    auto result = checkEntries(commitState.bucketListEntries.initEntries);
     if (!result.empty())
     {
         return result;
     }
 
-    result = checkEntries(commitState.liveEntries);
+    result = checkEntries(commitState.bucketListEntries.liveEntries);
     if (!result.empty())
     {
         return result;
     }
 
     // Check deleted state from dead entries
-    for (auto const& key : commitState.deadEntries)
+    for (auto const& key : commitState.bucketListEntries.deadEntries)
     {
         if (InMemorySorobanState::isInMemoryType(key))
         {
