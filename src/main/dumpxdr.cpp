@@ -66,7 +66,7 @@ void
 dumpXdrStream(std::string const& filename, bool compact)
 {
     std::regex rx(
-        R"(.*\b(debug-tx-set|(?:(ledger|bucket|transactions|results|meta-debug|scp)-.+))\.xdr(?:\.dirty)?$)");
+        R"(.*\b(debug-tx-set|(?:(ledger|bucket|transactions|results|meta|scp)-?.*))\.xdr(?:\.dirty)?$)");
     std::smatch sm;
     if (std::regex_match(filename, sm, rx))
     {
@@ -96,7 +96,7 @@ dumpXdrStream(std::string const& filename, bool compact)
             {
                 dumpstream<TransactionHistoryResultEntry>(in, compact);
             }
-            else if (m2 == "meta-debug")
+            else if (m2 == "meta")
             {
                 dumpstream<LedgerCloseMeta>(in, compact);
             }

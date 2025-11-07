@@ -806,6 +806,21 @@ HistoryManagerImpl::setPublicationEnabled(bool enabled)
 }
 #endif
 
+void
+HistoryManagerImpl::waitForCheckpointPublish()
+{
+    // This may only be used for the load testing (apply-load specifically, but
+    // we don't have a separate flag for that).
+    releaseAssert(mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING &&
+                  mApp.getConfig().RUN_STANDALONE);
+    auto& clock = mApp.getClock();
+    while (!clock.getIOContext().stopped() && mPublishWork &&
+           publishQueueLength(mApp.getConfig()) > 0)
+    {
+        clock.crank(true);
+    }
+}
+
 Config const&
 HistoryManagerImpl::getConfig() const
 {

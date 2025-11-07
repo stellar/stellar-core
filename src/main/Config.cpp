@@ -1579,10 +1579,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING",
+                {"APPLY_LOAD_DATA_ENTRY_SIZE",
                  [&]() {
-                     APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING =
-                         readInt<uint32_t>(item);
+                     APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
+                     // align to 4 bytes
+                     if (APPLY_LOAD_DATA_ENTRY_SIZE % 4 != 0)
+                     {
+                         APPLY_LOAD_DATA_ENTRY_SIZE +=
+                             4 - (APPLY_LOAD_DATA_ENTRY_SIZE % 4);
+                     }
                  }},
                 {"APPLY_LOAD_BL_SIMULATED_LEDGERS",
                  [&]() {
@@ -1602,34 +1607,50 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      APPLY_LOAD_BL_LAST_BATCH_SIZE = readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING",
+                {"APPLY_LOAD_INSTRUCTIONS",
                  [&]() {
-                     APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING =
+                     APPLY_LOAD_INSTRUCTIONS = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                {"APPLY_LOAD_TX_SIZE_BYTES",
                  [&]() {
-                     APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                     APPLY_LOAD_TX_SIZE_BYTES = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING",
+                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING =
+                     APPLY_LOAD_NUM_DISK_READ_ENTRIES =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION",
                  [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                     APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_EVENT_COUNT_FOR_TESTING",
+                {"APPLY_LOAD_NUM_RW_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_EVENT_COUNT_FOR_TESTING =
+                     APPLY_LOAD_NUM_RW_ENTRIES = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING",
+                {"APPLY_LOAD_EVENT_COUNT",
                  [&]() {
-                     APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING =
+                     APPLY_LOAD_EVENT_COUNT = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_EVENT_COUNT_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_EVENT_COUNT_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
                 {"APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS",
@@ -1641,15 +1662,19 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      APPLY_LOAD_TX_MAX_INSTRUCTIONS = readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES",
+                {"APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES =
+                     APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES =
                          readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES",
+                {"APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES =
+                     APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES =
                          readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = readInt<uint32_t>(item);
                  }},
                 {"APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES",
                  [&]() {
@@ -1661,13 +1686,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES =
                          readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_LEDGER_MAX_READ_BYTES",
+                {"APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES",
                  [&]() {
-                     APPLY_LOAD_LEDGER_MAX_READ_BYTES = readInt<uint32_t>(item);
+                     APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES =
+                         readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_TX_MAX_READ_BYTES",
+                {"APPLY_LOAD_TX_MAX_DISK_READ_BYTES",
                  [&]() {
-                     APPLY_LOAD_TX_MAX_READ_BYTES = readInt<uint32_t>(item);
+                     APPLY_LOAD_TX_MAX_DISK_READ_BYTES =
+                         readInt<uint32_t>(item);
                  }},
                 {"APPLY_LOAD_LEDGER_MAX_WRITE_BYTES",
                  [&]() {
@@ -1692,15 +1719,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES =
                          readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_MAX_TX_COUNT",
-                 [&]() { APPLY_LOAD_MAX_TX_COUNT = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_MAX_SOROBAN_TX_COUNT",
+                 [&]() {
+                     APPLY_LOAD_MAX_SOROBAN_TX_COUNT = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_CLASSIC_TXS_PER_LEDGER",
+                 [&]() {
+                     APPLY_LOAD_CLASSIC_TXS_PER_LEDGER =
+                         readInt<uint32_t>(item);
+                 }},
                 {"APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS",
                  [&]() {
                      APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS =
                          readInt<uint32_t>(item, 1);
                  }},
-                {"APPLY_LOAD_NUM_ACCOUNTS",
-                 [&]() { APPLY_LOAD_NUM_ACCOUNTS = readInt<uint32_t>(item); }},
                 {"APPLY_LOAD_NUM_LEDGERS",
                  [&]() { APPLY_LOAD_NUM_LEDGERS = readInt<uint32_t>(item); }},
                 {"APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS",
@@ -1883,16 +1915,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             std::string msg =
                 "Invalid configuration: PEER_READING_CAPACITY "
                 "must be greater than PEER_FLOOD_READING_CAPACITY";
-            throw std::runtime_error(msg);
-        }
-
-        if (APPLY_LOAD_LEDGER_MAX_WRITE_BYTES <
-            APPLY_LOAD_LEDGER_MAX_READ_BYTES)
-        {
-            std::string msg =
-                "Invalid configuration: APPLY_LOAD_LEDGER_MAX_WRITE_BYTES "
-                "must be greater than or equal to "
-                "APPLY_LOAD_LEDGER_MAX_READ_BYTES";
             throw std::runtime_error(msg);
         }
 

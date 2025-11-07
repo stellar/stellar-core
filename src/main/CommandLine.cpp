@@ -17,6 +17,7 @@
 #include "herder/Herder.h"
 #include "herder/RustQuorumCheckerAdaptor.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/HistoryManagerImpl.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "ledger/LedgerManager.h"
@@ -1867,34 +1868,23 @@ ParserWithValidation
 applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
 {
     auto validateMode = [&] {
-        if (iequals(modeArg, "soroban"))
+        if (iequals(modeArg, "ledger-limits"))
         {
-            mode = ApplyLoadMode::SOROBAN;
+            mode = ApplyLoadMode::LIMIT_BASED;
             return "";
         }
-        if (iequals(modeArg, "classic"))
-        {
-            mode = ApplyLoadMode::CLASSIC;
-            return "";
-        }
-        if (iequals(modeArg, "mix"))
-        {
-            mode = ApplyLoadMode::MIX;
-            return "";
-        }
-        if (iequals(modeArg, "max_sac_tps"))
+        if (iequals(modeArg, "max-sac-tps"))
         {
             mode = ApplyLoadMode::MAX_SAC_TPS;
             return "";
         }
-        return "Unrecognized apply-load mode. Please select 'soroban', "
-               "'classic', 'mix', or 'max_sac_tps'.";
+        return "Unrecognized apply-load mode. Please select 'ledger-limits' "
+               "or 'max-sac-tps'.";
     };
 
     return {clara::Opt{modeArg, "MODE"}["--mode"](
-                "set the apply-load mode. Expected modes: soroban, classic, "
-                "mix, max_sac_tps. "
-                "Defaults to soroban."),
+                "set the apply-load mode. Expected modes: ledger-limits, "
+                "max-sac-tps. Defaults to ledger-limits."),
             validateMode};
 }
 
@@ -1902,8 +1892,8 @@ int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    ApplyLoadMode mode{ApplyLoadMode::SOROBAN};
-    std::string modeArg = "soroban";
+    ApplyLoadMode mode{ApplyLoadMode::LIMIT_BASED};
+    std::string modeArg = "ledger-limits";
 
     return runWithHelp(
         args,
@@ -1916,11 +1906,6 @@ runApplyLoad(CommandLineArgs const& args)
             config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             config.LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-
-            TmpDirManager tdm(std::string("soroban-storage-meta-"));
-            TmpDir td = tdm.tmpDir("soroban-meta-ok");
-            std::string metaPath = td.getName() + "/stream.xdr";
-            config.METADATA_OUTPUT_STREAM = metaPath;
 
             if (mode == ApplyLoadMode::MAX_SAC_TPS)
             {
@@ -1939,14 +1924,6 @@ runApplyLoad(CommandLineArgs const& args)
                 config.METADATA_OUTPUT_STREAM = "";
                 config.METADATA_DEBUG_LEDGERS = 0;
 
-                // We reuse accounts in max TPS tests, so we just need enough
-                // for a single ledger's worth of TXs
-                config.APPLY_LOAD_NUM_ACCOUNTS =
-                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-                    (config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS /
-                     1000) *
-                    2;
-
                 // Apply Load may exceed TX_SET byte size limits, so ignore them
                 config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
             }
@@ -1958,7 +1935,42 @@ runApplyLoad(CommandLineArgs const& args)
             {
                 app.start();
 
+                // Constructs and sets up the apply load benchmarking harness.
+                // The setup may take some time as it involves injecting the
+                // test entries into bucket list across multiple ledgers (
+                // depending on the configuration).
                 ApplyLoad al(app, mode);
+
+                // In the limit-based mode, we may want publish the history
+                // checkpoint just before performing the benchmark. This way
+                // the 'checkpointed' bucket list could be used downstream in
+                // order to setup the test environment for meta ingestion
+                // benchmarking. Note, that the apply load test setup avoids
+                // using transactions in order to make it faster, so the
+                // injected test entries are only observable in the bucket
+                // list and not in the meta or transaction history.
+                if (mode == ApplyLoadMode::LIMIT_BASED &&
+                    app.getHistoryArchiveManager().publishEnabled())
+                {
+                    app.getHistoryManager().waitForCheckpointPublish();
+                    CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
+                                    "history archive publication");
+                    while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
+                        app.getLedgerManager().getLastClosedLedgerNum(),
+                        app.getConfig()))
+                    {
+                        al.closeLedger({});
+                    }
+                    app.getHistoryManager().waitForCheckpointPublish();
+                    CLOG_INFO(
+                        Perf,
+                        "Published final checkpoint before benchmark: "
+                        "ledger {} ({})",
+                        app.getLedgerManager().getLastClosedLedgerNum(),
+                        fmt::format(
+                            FMT_STRING("{:08x}"),
+                            app.getLedgerManager().getLastClosedLedgerNum()));
+                }
 
                 auto& ledgerClose =
                     app.getMetrics().NewTimer({"ledger", "ledger", "close"});
@@ -2019,56 +2031,73 @@ runApplyLoad(CommandLineArgs const& args)
                 CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
                           ledgerClose.std_dev());
 
-                // Only log CPU instruction metrics in Soroban mode
-                if (mode == ApplyLoadMode::SOROBAN)
+                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                          cpuInsRatio.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                          cpuInsRatio.mean() / 1000000);
+
+                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                          cpuInsRatioExclVm.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                          cpuInsRatioExclVm.mean() / 1000000);
+                CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
+                          cpuInsRatioExclVm.std_dev() / 1000000);
+
+                CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
+                          ledgerCpuInsRatio.max() / 1000000);
+                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
+                          ledgerCpuInsRatio.mean() / 1000000);
+                CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
+                          ledgerCpuInsRatio.std_dev() / 1000000);
+
+                CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
+                          ledgerCpuInsRatioExclVm.max() / 1000000);
+                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
+                          ledgerCpuInsRatioExclVm.mean() / 1000000);
+                CLOG_INFO(
+                    Perf,
+                    "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
+                    ledgerCpuInsRatioExclVm.std_dev() / 1000000);
+                // Utilization metrics are relevant only in limit-based
+                // mode.
+                if (mode == ApplyLoadMode::LIMIT_BASED)
                 {
-                    CLOG_INFO(Perf, "Max CPU ins ratio: {}",
-                              cpuInsRatio.max() / 1000000);
-                    CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
-                              cpuInsRatio.mean() / 1000000);
-
-                    CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-                              cpuInsRatioExclVm.max() / 1000000);
-                    CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-                              cpuInsRatioExclVm.mean() / 1000000);
-                    CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-                              cpuInsRatioExclVm.std_dev() / 1000000);
-
-                    CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
-                              ledgerCpuInsRatio.max() / 1000000);
-                    CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
-                              ledgerCpuInsRatio.mean() / 1000000);
-                    CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
-                              ledgerCpuInsRatio.std_dev() / 1000000);
-
-                    CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
-                              ledgerCpuInsRatioExclVm.max() / 1000000);
-                    CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
-                              ledgerCpuInsRatioExclVm.mean() / 1000000);
+                    CLOG_INFO(Perf,
+                              "Tx count utilization min/avg/max {}/{}/{}%",
+                              al.getTxCountUtilization().min() / 1000.0,
+                              al.getTxCountUtilization().mean() / 1000.0,
+                              al.getTxCountUtilization().max() / 1000.0);
+                    CLOG_INFO(Perf,
+                              "Instruction utilization min/avg/max {}/{}/{}%",
+                              al.getInstructionUtilization().min() / 1000.0,
+                              al.getInstructionUtilization().mean() / 1000.0,
+                              al.getInstructionUtilization().max() / 1000.0);
+                    CLOG_INFO(Perf, "Tx size utilization min/avg/max {}/{}/{}%",
+                              al.getTxSizeUtilization().min() / 1000.0,
+                              al.getTxSizeUtilization().mean() / 1000.0,
+                              al.getTxSizeUtilization().max() / 1000.0);
                     CLOG_INFO(
                         Perf,
-                        "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
-                        ledgerCpuInsRatioExclVm.std_dev() / 1000000);
-                }
-
-                CLOG_INFO(Perf, "Tx count utilization {}%",
-                          al.getTxCountUtilization().mean() / 1000.0);
-
-                // Only log Soroban-specific metrics in Soroban mode
-                if (mode == ApplyLoadMode::SOROBAN)
-                {
-                    CLOG_INFO(Perf, "Instruction utilization {}%",
-                              al.getInstructionUtilization().mean() / 1000.0);
-                    CLOG_INFO(Perf, "Tx size utilization {}%",
-                              al.getTxSizeUtilization().mean() / 1000.0);
-                    CLOG_INFO(Perf, "Read bytes utilization {}%",
-                              al.getReadByteUtilization().mean() / 1000.0);
-                    CLOG_INFO(Perf, "Write bytes utilization {}%",
-                              al.getWriteByteUtilization().mean() / 1000.0);
-                    CLOG_INFO(Perf, "Read entry utilization {}%",
-                              al.getReadEntryUtilization().mean() / 1000.0);
-                    CLOG_INFO(Perf, "Write entry utilization {}%",
-                              al.getWriteEntryUtilization().mean() / 1000.0);
+                        "Disk read bytes utilization min/avg/max {}/{}/{}%",
+                        al.getDiskReadByteUtilization().min() / 1000.0,
+                        al.getDiskReadByteUtilization().mean() / 1000.0,
+                        al.getDiskReadByteUtilization().max() / 1000.0);
+                    CLOG_INFO(Perf,
+                              "Write bytes utilization min/avg/max {}/{}/{}%",
+                              al.getDiskWriteByteUtilization().min() / 1000.0,
+                              al.getDiskWriteByteUtilization().mean() / 1000.0,
+                              al.getDiskWriteByteUtilization().max() / 1000.0);
+                    CLOG_INFO(
+                        Perf,
+                        "Disk read entry utilization min/avg/max {}/{}/{}%",
+                        al.getDiskReadEntryUtilization().min() / 1000.0,
+                        al.getDiskReadEntryUtilization().mean() / 1000.0,
+                        al.getDiskReadEntryUtilization().max() / 1000.0);
+                    CLOG_INFO(Perf,
+                              "Write entry utilization min/avg/max {}/{}/{}%",
+                              al.getWriteEntryUtilization().min() / 1000.0,
+                              al.getWriteEntryUtilization().mean() / 1000.0,
+                              al.getWriteEntryUtilization().max() / 1000.0);
                 }
 
                 CLOG_INFO(Perf, "Tx Success Rate: {:f}%",

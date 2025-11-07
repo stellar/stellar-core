@@ -792,8 +792,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 uint64_t dataEntryCount =
                     appCfg.APPLY_LOAD_BL_BATCH_SIZE *
                     appCfg.APPLY_LOAD_BL_SIMULATED_LEDGERS;
-                size_t dataEntrySize =
-                    appCfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
+                size_t dataEntrySize = appCfg.APPLY_LOAD_DATA_ENTRY_SIZE;
 
                 return mTxGenerator.invokeSorobanLoadTransactionV2(
                     ledgerNum, sourceAccountId, instance, dataEntryCount,
