@@ -410,6 +410,13 @@ class LedgerManagerImpl : public LedgerManager
     void
     advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
 
+    // Internal helper for loading last known ledger and an option to skip
+    // building the 'full' state (including in-memory Soroban state, module
+    // cache, etc).
+    // Full state building should not be skipped in any flows where new ledgers
+    // have to actually be closed.
+    void loadLastKnownLedgerInternal(bool skipBuildingFullState);
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These
@@ -493,7 +500,8 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(bool restoreBucketlist) override;
+    void loadLastKnownLedger() override;
+    void partiallyLoadLastKnownLedgerForUtils() override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 

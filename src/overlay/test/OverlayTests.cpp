@@ -2271,9 +2271,8 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
 
     // Herder depends on LM state for close time, so initialize it manually
     // since we aren't actually starting app.
-    LedgerManagerImpl& lm =
-        static_cast<LedgerManagerImpl&>(app->getLedgerManager());
-    lm.loadLastKnownLedger(false);
+    auto& lm = app->getLedgerManager();
+    lm.partiallyLoadLastKnownLedgerForUtils();
     om.start();
 
     // Must wait 2 seconds as `OverlayManagerImpl::start()`
