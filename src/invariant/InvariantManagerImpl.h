@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/InvariantManager.h"
+#include "util/ThreadAnnotations.h"
 #include <map>
 #include <vector>
 
@@ -17,27 +18,28 @@ class Counter;
 namespace stellar
 {
 
-class InvariantManagerImpl
-    : public InvariantManager,
-      public std::enable_shared_from_this<InvariantManagerImpl>
+class InvariantManagerImpl : public InvariantManager
 {
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
     medida::Counter& mInvariantFailureCount;
-    AppConnector& mAppConnector;
+    std::atomic<bool> mStateSnapshotInvariantRunning{false};
 
     struct InvariantFailureInformation
     {
         uint32_t lastFailedOnLedger;
         std::string lastFailedWithMessage;
     };
-    std::map<std::string, InvariantFailureInformation> mFailureInformation;
+
+    Mutex mutable mFailureInformationMutex;
+    std::map<std::string, InvariantFailureInformation>
+        mFailureInformation GUARDED_BY(mFailureInformationMutex);
 
   public:
-    InvariantManagerImpl(medida::MetricsRegistry& registry,
-                         AppConnector& appConnector);
+    InvariantManagerImpl(medida::MetricsRegistry& registry);
 
-    virtual Json::Value getJsonInfo() override;
+    virtual Json::Value getJsonInfo() override
+        LOCKS_EXCLUDED(mFailureInformationMutex);
 
     virtual std::vector<std::string> getEnabledInvariants() const override;
     bool isBucketApplyInvariantEnabled() const override;
@@ -71,7 +73,7 @@ class InvariantManagerImpl
 
     virtual void start(LedgerManager const& ledgerManager) override;
 
-    bool hasStateSnapshotInvariantEnabled() const override;
+    bool isStateSnapshotInvariantRunning() const override;
 
     void runStateSnapshotInvariant(
         CompleteConstLedgerStatePtr ledgerState,
@@ -79,9 +81,8 @@ class InvariantManagerImpl
 
     // Copy InMemorySorobanState for invariant checking. This is the only
     // method that can access the private copy constructor of
-    // InMemorySorobanState. It includes a runtime check to ensure that
-    // INVARIANT_EXTRA_CHECKS is enabled before allowing the copy.
-    std::unique_ptr<InMemorySorobanState const>
+    // InMemorySorobanState.
+    std::shared_ptr<InMemorySorobanState const>
     copyInMemorySorobanStateForInvariant(
         InMemorySorobanState const& state) const override;
 
@@ -92,7 +93,8 @@ class InvariantManagerImpl
 
   private:
     void onInvariantFailure(std::shared_ptr<Invariant> invariant,
-                            std::string const& message, uint32_t ledger);
+                            std::string const& message, uint32_t ledger)
+        LOCKS_EXCLUDED(mFailureInformationMutex);
 
     virtual void handleInvariantFailure(bool isStrict,
                                         std::string const& message) const;

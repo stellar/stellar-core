@@ -158,9 +158,8 @@ template class BucketListDepthModifier<LiveBucket>;
 template class BucketListDepthModifier<HotArchiveBucket>;
 }
 
-TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry,
-                                           AppConnector& appConnector)
-    : InvariantManagerImpl(registry, appConnector)
+TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry)
+    : InvariantManagerImpl(registry)
 {
 }
 
@@ -180,8 +179,7 @@ TestApplication::TestApplication(VirtualClock& clock, Config const& cfg)
 std::unique_ptr<InvariantManager>
 TestApplication::createInvariantManager()
 {
-    return std::make_unique<TestInvariantManager>(getMetrics(),
-                                                  getAppConnector());
+    return std::make_unique<TestInvariantManager>(getMetrics());
 }
 
 TimePoint

@@ -16,6 +16,7 @@
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "lib/util/finally.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "medida/counter.h"
@@ -35,23 +36,20 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return std::make_unique<InvariantManagerImpl>(app.getMetrics(),
-                                                  app.getAppConnector());
+    return std::make_unique<InvariantManagerImpl>(app.getMetrics());
 }
 
-InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry,
-                                           AppConnector& appConnector)
+InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
     : mInvariantFailureCount(
           registry.NewCounter({"ledger", "invariant", "failure"}))
-    , mAppConnector(appConnector)
 {
 }
 
 Json::Value
 InvariantManagerImpl::getJsonInfo()
 {
+    MutexLocker lock(mFailureInformationMutex);
     Json::Value failures;
-
     for (auto const& fi : mFailureInformation)
     {
         auto& fail = failures[fi.first];
@@ -287,6 +285,8 @@ InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
                                          uint32_t ledger)
 {
     mInvariantFailureCount.inc();
+
+    MutexLocker lock(mFailureInformationMutex);
     mFailureInformation[invariant->getName()] = {ledger, message};
     handleInvariantFailure(invariant->isStrict(), message);
 }
@@ -312,27 +312,16 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 }
 
 bool
-InvariantManagerImpl::hasStateSnapshotInvariantEnabled() const
+InvariantManagerImpl::isStateSnapshotInvariantRunning() const
 {
-    if (!mAppConnector.getConfig().INVARIANT_EXTRA_CHECKS)
-    {
-        return false;
-    }
-
-    return std::any_of(mEnabled.begin(), mEnabled.end(), [](auto const& inv) {
-        return inv->usesStateSnapshotInvariant();
-    });
+    return mStateSnapshotInvariantRunning.load();
 }
 
-std::unique_ptr<InMemorySorobanState const>
+std::shared_ptr<InMemorySorobanState const>
 InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
     InMemorySorobanState const& state) const
 {
-    // This copy is very expensive, so make sure it's only called when required
-    // by an invariant that uses it.
-    releaseAssert(hasStateSnapshotInvariantEnabled());
-
-    return std::unique_ptr<InMemorySorobanState const>(
+    return std::shared_ptr<InMemorySorobanState const>(
         new InMemorySorobanState(state));
 }
 
@@ -341,26 +330,22 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     CompleteConstLedgerStatePtr ledgerState,
     InMemorySorobanState const& inMemorySnapshot)
 {
+    // These checks are slow and expensive, only one should be running at a
+    // time.
+    auto wasRunning = mStateSnapshotInvariantRunning.exchange(true);
+    releaseAssertOrThrow(!wasRunning);
+    auto reset =
+        gsl::finally([this]() { mStateSnapshotInvariantRunning.store(false); });
+
     for (auto const& invariant : mEnabled)
     {
         auto result =
             invariant->stateSnapshotInvariant(ledgerState, inMemorySnapshot);
         if (!result.empty())
         {
-            auto inv = invariant;
             auto ledgerSeq =
                 ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
-
-            // After hitting an invariant failure, for strict invariants we need
-            // to crash. Post back on the main thread so when
-            // onInvariantFailure throws, we properly crash the main thread.
-            auto self = shared_from_this();
-            mAppConnector.postOnMainThread(
-                [self, inv, ledgerSeq, result = std::move(result)]() mutable {
-                    self->onInvariantFailure(inv, result, ledgerSeq);
-                },
-                fmt::format("StateSnapshotInvariant {}", inv->getName()));
-            return;
+            onInvariantFailure(invariant, result, ledgerSeq);
         }
     }
 }

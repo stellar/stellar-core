@@ -2917,7 +2917,7 @@ void
 LedgerManagerImpl::maybeRunSnapshotInvariants(
     CompleteConstLedgerStatePtr const& ledgerState) const
 {
-    if (mApp.getInvariantManager().hasStateSnapshotInvariantEnabled())
+    if (mApp.getConfig().INVARIANT_EXTRA_CHECKS)
     {
         auto ledgerSeq =
             ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
@@ -2926,7 +2926,7 @@ LedgerManagerImpl::maybeRunSnapshotInvariants(
 
         if (ledgerSeq % snapshotFrequency == 0)
         {
-            if (mStateSnapshotInvariantRunning->exchange(true))
+            if (mApp.getInvariantManager().isStateSnapshotInvariantRunning())
             {
                 CLOG_WARNING(Ledger,
                              "Skipping state snapshot invariant at ledger {} "
@@ -2952,32 +2952,10 @@ LedgerManagerImpl::maybeRunSnapshotInvariants(
                                  ledgerSeq);
             inMemorySnapshot->assertLastClosedLedger(ledgerSeq);
 
-            // We need to manually manage the lifetime of inMemorySnapshot
-            // because lambdas requires copyable callables, but
-            // unique_ptr is move-only. We release() the unique_ptr and
-            // reclaim ownership inside the lambda. This is safe because
-            // the lambda is guaranteed to execute exactly once.
-            auto inMemorySnapshotRaw = inMemorySnapshot.release();
-
             // Note: No race condition acquiring app by reference, as all worker
             // threads are joined before application destruction.
             mApp.postOnBackgroundThread(
-                [snapshotRunningFlag = mStateSnapshotInvariantRunning,
-                 ledgerState = ledgerState, &app = mApp,
-                 inMemorySnapshotRaw]() {
-                    // Reclaim ownership of the InMemorySorobanState
-                    std::unique_ptr<InMemorySorobanState const>
-                        inMemorySnapshot(inMemorySnapshotRaw);
-
-                    // RAII style cleanup
-                    struct ResetFlagOnExit
-                    {
-                        std::atomic<bool>& flag;
-                        ~ResetFlagOnExit()
-                        {
-                            flag.store(false);
-                        }
-                    } reset{*snapshotRunningFlag};
+                [ledgerState = ledgerState, &app = mApp, inMemorySnapshot]() {
                     app.getInvariantManager().runStateSnapshotInvariant(
                         ledgerState, *inMemorySnapshot);
                 },
