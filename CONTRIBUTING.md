@@ -239,6 +239,7 @@ The `make check` command runs tests and supports parallelization. This functiona
 * `TEMP_POSTGRES`: Automatically generates temporary database clusters instead
 of using an existing cluster (default: 1)
 * `RND_SEED`: Can be set to a specific value to affect the random test ordering. (default: 1)
+* `INTERACTIVE`: If 1, display output as it happens. If 0, do not (beneficially, this avoids intermingling partition output). (default: 1)
 
 For example,
 `env TEST_SPEC="[history]" NUM_PARTITIONS=4 RUN_PARTITIONS="0 1 3" make check`
