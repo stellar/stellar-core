@@ -76,12 +76,12 @@ class InvariantManager
 
     virtual void start(LedgerManager const& ledgerManager) = 0;
 
-    virtual bool hasStateSnapshotInvariantEnabled() const = 0;
+    virtual bool isStateSnapshotInvariantRunning() const = 0;
 
     // Copy InMemorySorobanState for invariant checking. This is the only
     // method that can access the private copy constructor of
     // InMemorySorobanState.
-    virtual std::unique_ptr<InMemorySorobanState const>
+    virtual std::shared_ptr<InMemorySorobanState const>
     copyInMemorySorobanStateForInvariant(
         InMemorySorobanState const& state) const = 0;
 

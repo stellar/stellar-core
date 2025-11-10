@@ -310,8 +310,6 @@ class LedgerManagerImpl : public LedgerManager
     // Use in the context of parallel ledger apply to indicate background thread
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
-    std::shared_ptr<std::atomic<bool>> mStateSnapshotInvariantRunning{
-        std::make_shared<std::atomic<bool>>(false)};
 
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,

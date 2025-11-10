@@ -309,7 +309,7 @@ class InMemorySorobanState
 {
     // Allow only InvariantManagerImpl to access the private copy constructor
     // for invariant checks.
-    friend std::unique_ptr<InMemorySorobanState const>
+    friend std::shared_ptr<InMemorySorobanState const>
     InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
         InMemorySorobanState const& state) const;
 
