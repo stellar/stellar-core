@@ -1326,7 +1326,7 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
     {
         // Ledger state might be updated at the same time, so protect GC
         // call with state mutex
-        std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
+        RecursiveMutexLocker lock(mLedgerStateMutex);
         mApp.getBucketManager().forgetUnreferencedBuckets(
             getLastClosedLedgerHAS());
     }
@@ -2830,7 +2830,7 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     uint32_t initialLedgerVers)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mLedgerStateMutex);
+    RecursiveMutexLocker lock(mLedgerStateMutex);
     auto ledgerHeader = ltx.loadHeader().current();
     CLOG_TRACE(Ledger,
                "sealing ledger {} with version {}, sending to bucket list",

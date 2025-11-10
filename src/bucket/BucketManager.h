@@ -4,6 +4,7 @@
 #include "history/HistoryArchive.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
+#include "util/ThreadAnnotations.h"
 #include "util/TmpDir.h"
 #include "util/UnorderedMap.h"
 #include "util/types.h"
@@ -91,7 +92,21 @@ class BucketManager : NonMovableOrCopyable
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
     // a BucketList (i.e. addLiveBatch).
-    mutable std::recursive_mutex mBucketMutex;
+    //
+    // LOCK ORDERING: This mutex must be acquired AFTER LedgerManagerImpl's
+    // mLedgerStateMutex to prevent deadlocks. Code must NOT hold mBucketMutex
+    // while trying to acquire LedgerManagerImpl::mLedgerStateMutex, as this
+    // will cause a deadlock.
+#ifdef BUILD_TESTS
+  public:
+#endif
+
+    mutable RecursiveMutex mBucketMutex;
+
+#ifdef BUILD_TESTS
+  private:
+#endif
+
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketLiveObjectInsertBatch;
     medida::Meter& mBucketArchiveObjectInsertBatch;
@@ -124,15 +139,16 @@ class BucketManager : NonMovableOrCopyable
     // FutureBucket being resolved). Entries in this map will be cleared when
     // the FutureBucket is _cleared_ (typically when the owning BucketList level
     // is committed).
-    FutureMapT<LiveBucket> mLiveBucketFutures;
-    FutureMapT<HotArchiveBucket> mHotArchiveBucketFutures;
+    FutureMapT<LiveBucket> mLiveBucketFutures GUARDED_BY(mBucketMutex);
+    FutureMapT<HotArchiveBucket>
+        mHotArchiveBucketFutures GUARDED_BY(mBucketMutex);
 
     // Records bucket-merges that are _finished_, i.e. have been adopted as
     // (possibly redundant) bucket files. This is a "weak" (bi-multi-)map of
     // hashes, that does not count towards std::shared_ptr refcounts, i.e. does
     // not keep either the output bucket or any of its input buckets
     // alive. Needs to be queried and updated on mSharedBuckets GC events.
-    BucketMergeMap mFinishedMerges;
+    BucketMergeMap mFinishedMerges GUARDED_BY(mBucketMutex);
 
     std::atomic<bool> mIsShutdown{false};
 
@@ -146,30 +162,35 @@ class BucketManager : NonMovableOrCopyable
     std::shared_ptr<BucketT> adoptFileAsBucketInternal(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::unique_ptr<typename BucketT::IndexT const> index,
-        BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap);
+        BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     std::shared_ptr<BucketT>
-    getBucketByHashInternal(uint256 const& hash,
-                            BucketMapT<BucketT>& bucketMap);
+    getBucketByHashInternal(uint256 const& hash, BucketMapT<BucketT>& bucketMap)
+        REQUIRES(mBucketMutex);
     template <class BucketT>
     std::shared_ptr<BucketT>
     getBucketIfExistsInternal(uint256 const& hash,
-                              BucketMapT<BucketT> const& bucketMap) const;
+                              BucketMapT<BucketT> const& bucketMap) const
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     std::shared_future<std::shared_ptr<BucketT>>
-    getMergeFutureInternal(MergeKey const& key, FutureMapT<BucketT>& futureMap);
+    getMergeFutureInternal(MergeKey const& key, FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     void
     putMergeFutureInternal(MergeKey const& key,
                            std::shared_future<std::shared_ptr<BucketT>> future,
-                           FutureMapT<BucketT>& futureMap);
+                           FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     void noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
-                                      FutureMapT<BucketT>& futureMap);
+                                      FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
 
     void reportLiveBucketIndexCacheMetrics();
 
@@ -179,6 +200,12 @@ class BucketManager : NonMovableOrCopyable
         std::function<void(std::shared_ptr<BucketT>, std::string const&,
                            std::map<LedgerKey, LedgerEntry>&)>
             loadFunc);
+
+    // Return the set of buckets referenced by the BucketList, LCL HAS,
+    // and publish queue.
+    std::set<Hash> getAllReferencedBuckets(HistoryArchiveState const& has,
+                                           RecursiveMutexLocker& lock) const
+        REQUIRES(mBucketMutex);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
@@ -356,10 +383,13 @@ class BucketManager : NonMovableOrCopyable
     // Return the set of buckets referenced by the BucketList
     std::set<Hash> getBucketListReferencedBuckets() const;
 
-    // Return the set of buckets referenced by the BucketList, LCL HAS,
-    // and publish queue.
     std::set<Hash>
-    getAllReferencedBuckets(HistoryArchiveState const& has) const;
+    getAllReferencedBuckets(HistoryArchiveState const& has) const
+        LOCKS_EXCLUDED(mBucketMutex)
+    {
+        RecursiveMutexLocker lock(mBucketMutex);
+        return getAllReferencedBuckets(has, lock);
+    }
 
     // Check for missing bucket files that would prevent `assumeState` from
     // succeeding
