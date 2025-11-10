@@ -43,7 +43,7 @@ using SearchableHotArchiveSnapshotConstPtr =
 class BucketSnapshotManager : NonMovableOrCopyable
 {
   private:
-    AppConnector mAppConnector;
+    AppConnector& mAppConnector;
 
     // Lock must be held when accessing any member variables holding snapshots
     mutable SharedMutex mSnapshotMutex;

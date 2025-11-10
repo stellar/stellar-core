@@ -226,15 +226,15 @@ class ApplicationImpl : public Application
     std::unique_ptr<LoadGenerator> mLoadGenerator;
 #endif
 
-    std::vector<std::thread> mWorkerThreads;
-    std::optional<std::thread> mOverlayThread;
-    std::optional<std::thread> mLedgerCloseThread;
+    std::vector<std::unique_ptr<std::thread>> mWorkerThreads;
+    std::unique_ptr<std::thread> mOverlayThread;
+    std::unique_ptr<std::thread> mLedgerCloseThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
     // medium priority thread. In the future, this may become a more general
     // higher-priority worker thread type, but for now we only need a single
     // thread for eviction scans.
-    std::optional<std::thread> mEvictionThread;
+    std::unique_ptr<std::thread> mEvictionThread;
 
     // NOTE: It is important that this map not be updated outside of the
     // constructor. `unordered_map` is safe for multiple threads to read from,
@@ -245,7 +245,6 @@ class ApplicationImpl : public Application
 
     bool mStarted;
     std::atomic<bool> mStopping;
-    bool mLedgerCloseThreadStopped{false};
 
 #ifdef BUILD_TESTS
     bool mRunInOverlayOnlyMode;
@@ -292,6 +291,10 @@ class ApplicationImpl : public Application
 
     void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
                                                      bool forceRebuild);
-    void shutdownLedgerCloseThread();
+
+    void idempotentShutdown();
+    void shutdownThread(std::unique_ptr<std::thread>& threadPtr,
+                        std::unique_ptr<asio::io_context::work>& workPtr,
+                        std::string const& threadName);
 };
 }

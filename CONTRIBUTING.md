@@ -244,6 +244,10 @@ For example,
 `env TEST_SPEC="[history]" NUM_PARTITIONS=4 RUN_PARTITIONS="0 1 3" make check`
 will partition the history tests into 4 parts then run parts 0, 1, and 3.
 
+## Suppressing warnings
+
+If running tests with thread sanitizer enabled, there might be some false positives. Be sure to prepend `TSAN_OPTIONS=suppressions=tsan.supp` to your test command to suppress those warnings.
+
 ## Running stress tests
 
 There are a few special stress tests included in the test suite. Those are *subsystem level* tests,

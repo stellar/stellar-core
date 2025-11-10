@@ -604,6 +604,7 @@ Peer::maybeExecuteInBackground(std::string const& jobName,
     if (useBackgroundThread() &&
         !mAppConnector.threadIsType(Application::ThreadType::OVERLAY))
     {
+        releaseAssert(threadIsMain());
         mAppConnector.postOnOverlayThread(
             [self = shared_from_this(), f]() { f(self); }, jobName);
     }
