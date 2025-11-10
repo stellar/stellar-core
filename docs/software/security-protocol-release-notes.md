@@ -53,6 +53,14 @@ It then follows that:
 
 # List of releases
 
+## v24.0.0 (2025-10-20)
+* `Ledger` - security - Due to a bug in Protocol 23, 478 incorrect ledger entries were moved from live to hot archive bucket list. 396 of those entries could be repaired. The remaining 84 entries, that had been subsequently restored, remained corrupted. See [CAP-76](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0076.md) for more information. 
+    * exploited: unknown
+        * No evidence of a malicious actor taking advantage of incorrectly restored entries.
+    * mitigation: 
+        * code fixes mentioned in [CAP-76](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0076.md) was implemented in Protocol 24 upgrade.
+        * additionally, each impacted protocol and asset issuer where alerted to perform necessary mitigation on their side. 
+
 ## v22.4.1 (2025-06-13)
 
 * `Ledger` - security - Unchecked XDR recursive data structure in a transaction beyond the limit can crash the network.
