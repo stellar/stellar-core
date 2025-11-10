@@ -224,7 +224,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
             MaximumSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS /
             1000,
         CLOSETIME_DRIFT_LIMIT);
-    METADATA_OUTPUT_STREAM = "";
+    METADATA_OUTPUT_STREAM = "/dev/null";
 
     // Store at least 1 checkpoint plus a buffer worth of debug meta
     METADATA_DEBUG_LEDGERS = 100;
@@ -344,8 +344,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
     SOROBAN_PHASE_MAX_STAGE_COUNT = 4;
 
-    EMIT_CLASSIC_EVENTS = false;
-    BACKFILL_STELLAR_ASSET_EVENTS = false;
+    EMIT_CLASSIC_EVENTS = true;
+    BACKFILL_STELLAR_ASSET_EVENTS = true;
     BACKFILL_RESTORE_META = false;
 
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
@@ -869,6 +869,9 @@ Config::load(std::istream& in)
     cpptoml::parser p(in);
     t = p.parse();
     processConfig(t);
+    EMIT_CLASSIC_EVENTS = true;
+    BACKFILL_STELLAR_ASSET_EVENTS = true;
+    METADATA_OUTPUT_STREAM = "/dev/null";
 }
 
 void
