@@ -1299,6 +1299,7 @@ exit /b 0
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\architecture.md" />
     <None Include="..\..\docs\db-schema.md" />
+    <None Include="..\..\docs\debugging.md" />
     <None Include="..\..\docs\fuzzing.md" />
     <None Include="..\..\docs\history.md" />
     <None Include="..\..\docs\integration.md" />

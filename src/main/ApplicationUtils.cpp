@@ -808,12 +808,12 @@ showOfflineInfo(Config cfg, bool verbose)
 }
 
 bool
-checkQuorumIntersectionFromJson(std::string const& jsonPath,
+checkQuorumIntersectionFromJson(std::filesystem::path const& jsonPath,
                                 std::optional<Config> const& cfg)
 {
     std::atomic<bool> interrupt(false);
     auto qicPtr = QuorumIntersectionChecker::create(
-        parseQuorumMapFromJson(jsonPath), cfg, interrupt, false);
+        parseQuorumMapFromJson(jsonPath.string()), cfg, interrupt, false);
     return qicPtr->networkEnjoysQuorumIntersection();
 }
 
