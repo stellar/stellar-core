@@ -1929,6 +1929,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
+        {
+            std::string msg =
+                "Invalid configuration: INVARIANT_EXTRA_CHECKS cannot be "
+                "enabled on a validator node (NODE_IS_VALIDATOR=true)";
+            throw std::runtime_error(msg);
+        }
+
         if (BACKFILL_STELLAR_ASSET_EVENTS && !EMIT_CLASSIC_EVENTS)
         {
             throw std::invalid_argument(

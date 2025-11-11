@@ -284,7 +284,6 @@ InvariantManagerImpl::start(LedgerManager const& ledgerManager)
     // initial startup state, then schedule the next run.
     if (mConfig.INVARIANT_EXTRA_CHECKS)
     {
-        mShouldRunStateSnapshotInvariant = true;
         ledgerManager.runSnapshotInvariantsOnStartup();
         scheduleSnapshotTimer();
     }
@@ -330,13 +329,18 @@ InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
         new InMemorySorobanState(state));
 }
 
+// The snapshot invariant is triggered periodically based on wall clock time,
+// managed by the InvariantManagerImpl timing loop. After the given period has
+// elapsed from out last scan, snapshotTimerFired will set
+// mShouldRunStateSnapshotInvariant() to true. On the next ledger close,
+// LedgerManager will read this flag shouldRunInvariantSnapshot(), copy the
+// required state, then call this function in a background thread.
 void
 InvariantManagerImpl::runStateSnapshotInvariant(
     CompleteConstLedgerStatePtr ledgerState,
     InMemorySorobanState const& inMemorySnapshot)
 {
-    // These checks are slow and expensive, only one should be running at a
-    // time.
+    // Reset our trigger flag and mark the invariant as running.
     mStateSnapshotInvariantRunning = true;
     mShouldRunStateSnapshotInvariant = false;
 
@@ -406,6 +410,11 @@ InvariantManagerImpl::snapshotTimerFired()
 bool
 InvariantManagerImpl::shouldRunInvariantSnapshot() const
 {
+    if (!mConfig.INVARIANT_EXTRA_CHECKS)
+    {
+        return false;
+    }
+
 #ifdef BUILD_TESTS
     if (mConfig.ALWAYS_RUN_SNAPSHOT_FOR_TESTING)
     {

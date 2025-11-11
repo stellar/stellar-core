@@ -12,14 +12,12 @@
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
 #include "main/ApplicationImpl.h"
-#include "main/PersistentState.h"
 #include "rust/RustBridge.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
-#include <atomic>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -154,7 +152,7 @@ class LedgerManagerImpl : public LedgerManager
         };
 
       private:
-        mutable LedgerApplyMetrics mMetrics;
+        LedgerApplyMetrics mMetrics;
 
         AppConnector& mAppConnector;
 
@@ -193,7 +191,7 @@ class LedgerManagerImpl : public LedgerManager
         void assertWritablePhase() const;
 
       public:
-        LedgerApplyMetrics& getMetrics() const;
+        LedgerApplyMetrics& getMetrics();
 
         ApplyState(Application& app);
 
@@ -203,8 +201,6 @@ class LedgerManagerImpl : public LedgerManager
         // The following methods are const getters, and can be accessed from any
         // thread for read-only purposes during the APPLYING phase.
         InMemorySorobanState const& getInMemorySorobanState() const;
-        InMemorySorobanState const&
-        getInMemorySorobanStateForInvariantCheck() const;
 
 #ifdef BUILD_TESTS
         InMemorySorobanState& getInMemorySorobanStateForTesting();
@@ -388,14 +384,23 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
 
-    // Checks if a state snapshot invariant should be run and starts a
-    // background thread to run it.
-    void
-    maybeRunSnapshotInvariants(CompleteConstLedgerStatePtr const& res) const;
-
     HistoryArchiveState
     storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
                                             bool appendToCheckpoint);
+
+    // Copies in-memory Soroban state for snapshot invariant if required for
+    // this ledger, or returns nullptr otherwise. Should be called in
+    // READY_TO_APPLY phase when InMemorySorobanState is read only.
+    std::shared_ptr<InMemorySorobanState const>
+    maybeCopySorobanStateForInvariant() const;
+
+    // Trigger snapshot invariant on background thread if
+    // inMemorySnapshotForInvariant is not null.
+    void maybeRunSnapshotInvariantFromLedgerState(
+        CompleteConstLedgerStatePtr const& ledgerState,
+        std::shared_ptr<InMemorySorobanState const>
+            inMemorySnapshotForInvariant) const;
+
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
                                         Config const& config);
@@ -527,14 +532,17 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
-    void
-    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
-                                 LedgerCloseData const& ledgerData,
-                                 CompleteConstLedgerStatePtr newLedgerState,
-                                 bool queueRebuildNeeded) override;
+    void advanceLedgerStateAndPublish(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        CompleteConstLedgerStatePtr newLedgerState, bool queueRebuildNeeded,
+        std::shared_ptr<InMemorySorobanState const>
+            inMemorySnapshotForInvariant = nullptr) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData,
-                             bool queueRebuildNeeded);
+                             bool queueRebuildNeeded,
+                             std::shared_ptr<InMemorySorobanState const>
+                                 inMemorySnapshotForInvariant);
     void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
                              bool rebuildInMemoryState) override;
 
