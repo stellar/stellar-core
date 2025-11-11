@@ -2728,6 +2728,9 @@
     <None Include="..\..\src\rust\src\soroban_test_wasm.rs">
       <Filter>rust</Filter>
     </None>
+    <None Include="..\..\docs\debugging.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
