@@ -309,7 +309,7 @@ TransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
-TransactionFrame::validateSorobanMemoForFlooding() const
+TransactionFrame::validateSorobanMemo() const
 {
     if (!isSoroban())
     {
@@ -1241,6 +1241,21 @@ TransactionFrame::commonValidPreSeqNum(
             return std::nullopt;
         }
 
+        if (protocolVersionStartsFrom(
+                ls.getLedgerHeader().current().ledgerVersion,
+                ProtocolVersion::V_25))
+        {
+            if (!validateSorobanMemo())
+            {
+                diagnosticEvents.pushError(
+                    SCE_VALUE, SCEC_INVALID_INPUT,
+                    "Soroban transactions are not allowed to "
+                    "use memo or muxed source account");
+                txResult.setInnermostError(txSOROBAN_INVALID);
+                return std::nullopt;
+            }
+        }
+
         releaseAssertOrThrow(cfg);
         if (!checkSorobanResources(*cfg, ledgerVersion, diagnosticEvents))
         {
@@ -1259,7 +1274,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (validateResourceFee && sorobanData.resourceFee > getFullFee())
         {
             diagnosticEvents.pushError(
-                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                SCE_VALUE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is higher than the "
                 "full transaction fee",
                 {makeU64SCVal(sorobanData.resourceFee),
@@ -1273,8 +1288,8 @@ TransactionFrame::commonValidPreSeqNum(
             INT64_MAX - sorobanResourceFee->non_refundable_fee)
         {
             diagnosticEvents.pushError(
-                SCE_STORAGE, SCEC_INVALID_INPUT,
-                "transaction resource fees cannot be added",
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "transaction resource fees cannot be added without overflow",
                 {makeU64SCVal(sorobanResourceFee->refundable_fee),
                  makeU64SCVal(sorobanResourceFee->non_refundable_fee)});
 
@@ -1286,7 +1301,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (sorobanData.resourceFee < resourceFees)
         {
             diagnosticEvents.pushError(
-                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                SCE_VALUE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is lower than the "
                 "actual Soroban resource fee",
                 {makeU64SCVal(sorobanData.resourceFee),

@@ -195,7 +195,7 @@ class TransactionFrameBase
 
     virtual bool validateSorobanTxForFlooding(
         UnorderedSet<LedgerKey> const& keysToFilter) const = 0;
-    virtual bool validateSorobanMemoForFlooding() const = 0;
+    virtual bool validateSorobanMemo() const = 0;
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.
