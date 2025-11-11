@@ -89,6 +89,10 @@ class BucketManager : NonMovableOrCopyable
     BucketMapT<LiveBucket> mSharedLiveBuckets;
     BucketMapT<HotArchiveBucket> mSharedHotArchiveBuckets;
 
+#ifdef THREAD_SAFETY
+  public:
+#endif
+
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
     // a BucketList (i.e. addLiveBatch).
@@ -97,13 +101,9 @@ class BucketManager : NonMovableOrCopyable
     // mLedgerStateMutex to prevent deadlocks. Code must NOT hold mBucketMutex
     // while trying to acquire LedgerManagerImpl::mLedgerStateMutex, as this
     // will cause a deadlock.
-#ifdef BUILD_TESTS
-  public:
-#endif
-
     mutable RecursiveMutex mBucketMutex;
 
-#ifdef BUILD_TESTS
+#ifdef THREAD_SAFETY
   private:
 #endif
 
