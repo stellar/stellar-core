@@ -237,9 +237,12 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.INVARIANT_CHECKS = {
             "(?!EventsAreConsistentWithEntryDiffs).*"};
 
-        // Run all invariants on every ledger in tests
-        thisConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 1;
+        // Run all invariants on every ledger in tests, but not for persistent
+        // BucketListDB as it's too slow
+        thisConfig.ALWAYS_RUN_SNAPSHOT_FOR_TESTING =
+            (mode != Config::TESTDB_BUCKET_DB_PERSISTENT);
 
+        thisConfig.INVARIANT_EXTRA_CHECKS = true;
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // this forces to pick up any other potential upgrades

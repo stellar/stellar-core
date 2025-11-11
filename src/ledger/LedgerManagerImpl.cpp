@@ -218,8 +218,6 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
     , mMetaStreamBytes(
           registry.NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(registry.NewTimer({"ledger", "metastream", "write"}))
-    , mStateSnapshotInvariantSkipped(registry.NewCounter(
-          {"ledger", "invariant", "state-snapshot-skipped"}))
 {
 }
 
@@ -2917,50 +2915,41 @@ void
 LedgerManagerImpl::maybeRunSnapshotInvariants(
     CompleteConstLedgerStatePtr const& ledgerState) const
 {
-    if (mApp.getConfig().INVARIANT_EXTRA_CHECKS)
+#ifdef BUILD_TESTS
+    // In test mode, block until any previous scan completes before
+    // checking if we should run a new one. This ensures we scan every ledger.
+    if (mApp.getConfig().ALWAYS_RUN_SNAPSHOT_FOR_TESTING)
+    {
+        mApp.getInvariantManager().waitForScanToCompleteForTesting();
+    }
+#endif
+
+    if (mApp.getInvariantManager().shouldRunInvariantSnapshot())
     {
         auto ledgerSeq =
             ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
-        auto snapshotFrequency =
-            mApp.getConfig().STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
+        // Copy the InMemorySorobanState on the apply thread, then
+        // transfer to the background thread.
+        auto inMemorySnapshot =
+            mApp.getInvariantManager().copyInMemorySorobanStateForInvariant(
+                mApplyState.getInMemorySorobanStateForInvariantCheck());
 
-        if (ledgerSeq % snapshotFrequency == 0)
-        {
-            if (mApp.getInvariantManager().isStateSnapshotInvariantRunning())
-            {
-                CLOG_WARNING(Ledger,
-                             "Skipping state snapshot invariant at ledger {} "
-                             "because a previous scan is still running; "
-                             "STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY={} may "
-                             "be too short",
-                             ledgerSeq, snapshotFrequency);
-                mApplyState.getMetrics().mStateSnapshotInvariantSkipped.inc();
-                return;
-            }
-            // Copy the InMemorySorobanState on the main thread, then
-            // transfer to the background thread.
-            auto inMemorySnapshot =
-                mApp.getInvariantManager().copyInMemorySorobanStateForInvariant(
-                    mApplyState.getInMemorySorobanStateForInvariantCheck());
+        // Verify consistency of all snapshot state on the apply thread
+        // before posting to the background thread.
+        auto liveBLSnapshot = ledgerState->getBucketSnapshot();
+        auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
+        releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() == ledgerSeq);
+        releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() == ledgerSeq);
+        inMemorySnapshot->assertLastClosedLedger(ledgerSeq);
 
-            // Verify consistency of all snapshot state on the main thread
-            // before posting to the background thread.
-            auto liveBLSnapshot = ledgerState->getBucketSnapshot();
-            auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
-            releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() == ledgerSeq);
-            releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() ==
-                                 ledgerSeq);
-            inMemorySnapshot->assertLastClosedLedger(ledgerSeq);
-
-            // Note: No race condition acquiring app by reference, as all worker
-            // threads are joined before application destruction.
-            mApp.postOnBackgroundThread(
-                [ledgerState = ledgerState, &app = mApp, inMemorySnapshot]() {
-                    app.getInvariantManager().runStateSnapshotInvariant(
-                        ledgerState, *inMemorySnapshot);
-                },
-                "StateSnapshotInvariant");
-        }
+        // Note: No race condition acquiring app by reference, as all worker
+        // threads are joined before application destruction.
+        mApp.postOnBackgroundThread(
+            [ledgerState = ledgerState, &app = mApp, inMemorySnapshot]() {
+                app.getInvariantManager().runStateSnapshotInvariant(
+                    ledgerState, *inMemorySnapshot);
+            },
+            "StateSnapshotInvariant");
     }
 }
 
