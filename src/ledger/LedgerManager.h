@@ -331,12 +331,15 @@ class LedgerManager
                              bool calledViaExternalize) = 0;
 
     // upgradeApplied should be true if a protocol or network config setting
-    // upgrade occurred during the ledger close.
+    // upgrade occurred during the ledger close. If inMemorySnapshotForInvariant
+    // is not null, this will kick off a snapshot invariant check.
     virtual void
     advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
                                  LedgerCloseData const& ledgerData,
                                  CompleteConstLedgerStatePtr newLedgerState,
-                                 bool upgradeApplied) = 0;
+                                 bool upgradeApplied,
+                                 std::shared_ptr<InMemorySorobanState const>
+                                     inMemorySnapshotForInvariant) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
