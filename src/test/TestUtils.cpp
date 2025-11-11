@@ -255,7 +255,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        4 * simulation->getExpectedLedgerCloseTime(), false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Arm for upgrade.
     for (auto app : nodes)
@@ -280,7 +280,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
                                    .getLastClosedSorobanNetworkConfig() == cfg;
                     });
             },
-            2 * simulation->getExpectedLedgerCloseTime(), false);
+            10 * simulation->getExpectedLedgerCloseTime(), false);
     }
 }
 

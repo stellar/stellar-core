@@ -16,6 +16,7 @@
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/JitterInjection.h"
 
 #include "history/test/HistoryTestsUtils.h"
 
@@ -3348,6 +3349,144 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
         nodes[1]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
     REQUIRE(secondLoadGenFailed.count() == 0);
 }
+
+#ifdef BUILD_THREAD_JITTER
+TEST_CASE("randomized parallel features with jitter injection",
+          "[herder][parallel][jitter]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    // Define jitter configurations for each iteration
+    std::vector<JitterInjector::Config> jitterConfigs = {
+        {100, 100'000, 1'000'000},   // 100% prob, 100µs-1ms
+        {80, 500'000, 2'000'000},    // 80% prob, 0.5ms-2ms
+        {50, 1'000'000, 5'000'000},  // 50% prob, 1ms-5ms
+        {20, 1'000'000, 10'000'000}, // 20% prob, 1ms-10ms
+        {10, 1'000'000, 50'000'000}, // 10% prob, 1ms-50ms
+        {1, 1'000'000, 100'000'000}, // 1% prob, 1ms-100ms
+    };
+
+    for (uint32_t iteration = 0; iteration < jitterConfigs.size(); ++iteration)
+    {
+        SECTION("iteration " + std::to_string(iteration))
+        {
+            // Configure jitter for this iteration
+            JitterInjector::configure(jitterConfigs[iteration]);
+            JitterInjector::resetStats();
+
+            std::shared_ptr<Simulation> simulation;
+
+            SECTION("postgres")
+            {
+                // Set threshold to 1 so all have to vote
+                simulation = Topologies::core(
+                    4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+                        auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
+                        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+                        // Enable ALL parallel features
+                        cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                        cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+                        cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+                        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
+                        // Tight DB tuning to trigger cache
+                        // evictions and batching scenarios
+                        cfg.ENTRY_CACHE_SIZE = 1;
+                        cfg.PREFETCH_BATCH_SIZE = 1;
+
+                        return cfg;
+                    });
+            }
+            SECTION("SQLite")
+            {
+                // Set threshold to 1 so all have to vote
+                simulation = Topologies::core(
+                    4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+                        auto cfg = getTestConfig(i);
+                        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+                        // Enable ALL parallel features
+                        cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                        cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+                        cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+                        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
+                        // Tight DB tuning to trigger cache
+                        // evictions and batching scenarios
+                        cfg.ENTRY_CACHE_SIZE = 1;
+                        cfg.PREFETCH_BATCH_SIZE = 1;
+
+                        return cfg;
+                    });
+            }
+
+            simulation->startAllNodes();
+            auto nodes = simulation->getNodes();
+            uint32_t desiredTxRate = 10;
+            uint32_t ledgerWideLimit = static_cast<uint32>(
+                desiredTxRate *
+                simulation->getExpectedLedgerCloseTime().count() * 2);
+            upgradeSorobanNetworkConfig(
+                [&](SorobanNetworkConfig& cfg) {
+                    setSorobanNetworkConfigForTest(cfg);
+                    cfg.mLedgerMaxTxCount = ledgerWideLimit;
+                },
+                simulation);
+
+            auto& loadGen = nodes[0]->getLoadGenerator();
+            auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
+                {"loadgen", "run", "complete"}, "run");
+            auto currLoadGenCount = loadGenDone.count();
+
+            auto& secondLoadGen = nodes[1]->getLoadGenerator();
+            auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
+                {"loadgen", "run", "complete"}, "run");
+            auto secondLoadGenCount = secondLoadGenDone.count();
+
+            uint32_t const txCount = 50;
+
+            // Generate load from multiple nodes with different transaction
+            // types to maximize concurrency and race condition potential Node
+            // 0: Soroban upload transactions
+            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::SOROBAN_UPLOAD, 50, txCount, desiredTxRate,
+                /* offset */ 0));
+
+            // Node 1: Classic payment transactions
+            secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::PAY, 50, txCount, desiredTxRate,
+                /* offset */ 50));
+
+            // Run simulation until all load generators complete
+            // Timeout is generous to allow for the artificial delays and jitter
+            simulation->crankUntil(
+                [&]() {
+                    return loadGenDone.count() > currLoadGenCount &&
+                           secondLoadGenDone.count() > secondLoadGenCount;
+                },
+                100 * simulation->getExpectedLedgerCloseTime(), false);
+
+            // Verify no failures occurred
+            auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
+                {"loadgen", "run", "failed"}, "run");
+            REQUIRE(loadGenFailed.count() == 0);
+
+            auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
+                {"loadgen", "run", "failed"}, "run");
+            REQUIRE(secondLoadGenFailed.count() == 0);
+
+            // Log jitter statistics for this iteration
+            uint64_t injectionCount =
+                stellar::JitterInjector::getInjectionCount();
+            uint64_t delayCount = stellar::JitterInjector::getDelayCount();
+            CLOG_INFO(Test,
+                      "Iteration {} completed: {} total injections, {} delays "
+                      "applied (probability={}, delay range: {}-{}ms)",
+                      iteration, injectionCount, delayCount,
+                      jitterConfigs[iteration].defaultProbability,
+                      jitterConfigs[iteration].minDelayNs / 1'000'000,
+                      jitterConfigs[iteration].maxDelayNs / 1'000'000);
+        }
+    }
+}
+#endif
 
 TEST_CASE("soroban txs accepted by the network",
           "[herder][soroban][transactionqueue]")
