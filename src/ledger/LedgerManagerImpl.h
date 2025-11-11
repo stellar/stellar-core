@@ -83,7 +83,6 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mStagesPerLedger;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
-        medida::Counter& mStateSnapshotInvariantSkipped;
         LedgerApplyMetrics(medida::MetricsRegistry& registry);
     };
 
@@ -389,8 +388,8 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
 
-    // Runs the state snapshot invariant check if enabled and the ledger
-    // sequence is a multiple of STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY.
+    // Checks if a state snapshot invariant should be run and starts a
+    // background thread to run it.
     void
     maybeRunSnapshotInvariants(CompleteConstLedgerStatePtr const& res) const;
 

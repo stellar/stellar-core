@@ -24,7 +24,9 @@
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include <condition_variable>
 #include <fmt/format.h>
+#include <mutex>
 
 #include <memory>
 #include <numeric>
@@ -36,12 +38,16 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return std::make_unique<InvariantManagerImpl>(app.getMetrics());
+    return std::make_unique<InvariantManagerImpl>(app);
 }
 
-InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
-    : mInvariantFailureCount(
-          registry.NewCounter({"ledger", "invariant", "failure"}))
+InvariantManagerImpl::InvariantManagerImpl(Application& app)
+    : mConfig(app.getConfig())
+    , mInvariantFailureCount(
+          app.getMetrics().NewCounter({"ledger", "invariant", "failure"}))
+    , mStateSnapshotInvariantSkipped(app.getMetrics().NewCounter(
+          {"ledger", "invariant", "state-snapshot-skipped"}))
+    , mStateSnapshotTimer(app)
 {
 }
 
@@ -274,9 +280,14 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
 void
 InvariantManagerImpl::start(LedgerManager const& ledgerManager)
 {
-    // When starting up invariants, run all our snapshot based tests on the
-    // initial startup state regardless of the lcl ledger or frequency.
-    ledgerManager.runSnapshotInvariantsOnStartup();
+    // If state snapshot invariants are enabled, run a snapshot on the
+    // initial startup state, then schedule the next run.
+    if (mConfig.INVARIANT_EXTRA_CHECKS)
+    {
+        mShouldRunStateSnapshotInvariant = true;
+        ledgerManager.runSnapshotInvariantsOnStartup();
+        scheduleSnapshotTimer();
+    }
 }
 
 void
@@ -311,12 +322,6 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
     }
 }
 
-bool
-InvariantManagerImpl::isStateSnapshotInvariantRunning() const
-{
-    return mStateSnapshotInvariantRunning.load();
-}
-
 std::shared_ptr<InMemorySorobanState const>
 InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
     InMemorySorobanState const& state) const
@@ -332,10 +337,16 @@ InvariantManagerImpl::runStateSnapshotInvariant(
 {
     // These checks are slow and expensive, only one should be running at a
     // time.
-    auto wasRunning = mStateSnapshotInvariantRunning.exchange(true);
-    releaseAssertOrThrow(!wasRunning);
-    auto reset =
-        gsl::finally([this]() { mStateSnapshotInvariantRunning.store(false); });
+    mStateSnapshotInvariantRunning = true;
+    mShouldRunStateSnapshotInvariant = false;
+
+    auto reset = gsl::finally([this]() {
+        mStateSnapshotInvariantRunning = false;
+#ifdef BUILD_TESTS
+        // Notify any waiting threads that the invariant has completed
+        mSnapshotInvariantCV.notify_all();
+#endif
+    });
 
     for (auto const& invariant : mEnabled)
     {
@@ -349,6 +360,72 @@ InvariantManagerImpl::runStateSnapshotInvariant(
         }
     }
 }
+
+void
+InvariantManagerImpl::scheduleSnapshotTimer()
+{
+#ifdef BUILD_TESTS
+    // When ALWAYS_RUN_SNAPSHOT_FOR_TESTING is set, we don't need a timer since
+    // we unconditionally run the invariant on every ledger.
+    if (mConfig.ALWAYS_RUN_SNAPSHOT_FOR_TESTING)
+    {
+        return;
+    }
+#endif
+
+    auto frequencySeconds = mConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
+    mStateSnapshotTimer.expires_from_now(
+        std::chrono::seconds(frequencySeconds));
+    mStateSnapshotTimer.async_wait([this]() { snapshotTimerFired(); },
+                                   &VirtualTimer::onFailureNoop);
+}
+
+void
+InvariantManagerImpl::snapshotTimerFired()
+{
+    // Check if the previous invariant is still running. If we haven't finished
+    // the invariant in time, we will reset the timer, but not mark the
+    // invariant as ready to run.
+    if (mStateSnapshotInvariantRunning)
+    {
+        CLOG_WARNING(
+            Invariant,
+            "Skipping state snapshot invariant trigger "
+            "because a previous scan is still running. "
+            "STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY may be too short");
+        mStateSnapshotInvariantSkipped.inc();
+    }
+    else
+    {
+        mShouldRunStateSnapshotInvariant = true;
+    }
+
+    scheduleSnapshotTimer();
+}
+
+bool
+InvariantManagerImpl::shouldRunInvariantSnapshot() const
+{
+#ifdef BUILD_TESTS
+    if (mConfig.ALWAYS_RUN_SNAPSHOT_FOR_TESTING)
+    {
+        return true;
+    }
+#endif
+
+    return mShouldRunStateSnapshotInvariant;
+}
+
+#ifdef BUILD_TESTS
+void
+InvariantManagerImpl::waitForScanToCompleteForTesting() const
+{
+    std::unique_lock<std::mutex> lock(mSnapshotInvariantMutex);
+    // Wait until any previous invariant completes
+    mSnapshotInvariantCV.wait(
+        lock, [this]() { return !mStateSnapshotInvariantRunning; });
+}
+#endif
 
 #ifdef BUILD_TESTS
 void

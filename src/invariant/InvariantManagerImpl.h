@@ -6,6 +6,7 @@
 
 #include "invariant/InvariantManager.h"
 #include "util/ThreadAnnotations.h"
+#include "util/Timer.h"
 #include <map>
 #include <vector>
 
@@ -20,10 +21,20 @@ namespace stellar
 
 class InvariantManagerImpl : public InvariantManager
 {
+    Config const& mConfig;
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
     medida::Counter& mInvariantFailureCount;
+    medida::Counter& mStateSnapshotInvariantSkipped;
     std::atomic<bool> mStateSnapshotInvariantRunning{false};
+    std::atomic<bool> mShouldRunStateSnapshotInvariant{false};
+    VirtualTimer mStateSnapshotTimer;
+
+#ifdef BUILD_TESTS
+    // Synchronization primitives for waitForScanToCompleteForTesting()
+    mutable std::mutex mSnapshotInvariantMutex;
+    mutable std::condition_variable mSnapshotInvariantCV;
+#endif
 
     struct InvariantFailureInformation
     {
@@ -36,7 +47,7 @@ class InvariantManagerImpl : public InvariantManager
         mFailureInformation GUARDED_BY(mFailureInformationMutex);
 
   public:
-    InvariantManagerImpl(medida::MetricsRegistry& registry);
+    InvariantManagerImpl(Application& app);
 
     virtual Json::Value getJsonInfo() override
         LOCKS_EXCLUDED(mFailureInformationMutex);
@@ -73,7 +84,7 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void start(LedgerManager const& ledgerManager) override;
 
-    bool isStateSnapshotInvariantRunning() const override;
+    bool shouldRunInvariantSnapshot() const override;
 
     void runStateSnapshotInvariant(
         CompleteConstLedgerStatePtr ledgerState,
@@ -87,6 +98,8 @@ class InvariantManagerImpl : public InvariantManager
         InMemorySorobanState const& state) const override;
 
 #ifdef BUILD_TESTS
+    void waitForScanToCompleteForTesting() const override;
+
     void snapshotForFuzzer() override;
     void resetForFuzzer() override;
 #endif // BUILD_TESTS
@@ -98,5 +111,8 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void handleInvariantFailure(bool isStrict,
                                         std::string const& message) const;
+
+    void scheduleSnapshotTimer();
+    void snapshotTimerFired();
 };
 }
