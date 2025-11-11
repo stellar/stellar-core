@@ -6,6 +6,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/RandomEvictionCache.h"
 #include "util/UnorderedMap.h"
 #include <Tracy.hpp>
@@ -190,6 +191,9 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
     getGlobalRandomEngine().seed(seed);
     randHash::initialize();
     randomEvictionCacheSeed = seed;
+#ifdef BUILD_THREAD_JITTER
+    JitterInjector::initialize(seed);
+#endif
 }
 
 void
@@ -213,6 +217,10 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
     // test only prngs
     Catch::rng().seed(seed);
     autocheck::rng().seed(seed);
+    // Initialize jitter injection framework with test seed for reproducibility
+#ifdef BUILD_THREAD_JITTER
+    JitterInjector::initialize(seed);
+#endif
 }
 
 unsigned int
