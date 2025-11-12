@@ -55,7 +55,7 @@ class ApplicationImpl : public Application
     virtual std::string getStateHuman() const override;
     virtual bool isStopping() const override;
     virtual VirtualClock& getClock() override;
-    virtual medida::MetricsRegistry& getMetrics() override;
+    virtual MetricsRegistry& getMetrics() override;
     virtual void syncOwnMetrics() override;
     virtual void syncAllMetrics() override;
     virtual void clearMetrics(std::string const& domain) override;
@@ -253,7 +253,7 @@ class ApplicationImpl : public Application
     VirtualTimer mStoppingTimer;
     VirtualTimer mSelfCheckTimer;
 
-    std::unique_ptr<medida::MetricsRegistry> mMetrics;
+    std::unique_ptr<MetricsRegistry> mMetrics;
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;

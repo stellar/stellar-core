@@ -30,12 +30,12 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 

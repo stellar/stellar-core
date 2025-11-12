@@ -49,6 +49,7 @@ bucketlistDB-live.bulk.eviction           | timer     | time to load for evictio
 bucketlistDB-live.bulk.query              | timer     | time to load for query server
 bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
+bucketlistDB-<X>.<Y>.max                  | counter   | max (since last metrics call) of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-cache.hit                    | meter     | number of cache hits on Live BucketList Disk random eviction cache
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
 bucketlistDB.cache.entries                | counter   | number of entries currently in Live BucketList index cache
@@ -65,8 +66,10 @@ herder.pending[-soroban]-txs.age3         | counter   | number of gen3 pending t
 herder.pending[-soroban]-txs.banned       | counter   | number of transactions that got banned
 herder.pending[-soroban]-txs.sum          | counter   | sum of time (milliseconds) for transactions to be included in a ledger
 herder.pending[-soroban]-txs.count        | counter   | number of transactions to be included in a ledger
+herder.pending[-soroban]-txs.max          | counter   | largest time (milliseconds) for a transaction to be included in a ledger since last metrics call
 herder.pending[-soroban]-txs.self-sum     | counter   | sum of time (milliseconds) for transactions submitted from this node to be included in a ledger
 herder.pending[-soroban]-txs.self-count   | counter   | number of transactions submitted from this node to be included in a ledger
+herder.pending[-soroban]-txs.self-max     | counter   | largest time (milliseconds) for a transaction submitted from this node to be included in a ledger since last metrics call
 herder.pending[-soroban]-txs.evicted-due-to-low-fee-count   | counter   | Count of transactions evicted by higher fee txs when queue is near its capacity.
 herder.pending[-soroban]-txs.evicted-due-to-age-count   | counter   | Count of transactions that had low fee for too long and have not been included into several ledgers in a row.
 herder.pending[-soroban]-txs.not-included-due-to-low-fee-count   | counter   | Count of transactions that were not included into queue because it is at capacity and the fee is too low to replace other txs.
@@ -164,6 +167,7 @@ overlay.outbound.establish                | meter     | outbound connection esta
 overlay.recv.<X>                          | timer     | received message <X> (except transaction)
 overlay.recv-transaction.sum              | counter   | sum of time (microseconds) to receive transaction message
 overlay.recv-transaction.count            | counter   | number of transaction messages received
+overlay.recv-transaction.max              | counter   | maximum time (microseconds) to receive transaction message since last metrics call
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout

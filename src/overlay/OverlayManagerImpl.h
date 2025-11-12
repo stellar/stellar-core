@@ -17,7 +17,6 @@
 #include "overlay/TxDemandsManager.h"
 #include "util/Timer.h"
 
-#include "medida/metrics_registry.h"
 #include "util/RandomEvictionCache.h"
 
 #include <future>
@@ -45,7 +44,7 @@ class OverlayManagerImpl : public OverlayManager
     struct PeersList
     {
         explicit PeersList(OverlayManagerImpl& overlayManager,
-                           medida::MetricsRegistry& metricsRegistry,
+                           MetricsRegistry& metricsRegistry,
                            std::string const& directionString,
                            std::string const& cancelledName,
                            int maxAuthenticatedCount,

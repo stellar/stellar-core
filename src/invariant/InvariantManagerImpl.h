@@ -12,12 +12,12 @@
 
 namespace medida
 {
-class MetricsRegistry;
 class Counter;
 }
 
 namespace stellar
 {
+class MetricsRegistry;
 
 class InvariantManagerImpl : public InvariantManager
 {

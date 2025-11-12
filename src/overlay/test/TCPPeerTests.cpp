@@ -13,6 +13,7 @@
 #include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/Timer.h"
 
 using namespace stellar::overlaytestutils;

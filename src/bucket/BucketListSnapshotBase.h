@@ -11,6 +11,7 @@
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "util/SimpleTimer.h"
 
 namespace medida
 {
@@ -89,9 +90,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
     // Tracks the sum of point load times for each LedgerEntryType, in
     // microseconds. For point loads, Timers are too expensive to maintain, so
-    // we use a Counter to keep track of the total trend instead.
-    UnorderedMap<LedgerEntryType, medida::Counter&> mPointAccumulators{};
-    UnorderedMap<LedgerEntryType, medida::Counter&> mPointCounters{};
+    // we use SimpleTimer.
+    UnorderedMap<LedgerEntryType, SimpleTimer&> mPointTimers{};
 
     // Bulk load timers take significantly longer, so the timer overhead is
     // comparatively negligible.

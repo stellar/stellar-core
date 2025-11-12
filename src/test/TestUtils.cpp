@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"

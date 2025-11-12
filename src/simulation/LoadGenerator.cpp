@@ -17,6 +17,7 @@
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/Timer.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
@@ -26,7 +27,6 @@
 #include "xdrpp/marshal.h"
 
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 
 #include "ledger/test/LedgerTestUtils.h"
 #include <Tracy.hpp>
@@ -1316,7 +1316,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
                            &VirtualTimer::onFailureNoop);
 }
 
-LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
+LoadGenerator::TxMetrics::TxMetrics(MetricsRegistry& m)
     : mNativePayment(m.NewMeter({"loadgen", "payment", "submitted"}, "op"))
     , mSorobanUploadTxs(m.NewMeter({"loadgen", "soroban", "upload"}, "txn"))
     , mSorobanSetupInvokeTxs(

@@ -35,6 +35,7 @@
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
@@ -48,7 +49,6 @@
 #include <string>
 
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 
 #include <algorithm>
 #include <xdrpp/types.h>
