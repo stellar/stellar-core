@@ -10,6 +10,7 @@
 #include "main/ErrorMessages.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "xdrpp/printer.h"

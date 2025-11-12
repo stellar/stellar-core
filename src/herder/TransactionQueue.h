@@ -198,21 +198,16 @@ class TransactionQueue
     {
         QueueMetrics(std::vector<medida::Counter*> sizeByAge,
                      medida::Counter& bannedTransactionsCounter,
-                     medida::Counter& transactionsDelayAccumulator,
-                     medida::Counter& transactionsDelayCounter,
-                     medida::Counter& transactionsSelfDelayAccumulator,
-                     medida::Counter& transactionsSelfDelayCounter,
+                     SimpleTimer& transactionsDelay,
+                     SimpleTimer& transactionsSelfDelay,
                      medida::Counter& txsEvictedByHigherFeeTxCounter,
                      medida::Counter& txsEvictedDueToAgeCounter,
                      medida::Counter& txsNotAcceptedDueToLowFeeCounter,
                      medida::Counter& txsFilteredDueToFpKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
-            , mTransactionsDelayAccumulator(transactionsDelayAccumulator)
-            , mTransactionsSelfDelayAccumulator(
-                  transactionsSelfDelayAccumulator)
-            , mTransactionsDelayCounter(transactionsDelayCounter)
-            , mTransactionsSelfDelayCounter(transactionsSelfDelayCounter)
+            , mTransactionsDelay(transactionsDelay)
+            , mTransactionsSelfDelay(transactionsSelfDelay)
             , mTxsEvictedByHigherFeeTxCounter(txsEvictedByHigherFeeTxCounter)
             , mTxsEvictedDueToAgeCounter(txsEvictedDueToAgeCounter)
             , mTxsNotAcceptedDueToLowFeeCounter(
@@ -223,13 +218,11 @@ class TransactionQueue
         std::vector<medida::Counter*> mSizeByAge;
         medida::Counter& mBannedTransactionsCounter;
 
-        // Sum of total delay, in milliseconds
-        medida::Counter& mTransactionsDelayAccumulator;
-        medida::Counter& mTransactionsSelfDelayAccumulator;
-
-        // Count of transactions delay events
-        medida::Counter& mTransactionsDelayCounter;
-        medida::Counter& mTransactionsSelfDelayCounter;
+        // Keep track of time (in milliseconds) for transaction to be included
+        // in ledger using `SimpleTimer`s since medida `Timer`s are too
+        // expensive
+        SimpleTimer& mTransactionsDelay;
+        SimpleTimer& mTransactionsSelfDelay;
 
         // The following metrics provided more detailed insight into banned
         // transactions: mBannedTransactionsCounter includes all these, as well

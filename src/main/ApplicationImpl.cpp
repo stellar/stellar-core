@@ -46,7 +46,6 @@
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
@@ -57,6 +56,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include "util/Thread.h"
@@ -117,7 +117,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
     , mMetrics(
-          std::make_unique<medida::MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
+          std::make_unique<stellar::MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
@@ -1253,7 +1253,7 @@ ApplicationImpl::getClock()
     return mVirtualClock;
 }
 
-medida::MetricsRegistry&
+stellar::MetricsRegistry&
 ApplicationImpl::getMetrics()
 {
     return *mMetrics;
@@ -1306,6 +1306,9 @@ ApplicationImpl::syncOwnMetrics()
     }
     mMetrics->NewCounter({"process", "file", "handles"})
         .set_count(fs::getOpenHandleCount());
+
+    // Update simple timer metrics
+    mMetrics->syncMaxes();
 }
 
 void

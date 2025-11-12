@@ -66,7 +66,7 @@ testBucketMetadata(uint32_t protocolVersion)
 class TestInvariantManager : public InvariantManagerImpl
 {
   public:
-    TestInvariantManager(medida::MetricsRegistry& registry);
+    TestInvariantManager(MetricsRegistry& registry);
 
   private:
     virtual void

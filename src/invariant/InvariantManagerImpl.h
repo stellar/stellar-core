@@ -10,12 +10,12 @@
 
 namespace medida
 {
-class MetricsRegistry;
 class Counter;
 }
 
 namespace stellar
 {
+class MetricsRegistry;
 
 class InvariantManagerImpl : public InvariantManager
 {
@@ -31,7 +31,7 @@ class InvariantManagerImpl : public InvariantManager
     std::map<std::string, InvariantFailureInformation> mFailureInformation;
 
   public:
-    InvariantManagerImpl(medida::MetricsRegistry& registry);
+    InvariantManagerImpl(MetricsRegistry& registry);
 
     virtual Json::Value getJsonInfo() override;
 

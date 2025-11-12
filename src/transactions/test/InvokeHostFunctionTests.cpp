@@ -5,6 +5,7 @@
 #include "test/test.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"

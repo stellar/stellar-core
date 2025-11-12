@@ -19,8 +19,8 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
@@ -38,7 +38,7 @@ InvariantManager::create(Application& app)
     return std::make_unique<InvariantManagerImpl>(app.getMetrics());
 }
 
-InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
+InvariantManagerImpl::InvariantManagerImpl(MetricsRegistry& registry)
     : mInvariantFailureCount(
           registry.NewCounter({"ledger", "invariant", "failure"}))
 {

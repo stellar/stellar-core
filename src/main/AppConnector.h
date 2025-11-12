@@ -3,7 +3,6 @@
 #include "bucket/BucketUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/metrics_registry.h"
 #include "rust/RustBridge.h"
 
 namespace stellar
@@ -65,7 +64,7 @@ class AppConnector
     SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() const;
     bool threadIsType(Application::ThreadType type) const;
 
-    medida::MetricsRegistry& getMetrics() const;
+    MetricsRegistry& getMetrics() const;
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot();
 

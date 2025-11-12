@@ -29,7 +29,6 @@
 #include <fstream>
 #include <iostream>
 #include <medida/meter.h>
-#include <medida/metrics_registry.h>
 #include <set>
 #include <sstream>
 

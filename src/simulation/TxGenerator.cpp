@@ -5,6 +5,7 @@
 #include "simulation/LoadGenerator.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/MetricsRegistry.h"
 #include <cmath>
 #include <crypto/SHA.h>
 

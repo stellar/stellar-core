@@ -8,10 +8,10 @@
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 

@@ -46,6 +46,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
@@ -68,7 +69,6 @@
 #include "medida/buckets.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include <Tracy.hpp>
 
@@ -190,7 +190,7 @@ LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
 }
 
 LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
-    medida::MetricsRegistry& registry)
+    MetricsRegistry& registry)
     : mSorobanMetrics(registry)
     , mTransactionApply(registry.NewTimer({"ledger", "transaction", "apply"}))
     , mTotalTxApply(registry.NewTimer({"ledger", "transaction", "total-apply"}))

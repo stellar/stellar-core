@@ -12,6 +12,7 @@
 #include "scp/Slot.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/UnorderedSet.h"
 #include <Tracy.hpp>
 #include <xdrpp/marshal.h>

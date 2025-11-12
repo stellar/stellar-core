@@ -24,6 +24,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/Thread.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -31,7 +32,6 @@
 
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 
 #include <algorithm>
 
@@ -71,11 +71,12 @@ OverlayManagerImpl::canAcceptOutboundPeer(PeerBareAddress const& address) const
     return true;
 }
 
-OverlayManagerImpl::PeersList::PeersList(
-    OverlayManagerImpl& overlayManager,
-    medida::MetricsRegistry& metricsRegistry,
-    std::string const& directionString, std::string const& cancelledName,
-    int maxAuthenticatedCount, std::shared_ptr<SurveyManager> sm)
+OverlayManagerImpl::PeersList::PeersList(OverlayManagerImpl& overlayManager,
+                                         MetricsRegistry& metricsRegistry,
+                                         std::string const& directionString,
+                                         std::string const& cancelledName,
+                                         int maxAuthenticatedCount,
+                                         std::shared_ptr<SurveyManager> sm)
     : mConnectionsAttempted(metricsRegistry.NewMeter(
           {"overlay", directionString, "attempt"}, "connection"))
     , mConnectionsEstablished(metricsRegistry.NewMeter(
