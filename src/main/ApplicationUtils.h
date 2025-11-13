@@ -33,7 +33,8 @@ int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<uint32_t> lastModifiedLedgerCount,
                std::optional<uint64_t> limit,
                std::optional<std::string> groupBy,
-               std::optional<std::string> aggregate, bool includeAllStates);
+               std::optional<std::string> aggregate, bool dumpHotArchive,
+               bool includeAllStates);
 void dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir);
 void showOfflineInfo(Config cfg, bool verbose);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);

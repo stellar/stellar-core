@@ -1564,13 +1564,13 @@ BucketManager::mergeBuckets(asio::io_context& ctx,
     return out.getBucket(*this);
 }
 
+template <typename BucketT>
 static bool
-visitLiveEntriesInBucket(
-    std::shared_ptr<LiveBucket const> b, std::string const& name,
-    std::optional<int64_t> minLedger,
-    std::function<bool(LedgerEntry const&)> const& filterEntry,
-    std::function<bool(LedgerEntry const&)> const& acceptEntry,
-    UnorderedSet<Hash>& processedEntries)
+visitBucketEntries(bool visitShadowedEntries, std::shared_ptr<BucketT const> b,
+                   std::string const& name, std::optional<uint32_t> minLedger,
+                   std::function<bool(LedgerEntry const&)> const& filterEntry,
+                   std::function<bool(LedgerEntry const&)> const& acceptEntry,
+                   UnorderedSet<Hash>& processedEntries)
 {
     ZoneScoped;
 
@@ -1578,14 +1578,48 @@ visitLiveEntriesInBucket(
     medida::Timer timer;
 
     bool stopIteration = false;
-    timer.Time([&]() {
-        for (LiveBucketInputIterator in(b); in; ++in)
+
+    auto getLiveEntry = [](auto const& e) -> LedgerEntry const& {
+        using T = std::decay_t<decltype(e)>;
+        if constexpr (std::is_same_v<T, BucketEntry>)
         {
-            BucketEntry const& e = *in;
-            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+            return e.liveEntry();
+        }
+        else if constexpr (std::is_same_v<T, HotArchiveBucketEntry>)
+        {
+            return e.archivedEntry();
+        }
+        else
+        {
+            static_assert(!std::is_same_v<T, T>);
+        }
+    };
+    auto getDeadEntryKey = [](auto const& e) -> LedgerKey const& {
+        using T = std::decay_t<decltype(e)>;
+        if constexpr (std::is_same_v<T, BucketEntry>)
+        {
+            return e.deadEntry();
+        }
+        else if constexpr (std::is_same_v<T, HotArchiveBucketEntry>)
+        {
+            return e.key();
+        }
+        else
+        {
+            static_assert(!std::is_same_v<T, T>);
+        }
+    };
+
+    timer.Time([&]() {
+        for (BucketInputIterator<BucketT> in(b); in; ++in)
+        {
+            auto const& e = *in;
+
+            if (!BucketT::isTombstoneEntry(e))
             {
-                auto const& liveEntry = e.liveEntry();
-                if (!processedEntries
+                auto const& liveEntry = getLiveEntry(e);
+                if (!visitShadowedEntries &&
+                    !processedEntries
                          .insert(xdrBlake2(LedgerEntryKey(liveEntry)))
                          .second)
                 {
@@ -1608,68 +1642,9 @@ visitLiveEntriesInBucket(
             }
             else
             {
-                if (e.type() != DEADENTRY)
+                if (!visitShadowedEntries)
                 {
-                    std::string err = "Malformed bucket: unexpected "
-                                      "non-INIT/LIVE/DEAD entry.";
-                    CLOG_ERROR(Bucket, "{}", err);
-                    throw std::runtime_error(err);
-                }
-                processedEntries.insert(xdrBlake2(e.deadEntry()));
-            }
-        }
-    });
-    nanoseconds ns =
-        timer.duration_unit() * static_cast<nanoseconds::rep>(timer.max());
-    milliseconds ms = duration_cast<milliseconds>(ns);
-    size_t bytesPerSec = (b->getSize() * 1000 / (1 + ms.count()));
-    CLOG_INFO(Bucket, "Processed {}-byte bucket file '{}' in {} ({}/s)",
-              b->getSize(), name, ms, formatSize(bytesPerSec));
-    return !stopIteration;
-}
-
-static bool
-visitAllEntriesInBucket(
-    std::shared_ptr<LiveBucket const> b, std::string const& name,
-    std::optional<int64_t> minLedger,
-    std::function<bool(LedgerEntry const&)> const& filterEntry,
-    std::function<bool(LedgerEntry const&)> const& acceptEntry)
-{
-    ZoneScoped;
-
-    using namespace std::chrono;
-    medida::Timer timer;
-
-    bool stopIteration = false;
-    timer.Time([&]() {
-        for (LiveBucketInputIterator in(b); in; ++in)
-        {
-            BucketEntry const& e = *in;
-            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
-            {
-                auto const& liveEntry = e.liveEntry();
-                if (minLedger && liveEntry.lastModifiedLedgerSeq < *minLedger)
-                {
-                    stopIteration = true;
-                    continue;
-                }
-                if (filterEntry(e.liveEntry()))
-                {
-                    if (!acceptEntry(e.liveEntry()))
-                    {
-                        stopIteration = true;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                if (e.type() != DEADENTRY)
-                {
-                    std::string err = "Malformed bucket: unexpected "
-                                      "non-INIT/LIVE/DEAD entry.";
-                    CLOG_ERROR(Bucket, "{}", err);
-                    throw std::runtime_error(err);
+                    processedEntries.insert(xdrBlake2(getDeadEntryKey(e)));
                 }
             }
         }
@@ -1685,22 +1660,40 @@ visitAllEntriesInBucket(
 
 void
 BucketManager::visitLedgerEntries(
-    HistoryArchiveState const& has, std::optional<int64_t> minLedger,
+    bool visitLiveBucketList, HistoryArchiveState const& has,
+    std::optional<uint32_t> minLedger,
     std::function<bool(LedgerEntry const&)> const& filterEntry,
     std::function<bool(LedgerEntry const&)> const& acceptEntry,
     bool includeAllStates)
 {
     ZoneScoped;
 
-    UnorderedSet<Hash> deletedEntries;
+    UnorderedSet<Hash> processedEntries;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+
+    if (visitLiveBucketList)
     {
-        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
-        hashes.emplace_back(hexToBin256(hsb.curr),
-                            fmt::format(FMT_STRING("curr {:d}"), i));
-        hashes.emplace_back(hexToBin256(hsb.snap),
-                            fmt::format(FMT_STRING("snap {:d}"), i));
+        for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+        {
+            HistoryStateBucket<LiveBucket> const& hsb =
+                has.currentBuckets.at(i);
+            hashes.emplace_back(hexToBin256(hsb.curr),
+                                fmt::format(FMT_STRING("curr {:d}"), i));
+            hashes.emplace_back(hexToBin256(hsb.snap),
+                                fmt::format(FMT_STRING("snap {:d}"), i));
+        }
+    }
+    else
+    {
+        for (uint32_t i = 0; i < HotArchiveBucketList::kNumLevels; ++i)
+        {
+            HistoryStateBucket<HotArchiveBucket> const& hsb =
+                has.hotArchiveBuckets.at(i);
+            hashes.emplace_back(hexToBin256(hsb.curr),
+                                fmt::format(FMT_STRING("curr {:d}"), i));
+            hashes.emplace_back(hexToBin256(hsb.snap),
+                                fmt::format(FMT_STRING("snap {:d}"), i));
+        }
     }
     medida::Timer timer;
     timer.Time([&]() {
@@ -1710,19 +1703,36 @@ BucketManager::visitLedgerEntries(
             {
                 continue;
             }
-            auto b = getBucketByHash<LiveBucket>(pair.first);
-            if (!b)
+            bool continueIteration = false;
+            if (visitLiveBucketList)
             {
-                throw std::runtime_error(std::string("missing bucket: ") +
-                                         binToHex(pair.first));
+                auto b = getBucketByHash<LiveBucket>(pair.first);
+                if (!b)
+                {
+                    throw std::runtime_error(std::string("missing bucket: ") +
+                                             binToHex(pair.first));
+                }
+                continueIteration = visitBucketEntries(
+                    includeAllStates,
+                    static_cast<std::shared_ptr<LiveBucket const>>(b),
+                    pair.second, minLedger, filterEntry, acceptEntry,
+                    processedEntries);
             }
-            bool continueIteration =
-                includeAllStates
-                    ? visitAllEntriesInBucket(b, pair.second, minLedger,
-                                              filterEntry, acceptEntry)
-                    : visitLiveEntriesInBucket(b, pair.second, minLedger,
-                                               filterEntry, acceptEntry,
-                                               deletedEntries);
+            else
+            {
+                auto b = getBucketByHash<HotArchiveBucket>(pair.first);
+                if (!b)
+                {
+                    throw std::runtime_error(std::string("missing bucket: ") +
+                                             binToHex(pair.first));
+                }
+                continueIteration = visitBucketEntries(
+                    includeAllStates,
+                    static_cast<std::shared_ptr<HotArchiveBucket const>>(b),
+                    pair.second, minLedger, filterEntry, acceptEntry,
+                    processedEntries);
+            }
+
             if (!continueIteration)
             {
                 break;

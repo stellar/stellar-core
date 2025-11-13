@@ -586,7 +586,8 @@ dumpLedger(Config cfg, std::string const& outputFile,
            std::optional<std::string> filterQuery,
            std::optional<uint32_t> lastModifiedLedgerCount,
            std::optional<uint64_t> limit, std::optional<std::string> groupBy,
-           std::optional<std::string> aggregate, bool includeAllStates)
+           std::optional<std::string> aggregate, bool dumpHotArchive,
+           bool includeAllStates)
 {
     if (groupBy && !aggregate)
     {
@@ -601,12 +602,13 @@ dumpLedger(Config cfg, std::string const& outputFile,
     lm.partiallyLoadLastKnownLedgerForUtils();
     auto liveSnapshot =
         app->getAppConnector().copySearchableLiveBucketListSnapshot();
-    auto ttlGetter = [&liveSnapshot,
-                      includeAllStates](LedgerKey const& key) -> uint32_t {
-        if (includeAllStates)
+    auto ttlGetter = [&liveSnapshot, includeAllStates,
+                      dumpHotArchive](LedgerKey const& key) -> uint32_t {
+        if (includeAllStates || dumpHotArchive)
         {
             throw std::runtime_error(
-                "TTL is undefined when includeAllStates is set.");
+                "TTL is undefined when `--include-all-states` or "
+                "`--hot-archive` flag is set.");
         }
         auto entry = liveSnapshot->load(key);
         if (!entry)
@@ -653,7 +655,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     try
     {
         bm.visitLedgerEntries(
-            has, minLedger,
+            !dumpHotArchive, has, minLedger,
             [&](LedgerEntry const& entry) {
                 return !matcher || matcher->matchXDR(entry);
             },
@@ -679,8 +681,8 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 {
                     // When only live state is included, we can also output
                     // TTL for the Soroban entries.
-                    bool addTTL =
-                        !includeAllStates && isSorobanEntry(entry.data);
+                    bool addTTL = !includeAllStates && !dumpHotArchive &&
+                                  isSorobanEntry(entry.data);
                     if (!addTTL)
                     {
                         ofs << xdrToCerealString(entry, "entry") << std::endl;
