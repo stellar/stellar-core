@@ -198,6 +198,7 @@ TEST_CASE("manualclose", "[commandhandler]")
         auto& commandHandler = app->getCommandHandler();
         std::string retStr;
         issue(commandHandler, retStr);
+        app->gracefulStop();
     };
 
     SECTION("'manualclose' is forbidden if MANUAL_CLOSE is not configured")

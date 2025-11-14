@@ -2253,8 +2253,10 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     auto app = createTestApplication(clock, cfg, true, false);
     auto& om = app->getOverlayManager();
     auto& peerManager = om.getPeerManager();
-    auto record = [](size_t numFailures) {
-        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    auto record = [app](size_t numFailures) {
+        return PeerRecord{
+            VirtualClock::systemPointToTm(app->getClock().system_now()),
+            numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 
     // Need to set max tx size on tests that start OverlayManager without

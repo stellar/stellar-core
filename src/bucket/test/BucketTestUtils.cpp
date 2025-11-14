@@ -102,10 +102,10 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
                                      lcl.header.scpValue.closeTime, upgrades,
                                      skToSignValue);
-    // NB: this assert will probably stop being true when background apply is
-    // turned on by default: externalize will have handed the ledger off to
-    // apply but not yet received the results of apply or updated LCL. The fix
-    // should be just to crank here until LCL advances to ledgerSeq.
+    while (lm.getLastClosedLedgerNum() < ledgerNum)
+    {
+        app.getClock().crank(true);
+    }
     releaseAssert(lm.getLastClosedLedgerNum() == ledgerNum);
     return lm.getLastClosedLedgerHeader().hash;
 }
@@ -235,11 +235,13 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
 
                 LedgerTxn ltxEvictions(ltx);
 
+                auto sorobanConfig =
+                    SorobanNetworkConfig::loadFromLedger(ltxEvictions);
+
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
                         ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
-                        mApp.getLedgerManager()
-                            .getLastClosedSorobanNetworkConfig());
+                        sorobanConfig);
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::

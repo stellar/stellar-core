@@ -513,8 +513,10 @@ TEST_CASE("purge peer table", "[overlay][PeerManager]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& peerManager = app->getOverlayManager().getPeerManager();
-    auto record = [](size_t numFailures) {
-        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    auto record = [&app](size_t numFailures) {
+        return PeerRecord{
+            VirtualClock::systemPointToTm(app->getClock().system_now()),
+            numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 
     peerManager.store(localhost(1), record(1), false);

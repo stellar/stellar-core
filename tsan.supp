@@ -6,3 +6,7 @@
 # This is a false positive - the actual synchronization is handled internally by ASIO
 race:asio::detail::kqueue_reactor::allocate_descriptor_state
 race:asio::detail::kqueue_reactor::run
+
+# ApplicationImpl vptr race
+# vptr race during ApplicationImpl destruction
+race:ApplicationImpl::~ApplicationImpl

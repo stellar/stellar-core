@@ -633,7 +633,7 @@ ApplicationImpl::~ApplicationImpl()
     mStopping = true;
     try
     {
-        idempotentShutdown();
+        idempotentShutdown(false);
     }
     catch (std::exception const& e)
     {
@@ -821,7 +821,7 @@ ApplicationImpl::start()
 }
 
 void
-ApplicationImpl::idempotentShutdown()
+ApplicationImpl::idempotentShutdown(bool forgetBuckets)
 {
     // Graceful shutdown sequence:
     // Perform a graceful shutdown by first signaling all managers to stop
@@ -850,11 +850,14 @@ ApplicationImpl::idempotentShutdown()
     }
     if (mBucketManager)
     {
-        // This call happens in shutdown -- before destruction -- so that we can
-        // be sure other subsystems (ledger etc.) are still alive and we can
-        // call into them to figure out which buckets _are_ referenced.
-        mBucketManager->forgetUnreferencedBuckets(
-            mLedgerManager->getLastClosedLedgerHAS());
+        if (forgetBuckets)
+        {
+            // This call happens in shutdown -- before destruction -- so that we
+            // can be sure other subsystems (ledger etc.) are still alive and we
+            // can call into them to figure out which buckets _are_ referenced.
+            mBucketManager->forgetUnreferencedBuckets(
+                mLedgerManager->getLastClosedLedgerHAS());
+        }
         mBucketManager->shutdown();
     }
     if (mHerder)
@@ -875,7 +878,7 @@ ApplicationImpl::gracefulStop()
         return;
     }
     mStopping = true;
-    idempotentShutdown();
+    idempotentShutdown(true);
 
     mStoppingTimer.expires_from_now(
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
@@ -900,7 +903,7 @@ ApplicationImpl::shutdownWorkScheduler()
     }
 }
 
-void
+bool
 ApplicationImpl::shutdownThread(
     std::unique_ptr<std::thread>& threadPtr,
     std::unique_ptr<asio::io_context::work>& workPtr,
@@ -919,23 +922,29 @@ ApplicationImpl::shutdownThread(
         LOG_INFO(DEFAULT_LOG, "Joining {} thread", threadName);
         threadPtr->join();
         threadPtr.reset();
+        return true;
     }
+    return false;
 }
 
 void
 ApplicationImpl::joinAllThreads()
 {
-    uint32_t const THREAD_COUNT = 3 + mWorkerThreads.size();
-    shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+    uint32_t joined = 0;
+    joined +=
+        shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
     for (auto& w : mWorkerThreads)
     {
-        shutdownThread(w, mWork, "worker");
+        joined += shutdownThread(w, mWork, "worker");
     }
     mWorkerThreads.clear();
 
-    shutdownThread(mOverlayThread, mOverlayWork, "overlay");
-    shutdownThread(mEvictionThread, mEvictionWork, "eviction");
-    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", THREAD_COUNT);
+    joined += shutdownThread(mOverlayThread, mOverlayWork, "overlay");
+    joined += shutdownThread(mEvictionThread, mEvictionWork, "eviction");
+    if (joined)
+    {
+        LOG_INFO(DEFAULT_LOG, "Joined all {} threads", joined);
+    }
 }
 
 std::string

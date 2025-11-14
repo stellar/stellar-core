@@ -267,7 +267,7 @@ LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSizeForTesting() const
 void
 LedgerManagerImpl::ApplyState::threadInvariant() const
 {
-    if (mAppConnector.getConfig().EXPERIMENTAL_PARALLEL_LEDGER_APPLY)
+    if (mAppConnector.getConfig().parallelLedgerClose())
     {
         releaseAssert(threadIsMain() || mAppConnector.threadIsType(
                                             Application::ThreadType::APPLY));

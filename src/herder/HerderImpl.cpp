@@ -936,6 +936,10 @@ HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
     StellarValue sv =
         makeStellarValue(txSet->getContentsHash(), closeTime, upgrades, sk);
     getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
+    while (mApp.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq)
+    {
+        mApp.getClock().crank(true);
+    }
 }
 
 bool
