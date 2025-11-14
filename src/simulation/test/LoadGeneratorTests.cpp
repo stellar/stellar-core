@@ -15,6 +15,7 @@
 #include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/finally.h"
 #include <fmt/format.h>
 

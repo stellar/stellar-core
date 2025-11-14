@@ -15,7 +15,7 @@
 namespace asio
 {
 }
-namespace medida
+namespace stellar
 {
 class MetricsRegistry;
 }
@@ -206,7 +206,7 @@ class Application
 
     // Get the registry of metrics owned by this application. Metrics are
     // reported through the administrative HTTP interface, see CommandHandler.
-    virtual medida::MetricsRegistry& getMetrics() = 0;
+    virtual stellar::MetricsRegistry& getMetrics() = 0;
 
     // Ensure any App-local metrics that are "current state" gauge-like counters
     // reflect the current reality as best as possible.

@@ -12,17 +12,13 @@
 #include <memory>
 #include <optional>
 
-namespace medida
-{
-class MetricsRegistry;
-}
-
 namespace stellar
 {
 
 class Config;
 class Application;
 class TmpDir;
+class MetricsRegistry;
 
 struct QuorumMapIntersectionState
 {
@@ -39,7 +35,7 @@ struct QuorumMapIntersectionState
     std::unique_ptr<TmpDir> mTmpDir;
 
     QuorumCheckerStatus mStatus{QuorumCheckerStatus::UNKNOWN};
-    medida::MetricsRegistry& mMetrics;
+    MetricsRegistry& mMetrics;
     std::pair<std::vector<PublicKey>, std::vector<PublicKey>> mPotentialSplit{};
     std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
 

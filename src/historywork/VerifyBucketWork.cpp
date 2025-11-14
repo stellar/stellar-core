@@ -15,7 +15,6 @@
 
 #include <Tracy.hpp>
 #include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 #include <fstream>
 

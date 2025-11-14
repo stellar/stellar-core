@@ -7,7 +7,6 @@
 #include "rust/RustBridge.h"
 #include "transactions/OperationFrame.h"
 #include "xdr/Stellar-transaction.h"
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {

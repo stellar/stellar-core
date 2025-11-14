@@ -8,11 +8,11 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "main/AppConnector.h"
 #include "main/Application.h"
+#include "util/MetricsRegistry.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <fmt/format.h>
 #include <medida/counter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {

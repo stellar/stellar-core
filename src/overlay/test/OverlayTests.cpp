@@ -19,12 +19,12 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 #include "herder/HerderImpl.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
@@ -3141,7 +3141,7 @@ TEST_CASE("background signature verification with missing account",
     // Track number of transactions received by receiverPeer
     auto const& recvTxCount = receiverNode->getOverlayManager()
                                   .getOverlayMetrics()
-                                  .mRecvTransactionCounter;
+                                  .mRecvTransactionTimer;
     REQUIRE(recvTxCount.count() == 0);
 
     // Send the transaction

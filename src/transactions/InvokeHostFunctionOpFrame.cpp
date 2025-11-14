@@ -12,7 +12,6 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <json/json.h>
-#include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
 #include "xdr/Stellar-contract.h"
 // clang-format on

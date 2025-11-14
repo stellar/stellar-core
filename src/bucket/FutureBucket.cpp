@@ -20,12 +20,11 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/Thread.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-
-#include "medida/metrics_registry.h"
 
 #include <chrono>
 #include <memory>
