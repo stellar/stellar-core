@@ -292,8 +292,10 @@ class ApplicationImpl : public Application
     void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
                                                      bool forceRebuild);
 
-    void idempotentShutdown();
-    void shutdownThread(std::unique_ptr<std::thread>& threadPtr,
+    // Set `forgetBuckets` to true to clean up unreferenced buckets
+    // Note: this flag requires LM and BM to be fully constructed
+    void idempotentShutdown(bool forgetBuckets);
+    bool shutdownThread(std::unique_ptr<std::thread>& threadPtr,
                         std::unique_ptr<asio::io_context::work>& workPtr,
                         std::string const& threadName);
 };

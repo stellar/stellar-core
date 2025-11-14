@@ -105,6 +105,7 @@ TEST_CASE("virtual time with background work", "[timer]")
     // is outstanding.
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
     cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+    cfg.RUN_STANDALONE = false;
 
     VirtualClock clock;
     Application::pointer appPtr = createTestApplication(clock, cfg);

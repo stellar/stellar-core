@@ -1916,7 +1916,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         {
             std::string msg =
                 "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_APPLY "
-                "does not support SQLite. Either switch to Postgres or set "
+                "does not support SQLite or RUN_STANDALONE mode. Either switch "
+                "to Postgres or set "
                 "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
             throw std::runtime_error(msg);
         }
@@ -2479,8 +2480,10 @@ Config::allBucketsInMemory() const
 bool
 Config::parallelLedgerClose() const
 {
+    // Standalone mode expects synchronous ledger application
     return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
-           !(DATABASE.value.find("sqlite3://") != std::string::npos);
+           !(DATABASE.value.find("sqlite3://") != std::string::npos) &&
+           !RUN_STANDALONE;
 }
 
 void
