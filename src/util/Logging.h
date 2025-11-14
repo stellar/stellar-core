@@ -192,7 +192,7 @@ class Logging
     static void rotate();
     static std::string normalizePartition(std::string const& partition);
 
-    static std::array<std::string const, 14> const kPartitionNames;
+    static std::array<std::string const, 15> const kPartitionNames;
 
 #if defined(USE_SPDLOG)
 #define LOG_PARTITION(name) static LogPtr get##name##LogPtr();
