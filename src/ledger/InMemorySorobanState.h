@@ -11,10 +11,8 @@
 #include <unordered_set>
 
 #include "bucket/BucketSnapshotManager.h"
-#include "ledger/LedgerHashUtils.h"
+#include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
-#include "util/HashOfHash.h"
-#include "util/NonCopyable.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"
@@ -22,6 +20,7 @@
 namespace stellar
 {
 
+class InvariantManagerImpl;
 class SorobanMetrics;
 
 // TTLData stores both liveUntilLedgerSeq and lastModifiedLedgerSeq for TTL
@@ -122,6 +121,9 @@ class InternalContractDataMapEntry
         // Returns the stored data. Only valid for ValueEntry instances.
         virtual ContractDataMapEntryT const& get() const = 0;
 
+        // Creates a deep copy of this entry. Required for copy constructor.
+        virtual std::unique_ptr<AbstractEntry> clone() const = 0;
+
         // Equality comparison based on TTL keys
         virtual bool
         operator==(AbstractEntry const& other) const
@@ -162,6 +164,14 @@ class InternalContractDataMapEntry
         {
             return entry;
         }
+
+        std::unique_ptr<AbstractEntry>
+        clone() const override
+        {
+            return std::make_unique<ValueEntry>(
+                std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
+                entry.ttlData);
+        }
     };
 
     // QueryKey is a lightweight key-only entry used for map lookups.
@@ -195,11 +205,23 @@ class InternalContractDataMapEntry
             throw std::runtime_error(
                 "QueryKey::get() called - this is a logic error");
         }
+
+        std::unique_ptr<AbstractEntry>
+        clone() const override
+        {
+            return std::make_unique<QueryKey>(ledgerKeyHash);
+        }
     };
 
     std::unique_ptr<AbstractEntry> impl;
 
   public:
+    // Copy constructor - required for InMemorySorobanState copy constructor.
+    InternalContractDataMapEntry(InternalContractDataMapEntry const& other)
+        : impl(other.impl->clone())
+    {
+    }
+
     // Creates a ValueEntry from a LedgerEntry (copies the entry)
     InternalContractDataMapEntry(LedgerEntry const& ledgerEntry,
                                  TTLData ttlData)
@@ -283,8 +305,24 @@ struct InternalContractDataEntryHash
 // const methods concurrently, there is no synchronization or locks. It is the
 // caller's responsibility to ensure that no thread is reading state when any
 // non-const function is called.
-class InMemorySorobanState : public NonMovableOrCopyable
+class InMemorySorobanState
 {
+    // Allow only InvariantManagerImpl to access the private copy constructor
+    // for invariant checks.
+    friend std::shared_ptr<InMemorySorobanState const>
+    InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
+        InMemorySorobanState const& state) const;
+
+  private:
+    // Private copy constructor - expensive operation that should only be used
+    // for invariant checks via InvariantManagerImpl friend access
+    InMemorySorobanState(InMemorySorobanState const&) = default;
+    InMemorySorobanState& operator=(InMemorySorobanState const&) = delete;
+
+    // Explicitly delete move operations
+    InMemorySorobanState(InMemorySorobanState&&) = delete;
+    InMemorySorobanState& operator=(InMemorySorobanState&&) = delete;
+
 #ifdef BUILD_TESTS
   public:
 #endif
@@ -378,6 +416,8 @@ class InMemorySorobanState : public NonMovableOrCopyable
     void reportMetrics(SorobanMetrics& metrics) const;
 
   public:
+    InMemorySorobanState() = default;
+
     // These following functions are read-only and may be called concurrently so
     // long as no updates are occurring.
     static bool isInMemoryType(LedgerKey const& ledgerKey);
@@ -389,6 +429,9 @@ class InMemorySorobanState : public NonMovableOrCopyable
     bool isEmpty() const;
 
     uint32_t getLedgerSeq() const;
+
+    // Asserts that the internal ledgerSeq matches the expected value.
+    void assertLastClosedLedger(uint32_t expectedLedgerSeq) const;
 
     // Returns the total size of the in-memory Soroban state to be used for the
     // rent fee computation purposes.

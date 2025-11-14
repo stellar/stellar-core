@@ -6,9 +6,9 @@
 
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "xdr/Stellar-ledger.h"
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -84,8 +84,15 @@ class Invariant
         return std::string{};
     }
 
+    virtual bool
+    usesStateSnapshotInvariant() const
+    {
+        return false;
+    }
+
     virtual std::string
-    start(Application& app)
+    stateSnapshotInvariant(CompleteConstLedgerStatePtr ledgerState,
+                           InMemorySorobanState const& inMemorySnapshot)
     {
         return std::string{};
     }

@@ -287,9 +287,11 @@ CompleteConstLedgerState::checkInvariant() const
 
 CompleteConstLedgerState::CompleteConstLedgerState(
     SearchableSnapshotConstPtr searchableSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
     LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
     HistoryArchiveState const& lastClosedHistoryArchiveState)
     : mBucketSnapshot(searchableSnapshot)
+    , mHotArchiveSnapshot(hotArchiveSnapshot)
     , mSorobanConfig(
           protocolVersionStartsFrom(lastClosedLedgerHeader.header.ledgerVersion,
                                     SOROBAN_PROTOCOL_VERSION)
@@ -306,6 +308,12 @@ SearchableSnapshotConstPtr
 CompleteConstLedgerState::getBucketSnapshot() const
 {
     return mBucketSnapshot;
+}
+
+SearchableHotArchiveSnapshotConstPtr
+CompleteConstLedgerState::getHotArchiveSnapshot() const
+{
+    return mHotArchiveSnapshot;
 }
 
 SorobanNetworkConfig const&

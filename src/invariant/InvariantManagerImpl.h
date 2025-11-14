@@ -5,6 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/InvariantManager.h"
+#include "util/ThreadAnnotations.h"
+#include "util/Timer.h"
 #include <map>
 #include <vector>
 
@@ -19,21 +21,36 @@ namespace stellar
 
 class InvariantManagerImpl : public InvariantManager
 {
+    Config const& mConfig;
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
     medida::Counter& mInvariantFailureCount;
+    medida::Counter& mStateSnapshotInvariantSkipped;
+    std::atomic<bool> mStateSnapshotInvariantRunning{false};
+    std::atomic<bool> mShouldRunStateSnapshotInvariant{false};
+    VirtualTimer mStateSnapshotTimer;
+
+#ifdef BUILD_TESTS
+    // Synchronization primitives for waitForScanToCompleteForTesting()
+    mutable std::mutex mSnapshotInvariantMutex;
+    mutable std::condition_variable mSnapshotInvariantCV;
+#endif
 
     struct InvariantFailureInformation
     {
         uint32_t lastFailedOnLedger;
         std::string lastFailedWithMessage;
     };
-    std::map<std::string, InvariantFailureInformation> mFailureInformation;
+
+    Mutex mutable mFailureInformationMutex;
+    std::map<std::string, InvariantFailureInformation>
+        mFailureInformation GUARDED_BY(mFailureInformationMutex);
 
   public:
-    InvariantManagerImpl(medida::MetricsRegistry& registry);
+    InvariantManagerImpl(Application& app);
 
-    virtual Json::Value getJsonInfo() override;
+    virtual Json::Value getJsonInfo() override
+        LOCKS_EXCLUDED(mFailureInformationMutex);
 
     virtual std::vector<std::string> getEnabledInvariants() const override;
     bool isBucketApplyInvariantEnabled() const override;
@@ -65,18 +82,37 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void enableInvariant(std::string const& name) override;
 
-    virtual void start(Application& app) override;
+    virtual void start(LedgerManager const& ledgerManager) override;
+
+    bool shouldRunInvariantSnapshot() const override;
+
+    void runStateSnapshotInvariant(
+        CompleteConstLedgerStatePtr ledgerState,
+        InMemorySorobanState const& inMemorySnapshot) override;
+
+    // Copy InMemorySorobanState for invariant checking. This is the only
+    // method that can access the private copy constructor of
+    // InMemorySorobanState.
+    std::shared_ptr<InMemorySorobanState const>
+    copyInMemorySorobanStateForInvariant(
+        InMemorySorobanState const& state) const override;
 
 #ifdef BUILD_TESTS
+    void waitForScanToCompleteForTesting() const override;
+
     void snapshotForFuzzer() override;
     void resetForFuzzer() override;
 #endif // BUILD_TESTS
 
   private:
     void onInvariantFailure(std::shared_ptr<Invariant> invariant,
-                            std::string const& message, uint32_t ledger);
+                            std::string const& message, uint32_t ledger)
+        LOCKS_EXCLUDED(mFailureInformationMutex);
 
     virtual void handleInvariantFailure(bool isStrict,
                                         std::string const& message) const;
+
+    void scheduleSnapshotTimer();
+    void snapshotTimerFired();
 };
 }

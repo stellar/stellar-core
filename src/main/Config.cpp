@@ -356,8 +356,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     REPORT_METRICS = {};
     INVARIANT_CHECKS = {};
     INVARIANT_EXTRA_CHECKS = false;
+    STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 300; // 5 minutes
 
 #ifdef BUILD_TESTS
+    ALWAYS_RUN_SNAPSHOT_FOR_TESTING = false;
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
@@ -1467,6 +1469,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { INVARIANT_CHECKS = readArray<std::string>(item); }},
                 {"INVARIANT_EXTRA_CHECKS",
                  [&]() { INVARIANT_EXTRA_CHECKS = readBool(item); }},
+                {"STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY",
+                 [&]() {
+                     STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY =
+                         readInt<uint32_t>(item, 1);
+                 }},
                 {"ENTRY_CACHE_SIZE",
                  [&]() { ENTRY_CACHE_SIZE = readInt<uint32_t>(item); }},
                 {"PREFETCH_BATCH_SIZE",
@@ -1919,6 +1926,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "does not support SQLite or RUN_STANDALONE mode. Either switch "
                 "to Postgres or set "
                 "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
+            throw std::runtime_error(msg);
+        }
+
+        if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
+        {
+            std::string msg =
+                "Invalid configuration: INVARIANT_EXTRA_CHECKS cannot be "
+                "enabled on a validator node (NODE_IS_VALIDATOR=true)";
             throw std::runtime_error(msg);
         }
 
