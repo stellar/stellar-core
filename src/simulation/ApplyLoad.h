@@ -14,16 +14,22 @@ namespace stellar
 
 enum class ApplyLoadMode
 {
-    SOROBAN,
-    CLASSIC,
-    MIX,
+    // Generate load within the configured ledger limits.
+    LIMIT_BASED,
+    // Generate load that only finds max TPS for the cheap operations (SAC
+    // transfers), ignoring ledger limits.
     MAX_SAC_TPS
 };
 
 class ApplyLoad
 {
   public:
-    ApplyLoad(Application& app, ApplyLoadMode mode = ApplyLoadMode::SOROBAN);
+    ApplyLoad(Application& app,
+              ApplyLoadMode mode = ApplyLoadMode::LIMIT_BASED);
+
+    void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
+                     xdr::xvector<UpgradeType, 6> const& upgrades = {},
+                     bool recordSorobanUtilization = false);
 
     // Fills up a list of transactions with
     // SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER * the max ledger resources
@@ -52,9 +58,9 @@ class ApplyLoad
     medida::Histogram const& getTxCountUtilization();
     medida::Histogram const& getInstructionUtilization();
     medida::Histogram const& getTxSizeUtilization();
-    medida::Histogram const& getReadByteUtilization();
-    medida::Histogram const& getWriteByteUtilization();
-    medida::Histogram const& getReadEntryUtilization();
+    medida::Histogram const& getDiskReadByteUtilization();
+    medida::Histogram const& getDiskWriteByteUtilization();
+    medida::Histogram const& getDiskReadEntryUtilization();
     medida::Histogram const& getWriteEntryUtilization();
 
     // Returns LedgerKey for pre-populated archived state at the given index.
@@ -62,9 +68,6 @@ class ApplyLoad
     static uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
 
   private:
-    void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
-                     xdr::xvector<UpgradeType, 6> const& upgrades = {});
-
     void setup();
 
     void setupAccounts();
@@ -122,9 +125,9 @@ class ApplyLoad
     medida::Histogram& mTxCountUtilization;
     medida::Histogram& mInstructionUtilization;
     medida::Histogram& mTxSizeUtilization;
-    medida::Histogram& mReadByteUtilization;
+    medida::Histogram& mDiskReadByteUtilization;
     medida::Histogram& mWriteByteUtilization;
-    medida::Histogram& mReadEntryUtilization;
+    medida::Histogram& mDiskReadEntryUtilization;
     medida::Histogram& mWriteEntryUtilization;
 
     ApplyLoadMode mMode;

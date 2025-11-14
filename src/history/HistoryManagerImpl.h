@@ -79,6 +79,8 @@ class HistoryManagerImpl : public HistoryManager
     uint64_t getPublishSuccessCount() const override;
     uint64_t getPublishFailureCount() const override;
 
+    void waitForCheckpointPublish() override;
+
 #ifdef BUILD_TESTS
     void setPublicationEnabled(bool enabled) override;
     // Throw after inseting ledger `n` into a checkpoint

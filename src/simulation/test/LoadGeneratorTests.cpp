@@ -26,10 +26,10 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
-            cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING = {10};
-            cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING = {100};
-            cfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING = {5};
-            cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING = {100};
+            cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES = {10};
+            cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION = {100};
+            cfg.APPLY_LOAD_NUM_RW_ENTRIES = {5};
+            cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION = {100};
             cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
             cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
             cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
@@ -884,37 +884,44 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
 
-    cfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING = 1000;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
+    cfg.APPLY_LOAD_DATA_ENTRY_SIZE = 1000;
+
+    // BL generation parameters
     cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS = 10000;
     cfg.APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
     cfg.APPLY_LOAD_BL_BATCH_SIZE = 1000;
     cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
     cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
 
-    cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING = {5, 10, 30};
-    cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING = {1, 1, 1};
+    // Load generation parameters
+    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES = {0, 1, 2};
+    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION = {3, 2, 1};
 
-    cfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING = {1, 5, 10};
-    cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING = {1, 1, 1};
+    cfg.APPLY_LOAD_NUM_RW_ENTRIES = {1, 5, 10};
+    cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION = {1, 1, 1};
 
-    cfg.APPLY_LOAD_EVENT_COUNT_FOR_TESTING = {100};
-    cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING = {1};
+    cfg.APPLY_LOAD_EVENT_COUNT = {100};
+    cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION = {1};
 
-    cfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {1'000, 2'000, 5'000};
-    cfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {3, 2, 1};
+    cfg.APPLY_LOAD_TX_SIZE_BYTES = {1'000, 2'000, 5'000};
+    cfg.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION = {3, 2, 1};
 
-    cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
-    cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
+    cfg.APPLY_LOAD_INSTRUCTIONS = {10'000'000, 50'000'000};
+    cfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION = {5, 1};
 
+    // Ledger and transaction limits
     cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 500'000'000;
     cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS = 100'000'000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
 
-    cfg.APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES = 2000;
-    cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES = 100;
+    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES = 2000;
+    cfg.APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES = 100;
+    cfg.APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = 100;
 
-    cfg.APPLY_LOAD_LEDGER_MAX_READ_BYTES = 50'000'000;
-    cfg.APPLY_LOAD_TX_MAX_READ_BYTES = 200'000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES = 50'000'000;
+    cfg.APPLY_LOAD_TX_MAX_DISK_READ_BYTES = 200'000;
 
     cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1250;
     cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES = 50;
@@ -926,7 +933,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES = 800'000;
 
     cfg.APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 8198;
-    cfg.APPLY_LOAD_MAX_TX_COUNT = 50;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 50;
 
     cfg.APPLY_LOAD_NUM_LEDGERS = 100;
 
@@ -1011,11 +1018,11 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     CLOG_INFO(Perf, "Tx size utilization {}%",
               al.getTxSizeUtilization().mean() / 1000.0);
     CLOG_INFO(Perf, "Read bytes utilization {}%",
-              al.getReadByteUtilization().mean() / 1000.0);
+              al.getDiskReadByteUtilization().mean() / 1000.0);
     CLOG_INFO(Perf, "Write bytes utilization {}%",
-              al.getWriteByteUtilization().mean() / 1000.0);
+              al.getDiskWriteByteUtilization().mean() / 1000.0);
     CLOG_INFO(Perf, "Read entry utilization {}%",
-              al.getReadEntryUtilization().mean() / 1000.0);
+              al.getDiskReadEntryUtilization().mean() / 1000.0);
     CLOG_INFO(Perf, "Write entry utilization {}%",
               al.getWriteEntryUtilization().mean() / 1000.0);
 }
@@ -1036,7 +1043,6 @@ TEST_CASE("basic MAX_SAC_TPS functionality",
     cfg.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 200;
     cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 220;
     cfg.APPLY_LOAD_NUM_LEDGERS = 10;
-    cfg.APPLY_LOAD_NUM_ACCOUNTS = 500;
     cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
 
     VirtualClock clock(VirtualClock::REAL_TIME);

@@ -573,13 +573,13 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     if (mPrePopulatedArchivedEntries != 0)
     {
         archiveEntriesToRestore = sampleDiscrete(
-            appCfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING,
-            appCfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+            appCfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES,
+            appCfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION, 0u);
     }
 
-    uint32_t rwEntries = sampleDiscrete(
-        appCfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING,
-        appCfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t rwEntries =
+        sampleDiscrete(appCfg.APPLY_LOAD_NUM_RW_ENTRIES,
+                       appCfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION, 0u);
 
     // Subtract the archive entries from rwEntries since restoration counts as a
     // write
@@ -625,7 +625,9 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         auto endIndex = mNextKeyToRestore + archiveEntriesToRestore;
         if (endIndex > mPrePopulatedArchivedEntries)
         {
-            throw std::runtime_error("Ran out of hot archive entries");
+            throw std::runtime_error(
+                fmt::format("Ran out of hot archive entries: {} > {}", endIndex,
+                            mPrePopulatedArchivedEntries));
         }
 
         for (; mNextKeyToRestore < endIndex; ++mNextKeyToRestore)
@@ -637,22 +639,22 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     }
 
     uint32_t txOverheadBytes = baselineTxSizeBytes + xdr::xdr_size(resources);
-    uint32_t desiredTxBytes = sampleDiscrete(
-        appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
-        appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t desiredTxBytes =
+        sampleDiscrete(appCfg.APPLY_LOAD_TX_SIZE_BYTES,
+                       appCfg.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION, 0u);
     uint32_t paddingBytes =
         txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
-    uint32_t entriesSize =
+    uint32_t entriesWriteSize =
         dataEntrySize * (rwEntries + archiveEntriesToRestore);
 
-    uint32_t eventCount = sampleDiscrete(
-        appCfg.APPLY_LOAD_EVENT_COUNT_FOR_TESTING,
-        appCfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t eventCount =
+        sampleDiscrete(appCfg.APPLY_LOAD_EVENT_COUNT,
+                       appCfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION, 0u);
 
     // Pick random number of cycles between bounds
-    uint32_t targetInstructions = sampleDiscrete(
-        appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
-        appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING, 0u);
+    uint32_t targetInstructions =
+        sampleDiscrete(appCfg.APPLY_LOAD_INSTRUCTIONS,
+                       appCfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION, 0u);
 
     auto numEntries =
         (rwEntries + archiveEntriesToRestore + instance.readOnlyKeys.size());
@@ -676,7 +678,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
 
     uint32_t instructionsWithoutCpuLoad =
         baseInstructionCount + instructionsPerAuthByte * paddingBytes +
-        instructionsPerEntryByte * entriesSize + instructionsForEntries +
+        instructionsPerEntryByte * entriesWriteSize + instructionsForEntries +
         eventCount * instructionsPerEvent;
     if (targetInstructions > instructionsWithoutCpuLoad)
     {
@@ -704,11 +706,8 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
                                  makeU32(eventCount)};
 
-    // Write bytes include both regular RW entries and restored entries
-    resources.writeBytes =
-        dataEntrySize * (rwEntries + archiveEntriesToRestore);
-    resources.diskReadBytes =
-        dataEntrySize * archiveEntriesToRestore + resources.writeBytes;
+    resources.writeBytes = entriesWriteSize;
+    resources.diskReadBytes = dataEntrySize * archiveEntriesToRestore;
 
     increaseOpSize(op, paddingBytes);
 

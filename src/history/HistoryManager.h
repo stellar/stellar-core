@@ -407,6 +407,11 @@ class HistoryManager
     // Return the number of checkpoints that failed publication.
     virtual uint64_t getPublishFailureCount() const = 0;
 
+    // Waits until the currently queued checkpoint publication is complete.
+    // This is only useful in utility scenarios where blocking publication is
+    // necessary - don't use in normal operation.
+    virtual void waitForCheckpointPublish() = 0;
+
 #ifdef BUILD_TESTS
     // Enable or disable history publication, purely a testing interface.
     // History is still queued when publication is disabled.

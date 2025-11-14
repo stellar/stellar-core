@@ -19,18 +19,23 @@ Common options can be placed at any place in the command line.
 ## Command line options
 Command options can only by placed after command.
 
-* **apply-load**: Applies Soroban transactions by repeatedly generating transactions and closing
-them directly through the LedgerManager. This command will generate enough transactions to fill up a synthetic transaction queue (it's just a list of transactions with the same limits as the real queue), and then create a transaction set off of that to
-apply.
-
-* At the moment, the Soroban transactions are generated using some of the same config parameters as the **generateload** command. Specifically,
-    `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`,
-    `LOADGEN_INSTRUCTIONS_FOR_TESTING`, and
-    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING`. In addition to those, you must also set the
-    limit related settings - `APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS`, `APPLY_LOAD_TX_MAX_INSTRUCTIONS`, `APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES`, `APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES`, `APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES`, `APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES`, `APPLY_LOAD_LEDGER_MAX_READ_BYTES`, `APPLY_LOAD_TX_MAX_READ_BYTES`, `APPLY_LOAD_LEDGER_MAX_WRITE_BYTES`, `APPLY_LOAD_TX_MAX_WRITE_BYTES`, `APPLY_LOAD_MAX_TX_SIZE_BYTES`, `APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES`, `APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES`, `APPLY_LOAD_MAX_TX_COUNT`.
-* `apply-load` will also generate a synthetic bucket list using `APPLY_LOAD_BL_SIMULATED_LEDGERS`, `APPLY_LOAD_BL_WRITE_FREQUENCY`, `APPLY_LOAD_BL_BATCH_SIZE`, `APPLY_LOAD_BL_LAST_BATCH_LEDGERS`, `APPLY_LOAD_BL_LAST_BATCH_SIZE`. These have default values set in `Config.h`.
-* There are additional `APPLY_LOAD_*` related config settings that can be used to configure
-`apply-load`, and you can learn more about these from the comments in `Config.h`.
+* **apply-load**: Benchmarks Soroban transaction application time using
+    synthetic transactions. The benchmark is isolated to mostly just executing
+    the transactions and thus it omits a lot of the supporting mechanisms
+    (such as overlay, SCP, mempool etc). This command will generate enough
+    transactions to fill up a synthetic transaction queue (it's just a list of
+    transactions with the same limits as the real queue), and then create a
+    transaction set off of that to apply. This can also be used to record the
+    synthetic ledger close metadata emitted during the benchmark, and then use
+    it for benchmarking the meta consumers.
+  * This can only be used when `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`
+  * Load generation is configured in the Core config file. The relevant settings
+    all begin with `APPLY_LOAD_`. See full example configurations with
+    per-setting documentation in the `docs` directory
+    (`apply-load.cfg`, `apply-load-for-meta.cfg`).
+  * The command also supports the special mode for determining max apply 'TPS'
+    using SAC transfers. It can be invoked by passing `max-sac-tps` as
+    `apply-load` argument.
 
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
   archives without connecting to network. For new instances (with empty history

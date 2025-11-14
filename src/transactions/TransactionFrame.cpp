@@ -309,7 +309,7 @@ TransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
-TransactionFrame::validateSorobanMemoForFlooding() const
+TransactionFrame::validateSorobanMemo() const
 {
     if (!isSoroban())
     {

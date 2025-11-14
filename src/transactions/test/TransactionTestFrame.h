@@ -94,7 +94,7 @@ class TransactionTestFrame : public TransactionFrameBase
 
     bool validateSorobanTxForFlooding(
         UnorderedSet<LedgerKey> const& keysToFilter) const override;
-    bool validateSorobanMemoForFlooding() const override;
+    bool validateSorobanMemo() const override;
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.

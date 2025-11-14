@@ -493,7 +493,7 @@ TransactionQueue::canAdd(
         }
     }
 
-    if (!tx->validateSorobanMemoForFlooding())
+    if (!tx->validateSorobanMemo())
     {
         diagnosticEvents.pushError(
             SCE_CONTEXT, SCEC_INVALID_INPUT,

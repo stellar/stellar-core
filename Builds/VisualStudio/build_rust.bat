@@ -49,7 +49,7 @@ for /l %%P in (%MIN_P%,1,%MAX_P%) do (
   set "LPATHS=!LPATHS! -L dependency=%out_dir%\soroban-p%%P-target\%2\deps"
 )
 
-echo rem ---- Build latest protocol (passes %features%) ----
+echo rem ---- Build latest protocol (passes --features) ----
 %set_linker_flags% & pushd %project_dir%\src\rust\soroban\p%LATEST_P% & (set RUSTFLAGS=-Cmetadata=p%LATEST_P%) & cargo +%version% build %release_profile% --package soroban-env-host --locked %features% --target-dir %out_dir%\soroban-p%LATEST_P%-target & popd
 
 set "EXTERNS=%EXTERNS% --extern soroban_env_host_p%LATEST_P%=%out_dir%\soroban-p%LATEST_P%-target\%2\libsoroban_env_host.rlib"
