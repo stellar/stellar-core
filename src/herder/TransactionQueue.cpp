@@ -493,11 +493,12 @@ TransactionQueue::canAdd(
         }
     }
 
-    if (!tx->validateSorobanMemoForFlooding())
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_25) &&
+        !tx->validateSorobanMemo())
     {
-        diagnosticEvents.pushError(
-            SCE_CONTEXT, SCEC_INVALID_INPUT,
-            "non-source auth Soroban tx uses memo or muxed source account");
+        diagnosticEvents.pushError(SCE_VALUE, SCEC_INVALID_INPUT,
+                                   "Soroban transactions are not allowed to "
+                                   "use memo or muxed source account");
 
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
                          txSOROBAN_INVALID, diagnosticEvents.finalize());

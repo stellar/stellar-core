@@ -469,9 +469,9 @@ FeeBumpTransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
-FeeBumpTransactionFrame::validateSorobanMemoForFlooding() const
+FeeBumpTransactionFrame::validateSorobanMemo() const
 {
-    return mInnerTx->validateSorobanMemoForFlooding();
+    return mInnerTx->validateSorobanMemo();
 }
 
 int64_t
