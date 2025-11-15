@@ -1592,25 +1592,20 @@ LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
     return getInflationWinners(maxWinners, minVotes);
 }
 
-void
-LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                         std::vector<LedgerEntry>& liveEntries,
-                         std::vector<LedgerKey>& deadEntries)
+BucketListCommitEntries
+LedgerTxn::getAllEntries()
 {
-    getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
+    return getImpl()->getAllEntries();
 }
 
-void
-LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries)
+BucketListCommitEntries
+LedgerTxn::Impl::getAllEntries()
 {
     abortIfWrongThread("getAllEntries");
-    std::vector<LedgerEntry> resInit, resLive;
-    std::vector<LedgerKey> resDead;
-    resInit.reserve(mEntry.size());
-    resLive.reserve(mEntry.size());
-    resDead.reserve(mEntry.size());
+    BucketListCommitEntries result;
+    result.initEntries.reserve(mEntry.size());
+    result.liveEntries.reserve(mEntry.size());
+    result.deadEntries.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
@@ -1626,22 +1621,20 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
             {
                 if (entry.isInit())
                 {
-                    resInit.emplace_back(entry->ledgerEntry());
+                    result.initEntries.emplace_back(entry->ledgerEntry());
                 }
                 else
                 {
-                    resLive.emplace_back(entry->ledgerEntry());
+                    result.liveEntries.emplace_back(entry->ledgerEntry());
                 }
             }
             else
             {
-                resDead.emplace_back(key.ledgerKey());
+                result.deadEntries.emplace_back(key.ledgerKey());
             }
         }
     });
-    initEntries.swap(resInit);
-    liveEntries.swap(resLive);
-    deadEntries.swap(resDead);
+    return result;
 }
 
 UnorderedMap<LedgerKey, LedgerEntry>

@@ -3,7 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/InMemorySorobanState.h"
+#include "bucket/BucketManager.h"
 #include "bucket/SearchableBucketList.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
@@ -485,9 +487,7 @@ InMemorySorobanState::initializeStateFromSnapshot(
 
 void
 InMemorySorobanState::updateState(
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    BucketListCommitEntries const& bucketEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     SorobanMetrics& metrics)
 {
@@ -501,7 +501,7 @@ InMemorySorobanState::updateState(
     {
         releaseAssertOrThrow(sorobanConfig.has_value());
         uint32_t ledgerVersion = lh.ledgerVersion;
-        for (auto const& entry : initEntries)
+        for (auto const& entry : bucketEntries.initEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
             {
@@ -517,7 +517,7 @@ InMemorySorobanState::updateState(
             }
         }
 
-        for (auto const& entry : liveEntries)
+        for (auto const& entry : bucketEntries.liveEntries)
         {
             if (entry.data.type() == CONTRACT_DATA)
             {
@@ -533,7 +533,7 @@ InMemorySorobanState::updateState(
             }
         }
 
-        for (auto const& key : deadEntries)
+        for (auto const& key : bucketEntries.deadEntries)
         {
             if (key.type() == CONTRACT_DATA)
             {

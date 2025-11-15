@@ -971,9 +971,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
         {
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE(ltx1.create(le));
-            std::vector<LedgerEntry> init, live;
-            std::vector<LedgerKey> dead;
-            ltx1.getAllEntries(init, live, dead);
+            ltx1.getAllEntries();
             REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key),
                               std::runtime_error);
         }
@@ -2615,9 +2613,7 @@ TEST_CASE("LedgerTxn unsealHeader", "[ledgertxn]")
     SECTION("fails if header is active")
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        std::vector<LedgerEntry> init, live;
-        std::vector<LedgerKey> dead;
-        ltx.getAllEntries(init, live, dead);
+        ltx.getAllEntries();
         ltx.unsealHeader([&ltx, &doNothing](LedgerHeader&) {
             REQUIRE_THROWS_AS(ltx.unsealHeader(doNothing), std::runtime_error);
         });
@@ -2626,9 +2622,7 @@ TEST_CASE("LedgerTxn unsealHeader", "[ledgertxn]")
     SECTION("deactivates header on completion")
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        std::vector<LedgerEntry> init, live;
-        std::vector<LedgerKey> dead;
-        ltx.getAllEntries(init, live, dead);
+        ltx.getAllEntries();
         REQUIRE_NOTHROW(ltx.unsealHeader(doNothing));
         REQUIRE_NOTHROW(ltx.unsealHeader(doNothing));
     }

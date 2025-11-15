@@ -16,6 +16,7 @@ class Application;
 class Bucket;
 class Invariant;
 struct EvictedStateVectors;
+struct LedgerCommitState;
 struct LedgerTxnDelta;
 struct Operation;
 
@@ -52,13 +53,16 @@ class InvariantManager
                                        std::vector<ContractEvent> const& events,
                                        AppConnector& app) = 0;
 
-    virtual void checkOnLedgerCommit(
-        SearchableSnapshotConstPtr lclLiveState,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-        std::vector<LedgerEntry> const& persitentEvictedFromLive,
-        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState) = 0;
+    // This checks invariants regarding state committed during ledger N, and is
+    // called after all state has been committed. `commitState` and
+    // `inMemorySorobanState` both reflect these committed changes. lclLiveState
+    // and lclHotArchiveState are snapshots from the end of Ledger N - 1 and do
+    // not reflect any state committed during this ledger.
+    virtual void
+    checkOnLedgerCommit(SearchableSnapshotConstPtr lclLiveState,
+                        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+                        LedgerCommitState const& commitState,
+                        InMemorySorobanState const& inMemorySorobanState) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 
