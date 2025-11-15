@@ -57,7 +57,7 @@ jobs:
     - uses: stellar/actions/rust-check-git-rev-deps@main
 
   build:
-    runs-on: ubuntu-jammy-16-cores-amd64
+    runs-on: ubuntu-24.04
     env:
       CACHED_PATHS: |
         ~/.ccache
