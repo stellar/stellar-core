@@ -789,10 +789,10 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                                     rEvent.asset,
                                     rEvent.mintOrBurnAddress, -rEvent.amount /*A negative amount indicates a burn, but we still need to emit a positive number*/));
                 }
-                CLOG_INFO(
+                CLOG_WARNING(
                     Ledger,
                     "Event Reconciliation - autorestore event, Entry = {}",
-                    xdrToCerealString(events.back(), "event"));
+                    decoder::encode_b64(xdr::xdr_to_opaque(events.back())));
             }
 
             std::move(success.events.begin(), success.events.end(),
