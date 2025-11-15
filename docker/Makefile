@@ -4,10 +4,10 @@ SUDO := $(shell docker version >/dev/null 2>&1 || echo "sudo")
 # https://github.com/opencontainers/image-spec/blob/master/annotations.md
 BUILD_DATE := $(shell date -u +%FT%TZ)
 
-# Base image, defaults to ubuntu 20.04 focal
-DISTRO ?= focal
+# Base image, defaults to ubuntu 24.04 noble
+DISTRO ?= noble
 
-# Deb package version to use. For example "17.0.0-557.096f6a7.focal"
+# Deb package version to use. For example "24.1.0-2861.5a7035d49"
 # Not needed for testing builds
 STELLAR_CORE_VERSION ?=
 
@@ -18,12 +18,12 @@ endif
 
 docker-build:
 ifndef STELLAR_CORE_VERSION
-	$(error STELLAR_CORE_VERSION environment variable must be set. For example STELLAR_CORE_VERSION=17.0.0-557.096f6a7.focal )
+	$(error STELLAR_CORE_VERSION environment variable must be set. For example STELLAR_CORE_VERSION=23.0.2-2724.7b9e6c863)
 endif
 ifndef TAG
 	TAG = stellar/stellar-core:$(STELLAR_CORE_VERSION)
 endif
-	$(SUDO)  docker build --pull \
+	$(SUDO)  docker build --pull --platform linux/amd64 \
 	--label org.opencontainers.image.created="$(BUILD_DATE)" \
 	--build-arg STELLAR_CORE_VERSION=${STELLAR_CORE_VERSION} \
 	--build-arg DISTRO=${DISTRO} \
