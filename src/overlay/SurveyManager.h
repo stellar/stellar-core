@@ -84,7 +84,7 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     SurveyDataManager& getSurveyDataManagerForTesting();
 
     // Exposes the private function `createTimeSlicedSurveyRequest` for testing
-    // purposes. Sets inbound and outbound peer indicies to 0.
+    // purposes. Sets inbound and outbound peer indices to 0.
     std::optional<StellarMessage>
     createTimeSlicedSurveyRequestForTesting(NodeID const& nodeToSurvey);
 #endif

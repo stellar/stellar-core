@@ -13,7 +13,7 @@
 namespace stellar
 {
 
-// PersistentState class ensures all state criticial to node health, such as
+// PersistentState class ensures all state critical to node health, such as
 // LCL, SCP messages, upgrades etc are persisted to the database. The class
 // maintains two separate tables to avoid conflicts during concurrent writes.
 class PersistentState

@@ -2926,7 +2926,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
-        // FIXME: there is no medida historgram for this presently,
+        // FIXME: there is no medida histogram for this presently,
         // but maybe we would like one?
         TracyPlot("ledger.entry.commit", counter);
 
@@ -3364,7 +3364,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     ZoneScoped;
 
     // Note: Elements of mBestOffers are properly sorted lists of the best
-    // offers for a certain asset pair. This function maintaints the invariant
+    // offers for a certain asset pair. This function maintains the invariant
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).

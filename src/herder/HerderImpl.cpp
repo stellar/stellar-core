@@ -996,7 +996,7 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     // Checkpoint ledgers are special cased to be allowed to be outside this
     // range, but to determine if a message is a checkpoint message, the node
     // needs the correct trackingConsensusLedgerIndex. We send the checkpoint
-    // message after a delay so that the recieving node has time to process the
+    // message after a delay so that the receiving node has time to process the
     // initially sent messages and establish trackingConsensusLedgerIndex
     if (checkpoint < firstSequentialLedgerSeq)
     {
@@ -1028,8 +1028,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
         return maxSlots != 0;
     });
 
-    // Out of sync node needs to recieve latest messages to determine network
-    // state before recieving checkpoint message. Delay sending checkpoint
+    // Out of sync node needs to receive latest messages to determine network
+    // state before receiving checkpoint message. Delay sending checkpoint
     // ledger to achieve this
     if (delayCheckpoint)
     {
@@ -1488,7 +1488,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                   upperBoundCloseTimeOffset, invalidTxPhases);
 
     // New proposed tx set must be valid, so we explicitly populate tx set
-    // validity cache so SCP can re-use the result.
+    // validity cache so SCP can reuse the result.
     mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
                                      upperBoundCloseTimeOffset);
 

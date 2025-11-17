@@ -88,7 +88,7 @@ class ApplyLoad
     uint64_t calculateInstructionsPerTx() const;
 
     // Iterate over all available accounts to make sure they are loaded into the
-    // BucketListDB cache. Note that this should be run everytime an account
+    // BucketListDB cache. Note that this should be run every time an account
     // entry is modified.
     void warmAccountCache();
 

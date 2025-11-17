@@ -403,7 +403,7 @@ DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
     }
     else
     {
-        // If both indexes don't fave a filter, check that each filter is
+        // If both indexes don't have a filter, check that each filter is
         // null
         if (mData.filter || in.mData.filter)
         {

@@ -192,7 +192,7 @@ ApplyBucketsWork::doWork()
 
     // Step 0: Applying Buckets resets DB state, so we need to make sure
     // LedgerManager apply state phase == `SETTING_UP_STATE`. We'll do this with
-    // step 1 below for convience.
+    // step 1 below for convenience.
 
     // Step 1: index live buckets. Step 2: apply buckets. Step 3: assume state
     if (!mIndexBucketsWork)

@@ -67,7 +67,7 @@
 //
 // First: assume we have as a building block the ability to check a set of nodes
 // for being-a-quorum. This part isn't hard and there's code implementing it
-// below (QuorumIntersectionChecker::isAQuorum, though it's impelmented in terms
+// below (QuorumIntersectionChecker::isAQuorum, though it's implemented in terms
 // of refinement 2 so don't read ahead just yet, just trust me).
 //
 // We could check quorum intersection for a network N via a loop like this:

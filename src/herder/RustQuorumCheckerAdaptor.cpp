@@ -531,8 +531,8 @@ runQuorumIntersectionCheckAsync(
     }
     size_t numNodes = qmap.size();
 
-    // we propagate the logging level of partition "SCP" beacuse that's the
-    // level which the quorum checker is assigned under. this means the
+    // We propagate the logging level of partition "SCP" because that's the
+    // level which the quorum checker is assigned under. This means the
     // subprocess will be globally logging at this level.
     std::string exe = std::string(rust_bridge::current_exe());
     std::string ll = Logging::getStringFromLL(Logging::getLogLevel("SCP"));
@@ -568,7 +568,7 @@ runQuorumIntersectionCheckAsync(
         // line-running process which is just `QuorumCheckerStatus` as integer
         // on success. However, if the command fails due to abort (if exceeding
         // the memory limit), the ecode=1 will be returned because of the
-        // simplfication of collapsing all non-WIFEXITED exits to error code 1
+        // simplification of collapsing all non-WIFEXITED exits to error code 1
         // (see `mapExitStatusToErrorCode` in ProcessManagerImpl.cpp).
         int ecode = ec.value();
         CLOG_DEBUG(SCP,

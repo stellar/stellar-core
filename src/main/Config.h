@@ -226,7 +226,7 @@ class Config : public std::enable_shared_from_this<Config>
     // PAY_PREGENERATED mode
     std::string LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
 
-    // A temporary config paramter that when enabled causes the protocol
+    // A temporary config parameter that when enabled causes the protocol
     // upgrades to also update the Soroban cost calibration. This will result
     // in loadgen reflecting more accurate costs and match the real network.
     // This also makes the node unable to catchup with the real traffic and
@@ -304,7 +304,7 @@ class Config : public std::enable_shared_from_this<Config>
     // that transactions will contain COUNT[i] bytes is
     // DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each i.
     // Note that there is a minimum payment size (~204 bytes) and a minimum
-    // added padding (~36 bytes). After the minimum added pading, the byte
+    // added padding (~36 bytes). After the minimum added padding, the byte
     // count will be rounded up to the nearest multiple of 4 (since all XDR
     // serializations are multiples of 4).
     std::vector<uint32_t> LOADGEN_BYTE_COUNT_FOR_TESTING;
@@ -505,7 +505,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Size, in MB, determining whether a bucket should have an individual
     // key index or a key range index. If bucket size is below this value, range
     // based index will be used. If set to 0, all buckets are range indexed. If
-    // index page size == 0, value ingnored and all buckets have individual key
+    // index page size == 0, value ignored and all buckets have individual key
     // index.
     size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
@@ -531,7 +531,7 @@ class Config : public std::enable_shared_from_this<Config>
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes
     // Validators do not currently support persisted indexes. If
-    // NODE_IS_VALIDATOR=true, this value is ingnored and indexes are never
+    // NODE_IS_VALIDATOR=true, this value is ignored and indexes are never
     // persisted.
     bool BUCKETLIST_DB_PERSIST_INDEX;
 
@@ -866,7 +866,7 @@ class Config : public std::enable_shared_from_this<Config>
     // A config parameter that uses a never-committing ledger. This means that
     // all ledger entries, except for offers, will be kept in memory, and not
     // persisted to DB. Since offers are backed by SQL and not BucketListDB,
-    // offers are still commited to the SQL DB even when this mode is enabled.
+    // offers are still committed to the SQL DB even when this mode is enabled.
     // Should only be used for testing.
     bool MODE_USES_IN_MEMORY_LEDGER;
 

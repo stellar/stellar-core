@@ -34,7 +34,7 @@ namespace stellar
  * extension the merge logic of those entries. Additionally, some types of
  * BucketList may have special operations only relevant to that specific type.
  * This pure virtual base class provides the core functionality of a BucketList
- * container and must be extened for each specific BucketList type. In
+ * container and must be extended for each specific BucketList type. In
  * particular, the fresh and merge functions must be defined for the specific
  * type, while other functionality can be shared.
  */

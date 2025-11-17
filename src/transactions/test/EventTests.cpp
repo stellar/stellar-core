@@ -180,7 +180,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
     SECTION("memo order of precedence")
     {
         // test memo order of precedence
-        // in a transfer event, if both the receipient memo (toMemoID) and the
+        // in a transfer event, if both the recipient memo (toMemoID) and the
         // transaction memo are set, it follows order of precedence and the
         // toMemoID will be taken
         auto a = root->create("A", paymentAmount);

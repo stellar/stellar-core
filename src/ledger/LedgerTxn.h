@@ -180,7 +180,7 @@
 //     responsibility of the caller to ensure that no two threads
 //     access the same LedgerTxn simultaneously.
 //   - LedgerTxn preserves the following invariant: it must always be accessed
-//   from the _same_ thread, before it is commited or rolled back. If the
+//   from the _same_ thread, before it is committed or rolled back. If the
 //   invariant is violated, the program aborts.
 
 namespace stellar
@@ -533,7 +533,7 @@ class AbstractLedgerTxnParent
     // Returns map of TTL and corresponding contract/data keys that have been
     // restored from the Hot Archive/Live Bucket List. Note that this returns
     // all keys that have been restored this ledger, including those that have
-    // been restored via earlier LedgerTxns commited to the same parent.
+    // been restored via earlier LedgerTxns committed to the same parent.
     virtual UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const = 0;
     virtual UnorderedMap<LedgerKey, LedgerEntry>
