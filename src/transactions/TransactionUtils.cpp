@@ -34,18 +34,6 @@ namespace stellar
 static uint32_t PROD_CONST ACCOUNT_SUBENTRY_LIMIT = 1000;
 static size_t PROD_CONST MAX_OFFERS_TO_CROSS = 1000;
 
-uint32_t
-getAccountSubEntryLimit()
-{
-    return ACCOUNT_SUBENTRY_LIMIT;
-}
-
-size_t
-getMaxOffersToCross()
-{
-    return MAX_OFFERS_TO_CROSS;
-}
-
 #ifdef BUILD_TESTS
 TempReduceLimitsForTesting::TempReduceLimitsForTesting(
     uint32_t accountSubEntryLimit, size_t maxOffersToCross)
@@ -319,6 +307,18 @@ InternalLedgerKey
 maxSeqNumToApplyKey(AccountID const& sourceAccount)
 {
     return InternalLedgerKey::makeMaxSeqNumToApplyKey(sourceAccount);
+}
+
+uint32_t
+getAccountSubEntryLimit()
+{
+    return ACCOUNT_SUBENTRY_LIMIT;
+}
+
+size_t
+getMaxOffersToCross()
+{
+    return MAX_OFFERS_TO_CROSS;
 }
 
 LedgerTxnEntry
@@ -1068,19 +1068,6 @@ isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 }
 
 bool
-isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
-{
-    return entry.ext.v() == 1 && (entry.ext.v1().flags &
-                                  CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
-}
-
-bool
-isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
-{
-    return isClawbackEnabledOnClaimableBalance(entry.data.claimableBalance());
-}
-
-bool
 isClawbackEnabledOnAccount(LedgerEntry const& entry)
 {
     return (entry.data.account().flags & AUTH_CLAWBACK_ENABLED_FLAG) != 0;
@@ -1096,6 +1083,19 @@ bool
 isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
 {
     return isClawbackEnabledOnAccount(entry.current());
+}
+
+bool
+isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
+{
+    return entry.ext.v() == 1 && (entry.ext.v1().flags &
+                                  CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
+isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
+{
+    return isClawbackEnabledOnClaimableBalance(entry.data.claimableBalance());
 }
 
 void
@@ -1149,76 +1149,6 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 
-bool
-trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
-{
-    return trustLineFlagMaskCheckIsValid(flag, ledgerVersion) &&
-           (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) ||
-            trustLineFlagAuthIsValid(flag));
-}
-
-bool
-trustLineFlagAuthIsValid(uint32_t flag)
-{
-    static_assert(TRUSTLINE_AUTH_FLAGS == 3,
-                  "condition only works for two flags");
-    // multiple auth flags can't be set
-    if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool
-trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
-{
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
-    {
-        return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
-    }
-    else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
-    {
-        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
-    }
-    else
-    {
-        return (flag & ~MASK_TRUSTLINE_FLAGS_V17) == 0;
-    }
-}
-
-bool
-accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
-{
-    return accountFlagMaskCheckIsValid(flag, ledgerVersion) &&
-           accountFlagClawbackIsValid(flag, ledgerVersion);
-}
-
-bool
-accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
-{
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17) &&
-        (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
-        ((flag & AUTH_REVOCABLE_FLAG) == 0))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool
-accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
-{
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
-    {
-        return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
-    }
-
-    return (flag & ~MASK_ACCOUNT_FLAGS_V17) == 0;
-}
-
 AccountID
 toAccountID(MuxedAccount const& m)
 {
@@ -1264,9 +1194,124 @@ toMuxedAccount(AccountID const& a, std::optional<uint64> id)
 }
 
 bool
+trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    return trustLineFlagMaskCheckIsValid(flag, ledgerVersion) &&
+           (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) ||
+            trustLineFlagAuthIsValid(flag));
+}
+
+bool
 trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 {
     return trustLineFlagIsValid(flag, header.current().ledgerVersion);
+}
+
+bool
+trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
+    {
+        return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
+    }
+    else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
+    {
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
+    }
+    else
+    {
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V17) == 0;
+    }
+}
+
+bool
+trustLineFlagAuthIsValid(uint32_t flag)
+{
+    static_assert(TRUSTLINE_AUTH_FLAGS == 3,
+                  "condition only works for two flags");
+    // multiple auth flags can't be set
+    if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    return accountFlagMaskCheckIsValid(flag, ledgerVersion) &&
+           accountFlagClawbackIsValid(flag, ledgerVersion);
+}
+
+bool
+accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17) &&
+        (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
+        ((flag & AUTH_REVOCABLE_FLAG) == 0))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
+    {
+        return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
+    }
+
+    return (flag & ~MASK_ACCOUNT_FLAGS_V17) == 0;
+}
+
+namespace detail
+{
+struct MuxChecker
+{
+    bool mHasMuxedAccount{false};
+
+    void
+    operator()(stellar::MuxedAccount const& t)
+    {
+        // checks if this is a multiplexed account,
+        // such as KEY_TYPE_MUXED_ED25519
+        if ((t.type() & 0x100) != 0)
+        {
+            mHasMuxedAccount = true;
+        }
+    }
+
+    template <typename T>
+    std::enable_if_t<(xdr::xdr_traits<T>::is_container ||
+                      xdr::xdr_traits<T>::is_class)>
+    operator()(T const& t)
+    {
+        if (!mHasMuxedAccount)
+        {
+            xdr::xdr_traits<T>::save(*this, t);
+        }
+    }
+
+    template <typename T>
+    std::enable_if_t<!(xdr::xdr_traits<T>::is_container ||
+                       xdr::xdr_traits<T>::is_class)>
+    operator()(T const& t)
+    {
+    }
+};
+} // namespace detail
+
+bool
+hasMuxedAccount(TransactionEnvelope const& e)
+{
+    detail::MuxChecker c;
+    c(e);
+    return c.mHasMuxedAccount;
 }
 
 uint64_t
@@ -1762,8 +1807,29 @@ decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
     ltxInner.commit();
 }
 
+ClaimAtom
+makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
+              int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
+              Asset const& sheep, int64_t numSheepSend)
+{
+    ClaimAtom atom;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
+    {
+        atom.type(CLAIM_ATOM_TYPE_V0);
+        atom.v0() = ClaimOfferAtomV0(accountID.ed25519(), offerID, wheat,
+                                     numWheatReceived, sheep, numSheepSend);
+    }
+    else
+    {
+        atom.type(CLAIM_ATOM_TYPE_ORDER_BOOK);
+        atom.orderBook() = ClaimOfferAtom(
+            accountID, offerID, wheat, numWheatReceived, sheep, numSheepSend);
+    }
+    return atom;
+}
+
 template <typename T>
-T
+static T
 assetConversionHelper(Asset const& asset)
 {
     T otherAsset;
@@ -1794,12 +1860,6 @@ assetToTrustLineAsset(Asset const& asset)
     return assetConversionHelper<TrustLineAsset>(asset);
 }
 
-ChangeTrustAsset
-assetToChangeTrustAsset(Asset const& asset)
-{
-    return assetConversionHelper<ChangeTrustAsset>(asset);
-}
-
 TrustLineAsset
 changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
 {
@@ -1824,6 +1884,12 @@ changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
     }
 
     return tlAsset;
+}
+
+ChangeTrustAsset
+assetToChangeTrustAsset(Asset const& asset)
+{
+    return assetConversionHelper<ChangeTrustAsset>(asset);
 }
 
 int64_t
@@ -2095,6 +2161,43 @@ makeAccountIDSCVal(AccountID const& id)
     return makeAddressSCVal(addr);
 }
 
+SCVal
+makeSep0011AssetStringSCVal(Asset const& asset)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return makeStringSCVal("native");
+    }
+    return makeStringSCVal(assetToString(asset) + ":" +
+                           KeyUtils::toStrKey(getIssuer(asset)));
+}
+
+SCVal
+makeClassicMemoSCVal(Memo const& memo)
+{
+    switch (memo.type())
+    {
+    case MEMO_NONE:
+        throw std::runtime_error("Memo type cannot be `None`");
+    case MEMO_TEXT:
+        return makeStringSCVal(memo.text());
+    case MEMO_ID:
+        return makeU64SCVal(memo.id());
+    case MEMO_HASH:
+        return makeBytesSCVal(memo.hash());
+    case MEMO_RETURN:
+        return makeBytesSCVal(memo.retHash());
+    default:
+        throw std::runtime_error("Unknown memo type");
+    }
+}
+
+SCVal
+makeMuxIDSCVal(MuxedEd25519Account const& acc)
+{
+    return makeU64SCVal(acc.id);
+}
+
 SCAddress
 makeMuxedAccountAddress(MuxedAccount const& account)
 {
@@ -2192,109 +2295,6 @@ canHoldAsset(LedgerEntryType type, Asset const& asset)
     {
         return type == TRUSTLINE;
     }
-}
-
-SCVal
-makeSep0011AssetStringSCVal(Asset const& asset)
-{
-    if (asset.type() == ASSET_TYPE_NATIVE)
-    {
-        return makeStringSCVal("native");
-    }
-    return makeStringSCVal(assetToString(asset) + ":" +
-                           KeyUtils::toStrKey(getIssuer(asset)));
-}
-
-SCVal
-makeClassicMemoSCVal(Memo const& memo)
-{
-    switch (memo.type())
-    {
-    case MEMO_NONE:
-        throw std::runtime_error("Memo type cannot be `None`");
-    case MEMO_TEXT:
-        return makeStringSCVal(memo.text());
-    case MEMO_ID:
-        return makeU64SCVal(memo.id());
-    case MEMO_HASH:
-        return makeBytesSCVal(memo.hash());
-    case MEMO_RETURN:
-        return makeBytesSCVal(memo.retHash());
-    default:
-        throw std::runtime_error("Unknown memo type");
-    }
-}
-
-SCVal
-makeMuxIDSCVal(MuxedEd25519Account const& acc)
-{
-    return makeU64SCVal(acc.id);
-}
-
-namespace detail
-{
-struct MuxChecker
-{
-    bool mHasMuxedAccount{false};
-
-    void
-    operator()(stellar::MuxedAccount const& t)
-    {
-        // checks if this is a multiplexed account,
-        // such as KEY_TYPE_MUXED_ED25519
-        if ((t.type() & 0x100) != 0)
-        {
-            mHasMuxedAccount = true;
-        }
-    }
-
-    template <typename T>
-    std::enable_if_t<(xdr::xdr_traits<T>::is_container ||
-                      xdr::xdr_traits<T>::is_class)>
-    operator()(T const& t)
-    {
-        if (!mHasMuxedAccount)
-        {
-            xdr::xdr_traits<T>::save(*this, t);
-        }
-    }
-
-    template <typename T>
-    std::enable_if_t<!(xdr::xdr_traits<T>::is_container ||
-                       xdr::xdr_traits<T>::is_class)>
-    operator()(T const& t)
-    {
-    }
-};
-} // namespace detail
-
-bool
-hasMuxedAccount(TransactionEnvelope const& e)
-{
-    detail::MuxChecker c;
-    c(e);
-    return c.mHasMuxedAccount;
-}
-
-ClaimAtom
-makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
-              int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
-              Asset const& sheep, int64_t numSheepSend)
-{
-    ClaimAtom atom;
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
-    {
-        atom.type(CLAIM_ATOM_TYPE_V0);
-        atom.v0() = ClaimOfferAtomV0(accountID.ed25519(), offerID, wheat,
-                                     numWheatReceived, sheep, numSheepSend);
-    }
-    else
-    {
-        atom.type(CLAIM_ATOM_TYPE_ORDER_BOOK);
-        atom.orderBook() = ClaimOfferAtom(
-            accountID, offerID, wheat, numWheatReceived, sheep, numSheepSend);
-    }
-    return atom;
 }
 
 CxxLedgerEntryRentChange

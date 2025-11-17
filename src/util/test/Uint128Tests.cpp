@@ -24,6 +24,8 @@ using large_int::uint128_t;
 
 constexpr uint64_t full = std::numeric_limits<uint64_t>::max();
 
+namespace
+{
 uint128_t
 fromNative(unsigned __int128 const& x)
 {
@@ -44,6 +46,7 @@ toNative(bool x)
 {
     return x;
 }
+} // namespace
 
 struct gen128
 {
@@ -60,7 +63,7 @@ struct gen128
 
 namespace std
 {
-std::ostream&
+static std::ostream&
 operator<<(std::ostream& out, unsigned __int128 const& x)
 {
     return out << std::hex << "0x" << uint64_t(x >> 64) << uint64_t(x);

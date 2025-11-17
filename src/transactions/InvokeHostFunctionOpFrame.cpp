@@ -1043,7 +1043,7 @@ class InvokeHostFunctionParallelApplyHelper
             //   the invocation. Even if an entry is archived but not yet
             //   evicted such that it technically still exists in memory, it is
             //   still subject to the same limits and fees as disk based entries
-            //   in order ot provide a simpler unified interface for downstream
+            //   in order to provide a simpler unified interface for downstream
             //   systems.
             if (!meterDiskReadResource(lk, keySize, entrySize))
             {

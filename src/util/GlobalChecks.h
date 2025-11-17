@@ -14,11 +14,11 @@ bool threadIsMain();
 
 void dbgAbort();
 
-[[noreturn]] void printErrorAndAbort(const char* s1);
-[[noreturn]] void printErrorAndAbort(const char* s1, const char* s2);
-[[noreturn]] void printAssertFailureAndAbort(const char* s1, const char* file,
+[[noreturn]] void printErrorAndAbort(char const* s1);
+[[noreturn]] void printErrorAndAbort(char const* s1, char const* s2);
+[[noreturn]] void printAssertFailureAndAbort(char const* s1, char const* file,
                                              int line);
-[[noreturn]] void printAssertFailureAndThrow(const char* s1, const char* file,
+[[noreturn]] void printAssertFailureAndThrow(char const* s1, char const* file,
                                              int line);
 
 // This is like `assert()` but it is _not_ sensitive to the presence of

@@ -35,7 +35,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
 
-    const int nbTx = 100;
+    int const nbTx = 100;
 
     std::vector<TestAccount> sources;
     SequenceNumber expectedSeq = 0;
@@ -146,7 +146,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
     {
         TransactionTestFramePtr testTransaction = nullptr;
         auto injectTransaction = [&](int i) {
-            const int64 txAmount = 10000000;
+            int64 const txAmount = 10000000;
 
             SecretKey dest = SecretKey::pseudoRandomForTesting();
 
@@ -431,7 +431,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         }
 
         auto injectSCP = [&](int i) {
-            const int64 txAmount = 10000000;
+            int64 const txAmount = 10000000;
 
             SecretKey dest = SecretKey::pseudoRandomForTesting();
 

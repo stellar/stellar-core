@@ -47,7 +47,7 @@
 
 extern "C" int
 sqlite3_carray_init(sqlite_api::sqlite3* db, char** pzErrMsg,
-                    const sqlite_api::sqlite3_api_routines* pApi);
+                    sqlite_api::sqlite3_api_routines const* pApi);
 
 // NOTE: soci will just crash and not throw
 //  if you misname a column in a query. yay!
@@ -372,7 +372,7 @@ Database::getSimpleCollationClause() const
 bool
 Database::canUsePool() const
 {
-    return !(mApp.getConfig().DATABASE.value == ("sqlite3://:memory:"));
+    return mApp.getConfig().DATABASE.value != "sqlite3://:memory:";
 }
 
 void

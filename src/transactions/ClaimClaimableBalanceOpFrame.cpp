@@ -36,7 +36,7 @@ ClaimClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
                                      ProtocolVersion::V_14);
 }
 
-bool
+static bool
 validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 {
     switch (pred.type())

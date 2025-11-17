@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucketList.h"
@@ -105,7 +105,7 @@ class BucketOutputIteratorForTesting : public BucketOutputIterator<BucketT>
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
-    const size_t NUM_ITEMS_PER_BUCKET = 5;
+    size_t const NUM_ITEMS_PER_BUCKET = 5;
 
   public:
     explicit BucketOutputIteratorForTesting(std::string const& tmpDir,
@@ -142,7 +142,7 @@ class TestLedgerChainGenerator
         std::pair<LedgerHeaderHistoryEntry, LedgerHeaderHistoryEntry>;
     TestLedgerChainGenerator(Application& app,
                              std::shared_ptr<HistoryArchive> archive,
-                             CheckpointRange range, const TmpDir& tmpDir);
+                             CheckpointRange range, TmpDir const& tmpDir);
     void createHistoryFiles(std::vector<LedgerHeaderHistoryEntry> const& lhv,
                             LedgerHeaderHistoryEntry& first,
                             LedgerHeaderHistoryEntry& last,

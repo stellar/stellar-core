@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2018 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketSnapshotManager.h"
 #include "database/Database.h"
@@ -276,7 +276,7 @@ class LedgerTxn::Impl
 
     void throwIfChild() const;
     void throwIfSealed() const;
-    void abortIfWrongThread(const char* functionName) const;
+    void abortIfWrongThread(char const* functionName) const;
     void throwIfNotExactConsistency() const;
     void throwIfErasingConfig(InternalLedgerKey const& key) const;
 
@@ -677,7 +677,7 @@ class LedgerTxnRoot::Impl
 #endif
 
     void throwIfChild() const;
-    void abortIfWrongThread(const char* functionName) const;
+    void abortIfWrongThread(char const* functionName) const;
 
     std::shared_ptr<LedgerEntry const> loadOffer(LedgerKey const& key) const;
     std::vector<LedgerEntry> loadAllOffers() const;
@@ -883,7 +883,7 @@ marshalToPGArrayItem(PGconn* conn, std::ostringstream& oss, const T& item)
 template <>
 inline void
 marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
-                                  const std::string& item)
+                                  std::string const& item)
 {
     std::vector<char> buf(item.size() * 2 + 1, '\0');
     int err = 0;
@@ -900,8 +900,8 @@ marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
 
 template <typename T>
 inline void
-marshalToPGArray(PGconn* conn, std::string& out, const std::vector<T>& v,
-                 const std::vector<soci::indicator>* ind = nullptr)
+marshalToPGArray(PGconn* conn, std::string& out, std::vector<T> const& v,
+                 std::vector<soci::indicator> const* ind = nullptr)
 {
     std::ostringstream oss;
     oss << '{';

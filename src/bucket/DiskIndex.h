@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2025 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketIndexUtils.h"
 #include "bucket/BucketUtils.h"
@@ -64,7 +64,7 @@ struct RangeEntry
 using RangeIndex = std::vector<std::pair<RangeEntry, std::streamoff>>;
 
 // For large Buckets, we cannot cache all contents in memory. Instead, we use a
-// random eviction cache for partial cacheing, and a range based index + binary
+// random eviction cache for partial caching, and a range based index + binary
 // fuse filter for disk lookups. Creating this index is expensive, so we persist
 // it to disk. We do not persist the random eviction cache.
 template <class BucketT> class DiskIndex : public NonMovableOrCopyable

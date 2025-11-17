@@ -28,6 +28,8 @@ using VQ = xdr::xvector<QS>;
 using VK = xdr::xvector<PublicKey>;
 using std::make_shared;
 
+namespace
+{
 void
 quorumIntersectionCheckerV2Wrapper(
     Application& app, std::shared_ptr<QuorumMapIntersectionState> const& state,
@@ -140,6 +142,7 @@ runIntersectionCriticalGroupsCheck(QuorumTracker::QuorumMap const& initQmap,
     return QuorumIntersectionChecker::getIntersectionCriticalGroups(
         toQuorumIntersectionMap(initQmap), config, qic);
 }
+} // namespace
 
 TEST_CASE("new QIC on same app run multiple times in a row",
           "[herder][quorumintersection]")
@@ -483,7 +486,7 @@ TEST_CASE("quorum plausible non intersection", "[herder][quorumintersection]")
     REQUIRE(!networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg));
 }
 
-uint32
+static uint32
 roundUpPct(size_t n, size_t pct)
 {
     return static_cast<uint32>(size_t(1) +

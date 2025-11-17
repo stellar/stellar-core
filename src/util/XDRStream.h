@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
@@ -195,17 +195,17 @@ class XDRInputFileStream
         size_t xdrStart = 0;
         while (xdrStart + 4 <= mBuf.size())
         {
-            const uint32_t xdrSz = getXDRSize(mBuf.data() + xdrStart);
+            uint32_t const xdrSz = getXDRSize(mBuf.data() + xdrStart);
             xdrStart += 4;
-            const size_t xdrEnd = xdrStart + xdrSz;
+            size_t const xdrEnd = xdrStart + xdrSz;
 
             // If entry continues past end of buffer, temporarily expand
             // it and load the extra bytes. The buffer will be resized
             // back to pageSize in the next readPage.
             if (xdrEnd > mBuf.size())
             {
-                const size_t extraStart = mBuf.size();
-                const size_t extraSz = xdrEnd - extraStart;
+                size_t const extraStart = mBuf.size();
+                size_t const extraSz = xdrEnd - extraStart;
                 mBuf.resize(xdrEnd);
                 releaseAssert(extraStart + extraSz == mBuf.size());
                 if (!mIn.read(mBuf.data() + extraStart, extraSz))
@@ -246,7 +246,7 @@ class OutputFileStream
 {
   protected:
     std::vector<char> mBuf;
-    const bool mFsyncOnClose;
+    bool const mFsyncOnClose;
 
 #ifdef WIN32
     // Windows implementation assumes calls can't get interrupted

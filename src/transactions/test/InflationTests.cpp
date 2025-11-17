@@ -27,7 +27,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-static const unsigned maxWinners = 2000u;
+static unsigned const maxWinners = 2000u;
 
 static SecretKey
 getTestAccount(int i)
@@ -500,9 +500,9 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
     }
 
     // minVote to participate in inflation
-    const int64 minVote = 1000000000LL;
+    int64 const minVote = 1000000000LL;
     // .05% of all coins
-    const int64 winnerVote =
+    int64 const winnerVote =
         bigDivideOrThrow(getTotalCoins(), 5, 10000, ROUND_DOWN);
 
     SECTION("inflation scenarios")
@@ -576,9 +576,9 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
             {
                 nbAccounts = 12;
                 expectedWinners = 2;
-                const int midPoint = nbAccounts / 2;
+                int const midPoint = nbAccounts / 2;
 
-                const int64 each =
+                int64 const each =
                     bigDivideOrThrow(winnerVote, 2, nbAccounts, ROUND_DOWN) +
                     minVote;
 
@@ -598,9 +598,9 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
             {
                 nbAccounts = 13;
                 expectedWinners = 1;
-                const int midPoint = nbAccounts / 2;
+                int const midPoint = nbAccounts / 2;
 
-                const int64 each =
+                int64 const each =
                     bigDivideOrThrow(winnerVote, 2, nbAccounts, ROUND_DOWN) +
                     minVote;
 

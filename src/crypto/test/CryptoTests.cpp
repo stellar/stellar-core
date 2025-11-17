@@ -371,7 +371,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 
     for (int round = 0; round < 100; round++)
     {
-        const int expectedSize = 32;
+        int const expectedSize = 32;
         std::vector<uint8_t> in(input(expectedSize));
         std::string encoded = strKey::toStrKey(version, in).value;
 
@@ -516,7 +516,7 @@ struct Iacr20201244TestVector
     bool should_fail;
 };
 
-const Iacr20201244TestVector IACR_2020_1244_TEST_VECTORS[12] = {
+Iacr20201244TestVector const IACR_2020_1244_TEST_VECTORS[12] = {
     // Case 0: Small-order A and R components (should be rejected) but verifies
     // under either equality check.
     Iacr20201244TestVector{

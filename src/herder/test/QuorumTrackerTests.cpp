@@ -14,7 +14,7 @@
 
 using namespace stellar;
 
-void
+static void
 testQuorumTracker()
 {
     Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));

@@ -76,8 +76,8 @@ toXdr(PeerBareAddress const& address)
     return result;
 }
 
-constexpr const size_t BATCH_SIZE = 1000;
-constexpr const size_t MAX_FAILURES = 10;
+constexpr size_t const BATCH_SIZE = 1000;
+constexpr size_t const MAX_FAILURES = 10;
 
 PeerManager::PeerManager(Application& app)
     : mApp(app)
@@ -365,8 +365,8 @@ namespace
 static std::chrono::seconds
 computeBackoff(size_t numFailures)
 {
-    constexpr const uint32 SECONDS_PER_BACKOFF = 10;
-    constexpr const size_t MAX_BACKOFF_EXPONENT = 10;
+    constexpr uint32 const SECONDS_PER_BACKOFF = 10;
+    constexpr size_t const MAX_BACKOFF_EXPONENT = 10;
 
     uint32 backoffCount = static_cast<uint32>(
         std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
@@ -641,7 +641,7 @@ PeerManager::storePeers(
     tx.commit();
 }
 
-const char* PeerManager::kSQLCreateStatement =
+char const* PeerManager::kSQLCreateStatement =
     "CREATE TABLE peers ("
     "ip            VARCHAR(15) NOT NULL,"
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"

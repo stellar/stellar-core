@@ -61,9 +61,9 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();
-    const int64_t baseReserve = lm.getLastReserve();
-    const int64_t baseFee = lm.getLastTxFee();
-    const int64_t startAmount = baseReserve * 100;
+    int64_t const baseReserve = lm.getLastReserve();
+    int64_t const baseFee = lm.getLastTxFee();
+    int64_t const startAmount = baseReserve * 100;
 
     closeLedgerOn(*app, 1, 1, 2016);
 

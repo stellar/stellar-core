@@ -27,32 +27,6 @@
 namespace stellar
 {
 
-// x < y < z < zz
-// k can be anything
-static Value xValue, yValue, zValue, zzValue, kValue;
-
-static void
-setupValues()
-{
-    std::vector<Value> v;
-    std::string d =
-        fmt::format("SEED_VALUE_DATA_{}", getGlobalRandomEngine()());
-    for (int i = 0; i < 4; i++)
-    {
-        auto h = sha256(fmt::format("{}/{}", d, i));
-        v.emplace_back(xdr::xdr_to_opaque(h));
-    }
-    std::sort(v.begin(), v.end());
-    xValue = v[0];
-    yValue = v[1];
-    zValue = v[2];
-    zzValue = v[3];
-
-    // kValue is independent
-    auto kHash = sha256(d);
-    kValue = xdr::xdr_to_opaque(kHash);
-}
-
 class TestSCP : public SCPDriver
 {
   public:
@@ -316,7 +290,7 @@ class TestSCP : public SCPDriver
     }
 
     // Copied from HerderSCPDriver.cpp
-    static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
+    static uint32_t const MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
     std::chrono::milliseconds
     computeTimeout(uint32 roundNumber, bool isNomination) override
@@ -344,7 +318,35 @@ class TestSCP : public SCPDriver
     }
 };
 
-static SCPEnvelope
+namespace
+{
+// x < y < z < zz
+// k can be anything
+Value xValue, yValue, zValue, zzValue, kValue;
+
+void
+setupValues()
+{
+    std::vector<Value> v;
+    std::string d =
+        fmt::format("SEED_VALUE_DATA_{}", getGlobalRandomEngine()());
+    for (int i = 0; i < 4; i++)
+    {
+        auto h = sha256(fmt::format("{}/{}", d, i));
+        v.emplace_back(xdr::xdr_to_opaque(h));
+    }
+    std::sort(v.begin(), v.end());
+    xValue = v[0];
+    yValue = v[1];
+    zValue = v[2];
+    zzValue = v[3];
+
+    // kValue is independent
+    auto kHash = sha256(d);
+    kValue = xdr::xdr_to_opaque(kHash);
+}
+
+SCPEnvelope
 makeEnvelope(SecretKey const& secretKey, uint64 slotIndex,
              SCPStatement const& statement)
 {
@@ -358,7 +360,7 @@ makeEnvelope(SecretKey const& secretKey, uint64 slotIndex,
     return envelope;
 }
 
-static SCPEnvelope
+SCPEnvelope
 makeExternalize(SecretKey const& secretKey, Hash const& qSetHash,
                 uint64 slotIndex, SCPBallot const& commitBallot, uint32 nH)
 {
@@ -372,7 +374,7 @@ makeExternalize(SecretKey const& secretKey, Hash const& qSetHash,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-static SCPEnvelope
+SCPEnvelope
 makeConfirm(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
             uint32 prepareCounter, SCPBallot const& b, uint32 nC, uint32 nH)
 {
@@ -388,7 +390,7 @@ makeConfirm(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-static SCPEnvelope
+SCPEnvelope
 makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
             SCPBallot const& ballot, SCPBallot* prepared = nullptr,
             uint32 nC = 0, uint32 nH = 0, SCPBallot* preparedPrime = nullptr)
@@ -414,7 +416,7 @@ makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-static SCPEnvelope
+SCPEnvelope
 makeNominate(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
              std::vector<Value> votes, std::vector<Value> accepted)
 {
@@ -474,6 +476,7 @@ verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey,
     auto exp = makeNominate(secretKey, qSetHash, slotIndex, votes, accepted);
     REQUIRE(exp.statement == actual.statement);
 }
+} // namespace
 
 TEST_CASE("vblocking and quorum", "[scp]")
 {

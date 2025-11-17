@@ -936,7 +936,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         // The purpose of std::unique_ptr here is to have a special value
         // (nullptr) to indicate that an integer overflow would have occurred.
         // Overflow is possible here because existing offers were not
-        // constrainted to have int64_t liabilities. This must be carefully
+        // constrained to have int64_t liabilities. This must be carefully
         // handled in what follows.
         std::map<Asset, std::unique_ptr<int64_t>> initialBuyingLiabilities;
         std::map<Asset, std::unique_ptr<int64_t>> initialSellingLiabilities;

@@ -50,22 +50,22 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
     int64_t txfee = app->getLedgerManager().getLastTxFee();
 
     // minimum balance necessary to hold 2 trust lines
-    const int64_t minBalance2 =
+    int64_t const minBalance2 =
         app->getLedgerManager().getLastMinBalance(2) + 10 * txfee;
 
-    const int64_t paymentAmount = minBalance2;
+    int64_t const paymentAmount = minBalance2;
 
     // create an account
     auto a1 = root->create("A", paymentAmount);
 
-    const int64_t morePayment = paymentAmount / 2;
+    int64_t const morePayment = paymentAmount / 2;
 
     int64_t trustLineLimit = INT64_MAX;
 
     int64_t trustLineStartingBalance = 20000;
 
     // sets up gateway account
-    const int64_t gatewayPayment = minBalance2 + morePayment;
+    int64_t const gatewayPayment = minBalance2 + morePayment;
     auto gateway = root->create("gate", gatewayPayment);
 
     // sets up gateway2 account
@@ -1561,7 +1561,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
         SECTION("send to self")
         {
             // minimum balance necessary to hold 3 trust lines
-            const int64_t minBalance3 =
+            int64_t const minBalance3 =
                 app->getLedgerManager().getLastMinBalance(3) + 10 * txfee;
 
             auto sendToSelf = root->create("send to self", minBalance3);

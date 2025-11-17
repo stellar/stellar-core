@@ -259,7 +259,7 @@ LiveBucketIndex::scan(IterT start, LedgerKey const& k) const
 std::vector<PoolID> const&
 LiveBucketIndex::getPoolIDsByAsset(Asset const& asset) const
 {
-    static const std::vector<PoolID> emptyVec = {};
+    static std::vector<PoolID> const emptyVec = {};
 
     if (mDiskIndex)
     {

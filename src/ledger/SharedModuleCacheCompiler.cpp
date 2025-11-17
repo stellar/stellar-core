@@ -95,7 +95,7 @@ SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
     lock.unlock();
 
     auto start = std::chrono::steady_clock::now();
-    auto slice = rust::Slice<const uint8_t>(wasm.data(), wasm.size());
+    auto slice = rust::Slice<uint8_t const>(wasm.data(), wasm.size());
     auto hash = binToHex(sha256(wasm));
     for (auto ledgerVersion : mLedgerVersions)
     {

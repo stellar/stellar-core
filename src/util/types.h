@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/LedgerCmp.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -107,7 +107,7 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 }
 
 inline std::string
-assetToString(const Asset& asset)
+assetToString(Asset const& asset)
 {
     auto r = std::string{};
     switch (asset.type())

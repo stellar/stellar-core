@@ -61,7 +61,7 @@
 namespace stellar
 {
 
-static const uint32_t MAINTENANCE_LEDGER_COUNT = 1000000;
+static uint32_t const MAINTENANCE_LEDGER_COUNT = 1000000;
 
 void
 writeWithTextFlow(std::ostream& os, std::string const& text)
@@ -79,7 +79,7 @@ class CommandLine
     struct ConfigOption
     {
         using Common = std::pair<std::string, bool>;
-        static const std::vector<Common> COMMON_OPTIONS;
+        static std::vector<Common> const COMMON_OPTIONS;
 
         LogLevel mLogLevel{LogLevel::LVL_INFO};
         std::vector<std::string> mMetrics;
@@ -118,7 +118,7 @@ class CommandLine
     std::vector<Command> mCommands;
 };
 
-const std::vector<std::pair<std::string, bool>>
+std::vector<std::pair<std::string, bool>> const
     CommandLine::ConfigOption::COMMON_OPTIONS{{"--conf", true},
                                               {"--ll", true},
                                               {"--metric", true},
@@ -152,7 +152,7 @@ class ParserWithValidation
         mIsValid = isValid;
     }
 
-    const clara::Parser&
+    clara::Parser const&
     parser() const
     {
         return mParser;
@@ -714,7 +714,6 @@ CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
                        .width(consoleWidth - 7 - commandWidth);
         os << row << std::endl;
     }
-}
 }
 
 int
@@ -1735,6 +1734,7 @@ runSignTransaction(CommandLineArgs const& args)
             return 0;
         });
 }
+} // namespace
 
 int
 runVersion(CommandLineArgs const&)
@@ -1781,6 +1781,8 @@ runVersion(CommandLineArgs const&)
 }
 
 #ifdef BUILD_TESTS
+namespace
+{
 int
 runLoadXDR(CommandLineArgs const& args)
 {
@@ -2174,13 +2176,14 @@ runGenerateSyntheticLoad(CommandLineArgs const& args)
 
                 return 0;
             }
-            catch (const std::exception& e)
+            catch (std::exception const& e)
             {
                 LOG_ERROR(DEFAULT_LOG, "Error: {}", e.what());
                 return 1;
             }
         });
 }
+} // namespace
 #endif
 
 int

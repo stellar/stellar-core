@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "xdrpp/types.h"
 #include <array>
@@ -180,7 +180,7 @@ class Logging
     static void setLoggingToFile(std::string const& filename);
     static void setLoggingToConsole(bool console);
     static void setLoggingColor(bool color);
-    static void setLogLevel(LogLevel level, const char* partition);
+    static void setLogLevel(LogLevel level, char const* partition);
     static LogLevel getLLfromString(std::string const& levelName);
     static LogLevel getLogLevel(std::string const& partition);
     static std::string getStringFromLL(LogLevel level);

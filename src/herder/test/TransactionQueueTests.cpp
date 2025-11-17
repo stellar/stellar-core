@@ -169,7 +169,7 @@ class TransactionQueueTest
     }
 
     void
-    check(const TransactionQueueState& state)
+    check(TransactionQueueState const& state)
     {
         std::map<AccountID, int64_t> expectedFees;
         for (auto const& accountState : state.mAccountStates)
@@ -522,7 +522,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     }
 }
 
-void
+static void
 testTransactionQueueBasicScenarios()
 {
     VirtualClock clock;
@@ -1152,7 +1152,7 @@ TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    const int64_t startingBalance =
+    int64_t const startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
     auto root = app->getRoot();
@@ -1275,7 +1275,7 @@ TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         auto app = createTestApplication(clock, cfg);
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             app->getLedgerManager().getLastMinBalance(50);
 
         auto root = app->getRoot();

@@ -12,13 +12,13 @@
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 
-const uint32_t INFLATION_FREQUENCY = (60 * 60 * 24 * 7); // every 7 days
+uint32_t const INFLATION_FREQUENCY = (60 * 60 * 24 * 7); // every 7 days
 // inflation is .000190721 per 7 days, or 1% a year
-const int64_t INFLATION_RATE_TRILLIONTHS = 190721000LL;
-const int64_t TRILLION = 1000000000000LL;
-const int64_t INFLATION_WIN_MIN_PERCENT = 500000000LL; // .05%
-const int INFLATION_NUM_WINNERS = 2000;
-const time_t INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
+int64_t const INFLATION_RATE_TRILLIONTHS = 190721000LL;
+int64_t const TRILLION = 1000000000000LL;
+int64_t const INFLATION_WIN_MIN_PERCENT = 500000000LL; // .05%
+int const INFLATION_NUM_WINNERS = 2000;
+time_t const INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
 
 namespace stellar
 {

@@ -146,7 +146,7 @@ TEST_CASE("enable registered invariants regex", "[invariant]")
     cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
-    const int nbInvariants = 3;
+    int const nbInvariants = 3;
     for (int i = 0; i < nbInvariants; i++)
     {
         app->getInvariantManager().registerInvariant<TestInvariant>(i, true);

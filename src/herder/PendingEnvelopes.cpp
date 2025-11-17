@@ -99,7 +99,7 @@ PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
 {
     CLOG_TRACE(Herder, "Add SCPQSet {}", hexAbbrev(qSetHash));
     SCPQuorumSetPtr res;
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     releaseAssert(isQuorumSetSane(qSet, false, errString));
     res = getKnownQSet(qSetHash, true);
     if (!res)
@@ -131,7 +131,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
         return false;
     }
 
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     bool res = isQuorumSetSane(q, false, errString);
     if (res)
     {
@@ -882,8 +882,8 @@ PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
 {
     ZoneScoped;
 
-    const uint32_t K_MEAN_NUM_CLUSTERS = 3;
-    const double OUTLIER_COST_RATIO_LIMIT = 10;
+    uint32_t const K_MEAN_NUM_CLUSTERS = 3;
+    double const OUTLIER_COST_RATIO_LIMIT = 10;
 
     auto tracked = getCostPerValidator(slotIndex);
     if (tracked.empty())

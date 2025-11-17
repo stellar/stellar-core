@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2025 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/QuorumTracker.h"
 #include "main/Config.h"
@@ -47,7 +47,7 @@ struct QuorumCheckerMetrics
 // writes results to an output JSON file. If analyzeCriticalGroups is true,
 // performs additional analysis to identify critical node groups.
 //
-// Resoruces limits:
+// Resources limits:
 // - The time limit applies across all runs (all loops during criticality
 //   analysis), and is enforced by the Rust implementation, which returns an
 //   `Err` if exceeded.

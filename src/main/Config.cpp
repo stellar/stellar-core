@@ -30,7 +30,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 25
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 25
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -39,7 +39,7 @@ const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 25
 bool gIsProductionNetwork = false;
 
 // Options that must only be used for testing
-static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
+static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "RUN_STANDALONE",
     "MANUAL_CLOSE",
     "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
@@ -74,7 +74,7 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING"};
 
 // Options that should only be used for testing
-static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
+static std::unordered_set<std::string> const TESTING_SUGGESTED_OPTIONS = {
     "ALLOW_LOCALHOST_FOR_TESTING"};
 
 namespace
@@ -2316,7 +2316,7 @@ Config::validateConfig(ValidationThresholdLevels thresholdLevel)
         throw;
     }
 
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     if (!isQuorumSetSane(QUORUM_SET, !UNSAFE_QUORUM, errString))
     {
         LOG_FATAL(DEFAULT_LOG, "Invalid QUORUM_SET: {}", errString);
@@ -2466,7 +2466,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 }
 
 std::string
-Config::expandNodeID(const std::string& s) const
+Config::expandNodeID(std::string const& s) const
 {
     if (s.length() < 2)
     {
@@ -2518,7 +2518,7 @@ Config::parallelLedgerClose() const
 {
     // Standalone mode expects synchronous ledger application
     return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
-           !(DATABASE.value.find("sqlite3://") != std::string::npos) &&
+           DATABASE.value.find("sqlite3://") == std::string::npos &&
            !RUN_STANDALONE;
 }
 

@@ -19,16 +19,16 @@ using namespace std::placeholders;
 
 template <uint32_t N>
 void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::xstring<N>& s,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, xdr::xstring<N> const& s,
+                char const* field)
 {
     xdr::archive(ar, static_cast<std::string const&>(s), field);
 }
 
 template <uint32_t N>
 void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_array<N>& s,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, xdr::opaque_array<N> const& s,
+                char const* field)
 {
     xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
                  field);
@@ -36,7 +36,7 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_array<N>& s,
 
 template <typename T>
 std::enable_if_t<xdr::xdr_traits<T>::is_container>
-cereal_override(cereal::JSONOutputArchive& ar, T const& t, const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, T const& t, char const* field)
 {
     // CEREAL_SAVE_FUNCTION_NAME in include/cereal/archives/json.hpp runs
     // ar.setNextName() and ar(). ar() in turns calls process() in
@@ -68,42 +68,42 @@ cereal_override(cereal::JSONOutputArchive& ar, T const& t, const char* field)
 
 template <uint32_t N>
 void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_vec<N>& s,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, xdr::opaque_vec<N> const& s,
+                char const* field)
 {
     xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
                  field);
 }
 
-void cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
-                     const char* field);
+void cereal_override(cereal::JSONOutputArchive& ar, stellar::PublicKey const& s,
+                     char const* field);
 
 void cereal_override(cereal::JSONOutputArchive& ar,
-                     const stellar::SCAddress& addr, const char* field);
+                     stellar::SCAddress const& addr, char const* field);
 
 void cereal_override(cereal::JSONOutputArchive& ar,
-                     const stellar::ConfigUpgradeSetKey& key,
-                     const char* field);
+                     stellar::ConfigUpgradeSetKey const& key,
+                     char const* field);
 
 void cereal_override(cereal::JSONOutputArchive& ar,
-                     const stellar::MuxedAccount& muxedAccount,
-                     const char* field);
+                     stellar::MuxedAccount const& muxedAccount,
+                     char const* field);
 
-void cerealPoolAsset(cereal::JSONOutputArchive& ar, const stellar::Asset& asset,
-                     const char* field);
+void cerealPoolAsset(cereal::JSONOutputArchive& ar, stellar::Asset const& asset,
+                     char const* field);
 
 void cerealPoolAsset(cereal::JSONOutputArchive& ar,
-                     const stellar::TrustLineAsset& asset, const char* field);
+                     stellar::TrustLineAsset const& asset, char const* field);
 
 void cerealPoolAsset(cereal::JSONOutputArchive& ar,
-                     const stellar::ChangeTrustAsset& asset, const char* field);
+                     stellar::ChangeTrustAsset const& asset, char const* field);
 
 template <typename T>
 typename std::enable_if<std::is_same<stellar::Asset, T>::value ||
                         std::is_same<stellar::TrustLineAsset, T>::value ||
                         std::is_same<stellar::ChangeTrustAsset, T>::value>::type
-cereal_override(cereal::JSONOutputArchive& ar, const T& asset,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, T const& asset,
+                char const* field)
 {
     switch (asset.type())
     {
@@ -143,7 +143,7 @@ cereal_override(cereal::JSONOutputArchive& ar, const T& asset,
 
 template <typename T>
 typename std::enable_if<xdr::xdr_traits<T>::is_enum>::type
-cereal_override(cereal::JSONOutputArchive& ar, const T& t, const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, T const& t, char const* field)
 {
     auto const np = xdr::xdr_traits<T>::enum_name(t);
     std::string name;
@@ -160,8 +160,8 @@ cereal_override(cereal::JSONOutputArchive& ar, const T& t, const char* field)
 
 template <typename T>
 void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, xdr::pointer<T> const& t,
+                char const* field)
 {
     // We tolerate a little information-loss here collapsing *T into T for
     // the non-null case, and use JSON 'null' for the null case. This reads
@@ -189,7 +189,7 @@ namespace stellar
 // If compact = true, the output string will not contain any indentation.
 template <typename T>
 std::string
-xdrToCerealString(const T& t, std::string const& name, bool compact = false)
+xdrToCerealString(T const& t, std::string const& name, bool compact = false)
 {
     std::stringstream os;
 

@@ -222,7 +222,7 @@ CatchupWork::downloadApplyBuckets()
         }
 
         // Next step after verifying the HAS is to ApplyBuckets to DB. This
-        // invalidates the curent LedgerState, so we need to reset to the setup
+        // invalidates the current LedgerState, so we need to reset to the setup
         // LedgerManager phase.
         app.getLedgerManager().markApplyStateReset();
         return true;

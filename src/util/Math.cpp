@@ -145,7 +145,7 @@ k_means(std::vector<double> const& points, uint32_t k)
     bool recalculate = true;
     uint32_t iteration = 0;
 
-    const uint32_t MAX_RECOMPUTE_ITERATIONS = 50;
+    uint32_t const MAX_RECOMPUTE_ITERATIONS = 50;
 
     // Run until convergence or iteration depth exhaustion
     while (recalculate && iteration++ < MAX_RECOMPUTE_ITERATIONS)

@@ -21,7 +21,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-void
+static void
 testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 {
     auto share12 = makeChangeTrustAssetPoolShare(
