@@ -61,7 +61,7 @@ class VirtualClockEventCompare
                     std::shared_ptr<VirtualClockEvent> b);
 };
 
-extern const std::chrono::seconds SCHEDULER_LATENCY_WINDOW;
+extern std::chrono::seconds const SCHEDULER_LATENCY_WINDOW;
 
 class VirtualClock
 {
@@ -78,7 +78,7 @@ class VirtualClock
     typedef duration::rep rep;
     typedef duration::period period;
     typedef std::chrono::steady_clock::time_point time_point;
-    static const bool is_steady = true;
+    static bool const is_steady = true;
 
     // We also provide a "system clock" interface. This is _not_ related to the
     // steady_clock / time_point time -- system_time_points are wall/calendar

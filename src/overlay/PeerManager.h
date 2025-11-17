@@ -150,7 +150,7 @@ class PeerManager
     void storePeers(std::vector<std::pair<PeerBareAddress, PeerRecord>>);
 
   private:
-    static const char* kSQLCreateStatement;
+    static char const* kSQLCreateStatement;
 
     Application& mApp;
     std::unique_ptr<RandomPeerSource> mOutboundPeersToSend;

@@ -50,7 +50,7 @@ class CatchupConfiguration
         OFFLINE_COMPLETE,
         ONLINE
     };
-    static const uint32_t CURRENT = 0;
+    static uint32_t const CURRENT = 0;
 
     CatchupConfiguration(uint32_t toLedger, uint32_t count, Mode mode);
     CatchupConfiguration(LedgerNumHashPair ledgerHashPair, uint32_t count,

@@ -180,7 +180,7 @@ class Logging
     static void setLoggingToFile(std::string const& filename);
     static void setLoggingToConsole(bool console);
     static void setLoggingColor(bool color);
-    static void setLogLevel(LogLevel level, const char* partition);
+    static void setLogLevel(LogLevel level, char const* partition);
     static LogLevel getLLfromString(std::string const& levelName);
     static LogLevel getLogLevel(std::string const& partition);
     static std::string getStringFromLL(LogLevel level);

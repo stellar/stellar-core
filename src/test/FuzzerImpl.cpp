@@ -821,7 +821,7 @@ generator_t::operator()(stellar::PublicKey& t) const
 }
 
 static int RECURSION_COUNT = 0;
-static const int RECURSION_LIMIT = 50;
+static int const RECURSION_LIMIT = 50;
 
 template <>
 void
@@ -833,7 +833,7 @@ generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
         val = v;
         return;
     }
-    const auto& vals = stellar::SCVal::_xdr_case_values();
+    auto const& vals = stellar::SCVal::_xdr_case_values();
     stellar::SCValType v;
 
     uint32_t n = 0;

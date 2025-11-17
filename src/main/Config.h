@@ -135,7 +135,7 @@ class Config : public std::enable_shared_from_this<Config>
     setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators);
 
   public:
-    static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
+    static uint32 const CURRENT_LEDGER_PROTOCOL_VERSION;
 
     typedef std::shared_ptr<Config> pointer;
 

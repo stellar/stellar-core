@@ -39,7 +39,7 @@ class BufferedAsioOutputArchive
 
     // Writes size bytes of data to the output stream
     void
-    saveBinary(const void* data, std::streamsize size)
+    saveBinary(void const* data, std::streamsize size)
     {
         itsStream.writeBytes(static_cast<char const*>(data), size);
     }

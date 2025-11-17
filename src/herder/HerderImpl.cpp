@@ -225,7 +225,7 @@ HerderImpl::syncMetrics()
 std::string
 HerderImpl::getStateHuman(State st) const
 {
-    static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
+    static std::array<char const*, HERDER_NUM_STATE> stateStrings = {
         "HERDER_BOOTING_STATE", "HERDER_SYNCING_STATE",
         "HERDER_TRACKING_NETWORK_STATE"};
     return std::string(stateStrings[st]);
@@ -437,7 +437,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
     ZoneScoped;
-    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+    int const DUMP_SCP_TIMEOUT_SECONDS = 20;
 
     recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
                                             mDriftCTSlidingWindow);
@@ -915,7 +915,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset,
+                            SCPQuorumSet const& qset,
                             StellarMessage const& txset)
 {
     auto txSetFrame =
@@ -1289,7 +1289,7 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 }
 
 bool
-HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
+HerderImpl::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
@@ -2037,7 +2037,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                 app.postOnMainThread([hState, &app] { hState->reset(app); },
                                      "QuorumIntersectionChecker interrupted");
             }
-            catch (const RustQuorumCheckerError& e)
+            catch (RustQuorumCheckerError const& e)
             {
                 CLOG_DEBUG(Herder,
                            "Quorum transitive closure analysis failed due to "

@@ -28,7 +28,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
     // set up world
     auto root = app->getRoot();
 
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     auto gateway = root->create("gate", paymentAmount);
     Asset idr = makeAsset(gateway, "IDR");

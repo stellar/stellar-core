@@ -6,4 +6,4 @@
 
 #include <string>
 
-extern const std::string STELLAR_CORE_VERSION;
+extern std::string const STELLAR_CORE_VERSION;

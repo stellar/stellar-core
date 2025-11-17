@@ -33,8 +33,8 @@ enum class OfferType
 
 struct OfferState
 {
-    static const OfferState SAME;
-    static const OfferState DELETED;
+    static OfferState const SAME;
+    static OfferState const DELETED;
 
     Asset selling;
     Asset buying;

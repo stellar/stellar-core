@@ -374,7 +374,7 @@ class ClassicTransactionQueue : public TransactionQueue
     virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) override;
 };
 
-extern std::array<const char*,
+extern std::array<char const*,
                   static_cast<int>(
                       TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING;

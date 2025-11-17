@@ -29,8 +29,8 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
     // window,  so make sure this is not 0
     REQUIRE(app->getHerder().trackingConsensusLedgerIndex() == 1);
 
-    const uint32_t ledgerNumWindow = 0;
-    const uint32_t surveyorRequestLimit = 2;
+    uint32_t const ledgerNumWindow = 0;
+    uint32_t const surveyorRequestLimit = 2;
     SurveyMessageLimiter rm(*app, ledgerNumWindow, surveyorRequestLimit);
 
     auto ledgerNum = app->getHerder().trackingConsensusLedgerIndex();

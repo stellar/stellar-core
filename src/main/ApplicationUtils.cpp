@@ -96,7 +96,7 @@ writeLedgerAggregationTable(
 }
 } // namespace
 
-const std::string MINIMAL_DB_NAME = "minimal.db";
+std::string const MINIMAL_DB_NAME = "minimal.db";
 
 bool
 canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
@@ -735,7 +735,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
             filename = fmt::format("{}/{}.wasm", dir, binToHex(entry.hash));
         }
         std::ofstream ofs(filename, std::ios::binary);
-        ofs.write(reinterpret_cast<const char*>(entry.code.data()),
+        ofs.write(reinterpret_cast<char const*>(entry.code.data()),
                   entry.code.size());
         LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
                  filename);
@@ -746,7 +746,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
     if (hash == "ALL")
     {
         snap->scanForEntriesOfType(
-            CONTRACT_CODE, [&](const BucketEntry& entry) {
+            CONTRACT_CODE, [&](BucketEntry const& entry) {
                 if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
                 {
                     auto const& codeEntry =

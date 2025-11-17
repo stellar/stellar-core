@@ -522,7 +522,7 @@ LedgerTxn::Impl::throwIfSealed() const
 }
 
 void
-LedgerTxn::Impl::abortIfWrongThread(const char* functionName) const
+LedgerTxn::Impl::abortIfWrongThread(char const* functionName) const
 {
     if (mActiveThreadId != std::this_thread::get_id())
     {
@@ -2824,7 +2824,7 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::Impl::abortIfWrongThread(const char* functionName) const
+LedgerTxnRoot::Impl::abortIfWrongThread(char const* functionName) const
 {
     mThreadInvariant.abortIfWrongThread();
 }

@@ -113,7 +113,7 @@ checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
 // binarySearchForLedger will return L.
 uint32_t
 binarySearchForLedger(uint32_t lbound, uint32_t ubound,
-                      const std::function<uint32_t(uint32_t)>& pred)
+                      std::function<uint32_t(uint32_t)> const& pred)
 {
     while (lbound + 1 != ubound)
     {

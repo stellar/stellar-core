@@ -610,7 +610,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
 
 void
 ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
-    const TxBundle& txBundle)
+    TxBundle const& txBundle)
 {
     auto const& readWrite =
         txBundle.getTx()->sorobanResources().footprint.readWrite;

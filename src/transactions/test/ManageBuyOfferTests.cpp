@@ -273,7 +273,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
         {
             SECTION("reserve")
             {
-                const int64_t minBalance =
+                int64_t const minBalance =
                     app->getLedgerManager().getLastMinBalance(3) + 3 * txfee;
 
                 auto a1 = root->create("a1", minBalance - 1);

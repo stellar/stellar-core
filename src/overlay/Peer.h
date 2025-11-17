@@ -34,7 +34,7 @@ static_assert(MAX_TX_SET_ALLOWANCE >=
               MAX_SOROBAN_BYTE_ALLOWANCE + MAX_CLASSIC_BYTE_ALLOWANCE);
 
 // max tx size is 100KB
-static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
+static uint32_t const MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
 class LoopbackPeer;

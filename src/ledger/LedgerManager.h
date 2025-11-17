@@ -171,12 +171,12 @@ class LedgerManager
 #endif
                         ) = 0;
   public:
-    static const uint32_t GENESIS_LEDGER_SEQ;
-    static const uint32_t GENESIS_LEDGER_VERSION;
-    static const uint32_t GENESIS_LEDGER_BASE_FEE;
-    static const uint32_t GENESIS_LEDGER_BASE_RESERVE;
-    static const uint32_t GENESIS_LEDGER_MAX_TX_SIZE;
-    static const int64_t GENESIS_LEDGER_TOTAL_COINS;
+    static uint32_t const GENESIS_LEDGER_SEQ;
+    static uint32_t const GENESIS_LEDGER_VERSION;
+    static uint32_t const GENESIS_LEDGER_BASE_FEE;
+    static uint32_t const GENESIS_LEDGER_BASE_RESERVE;
+    static uint32_t const GENESIS_LEDGER_MAX_TX_SIZE;
+    static int64_t const GENESIS_LEDGER_TOTAL_COINS;
 
     enum State
     {

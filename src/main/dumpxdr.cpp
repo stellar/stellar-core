@@ -259,7 +259,7 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
             }
         });
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         std::cerr << "Could not decode with type '" << filetype
                   << "' : " << e.what() << std::endl;
@@ -334,7 +334,7 @@ getSecureCreds(std::string const& prompt)
 // aggressive with warn_unused_result, to the point that a cast to
 // void won't do anything.  To work around the problem, we define an
 // equivalent function without the warn_unused_result attribute.
-constexpr ssize_t (&mywrite)(int, const void*, size_t) = ::write;
+constexpr ssize_t (&mywrite)(int, void const*, size_t) = ::write;
 #else // not (gcc 4+ and glibc)
 #define mywrite write
 #endif // not (gcc 4+ and glibc)
@@ -462,7 +462,7 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             throw std::runtime_error("missing --netid argument or "
                                      "STELLAR_NETWORK_ID environment variable");
 
-        const bool txn_stdin =
+        bool const txn_stdin =
             filename == Config::STDIN_SPECIAL_NAME || filename.empty();
 
         if (!base64 && isatty(1))
@@ -477,7 +477,7 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             signtxns(txEnvs, netId, base64, txn_stdin, false);
         });
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         cerr << e.what() << endl;
     }
@@ -493,7 +493,7 @@ priv2pub()
             SecretKey::fromStrKeySeed(readSecret("Secret key seed: ", false)));
         cout << sk.getStrKeyPublic() << endl;
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         cerr << e.what() << endl;
     }

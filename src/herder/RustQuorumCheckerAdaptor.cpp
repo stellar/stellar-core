@@ -82,7 +82,7 @@ fromQuorumSplitJson(QuorumIntersectionChecker::PotentialSplit& split,
     split.second.reserve(value[1].size());
 
     // Parse left side
-    for (const auto& nodeStr : value[0])
+    for (auto const& nodeStr : value[0])
     {
         if (!nodeStr.isString())
         {
@@ -93,7 +93,7 @@ fromQuorumSplitJson(QuorumIntersectionChecker::PotentialSplit& split,
     }
 
     // Parse right side
-    for (const auto& nodeStr : value[1])
+    for (auto const& nodeStr : value[1])
     {
         if (!nodeStr.isString())
         {
@@ -130,7 +130,7 @@ fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
     }
 
     criticalGroups.clear();
-    for (const auto& groupValue : value)
+    for (auto const& groupValue : value)
     {
         if (!groupValue.isArray())
         {
@@ -139,7 +139,7 @@ fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
         }
 
         std::set<NodeID> group;
-        for (const auto& nodeStr : groupValue)
+        for (auto const& nodeStr : groupValue)
         {
             if (!nodeStr.isString())
             {
@@ -410,7 +410,7 @@ checkQuorumIntersectionInner(
         }
         return status;
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         metrics.mFailedRun += 1;
         metrics.mCumulativeTimeMs += usage.time_ms;
@@ -459,7 +459,7 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
         writeResults(outResultJsonPath, status, split, criticalGroups, metrics,
                      "");
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         std::string msg = e.what();
         writeResults(outResultJsonPath, status, split, criticalGroups, metrics,
@@ -605,7 +605,7 @@ runQuorumIntersectionCheckAsync(
                     }
                 }
             }
-            catch (const RustQuorumCheckerError& e)
+            catch (RustQuorumCheckerError const& e)
             {
                 CLOG_ERROR(SCP,
                            "Error processing quorum intersection result: {}",

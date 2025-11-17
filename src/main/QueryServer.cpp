@@ -57,7 +57,7 @@ parseOptionalParam(std::map<std::string, std::vector<std::string>> const& map,
 
 namespace stellar
 {
-QueryServer::QueryServer(const std::string& address, unsigned short port,
+QueryServer::QueryServer(std::string const& address, unsigned short port,
                          int maxClient, size_t threadPoolSize,
                          BucketSnapshotManager& bucketSnapshotManager
 #ifdef BUILD_TESTS

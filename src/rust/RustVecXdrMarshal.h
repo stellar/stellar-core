@@ -19,7 +19,7 @@ namespace detail
 {
 // This just tells xdrpp that it's safe to use rust::Vec<uint8_t> as a byte
 // buffer type. It has to be declared _before_ we include xdrpp/marshal.h
-void bytes_to_void(const rust::Vec<uint8_t>&);
+void bytes_to_void(rust::Vec<uint8_t> const&);
 }
 }
 

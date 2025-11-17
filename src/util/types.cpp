@@ -258,7 +258,7 @@ unsignedToSigned(uint64_t v)
 std::string
 formatSize(size_t size)
 {
-    const std::vector<std::string> suffixes = {"B", "KB", "MB", "GB"};
+    std::vector<std::string> const suffixes = {"B", "KB", "MB", "GB"};
     double dsize = static_cast<double>(size);
 
     size_t i = 0;

@@ -143,7 +143,7 @@ class ThreadParallelApplyLedgerState
     //
     // So: for correct accounting of the write happening in this tx, we have to
     // flush any pending RO TTL bumps that interfere with its RW footprint.
-    void flushRoTTLBumpsInTxWriteFootprint(const TxBundle& txBundle);
+    void flushRoTTLBumpsInTxWriteFootprint(TxBundle const& txBundle);
 
     // Ensure that for each remaining RO TTL bump in `mRoTTLBumps`, the
     // TTL entry is present in the `mThreadEntryMap` and is >= the bump TTL.

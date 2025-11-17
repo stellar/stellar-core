@@ -51,7 +51,7 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     DiskIndex<HotArchiveBucket> const mDiskIndex;
 
   public:
-    inline static const uint32_t BUCKET_INDEX_VERSION = 0;
+    inline static uint32_t const BUCKET_INDEX_VERSION = 0;
 
     using IterT = DiskIndex<HotArchiveBucket>::IterT;
 

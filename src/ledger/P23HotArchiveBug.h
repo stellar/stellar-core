@@ -29,11 +29,11 @@ namespace internal
 {
 constexpr size_t P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT = 478;
 constexpr size_t P23_CORRUPTED_AFFECTED_ASSETS_COUNT = 12;
-extern const std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT>
+extern std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT> const
     P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
-extern const std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT>
+extern std::array<std::string, P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT> const
     P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE;
-extern const std::array<std::string, P23_CORRUPTED_AFFECTED_ASSETS_COUNT>
+extern std::array<std::string, P23_CORRUPTED_AFFECTED_ASSETS_COUNT> const
     P23_CORRUPTED_AFFECTED_ASSETS;
 } // namespace internal
 

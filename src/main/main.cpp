@@ -158,7 +158,7 @@ outOfMemory()
 // Rust hashes in checkXDRFileIdentity.
 namespace stellar
 {
-extern const std::vector<std::pair<std::filesystem::path, std::string>>
+extern std::vector<std::pair<std::filesystem::path, std::string>> const
     XDR_FILES_SHA256;
 }
 

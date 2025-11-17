@@ -29,7 +29,7 @@ PubKeyUtils::VerifySigResult
 verifyEd25519SignedPayload(DecoratedSignature const& sig,
                            SignerKey const& signer);
 
-DecoratedSignature signHashX(const ByteSlice& x);
+DecoratedSignature signHashX(ByteSlice const& x);
 bool verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey);
 
 SignatureHint

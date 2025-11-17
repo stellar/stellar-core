@@ -8,9 +8,9 @@
 #include <vector>
 
 template <typename V, typename Extractor,
-          typename K = typename std::result_of<Extractor(const V&)>::type>
+          typename K = typename std::result_of<Extractor(V const&)>::type>
 std::map<K, std::vector<V>>
-split(const std::vector<V>& data, Extractor extractor)
+split(std::vector<V> const& data, Extractor extractor)
 {
     auto r = std::map<K, std::vector<V>>{};
     for (auto&& v : data)

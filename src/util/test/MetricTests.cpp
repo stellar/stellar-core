@@ -212,8 +212,8 @@ Percentiles const gamma_4_100_pct(367.2061, 510.9427, 775.3657, 908.4115,
 
 // These are private constants in the implementation of Histogram,
 // but we want to reuse them here for testing SlidingWindowTester.
-static const std::uint64_t kDefaultSampleSize = 1028;
-static const std::chrono::seconds kDefaultWindowTime =
+static std::uint64_t const kDefaultSampleSize = 1028;
+static std::chrono::seconds const kDefaultWindowTime =
     std::chrono::seconds(5 * 60);
 
 // Check that the rate-limiting of the SlidingWindowSample doesn't

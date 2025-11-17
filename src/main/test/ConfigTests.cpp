@@ -18,11 +18,11 @@ namespace
 {
 
 bool
-keyMatches(PublicKey& key, const std::vector<std::string>& keys)
+keyMatches(PublicKey& key, std::vector<std::string> const& keys)
 {
     auto keyStr = KeyUtils::toStrKey<PublicKey>(key);
     return std::any_of(std::begin(keys), std::end(keys),
-                       [&](const std::string& x) { return keyStr == x; });
+                       [&](std::string const& x) { return keyStr == x; });
 }
 }
 

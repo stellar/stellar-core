@@ -66,7 +66,7 @@ computeHash(stellar::ByteSlice const& b)
     uint64_t res;
     static_assert(sizeof(res) == crypto_shorthash_BYTES, "unexpected size");
     crypto_shorthash(reinterpret_cast<unsigned char*>(&res),
-                     reinterpret_cast<const unsigned char*>(b.data()), b.size(),
+                     reinterpret_cast<unsigned char const*>(b.data()), b.size(),
                      gKey);
     return res;
 }

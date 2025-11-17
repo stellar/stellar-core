@@ -94,8 +94,8 @@ class LiveBucketIndex : public NonMovableOrCopyable
     std::shared_ptr<BucketEntry const> getCachedEntry(LedgerKey const& k) const;
 
   public:
-    inline static const std::string DB_BACKEND_STATE = "bl";
-    inline static const uint32_t BUCKET_INDEX_VERSION = 6;
+    inline static std::string const DB_BACKEND_STATE = "bl";
+    inline static uint32_t const BUCKET_INDEX_VERSION = 6;
 
     // Constructor for creating new index from Bucketfile
     // Note: Constructor does not initialize the cache

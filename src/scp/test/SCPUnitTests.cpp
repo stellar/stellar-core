@@ -106,7 +106,7 @@ class TestNominationSCP : public SCPDriver
     }
 
     // Copied from HerderSCPDriver.cpp
-    static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
+    static uint32_t const MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
     std::chrono::milliseconds
     computeTimeout(uint32 roundNumber, bool isNomination) override

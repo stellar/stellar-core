@@ -157,10 +157,10 @@ class Herder
 #ifdef BUILD_TESTS
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
+                                           SCPQuorumSet const& qset,
                                            TxSetXDRFrameConstPtr txset) = 0;
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
+                                           SCPQuorumSet const& qset,
                                            StellarMessage const& txset) = 0;
 
     virtual void

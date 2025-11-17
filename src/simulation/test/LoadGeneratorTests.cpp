@@ -259,8 +259,8 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
-    const uint32_t ledgerMaxTxCount = 42;
-    const uint32_t liveSorobanStateSizeWindowSampleSize = 99;
+    uint32_t const ledgerMaxTxCount = 42;
+    uint32_t const liveSorobanStateSizeWindowSampleSize = 99;
     // Upgrade the network config.
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {

@@ -107,7 +107,7 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 }
 
 inline std::string
-assetToString(const Asset& asset)
+assetToString(Asset const& asset)
 {
     auto r = std::string{};
     switch (asset.type())

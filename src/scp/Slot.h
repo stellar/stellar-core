@@ -25,7 +25,7 @@ class Node;
  */
 class Slot : public std::enable_shared_from_this<Slot>
 {
-    const uint64 mSlotIndex; // the index this slot is tracking
+    uint64 const mSlotIndex; // the index this slot is tracking
     SCP& mSCP;
 
     BallotProtocol mBallotProtocol;

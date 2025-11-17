@@ -76,7 +76,7 @@
 #include <set>
 #include <string>
 
-static const int SHUTDOWN_DELAY_SECONDS = 1;
+static int const SHUTDOWN_DELAY_SECONDS = 1;
 
 namespace stellar
 {
@@ -1243,7 +1243,7 @@ ApplicationImpl::getState() const
 std::string
 ApplicationImpl::getStateHuman() const
 {
-    static std::array<const char*, APP_NUM_STATE> stateStrings =
+    static std::array<char const*, APP_NUM_STATE> stateStrings =
         std::array{"Booting",     "Joining SCP", "Connected",
                    "Catching up", "Synced!",     "Stopping"};
     return std::string(stateStrings[getState()]);

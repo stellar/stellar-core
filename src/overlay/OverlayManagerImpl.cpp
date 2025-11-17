@@ -773,7 +773,7 @@ OverlayManagerImpl::tick()
     if (availablePendingSlots > 0 && availableAuthenticatedSlots > 0)
     {
         // try to leave at least some pending slots for peer promotion
-        constexpr const auto RESERVED_FOR_PROMOTION = 1;
+        constexpr auto const RESERVED_FOR_PROMOTION = 1;
         auto outboundToConnect =
             availablePendingSlots > RESERVED_FOR_PROMOTION
                 ? std::min(availablePendingSlots - RESERVED_FOR_PROMOTION,
@@ -1094,7 +1094,7 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
     return false;
 }
 
-static const xdr::opaque_array<32> TX_BATCH_HASH = [] {
+static xdr::opaque_array<32> const TX_BATCH_HASH = [] {
     xdr::opaque_array<32> bytes{};
     for (auto& b : bytes)
     {

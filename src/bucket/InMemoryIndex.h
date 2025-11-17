@@ -34,7 +34,7 @@ class InternalInMemoryBucketEntry
         virtual IndexPtrT const& get() const = 0;
 
         virtual bool
-        operator==(const AbstractEntry& other) const
+        operator==(AbstractEntry const& other) const
         {
             return copyKey() == other.copyKey();
         }

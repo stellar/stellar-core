@@ -17,6 +17,6 @@ void signtxns(std::vector<TransactionEnvelope>& txenvs, std::string netId,
               bool base64, bool txn_stdin, bool dump_hex_txid);
 void signtxn(std::string const& filename, std::string netId, bool base64);
 void priv2pub();
-void readFile(const std::string& filename, bool base64,
+void readFile(std::string const& filename, bool base64,
               std::function<void(xdr::opaque_vec<>)> proc);
 }

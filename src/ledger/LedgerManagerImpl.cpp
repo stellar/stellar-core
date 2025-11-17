@@ -104,12 +104,12 @@ using namespace std;
 namespace stellar
 {
 
-const uint32_t LedgerManager::GENESIS_LEDGER_SEQ = 1;
-const uint32_t LedgerManager::GENESIS_LEDGER_VERSION = 0;
-const uint32_t LedgerManager::GENESIS_LEDGER_BASE_FEE = 100;
-const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
-const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
-const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
+uint32_t const LedgerManager::GENESIS_LEDGER_SEQ = 1;
+uint32_t const LedgerManager::GENESIS_LEDGER_VERSION = 0;
+uint32_t const LedgerManager::GENESIS_LEDGER_BASE_FEE = 100;
+uint32_t const LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
+uint32_t const LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
+int64_t const LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
 
 namespace
 {
@@ -382,7 +382,7 @@ LedgerManagerImpl::getState() const
 std::string
 LedgerManagerImpl::getStateHuman() const
 {
-    static std::array<const char*, LM_NUM_STATE> stateStrings = std::array{
+    static std::array<char const*, LM_NUM_STATE> stateStrings = std::array{
         "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
     return std::string(stateStrings[getState()]);
 }
@@ -2064,7 +2064,7 @@ LedgerManagerImpl::processFeesSeqNums(
                                       ProtocolVersion::V_19) &&
             mergeSeen)
         {
-            for (const auto& [accountID, seqNum] : accToMaxSeq)
+            for (auto const& [accountID, seqNum] : accToMaxSeq)
             {
                 auto ltxe = loadMaxSeqNumToApply(ltx, accountID);
                 if (!ltxe)
@@ -2222,7 +2222,7 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             auto futureResult = threadFuture.get();
             threadStates.emplace_back(std::move(futureResult));
         }
-        catch (const std::exception& e)
+        catch (std::exception const& e)
         {
             printErrorAndAbort("Exception on apply thread: ", e.what());
         }
@@ -2431,7 +2431,7 @@ LedgerManagerImpl::applyTransactions(
                                    ltx, enableTxMeta, *sorobanConfig,
                                    sorobanBasePrngSeed);
             }
-            catch (const std::exception& e)
+            catch (std::exception const& e)
             {
                 printErrorAndAbort("Exception during applyParallelPhase: ",
                                    e.what());
@@ -2934,7 +2934,7 @@ LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
                                "compiling wasm {} for protocol {} module cache",
                                binToHex(sha256(wasm)), v);
                     auto slice =
-                        rust::Slice<const uint8_t>(wasm.data(), wasm.size());
+                        rust::Slice<uint8_t const>(wasm.data(), wasm.size());
                     getMetrics().mSorobanMetrics.mModuleCacheNumEntries.inc();
                     auto timer =
                         getMetrics()

@@ -54,7 +54,7 @@ class QueryServer
                         std::string& retStr);
 
   public:
-    QueryServer(const std::string& address, unsigned short port, int maxClient,
+    QueryServer(std::string const& address, unsigned short port, int maxClient,
                 size_t threadPoolSize,
                 BucketSnapshotManager& bucketSnapshotManager
 #ifdef BUILD_TESTS

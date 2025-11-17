@@ -83,9 +83,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         auto c1 = TestAccount{*app, getAccount("C")};
 
         auto txfee = app->getLedgerManager().getLastTxFee();
-        const int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
-        const int64_t paymentAmount = 100;
-        const int64_t startingBalance =
+        int64_t const minBalance = app->getLedgerManager().getLastMinBalance(0);
+        int64_t const paymentAmount = 100;
+        int64_t const startingBalance =
             minBalance + (paymentAmount + txfee) * 3;
 
         SECTION("basic ledger close on valid txs")
@@ -250,11 +250,11 @@ testTxSet(uint32 protocolVersion)
     // set up world
     auto root = app->getRoot();
 
-    const int nbAccounts = 3;
+    int const nbAccounts = 3;
 
     std::vector<TestAccount> accounts;
 
-    const int64_t minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+    int64_t const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
 
     int64_t accountBalance =
         app->getLedgerManager().getLastTxFee() + minBalance0;
@@ -2271,7 +2271,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             return secretKey.getPublicKey();
         };
 
-        auto makeSingleton = [](const PublicKey& key) {
+        auto makeSingleton = [](PublicKey const& key) {
             auto result = SCPQuorumSet{};
             result.threshold = 1;
             result.validators.push_back(key);

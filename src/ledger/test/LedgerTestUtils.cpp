@@ -357,7 +357,7 @@ makeValid(ContractDataEntry& cde)
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES)
     {
         // make the key small to prevent hitting the limit
-        static const uint32_t key_limit =
+        static uint32_t const key_limit =
             InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES - 50;
         auto small_bytes =
             autocheck::generator<xdr::opaque_vec<key_limit>>()(5);

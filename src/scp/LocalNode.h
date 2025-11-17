@@ -20,8 +20,8 @@ namespace stellar
 class LocalNode
 {
   protected:
-    const NodeID mNodeID;
-    const bool mIsValidator;
+    NodeID const mNodeID;
+    bool const mIsValidator;
     SCPQuorumSet mQSet;
     Hash mQSetHash;
 

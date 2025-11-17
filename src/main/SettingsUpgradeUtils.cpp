@@ -244,7 +244,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     addr.contractId() = contractID;
     invokeHF.invokeContract().contractAddress = addr;
 
-    const std::string& functionNameStr = "write";
+    std::string const& functionNameStr = "write";
     SCSymbol functionName;
     functionName.assign(functionNameStr.begin(), functionNameStr.end());
     invokeHF.invokeContract().functionName = functionName;

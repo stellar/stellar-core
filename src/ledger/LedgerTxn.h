@@ -238,7 +238,7 @@ class LedgerEntryPtr
 // incoming work (if it is otherwise unbounded) into transactions of the
 // same number of entries. It does no semantic harm to pick a different
 // size, just fail to batch quite as evenly.
-static const size_t LEDGER_ENTRY_BATCH_COMMIT_SIZE = 0xfff;
+static size_t const LEDGER_ENTRY_BATCH_COMMIT_SIZE = 0xfff;
 
 // If a LedgerTxn has had an eraseWithoutLoading call, the usual "exact"
 // level of consistency that a LedgerTxn maintains with the database will

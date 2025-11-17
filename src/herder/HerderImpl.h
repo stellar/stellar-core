@@ -113,7 +113,7 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetXDRFrameConstPtr txset) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                   const SCPQuorumSet& qset,
+                                   SCPQuorumSet const& qset,
                                    StellarMessage const& txset) override;
 
     void externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
@@ -150,7 +150,7 @@ class HerderImpl : public Herder
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
-    bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
+    bool recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset) override;
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;

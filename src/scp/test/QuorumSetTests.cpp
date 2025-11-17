@@ -22,7 +22,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         return secretKey.getPublicKey();
     };
 
-    auto makeSingleton = [](const PublicKey& key) {
+    auto makeSingleton = [](PublicKey const& key) {
         auto result = SCPQuorumSet{};
         result.threshold = 1;
         result.validators.push_back(key);
