@@ -725,6 +725,10 @@ Simulation::newConfig()
             Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     }
 
+    // Don't run snapshot invariant every ledger in simulation, as it's too
+    // expensive.
+    cfg.ALWAYS_RUN_SNAPSHOT_FOR_TESTING = false;
+
     return cfg;
 }
 

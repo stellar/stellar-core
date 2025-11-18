@@ -12,7 +12,6 @@
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
 #include "main/ApplicationImpl.h"
-#include "main/PersistentState.h"
 #include "rust/RustBridge.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/ParallelApplyUtils.h"
@@ -388,6 +387,20 @@ class LedgerManagerImpl : public LedgerManager
     HistoryArchiveState
     storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
                                             bool appendToCheckpoint);
+
+    // Copies in-memory Soroban state for snapshot invariant if required for
+    // this ledger, or returns nullptr otherwise. Should be called in
+    // READY_TO_APPLY phase when InMemorySorobanState is read only.
+    std::shared_ptr<InMemorySorobanState const>
+    maybeCopySorobanStateForInvariant() const;
+
+    // Trigger snapshot invariant on background thread if
+    // inMemorySnapshotForInvariant is not null.
+    void maybeRunSnapshotInvariantFromLedgerState(
+        CompleteConstLedgerStatePtr const& ledgerState,
+        std::shared_ptr<InMemorySorobanState const>
+            inMemorySnapshotForInvariant) const;
+
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
                                         Config const& config);
@@ -478,6 +491,7 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
+    void runSnapshotInvariantsOnStartup() const override;
     SorobanNetworkConfig const&
     getLastClosedSorobanNetworkConfig() const override;
 
@@ -518,14 +532,17 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
-    void
-    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
-                                 LedgerCloseData const& ledgerData,
-                                 CompleteConstLedgerStatePtr newLedgerState,
-                                 bool queueRebuildNeeded) override;
+    void advanceLedgerStateAndPublish(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        CompleteConstLedgerStatePtr newLedgerState, bool queueRebuildNeeded,
+        std::shared_ptr<InMemorySorobanState const>
+            inMemorySnapshotForInvariant = nullptr) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData,
-                             bool queueRebuildNeeded);
+                             bool queueRebuildNeeded,
+                             std::shared_ptr<InMemorySorobanState const>
+                                 inMemorySnapshotForInvariant);
     void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
                              bool rebuildInMemoryState) override;
 

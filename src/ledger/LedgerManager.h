@@ -240,6 +240,9 @@ class LedgerManager
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
 
+    // Run the state snapshot invariants on startup if enabled.
+    virtual void runSnapshotInvariantsOnStartup() const = 0;
+
     // Return the minimum balance required to establish, in the current ledger,
     // a new ledger entry with `ownerCount` owned objects.  Derived from the
     // current ledger's `baseReserve` value.
@@ -328,12 +331,15 @@ class LedgerManager
                              bool calledViaExternalize) = 0;
 
     // upgradeApplied should be true if a protocol or network config setting
-    // upgrade occurred during the ledger close.
+    // upgrade occurred during the ledger close. If inMemorySnapshotForInvariant
+    // is not null, this will kick off a snapshot invariant check.
     virtual void
     advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
                                  LedgerCloseData const& ledgerData,
                                  CompleteConstLedgerStatePtr newLedgerState,
-                                 bool upgradeApplied) = 0;
+                                 bool upgradeApplied,
+                                 std::shared_ptr<InMemorySorobanState const>
+                                     inMemorySnapshotForInvariant) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
