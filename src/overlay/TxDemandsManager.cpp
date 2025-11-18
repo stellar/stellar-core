@@ -205,7 +205,7 @@ TxDemandsManager::demand()
                     break;
                 }
             }
-            anyNewDemand |= addedNewDemand;
+            anyNewDemand = anyNewDemand || addedNewDemand;
         }
         // Loop again if we added one new demand to any peer
     }
