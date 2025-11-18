@@ -156,7 +156,6 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     std::streamoff pageUpperBound = 0;
     typename BucketT::EntryT be;
     size_t iter = 0;
-    size_t _count = 0;
 
     std::vector<uint64_t> keyHashes;
     auto seed = shortHash::getShortHashInitKey();
@@ -182,7 +181,6 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
         if (!isBucketMetaEntry<BucketT>(be))
         {
-            ++_count;
             LedgerKey key = getBucketLedgerKey(be);
 
             // Track type boundaries

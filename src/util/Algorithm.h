@@ -5,10 +5,11 @@
 #pragma once
 
 #include <map>
+#include <type_traits>
 #include <vector>
 
 template <typename V, typename Extractor,
-          typename K = typename std::result_of<Extractor(V const&)>::type>
+          typename K = typename std::invoke_result_t<Extractor, V const&>>
 std::map<K, std::vector<V>>
 split(std::vector<V> const& data, Extractor extractor)
 {
