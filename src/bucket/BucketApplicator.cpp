@@ -57,7 +57,8 @@ BucketApplicator::BucketApplicator(Application& app,
     }
 }
 
-BucketApplicator::operator bool() const
+BucketApplicator::
+operator bool() const
 {
     // There is more work to do (i.e. (bool) *this == true) iff:
     // 1. The underlying bucket iterator is not EOF and

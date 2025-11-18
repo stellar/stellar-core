@@ -179,7 +179,7 @@ class Application
         APPLY
     };
 
-    virtual ~Application(){};
+    virtual ~Application() {};
 
     virtual void initialize(bool createNewDB, bool forceRebuild) = 0;
 

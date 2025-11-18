@@ -93,16 +93,14 @@ jobs:
 
       # When we have a cache miss on the exact commit SHA, we restore from the prefix without it.
       # This will restore the most-recently-written cache (github does this date ordering itself).
-      # Temporarily disable restoring os-toolchain-protocol cache, since cached build artifacts are from llvm-12.
-      # After this PR merges, we can re-enable it.
-      # - name: Restore Cache
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   uses: actions/cache/restore@v4
-      #   with:
-      #     path: ${{ env.CACHED_PATHS }}
-      #     key: ${{ steps.cache.outputs.cache-primary-key }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}
+      - name: Restore Cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}
 
       - uses: actions/checkout@v4
         if: steps.cache.outputs.cache-hit != 'true'

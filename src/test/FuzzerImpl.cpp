@@ -911,7 +911,7 @@ class FuzzTransactionFrame : public TransactionFrame
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
         : TransactionFrame(networkID, envelope)
-        , mTxResult(MutableTransactionResult::createSuccess(*this, 0)){};
+        , mTxResult(MutableTransactionResult::createSuccess(*this, 0)) {};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)

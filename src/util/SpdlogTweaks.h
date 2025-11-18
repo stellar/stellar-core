@@ -15,11 +15,6 @@
 #define SPDLOG_NO_ATOMIC_LEVELS
 #define SPDLOG_PREVENT_CHILD_FD
 #define SPDLOG_LEVEL_NAMES \
-    { \
-        "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL", "OFF" \
-    }
-#define SPDLOG_SHORT_LEVEL_NAMES \
-    { \
-        "T", "D", "I", "W", "E", "F", "O" \
-    }
+    {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL", "OFF"}
+#define SPDLOG_SHORT_LEVEL_NAMES {"T", "D", "I", "W", "E", "F", "O"}
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE

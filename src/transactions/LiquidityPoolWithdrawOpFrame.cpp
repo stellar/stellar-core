@@ -56,8 +56,7 @@ LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
     // use a lambda so we don't hold a reference to the internals of
     // LiquidityPoolEntry
-    auto constantProduct = [&]() -> auto&
-    {
+    auto constantProduct = [&]() -> auto& {
         return poolEntry.current().data.liquidityPool().body.constantProduct();
     };
 

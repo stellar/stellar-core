@@ -82,11 +82,9 @@ We also include a script in the repository `install-rust.sh` that downloads and 
 ### Ubuntu
 
 #### Ubuntu 22.04
-You can install the [test toolchain](#adding-the-test-toolchain) to build and run stellar-core with the latest version of the llvm toolchain.
+If you build Ubuntu with clang you have to use `libc++` instead of `libstdc++` when compiling.
 
-Alternatively, if you want to just depend on stock Ubuntu, you will have to build with clang *and* have to use `libc++` instead of `libstdc++` when compiling.
-
-Ubuntu 22.04 has clang-20 available but you have add LLVM apt repository dependency,
+Stock Ubuntu doesn't come packaged with clang-20, so you have add LLVM apt repository dependency for it,
 ```zsh
 sudo wget -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key
 
@@ -96,7 +94,7 @@ deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-20 main
 EOF
 ```
 
-After that you can install clang-20,
+# install clang-20 toolchain
 ```zsh
 sudo apt-get update
 sudo apt-get -y install clang-20 llvm-20
@@ -105,7 +103,7 @@ sudo apt-get -y install clang-20 llvm-20
 After installing packages, head to [building with clang and libc++](#building-with-clang-and-libc).
 
 
-#### Adding the test toolchain (optional)
+#### Adding gcc-14 / g++-14 from PPA (optional)
 ```zsh
 # NOTE: newer version of the compilers are not
 #    provided by stock distributions
@@ -113,6 +111,7 @@ After installing packages, head to [building with clang and libc++](#building-wi
 sudo apt-get install software-properties-common
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 sudo apt-get update
+sudo apt install gcc-14 g++-14
 ```
 
 #### Installing packages
@@ -152,7 +151,7 @@ sudo apt-get install libc++-20-dev libc++abi-20-dev libclang-rt-20-dev
 
 Note that installing libc++-20 via apt will uninstall all other libc++ versions.
 
-Additionally, some newer Linux distros no longer package clang-format-12, and newer clang-format versions are
+Additionally, some newer Linux distros no longer package clang-format-20, and newer clang-format versions are
 not backwards compatible. To build from source, you'll need to do the following:
 
 ```zsh

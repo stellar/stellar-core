@@ -85,7 +85,7 @@ class QuorumIntersectionChecker
                            std::optional<stellar::Config> const&)> const&
             networkEnjoysQuorumIntersectionCB);
 
-    virtual ~QuorumIntersectionChecker(){};
+    virtual ~QuorumIntersectionChecker() {};
     virtual bool networkEnjoysQuorumIntersection() const = 0;
     virtual size_t getMaxQuorumsFound() const = 0;
     virtual std::pair<std::vector<NodeID>, std::vector<NodeID>>

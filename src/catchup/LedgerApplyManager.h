@@ -116,7 +116,7 @@ class LedgerApplyManager
 
     virtual CatchupMetrics const& getCatchupMetrics() = 0;
 
-    virtual ~LedgerApplyManager(){};
+    virtual ~LedgerApplyManager() {};
 
     virtual void historyArchiveStatesDownloaded(uint32_t num = 1) = 0;
     virtual void ledgersVerified(uint32_t num = 1) = 0;

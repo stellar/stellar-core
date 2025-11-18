@@ -1672,8 +1672,7 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
         auto pool = loadLiquidityPool(ltxInner, poolID);
         // use a lambda so we don't hold a reference to the
         // LiquidityPoolEntry
-        auto constantProduct = [&]() -> auto&
-        {
+        auto constantProduct = [&]() -> auto& {
             return pool.current().data.liquidityPool().body.constantProduct();
         };
 
