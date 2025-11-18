@@ -1893,13 +1893,13 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
     // only bump after we're done with everything else
     if (mCurrentMessageLevel == 1)
     {
-        bool didBump = false;
-        do
+        bool didBump = true;
+        while (didBump)
         {
             // attemptBump may invoke advanceSlot recursively
             didBump = attemptBump();
             didWork = didBump || didWork;
-        } while (didBump);
+        }
 
         checkHeardFromQuorum();
     }

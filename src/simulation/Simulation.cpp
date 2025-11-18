@@ -479,11 +479,11 @@ Simulation::crankAllNodes(int nbTicks)
         }
 
         // now, run the clock on all nodes until their clock is caught up
-        bool appBehind;
+        bool appBehind = true;
         // in virtual mode next interesting event is either a quantum click
         // or a scheduled event
         auto nextTime = mVirtualClockMode ? mClock.next() : mClock.now();
-        do
+        while (appBehind)
         {
             // in real mode, this is equivalent to a simple loop
             appBehind = false;
@@ -517,7 +517,7 @@ Simulation::crankAllNodes(int nbTicks)
                 }
                 crankNode(p.first, nextTime);
             }
-        } while (appBehind);
+        }
 
         // let the main clock do its job
         count += mClock.crank(false);
