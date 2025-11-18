@@ -2482,7 +2482,7 @@ Config::parallelLedgerClose() const
 {
     // Standalone mode expects synchronous ledger application
     return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
-           !(DATABASE.value.find("sqlite3://") != std::string::npos) &&
+           DATABASE.value.find("sqlite3://") == std::string::npos &&
            !RUN_STANDALONE;
 }
 

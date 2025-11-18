@@ -372,7 +372,7 @@ Database::getSimpleCollationClause() const
 bool
 Database::canUsePool() const
 {
-    return !(mApp.getConfig().DATABASE.value == ("sqlite3://:memory:"));
+    return mApp.getConfig().DATABASE.value != "sqlite3://:memory:";
 }
 
 void
