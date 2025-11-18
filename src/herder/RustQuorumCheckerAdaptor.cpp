@@ -351,7 +351,7 @@ QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
     mCumulativeMemByte = 0;
 }
 
-QuorumCheckerStatus
+static QuorumCheckerStatus
 checkQuorumIntersectionInner(
     QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
     QuorumCheckerResource& limits, QuorumCheckerMetrics& metrics)

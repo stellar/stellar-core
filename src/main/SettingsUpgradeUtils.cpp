@@ -186,7 +186,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
 
-void
+static void
 validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
 {
     for (auto const& entry : upgradeSet.updatedEntry)

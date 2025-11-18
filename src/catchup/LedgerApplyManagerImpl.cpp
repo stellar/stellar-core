@@ -71,7 +71,7 @@ operator-(LedgerApplyManager::CatchupMetrics const& x,
 }
 
 template <typename T>
-T
+static T
 findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
 {
     return std::find_if(begin, end,

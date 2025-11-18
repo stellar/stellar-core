@@ -26,7 +26,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-void
+static void
 for_current_and_previous_version_from(size_t minVersion, Application& app,
                                       std::function<void(void)> const& f)
 {

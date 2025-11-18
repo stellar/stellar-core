@@ -111,7 +111,7 @@ canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
            startAtLedger - lcl <= RESTORE_STATE_LEDGER_WINDOW;
 }
 
-std::filesystem::path
+static std::filesystem::path
 minimalDbPath(Config const& cfg)
 {
     std::filesystem::path dpath(cfg.BUCKET_DIR_PATH);

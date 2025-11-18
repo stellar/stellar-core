@@ -115,19 +115,19 @@ isStringValid(std::string const& str)
     return true;
 }
 
-bool
+static bool
 isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
 {
     throw std::runtime_error("ASSET_TYPE_POOL_SHARE is not a valid Asset type");
 }
 
-bool
+static bool
 isPoolShareAssetValid(TrustLineAsset const& asset, uint32_t ledgerVersion)
 {
     return protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_18);
 }
 
-bool
+static bool
 isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
 {
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))

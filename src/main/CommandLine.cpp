@@ -714,7 +714,6 @@ CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
         os << row << std::endl;
     }
 }
-}
 
 int
 diagBucketStats(CommandLineArgs const& args)
@@ -1711,6 +1710,7 @@ runSignTransaction(CommandLineArgs const& args)
             return 0;
         });
 }
+}
 
 int
 runVersion(CommandLineArgs const&)
@@ -1757,6 +1757,8 @@ runVersion(CommandLineArgs const&)
 }
 
 #ifdef BUILD_TESTS
+namespace
+{
 int
 runLoadXDR(CommandLineArgs const& args)
 {
@@ -2128,6 +2130,7 @@ runGenerateSyntheticLoad(CommandLineArgs const& args)
                 return 1;
             }
         });
+}
 }
 #endif
 

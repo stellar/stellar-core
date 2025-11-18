@@ -26,7 +26,7 @@ ConstantProductInvariant::getName() const
     return "ConstantProductInvariant";
 }
 
-bool
+static bool
 validateConstantProduct(uint64_t currentReserveA, uint64_t currentReserveB,
                         uint64_t previousReserveA, uint64_t previousReserveB)
 {

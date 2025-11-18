@@ -617,7 +617,7 @@ TEST_CASE("History publish", "[history][publish]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 }
 
-void
+static void
 validateCheckpointFiles(Application& app, uint32_t ledger, bool isFinalized)
 {
     auto const& cfg = app.getConfig();

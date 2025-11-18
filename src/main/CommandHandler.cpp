@@ -217,7 +217,7 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
 }
 
 template <typename T>
-std::optional<T>
+static std::optional<T>
 parseOptionalParam(std::map<std::string, std::string> const& map,
                    std::string const& key)
 {
@@ -245,7 +245,7 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
 // If the key doesn't exist, return defaultValue.
 // Otherwise, throws an error.
 template <typename T>
-T
+static T
 parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
                             std::string const& key, T const& defaultValue)
 {
@@ -277,7 +277,7 @@ parseOptionalParamOrDefault<bool>(std::map<std::string, std::string> const& map,
 // Return a value only if the key exists and the value parses.
 // Otherwise, this throws an error.
 template <typename T>
-T
+static T
 parseRequiredParam(std::map<std::string, std::string> const& map,
                    std::string const& key)
 {

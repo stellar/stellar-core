@@ -758,7 +758,7 @@ static char const* TESTKEY_ALL_VERSIONS = "!test all versions";
 static char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
 
 template <typename T>
-void
+static void
 checkTestKeyVal(std::string const& k, T const& expected, T const& got,
                 stdfs::path const& path)
 {
@@ -770,7 +770,7 @@ checkTestKeyVal(std::string const& k, T const& expected, T const& got,
 }
 
 template <typename T>
-void
+static void
 checkTestKeyVals(std::string const& k, T const& expected, T const& got,
                  stdfs::path const& path)
 {

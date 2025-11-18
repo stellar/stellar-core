@@ -484,7 +484,7 @@ Protocol23CorruptionEventReconciler::Protocol23CorruptionEventReconciler(
 // the balances always fit in the [0, INT64_MAX] range.
 // We know that the only SAC entries that were incorrectly restored were
 // Balances, so we can be strict with our check here.
-std::pair<int64_t, SCAddress /*owner*/>
+static std::pair<int64_t, SCAddress /*owner*/>
 getSACBalance(LedgerEntry const& le)
 {
     releaseAssert(le.data.type() == CONTRACT_DATA);

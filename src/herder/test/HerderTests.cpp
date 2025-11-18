@@ -3565,7 +3565,7 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
     REQUIRE(herder.trackingConsensusLedgerIndex() == ledger);
 }
 
-std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
+static std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
 getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
 {
     std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
@@ -6235,7 +6235,7 @@ addOrgs(int orgsToAdd, Topology const& t)
 
 // Returns `true` if the set intersection of `leaders1` and `leaders2` is not
 // empty.
-bool
+static bool
 leadersIntersect(std::set<NodeID> const& leaders1,
                  std::set<NodeID> const& leaders2)
 {
@@ -6248,7 +6248,7 @@ leadersIntersect(std::set<NodeID> const& leaders1,
 // Given two quorum sets consisting of validators in `validators1` and
 // `validators2`, this function returns the probability that the two quorum sets
 // will agree on a leader in the first round of nomination.
-double
+static double
 computeExpectedFirstRoundAgreementProbability(
     std::vector<ValidatorEntry> const& validators1,
     std::vector<ValidatorEntry> const& validators2)
@@ -6287,7 +6287,7 @@ computeExpectedFirstRoundAgreementProbability(
 // test aims to analyze the worst case scenario where the two sides are fairly
 // balanced and real-world networking conditions are in place (some nodes
 // lagging, etc), such that disagreement always results in a timeout.
-void
+static void
 testAsymmetricTimeouts(Topology const& qs1, Topology const& qs2,
                        int const numLedgers)
 {
@@ -6438,7 +6438,7 @@ TEST_CASE("Asymmetric quorum timeouts", "[herder]")
 // Test that the nomination algorithm behaves as expected when a random
 // `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation for
 // `numLedgers` slots.
-void
+static void
 testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
                          int const numLedgers)
 {

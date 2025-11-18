@@ -44,33 +44,33 @@ using namespace BucketTestUtils;
 namespace BucketListTests
 {
 
-uint32_t
+static uint32_t
 size(uint32_t level)
 {
     return 1 << (2 * (level + 1));
 }
-uint32_t
+static uint32_t
 half(uint32_t level)
 {
     return size(level) >> 1;
 }
-uint32_t
+static uint32_t
 prev(uint32_t level)
 {
     return size(level - 1);
 }
-uint32_t
+static uint32_t
 lowBoundExclusive(uint32_t level, uint32_t ledger)
 {
     return roundDown(ledger, size(level));
 }
-uint32_t
+static uint32_t
 highBoundInclusive(uint32_t level, uint32_t ledger)
 {
     return roundDown(ledger, prev(level));
 }
 
-void
+static void
 checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
                          bool isCurr)
 {
@@ -111,7 +111,7 @@ checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
 
 // If pred is false for ledger < L and true for ledger >= L then
 // binarySearchForLedger will return L.
-uint32_t
+static uint32_t
 binarySearchForLedger(uint32_t lbound, uint32_t ubound,
                       std::function<uint32_t(uint32_t)> const& pred)
 {

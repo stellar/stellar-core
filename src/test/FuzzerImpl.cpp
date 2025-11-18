@@ -50,25 +50,25 @@ auto constexpr MIN_ACCOUNT_BALANCE =
 // must be strictly less than 255
 uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 5U;
 
-void
+static void
 setShortKey(uint256& ed25519, int i)
 {
     ed25519[0] = static_cast<uint8_t>(i);
 }
 
-void
+static void
 setShortKey(PublicKey& pk, int i)
 {
     setShortKey(pk.ed25519(), i);
 }
 
-uint8_t
+static uint8_t
 getShortKey(uint256 const& ed25519)
 {
     return ed25519[0];
 }
 
-uint8_t
+static uint8_t
 getShortKey(PublicKey const& pk)
 {
     return getShortKey(pk.ed25519());
@@ -79,31 +79,31 @@ uint8_t constexpr NUMBER_OF_ASSET_CODE_BITS = 8 - NUMBER_OF_ASSET_ISSUER_BITS;
 uint8_t constexpr NUMBER_OF_ASSETS_TO_USE = 1 << NUMBER_OF_ASSET_CODE_BITS;
 uint8_t constexpr ENCODE_ASSET_CODE_MASK = NUMBER_OF_ASSETS_TO_USE - 1;
 
-uint8_t
+static uint8_t
 getShortKey(AssetCode4 const& code)
 {
     return code.data()[0] & ENCODE_ASSET_CODE_MASK;
 }
 
-uint8_t
+static uint8_t
 getShortKey(AssetCode12 const& code)
 {
     return code.data()[0] & ENCODE_ASSET_CODE_MASK;
 }
 
-uint8_t
+static uint8_t
 decodeAssetIssuer(uint8_t byte)
 {
     return byte >> NUMBER_OF_ASSET_CODE_BITS;
 }
 
-uint8_t
+static uint8_t
 decodeAssetCodeDigit(uint8_t byte)
 {
     return byte & ENCODE_ASSET_CODE_MASK;
 }
 
-uint8_t
+static uint8_t
 getShortKey(Asset const& asset)
 {
     // This encoding does _not_ make compacting a left-inverse of unpack.  We
@@ -122,7 +122,7 @@ getShortKey(Asset const& asset)
     }
 }
 
-uint8_t
+static uint8_t
 getShortKey(AssetCode const& code)
 {
     switch (code.type())
@@ -138,13 +138,13 @@ getShortKey(AssetCode const& code)
     }
 }
 
-uint8_t
+static uint8_t
 getShortKey(ClaimableBalanceID const& balanceID)
 {
     return balanceID.v0()[0];
 }
 
-uint8_t
+static uint8_t
 getShortKey(LedgerKey const& key)
 {
     switch (key.type())
@@ -188,7 +188,7 @@ getShortKey(LedgerKey const& key)
 }
 
 // Sets "code" to a 4-byte alphanumeric AssetCode "Ast<digit>".
-void
+static void
 setAssetCode4(AssetCode4& code, int digit)
 {
     static_assert(
@@ -201,7 +201,7 @@ setAssetCode4(AssetCode4& code, int digit)
 // For digit == 0, returns native Asset.
 // For digit != 0, returns an Asset with a 4-byte alphanumeric code "Ast<digit>"
 // and an issuer with the given public key.
-Asset
+static Asset
 makeAsset(int issuer, int digit)
 {
     Asset asset;
@@ -218,13 +218,13 @@ makeAsset(int issuer, int digit)
     return asset;
 }
 
-Asset
+static Asset
 makeAsset(uint8_t byte)
 {
     return makeAsset(decodeAssetIssuer(byte), decodeAssetCodeDigit(byte));
 }
 
-AssetCode
+static AssetCode
 makeAssetCode(uint8_t byte)
 {
     AssetCode code;
@@ -241,7 +241,7 @@ makeAssetCode(uint8_t byte)
     return code;
 }
 
-void
+static void
 generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
                          StoredLedgerKeys::iterator end)
 {
@@ -264,21 +264,21 @@ generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
     });
 }
 
-void
+static void
 setShortKey(std::array<LedgerKey, NUM_STORED_LEDGER_KEYS> const& storedKeys,
             LedgerKey& key, uint8_t byte)
 {
     key = storedKeys[byte % NUM_STORED_LEDGER_KEYS];
 }
 
-void
+static void
 setShortKey(FuzzUtils::StoredPoolIDs const& storedPoolIDs, PoolID& key,
             uint8_t byte)
 {
     key = storedPoolIDs[byte % NUM_STORED_POOL_IDS];
 }
 
-SequenceNumber
+static SequenceNumber
 getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
 {
     auto account = loadAccount(ltx, sourceAccountID);
@@ -287,7 +287,7 @@ getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
 
 // Append "newOp" to "ops", optionally after enclosing it in a sandwich of
 // begin/end-sponsoring-future-reserves.
-void
+static void
 emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
                               Operation const& newOp, bool isSponsored,
                               int sponsorShortKey,
@@ -503,7 +503,7 @@ struct xdr_fuzzer_compactor
 };
 
 template <typename... Args>
-opaque_vec<>
+static opaque_vec<>
 xdr_to_fuzzer_opaque(Args const&... args)
 {
     opaque_vec<> m(opaque_vec<>::size_type{xdr_argpack_size(args...)});
@@ -790,7 +790,7 @@ struct xdr_fuzzer_unpacker
 };
 
 template <typename Bytes, typename... Args>
-auto
+static auto
 xdr_from_fuzzer_opaque(
     stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
     stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs, Bytes const& m,
@@ -989,7 +989,7 @@ class FuzzTransactionFrame : public TransactionFrame
     }
 };
 
-std::shared_ptr<FuzzTransactionFrame>
+static std::shared_ptr<FuzzTransactionFrame>
 createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
                            PublicKey const& sourceAccountID,
                            std::vector<Operation>::const_iterator begin,
@@ -1012,7 +1012,7 @@ createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
     return res;
 }
 
-bool
+static bool
 isBadOverlayFuzzerInput(StellarMessage const& m)
 {
     // HELLO, AUTH and ERROR_MSG messages cause the connection between

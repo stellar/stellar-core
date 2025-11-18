@@ -7710,7 +7710,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
         REQUIRE(isSuccessResult(txResults.results[2].result));
     }
 }
-UnorderedMap<uint32_t /*ledgerSeq*/, LedgerCloseMeta>
+static UnorderedMap<uint32_t /*ledgerSeq*/, LedgerCloseMeta>
 readParallelMeta(std::string const& metaPath)
 {
     UnorderedMap<uint32_t, LedgerCloseMeta> res;

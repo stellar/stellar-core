@@ -1208,7 +1208,7 @@ LedgerManagerImpl::emitNextMeta()
     mNextMetaToEmit.reset();
 }
 
-void
+static void
 maybeSimulateSleep(Config const& cfg, size_t opSize,
                    LogSlowExecution& closeTime)
 {
@@ -1237,7 +1237,7 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
     }
 }
 
-asio::io_context&
+static asio::io_context&
 getMetaIOContext(Application& app)
 {
     return app.getConfig().parallelLedgerClose()
@@ -2181,7 +2181,7 @@ LedgerManagerImpl::applyThread(
     return threadState;
 }
 
-ParallelLedgerInfo
+static ParallelLedgerInfo
 getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
 {
     return {lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,

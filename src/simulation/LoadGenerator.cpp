@@ -82,7 +82,7 @@ uint32_t const LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 // buffer in case loadgen is unstable and needs more accounts)
 uint32_t const LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
-uint32_t
+static uint32_t
 getTxCount(Application& app, bool isSoroban)
 {
     if (isSoroban)

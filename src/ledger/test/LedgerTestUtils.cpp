@@ -28,7 +28,7 @@ namespace LedgerTestUtils
 {
 
 template <typename T>
-void
+static void
 clampLow(T low, T& v)
 {
     if (v < low)
@@ -38,7 +38,7 @@ clampLow(T low, T& v)
 }
 
 template <typename T>
-void
+static void
 clampHigh(T high, T& v)
 {
     if (v > high)
@@ -79,7 +79,7 @@ signerEqual(Signer const& s1, Signer const& s2)
 }
 
 template <size_t MAX_SIZE>
-xdr::xvector<uint8_t, MAX_SIZE>
+static xdr::xvector<uint8_t, MAX_SIZE>
 generateOpaqueVector()
 {
     static auto vecgen = autocheck::list_of(autocheck::generator<uint8_t>());
@@ -438,7 +438,7 @@ makeValid(TTLEntry& cce)
 {
 }
 
-void
+static void
 makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
           LedgerHeaderHistoryEntry firstLedger,
           HistoryManager::LedgerVerificationStatus state)

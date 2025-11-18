@@ -208,7 +208,7 @@ struct BucketListGenerator
     }
 };
 
-bool
+static bool
 doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
                   BucketEntry const& be)
 {
@@ -222,7 +222,7 @@ doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
     return false;
 }
 
-bool
+static bool
 doesBucketListContain(LiveBucketList& bl, BucketEntry const& be)
 {
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)

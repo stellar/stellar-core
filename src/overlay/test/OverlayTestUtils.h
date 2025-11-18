@@ -37,6 +37,8 @@ bool knowsAsInbound(Application& knowingApp, Application& knownApp);
 
 bool knowsAsOutbound(Application& knowingApp, Application& knownApp);
 
+bool knowsAsPreferred(Application& knowingApp, Application& knownApp);
+
 int numberOfAppConnections(Application& app);
 
 int numberOfSimulationConnections(std::shared_ptr<Simulation> simulation);

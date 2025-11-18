@@ -513,7 +513,7 @@ canCreateEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     return SponsorshipResult::SUCCESS;
 }
 
-SponsorshipResult
+static SponsorshipResult
 canCreateEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
                               LedgerEntry const& sponsoringAcc,
                               LedgerEntry const* sponsoredAcc)
@@ -535,7 +535,7 @@ canCreateEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     return canEstablishEntrySponsorship(lh, le, sponsoringAcc, sponsoredAcc);
 }
 
-void
+static void
 canRemoveEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
                                  LedgerEntry const& acc)
 {
@@ -549,7 +549,7 @@ canRemoveEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     }
 }
 
-void
+static void
 canRemoveEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
                               LedgerEntry const& sponsoringAcc,
                               LedgerEntry const* sponsoredAcc)
@@ -578,7 +578,7 @@ canRemoveEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     }
 }
 
-SponsorshipResult
+static SponsorshipResult
 canCreateSignerWithoutSponsorship(LedgerHeader const& lh,
                                   LedgerEntry const& acc)
 {
@@ -595,7 +595,7 @@ canCreateSignerWithoutSponsorship(LedgerHeader const& lh,
     return SponsorshipResult::SUCCESS;
 }
 
-SponsorshipResult
+static SponsorshipResult
 canCreateSignerWithSponsorship(
     LedgerHeader const& lh, std::vector<Signer>::const_iterator const& signerIt,
     LedgerEntry const& sponsoringAcc, LedgerEntry const& sponsoredAcc)
@@ -614,7 +614,7 @@ canCreateSignerWithSponsorship(
                                          sponsoredAcc);
 }
 
-void
+static void
 canRemoveSignerWithoutSponsorship(LedgerHeader const& lh,
                                   LedgerEntry const& acc)
 {
@@ -624,7 +624,7 @@ canRemoveSignerWithoutSponsorship(LedgerHeader const& lh,
     }
 }
 
-void
+static void
 canRemoveSignerWithSponsorship(LedgerHeader const& lh,
                                LedgerEntry const& sponsoringAcc,
                                LedgerEntry const& sponsoredAcc)
@@ -660,7 +660,7 @@ createEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
     }
 }
 
-void
+static void
 createEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
                            LedgerEntry* sponsoredAcc)
 {
@@ -671,7 +671,7 @@ createEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
     establishEntrySponsorship(le, sponsoringAcc, sponsoredAcc);
 }
 
-void
+static void
 removeEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
 {
     if (le.data.type() != ACCOUNT)
@@ -680,7 +680,7 @@ removeEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
     }
 }
 
-void
+static void
 removeEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
                            LedgerEntry* sponsoredAcc)
 {
@@ -691,14 +691,14 @@ removeEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
     removeEntrySponsorship(le, sponsoringAcc, sponsoredAcc);
 }
 
-void
+static void
 createSignerWithoutSponsorship(LedgerEntry& acc)
 {
     auto& ae = acc.data.account();
     ++ae.numSubEntries;
 }
 
-void
+static void
 createSignerWithSponsorship(std::vector<Signer>::const_iterator const& signerIt,
                             LedgerEntry& sponsoringAcc,
                             LedgerEntry& sponsoredAcc)
@@ -707,7 +707,7 @@ createSignerWithSponsorship(std::vector<Signer>::const_iterator const& signerIt,
     establishSignerSponsorship(signerIt, sponsoringAcc, sponsoredAcc);
 }
 
-void
+static void
 removeSignerWithoutSponsorship(
     std::vector<Signer>::const_iterator const& signerIt, LedgerEntry& acc)
 {
@@ -722,7 +722,7 @@ removeSignerWithoutSponsorship(
     ae.signers.erase(signerIt);
 }
 
-void
+static void
 removeSignerWithSponsorship(std::vector<Signer>::const_iterator const& signerIt,
                             LedgerEntry& sponsoringAcc,
                             LedgerEntry& sponsoredAcc)

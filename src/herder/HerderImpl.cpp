@@ -399,7 +399,7 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
     }
 }
 
-void
+static void
 recordExternalizeAndCheckCloseTimeDrift(
     uint64 slotIndex, StellarValue const& value,
     std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)

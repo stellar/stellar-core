@@ -436,7 +436,7 @@ makeNominate(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-void
+static void
 verifyPrepare(SCPEnvelope const& actual, SecretKey const& secretKey,
               Hash const& qSetHash, uint64 slotIndex, SCPBallot const& ballot,
               SCPBallot* prepared = nullptr, uint32 nC = 0, uint32 nH = 0,
@@ -447,7 +447,7 @@ verifyPrepare(SCPEnvelope const& actual, SecretKey const& secretKey,
     REQUIRE(exp.statement == actual.statement);
 }
 
-void
+static void
 verifyConfirm(SCPEnvelope const& actual, SecretKey const& secretKey,
               Hash const& qSetHash, uint64 slotIndex, uint32 nPrepared,
               SCPBallot const& b, uint32 nC, uint32 nH)
@@ -457,7 +457,7 @@ verifyConfirm(SCPEnvelope const& actual, SecretKey const& secretKey,
     REQUIRE(exp.statement == actual.statement);
 }
 
-void
+static void
 verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
                   Hash const& qSetHash, uint64 slotIndex,
                   SCPBallot const& commit, uint32 nH)
@@ -466,7 +466,7 @@ verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
     REQUIRE(exp.statement == actual.statement);
 }
 
-void
+static void
 verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey,
                Hash const& qSetHash, uint64 slotIndex, std::vector<Value> votes,
                std::vector<Value> accepted)

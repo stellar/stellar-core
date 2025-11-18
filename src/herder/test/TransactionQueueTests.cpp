@@ -522,7 +522,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     }
 }
 
-void
+static void
 testTransactionQueueBasicScenarios()
 {
     VirtualClock clock;

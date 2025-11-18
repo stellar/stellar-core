@@ -48,7 +48,7 @@ namespace stellar
 {
 
 template <typename T>
-void
+static void
 dumpstream(XDRInputFileStream& in, bool compact)
 {
     T tmp;
@@ -177,7 +177,7 @@ readFile(const std::string& filename, bool base64,
 }
 
 template <typename T>
-void
+static void
 printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
 {
     T tmp;
@@ -185,7 +185,7 @@ printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
     std::cout << xdrToCerealString(tmp, desc, compact) << std::endl;
 }
 
-void
+static void
 printTransactionMeta(xdr::opaque_vec<> const& o, bool compact)
 {
     TransactionMeta tmp;
@@ -339,7 +339,7 @@ constexpr ssize_t (&mywrite)(int, void const*, size_t) = ::write;
 #define mywrite write
 #endif // not (gcc 4+ and glibc)
 
-std::string
+static std::string
 readSecret(const std::string& prompt, bool force_tty)
 {
     std::string ret;

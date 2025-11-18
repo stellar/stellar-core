@@ -8,7 +8,7 @@
 
 namespace stellar
 {
-bool
+static bool
 isNear(uint64 r, double target)
 {
     double v = (double)r / (double)UINT64_MAX;
