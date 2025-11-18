@@ -297,10 +297,7 @@ class LedgerManager
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
 
-    // loads the last ledger information from the database with the following
-    // parameter:
-    //  * restoreBucketlist indicates whether to restore the bucket list fully,
-    //  and restart merges
+    // loads the last ledger information from the database
     virtual void loadLastKnownLedger() = 0;
 
     // Helper for a faster load of the last closed ledger used only for various
