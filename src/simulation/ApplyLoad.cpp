@@ -44,17 +44,17 @@ getUpgradeConfig(Config const& cfg)
     upgradeConfig.txMaxInstructions = cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS;
     upgradeConfig.txMemoryLimit = 41943040;
     upgradeConfig.ledgerMaxDiskReadEntries =
-        cfg.APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES;
-    upgradeConfig.ledgerMaxDiskReadBytes = cfg.APPLY_LOAD_LEDGER_MAX_READ_BYTES;
+        cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES;
+    upgradeConfig.ledgerMaxDiskReadBytes =
+        cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES;
     upgradeConfig.ledgerMaxWriteLedgerEntries =
         cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
     upgradeConfig.ledgerMaxWriteBytes = cfg.APPLY_LOAD_LEDGER_MAX_WRITE_BYTES;
-    upgradeConfig.ledgerMaxTxCount = cfg.APPLY_LOAD_MAX_TX_COUNT;
+    upgradeConfig.ledgerMaxTxCount = cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
     upgradeConfig.txMaxDiskReadEntries =
-        cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
-    upgradeConfig.txMaxFootprintEntries =
-        cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
-    upgradeConfig.txMaxDiskReadBytes = cfg.APPLY_LOAD_TX_MAX_READ_BYTES;
+        cfg.APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES;
+    upgradeConfig.txMaxFootprintEntries = cfg.APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE;
+    upgradeConfig.txMaxDiskReadBytes = cfg.APPLY_LOAD_TX_MAX_DISK_READ_BYTES;
     upgradeConfig.txMaxWriteLedgerEntries =
         cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES;
     upgradeConfig.txMaxWriteBytes = cfg.APPLY_LOAD_TX_MAX_WRITE_BYTES;
@@ -224,34 +224,36 @@ uint32_t
 ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
 {
     // If no RO entries are configured, return 0
-    if (cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING.empty())
+    if (cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.empty())
     {
         return 0;
     }
 
     releaseAssertOrThrow(
-        cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING.size() ==
-        cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING.size());
+        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.size() ==
+        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION.size());
 
-    // Calculate weighted average of RO entries per transaction
-    double totalWeight = 0;
-    double weightedSum = 0;
-    for (size_t i = 0; i < cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING.size();
-         ++i)
+    // Calculate mean disk reads per transaction
+    double totalWeight = std::accumulate(
+        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION.begin(),
+        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION.end(), 0.0);
+    double meanDiskReadsPerTx = 0.0;
+    for (size_t i = 0; i < cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.size(); ++i)
     {
-        auto entries = cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING[i];
-        auto weight = cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING[i];
-
-        totalWeight += weight;
-        weightedSum += static_cast<double>(entries) * weight;
+        meanDiskReadsPerTx +=
+            static_cast<double>(cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES[i]) *
+            (cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION[i] /
+             totalWeight);
     }
 
-    double avgROEntriesPerTx = totalWeight > 0 ? weightedSum / totalWeight : 0;
-
-    // Calculate total expected RO accesses
-    double totalExpectedRestores = avgROEntriesPerTx *
-                                   cfg.APPLY_LOAD_MAX_TX_COUNT *
+    // Calculate total expected disk reads
+    double totalExpectedRestores = meanDiskReadsPerTx *
+                                   cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
                                    cfg.APPLY_LOAD_NUM_LEDGERS;
+    // We technically can only actually perform totalExpectedRestores, but we
+    // still need to create valid transactions in the 'mempool', so we need
+    // to scale the expected number of restores by the transaction queue size.
+    totalExpectedRestores *= cfg.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
 
     // Add some generous buffer since actual distributions may vary.
     return totalExpectedRestores * 1.5;
@@ -260,31 +262,42 @@ ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
 ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     : mApp(app)
     , mRoot(app.getRoot())
-    , mNumAccounts(std::max(
-          mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
-                  (mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
-                   mApp.getConfig().TRANSACTION_QUEUE_SIZE_MULTIPLIER) +
-              2,
-          mApp.getConfig().APPLY_LOAD_NUM_ACCOUNTS))
     , mTotalHotArchiveEntries(
           calculateRequiredHotArchiveEntries(app.getConfig()))
     , mTxCountUtilization(
-          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-count"}))
-    , mInstructionUtilization(
-          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "ins"}))
+          mApp.getMetrics().NewHistogram({"soroban", "apply-load", "tx-count"}))
+    , mInstructionUtilization(mApp.getMetrics().NewHistogram(
+          {"soroban", "apply-load", "instructions"}))
     , mTxSizeUtilization(
-          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-size"}))
-    , mReadByteUtilization(
-          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "read-byte"}))
+          mApp.getMetrics().NewHistogram({"soroban", "apply-load", "tx-size"}))
+    , mDiskReadByteUtilization(mApp.getMetrics().NewHistogram(
+          {"soroban", "apply-load", "disk-read-byte"}))
     , mWriteByteUtilization(mApp.getMetrics().NewHistogram(
-          {"soroban", "benchmark", "write-byte"}))
-    , mReadEntryUtilization(mApp.getMetrics().NewHistogram(
-          {"soroban", "benchmark", "read-entry"}))
+          {"soroban", "apply-load", "write-byte"}))
+    , mDiskReadEntryUtilization(mApp.getMetrics().NewHistogram(
+          {"soroban", "apply-load", "disk-read-entry"}))
     , mWriteEntryUtilization(mApp.getMetrics().NewHistogram(
-          {"soroban", "benchmark", "write-entry"}))
+          {"soroban", "apply-load", "write-entry"}))
     , mMode(mode)
     , mTxGenerator(app, mTotalHotArchiveEntries)
 {
+    auto const& config = mApp.getConfig();
+    switch (mMode)
+    {
+    case ApplyLoadMode::LIMIT_BASED:
+        mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
+                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                       config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER *
+                           config.TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                       2;
+        break;
+    case ApplyLoadMode::MAX_SAC_TPS:
+        mNumAccounts =
+            config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
+            (config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS / 1000) *
+            config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
+        break;
+    }
     setup();
 }
 
@@ -293,58 +306,94 @@ ApplyLoad::setup()
 {
     releaseAssert(mTxGenerator.loadAccount(mRoot));
 
-    setupAccounts();
-
-    if (mMode == ApplyLoadMode::SOROBAN || mMode == ApplyLoadMode::MIX ||
-        mMode == ApplyLoadMode::MAX_SAC_TPS)
-    {
-        setupUpgradeContract();
-
-        if (mMode == ApplyLoadMode::MAX_SAC_TPS)
-        {
-            // Just upgrade to a placeholder number of TXs, we'll
-            // upgrade again before each TPS run.
-            upgradeSettingsForMaxTPS(100000);
-        }
-        else
-        {
-            upgradeSettings();
-        }
-
-        setupLoadContract();
-
-        if (mMode == ApplyLoadMode::MIX || mMode == ApplyLoadMode::MAX_SAC_TPS)
-        {
-            setupXLMContract();
-            if (mMode == ApplyLoadMode::MAX_SAC_TPS &&
-                mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
-            {
-                setupBatchTransferContracts();
-            }
-        }
-    }
-    else
+    if (mApp.getLedgerManager()
+            .getLastClosedLedgerHeader()
+            .header.maxTxSetSize <
+        mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER)
     {
         auto upgrade = xdr::xvector<UpgradeType, 6>{};
 
         LedgerUpgrade ledgerUpgrade;
         ledgerUpgrade.type(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
         ledgerUpgrade.newMaxTxSetSize() =
-            mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT;
+            mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
         auto v = xdr::xdr_to_opaque(ledgerUpgrade);
         upgrade.push_back(UpgradeType{v.begin(), v.end()});
         closeLedger({}, upgrade);
     }
 
-    setupBucketList();
+    setupAccounts();
+
+    setupUpgradeContract();
+
+    if (mMode == ApplyLoadMode::MAX_SAC_TPS)
+    {
+        // Just upgrade to a placeholder number of TXs, we'll
+        // upgrade again before each TPS run.
+        upgradeSettingsForMaxTPS(100000);
+    }
+    else
+    {
+        upgradeSettings();
+    }
+
+    setupLoadContract();
+    setupXLMContract();
+    if (mMode == ApplyLoadMode::MAX_SAC_TPS &&
+        mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
+    {
+        setupBatchTransferContracts();
+    }
+    if (mMode == ApplyLoadMode::LIMIT_BASED)
+    {
+        setupBucketList();
+    }
 }
 
 void
 ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
-                       xdr::xvector<UpgradeType, 6> const& upgrades)
+                       xdr::xvector<UpgradeType, 6> const& upgrades,
+                       bool recordSorobanUtilization)
 {
-    auto txSet = makeTxSetFromTransactions(txs, mApp, 0, UINT64_MAX);
+    auto txSet = makeTxSetFromTransactions(txs, mApp, 0, 0);
 
+    if (recordSorobanUtilization)
+    {
+        releaseAssert(mMode == ApplyLoadMode::LIMIT_BASED);
+        auto ledgerResources = mApp.getLedgerManager().maxLedgerResources(true);
+        auto txSetResources =
+            txSet.second->getPhases()
+                .at(static_cast<size_t>(TxSetPhase::SOROBAN))
+                .getTotalResources(mApp.getLedgerManager()
+                                       .getLastClosedLedgerHeader()
+                                       .header.ledgerVersion)
+                .value();
+        mTxCountUtilization.Update(
+            txSetResources.getVal(Resource::Type::OPERATIONS) * 1.0 /
+            ledgerResources.getVal(Resource::Type::OPERATIONS) * 100000.0);
+        mInstructionUtilization.Update(
+            txSetResources.getVal(Resource::Type::INSTRUCTIONS) * 1.0 /
+            ledgerResources.getVal(Resource::Type::INSTRUCTIONS) * 100000.0);
+        mTxSizeUtilization.Update(
+            txSetResources.getVal(Resource::Type::TX_BYTE_SIZE) * 1.0 /
+            ledgerResources.getVal(Resource::Type::TX_BYTE_SIZE) * 100000.0);
+        mDiskReadByteUtilization.Update(
+            txSetResources.getVal(Resource::Type::DISK_READ_BYTES) * 1.0 /
+            ledgerResources.getVal(Resource::Type::DISK_READ_BYTES) * 100000.0);
+        mWriteByteUtilization.Update(
+            txSetResources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /
+            ledgerResources.getVal(Resource::Type::WRITE_BYTES) * 100000.0);
+        mDiskReadEntryUtilization.Update(
+            txSetResources.getVal(Resource::Type::READ_LEDGER_ENTRIES) * 1.0 /
+            ledgerResources.getVal(Resource::Type::READ_LEDGER_ENTRIES) *
+            100000.0);
+        mWriteEntryUtilization.Update(
+            txSetResources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) * 1.0 /
+            ledgerResources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) *
+            100000.0);
+        CLOG_INFO(Perf, "generated tx set resources: {}/{}",
+                  txSetResources.toString(), ledgerResources.toString());
+    }
     auto sv =
         mApp.getHerder().makeStellarValue(txSet.first->getContentsHash(), 1,
                                           upgrades, mApp.getConfig().NODE_SEED);
@@ -390,7 +439,7 @@ ApplyLoad::setupUpgradeContract()
 
     SorobanResources uploadResources;
     uploadResources.instructions = 2'000'000;
-    uploadResources.diskReadBytes = wasmBytes.size() + 500;
+    uploadResources.diskReadBytes = 0;
     uploadResources.writeBytes = wasmBytes.size() + 500;
 
     auto const& lm = mApp.getLedgerManager();
@@ -426,7 +475,7 @@ ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
 
     SorobanResources resources;
     resources.instructions = 1'250'000;
-    resources.diskReadBytes = 3'100;
+    resources.diskReadBytes = 0;
     resources.writeBytes = 3'100;
 
     auto invokeTx = mTxGenerator.invokeSorobanCreateUpgradeTransaction(
@@ -546,7 +595,7 @@ ApplyLoad::setupBatchTransferContracts()
 
     SorobanResources uploadResources;
     uploadResources.instructions = 5000000;
-    uploadResources.diskReadBytes = wasmBytes.size() + 500;
+    uploadResources.diskReadBytes = 0;
     uploadResources.writeBytes = wasmBytes.size() + 500;
 
     auto uploadTx = mTxGenerator.createUploadWasmTransaction(
@@ -632,21 +681,19 @@ ApplyLoad::setupBucketList()
 
     mDataEntrySize = xdr::xdr_size(baseLiveEntry);
     // Add some padding to reach the configured LE size.
-    if (mDataEntrySize <
-        mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING)
+    if (mDataEntrySize < mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE)
     {
         baseLiveEntry.data.contractData().val.bytes().resize(
-            mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING -
-            mDataEntrySize);
-        mDataEntrySize =
-            mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
+            mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE - mDataEntrySize);
+        mDataEntrySize = mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE;
+        releaseAssertOrThrow(xdr::xdr_size(baseLiveEntry) == mDataEntrySize);
     }
     else
     {
         CLOG_WARNING(Perf,
                      "Apply load generated entry size is larger than "
-                     "APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING: {} > {}",
-                     mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING,
+                     "APPLY_LOAD_DATA_ENTRY_SIZE: {} > {}",
+                     mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE,
                      mDataEntrySize);
     }
 
@@ -685,6 +732,12 @@ ApplyLoad::setupBucketList()
                (hotArchiveBatchSize * hotArchiveBatchCount)) /
                   cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS
             : 0;
+
+    CLOG_INFO(Perf,
+              "Apply load: Hot Archive BL setup: total entries {}, total "
+              "batches {}, batch size {}, last batch size {}",
+              mTotalHotArchiveEntries, totalBatchCount, hotArchiveBatchSize,
+              hotArchiveLastBatchSize);
 
     for (uint32_t i = 0; i < cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS; ++i)
     {
@@ -791,26 +844,25 @@ ApplyLoad::benchmark()
     releaseAssertOrThrow(mMode != ApplyLoadMode::MAX_SAC_TPS);
 
     auto& lm = mApp.getLedgerManager();
+    auto const& config = mApp.getConfig();
     std::vector<TransactionFrameBasePtr> txs;
 
-    auto resources = multiplyByDouble(
-        lm.maxLedgerResources(true),
-        mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
-
+    auto maxResourcesToGenerate = lm.maxLedgerResources(true);
     // The TxSet validation will compare the ledger instruction limit against
     // the sum of the instructions of the slowest cluster in each stage, so we
     // just multiply the instructions limit by the max number of clusters.
-    resources.setVal(
+    maxResourcesToGenerate.setVal(
         Resource::Type::INSTRUCTIONS,
-        resources.getVal(Resource::Type::INSTRUCTIONS) *
-            mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
-    auto classicResources =
-        multiplyByDouble(lm.maxLedgerResources(false),
-                         mApp.getConfig().TRANSACTION_QUEUE_SIZE_MULTIPLIER);
+        maxResourcesToGenerate.getVal(Resource::Type::INSTRUCTIONS) *
+            config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
+    // Scale the resources by the tx queue multipler to emulate filled mempool.
+    maxResourcesToGenerate =
+        multiplyByDouble(maxResourcesToGenerate,
+                         config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
 
-    // Save a snapshot so we can calculate what % we used up.
-    auto const resourcesSnapshot = resources;
-    auto const classicResourcesSnapshot = classicResources;
+    CLOG_INFO(Perf, "benchmark max generation resources: {}",
+              maxResourcesToGenerate.toString());
+    auto resourcesLeft = maxResourcesToGenerate;
 
     auto const& accounts = mTxGenerator.getAccounts();
     std::vector<uint64_t> shuffledAccounts(accounts.size());
@@ -818,182 +870,87 @@ ApplyLoad::benchmark()
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      getGlobalRandomEngine());
 
-    bool limitHit = false;
-    for (auto accountIndex : shuffledAccounts)
+    LedgerSnapshot ls(mApp);
+    auto appConnector = mApp.getAppConnector();
+
+    auto addTx = [&ls, &appConnector, &txs](TransactionFrameBasePtr tx) {
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto res = tx->checkValid(appConnector, ls, 0, 0, 0, diagnostics);
+        releaseAssert(res && res->isSuccess());
+        txs.emplace_back(tx);
+    };
+
+    releaseAssert(shuffledAccounts.size() >=
+                  config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+    for (size_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
     {
-        auto it = accounts.find(accountIndex);
+        auto it = accounts.find(shuffledAccounts[i]);
+        releaseAssert(it != accounts.end());
+        it->second->loadSequenceNumber();
+        auto [_, tx] = mTxGenerator.paymentTransaction(
+            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
+            std::nullopt);
+        addTx(tx);
+    }
+
+    bool sorobanLimitHit = false;
+    for (size_t i = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+         i < shuffledAccounts.size(); ++i)
+    {
+        auto it = accounts.find(shuffledAccounts[i]);
         releaseAssert(it != accounts.end());
 
-        std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr> tx;
-
-        if (mMode == ApplyLoadMode::CLASSIC)
-        {
-            it->second->loadSequenceNumber();
-            tx = mTxGenerator.paymentTransaction(
-                mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
-                std::nullopt);
-        }
-        else if (mMode == ApplyLoadMode::SOROBAN)
-        {
-            tx = mTxGenerator.invokeSorobanLoadTransactionV2(
-                lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
-                mDataEntryCount, mDataEntrySize, 1'000'000);
-        }
-        else
-        {
-            // We use the transaction index to split the load between:
-            // - classic payments
-            // - SAC payments
-            // - Soroban load transactions
-            // The distribution between classic and Soroban transactions
-            // is not that important because they use separate resource limits.
-            if (it->first % 3 == 0)
-            {
-                it->second->loadSequenceNumber();
-                tx = mTxGenerator.paymentTransaction(
-                    mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first,
-                    1, std::nullopt);
-            }
-            else if (it->first % 3 == 1)
-            {
-                SCAddress toAddress(SC_ADDRESS_TYPE_CONTRACT);
-                toAddress.contractId() = sha256(xdr::xdr_to_opaque(it->first));
-
-                tx = mTxGenerator.invokeSACPayment(
-                    lm.getLastClosedLedgerNum() + 1, it->first, toAddress,
-                    mSACInstanceXLM, 100, 1'000'000);
-            }
-            else
-            {
-                tx = mTxGenerator.invokeSorobanLoadTransactionV2(
-                    lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
-                    mDataEntryCount, mDataEntrySize, 1'000'000);
-            }
-        }
-
-        {
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            auto diagnostics = DiagnosticEventManager::createDisabled();
-            auto res = tx.second->checkValid(mApp.getAppConnector(), ltx, 0, 0,
-                                             UINT64_MAX, diagnostics);
-            releaseAssert((res && res->isSuccess()));
-        }
+        auto [_, tx] = mTxGenerator.invokeSorobanLoadTransactionV2(
+            lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
+            mDataEntryCount, mDataEntrySize, 1'000'000);
 
         uint32_t ledgerVersion = mApp.getLedgerManager()
                                      .getLastClosedLedgerHeader()
                                      .header.ledgerVersion;
-        if (tx.second->isSoroban())
+        auto txResources = tx->getResources(false, ledgerVersion);
+        if (!anyGreater(txResources, resourcesLeft))
         {
-            if (!anyGreater(tx.second->getResources(false, ledgerVersion),
-                            resources))
-            {
-                resources -= tx.second->getResources(false, ledgerVersion);
-            }
-            else
-            {
-                for (size_t i = 0; i < resources.size(); ++i)
-                {
-                    auto type = static_cast<Resource::Type>(i);
-                    if (tx.second->getResources(false, ledgerVersion)
-                            .getVal(type) > resources.getVal(type))
-                    {
-                        CLOG_INFO(Perf,
-                                  "Ledger {} limit hit during tx generation",
-                                  Resource::getStringFromType(type));
-                        limitHit = true;
-                    }
-                }
-
-                break;
-            }
+            resourcesLeft -= txResources;
         }
         else
         {
-            if (!anyGreater(tx.second->getResources(false, ledgerVersion),
-                            classicResources))
+            for (size_t i = 0; i < resourcesLeft.size(); ++i)
             {
-                classicResources -=
-                    tx.second->getResources(false, ledgerVersion);
+                auto type = static_cast<Resource::Type>(i);
+                if (txResources.getVal(type) > resourcesLeft.getVal(type))
+                {
+                    auto resourcesGenerated = maxResourcesToGenerate;
+                    resourcesGenerated -= resourcesLeft;
+                    CLOG_INFO(Perf,
+                              "Ledger {} limit hit during tx generation, "
+                              "total resources generated: {}, not fitting tx "
+                              "resources: {}",
+                              Resource::getStringFromType(type),
+                              resourcesGenerated.toString(),
+                              txResources.toString());
+                    sorobanLimitHit = true;
+                }
             }
-            else
-            {
-                CLOG_INFO(Perf,
-                          "Operation ledger limit hit during tx generation");
-                limitHit = true;
-                break;
-            }
-        }
 
-        txs.emplace_back(tx.second);
+            break;
+        }
+        addTx(tx);
     }
     // If this assert fails, it most likely means that we ran out of
     // accounts, which should not happen.
-    releaseAssert(limitHit);
+    releaseAssert(sorobanLimitHit);
 
-    // Only update Soroban-specific metrics in Soroban mode
-    if (mMode == ApplyLoadMode::SOROBAN || mMode == ApplyLoadMode::MIX)
-    {
-        mTxCountUtilization.Update(
-            (1.0 - (resources.getVal(Resource::Type::OPERATIONS) * 1.0 /
-                    resourcesSnapshot.getVal(Resource::Type::OPERATIONS))) *
-            100000.0);
-        mInstructionUtilization.Update(
-            (1.0 - (resources.getVal(Resource::Type::INSTRUCTIONS) * 1.0 /
-                    resourcesSnapshot.getVal(Resource::Type::INSTRUCTIONS))) *
-            100000.0);
-        mTxSizeUtilization.Update(
-            (1.0 - (resources.getVal(Resource::Type::TX_BYTE_SIZE) * 1.0 /
-                    resourcesSnapshot.getVal(Resource::Type::TX_BYTE_SIZE))) *
-            100000.0);
-        mReadByteUtilization.Update(
-            (1.0 -
-             (resources.getVal(Resource::Type::DISK_READ_BYTES) * 1.0 /
-              resourcesSnapshot.getVal(Resource::Type::DISK_READ_BYTES))) *
-            100000.0);
-        mWriteByteUtilization.Update(
-            (1.0 - (resources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /
-                    resourcesSnapshot.getVal(Resource::Type::WRITE_BYTES))) *
-            100000.0);
-        mReadEntryUtilization.Update(
-            (1.0 -
-             (resources.getVal(Resource::Type::READ_LEDGER_ENTRIES) * 1.0 /
-              resourcesSnapshot.getVal(Resource::Type::READ_LEDGER_ENTRIES))) *
-            100000.0);
-        mWriteEntryUtilization.Update(
-            (1.0 -
-             (resources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) * 1.0 /
-              resourcesSnapshot.getVal(Resource::Type::WRITE_LEDGER_ENTRIES))) *
-            100000.0);
-    }
-    else if (mMode == ApplyLoadMode::CLASSIC)
-    {
-        mTxCountUtilization.Update(
-            (1.0 -
-             (classicResources.getVal(Resource::Type::OPERATIONS) * 1.0 /
-              classicResourcesSnapshot.getVal(Resource::Type::OPERATIONS))) *
-            100000.0);
-    }
-
-    closeLedger(txs);
+    closeLedger(txs, {}, /* recordSorobanUtilization */ true);
 }
 
 double
 ApplyLoad::successRate()
 {
-    if (mMode == ApplyLoadMode::CLASSIC)
-    {
-        auto& success =
-            mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
-        auto& failure =
-            mApp.getMetrics().NewCounter({"ledger", "apply", "failure"});
-        return success.count() * 1.0 / (success.count() + failure.count());
-    }
-    else
-    {
-        return mTxGenerator.getApplySorobanSuccess().count() * 1.0 /
-               (mTxGenerator.getApplySorobanSuccess().count() +
-                mTxGenerator.getApplySorobanFailure().count());
-    }
+    auto& success =
+        mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
+    auto& failure =
+        mApp.getMetrics().NewCounter({"ledger", "apply", "failure"});
+    return success.count() * 1.0 / (success.count() + failure.count());
 }
 
 medida::Histogram const&
@@ -1012,19 +969,19 @@ ApplyLoad::getTxSizeUtilization()
     return mTxSizeUtilization;
 }
 medida::Histogram const&
-ApplyLoad::getReadByteUtilization()
+ApplyLoad::getDiskReadByteUtilization()
 {
-    return mReadByteUtilization;
+    return mDiskReadByteUtilization;
 }
 medida::Histogram const&
-ApplyLoad::getWriteByteUtilization()
+ApplyLoad::getDiskWriteByteUtilization()
 {
     return mWriteByteUtilization;
 }
 medida::Histogram const&
-ApplyLoad::getReadEntryUtilization()
+ApplyLoad::getDiskReadEntryUtilization()
 {
-    return mReadEntryUtilization;
+    return mDiskReadEntryUtilization;
 }
 medida::Histogram const&
 ApplyLoad::getWriteEntryUtilization()

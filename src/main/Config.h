@@ -331,7 +331,6 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Instructions per transaction for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
     // loadgen modes
-    // Also used for configuring apply-load command.
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
@@ -339,7 +338,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Size of the synthetic contract data entries used in apply-load.
     // Currently we generate entries of the equal size for more precise
     // control over the modelled instructions.
-    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING = 0;
+    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE = 0;
 
     // The parameters below control the synthetic bucket list generation in
     // apply-load.
@@ -364,14 +363,16 @@ class Config : public std::enable_shared_from_this<Config>
     uint64_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;
     uint32_t APPLY_LOAD_TX_MAX_INSTRUCTIONS = 0;
 
-    uint32_t APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES = 0;
-    uint32_t APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES = 0;
+    uint32_t APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES = 0;
+
+    uint32_t APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 0;
     uint32_t APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES = 0;
 
-    uint32_t APPLY_LOAD_LEDGER_MAX_READ_BYTES = 0;
-    uint32_t APPLY_LOAD_TX_MAX_READ_BYTES = 0;
+    uint32_t APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_DISK_READ_BYTES = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_WRITE_BYTES = 0;
     uint32_t APPLY_LOAD_TX_MAX_WRITE_BYTES = 0;
@@ -380,24 +381,34 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES = 0;
 
     uint32_t APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 0;
-    uint32_t APPLY_LOAD_MAX_TX_COUNT = 0;
+    uint32_t APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
-    // A min of APPLY_LOAD_MAX_TX_COUNT * queue size multiplier will be used
-    uint32_t APPLY_LOAD_NUM_ACCOUNTS = 0;
+
     uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
 
-    // Number of read-only and read-write entries in the apply-load
-    // transactions. Every entry will have
-    // `APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING` size.
-    std::vector<uint32_t> APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING;
+    // Number of classic transactions to include in each ledger in ledger limit
+    // based apply-load mode.
+    uint32_t APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
+
+    // Number of instructions to generate in the apply-load transactions.
+    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS;
+    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION;
+
+    // Transaction size in bytes for the apply-load transactions.
+    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES;
+    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION;
+
+    // Number of disk read-only and read-write entries in the apply-load
+    // transactions. Every entry will have `APPLY_LOAD_DATA_ENTRY_SIZE` size.
+    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES;
+    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION;
 
     // Number of events to generate in the apply-load transactions.
-    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING;
+    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT;
+    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION;
 
     // MAX_SAC_TPS mode specific parameters
     uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
