@@ -693,7 +693,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
                         std::string s = xdrToCerealString(entry, "entry");
                         s.erase(s.size() - 3, 2); // remove '\n}'
                         ofs << s << ",\n    \"liveUntilLedgerSeq\": "
-                            << liveUntilLedger << "\n\}\n";
+                            << liveUntilLedger << "\n}\n";
                     }
                 }
                 ++entryCount;

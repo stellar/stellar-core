@@ -25,16 +25,10 @@ ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
 {
 }
 
-bool
-ArchivedStateConsistency::usesStateSnapshotInvariant() const
-{
-    return true;
-}
-
 // This test iterates through both the live and archived bucket lists and checks
 // that no entry is live in both BucketLists simultaneously.
 std::string
-ArchivedStateConsistency::stateSnapshotInvariant(
+ArchivedStateConsistency::checkSnapshot(
     CompleteConstLedgerStatePtr ledgerState,
     InMemorySorobanState const& inMemorySnapshot)
 {

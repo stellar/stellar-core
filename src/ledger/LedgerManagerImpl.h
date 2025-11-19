@@ -199,7 +199,8 @@ class LedgerManagerImpl : public LedgerManager
         void threadInvariant() const;
 
         // The following methods are const getters, and can be accessed from any
-        // thread for read-only purposes during the APPLYING phase.
+        // thread for read-only purposes during the APPLYING or READY_FOR_APPLY
+        // phase.
         InMemorySorobanState const& getInMemorySorobanState() const;
 
 #ifdef BUILD_TESTS
@@ -396,10 +397,13 @@ class LedgerManagerImpl : public LedgerManager
 
     // Trigger snapshot invariant on background thread if
     // inMemorySnapshotForInvariant is not null.
+    // If runInParallel is false, runs on the calling thread (this is useful in
+    // certain scenarios such as startup)
     void maybeRunSnapshotInvariantFromLedgerState(
         CompleteConstLedgerStatePtr const& ledgerState,
         std::shared_ptr<InMemorySorobanState const>
-            inMemorySnapshotForInvariant) const;
+            inMemorySnapshotForInvariant,
+        bool runInParallel = true) const;
 
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
@@ -491,7 +495,6 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    void runSnapshotInvariantsOnStartup() const override;
     SorobanNetworkConfig const&
     getLastClosedSorobanNetworkConfig() const override;
 

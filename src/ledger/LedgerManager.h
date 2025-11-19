@@ -240,9 +240,6 @@ class LedgerManager
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
 
-    // Run the state snapshot invariants on startup if enabled.
-    virtual void runSnapshotInvariantsOnStartup() const = 0;
-
     // Return the minimum balance required to establish, in the current ledger,
     // a new ledger entry with `ownerCount` owned objects.  Derived from the
     // current ledger's `baseReserve` value.

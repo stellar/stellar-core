@@ -78,19 +78,7 @@ class InvariantManager
 
     virtual bool shouldRunInvariantSnapshot() const = 0;
 
-    // Copy InMemorySorobanState for invariant checking. This is the only
-    // method that can access the private copy constructor of
-    // InMemorySorobanState.
-    virtual std::shared_ptr<InMemorySorobanState const>
-    copyInMemorySorobanStateForInvariant(
-        InMemorySorobanState const& state) const = 0;
-
 #ifdef BUILD_TESTS
-    // Blocks until any running snapshot invariant scan completes. Used in
-    // testing mode when ALWAYS_RUN_SNAPSHOT_FOR_TESTING is true to ensure
-    // scans complete before proceeding to the next ledger.
-    virtual void waitForScanToCompleteForTesting() const = 0;
-
     virtual void snapshotForFuzzer() = 0;
     virtual void resetForFuzzer() = 0;
 #endif // BUILD_TESTS
