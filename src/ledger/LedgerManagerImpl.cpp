@@ -44,6 +44,7 @@
 #include "util/DebugMetaUtils.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -1395,7 +1396,9 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
     {
         // Ledger state might be updated at the same time, so protect GC
         // call with state mutex
+        JITTER_INJECT_DELAY();
         RecursiveMutexLocker lock(mLedgerStateMutex);
+        JITTER_INJECT_DELAY();
         mApp.getBucketManager().forgetUnreferencedBuckets(
             getLastClosedLedgerHAS());
     }
@@ -1420,6 +1423,8 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         return;
     }
 
+    JITTER_INJECT_DELAY();
+
     // Complete any pending wasm-module-compilation before closing the ledger.
     // This might or might-not exist, depending on whether we triggered a
     // compilation in the previous ledger-apply.
@@ -1434,6 +1439,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #endif
     ZoneScoped;
     mApplyState.markStartOfApplying();
+    JITTER_INJECT_DELAY();
 
     auto ledgerTime = mApplyState.getMetrics().mLedgerClose.TimeScope();
     LogSlowExecution applyLedgerTime{"applyLedger",
@@ -1483,6 +1489,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             FMT_STRING("cannot apply ledger with not supported version: {:d}"),
             header.current().ledgerVersion));
     }
+    JITTER_INJECT_DELAY();
 
     if (txSet->previousLedgerHash() != prevHash)
     {
@@ -1611,6 +1618,8 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // was validated before upgrades. At this point, we've finished executing
     // transactions and are beginning to commit ledger phase.
     mApplyState.markStartOfCommitting();
+    JITTER_INJECT_DELAY();
+
     bool upgradeApplied = false;
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
@@ -1753,6 +1762,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // ledgerVers here and not the initial ledgerVers.
     auto& hm = mApp.getHistoryManager();
     hm.maybeQueueHistoryCheckpoint(ledgerSeq, maybeNewVersion);
+    JITTER_INJECT_DELAY();
 
     // step 2
     ltx.commit();
@@ -1763,6 +1773,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 
     // step 3
     hm.maybeCheckpointComplete(ledgerSeq);
+    JITTER_INJECT_DELAY();
 
     // Step 4
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
@@ -1777,6 +1788,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // subsystems, that's not relevant for Apply State phases since ApplyState
     // is only accessed by LedgerManager's apply threads.
     mApplyState.markEndOfCommitting();
+    JITTER_INJECT_DELAY();
 
     // Step 5: copy the in-memory Soroban state if we should run the snapshot
     // invariant for this ledger. At this point, commit has completed and
@@ -2913,7 +2925,11 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     uint32_t initialLedgerVers)
 {
     ZoneScoped;
+
+    JITTER_INJECT_DELAY();
     RecursiveMutexLocker lock(mLedgerStateMutex);
+    JITTER_INJECT_DELAY();
+
     auto ledgerHeader = ltx.loadHeader().current();
     CLOG_TRACE(Ledger,
                "sealing ledger {} with version {}, sending to bucket list",

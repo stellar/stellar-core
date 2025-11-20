@@ -343,6 +343,15 @@ AC_ARG_ENABLE(tests,
         [Disable building test suite]))
 AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
 
+AC_ARG_ENABLE(thread-jitter,
+    AS_HELP_STRING([--enable-thread-jitter],
+        [Enable thread jitter injection for finding concurrency bugs]))
+AS_IF([test "x$enable_thread_jitter" = "xyes"], [
+  AC_MSG_NOTICE([enabling thread jitter injection])
+  AX_APPEND_COMPILE_FLAGS([-DBUILD_THREAD_JITTER=1])
+])
+AM_CONDITIONAL(BUILD_THREAD_JITTER, [test x$enable_thread_jitter = xyes])
+
 AC_ARG_ENABLE(tracy,
     AS_HELP_STRING([--enable-tracy],
         [Enable 'tracy' profiler/tracer client stub]))
