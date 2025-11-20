@@ -84,15 +84,9 @@ class Invariant
         return std::string{};
     }
 
-    virtual bool
-    usesStateSnapshotInvariant() const
-    {
-        return false;
-    }
-
     virtual std::string
-    stateSnapshotInvariant(CompleteConstLedgerStatePtr ledgerState,
-                           InMemorySorobanState const& inMemorySnapshot)
+    checkSnapshot(CompleteConstLedgerStatePtr ledgerState,
+                  InMemorySorobanState const& inMemorySnapshot)
     {
         return std::string{};
     }

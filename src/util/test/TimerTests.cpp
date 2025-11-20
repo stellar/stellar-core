@@ -106,6 +106,8 @@ TEST_CASE("virtual time with background work", "[timer]")
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
     cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
     cfg.RUN_STANDALONE = false;
+    // Disable extra checks to prevent timers from spinning indefinitely
+    cfg.INVARIANT_EXTRA_CHECKS = false;
 
     VirtualClock clock;
     Application::pointer appPtr = createTestApplication(clock, cfg);
@@ -140,6 +142,8 @@ TEST_CASE("virtual time with background work", "[timer]")
 TEST_CASE("virtual event dispatch order and times", "[timer]")
 {
     Config cfg(getTestConfig(0));
+    // Disable extra checks to prevent timers from spinning indefinitely
+    cfg.INVARIANT_EXTRA_CHECKS = false;
 
     VirtualClock clock;
     Application::pointer appPtr = createTestApplication(clock, cfg);
@@ -260,7 +264,10 @@ TEST_CASE("shared virtual time advances only when all apps idle",
 TEST_CASE("timer cancels", "[timer]")
 {
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, getTestConfig(0));
+    auto cfg = getTestConfig(0);
+    // Disable extra checks to prevent timers from spinning indefinitely
+    cfg.INVARIANT_EXTRA_CHECKS = false;
+    Application::pointer app = createTestApplication(clock, cfg);
     // cancel the timer
     app->getHerder().shutdown();
     app->getOverlayManager().shutdown();

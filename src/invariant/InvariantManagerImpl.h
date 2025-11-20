@@ -30,12 +30,6 @@ class InvariantManagerImpl : public InvariantManager
     std::atomic<bool> mShouldRunStateSnapshotInvariant{false};
     VirtualTimer mStateSnapshotTimer;
 
-#ifdef BUILD_TESTS
-    // Synchronization primitives for waitForScanToCompleteForTesting()
-    mutable std::mutex mSnapshotInvariantMutex;
-    mutable std::condition_variable mSnapshotInvariantCV;
-#endif
-
     struct InvariantFailureInformation
     {
         uint32_t lastFailedOnLedger;
@@ -90,16 +84,7 @@ class InvariantManagerImpl : public InvariantManager
         CompleteConstLedgerStatePtr ledgerState,
         InMemorySorobanState const& inMemorySnapshot) override;
 
-    // Copy InMemorySorobanState for invariant checking. This is the only
-    // method that can access the private copy constructor of
-    // InMemorySorobanState.
-    std::shared_ptr<InMemorySorobanState const>
-    copyInMemorySorobanStateForInvariant(
-        InMemorySorobanState const& state) const override;
-
 #ifdef BUILD_TESTS
-    void waitForScanToCompleteForTesting() const override;
-
     void snapshotForFuzzer() override;
     void resetForFuzzer() override;
 #endif // BUILD_TESTS

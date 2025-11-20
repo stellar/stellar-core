@@ -307,22 +307,6 @@ struct InternalContractDataEntryHash
 // non-const function is called.
 class InMemorySorobanState
 {
-    // Allow only InvariantManagerImpl to access the private copy constructor
-    // for invariant checks.
-    friend std::shared_ptr<InMemorySorobanState const>
-    InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
-        InMemorySorobanState const& state) const;
-
-  private:
-    // Private copy constructor - expensive operation that should only be used
-    // for invariant checks via InvariantManagerImpl friend access
-    InMemorySorobanState(InMemorySorobanState const&) = default;
-    InMemorySorobanState& operator=(InMemorySorobanState const&) = delete;
-
-    // Explicitly delete move operations
-    InMemorySorobanState(InMemorySorobanState&&) = delete;
-    InMemorySorobanState& operator=(InMemorySorobanState&&) = delete;
-
 #ifdef BUILD_TESTS
   public:
 #endif

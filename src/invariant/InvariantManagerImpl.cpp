@@ -280,11 +280,12 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
 void
 InvariantManagerImpl::start(LedgerManager const& ledgerManager)
 {
+    releaseAssert(threadIsMain());
+
     // If state snapshot invariants are enabled, run a snapshot on the
     // initial startup state, then schedule the next run.
     if (mConfig.INVARIANT_EXTRA_CHECKS)
     {
-        ledgerManager.runSnapshotInvariantsOnStartup();
         scheduleSnapshotTimer();
     }
 }
@@ -321,14 +322,6 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
     }
 }
 
-std::shared_ptr<InMemorySorobanState const>
-InvariantManagerImpl::copyInMemorySorobanStateForInvariant(
-    InMemorySorobanState const& state) const
-{
-    return std::shared_ptr<InMemorySorobanState const>(
-        new InMemorySorobanState(state));
-}
-
 // The snapshot invariant is triggered periodically based on wall clock time,
 // managed by the InvariantManagerImpl timing loop. After the given period has
 // elapsed from out last scan, snapshotTimerFired will set
@@ -344,18 +337,12 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     mStateSnapshotInvariantRunning = true;
     mShouldRunStateSnapshotInvariant = false;
 
-    auto reset = gsl::finally([this]() {
-        mStateSnapshotInvariantRunning = false;
-#ifdef BUILD_TESTS
-        // Notify any waiting threads that the invariant has completed
-        mSnapshotInvariantCV.notify_all();
-#endif
-    });
+    auto reset =
+        gsl::finally([this]() { mStateSnapshotInvariantRunning = false; });
 
     for (auto const& invariant : mEnabled)
     {
-        auto result =
-            invariant->stateSnapshotInvariant(ledgerState, inMemorySnapshot);
+        auto result = invariant->checkSnapshot(ledgerState, inMemorySnapshot);
         if (!result.empty())
         {
             auto ledgerSeq =
@@ -368,15 +355,6 @@ InvariantManagerImpl::runStateSnapshotInvariant(
 void
 InvariantManagerImpl::scheduleSnapshotTimer()
 {
-#ifdef BUILD_TESTS
-    // When ALWAYS_RUN_SNAPSHOT_FOR_TESTING is set, we don't need a timer since
-    // we unconditionally run the invariant on every ledger.
-    if (mConfig.ALWAYS_RUN_SNAPSHOT_FOR_TESTING)
-    {
-        return;
-    }
-#endif
-
     auto frequencySeconds = mConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
     mStateSnapshotTimer.expires_from_now(
         std::chrono::seconds(frequencySeconds));
@@ -415,26 +393,8 @@ InvariantManagerImpl::shouldRunInvariantSnapshot() const
         return false;
     }
 
-#ifdef BUILD_TESTS
-    if (mConfig.ALWAYS_RUN_SNAPSHOT_FOR_TESTING)
-    {
-        return true;
-    }
-#endif
-
     return mShouldRunStateSnapshotInvariant;
 }
-
-#ifdef BUILD_TESTS
-void
-InvariantManagerImpl::waitForScanToCompleteForTesting() const
-{
-    std::unique_lock<std::mutex> lock(mSnapshotInvariantMutex);
-    // Wait until any previous invariant completes
-    mSnapshotInvariantCV.wait(
-        lock, [this]() { return !mStateSnapshotInvariantRunning; });
-}
-#endif
 
 #ifdef BUILD_TESTS
 void

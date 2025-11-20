@@ -771,13 +771,6 @@ class Config : public std::enable_shared_from_this<Config>
     // should run. Defaults to 5 minutes (300 seconds).
     uint32_t STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
 
-#ifdef BUILD_TESTS
-    // When true, run state snapshot invariants on every ledger close for
-    // testing. If an invariant is already running, block until it completes
-    // before starting the next one.
-    bool ALWAYS_RUN_SNAPSHOT_FOR_TESTING;
-#endif
-
     std::map<std::string, std::string> VALIDATOR_NAMES;
 
     // Information necessary to compute the weight of a validator for leader
