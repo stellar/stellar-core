@@ -340,8 +340,8 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void startBackgroundEvictionScan(uint32_t ledgerSeq, uint32_t ledgerVers,
-                                     SorobanNetworkConfig const& cfg);
+    void startBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+                                     SorobanNetworkConfig const& networkConfig);
 
     // Returns a pair of vectors representing entries evicted this ledger, where
     // the first vector constains all deleted keys (TTL and temporary), and
@@ -349,10 +349,9 @@ class BucketManager : NonMovableOrCopyable
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
     EvictedStateVectors
-    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
-                                  LedgerKeySet const& modifiedKeys,
-                                  uint32_t ledgerVers,
-                                  SorobanNetworkConfig const& networkConfig);
+    resolveBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+                                  AbstractLedgerTxn& ltx,
+                                  LedgerKeySet const& modifiedKeys);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;

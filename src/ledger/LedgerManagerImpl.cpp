@@ -1765,10 +1765,13 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     hm.maybeCheckpointComplete(ledgerSeq);
 
     // Step 4
-    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(
+            appliedLedgerState->getLastClosedLedgerHeader()
+                .header.ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
     {
         mApp.getBucketManager().startBackgroundEvictionScan(
-            ledgerSeq + 1, initialLedgerVers,
+            appliedLedgerState->getBucketSnapshot(),
             appliedLedgerState->getSorobanConfig());
     }
 
@@ -2806,13 +2809,11 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
-            auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
             auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
             auto evictedState =
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
-                    sorobanConfig);
+                    lclSnapshot, ltxEvictions, keys);
 
             if (protocolVersionStartsFrom(
                     initialLedgerVers,
