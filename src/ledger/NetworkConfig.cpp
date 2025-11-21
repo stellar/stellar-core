@@ -552,7 +552,6 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 {
@@ -629,7 +628,6 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     }
     ltx.commit();
 }
-#endif
 
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
@@ -991,7 +989,6 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 {
@@ -1068,7 +1065,6 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 
     ltx.commit();
 }
-#endif
 
 ConfigSettingEntry
 initialParallelComputeEntry()
@@ -1456,10 +1452,8 @@ SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
                                             Application& app)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     updateCpuCostParamsEntryForV25(ltx);
     updateMemCostParamsEntryForV25(ltx);
-#endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 }
 
 void
@@ -2505,11 +2499,7 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
         }
         else
         {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
-#else
-            releaseAssert(false);
-#endif
         }
     };
 

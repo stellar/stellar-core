@@ -31,10 +31,10 @@ use crate::RustBuf;
 
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just "always supposed to use the latest".
-#[cfg(not(feature = "next"))]
-pub(crate) use p24 as soroban_curr;
-#[cfg(feature = "next")]
+//#[cfg(not(feature = "next"))]
 pub(crate) use p25 as soroban_curr;
+//#[cfg(feature = "next")]
+//pub(crate) use p26 as soroban_curr;
 
 // We also pin some protocol _agnostic_ definitions that are technically
 // implemented by a specific version of soroban, but which is protocol-stable
@@ -50,7 +50,7 @@ pub(crate) mod protocol_agnostic {
     // the callers) to pass a protocol number but it seems unlikely.
     pub(crate) use super::p24::soroban_env_host::xdr::int128_helpers;
 }
-#[cfg(feature = "next")]
+
 #[path = "."]
 pub(crate) mod p25 {
     pub(crate) extern crate soroban_env_host_p25;
@@ -1035,7 +1035,6 @@ const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p22),
     proto_versioned_functions_for_module!(p23),
     proto_versioned_functions_for_module!(p24),
-    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p25),
 ];
 
@@ -1068,7 +1067,6 @@ fn protocol_dispatches_as_expected() {
     assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
     assert_eq!(get_host_module_for_protocol(23, 23).unwrap().max_proto, 23);
     assert_eq!(get_host_module_for_protocol(24, 24).unwrap().max_proto, 24);
-    #[cfg(feature = "next")]
     assert_eq!(get_host_module_for_protocol(25, 25).unwrap().max_proto, 25);
 
     // No protocols past the max known.
