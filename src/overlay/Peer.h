@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "util/asio.h" // IWYU pragma: keep
 #include "database/Database.h"
@@ -34,7 +34,7 @@ static_assert(MAX_TX_SET_ALLOWANCE >=
               MAX_SOROBAN_BYTE_ALLOWANCE + MAX_CLASSIC_BYTE_ALLOWANCE);
 
 // max tx size is 100KB
-static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
+static uint32_t const MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
 class LoopbackPeer;

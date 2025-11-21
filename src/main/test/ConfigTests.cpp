@@ -18,11 +18,11 @@ namespace
 {
 
 bool
-keyMatches(PublicKey& key, const std::vector<std::string>& keys)
+keyMatches(PublicKey& key, std::vector<std::string> const& keys)
 {
     auto keyStr = KeyUtils::toStrKey<PublicKey>(key);
     return std::any_of(std::begin(keys), std::end(keys),
-                       [&](const std::string& x) { return keyStr == x; });
+                       [&](std::string const& x) { return keyStr == x; });
 }
 }
 
@@ -58,7 +58,7 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(!cfg.resolveNodeID("@", publicKey));
     }
 
-    SECTION("unique uppercase abbrevated id")
+    SECTION("unique uppercase abbreviated id")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("@GD", publicKey);
@@ -66,14 +66,14 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(keyMatches(publicKey, {validator1Key}));
     }
 
-    SECTION("unique lowercase abbrevated id")
+    SECTION("unique lowercase abbreviated id")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("@gd", publicKey);
         REQUIRE(!result);
     }
 
-    SECTION("non unique uppercase abbrevated id")
+    SECTION("non unique uppercase abbreviated id")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("@GC", publicKey);
@@ -113,7 +113,7 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(keyMatches(publicKey, {validator1Key}));
     }
 
-    SECTION("abbrevated node id without prefix")
+    SECTION("abbreviated node id without prefix")
     {
         auto publicKey = PublicKey{};
         REQUIRE(!cfg.resolveNodeID("GDKXE2OZMJIPOSLNA6N6F2BVCI3O7", publicKey));

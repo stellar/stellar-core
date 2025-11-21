@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "overlay/Peer.h"
 #include "overlay/SurveyDataManager.h"
@@ -84,7 +84,7 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     SurveyDataManager& getSurveyDataManagerForTesting();
 
     // Exposes the private function `createTimeSlicedSurveyRequest` for testing
-    // purposes. Sets inbound and outbound peer indicies to 0.
+    // purposes. Sets inbound and outbound peer indices to 0.
     std::optional<StellarMessage>
     createTimeSlicedSurveyRequestForTesting(NodeID const& nodeToSurvey);
 #endif

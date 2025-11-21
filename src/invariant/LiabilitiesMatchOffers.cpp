@@ -56,7 +56,7 @@ getBuyingLiabilities(LedgerEntry const& le)
     throw std::runtime_error("Unknown LedgerEntry type");
 }
 
-int64_t
+static int64_t
 getSellingLiabilities(LedgerEntry const& le)
 {
     if (le.data.type() == ACCOUNT)

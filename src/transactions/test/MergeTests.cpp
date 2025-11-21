@@ -53,7 +53,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
     auto txfee = app->getLedgerManager().getLastTxFee();
 
-    const int64_t minBalance =
+    int64_t const minBalance =
         app->getLedgerManager().getLastMinBalance(5) + 20 * txfee;
 
     auto a1 = root->create("A", 2 * minBalance);
@@ -449,7 +449,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     auto xlm = makeNativeAsset();
                     auto curIssued = a1.asset("CUR1");
 
-                    const Price somePrice(3, 2);
+                    Price const somePrice(3, 2);
                     for (int i = 0; i < 4; i++)
                     {
                         a1.manageOffer(0, xlm, curIssued, somePrice, 100);
@@ -973,7 +973,7 @@ TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
     auto root = app->getRoot();
     auto txfee = app->getLedgerManager().getLastTxFee();
 
-    const int64_t minBalance =
+    int64_t const minBalance =
         app->getLedgerManager().getLastMinBalance(0) + txfee * 2;
 
     auto a1 = root->create("A", minBalance);

@@ -82,7 +82,7 @@ fromQuorumSplitJson(QuorumIntersectionChecker::PotentialSplit& split,
     split.second.reserve(value[1].size());
 
     // Parse left side
-    for (const auto& nodeStr : value[0])
+    for (auto const& nodeStr : value[0])
     {
         if (!nodeStr.isString())
         {
@@ -93,7 +93,7 @@ fromQuorumSplitJson(QuorumIntersectionChecker::PotentialSplit& split,
     }
 
     // Parse right side
-    for (const auto& nodeStr : value[1])
+    for (auto const& nodeStr : value[1])
     {
         if (!nodeStr.isString())
         {
@@ -130,7 +130,7 @@ fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
     }
 
     criticalGroups.clear();
-    for (const auto& groupValue : value)
+    for (auto const& groupValue : value)
     {
         if (!groupValue.isArray())
         {
@@ -139,7 +139,7 @@ fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
         }
 
         std::set<NodeID> group;
-        for (const auto& nodeStr : groupValue)
+        for (auto const& nodeStr : groupValue)
         {
             if (!nodeStr.isString())
             {
@@ -351,7 +351,7 @@ QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
     mCumulativeMemByte = 0;
 }
 
-QuorumCheckerStatus
+static QuorumCheckerStatus
 checkQuorumIntersectionInner(
     QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
     QuorumCheckerResource& limits, QuorumCheckerMetrics& metrics)
@@ -410,7 +410,7 @@ checkQuorumIntersectionInner(
         }
         return status;
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         metrics.mFailedRun += 1;
         metrics.mCumulativeTimeMs += usage.time_ms;
@@ -459,7 +459,7 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
         writeResults(outResultJsonPath, status, split, criticalGroups, metrics,
                      "");
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         std::string msg = e.what();
         writeResults(outResultJsonPath, status, split, criticalGroups, metrics,
@@ -531,8 +531,8 @@ runQuorumIntersectionCheckAsync(
     }
     size_t numNodes = qmap.size();
 
-    // we propagate the logging level of partition "SCP" beacuse that's the
-    // level which the quorum checker is assigned under. this means the
+    // We propagate the logging level of partition "SCP" because that's the
+    // level which the quorum checker is assigned under. This means the
     // subprocess will be globally logging at this level.
     std::string exe = std::string(rust_bridge::current_exe());
     std::string ll = Logging::getStringFromLL(Logging::getLogLevel("SCP"));
@@ -568,7 +568,7 @@ runQuorumIntersectionCheckAsync(
         // line-running process which is just `QuorumCheckerStatus` as integer
         // on success. However, if the command fails due to abort (if exceeding
         // the memory limit), the ecode=1 will be returned because of the
-        // simplfication of collapsing all non-WIFEXITED exits to error code 1
+        // simplification of collapsing all non-WIFEXITED exits to error code 1
         // (see `mapExitStatusToErrorCode` in ProcessManagerImpl.cpp).
         int ecode = ec.value();
         CLOG_DEBUG(SCP,
@@ -605,7 +605,7 @@ runQuorumIntersectionCheckAsync(
                     }
                 }
             }
-            catch (const RustQuorumCheckerError& e)
+            catch (RustQuorumCheckerError const& e)
             {
                 CLOG_ERROR(SCP,
                            "Error processing quorum intersection result: {}",

@@ -63,26 +63,26 @@ sampleDiscrete(std::vector<T> const& values,
 } // namespace
 
 // Units of load are scheduled at 100ms intervals.
-const uint32_t LoadGenerator::STEP_MSECS = 100;
+uint32_t const LoadGenerator::STEP_MSECS = 100;
 
 // If submission fails with txBAD_SEQ, attempt refreshing the account or
 // re-submitting a new payment
-const uint32_t LoadGenerator::TX_SUBMIT_MAX_TRIES = 10;
+uint32_t const LoadGenerator::TX_SUBMIT_MAX_TRIES = 10;
 
 // After successfully submitting desired load, wait a bit to let it get into the
 // ledger.
-const uint32_t LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
+uint32_t const LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
 
 // After successfully submitting desired load, wait for this many ledgers
 // without checking for account consistency.
-const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
+uint32_t const LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 
 // Minimum unique account multiplier. This is used to calculate the minimum
 // number of accounts needed to sustain desired tx/s rate (this provides a
 // buffer in case loadgen is unstable and needs more accounts)
-const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
+uint32_t const LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
-uint32_t
+static uint32_t
 getTxCount(Application& app, bool isSoroban)
 {
     if (isSoroban)

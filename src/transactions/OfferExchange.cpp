@@ -780,7 +780,7 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     return res;
 }
 
-void
+static void
 adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
             LedgerTxnEntry const& account, Asset const& wheat,
             TrustLineWrapper const& wheatLine, Asset const& sheep,

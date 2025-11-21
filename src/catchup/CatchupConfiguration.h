@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
@@ -50,7 +50,7 @@ class CatchupConfiguration
         OFFLINE_COMPLETE,
         ONLINE
     };
-    static const uint32_t CURRENT = 0;
+    static uint32_t const CURRENT = 0;
 
     CatchupConfiguration(uint32_t toLedger, uint32_t count, Mode mode);
     CatchupConfiguration(LedgerNumHashPair ledgerHashPair, uint32_t count,

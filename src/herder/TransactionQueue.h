@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/SecretKey.h"
 #include "herder/TxQueueLimiter.h"
@@ -374,7 +374,7 @@ class ClassicTransactionQueue : public TransactionQueue
     virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) override;
 };
 
-extern std::array<const char*,
+extern std::array<char const*,
                   static_cast<int>(
                       TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING;

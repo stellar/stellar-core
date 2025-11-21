@@ -110,8 +110,8 @@ TEST_CASE_VERSIONS("set trustline flags", "[tx][settrustlineflags]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    const int64_t trustLineLimit = INT64_MAX;
-    const int64_t trustLineStartingBalance = 20000;
+    int64_t const trustLineLimit = INT64_MAX;
+    int64_t const trustLineStartingBalance = 20000;
 
     auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 

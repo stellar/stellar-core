@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "BallotProtocol.h"
 #include "LocalNode.h"
@@ -25,7 +25,7 @@ class Node;
  */
 class Slot : public std::enable_shared_from_this<Slot>
 {
-    const uint64 mSlotIndex; // the index this slot is tracking
+    uint64 const mSlotIndex; // the index this slot is tracking
     SCP& mSCP;
 
     BallotProtocol mBallotProtocol;

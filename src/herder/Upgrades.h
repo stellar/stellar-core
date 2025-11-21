@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "xdr/Stellar-ledger.h"
 
@@ -141,7 +141,7 @@ class Upgrades
 // ConfigUpgradeSetFrame contains a ConfigUpgradeSet that
 // was retrieved from the ledger given a ConfigUpgradeSetKey. The
 // ConfigUpgradeSetKey will be converted to a ContractData LedgerKey, and the
-// ContractData LedgerEntry retreived with that will have a val of SCV_BYTES
+// ContractData LedgerEntry retrieved with that will have a val of SCV_BYTES
 // containing a serialized ConfigUpgradeSet. The ConfigUpgradeSetKey is what
 // validators vote on during upgrades. The hash in the key must match the sha256
 // hash of the ConfigUpgradeSet.

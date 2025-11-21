@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2022 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 // You should include this header if you want to un-marshal XDR types from the
 // C++ type rust::Vec<T> declared by cxx.rs.
@@ -19,7 +19,7 @@ namespace detail
 {
 // This just tells xdrpp that it's safe to use rust::Vec<uint8_t> as a byte
 // buffer type. It has to be declared _before_ we include xdrpp/marshal.h
-void bytes_to_void(const rust::Vec<uint8_t>&);
+void bytes_to_void(rust::Vec<uint8_t> const&);
 }
 }
 

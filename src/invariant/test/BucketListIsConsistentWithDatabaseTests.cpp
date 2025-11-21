@@ -208,9 +208,9 @@ struct BucketListGenerator
     }
 };
 
-bool
+static bool
 doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
-                  const BucketEntry& be)
+                  BucketEntry const& be)
 {
     for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
@@ -222,8 +222,8 @@ doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
     return false;
 }
 
-bool
-doesBucketListContain(LiveBucketList& bl, const BucketEntry& be)
+static bool
+doesBucketListContain(LiveBucketList& bl, BucketEntry const& be)
 {
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {

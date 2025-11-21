@@ -80,7 +80,7 @@ class TypedDynamicXDRGetterResolver : public DynamicXDRGetter
 };
 
 template <typename T>
-std::unique_ptr<DynamicXDRGetter>
+static std::unique_ptr<DynamicXDRGetter>
 createXDRGetter(T const& xdrMessage, TTLGetter ttlGetter, bool validate)
 {
     return std::make_unique<TypedDynamicXDRGetterResolver<T>>(

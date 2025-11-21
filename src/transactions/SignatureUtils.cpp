@@ -61,7 +61,7 @@ verifyEd25519SignedPayload(DecoratedSignature const& sig,
 }
 
 DecoratedSignature
-signHashX(const ByteSlice& x)
+signHashX(ByteSlice const& x)
 {
     ZoneScoped;
     DecoratedSignature result;

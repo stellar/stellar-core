@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "TxSetFrame.h"
 #include "Upgrades.h"
@@ -157,10 +157,10 @@ class Herder
 #ifdef BUILD_TESTS
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
+                                           SCPQuorumSet const& qset,
                                            TxSetXDRFrameConstPtr txset) = 0;
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
+                                           SCPQuorumSet const& qset,
                                            StellarMessage const& txset) = 0;
 
     virtual void

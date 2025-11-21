@@ -2,13 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ApplicationImpl.h"
 #include "util/Fs.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkWithCallback.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <limits>
-#define STELLAR_CORE_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
-#include "ApplicationImpl.h"
 
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
@@ -78,7 +77,7 @@
 #include <set>
 #include <string>
 
-static const int SHUTDOWN_DELAY_SECONDS = 1;
+static int const SHUTDOWN_DELAY_SECONDS = 1;
 
 namespace stellar
 {
@@ -1245,7 +1244,7 @@ ApplicationImpl::getState() const
 std::string
 ApplicationImpl::getStateHuman() const
 {
-    static std::array<const char*, APP_NUM_STATE> stateStrings =
+    static std::array<char const*, APP_NUM_STATE> stateStrings =
         std::array{"Booting",     "Joining SCP", "Connected",
                    "Catching up", "Synced!",     "Stopping"};
     return std::string(stateStrings[getState()]);

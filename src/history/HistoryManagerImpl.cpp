@@ -76,19 +76,19 @@ HistoryManager::createPublishQueueDir(Config const& cfg)
     fs::mkpath(HistoryManager::publishQueuePath(cfg).string());
 }
 
-std::filesystem::path
+static std::filesystem::path
 publishQueueFileName(uint32_t seq)
 {
     return fs::hexStr(seq) + ".checkpoint";
 }
 
-std::filesystem::path
+static std::filesystem::path
 publishQueueTmpFileName(uint32_t seq)
 {
     return fs::hexStr(seq) + ".checkpoint.dirty";
 }
 
-void
+static void
 writeCheckpointFile(Application& app, HistoryArchiveState const& has,
                     bool finalize)
 {
@@ -282,7 +282,7 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
     }
 }
 
-bool
+static bool
 isPublishFile(std::string const& name)
 {
     std::regex re("^[a-z0-9]{8}\\.checkpoint$");
@@ -290,7 +290,7 @@ isPublishFile(std::string const& name)
     return a;
 }
 
-bool
+static bool
 isPublishTmpFile(std::string const& name)
 {
     std::regex re("^[a-z0-9]{8}\\.checkpoint.dirty$");
@@ -298,13 +298,13 @@ isPublishTmpFile(std::string const& name)
     return a;
 }
 
-std::vector<std::string>
+static std::vector<std::string>
 findPublishFiles(std::string const& dir)
 {
     return fs::findfiles(dir, isPublishFile);
 }
 
-void
+static void
 iterateOverCheckpoints(std::vector<std::string> const& files,
                        std::function<void(uint32_t, std::string const&)> f)
 {
@@ -315,14 +315,14 @@ iterateOverCheckpoints(std::vector<std::string> const& files,
     }
 }
 
-void
+static void
 forEveryQueuedCheckpoint(std::string const& dir,
                          std::function<void(uint32_t, std::string const&)> f)
 {
     iterateOverCheckpoints(findPublishFiles(dir), f);
 }
 
-void
+static void
 forEveryTmpCheckpoint(std::string const& dir,
                       std::function<void(uint32_t, std::string const&)> f)
 {
@@ -491,7 +491,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
-HistoryArchiveState
+static HistoryArchiveState
 loadCheckpointHAS(std::string const& filename)
 {
     HistoryArchiveState has;

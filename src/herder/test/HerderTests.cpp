@@ -84,9 +84,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         auto c1 = TestAccount{*app, getAccount("C")};
 
         auto txfee = app->getLedgerManager().getLastTxFee();
-        const int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
-        const int64_t paymentAmount = 100;
-        const int64_t startingBalance =
+        int64_t const minBalance = app->getLedgerManager().getLastMinBalance(0);
+        int64_t const paymentAmount = 100;
+        int64_t const startingBalance =
             minBalance + (paymentAmount + txfee) * 3;
 
         SECTION("basic ledger close on valid txs")
@@ -251,11 +251,11 @@ testTxSet(uint32 protocolVersion)
     // set up world
     auto root = app->getRoot();
 
-    const int nbAccounts = 3;
+    int const nbAccounts = 3;
 
     std::vector<TestAccount> accounts;
 
-    const int64_t minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+    int64_t const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
 
     int64_t accountBalance =
         app->getLedgerManager().getLastTxFee() + minBalance0;
@@ -2272,7 +2272,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             return secretKey.getPublicKey();
         };
 
-        auto makeSingleton = [](const PublicKey& key) {
+        auto makeSingleton = [](PublicKey const& key) {
             auto result = SCPQuorumSet{};
             result.threshold = 1;
             result.validators.push_back(key);
@@ -2874,7 +2874,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& lam = static_cast<LedgerApplyManagerImpl&>(
             outOfSync->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
@@ -2901,7 +2901,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
             outOfSync2->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil(
             [&]() {
@@ -3704,7 +3704,7 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
     REQUIRE(herder.trackingConsensusLedgerIndex() == ledger);
 }
 
-std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
+static std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
 getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
 {
     std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
@@ -3762,7 +3762,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             if (parallelLedgerClose)
             {
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
-                // Add artifical delay to ledger close to increase chances of
+                // Add artificial delay to ledger close to increase chances of
                 // conflicts
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(delayCloseMs);
@@ -4459,10 +4459,10 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                     lhe.hash = header.previousLedgerHash;
                 }
 
-                // This test excerises a race where we start applying ledger N +
+                // This test exercises a race where we start applying ledger N +
                 // 1 before we publish the result of N. This shouldn't violate
                 // any ApplyState invariants. ApplyState should already be
-                // commited and up to date via the apply thread, even if the
+                // committed and up to date via the apply thread, even if the
                 // main thread has not yet published the result to the rest of
                 // core.
                 if (enableParallelApply)
@@ -6374,7 +6374,7 @@ addOrgs(int orgsToAdd, Topology const& t)
 
 // Returns `true` if the set intersection of `leaders1` and `leaders2` is not
 // empty.
-bool
+static bool
 leadersIntersect(std::set<NodeID> const& leaders1,
                  std::set<NodeID> const& leaders2)
 {
@@ -6387,7 +6387,7 @@ leadersIntersect(std::set<NodeID> const& leaders1,
 // Given two quorum sets consisting of validators in `validators1` and
 // `validators2`, this function returns the probability that the two quorum sets
 // will agree on a leader in the first round of nomination.
-double
+static double
 computeExpectedFirstRoundAgreementProbability(
     std::vector<ValidatorEntry> const& validators1,
     std::vector<ValidatorEntry> const& validators2)
@@ -6426,7 +6426,7 @@ computeExpectedFirstRoundAgreementProbability(
 // test aims to analyze the worst case scenario where the two sides are fairly
 // balanced and real-world networking conditions are in place (some nodes
 // lagging, etc), such that disagreement always results in a timeout.
-void
+static void
 testAsymmetricTimeouts(Topology const& qs1, Topology const& qs2,
                        int const numLedgers)
 {
@@ -6577,7 +6577,7 @@ TEST_CASE("Asymmetric quorum timeouts", "[herder]")
 // Test that the nomination algorithm behaves as expected when a random
 // `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation for
 // `numLedgers` slots.
-void
+static void
 testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
                          int const numLedgers)
 {

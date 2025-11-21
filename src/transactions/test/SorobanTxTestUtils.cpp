@@ -280,7 +280,7 @@ makeTransferEvent(SCAddress const& from, SCAddress const& to, int64_t amount,
 }
 
 ContractEvent
-makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
+makeTransferEvent(stellar::Hash const& contractId, Asset const& asset,
                   SCAddress const& from, SCAddress const& to, int64_t amount,
                   std::optional<SCMapEntry> toMemoEntry)
 {
@@ -324,7 +324,7 @@ makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
 }
 
 ContractEvent
-makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
+makeMintOrBurnEvent(bool isMint, stellar::Hash const& contractId,
                     Asset const& asset, SCAddress const& addr, int64 amount,
                     std::optional<SCMapEntry> memoEntry)
 {
@@ -735,7 +735,7 @@ TestContract::Invocation::deduplicateFootprint()
     UnorderedSet<LedgerKey> keys;
 
     auto deduplicate = [&](auto const& fp) {
-        for (const auto& key : fp)
+        for (auto const& key : fp)
         {
             if (keys.insert(key).second)
             {
@@ -1509,7 +1509,7 @@ SorobanTest::createClassicAccountSigner(TestAccount const& account,
     LedgerKey accountKey(LedgerEntryType::ACCOUNT);
     accountKey.account().accountID = account.getPublicKey();
     accountKeys.push_back(accountKey);
-    for (const auto& signer : signers)
+    for (auto const& signer : signers)
     {
         if (signer->getPublicKey().ed25519() !=
             account.getPublicKey().ed25519())

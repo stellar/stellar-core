@@ -174,19 +174,19 @@ CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
     mLedgerHeaders->flush();
 }
 
-uint32_t
+static uint32_t
 getLedgerSeq(TransactionHistoryEntry const& entry)
 {
     return entry.ledgerSeq;
 }
 
-uint32_t
+static uint32_t
 getLedgerSeq(TransactionHistoryResultEntry const& entry)
 {
     return entry.ledgerSeq;
 }
 
-uint32_t
+static uint32_t
 getLedgerSeq(LedgerHeaderHistoryEntry const& entry)
 {
     return entry.header.ledgerSeq;

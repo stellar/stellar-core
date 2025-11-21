@@ -28,7 +28,7 @@ using VQ = xdr::xvector<QS>;
 using VK = xdr::xvector<PublicKey>;
 using std::make_shared;
 
-void
+static void
 quorumIntersectionCheckerV2Wrapper(
     Application& app, std::shared_ptr<QuorumMapIntersectionState> const& state,
     QuorumTracker::QuorumMap const& qmap, ProcessManager& pm,
@@ -95,7 +95,7 @@ quorumIntersectionCheckerV2Wrapper(
     }
 }
 
-bool
+static bool
 networkEnjoysQuorumIntersectionV2Wrapper(QuorumTracker::QuorumMap const& qmap,
                                          Config const& cfg)
 {
@@ -110,7 +110,7 @@ networkEnjoysQuorumIntersectionV2Wrapper(QuorumTracker::QuorumMap const& qmap,
     return state->mStatus == QuorumCheckerStatus::UNSAT;
 }
 
-std::set<std::set<NodeID>>
+static std::set<std::set<NodeID>>
 runIntersectionCriticalGroupsCheckV2(QuorumTracker::QuorumMap const& qmap,
                                      Config const& cfg)
 {
@@ -125,7 +125,7 @@ runIntersectionCriticalGroupsCheckV2(QuorumTracker::QuorumMap const& qmap,
     return state->mIntersectionCriticalNodes;
 }
 
-std::set<std::set<NodeID>>
+static std::set<std::set<NodeID>>
 runIntersectionCriticalGroupsCheck(QuorumTracker::QuorumMap const& initQmap,
                                    std::optional<Config> const& config,
                                    std::atomic_bool& interruptFlag)
@@ -483,7 +483,7 @@ TEST_CASE("quorum plausible non intersection", "[herder][quorumintersection]")
     REQUIRE(!networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg));
 }
 
-uint32
+static uint32
 roundUpPct(size_t n, size_t pct)
 {
     return static_cast<uint32>(size_t(1) +

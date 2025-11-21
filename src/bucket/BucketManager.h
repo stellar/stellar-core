@@ -1,3 +1,7 @@
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
@@ -18,10 +22,6 @@
 #include <mutex>
 #include <set>
 #include <string>
-
-// Copyright 2015 Stellar Development Foundation and contributors. Licensed
-// under the Apache License, Version 2.0. See the COPYING file at the root
-// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 namespace medida
 {
@@ -344,8 +344,8 @@ class BucketManager : NonMovableOrCopyable
                                      SorobanNetworkConfig const& cfg);
 
     // Returns a pair of vectors representing entries evicted this ledger, where
-    // the first vector constains all deleted keys (TTL and temporary), and
-    // the second vector contains all archived entries (persistent and
+    // the first vector contains all deleted keys (TTL and temporary), and the
+    // second vector contains all archived entries (persistent and
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
     EvictedStateVectors

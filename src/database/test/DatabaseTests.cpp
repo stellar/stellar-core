@@ -88,7 +88,7 @@ TEST_CASE("database on-disk smoketest", "[db]")
     transactionTest(app);
 }
 
-void
+static void
 checkMVCCIsolation(Application::pointer app)
 {
 

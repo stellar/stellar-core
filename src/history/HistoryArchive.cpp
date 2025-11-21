@@ -37,7 +37,7 @@ namespace stellar
 {
 
 template <typename... Tokens>
-std::string
+static std::string
 formatString(std::string const& templateString, Tokens const&... tokens)
 {
     try

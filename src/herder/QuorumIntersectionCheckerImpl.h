@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 ////////////////////////////////////////////////////////////////////////////////
 // Quorum intersection checking
@@ -67,7 +67,7 @@
 //
 // First: assume we have as a building block the ability to check a set of nodes
 // for being-a-quorum. This part isn't hard and there's code implementing it
-// below (QuorumIntersectionChecker::isAQuorum, though it's impelmented in terms
+// below (QuorumIntersectionChecker::isAQuorum, though it's implemented in terms
 // of refinement 2 so don't read ahead just yet, just trust me).
 //
 // We could check quorum intersection for a network N via a loop like this:
@@ -373,13 +373,13 @@ class QuorumIntersectionCheckerImpl;
 // innerSets, for fast successor-testing.
 struct QBitSet
 {
-    const uint32_t mThreshold;
-    const BitSet mNodes;
-    const QGraph mInnerSets;
+    uint32_t const mThreshold;
+    BitSet const mNodes;
+    QGraph const mInnerSets;
 
     // Union of mNodes and i.mAllSuccessors for i in mInnerSets: summarizes
     // every node that this QBitSet directly depends on.
-    const BitSet mAllSuccessors;
+    BitSet const mAllSuccessors;
 
     QBitSet(uint32_t threshold, BitSet const& nodes, QGraph const& innerSets);
 
@@ -517,7 +517,7 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     bool containsQuorumSliceForNode(BitSet const& bs, size_t node) const;
     BitSet contractToMaximalQuorum(BitSet nodes) const;
 
-    const int MAX_CACHED_QUORUMS_SIZE = 0xffff;
+    int const MAX_CACHED_QUORUMS_SIZE = 0xffff;
     mutable stellar::RandomEvictionCache<BitSet, bool, BitSet::HashFunction>
         mCachedQuorums;
     bool isAQuorum(BitSet const& nodes) const;

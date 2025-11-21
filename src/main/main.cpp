@@ -158,11 +158,11 @@ outOfMemory()
 // Rust hashes in checkXDRFileIdentity.
 namespace stellar
 {
-extern const std::vector<std::pair<std::filesystem::path, std::string>>
+extern std::vector<std::pair<std::filesystem::path, std::string>> const
     XDR_FILES_SHA256;
 }
 
-void
+static void
 checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
@@ -227,7 +227,7 @@ checkXDRFileIdentity()
     }
 }
 
-void
+static void
 checkStellarCoreMajorVersionProtocolIdentity()
 {
     // This extracts a major version number from the git version string embedded

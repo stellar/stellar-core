@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
@@ -171,12 +171,12 @@ class LedgerManager
 #endif
                         ) = 0;
   public:
-    static const uint32_t GENESIS_LEDGER_SEQ;
-    static const uint32_t GENESIS_LEDGER_VERSION;
-    static const uint32_t GENESIS_LEDGER_BASE_FEE;
-    static const uint32_t GENESIS_LEDGER_BASE_RESERVE;
-    static const uint32_t GENESIS_LEDGER_MAX_TX_SIZE;
-    static const int64_t GENESIS_LEDGER_TOTAL_COINS;
+    static uint32_t const GENESIS_LEDGER_SEQ;
+    static uint32_t const GENESIS_LEDGER_VERSION;
+    static uint32_t const GENESIS_LEDGER_BASE_FEE;
+    static uint32_t const GENESIS_LEDGER_BASE_RESERVE;
+    static uint32_t const GENESIS_LEDGER_MAX_TX_SIZE;
+    static int64_t const GENESIS_LEDGER_TOTAL_COINS;
 
     enum State
     {
@@ -297,10 +297,7 @@ class LedgerManager
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
 
-    // loads the last ledger information from the database with the following
-    // parameter:
-    //  * restoreBucketlist indicates whether to restore the bucket list fully,
-    //  and restart merges
+    // loads the last ledger information from the database
     virtual void loadLastKnownLedger() = 0;
 
     // Helper for a faster load of the last closed ledger used only for various

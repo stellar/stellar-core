@@ -2818,7 +2818,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
         configs.push_back(cfg);
     }
 
-    // Artifical tx size limit to prevent batches from going over
+    // Artificial tx size limit to prevent batches from going over
     // Herder.getMaxTxSize() No limit if set to 0.
     uint32_t txSizeLimit = 0;
     uint32_t const INVALID_LIMIT = 1;

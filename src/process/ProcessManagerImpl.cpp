@@ -57,7 +57,7 @@ enum ProcessLifecycle
 namespace stellar
 {
 
-static const asio::error_code ABORT_ERROR_CODE(asio::error::operation_aborted,
+static asio::error_code const ABORT_ERROR_CODE(asio::error::operation_aborted,
                                                asio::system_category());
 
 static asio::error_code
@@ -699,7 +699,7 @@ ProcessManagerImpl::reapChildren()
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     for (auto const& pair : mProcesses)
     {
-        const int pid = pair.first;
+        int const pid = pair.first;
         int status = 0;
         // If we find the child for which we received this SIGCHLD signal,
         // store the pid and status
@@ -716,8 +716,8 @@ ProcessManagerImpl::reapChildren()
         // Now go all over all (pid, status) and handle them
         for (auto const& pidStatus : signaledChildren)
         {
-            const int pid = std::get<0>(pidStatus);
-            const int status = std::get<1>(pidStatus);
+            int const pid = std::get<0>(pidStatus);
+            int const status = std::get<1>(pidStatus);
             handleProcessTermination(pid, status);
         }
     }
@@ -734,7 +734,7 @@ ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
     }
     pe->mImpl->mLifecycle = ProcessLifecycle::TRIED_POLITE_SHUTDOWN;
     pe->mImpl->cancel(ABORT_ERROR_CODE);
-    const int pid = pe->mImpl->getProcessId();
+    int const pid = pe->mImpl->getProcessId();
     if (kill(pid, SIGTERM) != 0)
     {
         CLOG_WARNING(Process,
@@ -755,7 +755,7 @@ ProcessManagerImpl::forcedShutdown(std::shared_ptr<ProcessExitEvent> pe)
         return true;
     }
     pe->mImpl->mLifecycle = ProcessLifecycle::TRIED_FORCED_SHUTDOWN;
-    const int pid = pe->mImpl->getProcessId();
+    int const pid = pe->mImpl->getProcessId();
     if (kill(pid, SIGKILL) != 0)
     {
         CLOG_WARNING(Process,
@@ -800,14 +800,14 @@ ProcessExitEvent::Impl::run()
     }
     // Iterate through all possibly open file descriptors except stdin, stdout,
     // and stderr and set FD_CLOEXEC so the subprocess doesn't inherit them
-    const int maxFds = sysconf(_SC_OPEN_MAX);
+    int const maxFds = sysconf(_SC_OPEN_MAX);
     // as the space of open file descriptors is arbitrary large
     // we use as a heuristic the number of consecutive unused descriptors
     // as an indication that we're past the range where descriptors are
     // allocated
     // a better way would be to enumerate the opened descriptors, but there
     // doesn't seem to be a portable way to do this
-    const int maxGAP = 512;
+    int const maxGAP = 512;
     for (int fd = 3, lastFd = 3; (fd < maxFds) && ((fd - lastFd) < maxGAP);
          ++fd)
     {
