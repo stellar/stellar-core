@@ -386,16 +386,16 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             auto ledgerVersion =
                 lm.getLastClosedLedgerHeader().header.ledgerVersion;
 
-            // Manually trigger eviction so we can test the invariant directly
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto evictedState =
-                app->getBucketManager().resolveBackgroundEvictionScan(
-                    ltx, lm.getLastClosedLedgerNum() + 1, {}, ledgerVersion,
-                    lm.getLastClosedSorobanNetworkConfig());
-
             auto snapshot = app->getBucketManager()
                                 .getBucketSnapshotManager()
                                 .copySearchableLiveBucketListSnapshot();
+            // Manually trigger eviction so we can test the invariant directly
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.loadHeader().current().ledgerSeq++;
+            auto evictedState =
+                app->getBucketManager().resolveBackgroundEvictionScan(snapshot,
+                                                                      ltx, {});
+
             auto hotArchiveSnap =
                 app->getBucketManager()
                     .getBucketSnapshotManager()

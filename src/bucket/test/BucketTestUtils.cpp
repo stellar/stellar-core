@@ -234,14 +234,9 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                 }
 
                 LedgerTxn ltxEvictions(ltx);
-
-                auto sorobanConfig =
-                    SorobanNetworkConfig::loadFromLedger(ltxEvictions);
-
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
-                        sorobanConfig);
+                        lclSnapshot, ltxEvictions, keys);
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::
