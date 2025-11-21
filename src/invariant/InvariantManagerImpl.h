@@ -63,11 +63,8 @@ class InvariantManagerImpl : public InvariantManager
     virtual void checkOnLedgerCommit(
         SearchableSnapshotConstPtr lclLiveState,
         SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-        std::vector<LedgerEntry> const& persitentEvictedFromLive,
-        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
-        override;
+        LedgerCommitState const& commitState,
+        InMemorySorobanState const& inMemorySorobanState) override;
 
     virtual void checkAfterAssumeState(uint32_t newestLedger) override;
 
