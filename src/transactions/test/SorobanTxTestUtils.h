@@ -10,6 +10,7 @@
 #include "test/test.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
+#include "xdr/Stellar-transaction.h"
 
 namespace stellar
 {
@@ -471,6 +472,10 @@ class ContractStorageTestClient
     extend(std::string const& key, ContractDataDurability durability,
            uint32_t threshold, uint32_t extendTo,
            std::optional<SorobanInvocationSpec> spec = std::nullopt);
+
+    InvokeHostFunctionResultCode
+    restore(std::string const& key, ContractDataDurability durability,
+            std::optional<SorobanInvocationSpec> spec = std::nullopt);
 
     TestContract::Invocation resizeStorageAndExtendInvocation(
         std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
