@@ -1,7 +1,7 @@
-# Ubuntu 20.04 Remote Dev Container Instructions
+# Ubuntu 24.04 Remote Dev Container Instructions
 
 ## Who's interested in this and why?
-* For those developers who'd like to validate their changes on Ubuntu 20.04, we provide a sandboxed development environment using the 'Remote Development Container' features of Microsoft's Visual Studio Code.
+* For those developers who'd like to validate their changes on Ubuntu 24.04, we provide a sandboxed development environment using the 'Remote Development Container' features of Microsoft's Visual Studio Code.
 * This feature pre-configures a dev environment with all the tools you'll need to build stellar-core
 
 

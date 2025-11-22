@@ -69,7 +69,7 @@ class TrustLineWrapper::AbstractImpl
     AbstractImpl(AbstractImpl&&) = delete;
     AbstractImpl& operator=(AbstractImpl&&) = delete;
 
-    virtual ~AbstractImpl(){};
+    virtual ~AbstractImpl() {};
 
     virtual operator bool() const = 0;
 
@@ -142,7 +142,7 @@ class ConstTrustLineWrapper::AbstractImpl
     AbstractImpl(AbstractImpl&&) = delete;
     AbstractImpl& operator=(AbstractImpl&&) = delete;
 
-    virtual ~AbstractImpl(){};
+    virtual ~AbstractImpl() {};
 
     virtual operator bool() const = 0;
 

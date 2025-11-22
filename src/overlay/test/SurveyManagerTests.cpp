@@ -359,8 +359,7 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         // A is running survey
         startSurveyReportingFrom(simulation, keyList[A]);
 
-        auto getSM = [&](NodeID const& key) -> auto&
-        {
+        auto getSM = [&](NodeID const& key) -> auto& {
             return simulation->getNode(key)
                 ->getOverlayManager()
                 .getSurveyManager();

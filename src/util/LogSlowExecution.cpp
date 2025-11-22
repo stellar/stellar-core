@@ -27,7 +27,7 @@ LogSlowExecution::LogSlowExecution(std::string eventName, Mode mode,
     , mName(std::move(eventName))
     , mMode(mode)
     , mMessage(std::move(message))
-    , mThreshold(threshold){};
+    , mThreshold(threshold) {};
 
 LogSlowExecution::~LogSlowExecution()
 {

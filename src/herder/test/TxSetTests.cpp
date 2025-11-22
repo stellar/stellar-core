@@ -890,8 +890,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     {
         INFO("built from transactions");
-        auto getLclHeader = [&]() -> auto const&
-        {
+        auto getLclHeader = [&]() -> auto const& {
             return app->getLedgerManager().getLastClosedLedgerHeader();
         };
         std::vector<TransactionFrameBasePtr> const txs =

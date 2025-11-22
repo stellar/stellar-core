@@ -418,7 +418,7 @@ class HistoryManager
     virtual void setPublicationEnabled(bool enabled) = 0;
 #endif
 
-    virtual ~HistoryManager(){};
+    virtual ~HistoryManager() {};
 
     virtual Config const& getConfig() const = 0;
 };

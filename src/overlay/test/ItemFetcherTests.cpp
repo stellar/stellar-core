@@ -28,7 +28,7 @@ namespace
 class HerderStub : public HerderImpl
 {
   public:
-    HerderStub(Application& app) : HerderImpl(app){};
+    HerderStub(Application& app) : HerderImpl(app) {};
 
     std::vector<int> received;
 

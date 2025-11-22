@@ -866,7 +866,7 @@ class TestBatchWorkCondition : public TestBatchWork
 {
   public:
     TestBatchWorkCondition(Application& app, std::string const& name)
-        : TestBatchWork(app, name){};
+        : TestBatchWork(app, name) {};
 
     std::shared_ptr<BasicWork>
     yieldMoreWork() override

@@ -19,13 +19,13 @@ jobs:
   complete:
     if: always()
     needs: [fmt, cargo-deny, rust-check-git-rev-deps, build]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
       run: exit 1
 
   fmt:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
     - run: rustup component add rustfmt
@@ -33,7 +33,7 @@ jobs:
     - run: cargo fmt --all --check
 
   cargo-deny:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         checks:
@@ -51,13 +51,13 @@ jobs:
         arguments:
 
   rust-check-git-rev-deps:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
     - uses: stellar/actions/rust-check-git-rev-deps@main
 
   build:
-    runs-on: ubuntu-jammy-16-cores-amd64
+    runs-on: ubuntu-24.04
     env:
       CACHED_PATHS: |
         ~/.ccache
@@ -68,6 +68,7 @@ jobs:
       matrix:
         toolchain: [ "gcc", "clang"]
         protocol: ["current", "next"]
+        scenario: ["", "--check-test-tx-meta"]
     steps:
       - name: Fix kernel mmap rnd bits
         # Asan in llvm provided in ubuntu 22.04 is incompatible with
@@ -115,11 +116,11 @@ jobs:
       - name: install tool chain
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get -y install libstdc++-10-dev clang-format-12 ccache lldb
+          sudo apt-get -y install libstdc++-14-dev clang-format-20 ccache lldb
           if test "${{ matrix.toolchain }}" = "gcc" ; then
-            sudo apt-get -y install cpp-10 gcc-10 g++-10
+            sudo apt-get -y install cpp-14 gcc-14 g++-14
           else
-            sudo apt-get -y install clang-12 llvm-12
+            sudo apt-get -y install clang-20 llvm-20 libc++-20-dev libc++abi-20-dev
           fi
       - name: install rustup components
         if: steps.cache.outputs.cache-hit != 'true'
@@ -144,8 +145,7 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          echo "Running first scenario"
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
 
       # We only _save_ to the cache when we had a cache miss and are running on master.
       - name: Save cache after first build
@@ -155,15 +155,3 @@ jobs:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      - name: Build for check-test-tx-meta scenario
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          if test "${{ matrix.toolchain }}" = "gcc" ; then
-            export CC='gcc'
-            export CXX='g++'
-          else
-            export CC='clang'
-            export CXX='clang++'
-          fi
-          echo "Running second scenario with --check-test-tx-meta flag"
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} --check-test-tx-meta

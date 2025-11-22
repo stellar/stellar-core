@@ -77,7 +77,8 @@ LedgerTxnHeader::operator=(LedgerTxnHeader&& other)
     return *this;
 }
 
-LedgerTxnHeader::operator bool() const
+LedgerTxnHeader::
+operator bool() const
 {
     return !mImpl.expired();
 }

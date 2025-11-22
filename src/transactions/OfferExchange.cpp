@@ -1419,8 +1419,7 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
         return false;
     }
 
-    auto cp = [&lp]() -> auto&
-    {
+    auto cp = [&lp]() -> auto& {
         return lp.current().data.liquidityPool().body.constantProduct();
     };
 

@@ -375,7 +375,8 @@ EntryIterator::operator++()
     return *this;
 }
 
-EntryIterator::operator bool() const
+EntryIterator::
+operator bool() const
 {
     return !getImpl()->atEnd();
 }
@@ -3102,7 +3103,8 @@ LedgerTxnRoot::prepareNewObjects(size_t s)
     mImpl->prepareNewObjects(s);
 }
 
-void LedgerTxnRoot::Impl::prepareNewObjects(size_t)
+void
+LedgerTxnRoot::Impl::prepareNewObjects(size_t)
 {
 }
 

@@ -145,7 +145,8 @@ InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
     return 0;
 }
 
-void InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
+void
+InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
 {
 }
 
