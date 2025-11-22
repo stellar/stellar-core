@@ -68,6 +68,7 @@ jobs:
       matrix:
         toolchain: [ "gcc", "clang"]
         protocol: ["current", "next"]
+        scenario: ["", "--check-test-tx-meta"]
     steps:
       - name: Fix kernel mmap rnd bits
         # Asan in llvm provided in ubuntu 22.04 is incompatible with
@@ -144,8 +145,7 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          echo "Running first scenario"
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
 
       # We only _save_ to the cache when we had a cache miss and are running on master.
       - name: Save cache after first build
@@ -155,15 +155,3 @@ jobs:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      - name: Build for check-test-tx-meta scenario
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          if test "${{ matrix.toolchain }}" = "gcc" ; then
-            export CC='gcc'
-            export CXX='g++'
-          else
-            export CC='clang'
-            export CXX='clang++'
-          fi
-          echo "Running second scenario with --check-test-tx-meta flag"
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} --check-test-tx-meta
