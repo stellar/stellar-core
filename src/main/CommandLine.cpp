@@ -1883,8 +1883,8 @@ applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
             mode = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
             return "";
         }
-        return "Unrecognized apply-load mode. Please select 'ledger-limits' "
-               "or 'max-sac-tps'.";
+        return "Unrecognized apply-load mode. Please select 'ledger-limits', "
+               "'max-sac-tps', or 'limits-for-model-tx'.";
     };
 
     return {clara::Opt{modeArg, "MODE"}["--mode"](
