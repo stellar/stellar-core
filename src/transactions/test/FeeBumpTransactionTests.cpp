@@ -68,6 +68,27 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 
     auto root = app->getRoot();
 
+    // feeCharged has been incorrectly populated in innerResultPair prior to
+    // protocol 25. Starting with protocol 25 it should always be 0.
+    auto validateInnerFeeCharged = [](MutableTxResultPtr& result,
+                                      AbstractLedgerTxn& ltx,
+                                      uint32_t
+                                          expectedInnerFeeChargedPriorToP25) {
+        if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                    ProtocolVersion::V_25))
+        {
+            REQUIRE(
+                result->getXDR().result.innerResultPair().result.feeCharged ==
+                expectedInnerFeeChargedPriorToP25);
+        }
+        else
+        {
+            REQUIRE(
+                result->getXDR().result.innerResultPair().result.feeCharged ==
+                0);
+        }
+    };
+
     SECTION("validity")
     {
         SECTION("not supported")
@@ -283,6 +304,10 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                 app->getNetworkID(), acc, *root, *root, 2 * fee, fee, 1));
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto result = fb->processFeeSeqNum(ltx, fee);
+            REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
+            REQUIRE(result->getFeeCharged() == 2 * fee);
+            validateInnerFeeCharged(result, ltx, fee);
+
             auto delta = ltx.getDelta();
             REQUIRE(delta.entry.size() == 1);
             auto gkey = delta.entry.begin()->first;
@@ -292,11 +317,6 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
             auto prev = entryDelta.previous->ledgerEntry().data.account();
             auto curr = entryDelta.current->ledgerEntry().data.account();
             REQUIRE(prev.balance == curr.balance + 2 * fee);
-            REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
-            REQUIRE(result->getFeeCharged() == 2 * fee);
-            REQUIRE(
-                result->getXDR().result.innerResultPair().result.feeCharged ==
-                fee);
         });
     }
 
@@ -331,9 +351,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getResultCode() ==
                             txFEE_BUMP_INNER_SUCCESS);
                     REQUIRE(result->getFeeCharged() == 2 * fee);
-                    REQUIRE(result->getXDR()
-                                .result.innerResultPair()
-                                .result.feeCharged == 100);
+                    validateInnerFeeCharged(result, ltx, fee);
                 }
             });
         }
@@ -361,9 +379,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getResultCode() ==
                             txFEE_BUMP_INNER_SUCCESS);
                     REQUIRE(result->getFeeCharged() == 2 * fee);
-                    REQUIRE(result->getXDR()
-                                .result.innerResultPair()
-                                .result.feeCharged == fee);
+                    validateInnerFeeCharged(result, ltx, fee);
                 }
             });
         }
@@ -391,9 +407,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getResultCode() ==
                             txFEE_BUMP_INNER_SUCCESS);
                     REQUIRE(result->getFeeCharged() == 2 * fee);
-                    REQUIRE(result->getXDR()
-                                .result.innerResultPair()
-                                .result.feeCharged == fee);
+                    validateInnerFeeCharged(result, ltx, fee);
                 }
             });
         }
@@ -434,9 +448,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getResultCode() ==
                             txFEE_BUMP_INNER_SUCCESS);
                     REQUIRE(result->getFeeCharged() == 2 * fee);
-                    REQUIRE(result->getXDR()
-                                .result.innerResultPair()
-                                .result.feeCharged == fee);
+                    validateInnerFeeCharged(result, ltx, fee);
                 }
             });
         }
@@ -471,8 +483,8 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getFeeCharged() == 2 * fee);
                     auto const& innerRes =
                         result->getXDR().result.innerResultPair().result;
-                    REQUIRE(innerRes.feeCharged == fee);
                     REQUIRE(innerRes.result.code() == txBAD_AUTH);
+                    validateInnerFeeCharged(result, ltx, fee);
                 }
             });
         }
@@ -500,9 +512,9 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getFeeCharged() == 2 * fee);
                     auto const& innerRes =
                         result->getXDR().result.innerResultPair().result;
-                    REQUIRE(innerRes.feeCharged == fee);
                     REQUIRE(innerRes.result.code() == txFAILED);
                     REQUIRE(innerRes.result.results()[0].code() == opINNER);
+                    validateInnerFeeCharged(result, ltx, fee);
                     auto const& payRes =
                         innerRes.result.results()[0].tr().paymentResult();
                     REQUIRE(payRes.code() == PAYMENT_LINE_FULL);
@@ -582,9 +594,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
                     REQUIRE(result->getResultCode() ==
                             txFEE_BUMP_INNER_SUCCESS);
                     REQUIRE(result->getFeeCharged() == 2 * fee);
-                    REQUIRE(result->getXDR()
-                                .result.innerResultPair()
-                                .result.feeCharged == fee);
+                    validateInnerFeeCharged(result, ltx, fee);
                     REQUIRE(meta.getNumChangesBefore() ==
                             (isFbSignerSponsored ? 6 : 4));
                     for (auto const& change : meta.getChangesBefore())

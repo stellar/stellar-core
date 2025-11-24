@@ -6,7 +6,7 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "a271ddb6f63f30cc62db8920b208b9f56e667dec5c25da682a88f6dce13b1cff",
+                "hash": "9dc74e30127db15c9ab287a572608781cb2e526977aea8b2966b8f7ed3008845",
                 "header": {
                     "ledgerVersion": 26,
                     "previousLedgerHash": "90643a66e0ad62f31dbe03ec011b336208246b07ffd8c816d7eab49d8327afb1",
@@ -22,7 +22,7 @@
                             }
                         }
                     },
-                    "txSetResultHash": "7888c59bd2faad45dcefb4ed58d4a392c284c1e4a28395042ea9c061d57c05e5",
+                    "txSetResultHash": "7f284d6f6089dcf4f3b44a28922ac95858dcbfc529cadb03e4ebc4d20a558dea",
                     "bucketListHash": "9171cba98f6a77f4737e16ca99330a8351b03452a98c9c30f3e62c1bc0a65c97",
                     "ledgerSeq": 10,
                     "totalCoins": 1000000000000000000,
@@ -725,7 +725,7 @@
                                 "innerResultPair": {
                                     "transactionHash": "ef356999aea407ce7c1a16e0640065bcf9b1e853ae8f1730a816a5152ceb28e6",
                                     "result": {
-                                        "feeCharged": 200,
+                                        "feeCharged": 0,
                                         "result": {
                                             "code": "txSUCCESS",
                                             "results": [

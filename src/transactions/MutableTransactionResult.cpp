@@ -430,12 +430,15 @@ FeeBumpMutableTransactionResult::finalizeFeeRefund(uint32_t protocolVersion)
     {
         int64_t refund = mRefundableFeeTracker->getFeeRefund();
         mTxResult.feeCharged -= refund;
-        // This shouldn't be necessary as the inner result should always have 0
-        // fee. However, in fact we do populate the inner `feeCharged` field
-        // for the fee bump transactions and thus we also need to apply the
-        // refund to it.
-        // Changing this is a protocol change.
-        getInnerResult().feeCharged -= refund;
+        if (protocolVersionIsBefore(protocolVersion, ProtocolVersion::V_25))
+        {
+            // This shouldn't be necessary as the inner result should always
+            // have 0 fee. However, in fact we do populate the inner
+            // `feeCharged` field for the fee bump transactions and thus we also
+            // need to apply the refund to it.
+            // This was fixed in protocol 25.
+            getInnerResult().feeCharged -= refund;
+        }
     }
 }
 
