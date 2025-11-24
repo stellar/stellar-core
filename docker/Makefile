@@ -7,7 +7,7 @@ BUILD_DATE := $(shell date -u +%FT%TZ)
 # Base image, defaults to ubuntu 24.04 noble
 DISTRO ?= noble
 
-# Deb package version to use. For example "24.1.0-2861.5a7035d49"
+# Deb package version to use. For example "24.1.1-2888.659131984.noble"
 # Not needed for testing builds
 STELLAR_CORE_VERSION ?=
 
@@ -18,7 +18,7 @@ endif
 
 docker-build:
 ifndef STELLAR_CORE_VERSION
-	$(error STELLAR_CORE_VERSION environment variable must be set. For example STELLAR_CORE_VERSION=23.0.2-2724.7b9e6c863)
+	$(error STELLAR_CORE_VERSION environment variable must be set. For example STELLAR_CORE_VERSION=24.1.1-2888.659131984.noble)
 endif
 ifndef TAG
 	TAG = stellar/stellar-core:$(STELLAR_CORE_VERSION)
