@@ -167,7 +167,7 @@ BucketManager::BucketManager(AppConnector& appConnector)
           {"bucketlistDB", "cache", "entries"}))
     , mLiveBucketIndexCacheBytes(appConnector.getMetrics().NewCounter(
           {"bucketlistDB", "cache", "bytes"}))
-    , mBucketListEvictionCounters(appConnector)
+    , mBucketListEvictionMetrics(appConnector)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     , mConfig(appConnector.getConfig())
 {
@@ -1110,7 +1110,7 @@ BucketManager::getBucketHashesInBucketDirForTesting() const
 medida::Counter&
 BucketManager::getEntriesEvictedCounter() const
 {
-    return mBucketListEvictionCounters.entriesEvicted;
+    return mBucketListEvictionMetrics.entriesEvicted;
 }
 #endif
 
@@ -1181,9 +1181,10 @@ BucketManager::startBackgroundEvictionScan(
     // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
         [lclSnapshot, iter = cfg.evictionIterator(), ledgerSeq, ledgerVers, sas,
-         &counters = mBucketListEvictionCounters, stats = mEvictionStatistics] {
-            return lclSnapshot->scanForEviction(ledgerSeq, counters, iter,
-                                                stats, sas, ledgerVers);
+         &metrics = mBucketListEvictionMetrics, stats = mEvictionStatistics] {
+            auto timer = metrics.backgroundTime.TimeScope();
+            return lclSnapshot->scanForEviction(ledgerSeq, metrics, iter, stats,
+                                                sas, ledgerVers);
         });
 
     mEvictionFuture = task->get_future();
@@ -1199,6 +1200,7 @@ BucketManager::resolveBackgroundEvictionScan(
 {
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
+    auto timer = mBucketListEvictionMetrics.blockingTime.TimeScope();
     auto ls = LedgerSnapshot(ltx);
     auto ledgerSeq = ls.getLedgerHeader().current().ledgerSeq;
     auto ledgerVers = ls.getLedgerHeader().current().ledgerVersion;
@@ -1286,7 +1288,7 @@ BucketManager::resolveBackgroundEvictionScan(
 
         auto age = ledgerSeq - entryToEvictIter->liveUntilLedger;
         mEvictionStatistics->recordEvictedEntry(age);
-        mBucketListEvictionCounters.entriesEvicted.inc();
+        mBucketListEvictionMetrics.entriesEvicted.inc();
 
         newEvictionIterator = entryToEvictIter->iter;
         entryToEvictIter = eligibleEntries.erase(entryToEvictIter);

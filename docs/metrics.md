@@ -205,6 +205,8 @@ state-archival.eviction.bytes-scanned     | counter   | number of bytes that evi
 state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted
 state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction
 state-archival.eviction.period            | counter   | number of ledgers to complete an eviction scan
+state-archival.eviction.blocking-time     | timer     | time spent on eviction on the main thread
+state-archival.eviction.background-time   | timer     | time spent in the background scanning entries to find evictable entries
 soroban.host-fn-op.read-entry                | meter     | number of entries accessed (read or modified) during the `InvokeHostFunctionOp`
 soroban.host-fn-op.write-entry               | meter     | number of entries modified during the `InvokeHostFunctionOp`
 soroban.host-fn-op.read-key-byte             | meter     | number of `LedgerKey` bytes in entries accessed (read or modified) during the `InvokeHostFunctionOp`
