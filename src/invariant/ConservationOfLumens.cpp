@@ -104,6 +104,18 @@ ConservationOfLumens::checkOnOperationApply(
             return "Could not calculate lumen balance delta for an entry";
         }
 
+        // Check for overflow and underflow
+        if (*delta > 0 &&
+            deltaBalances > std::numeric_limits<int64_t>::max() - *delta)
+        {
+            return "Overflow detected when adding to deltaBalances";
+        }
+        if (*delta < 0 &&
+            deltaBalances < std::numeric_limits<int64_t>::min() - *delta)
+        {
+            return "Underflow detected when adding to deltaBalances";
+        }
+
         deltaBalances += *delta;
     }
 
