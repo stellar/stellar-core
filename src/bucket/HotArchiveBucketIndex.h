@@ -69,48 +69,41 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     // LiveBucketIndex.
     static std::streamoff getPageSize(Config const& cfg, size_t bucketSize);
 
-    IndexReturnT
-    lookup(LedgerKey const& k) const
+    IndexReturnT lookup(LedgerKey const& k) const
     {
         return mDiskIndex.scan(mDiskIndex.begin(), k).first;
     }
 
     // Hot Archive does not support the cache, so define empty function for
     // consistency with LiveBucketIndex
-    void
-    maybeAddToCache(
+    void maybeAddToCache(
         std::shared_ptr<HotArchiveBucketEntry const> const& entry) const
     {
     }
 
     std::pair<IndexReturnT, IterT> scan(IterT start, LedgerKey const& k) const;
 
-    BucketEntryCounters const&
-    getBucketEntryCounters() const
+    BucketEntryCounters const& getBucketEntryCounters() const
     {
         return mDiskIndex.getBucketEntryCounters();
     }
 
-    uint32_t
-    getPageSize() const
+    uint32_t getPageSize() const
     {
         return static_cast<uint32_t>(mDiskIndex.getPageSize());
     }
 
-    IterT
-    begin() const
+    IterT begin() const
     {
         return mDiskIndex.begin();
     }
 
-    IterT
-    end() const
+    IterT end() const
     {
         return mDiskIndex.end();
     }
 
-    void
-    markBloomMiss() const
+    void markBloomMiss() const
     {
         mDiskIndex.markBloomMiss();
     }

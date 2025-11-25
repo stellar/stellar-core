@@ -66,8 +66,7 @@ BacktraceManager::~BacktraceManager()
 namespace stellar
 {
 
-void
-printCurrentBacktrace()
+void printCurrentBacktrace()
 {
     if (!threadIsMain())
     {
@@ -151,14 +150,12 @@ printCurrentBacktrace()
 #else
 
 #ifdef _WIN32
-static size_t
-backtrace(void**, size_t)
+static size_t backtrace(void**, size_t)
 {
     return 0;
 }
 
-static char**
-backtrace_symbols(void** v, size_t n)
+static char** backtrace_symbols(void** v, size_t n)
 {
     return nullptr;
 }
@@ -172,8 +169,7 @@ namespace stellar
 
 static constexpr int MAX_SIZE = 1024;
 
-void
-printCurrentBacktrace()
+void printCurrentBacktrace()
 {
     if (!threadIsMain())
     {

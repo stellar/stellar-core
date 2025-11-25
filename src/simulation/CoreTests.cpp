@@ -30,9 +30,8 @@ using namespace stellar;
 //     --test [simulation]~[long]
 //
 
-void
-printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
-           Simulation::pointer sim)
+void printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
+                Simulation::pointer sim)
 {
     auto t = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now() - tBegin);
@@ -160,8 +159,7 @@ TEST_CASE("core topology 4 ledgers at scales 2 to 4",
     }
 }
 
-static void
-resilienceTest(Simulation::pointer sim)
+static void resilienceTest(Simulation::pointer sim)
 {
     auto nodes = sim->getNodeIDs();
     auto nbNodes = nodes.size();
@@ -275,9 +273,8 @@ TEST_CASE("resilience tests", "[resilience][simulation][!hide]")
     }
 }
 
-static void
-hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
-                     Hash const& networkID)
+static void hierarchicalTopoTest(int nLedgers, int nBranches,
+                                 Simulation::Mode mode, Hash const& networkID)
 {
     LOG_DEBUG(DEFAULT_LOG, "starting topo test {} : {}", nLedgers, nBranches);
 
@@ -319,9 +316,9 @@ TEST_CASE("hierarchical topology scales 1 to 3", "[simulation][acceptance]")
     }
 }
 
-static void
-hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
-                           Simulation::Mode mode, Hash const& networkID)
+static void hierarchicalSimplifiedTest(int nLedgers, int nbCore,
+                                       int nbOuterNodes, Simulation::Mode mode,
+                                       Hash const& networkID)
 {
     LOG_DEBUG(DEFAULT_LOG, "starting simplified test {} : {}", nLedgers,
               nbCore);
@@ -422,8 +419,8 @@ TEST_CASE(
     LOG_INFO(DEFAULT_LOG, "{}", simulation->metricsSummary("database"));
 }
 
-Application::pointer
-newLoadTestApp(VirtualClock& clock, uint32_t accountCount = 0)
+Application::pointer newLoadTestApp(VirtualClock& clock,
+                                    uint32_t accountCount = 0)
 {
     Config cfg =
 #ifdef USE_POSTGRES
@@ -450,8 +447,8 @@ class ScaleReporter
     std::string mFilename;
     std::ofstream mOut;
     size_t mNumWritten{0};
-    static std::string
-    join(std::vector<std::string> const& parts, std::string const& sep)
+    static std::string join(std::vector<std::string> const& parts,
+                            std::string const& sep)
     {
         std::string sum;
         bool first = true;
@@ -487,8 +484,7 @@ class ScaleReporter
         LOG_INFO(DEFAULT_LOG, "Wrote {} rows to {}", mNumWritten, mFilename);
     }
 
-    void
-    write(std::vector<double> const& vals)
+    void write(std::vector<double> const& vals)
     {
         assert(vals.size() == mColumns.size());
         std::ostringstream oss;

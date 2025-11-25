@@ -383,8 +383,7 @@ struct QBitSet
 
     QBitSet(uint32_t threshold, BitSet const& nodes, QGraph const& innerSets);
 
-    bool
-    empty() const
+    bool empty() const
     {
         return mThreshold == 0 && mAllSuccessors.empty();
     }
@@ -509,8 +508,8 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     std::atomic<bool>& mInterruptFlag;
 
     QBitSet convertSCPQuorumSet(stellar::SCPQuorumSet const& sqs);
-    void
-    buildGraph(stellar::QuorumIntersectionChecker::QuorumSetMap const& qmap);
+    void buildGraph(
+        stellar::QuorumIntersectionChecker::QuorumSetMap const& qmap);
     void buildSCCs();
 
     bool containsQuorumSlice(BitSet const& bs, QBitSet const& qbs) const;

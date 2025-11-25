@@ -18,17 +18,15 @@
 using namespace std::placeholders;
 
 template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::xstring<N>& s,
-                const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar, const xdr::xstring<N>& s,
+                     const char* field)
 {
     xdr::archive(ar, static_cast<std::string const&>(s), field);
 }
 
 template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_array<N>& s,
-                const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar,
+                     const xdr::opaque_array<N>& s, const char* field)
 {
     xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
                  field);
@@ -67,9 +65,8 @@ cereal_override(cereal::JSONOutputArchive& ar, T const& t, const char* field)
 }
 
 template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_vec<N>& s,
-                const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_vec<N>& s,
+                     const char* field)
 {
     xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
                  field);
@@ -159,9 +156,8 @@ cereal_override(cereal::JSONOutputArchive& ar, const T& t, const char* field)
 }
 
 template <typename T>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
-                const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
+                     const char* field)
 {
     // We tolerate a little information-loss here collapsing *T into T for
     // the non-null case, and use JSON 'null' for the null case. This reads
@@ -188,8 +184,8 @@ namespace stellar
 {
 // If compact = true, the output string will not contain any indentation.
 template <typename T>
-std::string
-xdrToCerealString(const T& t, std::string const& name, bool compact = false)
+std::string xdrToCerealString(const T& t, std::string const& name,
+                              bool compact = false)
 {
     std::stringstream os;
 

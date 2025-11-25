@@ -12,10 +12,9 @@ namespace stellar
 {
 
 template <typename T>
-bool
-getHistoryEntryForLedger(XDRInputFileStream& stream, T& currentEntry,
-                         uint32_t targetLedger,
-                         std::function<void(uint32_t ledgerSeq)> validateFn)
+bool getHistoryEntryForLedger(
+    XDRInputFileStream& stream, T& currentEntry, uint32_t targetLedger,
+    std::function<void(uint32_t ledgerSeq)> validateFn)
 {
     ZoneScoped;
 

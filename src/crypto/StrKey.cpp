@@ -13,8 +13,7 @@ namespace stellar
 namespace strKey
 {
 // Encode a version byte and ByteSlice into StrKey
-SecretValue
-toStrKey(uint8_t ver, ByteSlice const& bin)
+SecretValue toStrKey(uint8_t ver, ByteSlice const& bin)
 {
     ZoneScoped;
     ver <<= 3; // promote to 8 bits
@@ -33,16 +32,14 @@ toStrKey(uint8_t ver, ByteSlice const& bin)
     return SecretValue{res};
 }
 
-size_t
-getStrKeySize(size_t dataSize)
+size_t getStrKeySize(size_t dataSize)
 {
     dataSize += 3; // version and crc
     return decoder::encoded_size32(dataSize);
 }
 
-bool
-fromStrKey(std::string const& strKey, uint8_t& outVersion,
-           std::vector<uint8_t>& decoded)
+bool fromStrKey(std::string const& strKey, uint8_t& outVersion,
+                std::vector<uint8_t>& decoded)
 {
     ZoneScoped;
     // check that there is no trailing data

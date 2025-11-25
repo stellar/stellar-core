@@ -18,19 +18,16 @@ EndSponsoringFutureReservesOpFrame::EndSponsoringFutureReservesOpFrame(
 {
 }
 
-bool
-EndSponsoringFutureReservesOpFrame::isOpSupported(
+bool EndSponsoringFutureReservesOpFrame::isOpSupported(
     LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_14);
 }
 
-bool
-EndSponsoringFutureReservesOpFrame::doApply(AppConnector& app,
-                                            AbstractLedgerTxn& ltx,
-                                            OperationResult& res,
-                                            OperationMetaBuilder& opMeta) const
+bool EndSponsoringFutureReservesOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, OperationResult& res,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "EndSponsoringFutureReservesOpFrame apply", true);
 
@@ -67,9 +64,8 @@ EndSponsoringFutureReservesOpFrame::doApply(AppConnector& app,
     return true;
 }
 
-bool
-EndSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                                 OperationResult& res) const
+bool EndSponsoringFutureReservesOpFrame::doCheckValid(
+    uint32_t ledgerVersion, OperationResult& res) const
 {
     return true;
 }

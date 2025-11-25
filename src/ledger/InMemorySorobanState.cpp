@@ -14,10 +14,9 @@ namespace stellar
 
 namespace
 {
-uint32_t
-contractCodeSizeForRent(LedgerEntry const& ledgerEntry,
-                        SorobanNetworkConfig const& sorobanConfig,
-                        uint32_t ledgerVersion)
+uint32_t contractCodeSizeForRent(LedgerEntry const& ledgerEntry,
+                                 SorobanNetworkConfig const& sorobanConfig,
+                                 uint32_t ledgerVersion)
 {
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_CODE);
     // Subtle: in-memory state size accounting is only used starting from
@@ -32,8 +31,7 @@ contractCodeSizeForRent(LedgerEntry const& ledgerEntry,
 }
 } // namespace
 
-bool
-TTLData::isDefault() const
+bool TTLData::isDefault() const
 {
     if (liveUntilLedgerSeq == 0)
     {
@@ -47,8 +45,7 @@ TTLData::isDefault() const
     }
 }
 
-void
-InMemorySorobanState::updateContractDataTTL(
+void InMemorySorobanState::updateContractDataTTL(
     std::unordered_set<InternalContractDataMapEntry,
                        InternalContractDataEntryHash>::iterator dataIt,
     TTLData newTtlData)
@@ -60,8 +57,7 @@ InMemorySorobanState::updateContractDataTTL(
         InternalContractDataMapEntry(std::move(ledgerEntryPtr), newTtlData));
 }
 
-void
-InMemorySorobanState::updateTTL(LedgerEntry const& ttlEntry)
+void InMemorySorobanState::updateTTL(LedgerEntry const& ttlEntry)
 {
     releaseAssertOrThrow(ttlEntry.data.type() == TTL);
 
@@ -86,8 +82,7 @@ InMemorySorobanState::updateTTL(LedgerEntry const& ttlEntry)
     }
 }
 
-void
-InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
+void InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
 {
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_DATA);
 
@@ -108,8 +103,8 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
         InternalContractDataMapEntry(ledgerEntry, preservedTTL));
 }
 
-void
-InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
+void InMemorySorobanState::createContractDataEntry(
+    LedgerEntry const& ledgerEntry)
 {
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_DATA);
 
@@ -139,15 +134,13 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
         InternalContractDataMapEntry(ledgerEntry, ttlData));
 }
 
-bool
-InMemorySorobanState::isInMemoryType(LedgerKey const& ledgerKey)
+bool InMemorySorobanState::isInMemoryType(LedgerKey const& ledgerKey)
 {
     return ledgerKey.type() == CONTRACT_DATA ||
            ledgerKey.type() == CONTRACT_CODE || ledgerKey.type() == TTL;
 }
 
-void
-InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
+void InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
 {
     releaseAssertOrThrow(ttlEntry.data.type() == TTL);
 
@@ -186,8 +179,7 @@ InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
     }
 }
 
-void
-InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
+void InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
 {
     releaseAssertOrThrow(ledgerKey.type() == CONTRACT_DATA);
     auto it =
@@ -233,8 +225,7 @@ InMemorySorobanState::get(LedgerKey const& ledgerKey) const
     }
 }
 
-void
-InMemorySorobanState::createContractCodeEntry(
+void InMemorySorobanState::createContractCodeEntry(
     LedgerEntry const& ledgerEntry, SorobanNetworkConfig const& sorobanConfig,
     uint32_t ledgerVersion)
 {
@@ -272,8 +263,7 @@ InMemorySorobanState::createContractCodeEntry(
                               ttlData, entrySize));
 }
 
-void
-InMemorySorobanState::updateContractCode(
+void InMemorySorobanState::updateContractCode(
     LedgerEntry const& ledgerEntry, SorobanNetworkConfig const& sorobanConfig,
     uint32_t ledgerVersion)
 {
@@ -299,8 +289,7 @@ InMemorySorobanState::updateContractCode(
                               ttlData, newEntrySize);
 }
 
-void
-InMemorySorobanState::deleteContractCode(LedgerKey const& ledgerKey)
+void InMemorySorobanState::deleteContractCode(LedgerKey const& ledgerKey)
 {
     releaseAssertOrThrow(ledgerKey.type() == CONTRACT_CODE);
 
@@ -313,8 +302,7 @@ InMemorySorobanState::deleteContractCode(LedgerKey const& ledgerKey)
     mContractCodeEntries.erase(it);
 }
 
-bool
-InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
+bool InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
 {
     releaseAssertOrThrow(ledgerKey.type() == TTL);
 
@@ -348,21 +336,19 @@ InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
     return false;
 }
 
-bool
-InMemorySorobanState::isEmpty() const
+bool InMemorySorobanState::isEmpty() const
 {
     return mContractDataEntries.empty() && mContractCodeEntries.empty() &&
            mPendingTTLs.empty();
 }
 
-uint32_t
-InMemorySorobanState::getLedgerSeq() const
+uint32_t InMemorySorobanState::getLedgerSeq() const
 {
     return mLastClosedLedgerSeq;
 }
 
-void
-InMemorySorobanState::assertLastClosedLedger(uint32_t expectedLedgerSeq) const
+void InMemorySorobanState::assertLastClosedLedger(
+    uint32_t expectedLedgerSeq) const
 {
     releaseAssertOrThrow(mLastClosedLedgerSeq == expectedLedgerSeq);
 }
@@ -403,8 +389,7 @@ InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
     return nullptr;
 }
 
-void
-InMemorySorobanState::initializeStateFromSnapshot(
+void InMemorySorobanState::initializeStateFromSnapshot(
     SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
     releaseAssertOrThrow(mContractDataEntries.empty());
@@ -489,8 +474,7 @@ InMemorySorobanState::initializeStateFromSnapshot(
     checkUpdateInvariants();
 }
 
-void
-InMemorySorobanState::updateState(
+void InMemorySorobanState::updateState(
     std::vector<LedgerEntry> const& initEntries,
     std::vector<LedgerEntry> const& liveEntries,
     std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
@@ -558,8 +542,7 @@ InMemorySorobanState::updateState(
     reportMetrics(metrics);
 }
 
-void
-InMemorySorobanState::recomputeContractCodeSize(
+void InMemorySorobanState::recomputeContractCodeSize(
     SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion)
 {
     for (auto& [_, entry] : mContractCodeEntries)
@@ -572,8 +555,7 @@ InMemorySorobanState::recomputeContractCodeSize(
     }
 }
 
-uint64_t
-InMemorySorobanState::getSize() const
+uint64_t InMemorySorobanState::getSize() const
 {
     releaseAssertOrThrow(mContractCodeStateSize >= 0);
     releaseAssertOrThrow(mContractDataStateSize >= 0);
@@ -581,8 +563,7 @@ InMemorySorobanState::getSize() const
                                  mContractDataStateSize);
 }
 
-void
-InMemorySorobanState::reportMetrics(SorobanMetrics& metrics) const
+void InMemorySorobanState::reportMetrics(SorobanMetrics& metrics) const
 {
     metrics.mContractCodeStateSize.set_count(mContractCodeStateSize);
     metrics.mContractDataStateSize.set_count(mContractDataStateSize);
@@ -598,22 +579,19 @@ InMemorySorobanState::reportMetrics(SorobanMetrics& metrics) const
               static_cast<int64_t>(mContractDataEntries.size()));
 }
 
-void
-InMemorySorobanState::manuallyAdvanceLedgerHeader(LedgerHeader const& lh)
+void InMemorySorobanState::manuallyAdvanceLedgerHeader(LedgerHeader const& lh)
 {
     mLastClosedLedgerSeq = lh.ledgerSeq;
 }
 
-void
-InMemorySorobanState::checkUpdateInvariants() const
+void InMemorySorobanState::checkUpdateInvariants() const
 {
     // No TTLs should be orphaned after finishing an update
     releaseAssertOrThrow(mPendingTTLs.empty());
 }
-void
-InMemorySorobanState::updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
-                                                   uint32_t newEntrySize,
-                                                   bool isContractCode)
+void InMemorySorobanState::updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
+                                                        uint32_t newEntrySize,
+                                                        bool isContractCode)
 {
     int64_t sizeDelta =
         static_cast<int64_t>(newEntrySize) - static_cast<int64_t>(oldEntrySize);
@@ -639,8 +617,7 @@ InMemorySorobanState::updateStateSizeOnEntryUpdate(uint32_t oldEntrySize,
 }
 
 #ifdef BUILD_TESTS
-void
-InMemorySorobanState::clearForTesting()
+void InMemorySorobanState::clearForTesting()
 {
     mContractDataEntries.clear();
     mContractCodeEntries.clear();

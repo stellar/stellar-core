@@ -36,8 +36,8 @@ class PathPaymentOpFrameBase : public OperationFrame
     PathPaymentOpFrameBase(Operation const& op,
                            TransactionFrame const& parentTx);
 
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
     bool isDexOperation() const override;
 

@@ -26,9 +26,8 @@ NominationProtocol::NominationProtocol(Slot& slot)
 {
 }
 
-bool
-NominationProtocol::isNewerStatement(NodeID const& nodeID,
-                                     SCPNomination const& st)
+bool NominationProtocol::isNewerStatement(NodeID const& nodeID,
+                                          SCPNomination const& st)
 {
     auto oldp = mLatestNominations.find(nodeID);
     bool res = false;
@@ -45,9 +44,9 @@ NominationProtocol::isNewerStatement(NodeID const& nodeID,
     return res;
 }
 
-bool
-NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
-                                   xdr::xvector<Value> const& v, bool& notEqual)
+bool NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
+                                        xdr::xvector<Value> const& v,
+                                        bool& notEqual)
 {
     bool res;
     if (p.size() <= v.size())
@@ -70,23 +69,20 @@ NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
     return res;
 }
 
-SCPDriver::ValidationLevel
-NominationProtocol::validateValue(Value const& v)
+SCPDriver::ValidationLevel NominationProtocol::validateValue(Value const& v)
 {
     ZoneScoped;
     return mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v, true);
 }
 
-ValueWrapperPtr
-NominationProtocol::extractValidValue(Value const& value)
+ValueWrapperPtr NominationProtocol::extractValidValue(Value const& value)
 {
     ZoneScoped;
     return mSlot.getSCPDriver().extractValidValue(mSlot.getSlotIndex(), value);
 }
 
-bool
-NominationProtocol::isNewerStatement(SCPNomination const& oldst,
-                                     SCPNomination const& st)
+bool NominationProtocol::isNewerStatement(SCPNomination const& oldst,
+                                          SCPNomination const& st)
 {
     bool res = false;
     bool grows;
@@ -105,8 +101,7 @@ NominationProtocol::isNewerStatement(SCPNomination const& oldst,
     return res;
 }
 
-bool
-NominationProtocol::isSane(SCPStatement const& st)
+bool NominationProtocol::isSane(SCPStatement const& st)
 {
     auto const& nom = st.pledges.nominate();
     bool res = (nom.votes.size() + nom.accepted.size()) != 0;
@@ -127,8 +122,7 @@ NominationProtocol::isSane(SCPStatement const& st)
 
 // only called after a call to isNewerStatement so safe to replace the
 // mLatestNomination
-void
-NominationProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
+void NominationProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
 {
     auto const& st = env->getStatement();
     auto oldp = mLatestNominations.find(st.nodeID);
@@ -143,8 +137,7 @@ NominationProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
     mSlot.recordStatement(env->getStatement());
 }
 
-void
-NominationProtocol::emitNomination()
+void NominationProtocol::emitNomination()
 {
     ZoneScoped;
     SCPStatement st;
@@ -188,8 +181,7 @@ NominationProtocol::emitNomination()
     }
 }
 
-bool
-NominationProtocol::acceptPredicate(Value const& v, SCPStatement const& st)
+bool NominationProtocol::acceptPredicate(Value const& v, SCPStatement const& st)
 {
     auto const& nom = st.pledges.nominate();
     bool res;
@@ -198,9 +190,8 @@ NominationProtocol::acceptPredicate(Value const& v, SCPStatement const& st)
     return res;
 }
 
-void
-NominationProtocol::applyAll(SCPNomination const& nom,
-                             std::function<void(Value const&)> processor)
+void NominationProtocol::applyAll(SCPNomination const& nom,
+                                  std::function<void(Value const&)> processor)
 {
     for (auto const& v : nom.votes)
     {
@@ -216,8 +207,7 @@ NominationProtocol::applyAll(SCPNomination const& nom,
     }
 }
 
-void
-NominationProtocol::updateRoundLeaders()
+void NominationProtocol::updateRoundLeaders()
 {
     ZoneScoped;
     SCPQuorumSet myQSet = mSlot.getLocalNode()->getQuorumSet();
@@ -291,8 +281,7 @@ NominationProtocol::updateRoundLeaders()
     CLOG_DEBUG(SCP, "updateRoundLeaders: nothing to do");
 }
 
-uint64
-NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
+uint64 NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
 {
     ZoneScoped;
     dbgAssert(!mPreviousValue.empty());
@@ -300,8 +289,7 @@ NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
         mSlot.getSlotIndex(), mPreviousValue, isPriority, mRoundNumber, nodeID);
 }
 
-uint64
-NominationProtocol::hashValue(Value const& value)
+uint64 NominationProtocol::hashValue(Value const& value)
 {
     ZoneScoped;
     dbgAssert(!mPreviousValue.empty());
@@ -309,9 +297,8 @@ NominationProtocol::hashValue(Value const& value)
         mSlot.getSlotIndex(), mPreviousValue, mRoundNumber, value);
 }
 
-uint64
-NominationProtocol::getNodePriority(NodeID const& nodeID,
-                                    SCPQuorumSet const& qset)
+uint64 NominationProtocol::getNodePriority(NodeID const& nodeID,
+                                           SCPQuorumSet const& qset)
 {
     ZoneScoped;
     uint64 res;
@@ -517,9 +504,8 @@ NominationProtocol::getStatementValues(SCPStatement const& st)
 }
 
 // attempts to nominate a value for consensus
-bool
-NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
-                             bool timedout)
+bool NominationProtocol::nominate(ValueWrapperPtr value,
+                                  Value const& previousValue, bool timedout)
 {
     ZoneScoped;
 
@@ -610,20 +596,17 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     return updated;
 }
 
-void
-NominationProtocol::stopNomination()
+void NominationProtocol::stopNomination()
 {
     mNominationStarted = false;
 }
 
-std::set<NodeID> const&
-NominationProtocol::getLeaders() const
+std::set<NodeID> const& NominationProtocol::getLeaders() const
 {
     return mRoundLeaders;
 }
 
-Json::Value
-NominationProtocol::getJsonInfo()
+Json::Value NominationProtocol::getJsonInfo()
 {
     Json::Value ret;
     ret["roundnumber"] = mRoundNumber;
@@ -653,8 +636,8 @@ NominationProtocol::getJsonInfo()
     return ret;
 }
 
-SCP::QuorumInfoNodeState
-NominationProtocol::getState(NodeID const& n, bool selfAlreadyMovedOn)
+SCP::QuorumInfoNodeState NominationProtocol::getState(NodeID const& n,
+                                                      bool selfAlreadyMovedOn)
 {
     auto state = SCP::QuorumInfoNodeState::AGREE;
     if (n == mSlot.getLocalNode()->getNodeID())
@@ -714,8 +697,7 @@ NominationProtocol::getState(NodeID const& n, bool selfAlreadyMovedOn)
     return state;
 }
 
-void
-NominationProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
+void NominationProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
 {
     if (mNominationStarted)
     {
@@ -736,8 +718,7 @@ NominationProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
     mLastEnvelope = e;
 }
 
-bool
-NominationProtocol::processCurrentState(
+bool NominationProtocol::processCurrentState(
     std::function<bool(SCPEnvelope const&)> const& f, bool forceSelf) const
 {
     for (auto const& n : mLatestNominations)
@@ -755,8 +736,7 @@ NominationProtocol::processCurrentState(
     return true;
 }
 
-SCPEnvelope const*
-NominationProtocol::getLatestMessage(NodeID const& id) const
+SCPEnvelope const* NominationProtocol::getLatestMessage(NodeID const& id) const
 {
     auto it = mLatestNominations.find(id);
     if (it != mLatestNominations.end())

@@ -28,22 +28,17 @@ typedef std::minstd_rand stellar_default_random_engine;
 stellar_default_random_engine& getGlobalRandomEngine();
 
 template <typename T>
-T
-rand_uniform(T lo, T hi, stellar_default_random_engine& engine)
+T rand_uniform(T lo, T hi, stellar_default_random_engine& engine)
 {
     return stellar::uniform_int_distribution<T>(lo, hi)(engine);
 }
 
-template <typename T>
-T
-rand_uniform(T lo, T hi)
+template <typename T> T rand_uniform(T lo, T hi)
 {
     return rand_uniform<T>(lo, hi, getGlobalRandomEngine());
 }
 
-template <typename T>
-T const&
-rand_element(std::vector<T> const& v)
+template <typename T> T const& rand_element(std::vector<T> const& v)
 {
     if (v.size() == 0)
     {
@@ -52,9 +47,7 @@ rand_element(std::vector<T> const& v)
     return v.at(rand_uniform<size_t>(0, v.size() - 1));
 }
 
-template <typename T>
-T&
-rand_element(std::vector<T>& v)
+template <typename T> T& rand_element(std::vector<T>& v)
 {
     if (v.size() == 0)
     {

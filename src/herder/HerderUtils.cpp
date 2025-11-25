@@ -16,8 +16,7 @@
 namespace stellar
 {
 
-std::vector<Hash>
-getTxSetHashes(SCPEnvelope const& envelope)
+std::vector<Hash> getTxSetHashes(SCPEnvelope const& envelope)
 {
     auto values = getStellarValues(envelope.statement);
     auto result = std::vector<Hash>{};
@@ -29,8 +28,7 @@ getTxSetHashes(SCPEnvelope const& envelope)
     return result;
 }
 
-std::vector<StellarValue>
-getStellarValues(SCPStatement const& statement)
+std::vector<StellarValue> getStellarValues(SCPStatement const& statement)
 {
     auto values = Slot::getStatementValues(statement);
     auto result = std::vector<StellarValue>{};
@@ -49,8 +47,7 @@ getStellarValues(SCPStatement const& statement)
 // Render `id` as a short, human readable string. If `cfg` has a value, this
 // function uses `cfg` to render the string. Otherwise, it returns the first 5
 // hex values `id`.
-std::string
-toShortString(std::optional<Config> const& cfg, NodeID const& id)
+std::string toShortString(std::optional<Config> const& cfg, NodeID const& id)
 {
     if (cfg)
     {

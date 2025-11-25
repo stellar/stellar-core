@@ -473,8 +473,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     }
 }
 
-void
-testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
+void testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -2313,8 +2312,7 @@ TEST_CASE("txset nomination", "[txset]")
 #endif
 }
 
-void
-runParallelTxSetBuildingTest(bool variableStageCount)
+void runParallelTxSetBuildingTest(bool variableStageCount)
 {
     int const STAGE_COUNT = 4;
     int const CLUSTER_COUNT = 8;

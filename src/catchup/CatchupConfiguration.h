@@ -62,38 +62,32 @@ class CatchupConfiguration
      */
     CatchupConfiguration resolve(uint32_t remoteCheckpoint) const;
 
-    uint32_t
-    toLedger() const
+    uint32_t toLedger() const
     {
         return mLedgerHashPair.first;
     }
 
-    uint32_t
-    count() const
+    uint32_t count() const
     {
         return mCount;
     }
 
-    std::optional<Hash>
-    hash() const
+    std::optional<Hash> hash() const
     {
         return mLedgerHashPair.second;
     }
 
-    Mode
-    mode() const
+    Mode mode() const
     {
         return mMode;
     }
 
-    bool
-    offline() const
+    bool offline() const
     {
         return mMode == Mode::OFFLINE_BASIC || mMode == Mode::OFFLINE_COMPLETE;
     }
 
-    bool
-    online() const
+    bool online() const
     {
         return mMode == Mode::ONLINE;
     }

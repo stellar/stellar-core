@@ -18,8 +18,8 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-static OperationResultCode
-getOperationResultCode(TransactionTestFrame& tx, size_t i)
+static OperationResultCode getOperationResultCode(TransactionTestFrame& tx,
+                                                  size_t i)
 {
     auto const& opRes = tx.getResult().result.results()[i];
     return opRes.code();

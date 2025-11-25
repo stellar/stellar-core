@@ -14,15 +14,14 @@
 namespace stellar
 {
 
-static bool
-isPoolShareTrustline(LedgerEntry const& le)
+static bool isPoolShareTrustline(LedgerEntry const& le)
 {
     return le.data.type() == TRUSTLINE &&
            le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE;
 }
 
-static int32_t
-calculateDelta(LedgerEntry const* current, LedgerEntry const* previous)
+static int32_t calculateDelta(LedgerEntry const* current,
+                              LedgerEntry const* previous)
 {
     int32_t delta = 0;
     if (current)
@@ -50,8 +49,7 @@ calculateDelta(LedgerEntry const* current, LedgerEntry const* previous)
     return delta;
 }
 
-static void
-updateChangedSubEntriesCount(
+static void updateChangedSubEntriesCount(
     UnorderedMap<AccountID, SubEntriesChange>& subEntriesChange,
     LedgerEntry const* current, LedgerEntry const* previous)
 {
@@ -108,8 +106,7 @@ updateChangedSubEntriesCount(
     }
 }
 
-static void
-updateChangedSubEntriesCount(
+static void updateChangedSubEntriesCount(
     UnorderedMap<AccountID, SubEntriesChange>& subEntriesChange,
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
@@ -136,14 +133,12 @@ AccountSubEntriesCountIsValid::registerInvariant(Application& app)
         .registerInvariant<AccountSubEntriesCountIsValid>();
 }
 
-std::string
-AccountSubEntriesCountIsValid::getName() const
+std::string AccountSubEntriesCountIsValid::getName() const
 {
     return "AccountSubEntriesCountIsValid";
 }
 
-std::string
-AccountSubEntriesCountIsValid::checkOnOperationApply(
+std::string AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)

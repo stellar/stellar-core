@@ -125,8 +125,7 @@ class InternalContractDataMapEntry
         virtual std::unique_ptr<AbstractEntry> clone() const = 0;
 
         // Equality comparison based on TTL keys
-        virtual bool
-        operator==(AbstractEntry const& other) const
+        virtual bool operator==(AbstractEntry const& other) const
         {
             return copyKey() == other.copyKey();
         }
@@ -146,27 +145,23 @@ class InternalContractDataMapEntry
         {
         }
 
-        uint256
-        copyKey() const override
+        uint256 copyKey() const override
         {
             auto ttlKey = getTTLKey(LedgerEntryKey(*entry.ledgerEntry));
             return ttlKey.ttl().keyHash;
         }
 
-        size_t
-        hash() const override
+        size_t hash() const override
         {
             return std::hash<uint256>{}(copyKey());
         }
 
-        ContractDataMapEntryT const&
-        get() const override
+        ContractDataMapEntryT const& get() const override
         {
             return entry;
         }
 
-        std::unique_ptr<AbstractEntry>
-        clone() const override
+        std::unique_ptr<AbstractEntry> clone() const override
         {
             return std::make_unique<ValueEntry>(
                 std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
@@ -186,28 +181,24 @@ class InternalContractDataMapEntry
         {
         }
 
-        uint256
-        copyKey() const override
+        uint256 copyKey() const override
         {
             return ledgerKeyHash;
         }
 
-        size_t
-        hash() const override
+        size_t hash() const override
         {
             return std::hash<uint256>{}(ledgerKeyHash);
         }
 
         // Should never be called - QueryKey is only for lookups
-        ContractDataMapEntryT const&
-        get() const override
+        ContractDataMapEntryT const& get() const override
         {
             throw std::runtime_error(
                 "QueryKey::get() called - this is a logic error");
         }
 
-        std::unique_ptr<AbstractEntry>
-        clone() const override
+        std::unique_ptr<AbstractEntry> clone() const override
         {
             return std::make_unique<QueryKey>(ledgerKeyHash);
         }
@@ -258,20 +249,17 @@ class InternalContractDataMapEntry
         }
     }
 
-    size_t
-    hash() const
+    size_t hash() const
     {
         return impl->hash();
     }
 
-    bool
-    operator==(InternalContractDataMapEntry const& other) const
+    bool operator==(InternalContractDataMapEntry const& other) const
     {
         return impl->operator==(*other.impl);
     }
 
-    ContractDataMapEntryT const&
-    get() const
+    ContractDataMapEntryT const& get() const
     {
         return impl->get();
     }
@@ -279,8 +267,7 @@ class InternalContractDataMapEntry
 
 struct InternalContractDataEntryHash
 {
-    size_t
-    operator()(InternalContractDataMapEntry const& entry) const
+    size_t operator()(InternalContractDataMapEntry const& entry) const
     {
         return entry.hash();
     }
@@ -438,13 +425,12 @@ class InMemorySorobanState
 
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.
-    void
-    updateState(std::vector<LedgerEntry> const& initEntries,
-                std::vector<LedgerEntry> const& liveEntries,
-                std::vector<LedgerKey> const& deadEntries,
-                LedgerHeader const& lh,
-                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-                SorobanMetrics& metrics);
+    void updateState(
+        std::vector<LedgerEntry> const& initEntries,
+        std::vector<LedgerEntry> const& liveEntries,
+        std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+        SorobanMetrics& metrics);
 
     // Should only be called in manual ledger close paths.
     void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);

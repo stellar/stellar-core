@@ -25,26 +25,23 @@ class TxEffects
     {
     }
 
-    TransactionMetaBuilder&
-    getMeta()
+    TransactionMetaBuilder& getMeta()
     {
         return mMeta;
     }
-    LedgerTxnDelta const&
-    getDelta()
+    LedgerTxnDelta const& getDelta()
     {
         return mDelta;
     }
 
-    void
-    setDeltaEntry(LedgerKey const& key, LedgerTxnDelta::EntryDelta const& delta)
+    void setDeltaEntry(LedgerKey const& key,
+                       LedgerTxnDelta::EntryDelta const& delta)
     {
         auto [_, inserted] = mDelta.entry.emplace(key, delta);
         releaseAssertOrThrow(inserted);
     }
 
-    void
-    setDeltaHeader(LedgerHeader const& header)
+    void setDeltaHeader(LedgerHeader const& header)
     {
         mDelta.header.current = header;
         mDelta.header.previous = header;
@@ -71,23 +68,19 @@ class TxBundle
     {
     }
 
-    TransactionFrameBasePtr
-    getTx() const
+    TransactionFrameBasePtr getTx() const
     {
         return mTx;
     }
-    MutableTransactionResultBase&
-    getResPayload() const
+    MutableTransactionResultBase& getResPayload() const
     {
         return mResPayload;
     }
-    uint64_t
-    getTxNum() const
+    uint64_t getTxNum() const
     {
         return mTxNum;
     }
-    TxEffects&
-    getEffects() const
+    TxEffects& getEffects() const
     {
         return *mEffects;
     }

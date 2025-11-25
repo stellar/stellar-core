@@ -65,19 +65,18 @@ class HotArchiveBucket
              HotArchiveBucketEntry const& entry, MergeCounters& mc);
 
     // For now, we only count LiveBucket merge events
-    static void
-    countOldEntryType(MergeCounters& mc, HotArchiveBucketEntry const& e)
+    static void countOldEntryType(MergeCounters& mc,
+                                  HotArchiveBucketEntry const& e)
     {
     }
 
-    static void
-    countNewEntryType(MergeCounters& mc, HotArchiveBucketEntry const& e)
+    static void countNewEntryType(MergeCounters& mc,
+                                  HotArchiveBucketEntry const& e)
     {
     }
 
-    static void
-    checkProtocolLegality(HotArchiveBucketEntry const& entry,
-                          uint32_t protocolVersion)
+    static void checkProtocolLegality(HotArchiveBucketEntry const& entry,
+                                      uint32_t protocolVersion)
     {
     }
 

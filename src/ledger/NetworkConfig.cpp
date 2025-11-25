@@ -20,10 +20,9 @@ namespace stellar
 {
 namespace
 {
-void
-createConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                         AbstractLedgerTxn& ltxRoot,
-                         uint32_t versionToValidateAgainst)
+void createConfigSettingEntry(ConfigSettingEntry const& configSetting,
+                              AbstractLedgerTxn& ltxRoot,
+                              uint32_t versionToValidateAgainst)
 {
     ZoneScoped;
 
@@ -41,8 +40,7 @@ createConfigSettingEntry(ConfigSettingEntry const& configSetting,
     ltx.commit();
 }
 
-ConfigSettingEntry
-initialMaxContractSizeEntry(Config const& cfg)
+ConfigSettingEntry initialMaxContractSizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
 
@@ -57,8 +55,7 @@ initialMaxContractSizeEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialMaxContractDataKeySizeEntry(Config const& cfg)
+ConfigSettingEntry initialMaxContractDataKeySizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
 
@@ -73,8 +70,7 @@ initialMaxContractDataKeySizeEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialMaxContractDataEntrySizeEntry(Config const& cfg)
+ConfigSettingEntry initialMaxContractDataEntrySizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
 
@@ -89,8 +85,7 @@ initialMaxContractDataEntrySizeEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialContractComputeSettingsEntry(Config const& cfg)
+ConfigSettingEntry initialContractComputeSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
     auto& e = entry.contractCompute();
@@ -115,8 +110,7 @@ initialContractComputeSettingsEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialContractLedgerAccessSettingsEntry(Config const& cfg)
+ConfigSettingEntry initialContractLedgerAccessSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
     auto& e = entry.contractLedgerCost();
@@ -174,8 +168,7 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialContractHistoricalDataSettingsEntry()
+ConfigSettingEntry initialContractHistoricalDataSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
     auto& e = entry.contractHistoricalData();
@@ -185,8 +178,7 @@ initialContractHistoricalDataSettingsEntry()
     return entry;
 }
 
-ConfigSettingEntry
-initialContractEventsSettingsEntry(Config const& cfg)
+ConfigSettingEntry initialContractEventsSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EVENTS_V0);
     auto& e = entry.contractEvents();
@@ -204,8 +196,7 @@ initialContractEventsSettingsEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialContractBandwidthSettingsEntry(Config const& cfg)
+ConfigSettingEntry initialContractBandwidthSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
     auto& e = entry.contractBandwidth();
@@ -226,8 +217,7 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialContractExecutionLanesSettingsEntry(Config const& cfg)
+ConfigSettingEntry initialContractExecutionLanesSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
     auto& e = entry.contractExecutionLanes();
@@ -242,8 +232,7 @@ initialContractExecutionLanesSettingsEntry(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialCpuCostParamsEntryForV20()
+ConfigSettingEntry initialCpuCostParamsEntryForV20()
 {
     ConfigSettingEntry entry(
         CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
@@ -337,8 +326,7 @@ initialCpuCostParamsEntryForV20()
     return entry;
 }
 
-void
-updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
+void updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -440,8 +428,7 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-void
-updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
+void updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -553,8 +540,7 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-void
-updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
+void updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -631,8 +617,7 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 }
 #endif
 
-ConfigSettingEntry
-initialStateArchivalSettings(Config const& cfg)
+ConfigSettingEntry initialStateArchivalSettings(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_STATE_ARCHIVAL);
 
@@ -686,8 +671,7 @@ initialStateArchivalSettings(Config const& cfg)
     return entry;
 }
 
-ConfigSettingEntry
-initialMemCostParamsEntryForV20()
+ConfigSettingEntry initialMemCostParamsEntryForV20()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
 
@@ -777,8 +761,7 @@ initialMemCostParamsEntryForV20()
     return entry;
 }
 
-void
-updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
+void updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -881,8 +864,7 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-void
-updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
+void updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -992,8 +974,7 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-void
-updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
+void updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -1070,8 +1051,7 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 }
 #endif
 
-ConfigSettingEntry
-initialParallelComputeEntry()
+ConfigSettingEntry initialParallelComputeEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0);
     entry.contractParallelCompute().ledgerMaxDependentTxClusters =
@@ -1079,8 +1059,7 @@ initialParallelComputeEntry()
     return entry;
 }
 
-ConfigSettingEntry
-initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
+ConfigSettingEntry initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
     // Initialize `txMaxFootprintEntries` with the value of the older
@@ -1093,8 +1072,7 @@ initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
     return entry;
 }
 
-ConfigSettingEntry
-initialScpTimingEntry()
+ConfigSettingEntry initialScpTimingEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_SCP_TIMING);
     entry.contractSCPTiming().ledgerTargetCloseTimeMilliseconds =
@@ -1111,8 +1089,7 @@ initialScpTimingEntry()
     return entry;
 }
 
-ConfigSettingEntry
-initialliveSorobanStateSizeWindow(Application& app)
+ConfigSettingEntry initialliveSorobanStateSizeWindow(Application& app)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW);
 
@@ -1129,8 +1106,7 @@ initialliveSorobanStateSizeWindow(Application& app)
     return entry;
 }
 
-ConfigSettingEntry
-initialEvictionIterator(Config const& cfg)
+ConfigSettingEntry initialEvictionIterator(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_EVICTION_ITERATOR);
     entry.evictionIterator().bucketFileOffset = 0;
@@ -1142,8 +1118,7 @@ initialEvictionIterator(Config const& cfg)
     return entry;
 }
 
-void
-updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
+void updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
 
@@ -1201,9 +1176,8 @@ updateStateSizeWindowSetting(
     ltx.commit();
 }
 
-bool
-SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
-                                                uint32_t ledgerVersion)
+bool SorobanNetworkConfig::isValidConfigSettingEntry(
+    ConfigSettingEntry const& cfg, uint32_t ledgerVersion)
 {
     bool valid = false;
     switch (cfg.configSettingID())
@@ -1370,15 +1344,13 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
     return valid;
 }
 
-bool
-SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+bool SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     ConfigSettingEntry const& cfg)
 {
     return isNonUpgradeableConfigSettingEntry(cfg.configSettingID());
 }
 
-bool
-SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+bool SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     ConfigSettingID const& cfg)
 {
     // While the BucketList size window and eviction iterator are stored in a
@@ -1389,9 +1361,8 @@ SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
            cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
 }
 
-void
-SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
-                                                Application& app)
+void SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
+                                                     Application& app)
 {
     ZoneScoped;
 
@@ -1433,27 +1404,24 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                              versionToValidateAgainst);
 }
 
-void
-SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
-                                            Application& app)
+void SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
+                                                 Application& app)
 {
     ZoneScoped;
     updateCpuCostParamsEntryForV21(ltx);
     updateMemCostParamsEntryForV21(ltx);
 }
 
-void
-SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
-                                            Application& app)
+void SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
+                                                 Application& app)
 {
     ZoneScoped;
     updateCpuCostParamsEntryForV22(ltx);
     updateMemCostParamsEntryForV22(ltx);
 }
 
-void
-SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
-                                            Application& app)
+void SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
+                                                 Application& app)
 {
     ZoneScoped;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -1462,9 +1430,8 @@ SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
 #endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 }
 
-void
-SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
-                                                         Application& app)
+void SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(
+    AbstractLedgerTxn& ltx, Application& app)
 {
     ZoneScoped;
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
@@ -1489,8 +1456,7 @@ SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
     updateRentCostParamsForV23(ltx);
 }
 
-void
-SorobanNetworkConfig::initializeGenesisLedgerForTesting(
+void SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Application& app)
 {
     if (protocolVersionStartsFrom(genesisLedgerProtocol,
@@ -1578,15 +1544,13 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltx)
 }
 
 #ifdef BUILD_TESTS
-SorobanNetworkConfig
-SorobanNetworkConfig::emptyConfig()
+SorobanNetworkConfig SorobanNetworkConfig::emptyConfig()
 {
     return SorobanNetworkConfig();
 }
 #endif
 
-void
-SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1599,8 +1563,7 @@ SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
     mMaxContractSizeBytes = le.data.configSetting().contractMaxSizeBytes();
 }
 
-void
-SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1614,8 +1577,8 @@ SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
         le.data.configSetting().contractDataKeySizeBytes();
 }
 
-void
-SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadMaxContractDataEntrySize(
+    LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1629,8 +1592,7 @@ SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
         le.data.configSetting().contractDataEntrySizeBytes();
 }
 
-void
-SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1648,8 +1610,7 @@ SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
     mTxMemoryLimit = configSetting.txMemoryLimit;
 }
 
-void
-SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1695,8 +1656,7 @@ SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
     }
 }
 
-void
-SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1711,8 +1671,7 @@ SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
     mFeeHistorical1KB = configSetting.feeHistorical1KB;
 }
 
-void
-SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1727,8 +1686,7 @@ SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
     mTxMaxContractEventsSizeBytes = configSetting.txMaxContractEventsSizeBytes;
 }
 
-void
-SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1744,8 +1702,7 @@ SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
     mFeeTransactionSize1KB = configSetting.feeTxSize1KB;
 }
 
-void
-SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1758,8 +1715,7 @@ SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
     mCpuCostParams = le.data.configSetting().contractCostParamsCpuInsns();
 }
 
-void
-SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1772,8 +1728,7 @@ SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
 }
 
-void
-SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1788,8 +1743,8 @@ SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
     mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
 }
 
-void
-SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(
+    LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1818,8 +1773,7 @@ SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
     mAverageSorobanStateSize = sizeSum / window.size();
 }
 
-void
-SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1831,8 +1785,7 @@ SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
     mEvictionIterator = lsle.current().data.configSetting().evictionIterator();
 }
 
-void
-SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -1846,8 +1799,7 @@ SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
     mLedgerMaxDependentTxClusters = configSetting.ledgerMaxDependentTxClusters;
 }
 
-void
-SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -1861,8 +1813,7 @@ SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
     mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
 }
 
-void
-SorobanNetworkConfig::loadSCPTimingConfig(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadSCPTimingConfig(LedgerSnapshot const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -1884,26 +1835,22 @@ SorobanNetworkConfig::loadSCPTimingConfig(LedgerSnapshot const& ls)
         configSetting.ballotTimeoutIncrementMilliseconds;
 }
 
-uint32_t
-SorobanNetworkConfig::maxContractSizeBytes() const
+uint32_t SorobanNetworkConfig::maxContractSizeBytes() const
 {
     return mMaxContractSizeBytes;
 }
 
-uint32_t
-SorobanNetworkConfig::maxContractDataKeySizeBytes() const
+uint32_t SorobanNetworkConfig::maxContractDataKeySizeBytes() const
 {
     return mMaxContractDataKeySizeBytes;
 }
 
-uint32_t
-SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
+uint32_t SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 {
     return mMaxContractDataEntrySizeBytes;
 }
 
-void
-SorobanNetworkConfig::loadStateArchivalSettings(LedgerSnapshot const& ls)
+void SorobanNetworkConfig::loadStateArchivalSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1917,173 +1864,145 @@ SorobanNetworkConfig::loadStateArchivalSettings(LedgerSnapshot const& ls)
 }
 
 // Compute settings for contracts (instructions and memory).
-int64_t
-SorobanNetworkConfig::ledgerMaxInstructions() const
+int64_t SorobanNetworkConfig::ledgerMaxInstructions() const
 {
     return mLedgerMaxInstructions;
 }
 
-int64_t
-SorobanNetworkConfig::txMaxInstructions() const
+int64_t SorobanNetworkConfig::txMaxInstructions() const
 {
     return mTxMaxInstructions;
 }
 
-int64_t
-SorobanNetworkConfig::feeRatePerInstructionsIncrement() const
+int64_t SorobanNetworkConfig::feeRatePerInstructionsIncrement() const
 {
     return mFeeRatePerInstructionsIncrement;
 }
 
-uint32_t
-SorobanNetworkConfig::txMemoryLimit() const
+uint32_t SorobanNetworkConfig::txMemoryLimit() const
 {
     return mTxMemoryLimit;
 }
 
 // Ledger access settings for contracts.
-uint32_t
-SorobanNetworkConfig::ledgerMaxDiskReadEntries() const
+uint32_t SorobanNetworkConfig::ledgerMaxDiskReadEntries() const
 {
     return mLedgerMaxDiskReadEntries;
 }
 
-uint32_t
-SorobanNetworkConfig::ledgerMaxDiskReadBytes() const
+uint32_t SorobanNetworkConfig::ledgerMaxDiskReadBytes() const
 {
     return mLedgerMaxDiskReadBytes;
 }
 
-uint32_t
-SorobanNetworkConfig::ledgerMaxWriteLedgerEntries() const
+uint32_t SorobanNetworkConfig::ledgerMaxWriteLedgerEntries() const
 {
     return mLedgerMaxWriteLedgerEntries;
 }
 
-uint32_t
-SorobanNetworkConfig::ledgerMaxWriteBytes() const
+uint32_t SorobanNetworkConfig::ledgerMaxWriteBytes() const
 {
     return mLedgerMaxWriteBytes;
 }
 
-uint32_t
-SorobanNetworkConfig::txMaxDiskReadEntries() const
+uint32_t SorobanNetworkConfig::txMaxDiskReadEntries() const
 {
     return mTxMaxDiskReadEntries;
 }
 
-uint32_t
-SorobanNetworkConfig::txMaxDiskReadBytes() const
+uint32_t SorobanNetworkConfig::txMaxDiskReadBytes() const
 {
     return mTxMaxDiskReadBytes;
 }
 
-uint32_t
-SorobanNetworkConfig::txMaxWriteLedgerEntries() const
+uint32_t SorobanNetworkConfig::txMaxWriteLedgerEntries() const
 {
     return mTxMaxWriteLedgerEntries;
 }
 
-uint32_t
-SorobanNetworkConfig::txMaxWriteBytes() const
+uint32_t SorobanNetworkConfig::txMaxWriteBytes() const
 {
     return mTxMaxWriteBytes;
 }
 
-int64_t
-SorobanNetworkConfig::feeDiskReadLedgerEntry() const
+int64_t SorobanNetworkConfig::feeDiskReadLedgerEntry() const
 {
     return mFeeDiskReadLedgerEntry;
 }
 
-int64_t
-SorobanNetworkConfig::feeWriteLedgerEntry() const
+int64_t SorobanNetworkConfig::feeWriteLedgerEntry() const
 {
     return mFeeWriteLedgerEntry;
 }
 
-int64_t
-SorobanNetworkConfig::feeDiskRead1KB() const
+int64_t SorobanNetworkConfig::feeDiskRead1KB() const
 {
     return mFeeDiskRead1KB;
 }
 
-int64_t
-SorobanNetworkConfig::feeRent1KB() const
+int64_t SorobanNetworkConfig::feeRent1KB() const
 {
     return mFeeRent1KB;
 }
 
-int64_t
-SorobanNetworkConfig::sorobanStateTargetSizeBytes() const
+int64_t SorobanNetworkConfig::sorobanStateTargetSizeBytes() const
 {
     return mSorobanStateTargetSizeBytes;
 }
 
-int64_t
-SorobanNetworkConfig::rentFee1KBSorobanStateSizeLow() const
+int64_t SorobanNetworkConfig::rentFee1KBSorobanStateSizeLow() const
 {
     return mRentFee1KBSorobanStateSizeLow;
 }
-int64_t
-SorobanNetworkConfig::rentFee1KBSorobanStateSizeHigh() const
+int64_t SorobanNetworkConfig::rentFee1KBSorobanStateSizeHigh() const
 {
     return mRentFee1KBSorobanStateSizeHigh;
 }
-uint32_t
-SorobanNetworkConfig::sorobanStateRentFeeGrowthFactor() const
+uint32_t SorobanNetworkConfig::sorobanStateRentFeeGrowthFactor() const
 {
     return mSorobanStateRentFeeGrowthFactor;
 }
 
 // Historical data (pushed to core archives) settings for contracts.
-int64_t
-SorobanNetworkConfig::feeHistorical1KB() const
+int64_t SorobanNetworkConfig::feeHistorical1KB() const
 {
     return mFeeHistorical1KB;
 }
 
 // Maximum size of the emitted contract events.
-uint32_t
-SorobanNetworkConfig::txMaxContractEventsSizeBytes() const
+uint32_t SorobanNetworkConfig::txMaxContractEventsSizeBytes() const
 {
     return mTxMaxContractEventsSizeBytes;
 }
 
-int64_t
-SorobanNetworkConfig::feeContractEventsSize1KB() const
+int64_t SorobanNetworkConfig::feeContractEventsSize1KB() const
 {
     return mFeeContractEvents1KB;
 }
 
 // Bandwidth related data settings for contracts
-uint32_t
-SorobanNetworkConfig::ledgerMaxTransactionSizesBytes() const
+uint32_t SorobanNetworkConfig::ledgerMaxTransactionSizesBytes() const
 {
     return mLedgerMaxTransactionsSizeBytes;
 }
 
-uint32_t
-SorobanNetworkConfig::txMaxSizeBytes() const
+uint32_t SorobanNetworkConfig::txMaxSizeBytes() const
 {
     return mTxMaxSizeBytes;
 }
 
-int64_t
-SorobanNetworkConfig::feeTransactionSize1KB() const
+int64_t SorobanNetworkConfig::feeTransactionSize1KB() const
 {
     return mFeeTransactionSize1KB;
 }
 
 // General execution lanes settings for contracts
-uint32_t
-SorobanNetworkConfig::ledgerMaxTxCount() const
+uint32_t SorobanNetworkConfig::ledgerMaxTxCount() const
 {
     return mLedgerMaxTxCount;
 }
 
-void
-SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(
+void SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(
     AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
@@ -2125,11 +2044,9 @@ SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(
     });
 }
 
-void
-SorobanNetworkConfig::maybeSnapshotSorobanStateSize(uint32_t currLedger,
-                                                    uint64_t inMemoryStateSize,
-                                                    AbstractLedgerTxn& ltxRoot,
-                                                    Application& app)
+void SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
+    uint32_t currLedger, uint64_t inMemoryStateSize, AbstractLedgerTxn& ltxRoot,
+    Application& app)
 {
     ZoneScoped;
 
@@ -2168,9 +2085,8 @@ SorobanNetworkConfig::maybeSnapshotSorobanStateSize(uint32_t currLedger,
     });
 }
 
-void
-SorobanNetworkConfig::updateRecomputedSorobanStateSize(uint64_t newSize,
-                                                       AbstractLedgerTxn& ltx)
+void SorobanNetworkConfig::updateRecomputedSorobanStateSize(
+    uint64_t newSize, AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
     updateStateSizeWindowSetting(ltx, [newSize](auto& window) {
@@ -2181,39 +2097,33 @@ SorobanNetworkConfig::updateRecomputedSorobanStateSize(uint64_t newSize,
     });
 }
 
-uint64_t
-SorobanNetworkConfig::getAverageSorobanStateSize() const
+uint64_t SorobanNetworkConfig::getAverageSorobanStateSize() const
 {
     return mAverageSorobanStateSize;
 }
 
-ContractCostParams const&
-SorobanNetworkConfig::cpuCostParams() const
+ContractCostParams const& SorobanNetworkConfig::cpuCostParams() const
 {
     return mCpuCostParams;
 }
 
-ContractCostParams const&
-SorobanNetworkConfig::memCostParams() const
+ContractCostParams const& SorobanNetworkConfig::memCostParams() const
 {
     return mMemCostParams;
 }
 
-StateArchivalSettings const&
-SorobanNetworkConfig::stateArchivalSettings() const
+StateArchivalSettings const& SorobanNetworkConfig::stateArchivalSettings() const
 {
     return mStateArchivalSettings;
 }
 
-EvictionIterator const&
-SorobanNetworkConfig::evictionIterator() const
+EvictionIterator const& SorobanNetworkConfig::evictionIterator() const
 {
     return mEvictionIterator;
 }
 
-void
-SorobanNetworkConfig::updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
-                                             EvictionIterator const& newIter)
+void SorobanNetworkConfig::updateEvictionIterator(
+    AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter)
 {
     ZoneScoped;
 
@@ -2228,56 +2138,47 @@ SorobanNetworkConfig::updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
     ltx.commit();
 }
 
-uint32_t
-SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
+uint32_t SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
 {
     return mLedgerMaxDependentTxClusters;
 }
 
-uint32_t
-SorobanNetworkConfig::ledgerTargetCloseTimeMilliseconds() const
+uint32_t SorobanNetworkConfig::ledgerTargetCloseTimeMilliseconds() const
 {
     return mLedgerTargetCloseTimeMilliseconds;
 }
 
-uint32_t
-SorobanNetworkConfig::nominationTimeoutInitialMilliseconds() const
+uint32_t SorobanNetworkConfig::nominationTimeoutInitialMilliseconds() const
 {
     return mNominationTimeoutInitialMilliseconds;
 }
 
-uint32_t
-SorobanNetworkConfig::nominationTimeoutIncrementMilliseconds() const
+uint32_t SorobanNetworkConfig::nominationTimeoutIncrementMilliseconds() const
 {
     return mNominationTimeoutIncrementMilliseconds;
 }
 
-uint32_t
-SorobanNetworkConfig::ballotTimeoutInitialMilliseconds() const
+uint32_t SorobanNetworkConfig::ballotTimeoutInitialMilliseconds() const
 {
     return mBallotTimeoutInitialMilliseconds;
 }
 
-uint32_t
-SorobanNetworkConfig::ballotTimeoutIncrementMilliseconds() const
+uint32_t SorobanNetworkConfig::ballotTimeoutIncrementMilliseconds() const
 {
     return mBallotTimeoutIncrementMilliseconds;
 }
 
-uint32_t
-SorobanNetworkConfig::txMaxFootprintEntries() const
+uint32_t SorobanNetworkConfig::txMaxFootprintEntries() const
 {
     return mTxMaxFootprintEntries;
 }
 
-int64_t
-SorobanNetworkConfig::feeFlatRateWrite1KB() const
+int64_t SorobanNetworkConfig::feeFlatRateWrite1KB() const
 {
     return mFeeFlatRateWrite1KB;
 }
 
-Resource
-SorobanNetworkConfig::maxLedgerResources() const
+Resource SorobanNetworkConfig::maxLedgerResources() const
 {
     std::vector<int64_t> limits = {
         ledgerMaxTxCount(),
@@ -2293,8 +2194,7 @@ SorobanNetworkConfig::maxLedgerResources() const
 }
 
 #ifdef BUILD_TESTS
-void
-SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
+void SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot);
@@ -2410,8 +2310,7 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     ltx.commit();
 }
 
-bool
-SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
+bool SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
 {
     return mMaxContractSizeBytes == other.maxContractSizeBytes() &&
            mMaxContractDataKeySizeBytes ==
@@ -2483,9 +2382,8 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
 }
 #endif
 
-bool
-SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
-                                        uint32_t ledgerVersion)
+bool SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
+                                             uint32_t ledgerVersion)
 {
     auto getNumCostTypes = [](uint32_t ledgerVersion) -> uint32_t {
         if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_21))
@@ -2567,8 +2465,7 @@ SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
     return res;
 }
 
-void
-SorobanNetworkConfig::computeRentWriteFee(uint32_t protocolVersion)
+void SorobanNetworkConfig::computeRentWriteFee(uint32_t protocolVersion)
 {
     ZoneScoped;
 

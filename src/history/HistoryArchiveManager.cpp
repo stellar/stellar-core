@@ -28,8 +28,7 @@ HistoryArchiveManager::HistoryArchiveManager(Application& app) : mApp{app}
             std::make_shared<HistoryArchive>(archiveConfiguration.second));
 }
 
-bool
-HistoryArchiveManager::checkSensibleConfig() const
+bool HistoryArchiveManager::checkSensibleConfig() const
 {
     // Check reasonable-ness of history archive definitions
     std::vector<std::string> readOnlyArchives;
@@ -181,8 +180,7 @@ HistoryArchiveManager::getHistoryArchiveReportWork() const
     return std::make_shared<HistoryArchiveReportWork>(mApp, hasWorks);
 };
 
-std::shared_ptr<BasicWork>
-HistoryArchiveManager::getCheckLedgerHeaderWork(
+std::shared_ptr<BasicWork> HistoryArchiveManager::getCheckLedgerHeaderWork(
     LedgerHeaderHistoryEntry const& lhhe) const
 {
     std::vector<std::shared_ptr<BasicWork>> checkWorks;
@@ -196,8 +194,8 @@ HistoryArchiveManager::getCheckLedgerHeaderWork(
                                           /*stopOnFirstFailure=*/false);
 }
 
-bool
-HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
+bool HistoryArchiveManager::initializeHistoryArchive(
+    std::string const& arch) const
 {
     auto archive = getHistoryArchive(arch);
     if (!archive)
@@ -238,8 +236,7 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
     }
 }
 
-bool
-HistoryArchiveManager::publishEnabled() const
+bool HistoryArchiveManager::publishEnabled() const
 {
     return std::any_of(std::begin(mArchives), std::end(mArchives),
                        [](std::shared_ptr<HistoryArchive> const& x) {

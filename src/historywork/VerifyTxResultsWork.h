@@ -37,8 +37,7 @@ class VerifyTxResultsWork : public BasicWork
     BasicWork::State onRun() override;
     void onReset() override;
 
-    bool
-    onAbort() override
+    bool onAbort() override
     {
         return true;
     };

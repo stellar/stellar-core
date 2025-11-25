@@ -30,8 +30,7 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
     Application& mApp;
     uint32 mOldVersion;
 
-    void
-    setVersion(uint32 ver)
+    void setVersion(uint32 ver)
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         auto header = ltx.loadHeader();
@@ -67,8 +66,7 @@ ApplyBucketsWork::ApplyBucketsWork(
 {
 }
 
-std::shared_ptr<LiveBucket>
-ApplyBucketsWork::getBucket(std::string const& hash)
+std::shared_ptr<LiveBucket> ApplyBucketsWork::getBucket(std::string const& hash)
 {
     auto i = mBuckets.find(hash);
     auto b = (i != mBuckets.end())
@@ -79,8 +77,7 @@ ApplyBucketsWork::getBucket(std::string const& hash)
     return b;
 }
 
-void
-ApplyBucketsWork::doReset()
+void ApplyBucketsWork::doReset()
 {
     ZoneScoped;
     CLOG_INFO(History, "Applying buckets");
@@ -137,14 +134,12 @@ ApplyBucketsWork::doReset()
     }
 }
 
-bool
-ApplyBucketsWork::appliedAllBuckets() const
+bool ApplyBucketsWork::appliedAllBuckets() const
 {
     return mBucketToApplyIndex == mBucketsToApply.size();
 }
 
-void
-ApplyBucketsWork::startBucket()
+void ApplyBucketsWork::startBucket()
 {
     ZoneScoped;
     auto bucket = mBucketsToApply.at(mBucketToApplyIndex);
@@ -164,8 +159,7 @@ ApplyBucketsWork::startBucket()
         mSeenKeys);
 }
 
-void
-ApplyBucketsWork::prepareForNextBucket()
+void ApplyBucketsWork::prepareForNextBucket()
 {
     ZoneScoped;
     mBucketApplicator.reset();
@@ -185,8 +179,7 @@ ApplyBucketsWork::prepareForNextBucket()
 // allows us to perform a single write to the DB and ensure that only the newest
 // version is written.
 //
-BasicWork::State
-ApplyBucketsWork::doWork()
+BasicWork::State ApplyBucketsWork::doWork()
 {
     ZoneScoped;
 
@@ -256,9 +249,8 @@ ApplyBucketsWork::doWork()
     return checkChildrenStatus();
 }
 
-void
-ApplyBucketsWork::advance(std::string const& bucketName,
-                          BucketApplicator& applicator)
+void ApplyBucketsWork::advance(std::string const& bucketName,
+                               BucketApplicator& applicator)
 {
     ZoneScoped;
     releaseAssert(applicator);
@@ -299,8 +291,7 @@ ApplyBucketsWork::advance(std::string const& bucketName,
     }
 }
 
-std::string
-ApplyBucketsWork::getStatus() const
+std::string ApplyBucketsWork::getStatus() const
 {
     // This status string only applies to step 2 when we actually apply the
     // buckets.

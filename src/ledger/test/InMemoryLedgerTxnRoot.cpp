@@ -27,26 +27,23 @@ InMemoryLedgerTxnRoot::InMemoryLedgerTxnRoot(
 {
 }
 
-void
-InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
+void InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child,
+                                     TransactionMode mode)
 {
 }
 
-void
-InMemoryLedgerTxnRoot::commitChild(EntryIterator iter,
-                                   RestoredEntries const& restoredEntries,
-                                   LedgerTxnConsistency cons) noexcept
+void InMemoryLedgerTxnRoot::commitChild(EntryIterator iter,
+                                        RestoredEntries const& restoredEntries,
+                                        LedgerTxnConsistency cons) noexcept
 {
     printErrorAndAbort("committing to stub InMemoryLedgerTxnRoot");
 }
 
-void
-InMemoryLedgerTxnRoot::rollbackChild() noexcept
+void InMemoryLedgerTxnRoot::rollbackChild() noexcept
 {
 }
 
-UnorderedMap<LedgerKey, LedgerEntry>
-InMemoryLedgerTxnRoot::getAllOffers()
+UnorderedMap<LedgerKey, LedgerEntry> InMemoryLedgerTxnRoot::getAllOffers()
 {
     return UnorderedMap<LedgerKey, LedgerEntry>();
 }
@@ -78,8 +75,7 @@ InMemoryLedgerTxnRoot::getPoolShareTrustLinesByAccountAndAsset(
     return UnorderedMap<LedgerKey, LedgerEntry>();
 }
 
-LedgerHeader const&
-InMemoryLedgerTxnRoot::getHeader() const
+LedgerHeader const& InMemoryLedgerTxnRoot::getHeader() const
 {
     return *mHeader;
 }
@@ -116,66 +112,55 @@ InMemoryLedgerTxnRoot::getNewestVersionBelowRoot(
     return {false, nullptr};
 }
 
-uint64_t
-InMemoryLedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
+uint64_t InMemoryLedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
     return 0;
 }
 
-void
-InMemoryLedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(
+void InMemoryLedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(
     uint32_t ledger) const
 {
 }
 
-void
-InMemoryLedgerTxnRoot::dropOffers()
+void InMemoryLedgerTxnRoot::dropOffers()
 {
 }
 
-double
-InMemoryLedgerTxnRoot::getPrefetchHitRate() const
+double InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 {
     return 0.0;
 }
 
-uint32_t
-InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
+uint32_t InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
 {
     return 0;
 }
 
-void
-InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
+void InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
 {
 }
 
-SessionWrapper&
-InMemoryLedgerTxnRoot::getSession() const
+SessionWrapper& InMemoryLedgerTxnRoot::getSession() const
 {
     throw std::runtime_error("called InMemoryLedgerTxnRoot::getSession");
 }
 
 #ifdef BUILD_TESTS
-void
-InMemoryLedgerTxnRoot::resetForFuzzer()
+void InMemoryLedgerTxnRoot::resetForFuzzer()
 {
     abort();
 }
 #endif // BUILD_TESTS
 
 #ifdef BEST_OFFER_DEBUGGING
-bool
-InMemoryLedgerTxnRoot::bestOfferDebuggingEnabled() const
+bool InMemoryLedgerTxnRoot::bestOfferDebuggingEnabled() const
 {
     return mBestOfferDebuggingEnabled;
 }
 
-std::shared_ptr<LedgerEntry const>
-InMemoryLedgerTxnRoot::getBestOfferSlow(Asset const& buying,
-                                        Asset const& selling,
-                                        OfferDescriptor const* worseThan,
-                                        std::unordered_set<int64_t>& exclude)
+std::shared_ptr<LedgerEntry const> InMemoryLedgerTxnRoot::getBestOfferSlow(
+    Asset const& buying, Asset const& selling, OfferDescriptor const* worseThan,
+    std::unordered_set<int64_t>& exclude)
 {
     return nullptr;
 }

@@ -35,9 +35,7 @@ VerifyBucketWork<BucketT>::VerifyBucketWork(
 {
 }
 
-template <typename BucketT>
-BasicWork::State
-VerifyBucketWork<BucketT>::onRun()
+template <typename BucketT> BasicWork::State VerifyBucketWork<BucketT>::onRun()
 {
     ZoneScoped;
     if (mDone)
@@ -53,9 +51,7 @@ VerifyBucketWork<BucketT>::onRun()
     return State::WORK_WAITING;
 }
 
-template <typename BucketT>
-void
-VerifyBucketWork<BucketT>::spawnVerifier()
+template <typename BucketT> void VerifyBucketWork<BucketT>::spawnVerifier()
 {
     std::string filename = mBucketFile;
     if (auto size = fs::size(filename);
@@ -152,9 +148,7 @@ VerifyBucketWork<BucketT>::spawnVerifier()
         "VerifyBucket: start in background");
 }
 
-template <typename BucketT>
-void
-VerifyBucketWork<BucketT>::onFailureRaise()
+template <typename BucketT> void VerifyBucketWork<BucketT>::onFailureRaise()
 {
     if (mOnFailure)
     {

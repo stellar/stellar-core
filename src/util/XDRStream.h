@@ -42,15 +42,13 @@ class XDRInputFileStream
     {
     }
 
-    void
-    close()
+    void close()
     {
         ZoneScoped;
         mIn.close();
     }
 
-    void
-    open(std::string const& filename)
+    void open(std::string const& filename)
     {
         ZoneScoped;
         mIn.open(filename, std::ifstream::binary);
@@ -67,8 +65,7 @@ class XDRInputFileStream
         mSize = fs::size(mIn);
     }
 
-    void
-    open(std::filesystem::path const& filename)
+    void open(std::filesystem::path const& filename)
     {
         open(filename.string());
     }
@@ -78,28 +75,24 @@ class XDRInputFileStream
         return mIn.good();
     }
 
-    size_t
-    size() const
+    size_t size() const
     {
         return mSize;
     }
 
-    std::streamoff
-    pos()
+    std::streamoff pos()
     {
         releaseAssertOrThrow(!mIn.fail());
         return mIn.tellg();
     }
 
-    void
-    seek(size_t pos)
+    void seek(size_t pos)
     {
         releaseAssertOrThrow(!mIn.fail());
         mIn.seekg(pos);
     }
 
-    static inline uint32_t
-    getXDRSize(char* buf)
+    static inline uint32_t getXDRSize(char* buf)
     {
         // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
         // (high bit of high byte).
@@ -116,9 +109,7 @@ class XDRInputFileStream
 
     // If a hasher is provided, it will be updated with the raw XDR bytes
     // read from the stream.
-    template <typename T>
-    bool
-    readOne(T& out, SHA256* hasher = nullptr)
+    template <typename T> bool readOne(T& out, SHA256* hasher = nullptr)
     {
         ZoneScoped;
         char szBuf[4];
@@ -167,8 +158,7 @@ class XDRInputFileStream
     // an `out` value for which `getBucketLedgerKey(out) == key`. It returns
     // `true` if it located such a value, or false if it failed to find one.
     template <typename T>
-    bool
-    readPage(T& out, LedgerKey const& key, size_t pageSize)
+    bool readPage(T& out, LedgerKey const& key, size_t pageSize)
     {
         ZoneScoped;
         if (mBuf.size() != pageSize)
@@ -275,8 +265,7 @@ class OutputFileStream
         }
     }
 
-    bool
-    isOpen()
+    bool isOpen()
     {
 #ifdef WIN32
         return mOut != nullptr;
@@ -285,8 +274,7 @@ class OutputFileStream
 #endif
     }
 
-    fs::native_handle_t
-    getHandle()
+    fs::native_handle_t getHandle()
     {
 #ifdef WIN32
         return mHandle;
@@ -295,8 +283,7 @@ class OutputFileStream
 #endif
     }
 
-    void
-    close()
+    void close()
     {
         ZoneScoped;
         if (!isOpen())
@@ -317,8 +304,7 @@ class OutputFileStream
 #endif
     }
 
-    void
-    fdopen(int fd)
+    void fdopen(int fd)
     {
 #ifdef WIN32
         FileSystemException::failWith(
@@ -338,8 +324,7 @@ class OutputFileStream
 #endif
     }
 
-    void
-    flush()
+    void flush()
     {
         ZoneScoped;
         if (!isOpen())
@@ -364,8 +349,7 @@ class OutputFileStream
 #endif
     }
 
-    void
-    open(std::string const& filename)
+    void open(std::string const& filename)
     {
         ZoneScoped;
         if (isOpen())
@@ -395,8 +379,7 @@ class OutputFileStream
         return isOpen();
     }
 
-    void
-    writeBytes(char const* buf, size_t const sizeBytes)
+    void writeBytes(char const* buf, size_t const sizeBytes)
     {
         ZoneScoped;
         if (!isOpen())
@@ -448,9 +431,8 @@ class XDROutputFileStream : public OutputFileStream
     }
 
     template <typename T>
-    void
-    durableWriteOne(T const& t, SHA256* hasher = nullptr,
-                    size_t* bytesPut = nullptr)
+    void durableWriteOne(T const& t, SHA256* hasher = nullptr,
+                         size_t* bytesPut = nullptr)
     {
         writeOne(t, hasher, bytesPut);
         flush();
@@ -458,8 +440,8 @@ class XDROutputFileStream : public OutputFileStream
     }
 
     template <typename T>
-    void
-    writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
+    void writeOne(T const& t, SHA256* hasher = nullptr,
+                  size_t* bytesPut = nullptr)
     {
         ZoneScoped;
         uint32_t sz = (uint32_t)xdr::xdr_size(t);

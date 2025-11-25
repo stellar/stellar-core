@@ -55,31 +55,23 @@ populateLoadedEntries(KeySetT const& keys,
     return res;
 }
 
-template <typename T>
-bool
-isSorobanEntry(T const& e)
+template <typename T> bool isSorobanEntry(T const& e)
 {
     return e.type() == CONTRACT_DATA || e.type() == CONTRACT_CODE;
 }
 
-template <typename T>
-bool
-isContractCodeEntry(T const& e)
+template <typename T> bool isContractCodeEntry(T const& e)
 {
     return e.type() == CONTRACT_CODE;
 }
 
-template <typename T>
-bool
-isTemporaryEntry(T const& e)
+template <typename T> bool isTemporaryEntry(T const& e)
 {
     return e.type() == CONTRACT_DATA &&
            e.contractData().durability == ContractDataDurability::TEMPORARY;
 }
 
-template <typename T>
-bool
-isPersistentEntry(T const& e)
+template <typename T> bool isPersistentEntry(T const& e)
 {
     return e.type() == CONTRACT_CODE ||
            (e.type() == CONTRACT_DATA &&

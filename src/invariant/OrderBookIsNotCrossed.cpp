@@ -20,8 +20,7 @@ namespace stellar
 {
 namespace
 {
-double
-priceAsDouble(Price const& price)
+double priceAsDouble(Price const& price)
 {
     return static_cast<double>(price.n) / static_cast<double>(price.d);
 }
@@ -49,9 +48,8 @@ extractAssetPairs(LedgerTxnDelta const& ltxd)
     return assets;
 }
 
-std::string
-checkCrossed(Asset const& a, Asset const& b,
-             OrderBookIsNotCrossed::OrderBook const& orderBook)
+std::string checkCrossed(Asset const& a, Asset const& b,
+                         OrderBookIsNotCrossed::OrderBook const& orderBook)
 {
     // If either side of the order book for this asset pair is empty or does not
     // yet exist, then the order book cannot be crossed.
@@ -108,9 +106,8 @@ checkCrossed(Asset const& a, Asset const& b,
 }
 }
 
-bool
-OrderBookIsNotCrossed::OfferEntryCmp::operator()(OfferEntry const& a,
-                                                 OfferEntry const& b) const
+bool OrderBookIsNotCrossed::OfferEntryCmp::operator()(OfferEntry const& a,
+                                                      OfferEntry const& b) const
 {
     auto const priceA = priceAsDouble(a.price);
     auto const priceB = priceAsDouble(b.price);
@@ -133,8 +130,7 @@ OrderBookIsNotCrossed::OfferEntryCmp::operator()(OfferEntry const& a,
     return false;
 }
 
-void
-OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
+void OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
 {
     for (auto const& entry : ltxd.entry)
     {
@@ -166,8 +162,7 @@ OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
     }
 }
 
-std::string
-OrderBookIsNotCrossed::check(AssetPairSet const& assetPairs)
+std::string OrderBookIsNotCrossed::check(AssetPairSet const& assetPairs)
 {
     releaseAssert(!mRestoreBeforeNextUpdate);
     for (auto const& assetPair : assetPairs)
@@ -192,14 +187,12 @@ OrderBookIsNotCrossed::registerAndEnableInvariant(Application& app)
     return invariant;
 }
 
-std::string
-OrderBookIsNotCrossed::getName() const
+std::string OrderBookIsNotCrossed::getName() const
 {
     return "OrderBookIsNotCrossed";
 }
 
-std::string
-OrderBookIsNotCrossed::checkOnOperationApply(
+std::string OrderBookIsNotCrossed::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)
@@ -209,14 +202,12 @@ OrderBookIsNotCrossed::checkOnOperationApply(
     return assetPairs.size() > 0 ? check(assetPairs) : std::string{};
 }
 
-void
-OrderBookIsNotCrossed::snapshotForFuzzer()
+void OrderBookIsNotCrossed::snapshotForFuzzer()
 {
     mOrderBookSnapshot = mOrderBook;
 }
 
-void
-OrderBookIsNotCrossed::resetForFuzzer()
+void OrderBookIsNotCrossed::resetForFuzzer()
 {
     // This call indicates that the fuzzer has completed one test and its next
     // call to `checkOnOperationApply` will be in the context of the order book

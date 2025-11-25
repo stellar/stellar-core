@@ -19,8 +19,7 @@
 namespace stellar
 {
 
-void
-PutSnapshotFilesWork::cleanup()
+void PutSnapshotFilesWork::cleanup()
 {
     // Delete `gz` files produced by this work
     for (auto const& f : mFilesToUpload)
@@ -40,8 +39,7 @@ PutSnapshotFilesWork::PutSnapshotFilesWork(
 {
 }
 
-BasicWork::State
-PutSnapshotFilesWork::doWork()
+BasicWork::State PutSnapshotFilesWork::doWork()
 {
     ZoneScoped;
     if (!mUploadSeqs.empty())
@@ -104,8 +102,7 @@ PutSnapshotFilesWork::doWork()
     return State::WORK_RUNNING;
 }
 
-void
-PutSnapshotFilesWork::doReset()
+void PutSnapshotFilesWork::doReset()
 {
     cleanup();
 
@@ -115,8 +112,7 @@ PutSnapshotFilesWork::doReset()
     mFilesToUpload.clear();
 }
 
-void
-PutSnapshotFilesWork::createGzipWorks()
+void PutSnapshotFilesWork::createGzipWorks()
 {
     // Sanity check: there are states for all archives
     if (mGetStateWorks.size() !=
@@ -139,8 +135,7 @@ PutSnapshotFilesWork::createGzipWorks()
     }
 }
 
-std::string
-PutSnapshotFilesWork::getStatus() const
+std::string PutSnapshotFilesWork::getStatus() const
 {
     if (!mUploadSeqs.empty())
     {
@@ -160,8 +155,7 @@ PutSnapshotFilesWork::getStatus() const
     return BasicWork::getStatus();
 }
 
-void
-PutSnapshotFilesWork::onSuccess()
+void PutSnapshotFilesWork::onSuccess()
 {
     cleanup();
 }

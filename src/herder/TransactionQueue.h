@@ -310,8 +310,7 @@ class SorobanTransactionQueue : public TransactionQueue
     SorobanTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier,
                             UnorderedSet<LedgerKey> const& keysToFilter);
-    int
-    getFloodPeriod() const override
+    int getFloodPeriod() const override
     {
         return mApp.getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
     }
@@ -328,8 +327,7 @@ class SorobanTransactionQueue : public TransactionQueue
     void resetAndRebuild(UnorderedSet<LedgerKey> const& keysToFilter);
 
 #ifdef BUILD_TESTS
-    void
-    clearBroadcastCarryover()
+    void clearBroadcastCarryover()
     {
         mBroadcastOpCarryover.clear();
         mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
@@ -342,8 +340,7 @@ class SorobanTransactionQueue : public TransactionQueue
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
     // No special flooding rules for Soroban
-    virtual bool
-    allowTxBroadcast(TransactionFrameBasePtr const& tx) override
+    virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) override
     {
         return true;
     }
@@ -355,8 +352,7 @@ class ClassicTransactionQueue : public TransactionQueue
     ClassicTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier);
 
-    int
-    getFloodPeriod() const override
+    int getFloodPeriod() const override
     {
         return mApp.getConfig().FLOOD_TX_PERIOD_MS;
     }

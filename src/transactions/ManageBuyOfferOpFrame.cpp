@@ -14,8 +14,7 @@
 namespace stellar
 {
 
-static Price
-getInversePrice(Price const& price)
+static Price getInversePrice(Price const& price)
 {
     return Price{price.d, price.n};
 }
@@ -30,27 +29,23 @@ ManageBuyOfferOpFrame::ManageBuyOfferOpFrame(Operation const& op,
 {
 }
 
-bool
-ManageBuyOfferOpFrame::isOpSupported(LedgerHeader const& header) const
+bool ManageBuyOfferOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_11);
 }
 
-bool
-ManageBuyOfferOpFrame::isAmountValid() const
+bool ManageBuyOfferOpFrame::isAmountValid() const
 {
     return mManageBuyOffer.buyAmount >= 0;
 }
 
-bool
-ManageBuyOfferOpFrame::isDeleteOffer() const
+bool ManageBuyOfferOpFrame::isDeleteOffer() const
 {
     return mManageBuyOffer.buyAmount == 0;
 }
 
-int64_t
-ManageBuyOfferOpFrame::getOfferBuyingLiabilities() const
+int64_t ManageBuyOfferOpFrame::getOfferBuyingLiabilities() const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
@@ -58,8 +53,7 @@ ManageBuyOfferOpFrame::getOfferBuyingLiabilities() const
     return res.numSheepSend;
 }
 
-int64_t
-ManageBuyOfferOpFrame::getOfferSellingLiabilities() const
+int64_t ManageBuyOfferOpFrame::getOfferSellingLiabilities() const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
@@ -67,18 +61,15 @@ ManageBuyOfferOpFrame::getOfferSellingLiabilities() const
     return res.numWheatReceived;
 }
 
-void
-ManageBuyOfferOpFrame::applyOperationSpecificLimits(int64_t& maxSheepSend,
-                                                    int64_t sheepSent,
-                                                    int64_t& maxWheatReceive,
-                                                    int64_t wheatReceived) const
+void ManageBuyOfferOpFrame::applyOperationSpecificLimits(
+    int64_t& maxSheepSend, int64_t sheepSent, int64_t& maxWheatReceive,
+    int64_t wheatReceived) const
 {
     maxWheatReceive =
         std::min(mManageBuyOffer.buyAmount - wheatReceived, maxWheatReceive);
 }
 
-void
-ManageBuyOfferOpFrame::getExchangeParametersBeforeV10(
+void ManageBuyOfferOpFrame::getExchangeParametersBeforeV10(
     int64_t& maxSheepSend, int64_t& maxWheatReceive) const
 {
     throw std::runtime_error("ManageBuyOffer used before protocol version 10");
@@ -90,80 +81,69 @@ ManageBuyOfferOpFrame::getSuccessResult(OperationResult& res) const
     return res.tr().manageBuyOfferResult().success();
 }
 
-void
-ManageBuyOfferOpFrame::setResultSuccess(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultSuccess(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_SUCCESS);
 }
 
-void
-ManageBuyOfferOpFrame::setResultMalformed(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultMalformed(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_MALFORMED);
 }
 
-void
-ManageBuyOfferOpFrame::setResultSellNoTrust(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultSellNoTrust(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_SELL_NO_TRUST);
 }
 
-void
-ManageBuyOfferOpFrame::setResultBuyNoTrust(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultBuyNoTrust(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_BUY_NO_TRUST);
 }
 
-void
-ManageBuyOfferOpFrame::setResultSellNotAuthorized(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultSellNotAuthorized(
+    OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_SELL_NOT_AUTHORIZED);
 }
 
-void
-ManageBuyOfferOpFrame::setResultBuyNotAuthorized(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultBuyNotAuthorized(
+    OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_BUY_NOT_AUTHORIZED);
 }
 
-void
-ManageBuyOfferOpFrame::setResultLineFull(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultLineFull(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_LINE_FULL);
 }
 
-void
-ManageBuyOfferOpFrame::setResultUnderfunded(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultUnderfunded(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_UNDERFUNDED);
 }
 
-void
-ManageBuyOfferOpFrame::setResultCrossSelf(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultCrossSelf(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_CROSS_SELF);
 }
 
-void
-ManageBuyOfferOpFrame::setResultSellNoIssuer(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultSellNoIssuer(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_SELL_NO_ISSUER);
 }
 
-void
-ManageBuyOfferOpFrame::setResultBuyNoIssuer(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultBuyNoIssuer(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_BUY_NO_ISSUER);
 }
 
-void
-ManageBuyOfferOpFrame::setResultNotFound(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultNotFound(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_NOT_FOUND);
 }
 
-void
-ManageBuyOfferOpFrame::setResultLowReserve(OperationResult& res) const
+void ManageBuyOfferOpFrame::setResultLowReserve(OperationResult& res) const
 {
     res.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_LOW_RESERVE);
 }

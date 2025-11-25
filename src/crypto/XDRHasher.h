@@ -18,13 +18,11 @@ template <typename Derived> struct XDRHasher
     // Buffer and batch calls to underlying hasher a _little_ bit.
     unsigned char mBuf[256] = {0};
     size_t mLen = 0;
-    size_t
-    available() const
+    size_t available() const
     {
         return sizeof(mBuf) - mLen;
     }
-    void
-    queueOrHash(unsigned char const* u, size_t sz)
+    void queueOrHash(unsigned char const* u, size_t sz)
     {
         if (u == nullptr)
         {
@@ -47,8 +45,7 @@ template <typename Derived> struct XDRHasher
         memcpy(mBuf + mLen, u, sz);
         mLen += sz;
     }
-    void
-    flush()
+    void flush()
     {
         if (mLen != 0)
         {

@@ -32,9 +32,8 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 {
 }
 
-bool
-CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
-                                       OperationResult& res) const
+bool CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
+                                            OperationResult& res) const
 {
     auto header = ltx.loadHeader();
     if (mCreateAccount.startingBalance <
@@ -79,9 +78,8 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
-                                     OperationResult& res) const
+bool CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
+                                          OperationResult& res) const
 {
     LedgerTxn ltx(ltxOuter);
     auto header = ltx.loadHeader();
@@ -136,10 +134,9 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
     return true;
 }
 
-bool
-CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                              OperationResult& res,
-                              OperationMetaBuilder& opMeta) const
+bool CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                   OperationResult& res,
+                                   OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (stellar::loadAccount(ltx, mCreateAccount.destination))
@@ -171,9 +168,8 @@ CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return success;
 }
 
-bool
-CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                   OperationResult& res) const
+bool CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                        OperationResult& res) const
 {
     int64_t minStartingBalance =
         protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_14) ? 0 : 1;
@@ -192,8 +188,7 @@ CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-CreateAccountOpFrame::insertLedgerKeysToPrefetch(
+void CreateAccountOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(accountKey(mCreateAccount.destination));

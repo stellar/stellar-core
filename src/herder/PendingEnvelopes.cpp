@@ -54,9 +54,8 @@ PendingEnvelopes::~PendingEnvelopes()
 {
 }
 
-void
-PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
-                                 Peer::pointer peer)
+void PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
+                                      Peer::pointer peer)
 {
     switch (type)
     {
@@ -76,8 +75,7 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
     }
 }
 
-SCPQuorumSetPtr
-PendingEnvelopes::getKnownQSet(Hash const& hash, bool touch)
+SCPQuorumSetPtr PendingEnvelopes::getKnownQSet(Hash const& hash, bool touch)
 {
     SCPQuorumSetPtr res;
     auto it = mKnownQSets.find(hash);
@@ -94,8 +92,8 @@ PendingEnvelopes::getKnownQSet(Hash const& hash, bool touch)
     return res;
 }
 
-SCPQuorumSetPtr
-PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
+SCPQuorumSetPtr PendingEnvelopes::putQSet(Hash const& qSetHash,
+                                          SCPQuorumSet const& qSet)
 {
     CLOG_TRACE(Herder, "Add SCPQSet {}", hexAbbrev(qSetHash));
     SCPQuorumSetPtr res;
@@ -111,16 +109,14 @@ PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
     return res;
 }
 
-void
-PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
+void PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     ZoneScoped;
     putQSet(hash, q);
     mQuorumSetFetcher.recv(hash, mFetchQsetTimer);
 }
 
-bool
-PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
+bool PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Got SCPQSet {}", hexAbbrev(hash));
@@ -144,8 +140,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
     return res;
 }
 
-void
-PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
+void PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Discarding SCP Envelopes with SCPQSet {}",
@@ -156,8 +151,7 @@ PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
         discardSCPEnvelope(envelope);
 }
 
-void
-PendingEnvelopes::updateMetrics()
+void PendingEnvelopes::updateMetrics()
 {
     int64 processed = 0;
     int64 discarded = 0;
@@ -180,9 +174,8 @@ PendingEnvelopes::updateMetrics()
     mReadyCount.set_count(ready);
 }
 
-TxSetXDRFrameConstPtr
-PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
-                           TxSetXDRFrameConstPtr txset)
+TxSetXDRFrameConstPtr PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
+                                                 TxSetXDRFrameConstPtr txset)
 {
     auto res = getKnownTxSet(hash, slot, true);
     if (!res)
@@ -197,8 +190,8 @@ PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
 // tries to find a txset in memory, setting touch also touches the LRU,
 // extending the lifetime of the result *and* updating the slot number
 // to a greater value if needed
-TxSetXDRFrameConstPtr
-PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
+TxSetXDRFrameConstPtr PendingEnvelopes::getKnownTxSet(Hash const& hash,
+                                                      uint64 slot, bool touch)
 {
     // slot is only used when `touch` is set
     releaseAssert(touch || (slot == 0));
@@ -226,9 +219,8 @@ PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
     return res;
 }
 
-void
-PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
-                           TxSetXDRFrameConstPtr txset)
+void PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
+                                TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Add TxSet {}", hexAbbrev(hash));
@@ -237,8 +229,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     mTxSetFetcher.recv(hash, mFetchTxSetTimer);
 }
 
-bool
-PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
+bool PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Got TxSet {}", hexAbbrev(hash));
@@ -253,8 +244,7 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     return true;
 }
 
-bool
-PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
+bool PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
 {
     if (mRebuildQuorum)
     {
@@ -264,8 +254,7 @@ PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
     return mQuorumTracker.isNodeDefinitelyInQuorum(node);
 }
 
-static std::string
-txSetsToStr(SCPEnvelope const& envelope)
+static std::string txSetsToStr(SCPEnvelope const& envelope)
 {
     auto hashes = getTxSetHashes(envelope);
     UnorderedSet<Hash> hashesSet(hashes.begin(), hashes.end());
@@ -380,8 +369,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 }
 
-void
-PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
+void PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
 {
     try
     {
@@ -408,8 +396,7 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
     updateMetrics();
 }
 
-bool
-PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
+bool PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
 {
     auto envelopes = mEnvelopes.find(envelope.statement.slotIndex);
     if (envelopes == mEnvelopes.end())
@@ -422,8 +409,7 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
     return discarded != discardedSet.end();
 }
 
-void
-PendingEnvelopes::cleanKnownData()
+void PendingEnvelopes::cleanKnownData()
 {
     auto it = mKnownQSets.begin();
     while (it != mKnownQSets.end())
@@ -452,16 +438,14 @@ PendingEnvelopes::cleanKnownData()
 }
 
 #ifdef BUILD_TESTS
-void
-PendingEnvelopes::clearQSetCache()
+void PendingEnvelopes::clearQSetCache()
 {
     mQsetCache.clear();
     mKnownQSets.clear();
 }
 #endif
 
-void
-PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
+void PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
 {
     ZoneScoped;
 
@@ -525,8 +509,7 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
     }
 }
 
-void
-PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
+void PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     auto slot = envelope.statement.slotIndex;
@@ -548,8 +531,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     mEnvelopes[slot].mReadyEnvelopes.push_back(envW);
 }
 
-bool
-PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
+bool PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
     if (!getKnownQSet(
             Slot::getCompanionQuorumSetHashFromStatement(envelope.statement),
@@ -565,8 +547,7 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
                        });
 }
 
-void
-PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
+void PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
@@ -595,8 +576,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
     }
 }
 
-void
-PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
+void PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
@@ -612,8 +592,7 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
                envelope.statement.pledges.type());
 }
 
-void
-PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
+void PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 {
     auto qsetHash =
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
@@ -625,8 +604,7 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
     }
 }
 
-SCPEnvelopeWrapperPtr
-PendingEnvelopes::pop(uint64 slotIndex)
+SCPEnvelopeWrapperPtr PendingEnvelopes::pop(uint64 slotIndex)
 {
     auto it = mEnvelopes.begin();
     while (it != mEnvelopes.end() && slotIndex >= it->first)
@@ -645,8 +623,7 @@ PendingEnvelopes::pop(uint64 slotIndex)
     return nullptr;
 }
 
-vector<uint64>
-PendingEnvelopes::readySlots()
+vector<uint64> PendingEnvelopes::readySlots()
 {
     vector<uint64> result;
     for (auto const& entry : mEnvelopes)
@@ -657,8 +634,7 @@ PendingEnvelopes::readySlots()
     return result;
 }
 
-void
-PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
+void PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     stopAllBelow(slotIndex, slotToKeep);
 
@@ -692,8 +668,7 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
     updateMetrics();
 }
 
-void
-PendingEnvelopes::stopAllBelow(uint64 slotIndex, uint64 slotToKeep)
+void PendingEnvelopes::stopAllBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     // Before we purge a slot, check if any envelopes are still in
     // "fetching" mode and attempt to record cost
@@ -715,21 +690,18 @@ PendingEnvelopes::stopAllBelow(uint64 slotIndex, uint64 slotToKeep)
     mQuorumSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
 }
 
-void
-PendingEnvelopes::forceRebuildQuorum()
+void PendingEnvelopes::forceRebuildQuorum()
 {
     // force recomputing the transitive quorum
     mRebuildQuorum = true;
 }
 
-TxSetXDRFrameConstPtr
-PendingEnvelopes::getTxSet(Hash const& hash)
+TxSetXDRFrameConstPtr PendingEnvelopes::getTxSet(Hash const& hash)
 {
     return getKnownTxSet(hash, 0, false);
 }
 
-SCPQuorumSetPtr
-PendingEnvelopes::getQSet(Hash const& hash)
+SCPQuorumSetPtr PendingEnvelopes::getQSet(Hash const& hash)
 {
     auto qset = getKnownQSet(hash, false);
     if (qset)
@@ -754,8 +726,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     return qset;
 }
 
-Json::Value
-PendingEnvelopes::getJsonInfo(size_t limit)
+Json::Value PendingEnvelopes::getJsonInfo(size_t limit)
 {
     Json::Value ret;
 
@@ -789,8 +760,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
     return ret;
 }
 
-void
-PendingEnvelopes::rebuildQuorumTrackerState()
+void PendingEnvelopes::rebuildQuorumTrackerState()
 {
     // rebuild quorum information using data sources starting with the
     // freshest source
@@ -831,8 +801,7 @@ PendingEnvelopes::getCurrentlyTrackedQuorum() const
     return mQuorumTracker.getQuorum();
 }
 
-void
-PendingEnvelopes::envelopeProcessed(SCPEnvelope const& env)
+void PendingEnvelopes::envelopeProcessed(SCPEnvelope const& env)
 {
     auto const& st = env.statement;
     auto const& id = st.nodeID;
@@ -858,9 +827,8 @@ PendingEnvelopes::getCostPerValidator(uint64 slotIndex) const
     return {};
 }
 
-static bool
-shouldReportCostOutlier(double possibleOutlierCost, double expectedCost,
-                        double ratioLimit)
+static bool shouldReportCostOutlier(double possibleOutlierCost,
+                                    double expectedCost, double ratioLimit)
 {
     if (possibleOutlierCost <= 0 || expectedCost <= 0)
     {
@@ -876,9 +844,8 @@ shouldReportCostOutlier(double possibleOutlierCost, double expectedCost,
     return false;
 }
 
-void
-PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
-                                            bool updateMetrics) const
+void PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
+                                                 bool updateMetrics) const
 {
     ZoneScoped;
 
@@ -950,9 +917,8 @@ PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
     }
 }
 
-Json::Value
-PendingEnvelopes::getJsonValidatorCost(bool summary, bool fullKeys,
-                                       uint64 index) const
+Json::Value PendingEnvelopes::getJsonValidatorCost(bool summary, bool fullKeys,
+                                                   uint64 index) const
 {
     Json::Value res;
 

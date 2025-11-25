@@ -39,20 +39,17 @@ FeeBumpTransactionFrame::convertInnerTxToV1(TransactionEnvelope const& envelope)
     return e;
 }
 
-bool
-FeeBumpTransactionFrame::hasDexOperations() const
+bool FeeBumpTransactionFrame::hasDexOperations() const
 {
     return mInnerTx->hasDexOperations();
 }
 
-bool
-FeeBumpTransactionFrame::isSoroban() const
+bool FeeBumpTransactionFrame::isSoroban() const
 {
     return mInnerTx->isSoroban();
 }
 
-SorobanResources const&
-FeeBumpTransactionFrame::sorobanResources() const
+SorobanResources const& FeeBumpTransactionFrame::sorobanResources() const
 {
     return mInnerTx->sorobanResources();
 }
@@ -81,8 +78,7 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 }
 #endif
 
-void
-FeeBumpTransactionFrame::preParallelApply(
+void FeeBumpTransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const& sorobanConfig) const
@@ -118,8 +114,7 @@ FeeBumpTransactionFrame::preParallelApply(
     }
 }
 
-ParallelTxReturnVal
-FeeBumpTransactionFrame::parallelApply(
+ParallelTxReturnVal FeeBumpTransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
@@ -149,8 +144,7 @@ FeeBumpTransactionFrame::parallelApply(
     }
 }
 
-bool
-FeeBumpTransactionFrame::apply(
+bool FeeBumpTransactionFrame::apply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
@@ -194,8 +188,7 @@ FeeBumpTransactionFrame::apply(
     }
 }
 
-void
-FeeBumpTransactionFrame::processPostApply(
+void FeeBumpTransactionFrame::processPostApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult) const
 {
@@ -216,8 +209,7 @@ FeeBumpTransactionFrame::processPostApply(
     }
 }
 
-void
-FeeBumpTransactionFrame::processPostTxSetApply(
+void FeeBumpTransactionFrame::processPostTxSetApply(
     AppConnector& app, AbstractLedgerTxn& ltx,
     MutableTransactionResultBase& txResult,
     TxEventManager& txEventManager) const
@@ -226,10 +218,9 @@ FeeBumpTransactionFrame::processPostTxSetApply(
                             txEventManager);
 }
 
-bool
-FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                        LedgerEntryWrapper const& account,
-                                        int32_t neededWeight) const
+bool FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
+                                             LedgerEntryWrapper const& account,
+                                             int32_t neededWeight) const
 {
     auto& acc = account.current().data.account();
     std::vector<Signer> signers;
@@ -243,8 +234,7 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, neededWeight);
 }
 
-bool
-FeeBumpTransactionFrame::checkOperationSignatures(
+bool FeeBumpTransactionFrame::checkOperationSignatures(
     SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
     MutableTransactionResultBase* txResult) const
 {
@@ -253,8 +243,7 @@ FeeBumpTransactionFrame::checkOperationSignatures(
     return true;
 }
 
-bool
-FeeBumpTransactionFrame::checkAllTransactionSignatures(
+bool FeeBumpTransactionFrame::checkAllTransactionSignatures(
     SignatureChecker& signatureChecker, LedgerEntryWrapper const& feeSource,
     uint32_t ledgerVersion) const
 {
@@ -268,8 +257,7 @@ FeeBumpTransactionFrame::checkAllTransactionSignatures(
         feeSource.current().data.account().thresholds[THRESHOLD_LOW]);
 }
 
-MutableTxResultPtr
-FeeBumpTransactionFrame::checkValid(
+MutableTxResultPtr FeeBumpTransactionFrame::checkValid(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents) const
@@ -310,8 +298,7 @@ FeeBumpTransactionFrame::checkValid(
     return txResult;
 }
 
-bool
-FeeBumpTransactionFrame::checkSorobanResources(
+bool FeeBumpTransactionFrame::checkSorobanResources(
     SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
     DiagnosticEventManager& diagnosticEvents) const
 {
@@ -319,8 +306,7 @@ FeeBumpTransactionFrame::checkSorobanResources(
                                            diagnosticEvents);
 }
 
-std::optional<LedgerEntryWrapper>
-FeeBumpTransactionFrame::commonValidPreSeqNum(
+std::optional<LedgerEntryWrapper> FeeBumpTransactionFrame::commonValidPreSeqNum(
     LedgerSnapshot const& ls, MutableTransactionResultBase& txResult) const
 {
     // this function does validations that are independent of the account state
@@ -397,8 +383,7 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
     return feeSource;
 }
 
-FeeBumpTransactionFrame::ValidationType
-FeeBumpTransactionFrame::commonValid(
+FeeBumpTransactionFrame::ValidationType FeeBumpTransactionFrame::commonValid(
     SignatureChecker& signatureChecker, LedgerSnapshot const& ls, bool applying,
     MutableTransactionResultBase& txResult) const
 {
@@ -438,21 +423,18 @@ FeeBumpTransactionFrame::commonValid(
     return ValidationType::kFullyValid;
 }
 
-TransactionEnvelope const&
-FeeBumpTransactionFrame::getEnvelope() const
+TransactionEnvelope const& FeeBumpTransactionFrame::getEnvelope() const
 {
     return mEnvelope;
 }
 
 #ifdef BUILD_TESTS
-TransactionEnvelope&
-FeeBumpTransactionFrame::getMutableEnvelope() const
+TransactionEnvelope& FeeBumpTransactionFrame::getMutableEnvelope() const
 {
     return mEnvelope;
 }
 
-void
-FeeBumpTransactionFrame::clearCached() const
+void FeeBumpTransactionFrame::clearCached() const
 {
     Hash zero;
     mContentsHash = zero;
@@ -461,33 +443,28 @@ FeeBumpTransactionFrame::clearCached() const
 }
 #endif
 
-bool
-FeeBumpTransactionFrame::validateSorobanTxForFlooding(
+bool FeeBumpTransactionFrame::validateSorobanTxForFlooding(
     UnorderedSet<LedgerKey> const& keysToFilter) const
 {
     return mInnerTx->validateSorobanTxForFlooding(keysToFilter);
 }
 
-bool
-FeeBumpTransactionFrame::validateSorobanMemo() const
+bool FeeBumpTransactionFrame::validateSorobanMemo() const
 {
     return mInnerTx->validateSorobanMemo();
 }
 
-int64_t
-FeeBumpTransactionFrame::getFullFee() const
+int64_t FeeBumpTransactionFrame::getFullFee() const
 {
     return mEnvelope.feeBump().tx.fee;
 }
 
-int64
-FeeBumpTransactionFrame::declaredSorobanResourceFee() const
+int64 FeeBumpTransactionFrame::declaredSorobanResourceFee() const
 {
     return mInnerTx->declaredSorobanResourceFee();
 }
 
-int64_t
-FeeBumpTransactionFrame::getInclusionFee() const
+int64_t FeeBumpTransactionFrame::getInclusionFee() const
 {
     if (isSoroban())
     {
@@ -496,8 +473,7 @@ FeeBumpTransactionFrame::getInclusionFee() const
     return getFullFee();
 }
 
-bool
-FeeBumpTransactionFrame::XDRProvidesValidFee() const
+bool FeeBumpTransactionFrame::XDRProvidesValidFee() const
 {
     if (getFullFee() < 0)
     {
@@ -506,16 +482,14 @@ FeeBumpTransactionFrame::XDRProvidesValidFee() const
     return mInnerTx->XDRProvidesValidFee();
 }
 
-bool
-FeeBumpTransactionFrame::isRestoreFootprintTx() const
+bool FeeBumpTransactionFrame::isRestoreFootprintTx() const
 {
     return mInnerTx->isRestoreFootprintTx();
 }
 
-int64_t
-FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
-                                std::optional<int64_t> baseFee,
-                                bool applying) const
+int64_t FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
+                                        std::optional<int64_t> baseFee,
+                                        bool applying) const
 {
     if (!baseFee)
     {
@@ -537,8 +511,7 @@ FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
     }
 }
 
-Hash const&
-FeeBumpTransactionFrame::getContentsHash() const
+Hash const& FeeBumpTransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
@@ -548,8 +521,7 @@ FeeBumpTransactionFrame::getContentsHash() const
     return mContentsHash;
 }
 
-Hash const&
-FeeBumpTransactionFrame::getFullHash() const
+Hash const& FeeBumpTransactionFrame::getFullHash() const
 {
     if (isZero(mFullHash))
     {
@@ -558,14 +530,12 @@ FeeBumpTransactionFrame::getFullHash() const
     return mFullHash;
 }
 
-Hash const&
-FeeBumpTransactionFrame::getInnerFullHash() const
+Hash const& FeeBumpTransactionFrame::getInnerFullHash() const
 {
     return mInnerTx->getFullHash();
 }
 
-uint32_t
-FeeBumpTransactionFrame::getNumOperations() const
+uint32_t FeeBumpTransactionFrame::getNumOperations() const
 {
     return mInnerTx->getNumOperations() + 1;
 }
@@ -576,35 +546,30 @@ FeeBumpTransactionFrame::getOperationFrames() const
     return mInnerTx->getOperationFrames();
 }
 
-Resource
-FeeBumpTransactionFrame::getResources(bool useByteLimitInClassic,
-                                      uint32_t ledgerVersion) const
+Resource FeeBumpTransactionFrame::getResources(bool useByteLimitInClassic,
+                                               uint32_t ledgerVersion) const
 {
     auto res = mInnerTx->getResources(useByteLimitInClassic, ledgerVersion);
     res.setVal(Resource::Type::OPERATIONS, getNumOperations());
     return res;
 }
 
-std::vector<Operation> const&
-FeeBumpTransactionFrame::getRawOperations() const
+std::vector<Operation> const& FeeBumpTransactionFrame::getRawOperations() const
 {
     return mInnerTx->getRawOperations();
 }
 
-SequenceNumber
-FeeBumpTransactionFrame::getSeqNum() const
+SequenceNumber FeeBumpTransactionFrame::getSeqNum() const
 {
     return mInnerTx->getSeqNum();
 }
 
-AccountID
-FeeBumpTransactionFrame::getFeeSourceID() const
+AccountID FeeBumpTransactionFrame::getFeeSourceID() const
 {
     return toAccountID(mEnvelope.feeBump().tx.feeSource);
 }
 
-AccountID
-FeeBumpTransactionFrame::getSourceID() const
+AccountID FeeBumpTransactionFrame::getSourceID() const
 {
     return mInnerTx->getSourceID();
 }
@@ -615,28 +580,24 @@ FeeBumpTransactionFrame::getMinSeqNum() const
     return mInnerTx->getMinSeqNum();
 }
 
-Duration
-FeeBumpTransactionFrame::getMinSeqAge() const
+Duration FeeBumpTransactionFrame::getMinSeqAge() const
 {
     return mInnerTx->getMinSeqAge();
 }
 
-uint32
-FeeBumpTransactionFrame::getMinSeqLedgerGap() const
+uint32 FeeBumpTransactionFrame::getMinSeqLedgerGap() const
 {
     return mInnerTx->getMinSeqLedgerGap();
 }
 
-void
-FeeBumpTransactionFrame::insertKeysForFeeProcessing(
+void FeeBumpTransactionFrame::insertKeysForFeeProcessing(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(accountKey(getFeeSourceID()));
     mInnerTx->insertKeysForFeeProcessing(keys);
 }
 
-void
-FeeBumpTransactionFrame::insertKeysForTxApply(
+void FeeBumpTransactionFrame::insertKeysForTxApply(
     UnorderedSet<LedgerKey>& keys) const
 {
     mInnerTx->insertKeysForTxApply(keys);
@@ -671,8 +632,7 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                                           innerFeeCharged);
 }
 
-void
-FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
+void FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
     AbstractLedgerTxn& ltx) const
 {
     auto account = stellar::loadAccount(ltx, getFeeSourceID());
@@ -692,8 +652,7 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
     }
 }
 
-MutableTxResultPtr
-FeeBumpTransactionFrame::createTxErrorResult(
+MutableTxResultPtr FeeBumpTransactionFrame::createTxErrorResult(
     TransactionResultCode txErrorCode) const
 {
     return FeeBumpMutableTransactionResult::createTxError(txErrorCode);
@@ -714,8 +673,7 @@ FeeBumpTransactionFrame::toStellarMessage() const
     return msg;
 }
 
-void
-FeeBumpTransactionFrame::withInnerTx(
+void FeeBumpTransactionFrame::withInnerTx(
     std::function<void(TransactionFrameBaseConstPtr)> fn) const
 {
     fn(mInnerTx);

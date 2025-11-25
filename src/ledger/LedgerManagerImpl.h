@@ -428,8 +428,8 @@ class LedgerManagerImpl : public LedgerManager
     void publishSorobanMetrics();
 
     // Update cached last closed ledger state values managed by this class.
-    void
-    advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
+    void advanceLastClosedLedgerState(
+        CompleteConstLedgerStatePtr newLedgerState);
 
     // Internal helper for loading last known ledger and an option to skip
     // building the 'full' state (including in-memory Soroban state, module
@@ -556,8 +556,7 @@ class LedgerManagerImpl : public LedgerManager
 
     SorobanMetrics& getSorobanMetrics() override;
     SearchableSnapshotConstPtr getLastClosedSnapshot() const override;
-    virtual bool
-    isApplying() const override
+    virtual bool isApplying() const override
     {
         return mCurrentlyApplyingLedger;
     }
@@ -567,8 +566,7 @@ class LedgerManagerImpl : public LedgerManager
     void handleUpgradeAffectingSorobanInMemoryStateSize(
         AbstractLedgerTxn& upgradeLtx) override;
 
-    void
-    assertSetupPhase() const override
+    void assertSetupPhase() const override
     {
         mApplyState.assertSetupPhase();
     }

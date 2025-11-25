@@ -22,8 +22,7 @@ namespace stellar
 namespace testutil
 {
 
-void
-crankSome(VirtualClock& clock)
+void crankSome(VirtualClock& clock)
 {
     auto start = clock.now();
     for (size_t i = 0;
@@ -33,24 +32,22 @@ crankSome(VirtualClock& clock)
         ;
 }
 
-void
-crankFor(VirtualClock& clock, VirtualClock::duration duration)
+void crankFor(VirtualClock& clock, VirtualClock::duration duration)
 {
     auto start = clock.now();
     while (clock.now() < (start + duration) && clock.crank(false) > 0)
         ;
 }
 
-void
-crankUntil(Application::pointer app, std::function<bool()> const& predicate,
-           VirtualClock::duration timeout)
+void crankUntil(Application::pointer app,
+                std::function<bool()> const& predicate,
+                VirtualClock::duration timeout)
 {
     crankUntil(*app, predicate, timeout);
 }
 
-void
-crankUntil(Application& app, std::function<bool()> const& predicate,
-           VirtualClock::duration timeout)
+void crankUntil(Application& app, std::function<bool()> const& predicate,
+                VirtualClock::duration timeout)
 {
     auto start = std::chrono::system_clock::now();
     while (!predicate())
@@ -65,8 +62,7 @@ crankUntil(Application& app, std::function<bool()> const& predicate,
     }
 }
 
-void
-shutdownWorkScheduler(Application& app)
+void shutdownWorkScheduler(Application& app)
 {
     if (app.getClock().getIOContext().stopped())
     {
@@ -80,8 +76,7 @@ shutdownWorkScheduler(Application& app)
     }
 }
 
-std::vector<Asset>
-getInvalidAssets(SecretKey const& issuer)
+std::vector<Asset> getInvalidAssets(SecretKey const& issuer)
 {
     std::vector<Asset> assets;
 
@@ -116,8 +111,7 @@ getInvalidAssets(SecretKey const& issuer)
     return assets;
 }
 
-int32_t
-computeMultiplier(LedgerEntry const& le)
+int32_t computeMultiplier(LedgerEntry const& le)
 {
     switch (le.data.type())
     {
@@ -163,9 +157,8 @@ TestInvariantManager::TestInvariantManager(Application& app)
 {
 }
 
-void
-TestInvariantManager::handleInvariantFailure(bool isStrict,
-                                             std::string const& message) const
+void TestInvariantManager::handleInvariantFailure(
+    bool isStrict, std::string const& message) const
 {
     CLOG_DEBUG(Invariant, "{}", message);
     throw InvariantDoesNotHold{message};
@@ -176,14 +169,12 @@ TestApplication::TestApplication(VirtualClock& clock, Config const& cfg)
 {
 }
 
-std::unique_ptr<InvariantManager>
-TestApplication::createInvariantManager()
+std::unique_ptr<InvariantManager> TestApplication::createInvariantManager()
 {
     return std::make_unique<TestInvariantManager>(*this);
 }
 
-TimePoint
-getTestDate(int day, int month, int year)
+TimePoint getTestDate(int day, int month, int year)
 {
     auto tm = getTestDateTime(day, month, year, 0, 0, 0);
 
@@ -193,8 +184,8 @@ getTestDate(int day, int month, int year)
     return t;
 }
 
-std::tm
-getTestDateTime(int day, int month, int year, int hour, int minute, int second)
+std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
+                        int second)
 {
     std::tm tm = {0};
     tm.tm_hour = hour;
@@ -206,17 +197,15 @@ getTestDateTime(int day, int month, int year, int hour, int minute, int second)
     return tm;
 }
 
-VirtualClock::system_time_point
-genesis(int minute, int second)
+VirtualClock::system_time_point genesis(int minute, int second)
 {
     return VirtualClock::tmToSystemPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
 }
 
-void
-upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
-                            std::shared_ptr<Simulation> simulation,
-                            bool applyUpgrade)
+void upgradeSorobanNetworkConfig(
+    std::function<void(SorobanNetworkConfig&)> modifyFn,
+    std::shared_ptr<Simulation> simulation, bool applyUpgrade)
 {
     auto nodes = simulation->getNodes();
     auto& lg = nodes[0]->getLoadGenerator();
@@ -291,8 +280,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
 // 3. Creating the upgrade ContractData entry
 // 4. Arming for the upgrade
 // Note that the armed ledger will not be closed.
-std::pair<SorobanNetworkConfig, UpgradeType>
-prepareSorobanNetworkConfigUpgrade(
+std::pair<SorobanNetworkConfig, UpgradeType> prepareSorobanNetworkConfigUpgrade(
     Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn)
 {
     releaseAssertOrThrow(modifyFn);
@@ -397,9 +385,8 @@ prepareSorobanNetworkConfigUpgrade(
 // 3. Creating the upgrade ContractData entry
 // 4. Arming for the upgrade
 // 5. Closing the ledger for which the upgrade is armed
-void
-modifySorobanNetworkConfig(Application& app,
-                           std::function<void(SorobanNetworkConfig&)> modifyFn)
+void modifySorobanNetworkConfig(
+    Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn)
 {
     if (!modifyFn)
     {
@@ -423,9 +410,8 @@ modifySorobanNetworkConfig(Application& app,
     releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
 }
 
-void
-setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
-                               std::optional<uint32_t> ledgerVersion)
+void setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
+                                    std::optional<uint32_t> ledgerVersion)
 {
     cfg.mMaxContractSizeBytes = 64 * 1024;
     cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
@@ -461,8 +447,7 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
     }
 }
 
-void
-overrideSorobanNetworkConfigForTest(Application& app)
+void overrideSorobanNetworkConfigForTest(Application& app)
 {
     modifySorobanNetworkConfig(app, [&app](SorobanNetworkConfig& cfg) {
         setSorobanNetworkConfigForTest(cfg, app.getLedgerManager()
@@ -471,8 +456,7 @@ overrideSorobanNetworkConfigForTest(Application& app)
     });
 }
 
-bool
-appProtocolVersionStartsFrom(Application& app, ProtocolVersion fromVersion)
+bool appProtocolVersionStartsFrom(Application& app, ProtocolVersion fromVersion)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
@@ -480,10 +464,10 @@ appProtocolVersionStartsFrom(Application& app, ProtocolVersion fromVersion)
     return protocolVersionStartsFrom(ledgerVersion, fromVersion);
 }
 
-void
-generateTransactions(Application& app, std::filesystem::path const& outputFile,
-                     uint32_t numTransactions, uint32_t accounts,
-                     uint32_t offset)
+void generateTransactions(Application& app,
+                          std::filesystem::path const& outputFile,
+                          uint32_t numTransactions, uint32_t accounts,
+                          uint32_t offset)
 {
     // Create a TxGenerator for generating payment transactions
     TxGenerator txgen(app);

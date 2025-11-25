@@ -20,8 +20,7 @@ MakeRemoteDirWork::MakeRemoteDirWork(Application& app, std::string const& dir,
     releaseAssert(mArchive);
 }
 
-CommandInfo
-MakeRemoteDirWork::getCommand()
+CommandInfo MakeRemoteDirWork::getCommand()
 {
     std::string cmdLine;
     if (mArchive->hasMkdirCmd())

@@ -24,8 +24,7 @@ uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
 namespace
 {
 // Generate JSON for a single peer
-Json::Value
-peerStatsToJson(PeerStats const& peer)
+Json::Value peerStatsToJson(PeerStats const& peer)
 {
     Json::Value peerInfo;
     peerInfo["nodeId"] = KeyUtils::toStrKey(peer.id);
@@ -98,8 +97,7 @@ populatePeerResults(Json::Value& results, TimeSlicedNodeData const& node,
 
 // We just need a rough estimate of the close time, so use the default starting
 // values here instead of checking the actual network config.
-std::chrono::milliseconds
-getSurveyThrottleTimeoutMs(Application& app)
+std::chrono::milliseconds getSurveyThrottleTimeoutMs(Application& app)
 {
     auto const& cfg = app.getConfig();
     auto estimatedCloseTime =
@@ -131,8 +129,7 @@ SurveyManager::SurveyManager(Application& app)
 {
 }
 
-bool
-SurveyManager::startSurveyReporting()
+bool SurveyManager::startSurveyReporting()
 {
     if (mRunningSurveyReportingPhase)
     {
@@ -177,8 +174,7 @@ SurveyManager::startSurveyReporting()
     return true;
 }
 
-void
-SurveyManager::stopSurveyReporting()
+void SurveyManager::stopSurveyReporting()
 {
     // do nothing if survey isn't running in reporting phase
     if (!mRunningSurveyReportingPhase)
@@ -194,8 +190,7 @@ SurveyManager::stopSurveyReporting()
     CLOG_INFO(Overlay, "SurveyResults {}", getJsonResults().toStyledString());
 }
 
-bool
-SurveyManager::broadcastStartSurveyCollecting(uint32_t nonce)
+bool SurveyManager::broadcastStartSurveyCollecting(uint32_t nonce)
 {
     if (mSurveyDataManager.surveyIsActive())
     {
@@ -223,9 +218,8 @@ SurveyManager::broadcastStartSurveyCollecting(uint32_t nonce)
     return true;
 }
 
-void
-SurveyManager::relayStartSurveyCollecting(StellarMessage const& msg,
-                                          Peer::pointer peer)
+void SurveyManager::relayStartSurveyCollecting(StellarMessage const& msg,
+                                               Peer::pointer peer)
 {
     releaseAssert(msg.type() == TIME_SLICED_SURVEY_START_COLLECTING);
     auto const& signedStartCollecting =
@@ -273,8 +267,7 @@ SurveyManager::relayStartSurveyCollecting(StellarMessage const& msg,
     broadcast(msg);
 }
 
-bool
-SurveyManager::broadcastStopSurveyCollecting()
+bool SurveyManager::broadcastStopSurveyCollecting()
 {
     std::optional<uint32_t> maybeNonce = mSurveyDataManager.getNonce();
     if (!maybeNonce.has_value())
@@ -300,9 +293,8 @@ SurveyManager::broadcastStopSurveyCollecting()
     return true;
 }
 
-void
-SurveyManager::relayStopSurveyCollecting(StellarMessage const& msg,
-                                         Peer::pointer peer)
+void SurveyManager::relayStopSurveyCollecting(StellarMessage const& msg,
+                                              Peer::pointer peer)
 {
     releaseAssert(msg.type() == TIME_SLICED_SURVEY_STOP_COLLECTING);
     auto const& signedStopCollecting =
@@ -350,10 +342,9 @@ SurveyManager::relayStopSurveyCollecting(StellarMessage const& msg,
     broadcast(msg);
 }
 
-void
-SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
-                                             uint32_t inboundPeersIndex,
-                                             uint32_t outboundPeersIndex)
+void SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
+                                                  uint32_t inboundPeersIndex,
+                                                  uint32_t outboundPeersIndex)
 {
     if (!mRunningSurveyReportingPhase)
     {
@@ -401,9 +392,8 @@ SurveyManager::validateTimeSlicedSurveyResponse(
     }
 }
 
-void
-SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
-                                      Peer::pointer peer)
+void SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
+                                           Peer::pointer peer)
 {
     releaseAssert(msg.type() == TIME_SLICED_SURVEY_RESPONSE);
     auto const& signedResponse = msg.signedTimeSlicedSurveyResponseMessage();
@@ -457,9 +447,8 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
     }
 }
 
-void
-SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
-                                     Peer::pointer peer)
+void SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
+                                          Peer::pointer peer)
 {
     releaseAssert(msg.type() == TIME_SLICED_SURVEY_REQUEST);
     auto const& signedRequest = msg.signedTimeSlicedSurveyRequestMessage();
@@ -516,10 +505,9 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
     }
 }
 
-void
-SurveyManager::populateSurveyRequestMessage(NodeID const& nodeToSurvey,
-                                            SurveyMessageCommandType type,
-                                            SurveyRequestMessage& request) const
+void SurveyManager::populateSurveyRequestMessage(
+    NodeID const& nodeToSurvey, SurveyMessageCommandType type,
+    SurveyRequestMessage& request) const
 {
     request.ledgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
     request.surveyorPeerID = mApp.getConfig().NODE_SEED.getPublicKey();
@@ -558,8 +546,7 @@ SurveyManager::createTimeSlicedSurveyRequest(NodeID const& nodeToSurvey) const
     return newMsg;
 }
 
-void
-SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey)
+void SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey)
 {
     if (!mRunningSurveyReportingPhase)
     {
@@ -578,9 +565,8 @@ SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey)
     }
 }
 
-void
-SurveyManager::processTimeSlicedTopologyResponse(NodeID const& surveyedPeerID,
-                                                 SurveyResponseBody const& body)
+void SurveyManager::processTimeSlicedTopologyResponse(
+    NodeID const& surveyedPeerID, SurveyResponseBody const& body)
 {
     auto& peerResults =
         mResults["topology"][KeyUtils::toStrKey(surveyedPeerID)];
@@ -592,8 +578,7 @@ SurveyManager::processTimeSlicedTopologyResponse(NodeID const& surveyedPeerID,
                         topologyBody.inboundPeers, topologyBody.outboundPeers);
 }
 
-bool
-SurveyManager::populateSurveyResponseMessage(
+bool SurveyManager::populateSurveyResponseMessage(
     SurveyRequestMessage const& request, SurveyResponseBody const& body,
     SurveyResponseMessage& response) const
 {
@@ -615,8 +600,7 @@ SurveyManager::populateSurveyResponseMessage(
     return true;
 }
 
-void
-SurveyManager::processTimeSlicedTopologyRequest(
+void SurveyManager::processTimeSlicedTopologyRequest(
     TimeSlicedSurveyRequestMessage const& request)
 {
     std::string const peerIdStr =
@@ -656,21 +640,18 @@ SurveyManager::processTimeSlicedTopologyRequest(
     broadcast(newMsg);
 }
 
-void
-SurveyManager::broadcast(StellarMessage const& msg) const
+void SurveyManager::broadcast(StellarMessage const& msg) const
 {
     mApp.getOverlayManager().broadcastMessage(
         std::make_shared<StellarMessage const>(msg));
 }
 
-void
-SurveyManager::clearOldLedgers(uint32_t lastClosedledgerSeq)
+void SurveyManager::clearOldLedgers(uint32_t lastClosedledgerSeq)
 {
     mMessageLimiter.clearOldLedgers(lastClosedledgerSeq);
 }
 
-Json::Value const&
-SurveyManager::getJsonResults()
+Json::Value const& SurveyManager::getJsonResults()
 {
     mResults["surveyInProgress"] = mRunningSurveyReportingPhase;
 
@@ -693,8 +674,7 @@ SurveyManager::getJsonResults()
     return mResults;
 }
 
-std::string
-SurveyManager::getMsgSummary(StellarMessage const& msg)
+std::string SurveyManager::getMsgSummary(StellarMessage const& msg)
 {
     std::string summary;
     SurveyMessageCommandType commandType;
@@ -721,8 +701,7 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
     return summary + commandTypeName(commandType);
 }
 
-void
-SurveyManager::topOffRequests()
+void SurveyManager::topOffRequests()
 {
     if (surveyIsFinishedReporting())
     {
@@ -774,8 +753,7 @@ SurveyManager::topOffRequests()
     mSurveyThrottleTimer->async_wait(handler, &VirtualTimer::onFailureNoop);
 }
 
-void
-SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
+void SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
 {
     // filter conditions-
     // 1. already queued
@@ -803,10 +781,10 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     mPeersToSurveyQueue.emplace(nodeToSurvey);
 }
 
-bool
-SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
-                                    Signature const& signature,
-                                    ByteSlice const& bin, Peer::pointer peer)
+bool SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
+                                         Signature const& signature,
+                                         ByteSlice const& bin,
+                                         Peer::pointer peer)
 {
     bool success = PubKeyUtils::verifySig(key, signature, bin).valid;
 
@@ -819,8 +797,7 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
     return success;
 }
 
-std::string
-SurveyManager::commandTypeName(SurveyMessageCommandType type)
+std::string SurveyManager::commandTypeName(SurveyMessageCommandType type)
 {
     auto res = xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
     if (res == nullptr)
@@ -830,8 +807,7 @@ SurveyManager::commandTypeName(SurveyMessageCommandType type)
     return std::string(res);
 }
 
-bool
-SurveyManager::surveyorPermitted(NodeID const& surveyorID) const
+bool SurveyManager::surveyorPermitted(NodeID const& surveyorID) const
 {
     auto const& surveyorKeys = mApp.getConfig().SURVEYOR_KEYS;
 
@@ -844,35 +820,30 @@ SurveyManager::surveyorPermitted(NodeID const& surveyorID) const
     return surveyorKeys.count(surveyorID) != 0;
 }
 
-void
-SurveyManager::modifyNodeData(std::function<void(CollectingNodeData&)> f)
+void SurveyManager::modifyNodeData(std::function<void(CollectingNodeData&)> f)
 {
     mSurveyDataManager.modifyNodeData(f);
 }
 
-void
-SurveyManager::modifyPeerData(Peer const& peer,
-                              std::function<void(CollectingPeerData&)> f)
+void SurveyManager::modifyPeerData(Peer const& peer,
+                                   std::function<void(CollectingPeerData&)> f)
 {
     mSurveyDataManager.modifyPeerData(peer, f);
 }
 
-void
-SurveyManager::recordDroppedPeer(Peer const& peer)
+void SurveyManager::recordDroppedPeer(Peer const& peer)
 {
     mSurveyDataManager.recordDroppedPeer(peer);
 }
 
-void
-SurveyManager::updateSurveyPhase(
+void SurveyManager::updateSurveyPhase(
     std::map<NodeID, Peer::pointer> const& inboundPeers,
     std::map<NodeID, Peer::pointer> const& outboundPeers, Config const& config)
 {
     mSurveyDataManager.updateSurveyPhase(inboundPeers, outboundPeers, config);
 }
 
-bool
-SurveyManager::surveyIsFinishedReporting()
+bool SurveyManager::surveyIsFinishedReporting()
 {
     if (!mRunningSurveyReportingPhase)
     {
@@ -889,8 +860,7 @@ SurveyManager::surveyIsFinishedReporting()
 }
 
 #ifdef BUILD_TESTS
-SurveyDataManager&
-SurveyManager::getSurveyDataManagerForTesting()
+SurveyDataManager& SurveyManager::getSurveyDataManagerForTesting()
 {
     return mSurveyDataManager;
 }

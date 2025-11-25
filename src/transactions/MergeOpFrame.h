@@ -13,8 +13,7 @@ class LedgerTxnHeader;
 
 class MergeOpFrame : public OperationFrame
 {
-    AccountMergeResult&
-    innerResult(OperationResult& res) const
+    AccountMergeResult& innerResult(OperationResult& res) const
     {
         return res.tr().accountMergeResult();
     }
@@ -39,8 +38,7 @@ class MergeOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    static AccountMergeResultCode
-    getInnerCode(OperationResult const& res)
+    static AccountMergeResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().accountMergeResult().code();
     }

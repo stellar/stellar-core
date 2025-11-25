@@ -14,8 +14,7 @@ namespace stellar
 {
 
 // Plain SHA256
-uint256
-sha256(ByteSlice const& bin)
+uint256 sha256(ByteSlice const& bin)
 {
     ZoneScoped;
     uint256 out;
@@ -26,8 +25,7 @@ sha256(ByteSlice const& bin)
     return out;
 }
 
-Hash
-subSha256(ByteSlice const& seed, uint64_t counter)
+Hash subSha256(ByteSlice const& seed, uint64_t counter)
 {
     SHA256 sha;
     sha.add(seed);
@@ -40,8 +38,7 @@ SHA256::SHA256()
     reset();
 }
 
-void
-SHA256::reset()
+void SHA256::reset()
 {
     if (crypto_hash_sha256_init(&mState) != 0)
     {
@@ -50,8 +47,7 @@ SHA256::reset()
     mFinished = false;
 }
 
-void
-SHA256::add(ByteSlice const& bin)
+void SHA256::add(ByteSlice const& bin)
 {
     ZoneScoped;
     if (mFinished)
@@ -64,8 +60,7 @@ SHA256::add(ByteSlice const& bin)
     }
 }
 
-uint256
-SHA256::finish()
+uint256 SHA256::finish()
 {
     uint256 out;
     static_assert(sizeof(out) == crypto_hash_sha256_BYTES,
@@ -83,8 +78,7 @@ SHA256::finish()
 }
 
 // HMAC-SHA256
-HmacSha256Mac
-hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
+HmacSha256Mac hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
 {
     ZoneScoped;
     HmacSha256Mac out;
@@ -96,9 +90,8 @@ hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
     return out;
 }
 
-bool
-hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
-                 ByteSlice const& bin)
+bool hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
+                      ByteSlice const& bin)
 {
     ZoneScoped;
     return 0 == crypto_auth_hmacsha256_verify(hmac.mac.data(), bin.data(),
@@ -106,8 +99,7 @@ hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
 }
 
 // Unsalted HKDF-extract(bytes) == HMAC(<zero>,bytes)
-HmacSha256Key
-hkdfExtract(ByteSlice const& bin)
+HmacSha256Key hkdfExtract(ByteSlice const& bin)
 {
     ZoneScoped;
     HmacSha256Key zerosalt;
@@ -118,8 +110,7 @@ hkdfExtract(ByteSlice const& bin)
 }
 
 // Single-step HKDF-expand(key,bytes) == HMAC(key,bytes|0x1)
-HmacSha256Key
-hkdfExpand(HmacSha256Key const& key, ByteSlice const& bin)
+HmacSha256Key hkdfExpand(HmacSha256Key const& key, ByteSlice const& bin)
 {
     ZoneScoped;
     std::vector<uint8_t> bytes(bin.begin(), bin.end());

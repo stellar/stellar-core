@@ -22,9 +22,9 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-LedgerEntry
-updateAccountWithRandomBalance(LedgerEntry le, Application& app,
-                               bool exceedsMinimum, int32_t direction)
+LedgerEntry updateAccountWithRandomBalance(LedgerEntry le, Application& app,
+                                           bool exceedsMinimum,
+                                           int32_t direction)
 {
     auto& account = le.data.account();
 
@@ -146,9 +146,9 @@ TEST_CASE("Account below minimum balance decreases",
     }
 }
 
-static LedgerEntry
-generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
-                           uint32_t authorized)
+static LedgerEntry generateSellingLiabilities(Application& app,
+                                              LedgerEntry offer, bool excess,
+                                              uint32_t authorized)
 {
     auto const& oe = offer.data.offer();
 
@@ -190,9 +190,9 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
     return le;
 }
 
-static LedgerEntry
-generateBuyingLiabilities(Application& app, LedgerEntry offer, bool excess,
-                          uint32_t authorized)
+static LedgerEntry generateBuyingLiabilities(Application& app,
+                                             LedgerEntry offer, bool excess,
+                                             uint32_t authorized)
 {
     auto const& oe = offer.data.offer();
 

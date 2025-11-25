@@ -29,18 +29,16 @@ using namespace stellar::txtest;
 
 static const unsigned maxWinners = 2000u;
 
-static SecretKey
-getTestAccount(int i)
+static SecretKey getTestAccount(int i)
 {
     std::stringstream name;
     name << "A" << i;
     return getAccount(name.str().c_str());
 }
 
-static void
-createTestAccounts(Application& app, int nbAccounts,
-                   std::function<int64(int)> getBalance,
-                   std::function<int(int)> getVote)
+static void createTestAccounts(Application& app, int nbAccounts,
+                               std::function<int64(int)> getBalance,
+                               std::function<int(int)> getVote)
 {
     // set up world
     auto root = app.getRoot();
@@ -171,10 +169,10 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
     return balRes;
 }
 
-static void
-doInflation(Application& app, int ledgerVersion, int nbAccounts,
-            std::function<int64(int)> getBalance,
-            std::function<int(int)> getVote, size_t expectedWinnerCount)
+static void doInflation(Application& app, int ledgerVersion, int nbAccounts,
+                        std::function<int64(int)> getBalance,
+                        std::function<int(int)> getVote,
+                        size_t expectedWinnerCount)
 {
     auto getFeePool = [&] {
         LedgerTxn ltx(app.getLedgerTxnRoot());

@@ -40,8 +40,7 @@ Tracker::~Tracker()
     cancel();
 }
 
-SCPEnvelope
-Tracker::pop()
+SCPEnvelope Tracker::pop()
 {
     auto env = mWaitingEnvelopes.back().second;
     mWaitingEnvelopes.pop_back();
@@ -49,8 +48,7 @@ Tracker::pop()
 }
 
 // returns false if no one cares about this guy anymore
-bool
-Tracker::clearEnvelopesBelow(uint64 slotIndex, uint64 slotToKeep)
+bool Tracker::clearEnvelopesBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mWaitingEnvelopes.begin();
@@ -77,8 +75,7 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex, uint64 slotToKeep)
     return false;
 }
 
-void
-Tracker::doesntHave(Peer::pointer peer)
+void Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
@@ -87,8 +84,7 @@ Tracker::doesntHave(Peer::pointer peer)
     }
 }
 
-void
-Tracker::tryNextPeer()
+void Tracker::tryNextPeer()
 {
     ZoneScoped;
     // will be called by some timer or when we get a
@@ -221,8 +217,7 @@ matchEnvelope(SCPEnvelope const& env)
     };
 }
 
-void
-Tracker::listen(const SCPEnvelope& env)
+void Tracker::listen(const SCPEnvelope& env)
 {
     ZoneScoped;
     mLastSeenSlotIndex = std::max(env.statement.slotIndex, mLastSeenSlotIndex);
@@ -247,8 +242,7 @@ Tracker::listen(const SCPEnvelope& env)
     mWaitingEnvelopes.push_back(std::make_pair(xdrBlake2(m), env));
 }
 
-void
-Tracker::discard(const SCPEnvelope& env)
+void Tracker::discard(const SCPEnvelope& env)
 {
     ZoneScoped;
     auto matcher = matchEnvelope(env);
@@ -258,15 +252,13 @@ Tracker::discard(const SCPEnvelope& env)
                             std::end(mWaitingEnvelopes));
 }
 
-void
-Tracker::cancel()
+void Tracker::cancel()
 {
     mTimer.cancel();
     mLastSeenSlotIndex = 0;
 }
 
-std::chrono::milliseconds
-Tracker::getDuration()
+std::chrono::milliseconds Tracker::getDuration()
 {
     return mFetchTime.checkElapsedTime();
 }

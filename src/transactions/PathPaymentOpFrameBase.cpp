@@ -21,14 +21,12 @@ PathPaymentOpFrameBase::PathPaymentOpFrameBase(Operation const& op,
 {
 }
 
-AccountID
-PathPaymentOpFrameBase::getDestID() const
+AccountID PathPaymentOpFrameBase::getDestID() const
 {
     return toAccountID(getDestMuxedAccount());
 }
 
-void
-PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
+void PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     auto destID = getDestID();
@@ -44,17 +42,16 @@ PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
     }
 }
 
-bool
-PathPaymentOpFrameBase::isDexOperation() const
+bool PathPaymentOpFrameBase::isDexOperation() const
 {
     auto const& src = getSourceAsset();
     auto const& dest = getDestAsset();
     return !getPath().empty() || !(src == dest);
 }
 
-bool
-PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset,
-                                    OperationResult& res) const
+bool PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx,
+                                         Asset const& asset,
+                                         OperationResult& res) const
 {
     if (asset.type() != ASSET_TYPE_NATIVE)
     {
@@ -69,8 +66,7 @@ PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset,
     return true;
 }
 
-bool
-PathPaymentOpFrameBase::convert(
+bool PathPaymentOpFrameBase::convert(
     AbstractLedgerTxn& ltx, int64_t maxOffersToCross, Asset const& sendAsset,
     int64_t maxSend, int64_t& amountSend, Asset const& recvAsset,
     int64_t maxRecv, int64_t& amountRecv, RoundingType round,
@@ -123,8 +119,7 @@ PathPaymentOpFrameBase::convert(
     return true;
 }
 
-bool
-PathPaymentOpFrameBase::shouldBypassIssuerCheck(
+bool PathPaymentOpFrameBase::shouldBypassIssuerCheck(
     std::vector<Asset> const& path) const
 {
     // if the payment doesn't involve intermediate accounts
@@ -136,12 +131,9 @@ PathPaymentOpFrameBase::shouldBypassIssuerCheck(
            (getIssuer(getDestAsset()) == getDestID());
 }
 
-bool
-PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
-                                            OperationResult& res,
-                                            int64_t amount,
-                                            bool bypassIssuerCheck,
-                                            bool doesSourceAccountExist) const
+bool PathPaymentOpFrameBase::updateSourceBalance(
+    AbstractLedgerTxn& ltx, OperationResult& res, int64_t amount,
+    bool bypassIssuerCheck, bool doesSourceAccountExist) const
 {
     auto const& asset = getSourceAsset();
 
@@ -208,11 +200,10 @@ PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-PathPaymentOpFrameBase::updateDestBalance(AbstractLedgerTxn& ltx,
-                                          int64_t amount,
-                                          bool bypassIssuerCheck,
-                                          OperationResult& res) const
+bool PathPaymentOpFrameBase::updateDestBalance(AbstractLedgerTxn& ltx,
+                                               int64_t amount,
+                                               bool bypassIssuerCheck,
+                                               OperationResult& res) const
 {
     auto destID = getDestID();
     auto const& asset = getDestAsset();

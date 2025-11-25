@@ -24,8 +24,7 @@ class ParallelApplyHelper;
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
-    InvokeHostFunctionResult&
-    innerResult(OperationResult& res) const
+    InvokeHostFunctionResult& innerResult(OperationResult& res) const
     {
         return res.tr().invokeHostFunctionResult();
     }
@@ -38,12 +37,12 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool
-    doApplyForSoroban(AppConnector& app, AbstractLedgerTxn& ltx,
-                      SorobanNetworkConfig const& sorobanConfig,
-                      Hash const& sorobanBasePrngSeed, OperationResult& res,
-                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const override;
+    bool doApplyForSoroban(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        SorobanNetworkConfig const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta) const override;
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
@@ -65,11 +64,10 @@ class InvokeHostFunctionOpFrame : public OperationFrame
                     std::optional<RefundableFeeTracker>& refundableFeeTracker,
                     OperationMetaBuilder& opMeta) const override;
 
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static InvokeHostFunctionResultCode
-    getInnerCode(OperationResult const& res)
+    static InvokeHostFunctionResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().invokeHostFunctionResult().code();
     }

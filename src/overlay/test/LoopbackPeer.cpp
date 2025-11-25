@@ -30,8 +30,7 @@ LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
         std::make_shared<FlowControl>(mAppConnector, useBackgroundThread());
 }
 
-std::string
-LoopbackPeer::getIP() const
+std::string LoopbackPeer::getIP() const
 {
     return "127.0.0.1";
 }
@@ -79,8 +78,7 @@ LoopbackPeer::initiate(Application& app, Application& otherApp)
     return std::pair(peer, otherPeer);
 }
 
-AuthCert
-LoopbackPeer::getAuthCert()
+AuthCert LoopbackPeer::getAuthCert()
 {
     auto c = Peer::getAuthCert();
     if (mDamageCert)
@@ -90,14 +88,13 @@ LoopbackPeer::getAuthCert()
     return c;
 }
 
-void
-LoopbackPeer::scheduleRead()
+void LoopbackPeer::scheduleRead()
 {
     processInQueue();
 }
 
-void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, ConstStellarMessagePtr msgPtr)
+void LoopbackPeer::sendMessage(xdr::msg_ptr&& msg,
+                               ConstStellarMessagePtr msgPtr)
 {
     if (mRemote.expired())
     {
@@ -145,8 +142,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, ConstStellarMessagePtr msgPtr)
     }
 }
 
-void
-LoopbackPeer::drop(std::string const& reason, DropDirection direction)
+void LoopbackPeer::drop(std::string const& reason, DropDirection direction)
 {
     if (mState == CLOSING)
     {
@@ -191,8 +187,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction)
     }
 }
 
-static bool
-damageMessage(stellar_default_random_engine& gen, xdr::msg_ptr& msg)
+static bool damageMessage(stellar_default_random_engine& gen, xdr::msg_ptr& msg)
 {
     size_t bitsFlipped = 0;
     char* d = msg->raw_data();
@@ -225,8 +220,7 @@ duplicateMessage(Peer::TimestampedMessage const& msg)
     return msg2;
 }
 
-void
-LoopbackPeer::processInQueue()
+void LoopbackPeer::processInQueue()
 {
     if (mFlowControl->maybeThrottleRead())
     {
@@ -249,8 +243,7 @@ LoopbackPeer::processInQueue()
     }
 }
 
-void
-LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
+void LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
 {
     ZoneScoped;
     if (shouldAbortForTesting())
@@ -277,8 +270,8 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
     }
 }
 
-void
-LoopbackPeer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
+void LoopbackPeer::recvMessage(
+    std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     mAppConnector.postOnMainThread(
         [self = shared_from_this(), msgTracker]() {
@@ -287,8 +280,7 @@ LoopbackPeer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
         "LoopbackPeer: processInQueue");
 }
 
-void
-LoopbackPeer::deliverOne()
+void LoopbackPeer::deliverOne()
 {
     if (mRemote.expired())
     {
@@ -374,8 +366,7 @@ LoopbackPeer::deliverOne()
     }
 }
 
-void
-LoopbackPeer::deliverAll()
+void LoopbackPeer::deliverAll()
 {
     while (!mOutQueue.empty() && !mCorked)
     {
@@ -383,14 +374,12 @@ LoopbackPeer::deliverAll()
     }
 }
 
-void
-LoopbackPeer::dropAll()
+void LoopbackPeer::dropAll()
 {
     mOutQueue.clear();
 }
 
-size_t
-LoopbackPeer::getBytesQueued() const
+size_t LoopbackPeer::getBytesQueued() const
 {
     size_t t = 0;
     for (auto const& m : mOutQueue)
@@ -400,69 +389,58 @@ LoopbackPeer::getBytesQueued() const
     return t;
 }
 
-size_t
-LoopbackPeer::getMessagesQueued() const
+size_t LoopbackPeer::getMessagesQueued() const
 {
     return mOutQueue.size();
 }
 
-LoopbackPeer::Stats const&
-LoopbackPeer::getStats() const
+LoopbackPeer::Stats const& LoopbackPeer::getStats() const
 {
     return mStats;
 }
 
-bool
-LoopbackPeer::getCorked() const
+bool LoopbackPeer::getCorked() const
 {
     return mCorked;
 }
 
-void
-LoopbackPeer::setCorked(bool c)
+void LoopbackPeer::setCorked(bool c)
 {
     mCorked = c;
 }
 
-void
-LoopbackPeer::clearInAndOutQueues()
+void LoopbackPeer::clearInAndOutQueues()
 {
     mOutQueue.clear();
     mInQueue = std::queue<xdr::msg_ptr>();
 }
 
-bool
-LoopbackPeer::getStraggling() const
+bool LoopbackPeer::getStraggling() const
 {
     return mStraggling;
 }
 
-void
-LoopbackPeer::setStraggling(bool s)
+void LoopbackPeer::setStraggling(bool s)
 {
     mStraggling = s;
 }
 
-size_t
-LoopbackPeer::getMaxQueueDepth() const
+size_t LoopbackPeer::getMaxQueueDepth() const
 {
     return mMaxQueueDepth;
 }
 
-void
-LoopbackPeer::setMaxQueueDepth(size_t sz)
+void LoopbackPeer::setMaxQueueDepth(size_t sz)
 {
     mMaxQueueDepth = sz;
 }
 
-double
-LoopbackPeer::getDamageProbability() const
+double LoopbackPeer::getDamageProbability() const
 {
     return mDamageProb.p();
 }
 
-static void
-checkProbRange(double d)
+static void checkProbRange(double d)
 {
     if (d < 0.0 || d > 1.0)
     {
@@ -470,71 +448,60 @@ checkProbRange(double d)
     }
 }
 
-void
-LoopbackPeer::setDamageProbability(double d)
+void LoopbackPeer::setDamageProbability(double d)
 {
     checkProbRange(d);
     mDamageProb = bernoulli_distribution(d);
 }
 
-double
-LoopbackPeer::getDropProbability() const
+double LoopbackPeer::getDropProbability() const
 {
     return mDropProb.p();
 }
 
-void
-LoopbackPeer::setDamageCert(bool b)
+void LoopbackPeer::setDamageCert(bool b)
 {
     mDamageCert = b;
 }
 
-bool
-LoopbackPeer::getDamageCert() const
+bool LoopbackPeer::getDamageCert() const
 {
     return mDamageCert;
 }
 
-void
-LoopbackPeer::setDamageAuth(bool b)
+void LoopbackPeer::setDamageAuth(bool b)
 {
     mDamageAuth = b;
 }
 
-bool
-LoopbackPeer::getDamageAuth() const
+bool LoopbackPeer::getDamageAuth() const
 {
     return mDamageAuth;
 }
 
-void
-LoopbackPeer::setDropProbability(double d)
+void LoopbackPeer::setDropProbability(double d)
 {
     checkProbRange(d);
     mDropProb = bernoulli_distribution(d);
 }
 
-double
-LoopbackPeer::getDuplicateProbability() const
+double LoopbackPeer::getDuplicateProbability() const
 {
     return mDuplicateProb.p();
 }
 
-void
-LoopbackPeer::setDuplicateProbability(double d)
+void LoopbackPeer::setDuplicateProbability(double d)
 {
     checkProbRange(d);
     mDuplicateProb = bernoulli_distribution(d);
 }
 
-double
-LoopbackPeer::getReorderProbability() const
+double LoopbackPeer::getReorderProbability() const
 {
     return mReorderProb.p();
 }
 
-void
-LoopbackPeer::setReorderProbability(double d)
+void LoopbackPeer::setReorderProbability(double d)
 {
     checkProbRange(d);
     mReorderProb = bernoulli_distribution(d);
@@ -556,20 +523,17 @@ LoopbackPeerConnection::~LoopbackPeerConnection()
                      Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
-std::shared_ptr<LoopbackPeer>
-LoopbackPeerConnection::getInitiator() const
+std::shared_ptr<LoopbackPeer> LoopbackPeerConnection::getInitiator() const
 {
     return mInitiator;
 }
 
-std::shared_ptr<LoopbackPeer>
-LoopbackPeerConnection::getAcceptor() const
+std::shared_ptr<LoopbackPeer> LoopbackPeerConnection::getAcceptor() const
 {
     return mAcceptor;
 }
 
-bool
-LoopbackPeer::checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const
+bool LoopbackPeer::checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const
 {
     // Outbound capacity is equal to the config on the other node
     return otherPeer->getConfig().PEER_FLOOD_READING_CAPACITY ==

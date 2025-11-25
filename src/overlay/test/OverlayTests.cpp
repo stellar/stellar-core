@@ -37,8 +37,7 @@ using namespace stellar::overlaytestutils;
 namespace
 {
 
-ClaimPredicate
-recursivePredicate(uint32_t counter)
+ClaimPredicate recursivePredicate(uint32_t counter)
 {
     if (counter == 10)
     {
@@ -55,8 +54,7 @@ recursivePredicate(uint32_t counter)
     return andPred;
 }
 
-Operation
-getOperationGreaterThanMinMaxSizeBytes()
+Operation getOperationGreaterThanMinMaxSizeBytes()
 {
     Claimant c;
     c.v0().destination = txtest::getAccount("acc").getPublicKey();
@@ -2239,8 +2237,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
                 .count() == 0);
 }
 
-PeerBareAddress
-localhost(unsigned short port)
+PeerBareAddress localhost(unsigned short port)
 {
     return PeerBareAddress{"127.0.0.1", port};
 }

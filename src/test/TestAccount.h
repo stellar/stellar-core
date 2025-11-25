@@ -133,32 +133,27 @@ class TestAccount
         return getPublicKey();
     }
 
-    SecretKey const&
-    getSecretKey() const
+    SecretKey const& getSecretKey() const
     {
         return mSk;
     }
-    PublicKey const&
-    getPublicKey() const
+    PublicKey const& getPublicKey() const
     {
         return mSk.getPublicKey();
     }
 
-    void
-    setSequenceNumber(SequenceNumber sn)
+    void setSequenceNumber(SequenceNumber sn)
     {
         mSn = sn;
     }
 
-    SequenceNumber
-    getLastSequenceNumber()
+    SequenceNumber getLastSequenceNumber()
     {
         updateSequenceNumber();
         return mSn;
     }
 
-    SequenceNumber
-    nextSequenceNumber()
+    SequenceNumber nextSequenceNumber()
     {
         updateSequenceNumber();
         if (mSn == std::numeric_limits<SequenceNumber>::max())
@@ -170,8 +165,7 @@ class TestAccount
     }
     SequenceNumber loadSequenceNumber();
 
-    std::string
-    getAccountId()
+    std::string getAccountId()
     {
         return mAccountID;
     }

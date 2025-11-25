@@ -21,8 +21,7 @@ IndexBucketsWork<BucketT>::IndexWork::IndexWork(Application& app,
 }
 
 template <class BucketT>
-BasicWork::State
-IndexBucketsWork<BucketT>::IndexWork::onRun()
+BasicWork::State IndexBucketsWork<BucketT>::IndexWork::onRun()
 {
     if (mState == State::WORK_WAITING)
     {
@@ -32,23 +31,17 @@ IndexBucketsWork<BucketT>::IndexWork::onRun()
     return mState;
 }
 
-template <class BucketT>
-bool
-IndexBucketsWork<BucketT>::IndexWork::onAbort()
+template <class BucketT> bool IndexBucketsWork<BucketT>::IndexWork::onAbort()
 {
     return true;
 };
 
-template <class BucketT>
-void
-IndexBucketsWork<BucketT>::IndexWork::onReset()
+template <class BucketT> void IndexBucketsWork<BucketT>::IndexWork::onReset()
 {
     mState = BasicWork::State::WORK_WAITING;
 }
 
-template <class BucketT>
-void
-IndexBucketsWork<BucketT>::IndexWork::postWork()
+template <class BucketT> void IndexBucketsWork<BucketT>::IndexWork::postWork()
 {
     Application& app = this->mApp;
     asio::io_context& ctx = app.getWorkerIOContext();
@@ -138,9 +131,7 @@ IndexBucketsWork<BucketT>::IndexBucketsWork(
 {
 }
 
-template <class BucketT>
-BasicWork::State
-IndexBucketsWork<BucketT>::doWork()
+template <class BucketT> BasicWork::State IndexBucketsWork<BucketT>::doWork()
 {
     if (!mWorkSpawned)
     {
@@ -150,16 +141,12 @@ IndexBucketsWork<BucketT>::doWork()
     return checkChildrenStatus();
 }
 
-template <class BucketT>
-void
-IndexBucketsWork<BucketT>::doReset()
+template <class BucketT> void IndexBucketsWork<BucketT>::doReset()
 {
     mWorkSpawned = false;
 }
 
-template <class BucketT>
-void
-IndexBucketsWork<BucketT>::spawnWork()
+template <class BucketT> void IndexBucketsWork<BucketT>::spawnWork()
 {
     UnorderedSet<Hash> indexedBuckets;
     auto spawnIndexWork = [&](auto const& b) {

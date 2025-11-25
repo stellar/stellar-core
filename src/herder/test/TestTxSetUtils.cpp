@@ -16,9 +16,8 @@ namespace testtxset
 {
 namespace
 {
-TransactionSet
-makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
-             Hash const& previousLedgerHash)
+TransactionSet makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
+                            Hash const& previousLedgerHash)
 {
     TransactionSet txSet;
     txSet.previousLedgerHash = previousLedgerHash;
@@ -155,8 +154,7 @@ makeNonValidatedTxSetBasedOnLedgerVersion(
     }
 }
 
-void
-normalizeParallelPhaseXDR(TransactionPhase& phase)
+void normalizeParallelPhaseXDR(TransactionPhase& phase)
 {
     auto compareTxHash = [](TransactionEnvelope const& tx1,
                             TransactionEnvelope const& tx2) -> bool {

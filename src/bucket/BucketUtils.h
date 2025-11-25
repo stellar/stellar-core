@@ -211,9 +211,7 @@ struct BucketEntryCounters
     bool operator!=(BucketEntryCounters const& other) const;
     size_t numEntries() const;
 
-    template <class Archive>
-    void
-    serialize(Archive& ar)
+    template <class Archive> void serialize(Archive& ar)
     {
         ar(entryTypeCounts, entryTypeSizes);
     }

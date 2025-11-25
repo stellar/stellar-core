@@ -24,8 +24,8 @@ struct CheckpointRange final
     uint32_t const mFrequency;
 
     CheckpointRange(uint32_t first, uint32_t count, uint32_t frequency);
-    static CheckpointRange
-    inclusive(uint32_t first, uint32_t last, uint32_t frequency)
+    static CheckpointRange inclusive(uint32_t first, uint32_t last,
+                                     uint32_t frequency)
     {
         // CheckpointRange is half-open: in exchange for being able to represent
         // empty ranges, it can't represent ranges that include UINT32_MAX.
@@ -46,26 +46,22 @@ struct CheckpointRange final
     friend bool operator==(CheckpointRange const& x, CheckpointRange const& y);
     friend bool operator!=(CheckpointRange const& x, CheckpointRange const& y);
 
-    LedgerRange
-    getLedgerRange() const
+    LedgerRange getLedgerRange() const
     {
         return LedgerRange{mFirst, getLedgerCount()};
     }
 
-    uint32_t
-    getLedgerCount() const
+    uint32_t getLedgerCount() const
     {
         return mCount * mFrequency;
     }
 
-    uint32_t
-    limit() const
+    uint32_t limit() const
     {
         return mFirst + getLedgerCount();
     }
 
-    uint32_t
-    last() const
+    uint32_t last() const
     {
         if (mCount == 0)
         {

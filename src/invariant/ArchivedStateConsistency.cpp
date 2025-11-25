@@ -27,8 +27,7 @@ ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
 
 // This test iterates through both the live and archived bucket lists and checks
 // that no entry is live in both BucketLists simultaneously.
-std::string
-ArchivedStateConsistency::checkSnapshot(
+std::string ArchivedStateConsistency::checkSnapshot(
     CompleteConstLedgerStatePtr ledgerState,
     InMemorySorobanState const& inMemorySnapshot)
 {
@@ -104,14 +103,12 @@ ArchivedStateConsistency::registerInvariant(Application& app)
         .registerInvariant<ArchivedStateConsistency>();
 }
 
-std::string
-ArchivedStateConsistency::getName() const
+std::string ArchivedStateConsistency::getName() const
 {
     return "ArchivedStateConsistency";
 }
 
-std::string
-ArchivedStateConsistency::checkOnLedgerCommit(
+std::string ArchivedStateConsistency::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
@@ -208,8 +205,7 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     }
 }
 
-std::string
-ArchivedStateConsistency::checkEvictionInvariants(
+std::string ArchivedStateConsistency::checkEvictionInvariants(
     UnorderedMap<LedgerKey, LedgerEntry> const& preloadedLiveEntries,
     UnorderedMap<LedgerKey, HotArchiveBucketEntry> const&
         preloadedArchivedEntries,
@@ -358,8 +354,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
     return std::string{};
 }
 
-std::string
-ArchivedStateConsistency::checkRestoreInvariants(
+std::string ArchivedStateConsistency::checkRestoreInvariants(
     UnorderedMap<LedgerKey, LedgerEntry> const& preloadedLiveEntries,
     UnorderedMap<LedgerKey, HotArchiveBucketEntry> const&
         preloadedArchivedEntries,

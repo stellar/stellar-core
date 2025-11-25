@@ -35,8 +35,7 @@
 namespace stellar
 {
 
-std::unique_ptr<InvariantManager>
-InvariantManager::create(Application& app)
+std::unique_ptr<InvariantManager> InvariantManager::create(Application& app)
 {
     return std::make_unique<InvariantManagerImpl>(app);
 }
@@ -51,8 +50,7 @@ InvariantManagerImpl::InvariantManagerImpl(Application& app)
 {
 }
 
-Json::Value
-InvariantManagerImpl::getJsonInfo()
+Json::Value InvariantManagerImpl::getJsonInfo()
 {
     MutexLocker lock(mFailureInformationMutex);
     Json::Value failures;
@@ -70,8 +68,7 @@ InvariantManagerImpl::getJsonInfo()
     return failures;
 }
 
-std::vector<std::string>
-InvariantManagerImpl::getEnabledInvariants() const
+std::vector<std::string> InvariantManagerImpl::getEnabledInvariants() const
 {
     std::vector<std::string> res;
     for (auto const& p : mEnabled)
@@ -81,16 +78,14 @@ InvariantManagerImpl::getEnabledInvariants() const
     return res;
 }
 
-bool
-InvariantManagerImpl::isBucketApplyInvariantEnabled() const
+bool InvariantManagerImpl::isBucketApplyInvariantEnabled() const
 {
     return std::any_of(mEnabled.begin(), mEnabled.end(), [](auto const& inv) {
         return inv->getName() == "BucketListIsConsistentWithDatabase";
     });
 }
 
-void
-InvariantManagerImpl::checkOnBucketApply(
+void InvariantManagerImpl::checkOnBucketApply(
     std::shared_ptr<LiveBucket const> bucket, uint32_t ledger, uint32_t level,
     bool isCurr, std::unordered_set<LedgerKey> const& shadowedKeys)
 {
@@ -119,8 +114,7 @@ InvariantManagerImpl::checkOnBucketApply(
     }
 }
 
-void
-InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
+void InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
 {
     for (auto invariant : mEnabled)
     {
@@ -138,8 +132,7 @@ InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
     }
 }
 
-void
-InvariantManagerImpl::checkOnOperationApply(
+void InvariantManagerImpl::checkOnOperationApply(
     Operation const& operation, OperationResult const& opres,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector& app)
@@ -169,8 +162,7 @@ InvariantManagerImpl::checkOnOperationApply(
     }
 }
 
-void
-InvariantManagerImpl::checkOnLedgerCommit(
+void InvariantManagerImpl::checkOnLedgerCommit(
     SearchableSnapshotConstPtr lclLiveState,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
@@ -197,8 +189,8 @@ InvariantManagerImpl::checkOnLedgerCommit(
     }
 }
 
-void
-InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
+void InvariantManagerImpl::registerInvariant(
+    std::shared_ptr<Invariant> invariant)
 {
     auto name = invariant->getName();
     auto iter = mInvariants.find(name);
@@ -213,8 +205,7 @@ InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
     }
 }
 
-void
-InvariantManagerImpl::enableInvariant(std::string const& invPattern)
+void InvariantManagerImpl::enableInvariant(std::string const& invPattern)
 {
     if (invPattern.empty())
     {
@@ -277,8 +268,7 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
     }
 }
 
-void
-InvariantManagerImpl::start(LedgerManager const& ledgerManager)
+void InvariantManagerImpl::start(LedgerManager const& ledgerManager)
 {
     releaseAssert(threadIsMain());
 
@@ -290,10 +280,9 @@ InvariantManagerImpl::start(LedgerManager const& ledgerManager)
     }
 }
 
-void
-InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
-                                         std::string const& message,
-                                         uint32_t ledger)
+void InvariantManagerImpl::onInvariantFailure(
+    std::shared_ptr<Invariant> invariant, std::string const& message,
+    uint32_t ledger)
 {
     mInvariantFailureCount.inc();
 
@@ -302,9 +291,8 @@ InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
     handleInvariantFailure(invariant->isStrict(), message);
 }
 
-void
-InvariantManagerImpl::handleInvariantFailure(bool isStrict,
-                                             std::string const& message) const
+void InvariantManagerImpl::handleInvariantFailure(
+    bool isStrict, std::string const& message) const
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     abort();
@@ -328,8 +316,7 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 // mShouldRunStateSnapshotInvariant() to true. On the next ledger close,
 // LedgerManager will read this flag shouldRunInvariantSnapshot(), copy the
 // required state, then call this function in a background thread.
-void
-InvariantManagerImpl::runStateSnapshotInvariant(
+void InvariantManagerImpl::runStateSnapshotInvariant(
     CompleteConstLedgerStatePtr ledgerState,
     InMemorySorobanState const& inMemorySnapshot)
 {
@@ -352,8 +339,7 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     }
 }
 
-void
-InvariantManagerImpl::scheduleSnapshotTimer()
+void InvariantManagerImpl::scheduleSnapshotTimer()
 {
     auto frequencySeconds = mConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
     mStateSnapshotTimer.expires_from_now(
@@ -362,8 +348,7 @@ InvariantManagerImpl::scheduleSnapshotTimer()
                                    &VirtualTimer::onFailureNoop);
 }
 
-void
-InvariantManagerImpl::snapshotTimerFired()
+void InvariantManagerImpl::snapshotTimerFired()
 {
     // Check if the previous invariant is still running. If we haven't finished
     // the invariant in time, we will reset the timer, but not mark the
@@ -385,8 +370,7 @@ InvariantManagerImpl::snapshotTimerFired()
     scheduleSnapshotTimer();
 }
 
-bool
-InvariantManagerImpl::shouldRunInvariantSnapshot() const
+bool InvariantManagerImpl::shouldRunInvariantSnapshot() const
 {
     if (!mConfig.INVARIANT_EXTRA_CHECKS)
     {
@@ -397,8 +381,7 @@ InvariantManagerImpl::shouldRunInvariantSnapshot() const
 }
 
 #ifdef BUILD_TESTS
-void
-InvariantManagerImpl::snapshotForFuzzer()
+void InvariantManagerImpl::snapshotForFuzzer()
 {
     for (auto const& invariant : mEnabled)
     {
@@ -406,8 +389,7 @@ InvariantManagerImpl::snapshotForFuzzer()
     }
 }
 
-void
-InvariantManagerImpl::resetForFuzzer()
+void InvariantManagerImpl::resetForFuzzer()
 {
     for (auto const& invariant : mEnabled)
     {

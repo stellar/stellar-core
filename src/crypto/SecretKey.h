@@ -78,8 +78,7 @@ class SecretKey
 
     // Decode a secret key from a provided StrKey seed value.
     static SecretKey fromStrKeySeed(std::string const& strKeySeed);
-    static SecretKey
-    fromStrKeySeed(std::string&& strKeySeed)
+    static SecretKey fromStrKeySeed(std::string&& strKeySeed)
     {
         SecretKey ret = fromStrKeySeed(strKeySeed);
         for (std::size_t i = 0; i < strKeySeed.size(); ++i)
@@ -90,14 +89,12 @@ class SecretKey
     // Decode a secret key from a binary seed value.
     static SecretKey fromSeed(ByteSlice const& seed);
 
-    bool
-    operator==(SecretKey const& rh) const
+    bool operator==(SecretKey const& rh) const
     {
         return (mKeyType == rh.mKeyType) && (mSecretKey == rh.mSecretKey);
     }
 
-    bool
-    operator<(SecretKey const& rh) const
+    bool operator<(SecretKey const& rh) const
     {
         if (mKeyType < rh.mKeyType)
         {

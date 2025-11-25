@@ -49,8 +49,8 @@ class ManageOfferOpFrameBase : public OperationFrame
 
     bool isDexOperation() const override;
 
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
     virtual bool isAmountValid() const = 0;
     virtual bool isDeleteOffer() const = 0;

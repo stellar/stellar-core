@@ -33,15 +33,13 @@ PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
     }
 }
 
-void
-PutHistoryArchiveStateWork::doReset()
+void PutHistoryArchiveStateWork::doReset()
 {
     mPutRemoteFileWork.reset();
     fs::removeWithLog(mLocalFilename);
 }
 
-BasicWork::State
-PutHistoryArchiveStateWork::doWork()
+BasicWork::State PutHistoryArchiveStateWork::doWork()
 {
     ZoneScoped;
     if (!mPutRemoteFileWork)
@@ -65,8 +63,7 @@ PutHistoryArchiveStateWork::doWork()
     }
 }
 
-void
-PutHistoryArchiveStateWork::spawnPublishWork()
+void PutHistoryArchiveStateWork::spawnPublishWork()
 {
     ZoneScoped;
     // Put the file in the history/ww/xx/yy/history-wwxxyyzz.json file

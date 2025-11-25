@@ -11,12 +11,11 @@
 namespace stellar
 {
 
-void
-LiveBucketList::addBatch(Application& app, uint32_t currLedger,
-                         uint32_t currLedgerProtocol,
-                         std::vector<LedgerEntry> const& initEntries,
-                         std::vector<LedgerEntry> const& liveEntries,
-                         std::vector<LedgerKey> const& deadEntries)
+void LiveBucketList::addBatch(Application& app, uint32_t currLedger,
+                              uint32_t currLedgerProtocol,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     addBatchInternal(app, currLedger, currLedgerProtocol, initEntries,
@@ -26,8 +25,7 @@ LiveBucketList::addBatch(Application& app, uint32_t currLedger,
     maybeInitializeCaches(app.getConfig());
 }
 
-BucketEntryCounters
-LiveBucketList::sumBucketEntryCounters() const
+BucketEntryCounters LiveBucketList::sumBucketEntryCounters() const
 {
     BucketEntryCounters counters;
     for (auto const& lev : mLevels)
@@ -44,8 +42,7 @@ LiveBucketList::sumBucketEntryCounters() const
     return counters;
 }
 
-void
-LiveBucketList::maybeInitializeCaches(Config const& cfg) const
+void LiveBucketList::maybeInitializeCaches(Config const& cfg) const
 {
     auto blCounters = sumBucketEntryCounters();
     size_t totalAccountsSize =
@@ -67,10 +64,9 @@ LiveBucketList::maybeInitializeCaches(Config const& cfg) const
     }
 }
 
-void
-LiveBucketList::updateStartingEvictionIterator(EvictionIterator& iter,
-                                               uint32_t firstScanLevel,
-                                               uint32_t ledgerSeq)
+void LiveBucketList::updateStartingEvictionIterator(EvictionIterator& iter,
+                                                    uint32_t firstScanLevel,
+                                                    uint32_t ledgerSeq)
 {
     // Check if an upgrade has changed the starting scan level to below the
     // current iterator level
@@ -111,8 +107,7 @@ LiveBucketList::updateStartingEvictionIterator(EvictionIterator& iter,
     }
 }
 
-bool
-LiveBucketList::updateEvictionIterAndRecordStats(
+bool LiveBucketList::updateEvictionIterAndRecordStats(
     EvictionIterator& iter, EvictionIterator startIter,
     uint32_t configFirstScanLevel, uint32_t ledgerSeq,
     std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters)
@@ -154,11 +149,9 @@ LiveBucketList::updateEvictionIterAndRecordStats(
     return false;
 }
 
-void
-LiveBucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
-                                           uint32_t scanSize,
-                                           std::shared_ptr<LiveBucket const> b,
-                                           EvictionCounters& counters)
+void LiveBucketList::checkIfEvictionScanIsStuck(
+    EvictionIterator const& evictionIter, uint32_t scanSize,
+    std::shared_ptr<LiveBucket const> b, EvictionCounters& counters)
 {
     // Check to see if we can finish scanning the new bucket before it
     // receives an update

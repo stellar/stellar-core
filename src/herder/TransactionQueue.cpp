@@ -147,8 +147,8 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
 
-bool
-ClassicTransactionQueue::allowTxBroadcast(TransactionFrameBasePtr const& tx)
+bool ClassicTransactionQueue::allowTxBroadcast(
+    TransactionFrameBasePtr const& tx)
 {
     bool allowTx{true};
 
@@ -226,9 +226,8 @@ TransactionQueue::~TransactionQueue()
 // `minFee` is set when returning false, and is the smallest _full_ fee
 // that would allow replace by fee to succeed in this situation
 // Note that replace-by-fee logic is done on _inclusion_ fee
-static bool
-canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
-                int64_t& minFee)
+static bool canReplaceByFee(TransactionFrameBasePtr tx,
+                            TransactionFrameBasePtr oldTx, int64_t& minFee)
 {
     int64_t newFee = tx->getInclusionFee();
     uint32_t newNumOps = std::max<uint32_t>(1, tx->getNumOperations());
@@ -262,8 +261,8 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
     return res;
 }
 
-static bool
-isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
+static bool isDuplicateTx(TransactionFrameBasePtr oldTx,
+                          TransactionFrameBasePtr newTx)
 {
     auto const& oldEnv = oldTx->getEnvelope();
     auto const& newEnv = newTx->getEnvelope();
@@ -293,14 +292,12 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
     return false;
 }
 
-bool
-TransactionQueue::sourceAccountPending(AccountID const& accountID) const
+bool TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 {
     return mAccountStates.find(accountID) != mAccountStates.end();
 }
 
-TransactionQueue::AddResult
-TransactionQueue::canAdd(
+TransactionQueue::AddResult TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict
 #ifdef BUILD_TESTS
@@ -508,8 +505,8 @@ TransactionQueue::canAdd(
                      tx->createValidationSuccessResult());
 }
 
-void
-TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
+void TransactionQueue::releaseFeeMaybeEraseAccountState(
+    TransactionFrameBasePtr tx)
 {
     auto iter = mAccountStates.find(tx->getFeeSourceID());
     releaseAssert(iter != mAccountStates.end() &&
@@ -522,8 +519,7 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
     }
 }
 
-void
-TransactionQueue::prepareDropTransaction(AccountState& as)
+void TransactionQueue::prepareDropTransaction(AccountState& as)
 {
     releaseAssert(as.mTransaction);
     mTxQueueLimiter->removeTransaction(as.mTransaction->mTx);
@@ -644,11 +640,11 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
     return ret;
 }
 
-TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
+TransactionQueue::AddResult TransactionQueue::tryAdd(TransactionFrameBasePtr tx,
+                                                     bool submittedFromSelf
 #ifdef BUILD_TESTS
-                         ,
-                         bool isLoadgenTx
+                                                     ,
+                                                     bool isLoadgenTx
 #endif
 )
 {
@@ -720,8 +716,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     return res;
 }
 
-void
-TransactionQueue::dropTransaction(AccountStates::iterator stateIter)
+void TransactionQueue::dropTransaction(AccountStates::iterator stateIter)
 {
     ZoneScoped;
     // Remove fees and update queue size for each transaction to be dropped.
@@ -748,8 +743,7 @@ TransactionQueue::dropTransaction(AccountStates::iterator stateIter)
     }
 }
 
-void
-TransactionQueue::removeApplied(Transactions const& appliedTxs)
+void TransactionQueue::removeApplied(Transactions const& appliedTxs)
 {
     ZoneScoped;
 
@@ -815,8 +809,7 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
     }
 }
 
-void
-TransactionQueue::ban(Transactions const& banTxs)
+void TransactionQueue::ban(Transactions const& banTxs)
 {
     ZoneScoped;
     auto& bannedFront = mBannedTransactions.front();
@@ -860,8 +853,7 @@ TransactionQueue::ban(Transactions const& banTxs)
 }
 
 #ifdef BUILD_TESTS
-TransactionQueue::AccountState
-TransactionQueue::getAccountTransactionQueueInfo(
+TransactionQueue::AccountState TransactionQueue::getAccountTransactionQueueInfo(
     AccountID const& accountID) const
 {
     auto i = mAccountStates.find(accountID);
@@ -872,15 +864,13 @@ TransactionQueue::getAccountTransactionQueueInfo(
     return i->second;
 }
 
-size_t
-TransactionQueue::countBanned(int index) const
+size_t TransactionQueue::countBanned(int index) const
 {
     return mBannedTransactions[index].size();
 }
 #endif
 
-void
-TransactionQueue::shift()
+void TransactionQueue::shift()
 {
     ZoneScoped;
     mBannedTransactions.pop_back();
@@ -955,8 +945,7 @@ TransactionQueue::shift()
                                      mBroadcastSeed);
 }
 
-bool
-TransactionQueue::isBanned(Hash const& hash) const
+bool TransactionQueue::isBanned(Hash const& hash) const
 {
     return std::any_of(
         std::begin(mBannedTransactions), std::end(mBannedTransactions),
@@ -965,8 +954,7 @@ TransactionQueue::isBanned(Hash const& hash) const
         });
 }
 
-TxFrameList
-TransactionQueue::getTransactions(LedgerHeader const& lcl) const
+TxFrameList TransactionQueue::getTransactions(LedgerHeader const& lcl) const
 {
     ZoneScoped;
     TxFrameList txs;
@@ -985,8 +973,7 @@ TransactionQueue::getTransactions(LedgerHeader const& lcl) const
     return txs;
 }
 
-TransactionFrameBaseConstPtr
-TransactionQueue::getTx(Hash const& hash) const
+TransactionFrameBaseConstPtr TransactionQueue::getTx(Hash const& hash) const
 {
     ZoneScoped;
     auto it = mKnownTxHashes.find(hash);
@@ -1125,8 +1112,7 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
     return std::make_pair(resToFlood, std::nullopt);
 }
 
-bool
-SorobanTransactionQueue::broadcastSome()
+bool SorobanTransactionQueue::broadcastSome()
 {
     ZoneScoped;
     // broadcast transactions in surge pricing order:
@@ -1174,8 +1160,7 @@ SorobanTransactionQueue::broadcastSome()
     return !totalResToFlood.isZero();
 }
 
-size_t
-SorobanTransactionQueue::getMaxQueueSizeOps() const
+size_t SorobanTransactionQueue::getMaxQueueSizeOps() const
 {
     if (protocolVersionStartsFrom(mApp.getLedgerManager()
                                       .getLastClosedLedgerHeader()
@@ -1192,8 +1177,7 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
     }
 }
 
-void
-SorobanTransactionQueue::resetAndRebuild(
+void SorobanTransactionQueue::resetAndRebuild(
     UnorderedSet<LedgerKey> const& keysToFilter)
 {
     ZoneScoped;
@@ -1234,8 +1218,7 @@ SorobanTransactionQueue::resetAndRebuild(
     }
 }
 
-bool
-ClassicTransactionQueue::broadcastSome()
+bool ClassicTransactionQueue::broadcastSome()
 {
     ZoneScoped;
     // broadcast transactions in surge pricing order:
@@ -1298,8 +1281,7 @@ ClassicTransactionQueue::broadcastSome()
     return !totalToFlood.isZero();
 }
 
-void
-TransactionQueue::broadcast(bool fromCallback)
+void TransactionQueue::broadcast(bool fromCallback)
 {
     if (mShutdown || (!fromCallback && mWaiting))
     {
@@ -1328,8 +1310,7 @@ TransactionQueue::broadcast(bool fromCallback)
     }
 }
 
-void
-TransactionQueue::rebroadcast()
+void TransactionQueue::rebroadcast()
 {
     // force to rebroadcast everything
     for (auto& m : mAccountStates)
@@ -1346,8 +1327,7 @@ TransactionQueue::rebroadcast()
     broadcast(false);
 }
 
-void
-TransactionQueue::shutdown()
+void TransactionQueue::shutdown()
 {
     mShutdown = true;
     mBroadcastTimer.cancel();
@@ -1362,8 +1342,7 @@ containsFilteredOperation(std::vector<Operation> const& ops,
     });
 }
 
-bool
-TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
+bool TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
 {
     // Avoid cost of checking if filtering is not in use
     if (mFilteredTypes.empty())
@@ -1393,8 +1372,7 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
 }
 
 #ifdef BUILD_TESTS
-size_t
-TransactionQueue::getQueueSizeOps() const
+size_t TransactionQueue::getQueueSizeOps() const
 {
     return mTxQueueLimiter->size();
 }
@@ -1415,8 +1393,7 @@ TransactionQueue::getInQueueSeqNum(AccountID const& account) const
 }
 #endif
 
-size_t
-ClassicTransactionQueue::getMaxQueueSizeOps() const
+size_t ClassicTransactionQueue::getMaxQueueSizeOps() const
 {
     auto res = mTxQueueLimiter->maxScaledLedgerResources(false);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);

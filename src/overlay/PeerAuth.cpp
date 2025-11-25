@@ -18,8 +18,7 @@ namespace stellar
 // Certs expire every hour, are reissued every half hour.
 static const uint64_t expirationLimit = 3600;
 
-static AuthCert
-makeAuthCert(Application& app, Curve25519Public const& pub)
+static AuthCert makeAuthCert(Application& app, Curve25519Public const& pub)
 {
     AuthCert cert;
     // Certs are refreshed every half hour, good for an hour.
@@ -42,8 +41,7 @@ PeerAuth::PeerAuth(Application& app)
 {
 }
 
-AuthCert
-PeerAuth::getAuthCert()
+AuthCert PeerAuth::getAuthCert()
 {
     if (mCert.expiration < mApp.timeNow() + (expirationLimit / 2))
     {
@@ -52,8 +50,8 @@ PeerAuth::getAuthCert()
     return mCert;
 }
 
-bool
-PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
+bool PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode,
+                                    AuthCert const& cert)
 {
     if (cert.expiration < mApp.timeNow())
     {
@@ -68,9 +66,8 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
     return PubKeyUtils::verifySig(remoteNode, cert.sig, hash).valid;
 }
 
-HmacSha256Key
-PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
-                       Peer::PeerRole role)
+HmacSha256Key PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
+                                     Peer::PeerRole role)
 {
     auto key = PeerSharedKeyId{remotePublic, role};
     if (mSharedKeyCache.exists(key))
@@ -84,10 +81,10 @@ PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
     return value;
 }
 
-HmacSha256Key
-PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
-                           uint256 const& localNonce,
-                           uint256 const& remoteNonce, Peer::PeerRole role)
+HmacSha256Key PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
+                                         uint256 const& localNonce,
+                                         uint256 const& remoteNonce,
+                                         Peer::PeerRole role)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
@@ -110,10 +107,10 @@ PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
     return hkdfExpand(k, buf);
 }
 
-HmacSha256Key
-PeerAuth::getReceivingMacKey(Curve25519Public const& remotePublic,
-                             uint256 const& localNonce,
-                             uint256 const& remoteNonce, Peer::PeerRole role)
+HmacSha256Key PeerAuth::getReceivingMacKey(Curve25519Public const& remotePublic,
+                                           uint256 const& localNonce,
+                                           uint256 const& remoteNonce,
+                                           Peer::PeerRole role)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)

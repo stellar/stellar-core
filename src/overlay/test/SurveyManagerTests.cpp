@@ -20,8 +20,7 @@ using namespace stellar;
 namespace
 {
 // Begin survey collecting from `node`
-void
-startSurveyCollecting(Application& node, uint32_t nonce)
+void startSurveyCollecting(Application& node, uint32_t nonce)
 {
     std::string const cmd =
         "startsurveycollecting?nonce=" + std::to_string(nonce);
@@ -29,8 +28,7 @@ startSurveyCollecting(Application& node, uint32_t nonce)
 }
 
 // Stop survey collecting from `node`
-void
-stopSurveyCollecting(Application& node, uint32_t nonce)
+void stopSurveyCollecting(Application& node, uint32_t nonce)
 {
     std::string const cmd = "stopsurveycollecting";
     node.getCommandHandler().manualCmd(cmd);
@@ -38,9 +36,9 @@ stopSurveyCollecting(Application& node, uint32_t nonce)
 
 // Request survey data from `surveyed`. Returns `true` iff the request succeeded
 // in adding `surveyed` to the backlog.
-bool
-surveyTopologyTimeSliced(Application& surveyor, PublicKey const& surveyed,
-                         uint32_t inboundPeerIndex, uint32_t outboundPeerIndex)
+bool surveyTopologyTimeSliced(Application& surveyor, PublicKey const& surveyed,
+                              uint32_t inboundPeerIndex,
+                              uint32_t outboundPeerIndex)
 {
     std::string const cmd =
         "surveytopologytimesliced?node=" + KeyUtils::toStrKey(surveyed) +
@@ -53,8 +51,8 @@ surveyTopologyTimeSliced(Application& surveyor, PublicKey const& surveyed,
 }
 
 // Crank the simulation for a short time to allow survey messages to propagate
-void
-crankForSurveyPropagation(Simulation::pointer simulation, Config const& cfg)
+void crankForSurveyPropagation(Simulation::pointer simulation,
+                               Config const& cfg)
 {
     simulation->crankForAtLeast(
         simulation->getExpectedLedgerCloseTime() *
@@ -63,8 +61,8 @@ crankForSurveyPropagation(Simulation::pointer simulation, Config const& cfg)
 }
 
 // Get survey into reporting mode
-void
-startSurveyReportingFrom(Simulation::pointer simulation, PublicKey const& node)
+void startSurveyReportingFrom(Simulation::pointer simulation,
+                              PublicKey const& node)
 {
     constexpr uint32_t nonce = 0xCAFE;
     auto& surveyor = *simulation->getNode(node);
@@ -76,8 +74,7 @@ startSurveyReportingFrom(Simulation::pointer simulation, PublicKey const& node)
 }
 
 // Get survey results from `node`
-Json::Value
-getSurveyResult(Application& node)
+Json::Value getSurveyResult(Application& node)
 {
     auto const strResult =
         node.getCommandHandler().manualCmd("getsurveyresult");

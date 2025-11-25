@@ -7,9 +7,8 @@
 
 using namespace stellar;
 
-bool
-addBalance(int64_t balance, int64_t delta, int64_t resultBalance,
-           int64_t maxBalance = std::numeric_limits<int64_t>::max())
+bool addBalance(int64_t balance, int64_t delta, int64_t resultBalance,
+                int64_t maxBalance = std::numeric_limits<int64_t>::max())
 {
     auto r = stellar::addBalance(balance, delta, maxBalance);
     REQUIRE(balance == resultBalance);

@@ -14,9 +14,9 @@
 namespace stellar
 {
 
-static int64_t
-calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
-                      LedgerEntry const* current, LedgerEntry const* previous)
+static int64_t calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
+                                     LedgerEntry const* current,
+                                     LedgerEntry const* previous)
 {
     releaseAssert(current || previous);
     auto let = current ? current->data.type() : previous->data.type();
@@ -134,8 +134,7 @@ calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
     return 0;
 }
 
-static int64_t
-calculateDeltaBalance(
+static int64_t calculateDeltaBalance(
     LumenContractInfo const& lumenContractInfo,
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
@@ -170,14 +169,12 @@ ConservationOfLumens::registerInvariant(Application& app)
         lumenInfo);
 }
 
-std::string
-ConservationOfLumens::getName() const
+std::string ConservationOfLumens::getName() const
 {
     return "ConservationOfLumens";
 }
 
-std::string
-ConservationOfLumens::checkOnOperationApply(
+std::string ConservationOfLumens::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)

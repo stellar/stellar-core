@@ -16,8 +16,7 @@ namespace stellar
 namespace
 {
 template <typename T>
-void
-initializeOperationResults(TransactionFrame const& tx, T& txResult)
+void initializeOperationResults(TransactionFrame const& tx, T& txResult)
 {
     auto const& ops = tx.getOperations();
 
@@ -35,8 +34,7 @@ initializeOperationResults(TransactionFrame const& tx, T& txResult)
 }
 } // namespace
 
-bool
-RefundableFeeTracker::consumeRefundableSorobanResources(
+bool RefundableFeeTracker::consumeRefundableSorobanResources(
     uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
     TransactionFrame const& tx, DiagnosticEventManager& diagnosticEvents)
@@ -79,20 +77,17 @@ RefundableFeeTracker::consumeRefundableSorobanResources(
     return true;
 }
 
-int64_t
-RefundableFeeTracker::getFeeRefund() const
+int64_t RefundableFeeTracker::getFeeRefund() const
 {
     return mMaximumRefundableFee - mConsumedRefundableFee;
 }
 
-int64_t
-RefundableFeeTracker::getConsumedRentFee() const
+int64_t RefundableFeeTracker::getConsumedRentFee() const
 {
     return mConsumedRentFee;
 }
 
-int64_t
-RefundableFeeTracker::getConsumedRefundableFee() const
+int64_t RefundableFeeTracker::getConsumedRefundableFee() const
 {
     return mConsumedRefundableFee;
 }
@@ -102,8 +97,7 @@ RefundableFeeTracker::RefundableFeeTracker(int64_t maximumRefundableFee)
 {
 }
 
-void
-RefundableFeeTracker::resetConsumedFee()
+void RefundableFeeTracker::resetConsumedFee()
 {
     mConsumedContractEventsSizeBytes = 0;
     mConsumedRentFee = 0;
@@ -117,8 +111,7 @@ MutableTransactionResultBase::MutableTransactionResultBase(
     mTxResult.feeCharged = 0;
 }
 
-void
-MutableTransactionResultBase::initializeRefundableFeeTracker(
+void MutableTransactionResultBase::initializeRefundableFeeTracker(
     int64_t totalRefundableFee)
 {
     releaseAssert(!mRefundableFeeTracker);
@@ -132,20 +125,17 @@ MutableTransactionResultBase::getRefundableFeeTracker()
     return mRefundableFeeTracker;
 }
 
-TransactionResult const&
-MutableTransactionResultBase::getXDR() const
+TransactionResult const& MutableTransactionResultBase::getXDR() const
 {
     return mTxResult;
 }
 
-TransactionResultCode
-MutableTransactionResultBase::getResultCode() const
+TransactionResultCode MutableTransactionResultBase::getResultCode() const
 {
     return mTxResult.result.code();
 }
 
-void
-MutableTransactionResultBase::setError(TransactionResultCode code)
+void MutableTransactionResultBase::setError(TransactionResultCode code)
 {
     // Due to the way `applyCheck` is setup we set the same error code twice
     // on the same result. This is generally not necessary, but requires
@@ -164,8 +154,7 @@ MutableTransactionResultBase::setError(TransactionResultCode code)
     }
 }
 
-int64_t
-MutableTransactionResultBase::getFeeCharged() const
+int64_t MutableTransactionResultBase::getFeeCharged() const
 {
     return mTxResult.feeCharged;
 }
@@ -179,27 +168,24 @@ MutableTransactionResult::clone() const
         new MutableTransactionResult(*this));
 }
 
-void
-MutableTransactionResultBase::overrideFeeCharged(int64_t feeCharged)
+void MutableTransactionResultBase::overrideFeeCharged(int64_t feeCharged)
 {
     mTxResult.feeCharged = feeCharged;
 }
 
-void
-MutableTransactionResultBase::overrideXDR(TransactionResult const& resultXDR)
+void MutableTransactionResultBase::overrideXDR(
+    TransactionResult const& resultXDR)
 {
     mTxResult = resultXDR;
 }
 
-void
-MutableTransactionResultBase::setReplayTransactionResult(
+void MutableTransactionResultBase::setReplayTransactionResult(
     TransactionResult const& replayResult)
 {
     mReplayTransactionResult.emplace(replayResult);
 }
 
-bool
-MutableTransactionResultBase::adoptFailedReplayResult()
+bool MutableTransactionResultBase::adoptFailedReplayResult()
 {
     if (!mReplayTransactionResult)
     {
@@ -226,15 +212,13 @@ MutableTransactionResultBase::adoptFailedReplayResult()
     }
     return true;
 }
-bool
-MutableTransactionResultBase::hasReplayTransactionResult() const
+bool MutableTransactionResultBase::hasReplayTransactionResult() const
 {
     return mReplayTransactionResult.has_value();
 }
 #endif
 
-void
-MutableTransactionResultBase::setInsufficientFeeErrorWithFeeCharged(
+void MutableTransactionResultBase::setInsufficientFeeErrorWithFeeCharged(
     int64_t feeCharged)
 {
     setError(txINSUFFICIENT_FEE);
@@ -256,8 +240,7 @@ MutableTransactionResult::MutableTransactionResult(TransactionFrame const& tx,
 }
 
 #ifdef BUILD_TESTS
-void
-MutableTransactionResult::copyReplayResultWithoutFeeCharged()
+void MutableTransactionResult::copyReplayResultWithoutFeeCharged()
 {
     releaseAssert(mReplayTransactionResult);
     auto feeCharged = getFeeCharged();
@@ -284,20 +267,17 @@ MutableTransactionResult::createSuccess(TransactionFrame const& tx,
         new MutableTransactionResult(tx, feeCharged));
 }
 
-TransactionResultCode
-MutableTransactionResult::getInnermostResultCode() const
+TransactionResultCode MutableTransactionResult::getInnermostResultCode() const
 {
     return getResultCode();
 }
 
-void
-MutableTransactionResult::setInnermostError(TransactionResultCode code)
+void MutableTransactionResult::setInnermostError(TransactionResultCode code)
 {
     setError(code);
 }
 
-void
-MutableTransactionResult::finalizeFeeRefund(uint32_t ledgerVersion)
+void MutableTransactionResult::finalizeFeeRefund(uint32_t ledgerVersion)
 {
     if (mRefundableFeeTracker)
     {
@@ -305,14 +285,12 @@ MutableTransactionResult::finalizeFeeRefund(uint32_t ledgerVersion)
     }
 }
 
-OperationResult&
-MutableTransactionResult::getOpResultAt(size_t index)
+OperationResult& MutableTransactionResult::getOpResultAt(size_t index)
 {
     return mTxResult.result.results().at(index);
 }
 
-bool
-MutableTransactionResult::isSuccess() const
+bool MutableTransactionResult::isSuccess() const
 {
     return mTxResult.result.code() == txSUCCESS;
 }
@@ -338,8 +316,7 @@ FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
 }
 
 #ifdef BUILD_TESTS
-void
-FeeBumpMutableTransactionResult::copyReplayResultWithoutFeeCharged()
+void FeeBumpMutableTransactionResult::copyReplayResultWithoutFeeCharged()
 {
     releaseAssert(mReplayTransactionResult);
     auto feeCharged = getFeeCharged();
@@ -350,8 +327,7 @@ FeeBumpMutableTransactionResult::copyReplayResultWithoutFeeCharged()
 }
 #endif
 
-InnerTransactionResult&
-FeeBumpMutableTransactionResult::getInnerResult()
+InnerTransactionResult& FeeBumpMutableTransactionResult::getInnerResult()
 {
     releaseAssert(mTxResult.result.code() == txFEE_BUMP_INNER_SUCCESS ||
                   mTxResult.result.code() == txFEE_BUMP_INNER_FAILED);
@@ -390,8 +366,8 @@ FeeBumpMutableTransactionResult::getInnermostResultCode() const
     return getInnerResult().result.code();
 }
 
-void
-FeeBumpMutableTransactionResult::setInnermostError(TransactionResultCode code)
+void FeeBumpMutableTransactionResult::setInnermostError(
+    TransactionResultCode code)
 {
     auto& innerRes = getInnerResult();
     releaseAssert(code != txSUCCESS && code != txFEE_BUMP_INNER_SUCCESS &&
@@ -405,20 +381,18 @@ FeeBumpMutableTransactionResult::setInnermostError(TransactionResultCode code)
     }
 }
 
-OperationResult&
-FeeBumpMutableTransactionResult::getOpResultAt(size_t index)
+OperationResult& FeeBumpMutableTransactionResult::getOpResultAt(size_t index)
 {
     return getInnerResult().result.results().at(index);
 }
 
-bool
-FeeBumpMutableTransactionResult::isSuccess() const
+bool FeeBumpMutableTransactionResult::isSuccess() const
 {
     return mTxResult.result.code() == txFEE_BUMP_INNER_SUCCESS;
 }
 
-void
-FeeBumpMutableTransactionResult::finalizeFeeRefund(uint32_t protocolVersion)
+void FeeBumpMutableTransactionResult::finalizeFeeRefund(
+    uint32_t protocolVersion)
 {
     if (!mRefundableFeeTracker)
     {

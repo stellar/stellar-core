@@ -13,8 +13,7 @@ class AbstractLedgerTxn;
 
 class ClawbackOpFrame : public OperationFrame
 {
-    ClawbackResult&
-    innerResult(OperationResult& res) const
+    ClawbackResult& innerResult(OperationResult& res) const
     {
         return res.tr().clawbackResult();
     }
@@ -31,11 +30,10 @@ class ClawbackOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static ClawbackResultCode
-    getInnerCode(OperationResult const& res)
+    static ClawbackResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().clawbackResult().code();
     }

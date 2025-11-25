@@ -33,8 +33,7 @@ class BLAKE2
 struct XDRBLAKE2 : XDRHasher<XDRBLAKE2>
 {
     BLAKE2 state;
-    void
-    hashBytes(unsigned char const* bytes, size_t size)
+    void hashBytes(unsigned char const* bytes, size_t size)
     {
         state.add(ByteSlice(bytes, size));
     }
@@ -46,9 +45,7 @@ struct XDRBLAKE2 : XDRHasher<XDRBLAKE2>
 // NB: This is not an overload of `blake2` to avoid ambiguity when called
 // with xdrpp-provided types like opaque_vec, which will convert to a ByteSlice
 // if demanded, but can also be passed to XDRBLAKE2.
-template <typename T>
-uint256
-xdrBlake2(T const& t)
+template <typename T> uint256 xdrBlake2(T const& t)
 {
     XDRBLAKE2 xb;
     xdr::archive(xb, t);

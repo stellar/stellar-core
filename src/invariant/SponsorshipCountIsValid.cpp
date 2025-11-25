@@ -26,14 +26,12 @@ SponsorshipCountIsValid::registerInvariant(Application& app)
         .registerInvariant<SponsorshipCountIsValid>();
 }
 
-std::string
-SponsorshipCountIsValid::getName() const
+std::string SponsorshipCountIsValid::getName() const
 {
     return "SponsorshipCountIsValid";
 }
 
-static int64_t
-getMult(LedgerEntry const& le)
+static int64_t getMult(LedgerEntry const& le)
 {
     switch (le.data.type())
     {
@@ -58,8 +56,7 @@ getMult(LedgerEntry const& le)
     }
 }
 
-static AccountID const&
-getAccountID(LedgerEntry const& le)
+static AccountID const& getAccountID(LedgerEntry const& le)
 {
     switch (le.data.type())
     {
@@ -83,11 +80,10 @@ getAccountID(LedgerEntry const& le)
     }
 }
 
-static void
-updateCounters(LedgerEntry const& le,
-               UnorderedMap<AccountID, int64_t>& numSponsoring,
-               UnorderedMap<AccountID, int64_t>& numSponsored,
-               int64_t& claimableBalanceReserve, int64_t sign)
+static void updateCounters(LedgerEntry const& le,
+                           UnorderedMap<AccountID, int64_t>& numSponsoring,
+                           UnorderedMap<AccountID, int64_t>& numSponsored,
+                           int64_t& claimableBalanceReserve, int64_t sign)
 {
     if (le.ext.v() == 1 && le.ext.v1().sponsoringID)
     {
@@ -121,8 +117,7 @@ updateCounters(LedgerEntry const& le,
     }
 }
 
-static void
-updateChangedSponsorshipCounts(
+static void updateChangedSponsorshipCounts(
     std::shared_ptr<InternalLedgerEntry const> current,
     std::shared_ptr<InternalLedgerEntry const> previous,
     UnorderedMap<AccountID, int64_t>& numSponsoring,
@@ -160,8 +155,7 @@ getDeltaSponsoringAndSponsored(std::shared_ptr<InternalLedgerEntry const> le,
     }
 }
 
-std::string
-SponsorshipCountIsValid::checkOnOperationApply(
+std::string SponsorshipCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)

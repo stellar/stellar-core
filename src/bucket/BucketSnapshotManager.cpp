@@ -21,8 +21,7 @@ namespace stellar
 namespace
 {
 template <class BucketT>
-std::map<uint32_t, SnapshotPtrT<BucketT>>
-copyHistoricalSnapshots(
+std::map<uint32_t, SnapshotPtrT<BucketT>> copyHistoricalSnapshots(
     std::map<uint32_t, SnapshotPtrT<BucketT>> const& snapshots)
 {
     std::map<uint32_t, SnapshotPtrT<BucketT>> copiedSnapshots;
@@ -99,16 +98,14 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
 namespace
 {
 template <typename T, typename U>
-bool
-needsUpdate(std::shared_ptr<T const> const& snapshot,
-            SnapshotPtrT<U> const& curr)
+bool needsUpdate(std::shared_ptr<T const> const& snapshot,
+                 SnapshotPtrT<U> const& curr)
 {
     return !snapshot || snapshot->getLedgerSeq() < curr->getLedgerSeq();
 }
 }
 
-void
-BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
+void BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     SearchableSnapshotConstPtr& snapshot)
 {
     // The canonical snapshot held by the BucketSnapshotManager is not being
@@ -121,8 +118,7 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     }
 }
 
-void
-BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
+void BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     SearchableHotArchiveSnapshotConstPtr& snapshot)
 {
     // The canonical snapshot held by the BucketSnapshotManager is not being
@@ -135,8 +131,7 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     }
 }
 
-void
-BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
+void BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
     SearchableSnapshotConstPtr& liveSnapshot,
     SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
 {
@@ -156,8 +151,7 @@ BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
     }
 }
 
-void
-BucketSnapshotManager::updateCurrentSnapshot(
+void BucketSnapshotManager::updateCurrentSnapshot(
     SnapshotPtrT<LiveBucket>&& liveSnapshot,
     SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
 {

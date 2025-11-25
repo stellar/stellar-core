@@ -61,13 +61,12 @@ class TxAdverts
 
     bool seenAdvert(Hash const& hash);
     void clearBelow(uint32_t ledgerSeq);
-    void
-    start(std::function<void(std::shared_ptr<StellarMessage const>)> sendCb);
+    void start(
+        std::function<void(std::shared_ptr<StellarMessage const>)> sendCb);
     void shutdown();
 
 #ifdef BUILD_TESTS
-    size_t
-    outgoingSize() const
+    size_t outgoingSize() const
     {
         return mOutgoingTxHashes.size();
     }

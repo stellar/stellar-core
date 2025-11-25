@@ -129,14 +129,12 @@ class VirtualClock
     void shutdown();
     bool isStopped();
 
-    Mode
-    getMode() const
+    Mode getMode() const
     {
         return mMode;
     }
 
-    void
-    newBackgroundWork()
+    void newBackgroundWork()
     {
         if (mMode == VIRTUAL_TIME)
         {
@@ -144,8 +142,7 @@ class VirtualClock
         }
     }
 
-    void
-    finishedBackgroundWork()
+    void finishedBackgroundWork()
     {
         if (mMode == VIRTUAL_TIME)
         {
@@ -288,8 +285,7 @@ class VirtualTimer : private NonMovableOrCopyable
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     template <typename R, typename P>
-    void
-    expires_from_now(std::chrono::duration<R, P> const& d)
+    void expires_from_now(std::chrono::duration<R, P> const& d)
     {
         expires_from_now(std::chrono::duration_cast<VirtualClock::duration>(d));
     }

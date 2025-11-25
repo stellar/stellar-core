@@ -151,8 +151,8 @@ class TransactionMetaBuilder
         void setReturnValue(SCVal const& returnValue);
         void setTransactionEvents(xdr::xvector<TransactionEvent>&& events);
         void setDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& events);
-        void
-        maybeSetContractEventsAtTxLevel(xdr::xvector<ContractEvent>&& events);
+        void maybeSetContractEventsAtTxLevel(
+            xdr::xvector<ContractEvent>&& events);
         void maybeActivateSorobanMeta(bool success);
 
         TransactionMeta mTransactionMeta;

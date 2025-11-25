@@ -42,9 +42,9 @@ PeerBareAddress::PeerBareAddress(PeerAddress const& pa)
 {
 }
 
-PeerBareAddress
-PeerBareAddress::resolve(std::string const& ipPort, Application& app,
-                         unsigned short defaultPort)
+PeerBareAddress PeerBareAddress::resolve(std::string const& ipPort,
+                                         Application& app,
+                                         unsigned short defaultPort)
 {
     static std::regex re(
         "^(?:(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|([[:alnum:].-]+))"
@@ -120,14 +120,12 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     return PeerBareAddress{ip, port};
 }
 
-std::string const&
-PeerBareAddress::toString() const
+std::string const& PeerBareAddress::toString() const
 {
     return mStringValue;
 }
 
-bool
-PeerBareAddress::isPrivate() const
+bool PeerBareAddress::isPrivate() const
 {
     asio::error_code ec;
     asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
@@ -145,14 +143,12 @@ PeerBareAddress::isPrivate() const
     return false;
 }
 
-bool
-PeerBareAddress::isLocalhost() const
+bool PeerBareAddress::isLocalhost() const
 {
     return mIP == "127.0.0.1";
 }
 
-bool
-operator==(PeerBareAddress const& x, PeerBareAddress const& y)
+bool operator==(PeerBareAddress const& x, PeerBareAddress const& y)
 {
     if (x.mIP != y.mIP)
     {
@@ -166,14 +162,12 @@ operator==(PeerBareAddress const& x, PeerBareAddress const& y)
     return true;
 }
 
-bool
-operator!=(PeerBareAddress const& x, PeerBareAddress const& y)
+bool operator!=(PeerBareAddress const& x, PeerBareAddress const& y)
 {
     return !(x == y);
 }
 
-bool
-operator<(PeerBareAddress const& x, PeerBareAddress const& y)
+bool operator<(PeerBareAddress const& x, PeerBareAddress const& y)
 {
     if (x.mPort < y.mPort)
     {

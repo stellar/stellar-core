@@ -28,8 +28,7 @@ GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
 {
 }
 
-std::string
-GetAndUnzipRemoteFileWork::getStatus() const
+std::string GetAndUnzipRemoteFileWork::getStatus() const
 {
     if (mGunzipFileWork)
     {
@@ -42,8 +41,7 @@ GetAndUnzipRemoteFileWork::getStatus() const
     return BasicWork::getStatus();
 }
 
-void
-GetAndUnzipRemoteFileWork::doReset()
+void GetAndUnzipRemoteFileWork::doReset()
 {
     fs::removeWithLog(mFt.localPath_nogz());
     fs::removeWithLog(mFt.localPath_gz());
@@ -52,8 +50,7 @@ GetAndUnzipRemoteFileWork::doReset()
     mGunzipFileWork.reset();
 }
 
-void
-GetAndUnzipRemoteFileWork::onFailureRaise()
+void GetAndUnzipRemoteFileWork::onFailureRaise()
 {
     // Blame archive if file was downloaded but failed validation
     std::shared_ptr<HistoryArchive> ar = getArchive();
@@ -73,15 +70,13 @@ GetAndUnzipRemoteFileWork::onFailureRaise()
     Work::onFailureRaise();
 }
 
-void
-GetAndUnzipRemoteFileWork::onSuccess()
+void GetAndUnzipRemoteFileWork::onSuccess()
 {
     mApp.getLedgerApplyManager().fileDownloaded(mFt.getType());
     Work::onSuccess();
 }
 
-BasicWork::State
-GetAndUnzipRemoteFileWork::doWork()
+BasicWork::State GetAndUnzipRemoteFileWork::doWork()
 {
     ZoneScoped;
     if (mGunzipFileWork)
@@ -134,8 +129,7 @@ GetAndUnzipRemoteFileWork::doWork()
     }
 }
 
-bool
-GetAndUnzipRemoteFileWork::validateFile()
+bool GetAndUnzipRemoteFileWork::validateFile()
 {
     ZoneScoped;
     if (!fs::exists(mFt.localPath_gz_tmp()))
@@ -215,8 +209,7 @@ GetAndUnzipRemoteFileWork::validateFile()
     return true;
 }
 
-std::shared_ptr<HistoryArchive>
-GetAndUnzipRemoteFileWork::getArchive() const
+std::shared_ptr<HistoryArchive> GetAndUnzipRemoteFileWork::getArchive() const
 {
     if (mGetRemoteFileWork &&
         mGetRemoteFileWork->getState() == BasicWork::State::WORK_SUCCESS)

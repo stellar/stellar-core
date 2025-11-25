@@ -6,20 +6,20 @@
 
 namespace stellar
 {
-bool
-protocolVersionIsBefore(uint32_t protocolVersion, ProtocolVersion beforeVersion)
+bool protocolVersionIsBefore(uint32_t protocolVersion,
+                             ProtocolVersion beforeVersion)
 {
     return protocolVersion < static_cast<uint32_t>(beforeVersion);
 }
 
-bool
-protocolVersionStartsFrom(uint32_t protocolVersion, ProtocolVersion fromVersion)
+bool protocolVersionStartsFrom(uint32_t protocolVersion,
+                               ProtocolVersion fromVersion)
 {
     return protocolVersion >= static_cast<uint32_t>(fromVersion);
 }
 
-bool
-protocolVersionEquals(uint32_t protocolVersion, ProtocolVersion equalsVersion)
+bool protocolVersionEquals(uint32_t protocolVersion,
+                           ProtocolVersion equalsVersion)
 {
     return protocolVersion == static_cast<uint32_t>(equalsVersion);
 }

@@ -20,8 +20,8 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-static Claimant
-makeClaimant(AccountID const& account, ClaimPredicate const& pred)
+static Claimant makeClaimant(AccountID const& account,
+                             ClaimPredicate const& pred)
 {
     Claimant c;
     c.v0().destination = account;
@@ -30,8 +30,7 @@ makeClaimant(AccountID const& account, ClaimPredicate const& pred)
     return c;
 }
 
-static ClaimPredicate
-makeSimplePredicate(uint32_t levels)
+static ClaimPredicate makeSimplePredicate(uint32_t levels)
 {
     ClaimPredicate pred;
     if (levels == 0)
@@ -48,9 +47,8 @@ makeSimplePredicate(uint32_t levels)
     return pred;
 }
 
-static void
-randomizePredicatePos(ClaimPredicate pred1, ClaimPredicate pred2,
-                      xdr::xvector<ClaimPredicate, 2>& vec)
+static void randomizePredicatePos(ClaimPredicate pred1, ClaimPredicate pred2,
+                                  xdr::xvector<ClaimPredicate, 2>& vec)
 {
     stellar::uniform_int_distribution<size_t> dist(0, 1);
     bool randBool = dist(Catch::rng());
@@ -62,9 +60,9 @@ randomizePredicatePos(ClaimPredicate pred1, ClaimPredicate pred2,
     vec.emplace_back(secondPred);
 }
 
-static ClaimPredicate
-makePredicate(ClaimPredicateType type, bool satisfied, TimePoint nextCloseTime,
-              uint32_t secondsToNextClose)
+static ClaimPredicate makePredicate(ClaimPredicateType type, bool satisfied,
+                                    TimePoint nextCloseTime,
+                                    uint32_t secondsToNextClose)
 {
     ClaimPredicate pred;
     pred.type(type);
@@ -116,8 +114,8 @@ makePredicate(ClaimPredicateType type, bool satisfied, TimePoint nextCloseTime,
     return pred;
 }
 
-static ClaimPredicate
-connectPredicate(bool isAnd, ClaimPredicate left, ClaimPredicate right)
+static ClaimPredicate connectPredicate(bool isAnd, ClaimPredicate left,
+                                       ClaimPredicate right)
 {
     ClaimPredicate pred;
     if (isAnd)
@@ -136,14 +134,11 @@ connectPredicate(bool isAnd, ClaimPredicate left, ClaimPredicate right)
     return pred;
 }
 
-static void
-validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
-                                 Asset const& asset, int64_t amount,
-                                 xdr::xvector<Claimant, 10> const& claimants,
-                                 TestApplication& app,
-                                 bool mergeCreateAcc = false,
-                                 bool createIsSponsored = false,
-                                 bool claimIsSponsored = false)
+static void validateBalancesOnCreateAndClaim(
+    TestAccount& createAcc, TestAccount& claimAcc, Asset const& asset,
+    int64_t amount, xdr::xvector<Claimant, 10> const& claimants,
+    TestApplication& app, bool mergeCreateAcc = false,
+    bool createIsSponsored = false, bool claimIsSponsored = false)
 {
     // use root to merge and/or sponsor entries if desired
     auto root = app.getRoot();

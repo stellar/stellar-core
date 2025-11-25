@@ -16,8 +16,7 @@
 namespace stellar
 {
 
-size_t
-FlowControl::getOutboundQueueByteLimit(MutexLocker& lockGuard) const
+size_t FlowControl::getOutboundQueueByteLimit(MutexLocker& lockGuard) const
 {
 #ifdef BUILD_TESTS
     if (mOutboundQueueLimit)
@@ -42,33 +41,29 @@ FlowControl::FlowControl(AppConnector& connector, bool useBackgroundThread)
     releaseAssert(threadIsMain());
 }
 
-bool
-FlowControl::hasOutboundCapacity(StellarMessage const& msg,
-                                 MutexLocker& lockGuard) const
+bool FlowControl::hasOutboundCapacity(StellarMessage const& msg,
+                                      MutexLocker& lockGuard) const
 {
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
     return mFlowControlCapacity.hasOutboundCapacity(msg) &&
            mFlowControlBytesCapacity.hasOutboundCapacity(msg);
 }
 
-bool
-FlowControl::noOutboundCapacityTimeout(VirtualClock::time_point now,
-                                       std::chrono::seconds timeout) const
+bool FlowControl::noOutboundCapacityTimeout(VirtualClock::time_point now,
+                                            std::chrono::seconds timeout) const
 {
     MutexLocker guard(mFlowControlMutex);
     return mNoOutboundCapacity && now - *mNoOutboundCapacity >= timeout;
 }
 
-void
-FlowControl::setPeerID(NodeID const& peerID)
+void FlowControl::setPeerID(NodeID const& peerID)
 {
     releaseAssert(threadIsMain());
     MutexLocker guard(mFlowControlMutex);
     mNodeID = peerID;
 }
 
-void
-FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
+void FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -96,8 +91,7 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
     }
 }
 
-void
-FlowControl::processSentMessages(
+void FlowControl::processSentMessages(
     FloodQueues<ConstStellarMessagePtr> const& sentMessages)
 {
     ZoneScoped;
@@ -214,9 +208,8 @@ FlowControl::getNextBatchToSend()
     return batchToSend;
 }
 
-void
-FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
-                              VirtualClock::time_point const& timePlaced)
+void FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
+                                   VirtualClock::time_point const& timePlaced)
 {
     // The lock isn't strictly needed here, but is added for consistency and
     // future-proofing this function
@@ -260,8 +253,7 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
     }
 }
 
-void
-FlowControl::handleTxSizeIncrease(uint32_t increase)
+void FlowControl::handleTxSizeIncrease(uint32_t increase)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -271,8 +263,7 @@ FlowControl::handleTxSizeIncrease(uint32_t increase)
     mFlowControlBytesCapacity.handleTxSizeIncrease(increase);
 }
 
-bool
-FlowControl::beginMessageProcessing(StellarMessage const& msg)
+bool FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
@@ -282,8 +273,7 @@ FlowControl::beginMessageProcessing(StellarMessage const& msg)
            mFlowControlBytesCapacity.lockLocalCapacity(msg);
 }
 
-SendMoreCapacity
-FlowControl::endMessageProcessing(StellarMessage const& msg)
+SendMoreCapacity FlowControl::endMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
     MutexLocker guard(mFlowControlMutex);
@@ -324,29 +314,25 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
     return res;
 }
 
-bool
-FlowControl::canRead(MutexLocker const& guard) const
+bool FlowControl::canRead(MutexLocker const& guard) const
 {
     return mFlowControlBytesCapacity.canRead() &&
            mFlowControlCapacity.canRead();
 }
 
-bool
-FlowControl::canRead() const
+bool FlowControl::canRead() const
 {
     MutexLocker guard(mFlowControlMutex);
     return canRead(guard);
 }
 
-uint32_t
-FlowControl::getNumMessages(StellarMessage const& msg)
+uint32_t FlowControl::getNumMessages(StellarMessage const& msg)
 {
     releaseAssert(msg.type() == SEND_MORE_EXTENDED);
     return msg.sendMoreExtendedMessage().numMessages;
 }
 
-uint32_t
-FlowControl::getMessagePriority(StellarMessage const& msg)
+uint32_t FlowControl::getMessagePriority(StellarMessage const& msg)
 {
     switch (msg.type())
     {
@@ -369,9 +355,8 @@ FlowControl::getMessagePriority(StellarMessage const& msg)
     }
 }
 
-bool
-FlowControl::isSendMoreValid(StellarMessage const& msg,
-                             std::string& errorMsg) const
+bool FlowControl::isSendMoreValid(StellarMessage const& msg,
+                                  std::string& errorMsg) const
 {
     releaseAssert(threadIsMain());
     MutexLocker guard(mFlowControlMutex);
@@ -408,8 +393,8 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
     return true;
 }
 
-void
-FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
+void FlowControl::addMsgAndMaybeTrimQueue(
+    std::shared_ptr<StellarMessage const> msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -563,8 +548,7 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
 }
 
-Json::Value
-FlowControl::getFlowControlJsonInfo(bool compact) const
+Json::Value FlowControl::getFlowControlJsonInfo(bool compact) const
 {
     releaseAssert(threadIsMain());
     MutexLocker guard(mFlowControlMutex);
@@ -606,8 +590,7 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
     return res;
 }
 
-bool
-FlowControl::maybeThrottleRead()
+bool FlowControl::maybeThrottleRead()
 {
     MutexLocker guard(mFlowControlMutex);
     if (!canRead(guard))
@@ -620,8 +603,7 @@ FlowControl::maybeThrottleRead()
     return false;
 }
 
-void
-FlowControl::stopThrottling()
+void FlowControl::stopThrottling()
 {
     MutexLocker guard(mFlowControlMutex);
     releaseAssert(mLastThrottle);
@@ -632,8 +614,7 @@ FlowControl::stopThrottling()
     mLastThrottle.reset();
 }
 
-bool
-FlowControl::isThrottled() const
+bool FlowControl::isThrottled() const
 {
     MutexLocker guard(mFlowControlMutex);
     return static_cast<bool>(mLastThrottle);

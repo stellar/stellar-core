@@ -28,8 +28,8 @@ HotArchiveBucketIndex::HotArchiveBucketIndex(
                mDiskIndex.getPageSize(), filename);
 }
 
-std::streamoff
-HotArchiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
+std::streamoff HotArchiveBucketIndex::getPageSize(Config const& cfg,
+                                                  size_t bucketSize)
 {
     auto ret = getPageSizeFromConfig(cfg);
     if (ret == 0)
@@ -59,8 +59,7 @@ HotArchiveBucketIndex::scan(IterT start, LedgerKey const& k) const
 }
 
 #ifdef BUILD_TESTS
-bool
-HotArchiveBucketIndex::operator==(HotArchiveBucketIndex const& in) const
+bool HotArchiveBucketIndex::operator==(HotArchiveBucketIndex const& in) const
 {
     if (!(mDiskIndex == in.mDiskIndex))
     {

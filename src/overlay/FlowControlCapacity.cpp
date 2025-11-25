@@ -32,8 +32,8 @@ FlowControlMessageCapacity::getCapacityLimits() const
             std::make_optional<uint64_t>(mConfig.PEER_READING_CAPACITY)};
 }
 
-void
-FlowControlMessageCapacity::releaseOutboundCapacity(StellarMessage const& msg)
+void FlowControlMessageCapacity::releaseOutboundCapacity(
+    StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(msg.type() == SEND_MORE_EXTENDED);
@@ -46,8 +46,7 @@ FlowControlMessageCapacity::releaseOutboundCapacity(StellarMessage const& msg)
     mOutboundCapacity += numMessages;
 }
 
-bool
-FlowControlMessageCapacity::canRead() const
+bool FlowControlMessageCapacity::canRead() const
 {
     ZoneScoped;
     releaseAssert(mCapacity.mTotalCapacity);
@@ -74,8 +73,7 @@ FlowControlByteCapacity::getMsgResourceCount(StellarMessage const& msg) const
     return msgBodySize(msg);
 }
 
-void
-FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
+void FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(msg.type() == SEND_MORE_EXTENDED);
@@ -88,15 +86,13 @@ FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
     mOutboundCapacity += msg.sendMoreExtendedMessage().numBytes;
 };
 
-bool
-FlowControlByteCapacity::canRead() const
+bool FlowControlByteCapacity::canRead() const
 {
     releaseAssert(!mCapacity.mTotalCapacity);
     return true;
 }
 
-void
-FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
+void FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
 {
     mCapacity.mFloodCapacity += increase;
     mCapacityLimits.mFloodCapacity += increase;
@@ -109,8 +105,7 @@ FlowControlCapacity::FlowControlCapacity(Config const& cfg,
     releaseAssert(threadIsMain());
 }
 
-void
-FlowControlCapacity::checkCapacityInvariants() const
+void FlowControlCapacity::checkCapacityInvariants() const
 {
     ZoneScoped;
     releaseAssert(getCapacityLimits().mFloodCapacity >=
@@ -127,8 +122,7 @@ FlowControlCapacity::checkCapacityInvariants() const
     }
 }
 
-void
-FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
+void FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     if (OverlayManager::isFloodMessage(msg))
@@ -138,8 +132,7 @@ FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
     }
 }
 
-bool
-FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
+bool FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     checkCapacityInvariants();
@@ -169,8 +162,7 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
     return true;
 }
 
-uint64_t
-FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
+uint64_t FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
 
@@ -196,15 +188,13 @@ FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
     return releasedFloodCapacity;
 }
 
-bool
-FlowControlCapacity::hasOutboundCapacity(StellarMessage const& msg) const
+bool FlowControlCapacity::hasOutboundCapacity(StellarMessage const& msg) const
 {
     ZoneScoped;
     return mOutboundCapacity >= getMsgResourceCount(msg);
 }
 
-uint64_t
-FlowControlCapacity::msgBodySize(StellarMessage const& msg)
+uint64_t FlowControlCapacity::msgBodySize(StellarMessage const& msg)
 {
     ZoneScoped;
     return static_cast<uint64_t>(xdr::xdr_size(msg));

@@ -18,8 +18,7 @@ namespace fs
 {
 
 // An AWS EBS IOP is 256kb, so we try to write those.
-inline constexpr size_t
-bufsz()
+inline constexpr size_t bufsz()
 {
     return 0x40000;
 }

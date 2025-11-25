@@ -16,8 +16,7 @@
 namespace stellar
 {
 
-static bool
-signerCompare(Signer const& s1, Signer const& s2)
+static bool signerCompare(Signer const& s1, Signer const& s2)
 {
     return s1.key < s2.key;
 }
@@ -36,14 +35,12 @@ LedgerEntryIsValid::registerInvariant(Application& app)
         lumenInfo);
 }
 
-std::string
-LedgerEntryIsValid::getName() const
+std::string LedgerEntryIsValid::getName() const
 {
     return "LedgerEntryIsValid";
 }
 
-std::string
-LedgerEntryIsValid::checkOnOperationApply(
+std::string LedgerEntryIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)
@@ -73,8 +70,7 @@ LedgerEntryIsValid::checkOnOperationApply(
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(
+std::string LedgerEntryIsValid::checkIsValid(
     InternalLedgerEntry const& le,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious,
     uint32_t ledgerSeq, uint32 version) const
@@ -88,10 +84,10 @@ LedgerEntryIsValid::checkIsValid(
     return "";
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
-                                 LedgerEntry const* previous,
-                                 uint32_t ledgerSeq, uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
+                                             LedgerEntry const* previous,
+                                             uint32_t ledgerSeq,
+                                             uint32 version) const
 {
     if (le.lastModifiedLedgerSeq != ledgerSeq)
     {
@@ -142,8 +138,8 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     }
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(AccountEntry const& ae,
+                                             uint32 version) const
 {
     if (ae.balance < 0)
     {
@@ -210,10 +206,9 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
-                                 LedgerEntry const* previous,
-                                 uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
+                                             LedgerEntry const* previous,
+                                             uint32 version) const
 {
     if (tl.asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -268,8 +263,8 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(OfferEntry const& oe, uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(OfferEntry const& oe,
+                                             uint32 version) const
 {
     if (oe.offerID <= 0)
     {
@@ -300,8 +295,8 @@ LedgerEntryIsValid::checkIsValid(OfferEntry const& oe, uint32 version) const
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(DataEntry const& de, uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(DataEntry const& de,
+                                             uint32 version) const
 {
     if (de.dataName.size() == 0)
     {
@@ -314,9 +309,8 @@ LedgerEntryIsValid::checkIsValid(DataEntry const& de, uint32 version) const
     return {};
 }
 
-bool
-LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
-                                      uint32_t depth) const
+bool LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
+                                           uint32_t depth) const
 {
     if (depth > 4)
     {
@@ -366,10 +360,9 @@ LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
     return true;
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
-                                 LedgerEntry const* previous,
-                                 uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
+                                             LedgerEntry const* previous,
+                                             uint32 version) const
 {
     if (protocolVersionIsBefore(version, ProtocolVersion::V_17) &&
         cbe.ext.v() == 1)
@@ -423,10 +416,9 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
-                                 LedgerEntry const* previous,
-                                 uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
+                                             LedgerEntry const* previous,
+                                             uint32 version) const
 {
     if (protocolVersionIsBefore(version, ProtocolVersion::V_18))
     {
@@ -496,10 +488,9 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
-                                 LedgerEntry const* previous,
-                                 uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
+                                             LedgerEntry const* previous,
+                                             uint32 version) const
 {
     // Lumen contract validation
     if (cde.contract.type() == SC_ADDRESS_TYPE_CONTRACT &&
@@ -542,10 +533,9 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
-                                 LedgerEntry const* previous,
-                                 uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
+                                             LedgerEntry const* previous,
+                                             uint32 version) const
 {
     if (sha256(cce.code) != cce.hash)
     {
@@ -574,20 +564,18 @@ LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
-                                 LedgerEntry const* previous,
-                                 uint32 version) const
+std::string LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
+                                             LedgerEntry const* previous,
+                                             uint32 version) const
 {
     // ConfigSettingEntry is not affected on operation apply path, so invariants
     // will not be checked.
     return {};
 }
 
-std::string
-LedgerEntryIsValid::checkIsValid(TTLEntry const& te,
-                                 LedgerEntry const* previous,
-                                 uint32_t version) const
+std::string LedgerEntryIsValid::checkIsValid(TTLEntry const& te,
+                                             LedgerEntry const* previous,
+                                             uint32_t version) const
 {
     if (!previous)
     {

@@ -59,8 +59,7 @@ class Work : public BasicWork
     // Thus, `addWork` should be used to create Work (then the parent holds
     // the reference).
     template <typename T, typename... Args>
-    std::shared_ptr<T>
-    addWork(Args&&... args)
+    std::shared_ptr<T> addWork(Args&&... args)
     {
         return addWorkWithCallback<T>(nullptr, std::forward<Args>(args)...);
     }
@@ -70,8 +69,8 @@ class Work : public BasicWork
     // callback may be passed in, in case anything else needs to be done after
     // waking up.
     template <typename T, typename... Args>
-    std::shared_ptr<T>
-    addWorkWithCallback(std::function<void()> cb, Args&&... args)
+    std::shared_ptr<T> addWorkWithCallback(std::function<void()> cb,
+                                           Args&&... args)
     {
         if (isAborting())
         {
@@ -94,8 +93,7 @@ class Work : public BasicWork
     // which will wire up callbacks / start running the child. The parent's
     // onRun method should only return WORK_WAITING if it observes an _existing_
     // child running or waiting.
-    void
-    addWork(std::function<void()> cb, std::shared_ptr<BasicWork> child)
+    void addWork(std::function<void()> cb, std::shared_ptr<BasicWork> child)
     {
         addChild(child);
         auto wakeSelf = wakeSelfUpCallback(cb);

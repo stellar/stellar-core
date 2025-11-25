@@ -60,8 +60,8 @@ class AppConnector
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
     // This method is always exclusively called from one thread
-    bool
-    checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
+    bool checkScheduledAndCache(
+        std::shared_ptr<CapacityTrackedMessage> msgTracker);
     SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() const;
     bool threadIsType(Application::ThreadType type) const;
 
@@ -72,8 +72,8 @@ class AppConnector
     SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot();
 
     // Refreshes `snapshot` if a newer snapshot is available. No-op otherwise.
-    void
-    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
+    void maybeCopySearchableBucketListSnapshot(
+        SearchableSnapshotConstPtr& snapshot);
 
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.

@@ -17,9 +17,8 @@ namespace stellar
 
 namespace
 {
-void
-applyCheck(Application& app, std::vector<LedgerEntry> const& current,
-           std::vector<LedgerEntry> const& previous, bool shouldPass)
+void applyCheck(Application& app, std::vector<LedgerEntry> const& current,
+                std::vector<LedgerEntry> const& previous, bool shouldPass)
 {
     stellar::InvariantTestUtils::UpdateList updates;
 
@@ -47,33 +46,29 @@ applyCheck(Application& app, std::vector<LedgerEntry> const& current,
             shouldPass);
 }
 
-LedgerEntry
-createOffer(Asset const& ask, Asset const& bid, int64 amount,
-            Price const& price, bool passive = false)
+LedgerEntry createOffer(Asset const& ask, Asset const& bid, int64 amount,
+                        Price const& price, bool passive = false)
 {
     auto offer = InvariantTestUtils::generateOffer(ask, bid, amount, price);
     offer.data.offer().flags = passive ? PASSIVE_FLAG : 0;
     return offer;
 }
 
-LedgerEntry
-modifyOffer(LedgerEntry offer, bool passive)
+LedgerEntry modifyOffer(LedgerEntry offer, bool passive)
 {
     offer.data.offer().flags = passive ? PASSIVE_FLAG : 0;
     return offer;
 }
 
-LedgerEntry
-modifyOffer(LedgerEntry offer, int64 amount, Price const& price)
+LedgerEntry modifyOffer(LedgerEntry offer, int64 amount, Price const& price)
 {
     offer.data.offer().amount = amount;
     offer.data.offer().price = price;
     return offer;
 }
 
-LedgerEntry
-modifyOffer(LedgerEntry offer, Asset const& ask, Asset const& bid, int64 amount,
-            Price const& price)
+LedgerEntry modifyOffer(LedgerEntry offer, Asset const& ask, Asset const& bid,
+                        int64 amount, Price const& price)
 {
     offer.data.offer().selling = ask;
     offer.data.offer().buying = bid;

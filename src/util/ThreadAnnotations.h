@@ -141,16 +141,14 @@ class LOCKABLE Mutex : public stellar::NonMovableOrCopyable
     // Acquire/lock this mutex exclusively.  Only one thread can have exclusive
     // access at any one time.  Write operations to guarded data require an
     // exclusive lock.
-    void
-    Lock() EXCLUSIVE_LOCK_FUNCTION()
+    void Lock() EXCLUSIVE_LOCK_FUNCTION()
     {
         mMutex.lock();
     }
 
     // Release/unlock the mutex, regardless of whether it is exclusive or
     // shared.
-    void
-    Unlock() UNLOCK_FUNCTION()
+    void Unlock() UNLOCK_FUNCTION()
     {
         mMutex.unlock();
     }
@@ -186,30 +184,26 @@ class LOCKABLE SharedMutex : public stellar::NonMovableOrCopyable
   public:
     // Acquire/lock this mutex exclusively (for writing).
     // Only one thread can have exclusive access at any one time.
-    void
-    Lock() EXCLUSIVE_LOCK_FUNCTION()
+    void Lock() EXCLUSIVE_LOCK_FUNCTION()
     {
         mSharedMutex.lock();
     }
 
     // Acquire/lock this mutex for shared (read-only) access.
     // Multiple threads can acquire the mutex simultaneously for shared access.
-    void
-    LockShared() SHARED_LOCK_FUNCTION()
+    void LockShared() SHARED_LOCK_FUNCTION()
     {
         mSharedMutex.lock_shared();
     }
 
     // Release/unlock the mutex from exclusive mode.
-    void
-    Unlock() UNLOCK_FUNCTION()
+    void Unlock() UNLOCK_FUNCTION()
     {
         mSharedMutex.unlock();
     }
 
     // Release/unlock the mutex from shared mode.
-    void
-    UnlockShared() UNLOCK_FUNCTION()
+    void UnlockShared() UNLOCK_FUNCTION()
     {
         mSharedMutex.unlock_shared();
     }
@@ -245,16 +239,14 @@ class LOCKABLE RecursiveMutex : public stellar::NonMovableOrCopyable
     // Acquire/lock this mutex exclusively. The same thread may acquire the
     // mutex multiple times without blocking. The owning thread must release the
     // mutex the same number of times it was acquired.
-    void
-    Lock() EXCLUSIVE_LOCK_FUNCTION()
+    void Lock() EXCLUSIVE_LOCK_FUNCTION()
     {
         mRecursiveMutex.lock();
     }
 
     // Release/unlock the mutex. Only the owning thread can release the mutex,
     // and the mutex must be released as many times as it was acquired.
-    void
-    Unlock() UNLOCK_FUNCTION()
+    void Unlock() UNLOCK_FUNCTION()
     {
         mRecursiveMutex.unlock();
     }

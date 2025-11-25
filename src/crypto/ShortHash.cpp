@@ -18,15 +18,13 @@ static bool gHaveHashed{false};
 static unsigned int gExplicitSeed{0};
 #endif
 
-void
-initialize()
+void initialize()
 {
     std::lock_guard<std::mutex> guard(gKeyMutex);
     crypto_shorthash_keygen(gKey);
 }
 
-std::array<unsigned char, crypto_shorthash_KEYBYTES>
-getShortHashInitKey()
+std::array<unsigned char, crypto_shorthash_KEYBYTES> getShortHashInitKey()
 {
     std::lock_guard<std::mutex> guard(gKeyMutex);
     std::array<unsigned char, crypto_shorthash_KEYBYTES> arr;
@@ -35,8 +33,7 @@ getShortHashInitKey()
 }
 
 #ifdef BUILD_TESTS
-void
-seed(unsigned int s)
+void seed(unsigned int s)
 {
     std::lock_guard<std::mutex> guard(gKeyMutex);
     if (gHaveHashed)
@@ -58,8 +55,7 @@ seed(unsigned int s)
     }
 }
 #endif
-uint64_t
-computeHash(stellar::ByteSlice const& b)
+uint64_t computeHash(stellar::ByteSlice const& b)
 {
     std::lock_guard<std::mutex> guard(gKeyMutex);
     gHaveHashed = true;
@@ -78,8 +74,7 @@ XDRShortHasher::XDRShortHasher() : state(gKey)
     state = SipHash24(gKey);
 }
 
-void
-XDRShortHasher::hashBytes(unsigned char const* bytes, size_t len)
+void XDRShortHasher::hashBytes(unsigned char const* bytes, size_t len)
 {
     state.update(bytes, len);
 }

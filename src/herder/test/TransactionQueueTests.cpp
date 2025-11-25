@@ -39,9 +39,10 @@ using namespace stellar::txtest;
 
 namespace
 {
-TransactionTestFramePtr
-transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
-            int64_t amount, uint32_t fee, int nbOps = 1, bool isSoroban = false)
+TransactionTestFramePtr transaction(Application& app, TestAccount& account,
+                                    int64_t sequenceDelta, int64_t amount,
+                                    uint32_t fee, int nbOps = 1,
+                                    bool isSoroban = false)
 {
     if (!isSoroban)
     {
@@ -101,24 +102,21 @@ class TransactionQueueTest
     {
     }
 
-    TransactionQueue::AddResult
-    add(TransactionFrameBasePtr const& tx,
-        TransactionQueue::AddResultCode expected)
+    TransactionQueue::AddResult add(TransactionFrameBasePtr const& tx,
+                                    TransactionQueue::AddResultCode expected)
     {
         auto res = mTransactionQueue.tryAdd(tx, false);
         REQUIRE(res.code == expected);
         return res;
     }
 
-    TransactionQueue&
-    getTransactionQueue()
+    TransactionQueue& getTransactionQueue()
     {
         return mTransactionQueue;
     }
 
-    void
-    removeApplied(std::vector<TransactionFrameBasePtr> const& toRemove,
-                  bool noChangeExpected = false)
+    void removeApplied(std::vector<TransactionFrameBasePtr> const& toRemove,
+                       bool noChangeExpected = false)
     {
         auto size = mTransactionQueue.getTransactions({}).size();
         mTransactionQueue.removeApplied(toRemove);
@@ -142,8 +140,7 @@ class TransactionQueueTest
         }
     }
 
-    void
-    ban(std::vector<TransactionFrameBasePtr> const& toRemove)
+    void ban(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
         auto txsBefore = mTransactionQueue.getTransactions({});
         // count the number of transactions from `toRemove` already included
@@ -162,14 +159,12 @@ class TransactionQueueTest
         REQUIRE(txsBefore.size() - inPoolCount >= txsAfter.size());
     }
 
-    void
-    shift()
+    void shift()
     {
         mTransactionQueue.shift();
     }
 
-    void
-    check(const TransactionQueueState& state)
+    void check(const TransactionQueueState& state)
     {
         std::map<AccountID, int64_t> expectedFees;
         for (auto const& accountState : state.mAccountStates)
@@ -522,8 +517,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     }
 }
 
-void
-testTransactionQueueBasicScenarios()
+void testTransactionQueueBasicScenarios()
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1084,8 +1078,7 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
         }
     }
 
-    size_t
-    getLane(TransactionFrameBase const& tx) const override
+    size_t getLane(TransactionFrameBase const& tx) const override
     {
         bool limitedLane = tx.getEnvelope().v1().tx.memo.type() == MEMO_TEXT &&
                            tx.getEnvelope().v1().tx.memo.text() == "limit";
@@ -1100,19 +1093,16 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
             return SurgePricingPriorityQueue::GENERIC_LANE;
         }
     }
-    std::vector<Resource> const&
-    getLaneLimits() const override
+    std::vector<Resource> const& getLaneLimits() const override
     {
         return mLaneOpsLimits;
     }
-    virtual void
-    updateGenericLaneLimit(Resource const& limit) override
+    virtual void updateGenericLaneLimit(Resource const& limit) override
     {
         mLaneOpsLimits[0] = limit;
     }
-    virtual Resource
-    getTxResources(TransactionFrameBase const& tx,
-                   uint32_t ledgerVersion) override
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) override
     {
         releaseAssert(tx.isSoroban());
         return tx.getResources(false, ledgerVersion);

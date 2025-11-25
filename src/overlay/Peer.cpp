@@ -59,8 +59,7 @@ namespace
 // Check the signature(s) in `tx`, adding the result to the signature cache in
 // the process. This function requires that background signature verification
 // is enabled and the current thread is the overlay thread.
-void
-populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
+void populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 {
     ZoneScoped;
     releaseAssert(app.getConfig().EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
@@ -214,8 +213,7 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
 #endif
 }
 
-std::optional<Hash>
-CapacityTrackedMessage::maybeGetHash() const
+std::optional<Hash> CapacityTrackedMessage::maybeGetHash() const
 {
     return mMaybeHash;
 }
@@ -239,14 +237,12 @@ CapacityTrackedMessage::~CapacityTrackedMessage()
     }
 }
 
-StellarMessage const&
-CapacityTrackedMessage::getMessage() const
+StellarMessage const& CapacityTrackedMessage::getMessage() const
 {
     return mMsg;
 }
 
-void
-Peer::sendHello()
+void Peer::sendHello()
 {
     releaseAssert(threadIsMain());
     ZoneScoped;
@@ -269,8 +265,7 @@ Peer::sendHello()
     sendMessage(msgPtr);
 }
 
-void
-Peer::beginMessageProcessing(StellarMessage const& msg)
+void Peer::beginMessageProcessing(StellarMessage const& msg)
 {
     releaseAssert(mFlowControl);
     auto success = mFlowControl->beginMessageProcessing(msg);
@@ -281,8 +276,7 @@ Peer::beginMessageProcessing(StellarMessage const& msg)
     }
 }
 
-void
-Peer::endMessageProcessing(StellarMessage const& msg)
+void Peer::endMessageProcessing(StellarMessage const& msg)
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
@@ -325,15 +319,13 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     }
 }
 
-AuthCert
-Peer::getAuthCert()
+AuthCert Peer::getAuthCert()
 {
     releaseAssert(threadIsMain());
     return mAppConnector.getOverlayManager().getPeerAuth().getAuthCert();
 }
 
-std::chrono::seconds
-Peer::getIOTimeout() const
+std::chrono::seconds Peer::getIOTimeout() const
 {
     releaseAssert(threadIsMain());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
@@ -352,8 +344,7 @@ Peer::getIOTimeout() const
     }
 }
 
-void
-Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
+void Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
 {
     mLastRead = mAppConnector.now();
     if (gotFullMessage)
@@ -365,8 +356,7 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
     mPeerMetrics.mByteRead += byteCount;
 }
 
-void
-Peer::startRecurrentTimer()
+void Peer::startRecurrentTimer()
 {
     releaseAssert(threadIsMain());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
@@ -387,17 +377,15 @@ Peer::startRecurrentTimer()
     });
 }
 
-void
-Peer::initialize(PeerBareAddress const& address)
+void Peer::initialize(PeerBareAddress const& address)
 {
     releaseAssert(threadIsMain());
     mAddress = address;
     startRecurrentTimer();
 }
 
-void
-Peer::shutdownAndRemovePeer(std::string const& reason,
-                            DropDirection dropDirection)
+void Peer::shutdownAndRemovePeer(std::string const& reason,
+                                 DropDirection dropDirection)
 {
     releaseAssert(threadIsMain());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
@@ -428,8 +416,7 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
     mAppConnector.getOverlayManager().removePeer(this);
 }
 
-void
-Peer::recurrentTimerExpired(asio::error_code const& error)
+void Peer::recurrentTimerExpired(asio::error_code const& error)
 {
     releaseAssert(threadIsMain());
 
@@ -464,8 +451,7 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
     }
 }
 
-void
-Peer::startExecutionDelayedTimer(
+void Peer::startExecutionDelayedTimer(
     VirtualClock::duration d, std::function<void()> const& onSuccess,
     std::function<void(asio::error_code)> const& onFailure)
 {
@@ -474,8 +460,7 @@ Peer::startExecutionDelayedTimer(
     mDelayedExecutionTimer.async_wait(onSuccess, onFailure);
 }
 
-Json::Value
-Peer::getJsonInfo(bool compact) const
+Json::Value Peer::getJsonInfo(bool compact) const
 {
     releaseAssert(threadIsMain());
     Json::Value res;
@@ -528,8 +513,7 @@ Peer::getJsonInfo(bool compact) const
     return res;
 }
 
-void
-Peer::sendAuth()
+void Peer::sendAuth()
 {
     releaseAssert(threadIsMain());
 
@@ -541,15 +525,13 @@ Peer::sendAuth()
     sendMessage(msgPtr);
 }
 
-std::string const&
-Peer::toString()
+std::string const& Peer::toString()
 {
     releaseAssert(threadIsMain());
     return mAddress.toString();
 }
 
-void
-Peer::cancelTimers()
+void Peer::cancelTimers()
 {
     releaseAssert(threadIsMain());
     mRecurringTimer.cancel();
@@ -560,8 +542,7 @@ Peer::cancelTimers()
     }
 }
 
-void
-Peer::clearBelow(uint32_t seq)
+void Peer::clearBelow(uint32_t seq)
 {
     releaseAssert(threadIsMain());
     if (mTxAdverts)
@@ -570,8 +551,7 @@ Peer::clearBelow(uint32_t seq)
     }
 }
 
-void
-Peer::connectHandler(asio::error_code const& error)
+void Peer::connectHandler(asio::error_code const& error)
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (error)
@@ -597,9 +577,8 @@ Peer::connectHandler(asio::error_code const& error)
     }
 }
 
-void
-Peer::maybeExecuteInBackground(std::string const& jobName,
-                               std::function<void(std::shared_ptr<Peer>)> f)
+void Peer::maybeExecuteInBackground(
+    std::string const& jobName, std::function<void(std::shared_ptr<Peer>)> f)
 {
     if (useBackgroundThread() &&
         !mAppConnector.threadIsType(Application::ThreadType::OVERLAY))
@@ -616,8 +595,7 @@ Peer::maybeExecuteInBackground(std::string const& jobName,
     }
 }
 
-void
-Peer::sendDontHave(MessageType type, uint256 const& itemID)
+void Peer::sendDontHave(MessageType type, uint256 const& itemID)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -629,8 +607,7 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
     sendMessage(msgPtr);
 }
 
-void
-Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
+void Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -641,8 +618,7 @@ Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
     sendMessage(msgPtr);
 }
 
-void
-Peer::sendGetTxSet(uint256 const& setID)
+void Peer::sendGetTxSet(uint256 const& setID)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -654,8 +630,7 @@ Peer::sendGetTxSet(uint256 const& setID)
     sendMessage(msgPtr);
 }
 
-void
-Peer::sendGetQuorumSet(uint256 const& setID)
+void Peer::sendGetQuorumSet(uint256 const& setID)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -667,8 +642,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
     sendMessage(msgPtr);
 }
 
-void
-Peer::sendGetScpState(uint32 ledgerSeq)
+void Peer::sendGetScpState(uint32 ledgerSeq)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -679,8 +653,7 @@ Peer::sendGetScpState(uint32 ledgerSeq)
     sendMessage(msgPtr);
 }
 
-void
-Peer::sendPeers()
+void Peer::sendPeers()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -706,8 +679,7 @@ Peer::sendPeers()
     }
 }
 
-void
-Peer::sendError(ErrorCode error, std::string const& message)
+void Peer::sendError(ErrorCode error, std::string const& message)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -719,8 +691,7 @@ Peer::sendError(ErrorCode error, std::string const& message)
     sendMessage(msgPtr);
 }
 
-void
-Peer::sendErrorAndDrop(ErrorCode error, std::string const& message)
+void Peer::sendErrorAndDrop(ErrorCode error, std::string const& message)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -728,8 +699,7 @@ Peer::sendErrorAndDrop(ErrorCode error, std::string const& message)
     drop(message, DropDirection::WE_DROPPED_REMOTE);
 }
 
-void
-Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
+void Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 {
     ZoneScoped;
 
@@ -740,8 +710,7 @@ Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
     sendMessage(m);
 }
 
-std::string
-Peer::msgSummary(StellarMessage const& msg)
+std::string Peer::msgSummary(StellarMessage const& msg)
 {
     switch (msg.type())
     {
@@ -817,8 +786,7 @@ Peer::msgSummary(StellarMessage const& msg)
     return "UNKNOWN";
 }
 
-void
-Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
+void Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 {
     ZoneScoped;
 
@@ -909,8 +877,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     }
 }
 
-void
-Peer::sendAuthenticatedMessage(
+void Peer::sendAuthenticatedMessage(
     std::shared_ptr<StellarMessage const> msg,
     std::optional<VirtualClock::time_point> timePlaced)
 {
@@ -952,62 +919,53 @@ Peer::sendAuthenticatedMessage(
     maybeExecuteInBackground("sendAuthenticatedMessage", cb);
 }
 
-bool
-Peer::isConnected(RecursiveLockGuard const& stateGuard) const
+bool Peer::isConnected(RecursiveLockGuard const& stateGuard) const
 {
     return mState != CONNECTING && mState != CLOSING;
 }
 
-bool
-Peer::isAuthenticated(RecursiveLockGuard const& stateGuard) const
+bool Peer::isAuthenticated(RecursiveLockGuard const& stateGuard) const
 {
     return mState == GOT_AUTH;
 }
 
 #ifdef BUILD_TESTS
-bool
-Peer::isAuthenticatedForTesting() const
+bool Peer::isAuthenticatedForTesting() const
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return isAuthenticated(guard);
 }
-bool
-Peer::isConnectedForTesting() const
+bool Peer::isConnectedForTesting() const
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return isConnected(guard);
 }
-bool
-Peer::shouldAbortForTesting() const
+bool Peer::shouldAbortForTesting() const
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return shouldAbort(guard);
 }
 
-void
-Peer::populateSignatureCacheForTesting(AppConnector& app,
-                                       TransactionFrameBaseConstPtr tx)
+void Peer::populateSignatureCacheForTesting(AppConnector& app,
+                                            TransactionFrameBaseConstPtr tx)
 {
     populateSignatureCache(app, tx);
 }
 #endif
 
-std::chrono::seconds
-Peer::getLifeTime() const
+std::chrono::seconds Peer::getLifeTime() const
 {
     releaseAssert(threadIsMain());
     return std::chrono::duration_cast<std::chrono::seconds>(
         mAppConnector.now() - mCreationTime);
 }
 
-bool
-Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
+bool Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
 {
     return mState == CLOSING || mAppConnector.overlayShuttingDown();
 }
 
-bool
-Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
+bool Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
@@ -1131,8 +1089,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
     return true;
 }
 
-void
-Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
+void Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1176,8 +1133,7 @@ Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     }
 }
 
-void
-Peer::recvSendMore(StellarMessage const& msg)
+void Peer::recvSendMore(StellarMessage const& msg)
 {
     releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
@@ -1192,8 +1148,7 @@ Peer::recvSendMore(StellarMessage const& msg)
         });
 }
 
-void
-Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
+void Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1401,8 +1356,7 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     }
 }
 
-void
-Peer::recvDontHave(StellarMessage const& msg)
+void Peer::recvDontHave(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1412,8 +1366,7 @@ Peer::recvDontHave(StellarMessage const& msg)
         msg.dontHave().type, msg.dontHave().reqHash, shared_from_this());
 }
 
-bool
-Peer::process(QueryInfo& queryInfo)
+bool Peer::process(QueryInfo& queryInfo)
 {
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
@@ -1431,8 +1384,7 @@ Peer::process(QueryInfo& queryInfo)
 }
 
 #ifdef BUILD_TESTS
-void
-Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
+void Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1452,8 +1404,7 @@ Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
 }
 #endif
 
-void
-Peer::recvGetTxSet(StellarMessage const& msg)
+void Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1498,8 +1449,7 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     mTxSetQueryInfo.mNumQueries++;
 }
 
-void
-Peer::recvTxSet(StellarMessage const& msg)
+void Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1507,8 +1457,7 @@ Peer::recvTxSet(StellarMessage const& msg)
     mAppConnector.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
-void
-Peer::recvGeneralizedTxSet(StellarMessage const& msg)
+void Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1516,8 +1465,7 @@ Peer::recvGeneralizedTxSet(StellarMessage const& msg)
     mAppConnector.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
-void
-Peer::recvTransaction(CapacityTrackedMessage const& msg)
+void Peer::recvTransaction(CapacityTrackedMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1528,8 +1476,7 @@ Peer::recvTransaction(CapacityTrackedMessage const& msg)
         msg.maybeGetHash().value());
 }
 
-Hash
-Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
+Hash Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
 {
     releaseAssert(threadIsMain());
     auto sh = shortHash::xdrComputeHash(
@@ -1540,8 +1487,7 @@ Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
     return res;
 }
 
-void
-Peer::pingPeer()
+void Peer::pingPeer()
 {
     releaseAssert(threadIsMain());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
@@ -1553,8 +1499,7 @@ Peer::pingPeer()
     }
 }
 
-void
-Peer::maybeProcessPingResponse(Hash const& id)
+void Peer::maybeProcessPingResponse(Hash const& id)
 {
     releaseAssert(threadIsMain());
     if (mPingSentTime != PING_NOT_SENT)
@@ -1576,22 +1521,19 @@ Peer::maybeProcessPingResponse(Hash const& id)
     }
 }
 
-std::chrono::milliseconds
-Peer::getPing() const
+std::chrono::milliseconds Peer::getPing() const
 {
     releaseAssert(threadIsMain());
     return mLastPing;
 }
 
-bool
-Peer::canRead() const
+bool Peer::canRead() const
 {
     releaseAssert(mFlowControl);
     return mFlowControl->canRead();
 }
 
-void
-Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
+void Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1614,8 +1556,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     }
     mQSetQueryInfo.mNumQueries++;
 }
-void
-Peer::recvSCPQuorumSet(StellarMessage const& msg)
+void Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1624,8 +1565,7 @@ Peer::recvSCPQuorumSet(StellarMessage const& msg)
     mAppConnector.getHerder().recvSCPQuorumSet(hash, msg.qSet());
 }
 
-void
-Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
+void Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1674,8 +1614,7 @@ Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
     }
 }
 
-void
-Peer::recvGetSCPState(StellarMessage const& msg)
+void Peer::recvGetSCPState(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1683,8 +1622,7 @@ Peer::recvGetSCPState(StellarMessage const& msg)
     mAppConnector.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
 
-void
-Peer::recvError(StellarMessage const& msg)
+void Peer::recvError(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1721,8 +1659,7 @@ Peer::recvError(StellarMessage const& msg)
          Peer::DropDirection::REMOTE_DROPPED_US);
 }
 
-void
-Peer::updatePeerRecordAfterEcho()
+void Peer::updatePeerRecordAfterEcho()
 {
     releaseAssert(threadIsMain());
     releaseAssert(!getAddress().isEmpty());
@@ -1747,8 +1684,7 @@ Peer::updatePeerRecordAfterEcho()
         /* preferredTypeKnown */ true);
 }
 
-void
-Peer::updatePeerRecordAfterAuthentication()
+void Peer::updatePeerRecordAfterAuthentication()
 {
     releaseAssert(threadIsMain());
     releaseAssert(!getAddress().isEmpty());
@@ -1763,8 +1699,7 @@ Peer::updatePeerRecordAfterAuthentication()
                mAppConnector.getConfig().toShortString(mPeerID), toString());
 }
 
-void
-Peer::recvHello(Hello const& elo)
+void Peer::recvHello(Hello const& elo)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1903,14 +1838,12 @@ Peer::recvHello(Hello const& elo)
     }
 }
 
-void
-Peer::setState(RecursiveLockGuard const& stateGuard, PeerState newState)
+void Peer::setState(RecursiveLockGuard const& stateGuard, PeerState newState)
 {
     mState = newState;
 }
 
-void
-Peer::recvAuth(StellarMessage const& msg)
+void Peer::recvAuth(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1973,8 +1906,7 @@ Peer::recvAuth(StellarMessage const& msg)
     sendGetScpState(low);
 }
 
-void
-Peer::recvPeers(StellarMessage const& msg)
+void Peer::recvPeers(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2032,8 +1964,7 @@ Peer::recvPeers(StellarMessage const& msg)
     }
 }
 
-void
-Peer::recvSurveyRequestMessage(StellarMessage const& msg)
+void Peer::recvSurveyRequestMessage(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2042,8 +1973,7 @@ Peer::recvSurveyRequestMessage(StellarMessage const& msg)
         msg, shared_from_this());
 }
 
-void
-Peer::recvSurveyResponseMessage(StellarMessage const& msg)
+void Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2052,8 +1982,7 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
         msg, shared_from_this());
 }
 
-void
-Peer::recvSurveyStartCollectingMessage(StellarMessage const& msg)
+void Peer::recvSurveyStartCollectingMessage(StellarMessage const& msg)
 {
     ZoneScoped;
     mAppConnector.getOverlayManager()
@@ -2061,8 +1990,7 @@ Peer::recvSurveyStartCollectingMessage(StellarMessage const& msg)
         .relayStartSurveyCollecting(msg, shared_from_this());
 }
 
-void
-Peer::recvSurveyStopCollectingMessage(StellarMessage const& msg)
+void Peer::recvSurveyStopCollectingMessage(StellarMessage const& msg)
 {
     ZoneScoped;
     mAppConnector.getOverlayManager()
@@ -2070,8 +1998,7 @@ Peer::recvSurveyStopCollectingMessage(StellarMessage const& msg)
         .relayStopSurveyCollecting(msg, shared_from_this());
 }
 
-void
-Peer::recvFloodAdvert(StellarMessage const& msg)
+void Peer::recvFloodAdvert(StellarMessage const& msg)
 {
     releaseAssert(threadIsMain());
     releaseAssert(mTxAdverts);
@@ -2079,8 +2006,7 @@ Peer::recvFloodAdvert(StellarMessage const& msg)
     mTxAdverts->queueIncomingAdvert(msg.floodAdvert().txHashes, seq);
 }
 
-void
-Peer::recvFloodDemand(StellarMessage const& msg)
+void Peer::recvFloodDemand(StellarMessage const& msg)
 {
     releaseAssert(threadIsMain());
     // Pass the demand to OverlayManager for processing
@@ -2122,8 +2048,7 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
 {
 }
 
-void
-Peer::sendTxDemand(TxDemandVector&& demands)
+void Peer::sendTxDemand(TxDemandVector&& demands)
 {
     releaseAssert(threadIsMain());
     if (demands.size() > 0)
@@ -2142,8 +2067,7 @@ Peer::sendTxDemand(TxDemandVector&& demands)
     }
 }
 
-void
-Peer::handleMaxTxSizeIncrease(uint32_t increase)
+void Peer::handleMaxTxSizeIncrease(uint32_t increase)
 {
     releaseAssert(threadIsMain());
     if (increase > 0)
@@ -2155,8 +2079,7 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
     }
 }
 
-bool
-Peer::sendAdvert(Hash const& hash)
+bool Peer::sendAdvert(Hash const& hash)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2176,8 +2099,7 @@ Peer::sendAdvert(Hash const& hash)
     return true;
 }
 
-void
-Peer::retryAdvert(std::list<Hash>& hashes)
+void Peer::retryAdvert(std::list<Hash>& hashes)
 {
     releaseAssert(threadIsMain());
     if (!mTxAdverts)
@@ -2187,8 +2109,7 @@ Peer::retryAdvert(std::list<Hash>& hashes)
     mTxAdverts->retryIncomingAdvert(hashes);
 }
 
-bool
-Peer::hasAdvert()
+bool Peer::hasAdvert()
 {
     releaseAssert(threadIsMain());
     if (!mTxAdverts)
@@ -2198,8 +2119,7 @@ Peer::hasAdvert()
     return mTxAdverts->size() > 0;
 }
 
-Hash
-Peer::popAdvert()
+Hash Peer::popAdvert()
 {
     releaseAssert(threadIsMain());
     if (!mTxAdverts)

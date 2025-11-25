@@ -429,15 +429,13 @@ class ApplicableTxSetFrame
     size_t sizeOpTotal() const;
 
     // Returns whether this transaction set is empty.
-    bool
-    empty() const
+    bool empty() const
     {
         return sizeTxTotal() == 0;
     }
 
     // Returns the number of phases in this tx set.
-    size_t
-    numPhases() const
+    size_t numPhases() const
     {
         return mPhases.size();
     }

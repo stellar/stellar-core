@@ -286,8 +286,8 @@ class ApplicationImpl : public Application
     void setManualCloseVirtualTime(
         std::optional<TimePoint> const& explicitlyProvidedCloseTime);
 
-    void
-    advanceToLedgerBeforeManualCloseTarget(uint32_t const& targetLedgerSeq);
+    void advanceToLedgerBeforeManualCloseTarget(
+        uint32_t const& targetLedgerSeq);
 
     void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
                                                      bool forceRebuild);

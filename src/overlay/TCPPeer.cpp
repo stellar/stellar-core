@@ -48,8 +48,8 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
     }
 }
 
-TCPPeer::pointer
-TCPPeer::initiate(Application& app, PeerBareAddress const& address)
+TCPPeer::pointer TCPPeer::initiate(Application& app,
+                                   PeerBareAddress const& address)
 {
     releaseAssert(threadIsMain());
     releaseAssert(address.getType() == PeerBareAddress::Type::IPv4);
@@ -109,8 +109,8 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     return result;
 }
 
-TCPPeer::pointer
-TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
+TCPPeer::pointer TCPPeer::accept(Application& app,
+                                 shared_ptr<TCPPeer::SocketType> socket)
 {
     releaseAssert(threadIsMain());
 
@@ -223,9 +223,8 @@ TCPPeer::~TCPPeer()
     }
 }
 
-void
-TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes,
-                     std::shared_ptr<StellarMessage const> msgPtr)
+void TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes,
+                          std::shared_ptr<StellarMessage const> msgPtr)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -242,8 +241,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes,
     }
 }
 
-void
-TCPPeer::shutdown()
+void TCPPeer::shutdown()
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -292,8 +290,7 @@ TCPPeer::shutdown()
     maybeExecuteInBackground("TCPPeer: close", socketClose);
 }
 
-void
-TCPPeer::messageSender()
+void TCPPeer::messageSender()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
@@ -393,9 +390,8 @@ TCPPeer::messageSender()
         });
 }
 
-void
-TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics,
-                                               PeerMetrics& peerMetrics)
+void TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics,
+                                                    PeerMetrics& peerMetrics)
 {
     auto qdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
         mIssuedTime - mEnqueuedTime);
@@ -407,10 +403,9 @@ TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics,
     peerMetrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
 }
 
-void
-TCPPeer::writeHandler(asio::error_code const& error,
-                      std::size_t bytes_transferred,
-                      size_t messages_transferred)
+void TCPPeer::writeHandler(asio::error_code const& error,
+                           std::size_t bytes_transferred,
+                           size_t messages_transferred)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
@@ -443,8 +438,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
     }
 }
 
-void
-TCPPeer::noteErrorReadHeader(size_t nbytes, asio::error_code const& ec)
+void TCPPeer::noteErrorReadHeader(size_t nbytes, asio::error_code const& ec)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     receivedBytes(nbytes, false);
@@ -454,8 +448,7 @@ TCPPeer::noteErrorReadHeader(size_t nbytes, asio::error_code const& ec)
     drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
-void
-TCPPeer::noteShortReadHeader(size_t nbytes)
+void TCPPeer::noteShortReadHeader(size_t nbytes)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     receivedBytes(nbytes, false);
@@ -464,15 +457,13 @@ TCPPeer::noteShortReadHeader(size_t nbytes)
          Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
-void
-TCPPeer::noteFullyReadHeader()
+void TCPPeer::noteFullyReadHeader()
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     receivedBytes(HDRSZ, false);
 }
 
-void
-TCPPeer::noteErrorReadBody(size_t nbytes, asio::error_code const& ec)
+void TCPPeer::noteErrorReadBody(size_t nbytes, asio::error_code const& ec)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -483,8 +474,7 @@ TCPPeer::noteErrorReadBody(size_t nbytes, asio::error_code const& ec)
     drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
-void
-TCPPeer::noteShortReadBody(size_t nbytes)
+void TCPPeer::noteShortReadBody(size_t nbytes)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -493,16 +483,14 @@ TCPPeer::noteShortReadBody(size_t nbytes)
     drop("short read of message body", Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
-void
-TCPPeer::noteFullyReadBody(size_t nbytes)
+void TCPPeer::noteFullyReadBody(size_t nbytes)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
     receivedBytes(nbytes, true);
 }
 
-void
-TCPPeer::scheduleRead()
+void TCPPeer::scheduleRead()
 {
     // Post to the peer-specific Scheduler a call to ::startRead below;
     // this will be throttled to try to balance input rates across peers.
@@ -541,8 +529,7 @@ TCPPeer::scheduleRead()
     }
 }
 
-void
-TCPPeer::startRead()
+void TCPPeer::startRead()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
@@ -669,8 +656,7 @@ TCPPeer::startRead()
     }
 }
 
-size_t
-TCPPeer::getIncomingMsgLength()
+size_t TCPPeer::getIncomingMsgLength()
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     auto const& header = mThreadVars.getIncomingHeader();
@@ -702,15 +688,13 @@ TCPPeer::getIncomingMsgLength()
     return (length);
 }
 
-void
-TCPPeer::connected()
+void TCPPeer::connected()
 {
     startRead();
 }
 
-void
-TCPPeer::readHeaderHandler(asio::error_code const& error,
-                           std::size_t bytes_transferred)
+void TCPPeer::readHeaderHandler(asio::error_code const& error,
+                                std::size_t bytes_transferred)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -740,10 +724,9 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     }
 }
 
-void
-TCPPeer::readBodyHandler(asio::error_code const& error,
-                         std::size_t bytes_transferred,
-                         std::size_t expected_length)
+void TCPPeer::readBodyHandler(asio::error_code const& error,
+                              std::size_t bytes_transferred,
+                              std::size_t expected_length)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
@@ -777,8 +760,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     }
 }
 
-bool
-TCPPeer::recvMessage()
+bool TCPPeer::recvMessage()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
@@ -832,8 +814,7 @@ TCPPeer::recvMessage()
 // `drop` can be initiated from any thread and is thread-safe. The method simply
 // schedules a callback on the main thread, that is going to clean up connection
 // lists and remove the peer.
-void
-TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
+void TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
 {
     // Attempts to set mDropStarted to true, returns previous value. If previous
     // value was false, this means we're initiating the drop for the first time

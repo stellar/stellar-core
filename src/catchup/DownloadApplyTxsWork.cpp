@@ -35,8 +35,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
 {
 }
 
-std::shared_ptr<BasicWork>
-DownloadApplyTxsWork::yieldMoreWork()
+std::shared_ptr<BasicWork> DownloadApplyTxsWork::yieldMoreWork()
 {
     ZoneScoped;
     if (!hasNext())
@@ -219,8 +218,7 @@ DownloadApplyTxsWork::yieldMoreWork()
     return nextWork;
 }
 
-void
-DownloadApplyTxsWork::resetIter()
+void DownloadApplyTxsWork::resetIter()
 {
     mCheckpointToQueue = HistoryManager::checkpointContainingLedger(
         mRange.mFirst, mApp.getConfig());
@@ -228,8 +226,7 @@ DownloadApplyTxsWork::resetIter()
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
-bool
-DownloadApplyTxsWork::hasNext() const
+bool DownloadApplyTxsWork::hasNext() const
 {
     if (mRange.mCount == 0)
     {
@@ -240,14 +237,12 @@ DownloadApplyTxsWork::hasNext() const
     return mCheckpointToQueue <= last;
 }
 
-void
-DownloadApplyTxsWork::onSuccess()
+void DownloadApplyTxsWork::onSuccess()
 {
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
-std::string
-DownloadApplyTxsWork::getStatus() const
+std::string DownloadApplyTxsWork::getStatus() const
 {
     auto first = HistoryManager::checkpointContainingLedger(mRange.mFirst,
                                                             mApp.getConfig());

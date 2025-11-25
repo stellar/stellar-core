@@ -225,20 +225,17 @@ class CatchupSimulation
         Config::TestDbMode dbMode = Config::TESTDB_IN_MEMORY);
     ~CatchupSimulation();
 
-    Application&
-    getApp() const
+    Application& getApp() const
     {
         return *mAppPtr;
     }
 
-    VirtualClock&
-    getClock()
+    VirtualClock& getClock()
     {
         return *mClock;
     }
 
-    HistoryConfigurator&
-    getHistoryConfigurator() const
+    HistoryConfigurator& getHistoryConfigurator() const
     {
         return *mHistoryConfigurator.get();
     }
@@ -254,9 +251,9 @@ class CatchupSimulation
     void generateRandomLedger(uint32_t version = 0);
 
     void ensurePublishesComplete();
-    void
-    ensureLedgerAvailable(uint32_t targetLedger,
-                          std::optional<uint32_t> restartLedger = std::nullopt);
+    void ensureLedgerAvailable(
+        uint32_t targetLedger,
+        std::optional<uint32_t> restartLedger = std::nullopt);
     void ensureOfflineCatchupPossible(
         uint32_t targetLedger,
         std::optional<uint32_t> restartLedger = std::nullopt);

@@ -78,8 +78,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     return result;
 }
 
-void
-SearchableLiveBucketListSnapshot::scanForEntriesOfType(
+void SearchableLiveBucketListSnapshot::scanForEntriesOfType(
     LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
@@ -228,8 +227,7 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     return winners;
 }
 
-std::vector<LedgerEntry>
-SearchableLiveBucketListSnapshot::loadKeys(
+std::vector<LedgerEntry> SearchableLiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     std::string const& label) const
 {

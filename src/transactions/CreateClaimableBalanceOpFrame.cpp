@@ -17,8 +17,7 @@
 namespace stellar
 {
 
-static int64_t
-relativeToAbsolute(TimePoint closeTime, int64_t relative)
+static int64_t relativeToAbsolute(TimePoint closeTime, int64_t relative)
 {
     return closeTime > static_cast<uint64_t>(INT64_MAX - relative)
                ? INT64_MAX
@@ -26,8 +25,7 @@ relativeToAbsolute(TimePoint closeTime, int64_t relative)
 }
 
 // convert all relative predicates to absolute predicates
-static void
-updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
+static void updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
 {
     switch (pred.type())
     {
@@ -71,8 +69,7 @@ updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
     }
 }
 
-static bool
-validatePredicate(ClaimPredicate const& pred, uint32_t depth)
+static bool validatePredicate(ClaimPredicate const& pred, uint32_t depth)
 {
     if (depth > 4)
     {
@@ -132,18 +129,17 @@ CreateClaimableBalanceOpFrame::CreateClaimableBalanceOpFrame(
 {
 }
 
-bool
-CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
+bool CreateClaimableBalanceOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_14);
 }
 
-bool
-CreateClaimableBalanceOpFrame::doApply(AppConnector& app,
-                                       AbstractLedgerTxn& ltx,
-                                       OperationResult& res,
-                                       OperationMetaBuilder& opMeta) const
+bool CreateClaimableBalanceOpFrame::doApply(AppConnector& app,
+                                            AbstractLedgerTxn& ltx,
+                                            OperationResult& res,
+                                            OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "CreateClaimableBalanceOpFrame apply", true);
 
@@ -259,9 +255,8 @@ CreateClaimableBalanceOpFrame::doApply(AppConnector& app,
     return true;
 }
 
-bool
-CreateClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                            OperationResult& res) const
+bool CreateClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                 OperationResult& res) const
 {
     auto const& claimants = mCreateClaimableBalance.claimants;
 
@@ -296,8 +291,7 @@ CreateClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-CreateClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
+void CreateClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     // Prefetch trustline for non-native assets
@@ -308,8 +302,7 @@ CreateClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
     }
 }
 
-Hash
-CreateClaimableBalanceOpFrame::getBalanceID() const
+Hash CreateClaimableBalanceOpFrame::getBalanceID() const
 {
     HashIDPreimage hashPreimage;
     hashPreimage.type(ENVELOPE_TYPE_OP_ID);

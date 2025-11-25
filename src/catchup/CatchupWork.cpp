@@ -53,8 +53,8 @@ getHistoryEntryForLedger(uint32_t ledgerSeq, FileTransferInfo const& ft)
     return nullptr;
 }
 
-static bool
-setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger, Application& app)
+static bool setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger,
+                             Application& app)
 {
     auto entry = getHistoryEntryForLedger(ledger, ft);
     if (!entry)
@@ -94,8 +94,7 @@ CatchupWork::~CatchupWork()
 {
 }
 
-std::string
-CatchupWork::getStatus() const
+std::string CatchupWork::getStatus() const
 {
     std::string toLedger;
     if (mCatchupConfiguration.toLedger() == CatchupConfiguration::CURRENT)
@@ -118,8 +117,7 @@ CatchupWork::getStatus() const
                                     : Work::getStatus());
 }
 
-void
-CatchupWork::doReset()
+void CatchupWork::doReset()
 {
     ZoneScoped;
     mBucketsAppliedEmitted = false;
@@ -144,9 +142,8 @@ CatchupWork::doReset()
     mBucketHAS.reset();
 }
 
-void
-CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
-                                       LedgerNumHashPair rangeEnd)
+void CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
+                                            LedgerNumHashPair rangeEnd)
 {
     ZoneScoped;
     auto verifyRange = catchupRange.getFullRangeIncludingBucketApply();
@@ -177,8 +174,7 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     mCurrentWork = mDownloadVerifyLedgersSeq;
 }
 
-void
-CatchupWork::downloadVerifyTxResults(CatchupRange const& catchupRange)
+void CatchupWork::downloadVerifyTxResults(CatchupRange const& catchupRange)
 {
     ZoneScoped;
     auto range = catchupRange.getReplayRange();
@@ -187,15 +183,14 @@ CatchupWork::downloadVerifyTxResults(CatchupRange const& catchupRange)
         mApp, checkpointRange, *mDownloadDir);
 }
 
-bool
-CatchupWork::alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const
+bool CatchupWork::alreadyHaveBucketsHistoryArchiveState(
+    uint32_t atCheckpoint) const
 {
     return atCheckpoint ==
            mGetHistoryArchiveStateWork->getHistoryArchiveState().currentLedger;
 }
 
-WorkSeqPtr
-CatchupWork::downloadApplyBuckets()
+WorkSeqPtr CatchupWork::downloadApplyBuckets()
 {
     ZoneScoped;
 
@@ -239,8 +234,7 @@ CatchupWork::downloadApplyBuckets()
                                           seq, RETRY_NEVER);
 }
 
-void
-CatchupWork::assertBucketState()
+void CatchupWork::assertBucketState()
 {
     releaseAssert(mBucketHAS);
     releaseAssert(mBucketHAS->currentLedger >
@@ -273,8 +267,7 @@ CatchupWork::assertBucketState()
     }
 }
 
-void
-CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
+void CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 {
     ZoneScoped;
     auto waitForPublish = mCatchupConfiguration.offline();
@@ -283,8 +276,7 @@ CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
         mApp, *mDownloadDir, range, mLastApplied, waitForPublish, mArchive);
 }
 
-BasicWork::State
-CatchupWork::getAndMaybeSetHistoryArchiveState()
+BasicWork::State CatchupWork::getAndMaybeSetHistoryArchiveState()
 {
     // First, retrieve the HAS
     if (!mGetHistoryArchiveStateWork)
@@ -392,8 +384,7 @@ CatchupWork::getAndMaybeSetBucketHistoryArchiveState(uint32_t applyBucketsAt)
     return State::WORK_SUCCESS;
 }
 
-BasicWork::State
-CatchupWork::runCatchupStep()
+BasicWork::State CatchupWork::runCatchupStep()
 {
     ZoneScoped;
 
@@ -597,8 +588,7 @@ CatchupWork::runCatchupStep()
     return State::WORK_RUNNING;
 }
 
-BasicWork::State
-CatchupWork::doWork()
+BasicWork::State CatchupWork::doWork()
 {
     ZoneScoped;
     auto nextState = runCatchupStep();
@@ -613,15 +603,13 @@ CatchupWork::doWork()
     return nextState;
 }
 
-void
-CatchupWork::onFailureRaise()
+void CatchupWork::onFailureRaise()
 {
     CLOG_WARNING(History, "Catchup failed");
     Work::onFailureRaise();
 }
 
-void
-CatchupWork::onSuccess()
+void CatchupWork::onSuccess()
 {
     CLOG_INFO(History, "Catchup finished");
     Work::onSuccess();

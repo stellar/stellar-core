@@ -41,8 +41,7 @@
 namespace cereal
 {
 template <class Archive>
-void
-save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
+void save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
 {
     // NB: See 'rewriteOptionalFieldKeys' below before adding any new fields to
     // this type, and in particular avoid using field names "has" or "val",
@@ -65,8 +64,7 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
 }
 
 template <class Archive>
-void
-load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
+void load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
 {
     time_t t;
     ar(make_nvp("time", t));
@@ -115,8 +113,7 @@ namespace stellar
 {
 namespace
 {
-uint32_t
-readMaxSorobanTxSetSize(LedgerSnapshot const& ls)
+uint32_t readMaxSorobanTxSetSize(LedgerSnapshot const& ls)
 {
     LedgerKey key(LedgerEntryType::CONFIG_SETTING);
     key.configSetting().configSettingID =
@@ -128,8 +125,7 @@ readMaxSorobanTxSetSize(LedgerSnapshot const& ls)
         .ledgerMaxTxCount;
 }
 
-void
-upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
+void upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
 {
     LedgerKey key(LedgerEntryType::CONFIG_SETTING);
     key.configSetting().configSettingID =
@@ -141,8 +137,7 @@ upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
 } // namespace
 std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
 
-std::string
-Upgrades::UpgradeParameters::toJson() const
+std::string Upgrades::UpgradeParameters::toJson() const
 {
     std::ostringstream out;
     {
@@ -183,8 +178,7 @@ Upgrades::UpgradeParameters::toDebugJson(LedgerSnapshot const& ls) const
     return writer.write(upgradesJson);
 }
 
-static std::string
-rewriteOptionalFieldKeys(std::string s)
+static std::string rewriteOptionalFieldKeys(std::string s)
 {
     // When transitioning from C++14 to C++17, we migrated from a custom
     // implementation of 'optional' types, to using std::optional.
@@ -222,8 +216,7 @@ rewriteOptionalFieldKeys(std::string s)
     return s;
 }
 
-void
-Upgrades::UpgradeParameters::fromJson(std::string const& s)
+void Upgrades::UpgradeParameters::fromJson(std::string const& s)
 {
     std::string s1 = rewriteOptionalFieldKeys(s);
     std::istringstream in(s1);
@@ -237,8 +230,7 @@ Upgrades::Upgrades(UpgradeParameters const& params) : mParams(params)
 {
 }
 
-void
-Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
+void Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
 {
     if (params.mProtocolVersion &&
         *params.mProtocolVersion > cfg.LEDGER_PROTOCOL_VERSION)
@@ -251,8 +243,7 @@ Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
     mParams = params;
 }
 
-Upgrades::UpgradeParameters const&
-Upgrades::getParameters() const
+Upgrades::UpgradeParameters const& Upgrades::getParameters() const
 {
     return mParams;
 }
@@ -324,9 +315,8 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
     return result;
 }
 
-void
-Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
-                  AbstractLedgerTxn& ltx)
+void Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
+                       AbstractLedgerTxn& ltx)
 {
     switch (upgrade.type())
     {
@@ -375,8 +365,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
     }
 }
 
-std::string
-Upgrades::toString(LedgerUpgrade const& upgrade)
+std::string Upgrades::toString(LedgerUpgrade const& upgrade)
 {
     switch (upgrade.type())
     {
@@ -405,8 +394,7 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     }
 }
 
-std::string
-Upgrades::toString() const
+std::string Upgrades::toString() const
 {
     std::stringstream r;
     bool first = true;
@@ -615,9 +603,8 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
     return res ? UpgradeValidity::VALID : UpgradeValidity::INVALID;
 }
 
-bool
-Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
-                               LedgerSnapshot const& ls) const
+bool Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
+                                    LedgerSnapshot const& ls) const
 {
     if (!timeForUpgrade(ls.getLedgerHeader().current().scpValue.closeTime))
     {
@@ -661,9 +648,9 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
     }
 }
 
-bool
-Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                  bool nomination, Application& app) const
+bool Upgrades::isValid(UpgradeType const& upgrade,
+                       LedgerUpgradeType& upgradeType, bool nomination,
+                       Application& app) const
 {
     LedgerUpgrade lupgrade;
     auto ls = LedgerSnapshot(app);
@@ -682,14 +669,12 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
     return res;
 }
 
-bool
-Upgrades::timeForUpgrade(uint64_t time) const
+bool Upgrades::timeForUpgrade(uint64_t time) const
 {
     return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
 }
 
-void
-Upgrades::dropAll(Database& db)
+void Upgrades::dropAll(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
     db.getRawSession() << "CREATE TABLE upgradehistory ("
@@ -703,8 +688,7 @@ Upgrades::dropAll(Database& db)
         << "CREATE INDEX upgradehistbyseq ON upgradehistory (ledgerseq);";
 }
 
-void
-Upgrades::dropSupportUpgradeHistory(Database& db)
+void Upgrades::dropSupportUpgradeHistory(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
 }
@@ -729,11 +713,9 @@ addLiabilities(std::map<Asset, std::unique_ptr<int64_t>>& liabilities,
     }
 }
 
-static int64_t
-getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
-                                        Asset const& asset,
-                                        int64_t balanceAboveReserve,
-                                        AbstractLedgerTxn& ltx)
+static int64_t getAvailableBalanceExcludingLiabilities(
+    AccountID const& accountID, Asset const& asset, int64_t balanceAboveReserve,
+    AbstractLedgerTxn& ltx)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -758,10 +740,10 @@ getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
     }
 }
 
-static int64_t
-getAvailableLimitExcludingLiabilities(AccountID const& accountID,
-                                      Asset const& asset, int64_t balance,
-                                      AbstractLedgerTxn& ltx)
+static int64_t getAvailableLimitExcludingLiabilities(AccountID const& accountID,
+                                                     Asset const& asset,
+                                                     int64_t balance,
+                                                     AbstractLedgerTxn& ltx)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -814,8 +796,7 @@ enum class UpdateOfferResult
     Erase
 };
 
-static UpdateOfferResult
-updateOffer(
+static UpdateOfferResult updateOffer(
     LedgerTxnEntry& offerEntry, int64_t balance, int64_t balanceAboveReserve,
     std::map<Asset, Liabilities>& liabilities,
     std::map<Asset, std::unique_ptr<int64_t>> const& initialBuyingLiabilities,
@@ -891,8 +872,7 @@ updateOffer(
     return res;
 }
 
-static UnorderedMap<AccountID, int64_t>
-getOfferAccountMinBalances(
+static UnorderedMap<AccountID, int64_t> getOfferAccountMinBalances(
     AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     std::map<AccountID, std::vector<LedgerTxnEntry>> const& offersByAccount)
 {
@@ -914,12 +894,10 @@ getOfferAccountMinBalances(
     return minBalanceMap;
 }
 
-static void
-eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
-                                  LedgerTxnHeader const& header,
-                                  LedgerTxnEntry& offerEntry,
-                                  LedgerTxnEntry& accountEntry,
-                                  UnorderedSet<AccountID>& changedAccounts)
+static void eraseOfferWithPossibleSponsorship(
+    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+    LedgerTxnEntry& offerEntry, LedgerTxnEntry& accountEntry,
+    UnorderedSet<AccountID>& changedAccounts)
 {
     LedgerEntry::_ext_t extension = offerEntry.current().ext;
     bool isSponsored = extension.v() == 1 && extension.v1().sponsoringID;
@@ -956,8 +934,8 @@ eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
 // It is essential to note that the excess liabilities are determined only
 // using the initial result of step (1), so it does not matter what order the
 // offers are processed.
-static void
-prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
+static void prepareLiabilities(AbstractLedgerTxn& ltx,
+                               LedgerTxnHeader const& header)
 {
     CLOG_INFO(Ledger, "Starting prepareLiabilities");
 
@@ -1126,8 +1104,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
               nUpdatedOffers[UpdateOfferResult::Erase]);
 }
 
-static void
-upgradeFromProtocol15To16(AbstractLedgerTxn& ltx)
+static void upgradeFromProtocol15To16(AbstractLedgerTxn& ltx)
 {
     if (gIsProductionNetwork)
     {
@@ -1171,17 +1148,15 @@ upgradeFromProtocol15To16(AbstractLedgerTxn& ltx)
     }
 }
 
-static bool
-needUpgradeToVersion(ProtocolVersion targetVersion, uint32_t prevVersion,
-                     uint32_t newVersion)
+static bool needUpgradeToVersion(ProtocolVersion targetVersion,
+                                 uint32_t prevVersion, uint32_t newVersion)
 {
     return protocolVersionIsBefore(prevVersion, targetVersion) &&
            protocolVersionStartsFrom(newVersion, targetVersion);
 }
 
-void
-Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
-                              uint32_t newVersion)
+void Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
+                                   uint32_t newVersion)
 {
     uint32_t prevVersion = ltx.loadHeader().current().ledgerVersion;
 
@@ -1251,8 +1226,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     }
 }
 
-void
-Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
+void Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
 {
     auto header = ltx.loadHeader();
     bool didReserveIncrease = newReserve > header.current().baseReserve;
@@ -1316,9 +1290,8 @@ ConfigUpgradeSetFrame::ConfigUpgradeSetFrame(
 {
 }
 
-bool
-ConfigUpgradeSetFrame::isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
-                                  ConfigUpgradeSetKey const& key) const
+bool ConfigUpgradeSetFrame::isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
+                                       ConfigUpgradeSetKey const& key) const
 {
     if (key.contentHash != sha256(xdr::xdr_to_opaque(upgradeSetXDR)))
     {
@@ -1361,14 +1334,12 @@ ConfigUpgradeSetFrame::isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
     return true;
 }
 
-ConfigUpgradeSet const&
-ConfigUpgradeSetFrame::toXDR() const
+ConfigUpgradeSet const& ConfigUpgradeSetFrame::toXDR() const
 {
     return mConfigUpgradeSet;
 }
 
-ConfigUpgradeSetKey const&
-ConfigUpgradeSetFrame::getKey() const
+ConfigUpgradeSetKey const& ConfigUpgradeSetFrame::getKey() const
 {
     return mKey;
 }
@@ -1390,8 +1361,7 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
     return lk;
 }
 
-bool
-ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
+bool ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
 {
     if (protocolVersionIsBefore(ls.getLedgerHeader().current().ledgerVersion,
                                 SOROBAN_PROTOCOL_VERSION))
@@ -1412,8 +1382,8 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
     return false;
 }
 
-void
-ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
+void ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx,
+                                    Application& app) const
 {
     bool writeLiveSorobanStateSizeWindow = false;
     bool hasMemorySettingsUpgrade = false;
@@ -1453,8 +1423,7 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
     }
 }
 
-bool
-ConfigUpgradeSetFrame::isConsistentWith(
+bool ConfigUpgradeSetFrame::isConsistentWith(
     ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const
 {
     if (scheduledUpgrade == nullptr)
@@ -1465,8 +1434,7 @@ ConfigUpgradeSetFrame::isConsistentWith(
     return mKey == scheduledUpgrade->getKey();
 }
 
-Upgrades::UpgradeValidity
-ConfigUpgradeSetFrame::isValidForApply() const
+Upgrades::UpgradeValidity ConfigUpgradeSetFrame::isValidForApply() const
 {
     if (!mValidXDR)
     {
@@ -1484,14 +1452,12 @@ ConfigUpgradeSetFrame::isValidForApply() const
     return Upgrades::UpgradeValidity::VALID;
 }
 
-std::string
-ConfigUpgradeSetFrame::encodeAsString() const
+std::string ConfigUpgradeSetFrame::encodeAsString() const
 {
     return decoder::encode_b64(xdr::xdr_to_opaque(mConfigUpgradeSet));
 }
 
-std::string
-ConfigUpgradeSetFrame::toJson() const
+std::string ConfigUpgradeSetFrame::toJson() const
 {
     std::ostringstream out;
     cereal::JSONOutputArchive ar(out);

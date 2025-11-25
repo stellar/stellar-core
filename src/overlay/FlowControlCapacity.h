@@ -45,14 +45,12 @@ class FlowControlCapacity
 
     bool hasOutboundCapacity(StellarMessage const& msg) const;
     void checkCapacityInvariants() const;
-    ReadingCapacity
-    getCapacity() const
+    ReadingCapacity getCapacity() const
     {
         return mCapacity;
     }
 
-    uint64_t
-    getOutboundCapacity() const
+    uint64_t getOutboundCapacity() const
     {
         return mOutboundCapacity;
     }
@@ -62,8 +60,7 @@ class FlowControlCapacity
     static uint64_t msgBodySize(StellarMessage const& msg);
 
 #ifdef BUILD_TESTS
-    void
-    setOutboundCapacity(uint64_t newCapacity)
+    void setOutboundCapacity(uint64_t newCapacity)
     {
         mOutboundCapacity = newCapacity;
     }

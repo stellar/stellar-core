@@ -32,8 +32,7 @@ class GetHistoryArchiveStateWork : public Work
         size_t maxRetries = BasicWork::RETRY_A_FEW);
     ~GetHistoryArchiveStateWork() = default;
 
-    HistoryArchiveState const&
-    getHistoryArchiveState() const
+    HistoryArchiveState const& getHistoryArchiveState() const
     {
         if (getState() != State::WORK_SUCCESS)
         {
@@ -43,8 +42,7 @@ class GetHistoryArchiveStateWork : public Work
         return mState;
     }
 
-    std::shared_ptr<HistoryArchive>
-    getArchive() const
+    std::shared_ptr<HistoryArchive> getArchive() const
     {
         return mArchive;
     }

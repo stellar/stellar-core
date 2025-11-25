@@ -45,9 +45,7 @@ template <typename T> class BinaryFuseFilter : public NonMovableOrCopyable
 
     bool operator==(BinaryFuseFilter<T> const& other) const;
 
-    template <class Archive>
-    void
-    save(Archive& archive) const
+    template <class Archive> void save(Archive& archive) const
     {
         SerializedBinaryFuseFilter xdrFilter;
         std::copy(mHashSeed.begin(), mHashSeed.end(),
@@ -57,9 +55,7 @@ template <typename T> class BinaryFuseFilter : public NonMovableOrCopyable
         archive(xdrFilter);
     }
 
-    template <class Archive>
-    void
-    load(Archive& archive)
+    template <class Archive> void load(Archive& archive)
     {
         SerializedBinaryFuseFilter xdrFilter;
         archive(xdrFilter);

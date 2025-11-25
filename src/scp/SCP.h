@@ -28,13 +28,11 @@ class SCP
     SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
         SCPQuorumSet const& qSetLocal);
 
-    SCPDriver&
-    getDriver()
+    SCPDriver& getDriver()
     {
         return mDriver;
     }
-    SCPDriver const&
-    getDriver() const
+    SCPDriver const& getDriver() const
     {
         return mDriver;
     }
@@ -151,8 +149,7 @@ class SCP
                          bool fullKeys = false) const;
     std::string envToStr(SCPStatement const& st, bool fullKeys = false) const;
 
-    uint64
-    getHighestKnownSlotIndex()
+    uint64 getHighestKnownSlotIndex()
     {
         return mKnownSlots.empty() ? 0 : mKnownSlots.rbegin()->first;
     }

@@ -27,8 +27,7 @@ DownloadVerifyTxResultsWork::DownloadVerifyTxResultsWork(
 {
 }
 
-std::string
-DownloadVerifyTxResultsWork::getStatus() const
+std::string DownloadVerifyTxResultsWork::getStatus() const
 {
     if (!isDone() && !isAborting())
     {
@@ -41,20 +40,17 @@ DownloadVerifyTxResultsWork::getStatus() const
     return BatchWork::getStatus();
 }
 
-bool
-DownloadVerifyTxResultsWork::hasNext() const
+bool DownloadVerifyTxResultsWork::hasNext() const
 {
     return mCurrCheckpoint < mRange.limit();
 }
 
-void
-DownloadVerifyTxResultsWork::resetIter()
+void DownloadVerifyTxResultsWork::resetIter()
 {
     mCurrCheckpoint = mRange.mFirst;
 }
 
-std::shared_ptr<BasicWork>
-DownloadVerifyTxResultsWork::yieldMoreWork()
+std::shared_ptr<BasicWork> DownloadVerifyTxResultsWork::yieldMoreWork()
 {
     ZoneScoped;
     if (!hasNext())

@@ -24,15 +24,13 @@ namespace stellar
 {
 class Application;
 
-inline bool
-shim_isLogLevelAtLeast(std::string const& partition, LogLevel level)
+inline bool shim_isLogLevelAtLeast(std::string const& partition, LogLevel level)
 {
     return Logging::isLogLevelAtLeast(partition, level);
 }
 
-inline void
-shim_logAtPartitionAndLevel(std::string const& partition, LogLevel level,
-                            std::string const& msg)
+inline void shim_logAtPartitionAndLevel(std::string const& partition,
+                                        LogLevel level, std::string const& msg)
 {
     Logging::logAtPartitionAndLevel(partition, level, msg);
 }

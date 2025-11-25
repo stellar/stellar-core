@@ -17,8 +17,7 @@ class ManageBuyOfferOpFrame : public ManageOfferOpFrameBase
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    ManageBuyOfferResult&
-    innerResult(OperationResult& res) const
+    ManageBuyOfferResult& innerResult(OperationResult& res) const
     {
         return res.tr().manageBuyOfferResult();
     }
@@ -36,9 +35,8 @@ class ManageBuyOfferOpFrame : public ManageOfferOpFrameBase
     void applyOperationSpecificLimits(int64_t& maxSheepSend, int64_t sheepSent,
                                       int64_t& maxWheatReceive,
                                       int64_t wheatReceived) const override;
-    void
-    getExchangeParametersBeforeV10(int64_t& maxSheepSend,
-                                   int64_t& maxWheatReceive) const override;
+    void getExchangeParametersBeforeV10(
+        int64_t& maxSheepSend, int64_t& maxWheatReceive) const override;
 
     ManageOfferSuccessResult&
     getSuccessResult(OperationResult& res) const override;
@@ -57,8 +55,7 @@ class ManageBuyOfferOpFrame : public ManageOfferOpFrameBase
     void setResultNotFound(OperationResult& res) const override;
     void setResultLowReserve(OperationResult& res) const override;
 
-    static ManageBuyOfferResultCode
-    getInnerCode(OperationResult const& res)
+    static ManageBuyOfferResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().manageBuyOfferResult().code();
     }

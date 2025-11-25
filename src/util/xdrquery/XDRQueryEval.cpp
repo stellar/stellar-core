@@ -8,38 +8,31 @@
 
 namespace xdrquery
 {
-bool
-NullField::operator==(NullField other) const
+bool NullField::operator==(NullField other) const
 {
     return operationNotSupported();
 }
-bool
-NullField::operator!=(NullField other) const
+bool NullField::operator!=(NullField other) const
 {
     return operationNotSupported();
 }
-bool
-NullField::operator<(NullField other) const
+bool NullField::operator<(NullField other) const
 {
     return operationNotSupported();
 }
-bool
-NullField::operator<=(NullField other) const
+bool NullField::operator<=(NullField other) const
 {
     return operationNotSupported();
 }
-bool
-NullField::operator>(NullField other) const
+bool NullField::operator>(NullField other) const
 {
     return operationNotSupported();
 }
-bool
-NullField::operator>=(NullField other) const
+bool NullField::operator>=(NullField other) const
 {
     return operationNotSupported();
 }
-bool
-NullField::operationNotSupported() const
+bool NullField::operationNotSupported() const
 {
     throw std::runtime_error("Null fields should not be compared directly.");
     return false;
@@ -54,21 +47,18 @@ LiteralNode::LiteralNode(LiteralNodeType valueType, std::string const& val)
     }
 }
 
-ResultType
-LiteralNode::eval(DynamicXDRGetter const& xdrGetter) const
+ResultType LiteralNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return mValue;
 }
 
-EvalNodeType
-LiteralNode::getType() const
+EvalNodeType LiteralNode::getType() const
 {
     return EvalNodeType::LITERAL;
 }
 
-void
-LiteralNode::resolveIntType(ResultValueType const& columnValue,
-                            std::string const& columnName) const
+void LiteralNode::resolveIntType(ResultValueType const& columnValue,
+                                 std::string const& columnName) const
 {
     if (std::holds_alternative<std::string>(columnValue))
     {
@@ -129,62 +119,52 @@ FieldNode::FieldNode(std::string const& initField)
     mFieldPath.push_back(initField);
 }
 
-ResultType
-FieldNode::eval(DynamicXDRGetter const& xdrGetter) const
+ResultType FieldNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return xdrGetter.getField(mFieldPath);
 }
 
-EvalNodeType
-FieldNode::getType() const
+EvalNodeType FieldNode::getType() const
 {
     return EvalNodeType::COLUMN;
 }
 
-std::string
-FieldNode::getName() const
+std::string FieldNode::getName() const
 {
     return fmt::to_string(fmt::join(mFieldPath, "."));
 }
 
-ResultType
-EntrySizeNode::eval(DynamicXDRGetter const& xdrGetter) const
+ResultType EntrySizeNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return xdrGetter.getSize();
 }
 
-EvalNodeType
-EntrySizeNode::getType() const
+EvalNodeType EntrySizeNode::getType() const
 {
     return EvalNodeType::COLUMN;
 }
 
-std::string
-EntrySizeNode::getName() const
+std::string EntrySizeNode::getName() const
 {
     return "entry_size";
 }
 
-ResultType
-TTLNode::eval(DynamicXDRGetter const& xdrGetter) const
+ResultType TTLNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return xdrGetter.getLiveUntilLedger();
 }
 
-EvalNodeType
-TTLNode::getType() const
+EvalNodeType TTLNode::getType() const
 {
     return EvalNodeType::COLUMN;
 }
 
-std::string
-TTLNode::getName() const
+std::string TTLNode::getName() const
 {
     return "ttl";
 }
 
-ResultType
-BoolEvalNode::eval(DynamicXDRGetter const& xdrGetter) const
+ResultType BoolEvalNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return evalBool(xdrGetter);
 }
@@ -196,8 +176,7 @@ BoolOpNode::BoolOpNode(BoolOpNodeType nodeType,
 {
 }
 
-bool
-BoolOpNode::evalBool(DynamicXDRGetter const& xdrGetter) const
+bool BoolOpNode::evalBool(DynamicXDRGetter const& xdrGetter) const
 {
     switch (mType)
     {
@@ -208,8 +187,7 @@ BoolOpNode::evalBool(DynamicXDRGetter const& xdrGetter) const
     }
 }
 
-EvalNodeType
-BoolOpNode::getType() const
+EvalNodeType BoolOpNode::getType() const
 {
     return EvalNodeType();
 }
@@ -245,8 +223,7 @@ ComparisonNode::ComparisonNode(ComparisonNodeType nodeType,
     }
 }
 
-bool
-ComparisonNode::evalBool(DynamicXDRGetter const& xdrGetter) const
+bool ComparisonNode::evalBool(DynamicXDRGetter const& xdrGetter) const
 {
     auto leftType = mLeft->getType();
     auto leftVal = mLeft->eval(xdrGetter);
@@ -307,14 +284,12 @@ ComparisonNode::evalBool(DynamicXDRGetter const& xdrGetter) const
     }
 }
 
-EvalNodeType
-ComparisonNode::getType() const
+EvalNodeType ComparisonNode::getType() const
 {
     return EvalNodeType::COMPARISON_OP;
 }
 
-bool
-ComparisonNode::compareNullFields(bool leftIsNull, bool rightIsNull) const
+bool ComparisonNode::compareNullFields(bool leftIsNull, bool rightIsNull) const
 {
     switch (mType)
     {
@@ -352,8 +327,7 @@ Accumulator::Accumulator(AccumulatorType nodeType,
     }
 }
 
-void
-Accumulator::addEntry(DynamicXDRGetter const& xdrGetter)
+void Accumulator::addEntry(DynamicXDRGetter const& xdrGetter)
 {
     ResultType columnValue;
     if (mType != AccumulatorType::COUNT)
@@ -404,8 +378,7 @@ Accumulator::addEntry(DynamicXDRGetter const& xdrGetter)
     }
 }
 
-AccumulatorResultType
-Accumulator::getValue() const
+AccumulatorResultType Accumulator::getValue() const
 {
     if (mType == AccumulatorType::COUNT)
     {
@@ -422,8 +395,7 @@ Accumulator::getValue() const
     return mValue;
 }
 
-std::string
-Accumulator::getName() const
+std::string Accumulator::getName() const
 {
     switch (mType)
     {
@@ -441,14 +413,12 @@ AccumulatorList::AccumulatorList(std::shared_ptr<Accumulator> accumulator)
     mAccumulators.emplace_back(accumulator);
 }
 
-void
-AccumulatorList::addAccumulator(std::shared_ptr<Accumulator> accumulator)
+void AccumulatorList::addAccumulator(std::shared_ptr<Accumulator> accumulator)
 {
     mAccumulators.emplace_back(accumulator);
 }
 
-void
-AccumulatorList::addEntry(DynamicXDRGetter const& xdrGetter) const
+void AccumulatorList::addEntry(DynamicXDRGetter const& xdrGetter) const
 {
     for (auto const& accumulator : mAccumulators)
     {
@@ -467,8 +437,7 @@ ColumnList::ColumnList(std::shared_ptr<ColumnNode> column)
     mColumns.emplace_back(column);
 }
 
-void
-ColumnList::addColumn(std::shared_ptr<ColumnNode> column)
+void ColumnList::addColumn(std::shared_ptr<ColumnNode> column)
 {
     mColumns.emplace_back(column);
 }
@@ -485,8 +454,7 @@ ColumnList::getValues(DynamicXDRGetter const& xdrGetter) const
     return res;
 }
 
-std::vector<std::string>
-ColumnList::getColumnNames() const
+std::vector<std::string> ColumnList::getColumnNames() const
 {
     std::vector<std::string> names;
     names.reserve(mColumns.size());
@@ -497,14 +465,12 @@ ColumnList::getColumnNames() const
     return names;
 }
 
-inline std::string
-format_as(const NullField&)
+inline std::string format_as(const NullField&)
 {
     return "<notset>";
 }
 
-std::string
-resultToString(ResultValueType const& result)
+std::string resultToString(ResultValueType const& result)
 {
     return std::visit([](auto&& v) { return fmt::to_string(v); }, result);
 }

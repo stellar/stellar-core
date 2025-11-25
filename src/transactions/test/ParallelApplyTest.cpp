@@ -109,8 +109,7 @@ groupLedgerEntryChanges(LedgerEntryChanges const& changes)
     return changesByKey;
 }
 
-void
-expectTTLBump(std::vector<LedgerEntryChange> const& changes)
+void expectTTLBump(std::vector<LedgerEntryChange> const& changes)
 {
     REQUIRE(changes.size() == 2);
     REQUIRE(changes[0].type() == LEDGER_ENTRY_STATE);
@@ -122,9 +121,9 @@ expectTTLBump(std::vector<LedgerEntryChange> const& changes)
 // We only expect `res1` to ever be from protocol 22.
 // `singleStage` indicates that both results come from a single stage runs
 // (with any number of clusters).
-void
-compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
-               ResultType const& res2, uint32_t hotArchiveEntryCreatedLedger)
+void compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
+                    ResultType const& res2,
+                    uint32_t hotArchiveEntryCreatedLedger)
 {
     // Fees are different between the protocols. Since we observe
     // TTLs at the stage boundaries, we can only expect exactly the
@@ -382,12 +381,12 @@ compareResults(bool res1IsP22, bool singleStage, ResultType const& res1,
 // the footprint. When `autoRestore` is true, the test will also automatically
 // restore any expired entries that are being accessed (otherwise we just let
 // the transactions fail).
-ResultType
-applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
-                      int64_t seed, bool autoRestore, int stageCount,
-                      int applyClusterCount,
-                      std::vector<RustBuf> const& randomWasms,
-                      uint32_t& hotArchiveEntryCreatedLedger)
+ResultType applyTestTransactions(TestConfig const& testConfig,
+                                 uint32_t protocolVersion, int64_t seed,
+                                 bool autoRestore, int stageCount,
+                                 int applyClusterCount,
+                                 std::vector<RustBuf> const& randomWasms,
+                                 uint32_t& hotArchiveEntryCreatedLedger)
 {
     int const INVOKE_HOST_FN_TX_COUNT =
         (testConfig.contractDataKeyCount + testConfig.randomWasmCount +
@@ -1181,10 +1180,9 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     return std::make_tuple(allTxs, resultSet, lcm, finalEntries);
 }
 
-void
-runTest(int64_t seed, std::vector<std::pair<int, int>> const& scenarios,
-        bool autoRestore, std::vector<RustBuf> const& randomWasms,
-        TestConfig const& testConfig)
+void runTest(int64_t seed, std::vector<std::pair<int, int>> const& scenarios,
+             bool autoRestore, std::vector<RustBuf> const& randomWasms,
+             TestConfig const& testConfig)
 {
     CAPTURE(seed, autoRestore);
     // Note: we could also compare results across different protocol
@@ -1225,8 +1223,7 @@ runTest(int64_t seed, std::vector<std::pair<int, int>> const& scenarios,
     }
 }
 
-void
-runTestCase(TestConfig const& testConfig)
+void runTestCase(TestConfig const& testConfig)
 {
     std::vector<RustBuf> randomWasms;
     stellar::uniform_int_distribution<int64_t> seedDist;

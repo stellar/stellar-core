@@ -71,8 +71,7 @@ operator-(LedgerApplyManager::CatchupMetrics const& x,
 }
 
 template <typename T>
-T
-findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
+T findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
 {
     return std::find_if(begin, end,
                         [&hm](std::pair<uint32_t, LedgerCloseData> const& kvp) {
@@ -81,8 +80,7 @@ findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
                         });
 }
 
-std::unique_ptr<LedgerApplyManager>
-LedgerApplyManager::create(Application& app)
+std::unique_ptr<LedgerApplyManager> LedgerApplyManager::create(Application& app)
 {
     return std::make_unique<LedgerApplyManagerImpl>(app);
 }
@@ -101,8 +99,7 @@ LedgerApplyManagerImpl::~LedgerApplyManagerImpl()
 {
 }
 
-uint32_t
-LedgerApplyManagerImpl::getCatchupCount()
+uint32_t LedgerApplyManagerImpl::getCatchupCount()
 {
     releaseAssert(threadIsMain());
     return mApp.getConfig().CATCHUP_COMPLETE
@@ -268,9 +265,8 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
 }
 
-void
-LedgerApplyManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                     std::shared_ptr<HistoryArchive> archive)
+void LedgerApplyManagerImpl::startCatchup(
+    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -296,38 +292,33 @@ LedgerApplyManagerImpl::startCatchup(CatchupConfiguration configuration,
         configuration, archive);
 }
 
-std::string
-LedgerApplyManagerImpl::getStatus() const
+std::string LedgerApplyManagerImpl::getStatus() const
 {
     releaseAssert(threadIsMain());
     return mCatchupWork ? mCatchupWork->getStatus() : std::string{};
 }
 
-BasicWork::State
-LedgerApplyManagerImpl::getCatchupWorkState() const
+BasicWork::State LedgerApplyManagerImpl::getCatchupWorkState() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mCatchupWork);
     return mCatchupWork->getState();
 }
 
-bool
-LedgerApplyManagerImpl::catchupWorkIsDone() const
+bool LedgerApplyManagerImpl::catchupWorkIsDone() const
 {
     releaseAssert(threadIsMain());
     return mCatchupWork && mCatchupWork->isDone();
 }
 
-bool
-LedgerApplyManagerImpl::isCatchupInitialized() const
+bool LedgerApplyManagerImpl::isCatchupInitialized() const
 {
     releaseAssert(threadIsMain());
     return mCatchupWork != nullptr;
 }
 
-void
-LedgerApplyManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
-                                                  std::string const& message)
+void LedgerApplyManagerImpl::logAndUpdateCatchupStatus(
+    bool contiguous, std::string const& message)
 {
     releaseAssert(threadIsMain());
     if (!message.empty())
@@ -351,8 +342,7 @@ LedgerApplyManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
     }
 }
 
-void
-LedgerApplyManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
+void LedgerApplyManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
 {
     releaseAssert(threadIsMain());
     logAndUpdateCatchupStatus(contiguous, getStatus());
@@ -393,30 +383,26 @@ LedgerApplyManagerImpl::maybeGetLargestBufferedLedger()
     }
 }
 
-uint32_t
-LedgerApplyManagerImpl::getLargestLedgerSeqHeard() const
+uint32_t LedgerApplyManagerImpl::getLargestLedgerSeqHeard() const
 {
     releaseAssert(threadIsMain());
     return mLargestLedgerSeqHeard;
 }
 
-uint32_t
-LedgerApplyManagerImpl::getMaxQueuedToApply()
+uint32_t LedgerApplyManagerImpl::getMaxQueuedToApply()
 {
     releaseAssert(threadIsMain());
     updateLastQueuedToApply();
     return *mLastQueuedToApply;
 }
 
-void
-LedgerApplyManagerImpl::syncMetrics()
+void LedgerApplyManagerImpl::syncMetrics()
 {
     releaseAssert(threadIsMain());
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 }
 
-void
-LedgerApplyManagerImpl::updateLastQueuedToApply()
+void LedgerApplyManagerImpl::updateLastQueuedToApply()
 {
     releaseAssert(threadIsMain());
     if (!mLastQueuedToApply)
@@ -431,8 +417,7 @@ LedgerApplyManagerImpl::updateLastQueuedToApply()
     }
 }
 
-void
-LedgerApplyManagerImpl::startOnlineCatchup()
+void LedgerApplyManagerImpl::startOnlineCatchup()
 {
     releaseAssert(threadIsMain());
     releaseAssert(mSyncingLedgers.size() > 1);
@@ -448,8 +433,7 @@ LedgerApplyManagerImpl::startOnlineCatchup()
                  nullptr);
 }
 
-void
-LedgerApplyManagerImpl::trimSyncingLedgers()
+void LedgerApplyManagerImpl::trimSyncingLedgers()
 {
     releaseAssert(threadIsMain());
     auto removeLedgersLessThan = [&](uint32_t ledger) {
@@ -489,8 +473,7 @@ LedgerApplyManagerImpl::trimSyncingLedgers()
     }
 }
 
-void
-LedgerApplyManagerImpl::tryApplySyncingLedgers()
+void LedgerApplyManagerImpl::tryApplySyncingLedgers()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -551,42 +534,36 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
     mSyncingLedgers.erase(mSyncingLedgers.cbegin(), it);
 }
 
-void
-LedgerApplyManagerImpl::historyArchiveStatesDownloaded(uint32_t num)
+void LedgerApplyManagerImpl::historyArchiveStatesDownloaded(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mHistoryArchiveStatesDownloaded += num;
 }
 
-void
-LedgerApplyManagerImpl::ledgersVerified(uint32_t num)
+void LedgerApplyManagerImpl::ledgersVerified(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mLedgersVerified += num;
 }
 
-void
-LedgerApplyManagerImpl::ledgerChainsVerificationFailed(uint32_t num)
+void LedgerApplyManagerImpl::ledgerChainsVerificationFailed(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mLedgerChainsVerificationFailed += num;
 }
 
-void
-LedgerApplyManagerImpl::bucketsApplied(uint32_t num)
+void LedgerApplyManagerImpl::bucketsApplied(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mBucketsApplied += num;
 }
-void
-LedgerApplyManagerImpl::txSetsApplied(uint32_t num)
+void LedgerApplyManagerImpl::txSetsApplied(uint32_t num)
 {
     releaseAssert(threadIsMain());
     mMetrics.mTxSetsApplied += num;
 }
 
-void
-LedgerApplyManagerImpl::fileDownloaded(FileType type, uint32_t num)
+void LedgerApplyManagerImpl::fileDownloaded(FileType type, uint32_t num)
 {
     releaseAssert(threadIsMain());
     if (type == FileType::HISTORY_FILE_TYPE_BUCKET)

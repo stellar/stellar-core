@@ -28,10 +28,9 @@ InflationOpFrame::InflationOpFrame(Operation const& op,
 {
 }
 
-bool
-InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          OperationResult& res,
-                          OperationMetaBuilder& opMeta) const
+bool InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                               OperationResult& res,
+                               OperationMetaBuilder& opMeta) const
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();
@@ -127,21 +126,18 @@ InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-InflationOpFrame::doCheckValid(uint32_t ledgerVersion,
-                               OperationResult& res) const
+bool InflationOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                    OperationResult& res) const
 {
     return true;
 }
 
-bool
-InflationOpFrame::isOpSupported(LedgerHeader const& header) const
+bool InflationOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_12);
 }
 
-ThresholdLevel
-InflationOpFrame::getThresholdLevel() const
+ThresholdLevel InflationOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::LOW;
 }

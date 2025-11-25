@@ -47,8 +47,7 @@ BasicWork::~BasicWork()
     releaseAssert(isDone() || mState == InternalState::PENDING || isAborting());
 }
 
-void
-BasicWork::resetWaitingTimer()
+void BasicWork::resetWaitingTimer()
 {
     if (mWaitingTimer)
     {
@@ -57,8 +56,7 @@ BasicWork::resetWaitingTimer()
     }
 }
 
-void
-BasicWork::shutdown()
+void BasicWork::shutdown()
 {
     CLOG_TRACE(Work, "Shutting down: {}", getName());
     if (!isDone())
@@ -70,14 +68,12 @@ BasicWork::shutdown()
     }
 }
 
-std::string const&
-BasicWork::getName() const
+std::string const& BasicWork::getName() const
 {
     return mName;
 }
 
-std::string
-BasicWork::getStatus() const
+std::string BasicWork::getStatus() const
 {
     // Work is in `WAITING` state when retrying
     auto state = mRetryTimer ? InternalState::RETRYING : mState.load();
@@ -109,15 +105,13 @@ BasicWork::getStatus() const
     }
 }
 
-bool
-BasicWork::isDone() const
+bool BasicWork::isDone() const
 {
     return mState == InternalState::SUCCESS ||
            mState == InternalState::FAILURE || mState == InternalState::ABORTED;
 }
 
-std::string
-BasicWork::stateName(InternalState st)
+std::string BasicWork::stateName(InternalState st)
 {
     switch (st)
     {
@@ -142,8 +136,7 @@ BasicWork::stateName(InternalState st)
     }
 }
 
-void
-BasicWork::reset()
+void BasicWork::reset()
 {
     CLOG_TRACE(Work, "resetting {}", getName());
 
@@ -156,8 +149,7 @@ BasicWork::reset()
     onReset();
 }
 
-void
-BasicWork::startWork(std::function<void()> notificationCallback)
+void BasicWork::startWork(std::function<void()> notificationCallback)
 {
     CLOG_TRACE(Work, "Starting {}", getName());
 
@@ -172,8 +164,7 @@ BasicWork::startWork(std::function<void()> notificationCallback)
     releaseAssert(mRetries == 0);
 }
 
-void
-BasicWork::waitForRetry()
+void BasicWork::waitForRetry()
 {
     if (mRetryTimer)
     {
@@ -208,28 +199,23 @@ BasicWork::waitForRetry()
     });
 }
 
-void
-BasicWork::onReset()
+void BasicWork::onReset()
 {
 }
 
-void
-BasicWork::onSuccess()
+void BasicWork::onSuccess()
 {
 }
 
-void
-BasicWork::onFailureRetry()
+void BasicWork::onFailureRetry()
 {
 }
 
-void
-BasicWork::onFailureRaise()
+void BasicWork::onFailureRaise()
 {
 }
 
-BasicWork::State
-BasicWork::getState() const
+BasicWork::State BasicWork::getState() const
 {
     switch (mState)
     {
@@ -251,8 +237,7 @@ BasicWork::getState() const
     }
 }
 
-void
-BasicWork::setState(InternalState st)
+void BasicWork::setState(InternalState st)
 {
     if (st == InternalState::FAILURE && (mRetries < mMaxRetries))
     {
@@ -301,8 +286,7 @@ BasicWork::setState(InternalState st)
     }
 }
 
-void
-BasicWork::wakeUp(std::function<void()> innerCallback)
+void BasicWork::wakeUp(std::function<void()> innerCallback)
 {
     // Work should not be waking up in terminal state
     // Work should not be interrupted when retrying or destructing
@@ -345,8 +329,7 @@ BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
     return callback;
 }
 
-void
-BasicWork::setupWaitingCallback(std::chrono::milliseconds wakeUpIn)
+void BasicWork::setupWaitingCallback(std::chrono::milliseconds wakeUpIn)
 {
     // Work must be running to schedule a timer
     releaseAssert(mState == BasicWork::InternalState::RUNNING);
@@ -367,8 +350,7 @@ BasicWork::setupWaitingCallback(std::chrono::milliseconds wakeUpIn)
                               &VirtualTimer::onFailureNoop);
 }
 
-void
-BasicWork::crankWork()
+void BasicWork::crankWork()
 {
     ZoneScoped;
     releaseAssert(!isDone() && mState != InternalState::WAITING);
@@ -389,14 +371,12 @@ BasicWork::crankWork()
     setState(nextState);
 }
 
-VirtualClock::duration
-BasicWork::getRetryDelay() const
+VirtualClock::duration BasicWork::getRetryDelay() const
 {
     return exponentialBackoff(uint64_t(mRetries));
 }
 
-uint64_t
-BasicWork::getRetryETA() const
+uint64_t BasicWork::getRetryETA() const
 {
     if (!mRetryTimer)
     {
@@ -412,8 +392,7 @@ BasicWork::getRetryETA() const
     return secs.count();
 }
 
-void
-BasicWork::assertValidTransition(Transition const& t) const
+void BasicWork::assertValidTransition(Transition const& t) const
 {
     if (ALLOWED_TRANSITIONS.find(t) == ALLOWED_TRANSITIONS.end())
     {
@@ -423,8 +402,7 @@ BasicWork::assertValidTransition(Transition const& t) const
     }
 }
 
-BasicWork::InternalState
-BasicWork::getInternalState(State s) const
+BasicWork::InternalState BasicWork::getInternalState(State s) const
 {
     switch (s)
     {

@@ -24,35 +24,29 @@ class ByteSlice
     size_t const mSize;
 
   public:
-    unsigned char const*
-    data() const
+    unsigned char const* data() const
     {
         return static_cast<unsigned char const*>(mData);
     }
-    unsigned char const*
-    begin() const
+    unsigned char const* begin() const
     {
         return data();
     }
-    unsigned char const*
-    end() const
+    unsigned char const* end() const
     {
         return data() + size();
     }
-    unsigned char
-    operator[](size_t i) const
+    unsigned char operator[](size_t i) const
     {
         if (i >= mSize)
             throw std::range_error("ByteSlice index out of bounds");
         return data()[i];
     }
-    size_t
-    size() const
+    size_t size() const
     {
         return mSize;
     }
-    bool
-    empty() const
+    bool empty() const
     {
         return mSize == 0;
     }

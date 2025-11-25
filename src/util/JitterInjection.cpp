@@ -23,8 +23,7 @@ static JitterInjector::Config gJitterConfig;
 // Track whether current thread's RNG has been initialized
 static thread_local bool gJitterRandEngineInitialized{false};
 
-void
-JitterInjector::initialize(uint32_t testSeed)
+void JitterInjector::initialize(uint32_t testSeed)
 {
     releaseAssert(threadIsMain());
 
@@ -41,21 +40,19 @@ JitterInjector::initialize(uint32_t testSeed)
                testSeed);
 }
 
-void
-JitterInjector::resetStats()
+void JitterInjector::resetStats()
 {
     sInjectionCount = 0;
     sDelayCount = 0;
 }
 
-void
-JitterInjector::configure(const Config& cfg)
+void JitterInjector::configure(const Config& cfg)
 {
     gJitterConfig = cfg;
 }
 
-bool
-JitterInjector::injectDelay(int32_t probability, uint32_t minNs, uint32_t maxNs)
+bool JitterInjector::injectDelay(int32_t probability, uint32_t minNs,
+                                 uint32_t maxNs)
 {
     // Initialize RNG on first use for this thread
     if (!gJitterRandEngineInitialized)
@@ -109,8 +106,7 @@ JitterInjector::injectDelay(int32_t probability, uint32_t minNs, uint32_t maxNs)
     return true;
 }
 
-void
-JitterInjector::yield()
+void JitterInjector::yield()
 {
     sInjectionCount++;
 

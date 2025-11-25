@@ -53,8 +53,7 @@
 namespace stellar
 {
 
-std::unique_ptr<BucketManager>
-BucketManager::create(AppConnector& app)
+std::unique_ptr<BucketManager> BucketManager::create(AppConnector& app)
 {
     auto bucketManagerPtr =
         std::unique_ptr<BucketManager>(new BucketManager(app));
@@ -62,8 +61,7 @@ BucketManager::create(AppConnector& app)
     return bucketManagerPtr;
 }
 
-void
-BucketManager::initialize()
+void BucketManager::initialize()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -119,16 +117,14 @@ BucketManager::initialize()
     HistoryManager::createPublishQueueDir(mConfig);
 }
 
-void
-BucketManager::dropAll()
+void BucketManager::dropAll()
 {
     ZoneScoped;
     deleteEntireBucketDir();
     initialize();
 }
 
-TmpDirManager&
-BucketManager::getTmpDirManager()
+TmpDirManager& BucketManager::getTmpDirManager()
 {
     return *mTmpDirManager;
 }
@@ -189,56 +185,48 @@ const std::string BucketManager::kLockFilename = "stellar-core.lock";
 
 namespace
 {
-std::string
-bucketBasename(std::string const& bucketHexHash)
+std::string bucketBasename(std::string const& bucketHexHash)
 {
     return "bucket-" + bucketHexHash + ".xdr";
 }
 
-bool
-isBucketFile(std::string const& name)
+bool isBucketFile(std::string const& name)
 {
     static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
     return std::regex_match(name, re);
 };
 
-uint256
-extractFromFilename(std::string const& name)
+uint256 extractFromFilename(std::string const& name)
 {
     return hexToBin256(name.substr(7, 64));
 };
 }
 
-void
-BucketManager::updateSharedBucketSize()
+void BucketManager::updateSharedBucketSize()
 {
     mSharedBucketsSize.set_count(mSharedHotArchiveBuckets.size() +
                                  mSharedLiveBuckets.size());
 }
 
-std::string
-BucketManager::bucketFilename(std::string const& bucketHexHash)
+std::string BucketManager::bucketFilename(std::string const& bucketHexHash)
 {
     std::string basename = bucketBasename(bucketHexHash);
     return getBucketDir() + "/" + basename;
 }
 
-std::string
-BucketManager::bucketFilename(Hash const& hash)
+std::string BucketManager::bucketFilename(Hash const& hash)
 {
     return bucketFilename(binToHex(hash));
 }
 
-std::string
-BucketManager::bucketIndexFilename(Hash const& hash) const
+std::string BucketManager::bucketIndexFilename(Hash const& hash) const
 {
     auto hashStr = binToHex(hash);
     auto basename = "bucket-" + hashStr + ".index";
     return getBucketDir() + "/" + basename;
 }
 
-std::string const&
-BucketManager::getTmpDir()
+std::string const& BucketManager::getTmpDir()
 {
     ZoneScoped;
     RecursiveMutexLocker lock(mBucketMutex);
@@ -250,8 +238,7 @@ BucketManager::getTmpDir()
     return mWorkDir->getName();
 }
 
-std::string const&
-BucketManager::getBucketDir() const
+std::string const& BucketManager::getBucketDir() const
 {
     return *(mLockedBucketDir);
 }
@@ -262,8 +249,7 @@ BucketManager::~BucketManager()
     deleteTmpDirAndUnlockBucketDir();
 }
 
-void
-BucketManager::deleteEntireBucketDir()
+void BucketManager::deleteEntireBucketDir()
 {
     ZoneScoped;
     std::string d = mConfig.BUCKET_DIR_PATH;
@@ -281,8 +267,7 @@ BucketManager::deleteEntireBucketDir()
     }
 }
 
-void
-BucketManager::deleteTmpDirAndUnlockBucketDir()
+void BucketManager::deleteTmpDirAndUnlockBucketDir()
 {
     ZoneScoped;
 
@@ -307,34 +292,28 @@ BucketManager::deleteTmpDirAndUnlockBucketDir()
     }
 }
 
-LiveBucketList&
-BucketManager::getLiveBucketList()
+LiveBucketList& BucketManager::getLiveBucketList()
 {
     return *mLiveBucketList;
 }
 
-HotArchiveBucketList&
-BucketManager::getHotArchiveBucketList()
+HotArchiveBucketList& BucketManager::getHotArchiveBucketList()
 {
     return *mHotArchiveBucketList;
 }
 
-BucketSnapshotManager&
-BucketManager::getBucketSnapshotManager() const
+BucketSnapshotManager& BucketManager::getBucketSnapshotManager() const
 {
     releaseAssert(mSnapshotManager);
     return *mSnapshotManager;
 }
 
-medida::Timer&
-BucketManager::getMergeTimer()
+medida::Timer& BucketManager::getMergeTimer()
 {
     return mBucketSnapMerge;
 }
 
-template <class BucketT>
-medida::Meter&
-BucketManager::getBloomMissMeter() const
+template <class BucketT> medida::Meter& BucketManager::getBloomMissMeter() const
 {
     BUCKET_TYPE_ASSERT(BucketT);
     return mAppConnector.getMetrics().NewMeter(
@@ -342,28 +321,24 @@ BucketManager::getBloomMissMeter() const
 }
 
 template <class BucketT>
-medida::Meter&
-BucketManager::getBloomLookupMeter() const
+medida::Meter& BucketManager::getBloomLookupMeter() const
 {
     BUCKET_TYPE_ASSERT(BucketT);
     return mAppConnector.getMetrics().NewMeter(
         {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom");
 }
 
-medida::Meter&
-BucketManager::getCacheHitMeter() const
+medida::Meter& BucketManager::getCacheHitMeter() const
 {
     return mCacheHitMeter;
 }
 
-medida::Meter&
-BucketManager::getCacheMissMeter() const
+medida::Meter& BucketManager::getCacheMissMeter() const
 {
     return mCacheMissMeter;
 }
 
-void
-BucketManager::reportLiveBucketIndexCacheMetrics()
+void BucketManager::reportLiveBucketIndexCacheMetrics()
 {
     size_t totalCacheEntries = 0;
     size_t totalEstimatedBytes = 0;
@@ -408,41 +383,35 @@ BucketManager::reportLiveBucketIndexCacheMetrics()
               static_cast<int64_t>(totalEstimatedBytes));
 }
 
-template <>
-MergeCounters
-BucketManager::readMergeCounters<LiveBucket>()
+template <> MergeCounters BucketManager::readMergeCounters<LiveBucket>()
 {
     RecursiveMutexLocker lock(mBucketMutex);
     return mLiveMergeCounters;
 }
 
-template <>
-MergeCounters
-BucketManager::readMergeCounters<HotArchiveBucket>()
+template <> MergeCounters BucketManager::readMergeCounters<HotArchiveBucket>()
 {
     RecursiveMutexLocker lock(mBucketMutex);
     return mHotArchiveMergeCounters;
 }
 
 template <>
-void
-BucketManager::incrMergeCounters<LiveBucket>(MergeCounters const& delta)
+void BucketManager::incrMergeCounters<LiveBucket>(MergeCounters const& delta)
 {
     RecursiveMutexLocker lock(mBucketMutex);
     mLiveMergeCounters += delta;
 }
 
 template <>
-void
-BucketManager::incrMergeCounters<HotArchiveBucket>(MergeCounters const& delta)
+void BucketManager::incrMergeCounters<HotArchiveBucket>(
+    MergeCounters const& delta)
 {
     RecursiveMutexLocker lock(mBucketMutex);
     mHotArchiveMergeCounters += delta;
 }
 
-bool
-BucketManager::renameBucketDirFile(std::filesystem::path const& src,
-                                   std::filesystem::path const& dst)
+bool BucketManager::renameBucketDirFile(std::filesystem::path const& src,
+                                        std::filesystem::path const& dst)
 {
     ZoneScoped;
     if (mConfig.DISABLE_XDR_FSYNC)
@@ -456,8 +425,7 @@ BucketManager::renameBucketDirFile(std::filesystem::path const& src,
 }
 
 template <>
-std::shared_ptr<LiveBucket>
-BucketManager::adoptFileAsBucket(
+std::shared_ptr<LiveBucket> BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::unique_ptr<LiveBucket::IndexT const> index)
 {
@@ -467,8 +435,7 @@ BucketManager::adoptFileAsBucket(
 }
 
 template <>
-std::shared_ptr<HotArchiveBucket>
-BucketManager::adoptFileAsBucket(
+std::shared_ptr<HotArchiveBucket> BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::unique_ptr<HotArchiveBucket::IndexT const> index)
 {
@@ -479,8 +446,7 @@ BucketManager::adoptFileAsBucket(
 }
 
 template <typename BucketT>
-std::shared_ptr<BucketT>
-BucketManager::adoptFileAsBucketInternal(
+std::shared_ptr<BucketT> BucketManager::adoptFileAsBucketInternal(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::unique_ptr<typename BucketT::IndexT const> index,
     BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap)
@@ -558,25 +524,23 @@ BucketManager::adoptFileAsBucketInternal(
 }
 
 template <>
-void
-BucketManager::noteEmptyMergeOutput<LiveBucket>(MergeKey const& mergeKey)
+void BucketManager::noteEmptyMergeOutput<LiveBucket>(MergeKey const& mergeKey)
 {
     RecursiveMutexLocker lock(mBucketMutex);
     noteEmptyMergeOutputInternal(mergeKey, mLiveBucketFutures);
 }
 
 template <>
-void
-BucketManager::noteEmptyMergeOutput<HotArchiveBucket>(MergeKey const& mergeKey)
+void BucketManager::noteEmptyMergeOutput<HotArchiveBucket>(
+    MergeKey const& mergeKey)
 {
     RecursiveMutexLocker lock(mBucketMutex);
     noteEmptyMergeOutputInternal(mergeKey, mHotArchiveBucketFutures);
 }
 
 template <class BucketT>
-void
-BucketManager::noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
-                                            FutureMapT<BucketT>& futureMap)
+void BucketManager::noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
+                                                 FutureMapT<BucketT>& futureMap)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -610,8 +574,7 @@ BucketManager::getBucketIfExists(uint256 const& hash)
 }
 
 template <class BucketT>
-std::shared_ptr<BucketT>
-BucketManager::getBucketIfExistsInternal(
+std::shared_ptr<BucketT> BucketManager::getBucketIfExistsInternal(
     uint256 const& hash, BucketMapT<BucketT> const& bucketMap) const
 {
     BUCKET_TYPE_ASSERT(BucketT);
@@ -629,8 +592,7 @@ BucketManager::getBucketIfExistsInternal(
 }
 
 template <>
-std::shared_ptr<LiveBucket>
-BucketManager::getBucketByHash(uint256 const& hash)
+std::shared_ptr<LiveBucket> BucketManager::getBucketByHash(uint256 const& hash)
 {
     RecursiveMutexLocker lock(mBucketMutex);
     return getBucketByHashInternal(hash, mSharedLiveBuckets);
@@ -742,8 +704,7 @@ BucketManager::getMergeFutureInternal(MergeKey const& key,
 }
 
 template <>
-void
-BucketManager::putMergeFuture(
+void BucketManager::putMergeFuture(
     MergeKey const& key, std::shared_future<std::shared_ptr<LiveBucket>> future)
 {
     RecursiveMutexLocker lock(mBucketMutex);
@@ -751,8 +712,7 @@ BucketManager::putMergeFuture(
 }
 
 template <>
-void
-BucketManager::putMergeFuture(
+void BucketManager::putMergeFuture(
     MergeKey const& key,
     std::shared_future<std::shared_ptr<HotArchiveBucket>> future)
 {
@@ -761,8 +721,7 @@ BucketManager::putMergeFuture(
 }
 
 template <class BucketT>
-void
-BucketManager::putMergeFutureInternal(
+void BucketManager::putMergeFutureInternal(
     MergeKey const& key, std::shared_future<std::shared_ptr<BucketT>> future,
     FutureMapT<BucketT>& futureMap)
 {
@@ -776,24 +735,21 @@ BucketManager::putMergeFutureInternal(
 }
 
 #ifdef BUILD_TESTS
-void
-BucketManager::clearMergeFuturesForTesting()
+void BucketManager::clearMergeFuturesForTesting()
 {
     RecursiveMutexLocker lock(mBucketMutex);
     mLiveBucketFutures.clear();
     mHotArchiveBucketFutures.clear();
 }
 
-void
-BucketManager::enableDelayedMergesForTesting()
+void BucketManager::enableDelayedMergesForTesting()
 {
     releaseAssertOrThrow(!mDelayMergesForTesting);
     mDelayMergesForTesting = true;
 }
 #endif
 
-std::set<Hash>
-BucketManager::getBucketListReferencedBuckets() const
+std::set<Hash> BucketManager::getBucketListReferencedBuckets() const
 {
     ZoneScoped;
     std::set<Hash> referenced;
@@ -873,8 +829,7 @@ BucketManager::getAllReferencedBuckets(HistoryArchiveState const& has,
     return referenced;
 }
 
-void
-BucketManager::cleanupStaleFiles(HistoryArchiveState const& has)
+void BucketManager::cleanupStaleFiles(HistoryArchiveState const& has)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -917,8 +872,7 @@ BucketManager::cleanupStaleFiles(HistoryArchiveState const& has)
     }
 }
 
-void
-BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
+void BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
 {
     ZoneScoped;
     RecursiveMutexLocker lock(mBucketMutex);
@@ -1018,11 +972,10 @@ BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
     updateSharedBucketSize();
 }
 
-void
-BucketManager::addLiveBatch(Application& app, LedgerHeader header,
-                            std::vector<LedgerEntry> const& initEntries,
-                            std::vector<LedgerEntry> const& liveEntries,
-                            std::vector<LedgerKey> const& deadEntries)
+void BucketManager::addLiveBatch(Application& app, LedgerHeader header,
+                                 std::vector<LedgerEntry> const& initEntries,
+                                 std::vector<LedgerEntry> const& liveEntries,
+                                 std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
 #ifdef BUILD_TESTS
@@ -1041,8 +994,7 @@ BucketManager::addLiveBatch(Application& app, LedgerHeader header,
     reportLiveBucketIndexCacheMetrics();
 }
 
-void
-BucketManager::addHotArchiveBatch(
+void BucketManager::addHotArchiveBatch(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries)
@@ -1069,17 +1021,15 @@ BucketManager::addHotArchiveBatch(
 }
 
 #ifdef BUILD_TESTS
-void
-BucketManager::setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
-                                                    uint256 const& hash)
+void BucketManager::setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
+                                                         uint256 const& hash)
 {
     mUseFakeTestValuesForNextClose = true;
     mFakeTestProtocolVersion = protocolVers;
     mFakeTestBucketListHash = hash;
 }
 
-std::set<Hash>
-BucketManager::getBucketHashesInBucketDirForTesting() const
+std::set<Hash> BucketManager::getBucketHashesInBucketDirForTesting() const
 {
     std::set<Hash> hashes;
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
@@ -1089,8 +1039,7 @@ BucketManager::getBucketHashesInBucketDirForTesting() const
     return hashes;
 }
 
-medida::Counter&
-BucketManager::getEntriesEvictedCounter() const
+medida::Counter& BucketManager::getEntriesEvictedCounter() const
 {
     return mBucketListEvictionCounters.entriesEvicted;
 }
@@ -1098,8 +1047,7 @@ BucketManager::getEntriesEvictedCounter() const
 
 // updates the given LedgerHeader to reflect the current state of the bucket
 // list
-void
-BucketManager::snapshotLedger(LedgerHeader& currentHeader)
+void BucketManager::snapshotLedger(LedgerHeader& currentHeader)
 {
     ZoneScoped;
     Hash hash;
@@ -1130,8 +1078,7 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
 }
 
 template <class BucketT>
-void
-BucketManager::maybeSetIndex(
+void BucketManager::maybeSetIndex(
     std::shared_ptr<BucketT> b,
     std::unique_ptr<typename BucketT::IndexT const>&& index)
 {
@@ -1143,10 +1090,9 @@ BucketManager::maybeSetIndex(
     }
 }
 
-void
-BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
-                                           uint32_t ledgerVers,
-                                           SorobanNetworkConfig const& cfg)
+void BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
+                                                uint32_t ledgerVers,
+                                                SorobanNetworkConfig const& cfg)
 {
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
@@ -1177,8 +1123,7 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
         "SearchableLiveBucketListSnapshot: eviction scan");
 }
 
-EvictedStateVectors
-BucketManager::resolveBackgroundEvictionScan(
+EvictedStateVectors BucketManager::resolveBackgroundEvictionScan(
     AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
     LedgerKeySet const& modifiedKeys, uint32_t ledgerVers,
     SorobanNetworkConfig const& networkConfig)
@@ -1267,8 +1212,7 @@ BucketManager::resolveBackgroundEvictionScan(
     return EvictedStateVectors{deletedKeys, archivedEntries};
 }
 
-void
-BucketManager::calculateSkipValues(LedgerHeader& currentHeader)
+void BucketManager::calculateSkipValues(LedgerHeader& currentHeader)
 {
 
     if ((currentHeader.ledgerSeq % SKIP_1) == 0)
@@ -1308,9 +1252,9 @@ BucketManager::checkForMissingBucketsFiles(HistoryArchiveState const& has)
     return result;
 }
 
-void
-BucketManager::assumeState(Application& app, HistoryArchiveState const& has,
-                           uint32_t maxProtocolVersion, bool restartMerges)
+void BucketManager::assumeState(Application& app,
+                                HistoryArchiveState const& has,
+                                uint32_t maxProtocolVersion, bool restartMerges)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1380,14 +1324,12 @@ BucketManager::assumeState(Application& app, HistoryArchiveState const& has,
     cleanupStaleFiles(has);
 }
 
-void
-BucketManager::shutdown()
+void BucketManager::shutdown()
 {
     mIsShutdown = true;
 }
 
-bool
-BucketManager::isShutdown() const
+bool BucketManager::isShutdown() const
 {
     return mIsShutdown;
 }
@@ -1395,9 +1337,9 @@ BucketManager::isShutdown() const
 // Loads a single bucket worth of entries into `map`, deleting dead entries and
 // inserting live or init entries. Should be called in a loop over a BL, from
 // old to new.
-static void
-loadEntriesFromBucket(std::shared_ptr<LiveBucket> b, std::string const& name,
-                      std::map<LedgerKey, LedgerEntry>& map)
+static void loadEntriesFromBucket(std::shared_ptr<LiveBucket> b,
+                                  std::string const& name,
+                                  std::map<LedgerKey, LedgerEntry>& map)
 {
     ZoneScoped;
 
@@ -1658,8 +1600,7 @@ visitBucketEntries(bool visitShadowedEntries, std::shared_ptr<BucketT const> b,
     return !stopIteration;
 }
 
-void
-BucketManager::visitLedgerEntries(
+void BucketManager::visitLedgerEntries(
     bool visitLiveBucketList, HistoryArchiveState const& has,
     std::optional<uint32_t> minLedger,
     std::function<bool(LedgerEntry const&)> const& filterEntry,
@@ -1745,8 +1686,7 @@ BucketManager::visitLedgerEntries(
               std::chrono::duration_cast<std::chrono::milliseconds>(ns));
 }
 
-std::shared_ptr<BasicWork>
-BucketManager::scheduleVerifyReferencedBucketsWork(
+std::shared_ptr<BasicWork> BucketManager::scheduleVerifyReferencedBucketsWork(
     Application& app, HistoryArchiveState const& has)
 {
     releaseAssert(threadIsMain());
@@ -1806,14 +1746,12 @@ BucketManager::scheduleVerifyReferencedBucketsWork(
         "verify-referenced-buckets", seq);
 }
 
-Config const&
-BucketManager::getConfig() const
+Config const& BucketManager::getConfig() const
 {
     return mConfig;
 }
 
-void
-BucketManager::reportBucketEntryCountMetrics()
+void BucketManager::reportBucketEntryCountMetrics()
 {
     auto bucketEntryCounters = mLiveBucketList->sumBucketEntryCounters();
     for (auto [type, count] : bucketEntryCounters.entryTypeCounts)

@@ -41,15 +41,13 @@ class TestBasicWork : public BasicWork
     {
     }
 
-    void
-    forceWakeUp()
+    void forceWakeUp()
     {
         wakeUp();
     }
 
   protected:
-    BasicWork::State
-    onRun() override
+    BasicWork::State onRun() override
     {
         CLOG_DEBUG(Work, "Running {}", getName());
         mRunningCount++;
@@ -61,34 +59,29 @@ class TestBasicWork : public BasicWork
         return mShouldFail ? State::WORK_FAILURE : State::WORK_SUCCESS;
     }
 
-    bool
-    onAbort() override
+    bool onAbort() override
     {
         CLOG_DEBUG(Work, "Aborting {}", getName());
         ++mAbortCount;
         return true;
     }
 
-    void
-    onSuccess() override
+    void onSuccess() override
     {
         ++mSuccessCount;
     }
 
-    void
-    onFailureRaise() override
+    void onFailureRaise() override
     {
         ++mFailureCount;
     }
 
-    void
-    onFailureRetry() override
+    void onFailureRetry() override
     {
         ++mRetryCount;
     }
 
-    void
-    onReset() override
+    void onReset() override
     {
         mCount = mNumSteps;
     }
@@ -108,8 +101,7 @@ class TestWaitingWork : public TestBasicWork
     }
 
   protected:
-    BasicWork::State
-    onRun() override
+    BasicWork::State onRun() override
     {
         ++mRunningCount;
         if (--mCount > 0)
@@ -122,8 +114,7 @@ class TestWaitingWork : public TestBasicWork
         return BasicWork::State::WORK_SUCCESS;
     }
 
-    void
-    wakeUp(std::function<void()> innerCallback) override
+    void wakeUp(std::function<void()> innerCallback) override
     {
         ++mWakeUpCount;
         TestBasicWork::wakeUp(innerCallback);
@@ -288,34 +279,29 @@ class TestWork : public Work
     {
     }
 
-    BasicWork::State
-    doWork() override
+    BasicWork::State doWork() override
     {
         ++mRunningCount;
         return checkChildrenStatus();
     }
 
     template <typename T, typename... Args>
-    std::shared_ptr<T>
-    addTestWork(Args&&... args)
+    std::shared_ptr<T> addTestWork(Args&&... args)
     {
         return addWork<T>(std::forward<Args>(args)...);
     }
 
-    void
-    onSuccess() override
+    void onSuccess() override
     {
         mSuccessCount++;
     }
 
-    void
-    onFailureRaise() override
+    void onFailureRaise() override
     {
         mFailureCount++;
     }
 
-    void
-    onFailureRetry() override
+    void onFailureRetry() override
     {
         mRetryCount++;
     }
@@ -562,14 +548,12 @@ class TestRunCommandWork : public RunCommandWork
     }
     ~TestRunCommandWork() override = default;
 
-    CommandInfo
-    getCommand() override
+    CommandInfo getCommand() override
     {
         return CommandInfo{mCommand, std::string()};
     }
 
-    BasicWork::State
-    onRun() override
+    BasicWork::State onRun() override
     {
         return RunCommandWork::onRun();
     }
@@ -787,20 +771,17 @@ class TestBatchWork : public BatchWork
     }
 
   protected:
-    bool
-    hasNext() const override
+    bool hasNext() const override
     {
         return mCount < mTotalWorks;
     }
 
-    void
-    resetIter() override
+    void resetIter() override
     {
         mCount = 0;
     }
 
-    std::shared_ptr<BasicWork>
-    yieldMoreWork() override
+    std::shared_ptr<BasicWork> yieldMoreWork() override
     {
         // Last work will fail
         bool fail = mCount == mTotalWorks - 1 && mShouldFail;
@@ -868,8 +849,7 @@ class TestBatchWorkCondition : public TestBatchWork
     TestBatchWorkCondition(Application& app, std::string const& name)
         : TestBatchWork(app, name) {};
 
-    std::shared_ptr<BasicWork>
-    yieldMoreWork() override
+    std::shared_ptr<BasicWork> yieldMoreWork() override
     {
         auto w = std::make_shared<TestBasicWork>(
             mApp, fmt::format("child-{:d}", mCount++));

@@ -13,8 +13,7 @@ class BeginSponsoringFutureReservesOpFrame : public OperationFrame
 {
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    BeginSponsoringFutureReservesResult&
-    innerResult(OperationResult& res) const
+    BeginSponsoringFutureReservesResult& innerResult(OperationResult& res) const
     {
         return res.tr().beginSponsoringFutureReservesResult();
     }

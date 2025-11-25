@@ -20,22 +20,20 @@ ConstantProductInvariant::registerInvariant(Application& app)
         .registerInvariant<ConstantProductInvariant>();
 }
 
-std::string
-ConstantProductInvariant::getName() const
+std::string ConstantProductInvariant::getName() const
 {
     return "ConstantProductInvariant";
 }
 
-bool
-validateConstantProduct(uint64_t currentReserveA, uint64_t currentReserveB,
-                        uint64_t previousReserveA, uint64_t previousReserveB)
+bool validateConstantProduct(uint64_t currentReserveA, uint64_t currentReserveB,
+                             uint64_t previousReserveA,
+                             uint64_t previousReserveB)
 {
     return (uint128_t)currentReserveA * (uint128_t)currentReserveB >=
            (uint128_t)previousReserveA * (uint128_t)previousReserveB;
 }
 
-std::string
-ConstantProductInvariant::checkOnOperationApply(
+std::string ConstantProductInvariant::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)

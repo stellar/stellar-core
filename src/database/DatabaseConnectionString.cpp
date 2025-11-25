@@ -8,8 +8,7 @@
 
 namespace stellar
 {
-std::string
-removePasswordFromConnectionString(std::string connectionString)
+std::string removePasswordFromConnectionString(std::string connectionString)
 {
     std::string escapedSingleQuotePat("\\\\'");
     std::string nonSingleQuotePat("[^']");

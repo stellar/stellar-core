@@ -84,8 +84,7 @@ class InvariantManager
 #endif // BUILD_TESTS
 
     template <typename T, typename... Args>
-    std::shared_ptr<T>
-    registerInvariant(Args&&... args)
+    std::shared_ptr<T> registerInvariant(Args&&... args)
     {
         auto invariant = std::make_shared<T>(std::forward<Args>(args)...);
         registerInvariant(invariant);

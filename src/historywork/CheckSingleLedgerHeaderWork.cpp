@@ -37,22 +37,19 @@ CheckSingleLedgerHeaderWork::~CheckSingleLedgerHeaderWork()
 {
 }
 
-void
-CheckSingleLedgerHeaderWork::onSuccess()
+void CheckSingleLedgerHeaderWork::onSuccess()
 {
     mCheckSuccess.Mark();
     Work::onSuccess();
 }
 
-void
-CheckSingleLedgerHeaderWork::onFailureRaise()
+void CheckSingleLedgerHeaderWork::onFailureRaise()
 {
     mCheckFailed.Mark();
     Work::onFailureRaise();
 }
 
-void
-CheckSingleLedgerHeaderWork::doReset()
+void CheckSingleLedgerHeaderWork::doReset()
 {
     mGetLedgerFileWork.reset();
     mDownloadDir =
@@ -63,8 +60,7 @@ CheckSingleLedgerHeaderWork::doReset()
         *mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
 }
 
-BasicWork::State
-CheckSingleLedgerHeaderWork::doWork()
+BasicWork::State CheckSingleLedgerHeaderWork::doWork()
 {
     if (mExpected.header.ledgerSeq == 0)
     {

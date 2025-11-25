@@ -72,8 +72,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     TransactionEnvelope& getMutableEnvelope() const override;
     void clearCached() const override;
 
-    bool
-    isTestTx() const override
+    bool isTestTx() const override
     {
         return false;
     }
@@ -81,11 +80,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     ~FeeBumpTransactionFrame() override = default;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
@@ -100,10 +98,9 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                Hash const& sorobanBasePrngSeed) const override;
 
-    void
-    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult) const override;
+    void processPostApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult) const override;
 
     void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                MutableTransactionResultBase& txResult,
@@ -153,8 +150,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Duration getMinSeqAge() const override;
     uint32 getMinSeqLedgerGap() const override;
 
-    void
-    insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
+    void insertKeysForFeeProcessing(
+        UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     MutableTxResultPtr

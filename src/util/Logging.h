@@ -145,9 +145,7 @@ class CoutLogger
 
     ~CoutLogger();
 
-    template <typename T>
-    CoutLogger&
-    operator<<(T const& val)
+    template <typename T> CoutLogger& operator<<(T const& val)
     {
         if (mShouldLog)
         {
@@ -218,8 +216,7 @@ format_as(T const& u)
 
 namespace std::filesystem
 {
-inline std::string
-format_as(path const& p)
+inline std::string format_as(path const& p)
 {
     return p.string();
 }

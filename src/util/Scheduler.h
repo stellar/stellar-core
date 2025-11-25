@@ -224,20 +224,17 @@ class Scheduler
     // overloaded)
     std::chrono::seconds getOverloadedDuration() const;
 
-    size_t
-    size() const
+    size_t size() const
     {
         return mSize;
     }
 
-    std::chrono::nanoseconds
-    maxTotalService() const
+    std::chrono::nanoseconds maxTotalService() const
     {
         return mMaxTotalService;
     }
 
-    Stats const&
-    stats() const
+    Stats const& stats() const
     {
         return mStats;
     }

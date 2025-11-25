@@ -15,8 +15,7 @@ namespace stellar
 namespace txbridge
 {
 
-TransactionEnvelope
-convertForV13(TransactionEnvelope const& input)
+TransactionEnvelope convertForV13(TransactionEnvelope const& input)
 {
     if (input.type() != ENVELOPE_TYPE_TX_V0)
     {
@@ -62,8 +61,7 @@ getSignatures(TransactionEnvelope const& env)
     }
 }
 
-xdr::xvector<DecoratedSignature, 20>&
-getSignatures(TransactionEnvelope& env)
+xdr::xvector<DecoratedSignature, 20>& getSignatures(TransactionEnvelope& env)
 {
     switch (env.type())
     {
@@ -94,8 +92,7 @@ getSignaturesInner(TransactionEnvelope& env)
     }
 }
 
-xdr::xvector<Operation, MAX_OPS_PER_TX>&
-getOperations(TransactionEnvelope& env)
+xdr::xvector<Operation, MAX_OPS_PER_TX>& getOperations(TransactionEnvelope& env)
 {
     switch (env.type())
     {
@@ -112,14 +109,12 @@ getOperations(TransactionEnvelope& env)
 }
 
 #ifdef BUILD_TESTS
-xdr::xvector<DecoratedSignature, 20>&
-getSignatures(TransactionTestFramePtr tx)
+xdr::xvector<DecoratedSignature, 20>& getSignatures(TransactionTestFramePtr tx)
 {
     return getSignatures(tx->getMutableEnvelope());
 }
 
-void
-setSeqNum(TransactionTestFramePtr tx, int64_t seq)
+void setSeqNum(TransactionTestFramePtr tx, int64_t seq)
 {
     auto& env = tx->getMutableEnvelope();
     int64_t& s = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.seqNum
@@ -127,8 +122,7 @@ setSeqNum(TransactionTestFramePtr tx, int64_t seq)
     s = seq;
 }
 
-void
-setFullFee(TransactionTestFramePtr tx, uint32_t totalFee)
+void setFullFee(TransactionTestFramePtr tx, uint32_t totalFee)
 {
     auto& env = tx->getMutableEnvelope();
     uint32_t& f =
@@ -136,8 +130,8 @@ setFullFee(TransactionTestFramePtr tx, uint32_t totalFee)
     f = totalFee;
 }
 
-void
-setSorobanFees(TransactionTestFramePtr tx, uint32_t totalFee, int64 resourceFee)
+void setSorobanFees(TransactionTestFramePtr tx, uint32_t totalFee,
+                    int64 resourceFee)
 {
     setFullFee(tx, totalFee);
     auto& env = tx->getMutableEnvelope();
@@ -145,8 +139,7 @@ setSorobanFees(TransactionTestFramePtr tx, uint32_t totalFee, int64 resourceFee)
     sorobanData.resourceFee = resourceFee;
 }
 
-void
-setMemo(TransactionTestFramePtr tx, Memo memo)
+void setMemo(TransactionTestFramePtr tx, Memo memo)
 {
     auto& env = tx->getMutableEnvelope();
     Memo& m =
@@ -154,8 +147,7 @@ setMemo(TransactionTestFramePtr tx, Memo memo)
     m = memo;
 }
 
-void
-setMinTime(TransactionTestFramePtr tx, TimePoint minTime)
+void setMinTime(TransactionTestFramePtr tx, TimePoint minTime)
 {
     auto& env = tx->getMutableEnvelope();
     if (env.type() == ENVELOPE_TYPE_TX_V0)
@@ -179,8 +171,8 @@ setMinTime(TransactionTestFramePtr tx, TimePoint minTime)
     }
 }
 
-void
-setMaxTime(std::shared_ptr<TransactionTestFrame const> tx, TimePoint maxTime)
+void setMaxTime(std::shared_ptr<TransactionTestFrame const> tx,
+                TimePoint maxTime)
 {
     auto& env = tx->getMutableEnvelope();
     if (env.type() == ENVELOPE_TYPE_TX_V0)

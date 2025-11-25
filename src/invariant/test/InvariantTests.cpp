@@ -44,8 +44,7 @@ class TestInvariant : public Invariant
     }
 
     // if id < 0, generate prefix that will match any invariant
-    static std::string
-    toString(int id, bool fail)
+    static std::string toString(int id, bool fail)
     {
         if (id < 0)
         {
@@ -58,14 +57,12 @@ class TestInvariant : public Invariant
         }
     }
 
-    virtual std::string
-    getName() const override
+    virtual std::string getName() const override
     {
         return toString(mInvariantID, mShouldFail);
     }
 
-    virtual std::string
-    checkOnBucketApply(
+    virtual std::string checkOnBucketApply(
         std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
         uint32_t newestLedger,
         std::unordered_set<LedgerKey> const& shadowedKeys) override
@@ -73,18 +70,15 @@ class TestInvariant : public Invariant
         return mShouldFail ? "fail" : "";
     }
 
-    virtual std::string
-    checkAfterAssumeState(uint32_t newestLedger) override
+    virtual std::string checkAfterAssumeState(uint32_t newestLedger) override
     {
         return mShouldFail ? "fail" : "";
     }
 
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events,
-                          AppConnector& app) override
+    virtual std::string checkOnOperationApply(
+        Operation const& operation, OperationResult const& result,
+        LedgerTxnDelta const& ltxDelta,
+        std::vector<ContractEvent> const& events, AppConnector& app) override
     {
         return mShouldFail ? "fail" : "";
     }

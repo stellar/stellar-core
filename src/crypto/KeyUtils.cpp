@@ -9,8 +9,7 @@
 namespace stellar
 {
 
-size_t
-KeyUtils::getKeyVersionSize(strKey::StrKeyVersionByte keyVersion)
+size_t KeyUtils::getKeyVersionSize(strKey::StrKeyVersionByte keyVersion)
 {
     switch (keyVersion)
     {

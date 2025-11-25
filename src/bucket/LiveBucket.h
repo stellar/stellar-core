@@ -160,20 +160,17 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
 
     uint32_t getBucketVersion() const;
 
-    bool
-    hasInMemoryEntries() const
+    bool hasInMemoryEntries() const
     {
         return mEntries.has_value();
     }
 
-    void
-    setInMemoryEntries(std::vector<BucketEntry>&& entries)
+    void setInMemoryEntries(std::vector<BucketEntry>&& entries)
     {
         mEntries = std::move(entries);
     }
 
-    std::vector<BucketEntry> const&
-    getInMemoryEntries() const
+    std::vector<BucketEntry> const& getInMemoryEntries() const
     {
         releaseAssertOrThrow(mEntries.has_value());
         return *mEntries;

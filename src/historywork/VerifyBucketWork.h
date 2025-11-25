@@ -42,8 +42,7 @@ template <typename BucketT> class VerifyBucketWork : public BasicWork
 
   protected:
     BasicWork::State onRun() override;
-    bool
-    onAbort() override
+    bool onAbort() override
     {
         return true;
     };

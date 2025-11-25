@@ -133,9 +133,7 @@ template <class BucketT> class FutureBucket
     // Return all hashes referenced by this future.
     std::vector<std::string> getHashes() const;
 
-    template <class Archive>
-    void
-    load(Archive& ar)
+    template <class Archive> void load(Archive& ar)
     {
         clear();
         ar(cereal::make_nvp("state", mState));
@@ -159,9 +157,7 @@ template <class BucketT> class FutureBucket
         checkState();
     }
 
-    template <class Archive>
-    void
-    save(Archive& ar) const
+    template <class Archive> void save(Archive& ar) const
     {
         checkState();
         switch (mState)

@@ -35,15 +35,13 @@ struct XDRFieldResolver
     {
     }
 
-    ResultType const&
-    getResult()
+    ResultType const& getResult()
     {
         releaseAssert(!mValidate);
         return mResult;
     }
 
-    bool
-    isValid() const
+    bool isValid() const
     {
         releaseAssert(mValidate);
         return mPathIter == mFieldPath.end();
@@ -158,8 +156,7 @@ struct XDRFieldResolver
     }
 
     template <uint32_t N>
-    void
-    operator()(xstring<N> const& t, char const* fieldName)
+    void operator()(xstring<N> const& t, char const* fieldName)
     {
         if (checkLeafField(fieldName))
         {
@@ -168,8 +165,7 @@ struct XDRFieldResolver
     }
 
     template <uint32_t N>
-    void
-    operator()(xdr::opaque_vec<N> const& v, char const* fieldName)
+    void operator()(xdr::opaque_vec<N> const& v, char const* fieldName)
     {
         if (checkLeafField(fieldName))
         {
@@ -178,8 +174,7 @@ struct XDRFieldResolver
     }
 
     template <uint32_t N>
-    void
-    operator()(xdr::opaque_array<N> const& v, char const* fieldName)
+    void operator()(xdr::opaque_array<N> const& v, char const* fieldName)
     {
         if (checkLeafField(fieldName))
         {
@@ -188,8 +183,7 @@ struct XDRFieldResolver
     }
 
     template <typename T>
-    void
-    operator()(xdr::pointer<T> const& ptr, char const* fieldName)
+    void operator()(xdr::pointer<T> const& ptr, char const* fieldName)
     {
         if (ptr)
         {
@@ -278,15 +272,13 @@ struct XDRFieldResolver
     }
 
   private:
-    bool
-    matchFieldToPath(char const* fieldName) const
+    bool matchFieldToPath(char const* fieldName) const
     {
         return fieldName != nullptr && mPathIter != mFieldPath.end() &&
                *mPathIter == fieldName;
     }
 
-    bool
-    checkLeafField(char const* fieldName)
+    bool checkLeafField(char const* fieldName)
     {
         if (!matchFieldToPath(fieldName))
         {
@@ -302,8 +294,7 @@ struct XDRFieldResolver
         return true;
     }
 
-    bool
-    checkMaybeLeafField(char const* fieldName, bool& isLeaf)
+    bool checkMaybeLeafField(char const* fieldName, bool& isLeaf)
     {
         if (!matchFieldToPath(fieldName))
         {
@@ -312,8 +303,7 @@ struct XDRFieldResolver
         return ++mPathIter != mFieldPath.end();
     }
 
-    void
-    processString(std::string const& s, char const* fieldName)
+    void processString(std::string const& s, char const* fieldName)
     {
         if (checkLeafField(fieldName))
         {
@@ -321,14 +311,12 @@ struct XDRFieldResolver
         }
     }
 
-    void
-    processPoolAsset(Asset const& asset)
+    void processPoolAsset(Asset const& asset)
     {
         throw std::runtime_error("Unexpected asset type for the pool asset.");
     }
 
-    void
-    processPoolAsset(TrustLineAsset const& asset)
+    void processPoolAsset(TrustLineAsset const& asset)
     {
         (*this)(asset.liquidityPoolID(), "liquidityPoolID");
     }
@@ -399,8 +387,8 @@ struct XDRFieldResolver
 //     `liquidityPoolID` for the pool shares)
 //   - Fixed size byte arrays are represented by the hex strings
 template <typename T>
-ResultType
-getXDRField(T const& xdrMessage, std::vector<std::string> const& fieldPath)
+ResultType getXDRField(T const& xdrMessage,
+                       std::vector<std::string> const& fieldPath)
 {
     internal::XDRFieldResolver resolver(fieldPath, false);
     xdr::xdr_argpack_archive(resolver, xdrMessage);
@@ -410,9 +398,8 @@ getXDRField(T const& xdrMessage, std::vector<std::string> const& fieldPath)
 // Like `getXDRField`, but throws XDRQueryError when path is not present in XDR
 // message (accounting for all the union variants and optional fields).
 template <typename T>
-ResultType
-getXDRFieldValidated(T const& xdrMessage,
-                     std::vector<std::string> const& fieldPath)
+ResultType getXDRFieldValidated(T const& xdrMessage,
+                                std::vector<std::string> const& fieldPath)
 {
     internal::XDRFieldResolver validator(fieldPath, true);
     xdr::xdr_argpack_archive(validator, xdrMessage);
@@ -431,9 +418,8 @@ namespace xdr
 template <> struct archive_adapter<xdrquery::internal::XDRFieldResolver>
 {
     template <typename T>
-    static void
-    apply(xdrquery::internal::XDRFieldResolver& ar, T&& t,
-          char const* fieldName)
+    static void apply(xdrquery::internal::XDRFieldResolver& ar, T&& t,
+                      char const* fieldName)
     {
         ar(std::forward<T>(t), fieldName);
     }

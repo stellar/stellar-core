@@ -29,26 +29,22 @@ class PeerBareAddress
     resolve(std::string const& ipPort, Application& app,
             unsigned short defaultPort = DEFAULT_PEER_PORT);
 
-    bool
-    isEmpty() const
+    bool isEmpty() const
     {
         return mType == Type::EMPTY;
     }
 
-    Type
-    getType() const
+    Type getType() const
     {
         return mType;
     }
 
-    std::string const&
-    getIP() const
+    std::string const& getIP() const
     {
         return mIP;
     }
 
-    unsigned short
-    getPort() const
+    unsigned short getPort() const
     {
         return mPort;
     }

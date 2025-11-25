@@ -43,8 +43,7 @@ BucketListSnapshot<BucketT>::getLevels() const
 }
 
 template <class BucketT>
-uint32_t
-BucketListSnapshot<BucketT>::getLedgerSeq() const
+uint32_t BucketListSnapshot<BucketT>::getLedgerSeq() const
 {
     return mHeader.ledgerSeq;
 }
@@ -58,8 +57,7 @@ SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader() const
 }
 
 template <class BucketT>
-void
-SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
+void SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
     std::function<Loop(BucketSnapshotT const&)> f,
     BucketListSnapshot<BucketT> const& snapshot) const
 {
@@ -215,8 +213,7 @@ SearchableBucketListSnapshotBase<BucketT>::~SearchableBucketListSnapshotBase()
 }
 
 template <class BucketT>
-medida::Timer&
-SearchableBucketListSnapshotBase<BucketT>::getBulkLoadTimer(
+medida::Timer& SearchableBucketListSnapshotBase<BucketT>::getBulkLoadTimer(
     std::string const& label, size_t numEntries) const
 {
     if (numEntries != 0)

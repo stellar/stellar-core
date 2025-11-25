@@ -16,8 +16,7 @@
 namespace stellar
 {
 
-Curve25519Secret
-curve25519RandomSecret()
+Curve25519Secret curve25519RandomSecret()
 {
     Curve25519Secret out;
     randombytes_buf(out.key.data(), out.key.size());
@@ -27,8 +26,7 @@ curve25519RandomSecret()
     return out;
 }
 
-Curve25519Public
-curve25519DerivePublic(Curve25519Secret const& sec)
+Curve25519Public curve25519DerivePublic(Curve25519Secret const& sec)
 {
     ZoneScoped;
     Curve25519Public out;
@@ -39,18 +37,17 @@ curve25519DerivePublic(Curve25519Secret const& sec)
     return out;
 }
 
-void
-clearCurve25519Keys(Curve25519Public& localPublic,
-                    Curve25519Secret& localSecret)
+void clearCurve25519Keys(Curve25519Public& localPublic,
+                         Curve25519Secret& localSecret)
 {
     sodium_memzero(localPublic.key.data(), localPublic.key.size());
     sodium_memzero(localSecret.key.data(), localSecret.key.size());
 }
 
-HmacSha256Key
-curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
-                          Curve25519Public const& localPublic,
-                          Curve25519Public const& remotePublic, bool localFirst)
+HmacSha256Key curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
+                                        Curve25519Public const& localPublic,
+                                        Curve25519Public const& remotePublic,
+                                        bool localFirst)
 {
     ZoneScoped;
     auto const& publicA = localFirst ? localPublic : remotePublic;
@@ -74,10 +71,9 @@ curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
     return hkdfExtract(buf);
 }
 
-xdr::opaque_vec<>
-curve25519Decrypt(Curve25519Secret const& localSecret,
-                  Curve25519Public const& localPublic,
-                  ByteSlice const& encrypted)
+xdr::opaque_vec<> curve25519Decrypt(Curve25519Secret const& localSecret,
+                                    Curve25519Public const& localPublic,
+                                    ByteSlice const& encrypted)
 {
     ZoneScoped;
     if (encrypted.size() < crypto_box_SEALBYTES)
@@ -102,8 +98,7 @@ curve25519Decrypt(Curve25519Secret const& localSecret,
 
 namespace std
 {
-size_t
-hash<stellar::Curve25519Public>::operator()(
+size_t hash<stellar::Curve25519Public>::operator()(
     stellar::Curve25519Public const& k) const noexcept
 {
     return std::hash<stellar::uint256>()(k.key);

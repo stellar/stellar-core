@@ -11,8 +11,7 @@ namespace stellar
 namespace txtest
 {
 
-void
-throwIf(CreateAccountResult const& result)
+void throwIf(CreateAccountResult const& result)
 {
     switch (result.code())
     {
@@ -31,8 +30,7 @@ throwIf(CreateAccountResult const& result)
     }
 }
 
-void
-throwIf(PaymentResult const& result)
+void throwIf(PaymentResult const& result)
 {
     switch (result.code())
     {
@@ -61,8 +59,7 @@ throwIf(PaymentResult const& result)
     }
 }
 
-void
-throwIf(PathPaymentStrictReceiveResult const& result)
+void throwIf(PathPaymentStrictReceiveResult const& result)
 {
     switch (result.code())
     {
@@ -97,8 +94,7 @@ throwIf(PathPaymentStrictReceiveResult const& result)
     }
 }
 
-void
-throwIf(PathPaymentStrictSendResult const& result)
+void throwIf(PathPaymentStrictSendResult const& result)
 {
     switch (result.code())
     {
@@ -133,8 +129,7 @@ throwIf(PathPaymentStrictSendResult const& result)
     }
 }
 
-void
-throwIf(ManageSellOfferResult const& result)
+void throwIf(ManageSellOfferResult const& result)
 {
     switch (result.code())
     {
@@ -169,8 +164,7 @@ throwIf(ManageSellOfferResult const& result)
     }
 }
 
-void
-throwIf(ManageBuyOfferResult const& result)
+void throwIf(ManageBuyOfferResult const& result)
 {
     switch (result.code())
     {
@@ -205,8 +199,7 @@ throwIf(ManageBuyOfferResult const& result)
     }
 }
 
-void
-throwIf(SetOptionsResult const& result)
+void throwIf(SetOptionsResult const& result)
 {
     switch (result.code())
     {
@@ -237,8 +230,7 @@ throwIf(SetOptionsResult const& result)
     }
 }
 
-void
-throwIf(ChangeTrustResult const& result)
+void throwIf(ChangeTrustResult const& result)
 {
     switch (result.code())
     {
@@ -265,8 +257,7 @@ throwIf(ChangeTrustResult const& result)
     }
 }
 
-void
-throwIf(AllowTrustResult const& result)
+void throwIf(AllowTrustResult const& result)
 {
     switch (result.code())
     {
@@ -287,8 +278,7 @@ throwIf(AllowTrustResult const& result)
     }
 }
 
-void
-throwIf(AccountMergeResult const& result)
+void throwIf(AccountMergeResult const& result)
 {
     switch (result.code())
     {
@@ -313,8 +303,7 @@ throwIf(AccountMergeResult const& result)
     }
 }
 
-void
-throwIf(InflationResult const& result)
+void throwIf(InflationResult const& result)
 {
     switch (result.code())
     {
@@ -327,8 +316,7 @@ throwIf(InflationResult const& result)
     }
 }
 
-void
-throwIf(ManageDataResult const& result)
+void throwIf(ManageDataResult const& result)
 {
     switch (result.code())
     {
@@ -347,8 +335,7 @@ throwIf(ManageDataResult const& result)
     }
 }
 
-void
-throwIf(BumpSequenceResult const& result)
+void throwIf(BumpSequenceResult const& result)
 {
     switch (result.code())
     {
@@ -361,8 +348,7 @@ throwIf(BumpSequenceResult const& result)
     }
 }
 
-void
-throwIf(CreateClaimableBalanceResult const& result)
+void throwIf(CreateClaimableBalanceResult const& result)
 {
     switch (result.code())
     {
@@ -383,8 +369,7 @@ throwIf(CreateClaimableBalanceResult const& result)
     }
 }
 
-void
-throwIf(ClaimClaimableBalanceResult const& result)
+void throwIf(ClaimClaimableBalanceResult const& result)
 {
     switch (result.code())
     {
@@ -405,8 +390,7 @@ throwIf(ClaimClaimableBalanceResult const& result)
     }
 }
 
-void
-throwIf(ClawbackResult const& result)
+void throwIf(ClawbackResult const& result)
 {
     switch (result.code())
     {
@@ -425,8 +409,7 @@ throwIf(ClawbackResult const& result)
     }
 }
 
-void
-throwIf(ClawbackClaimableBalanceResult const& result)
+void throwIf(ClawbackClaimableBalanceResult const& result)
 {
     switch (result.code())
     {
@@ -443,8 +426,7 @@ throwIf(ClawbackClaimableBalanceResult const& result)
     }
 }
 
-void
-throwIf(SetTrustLineFlagsResult const& result)
+void throwIf(SetTrustLineFlagsResult const& result)
 {
     switch (result.code())
     {
@@ -463,8 +445,7 @@ throwIf(SetTrustLineFlagsResult const& result)
     }
 }
 
-void
-throwIf(LiquidityPoolDepositResult const& result)
+void throwIf(LiquidityPoolDepositResult const& result)
 {
     switch (result.code())
     {
@@ -489,8 +470,7 @@ throwIf(LiquidityPoolDepositResult const& result)
     }
 }
 
-void
-throwIf(LiquidityPoolWithdrawResult const& result)
+void throwIf(LiquidityPoolWithdrawResult const& result)
 {
     switch (result.code())
     {
@@ -511,8 +491,7 @@ throwIf(LiquidityPoolWithdrawResult const& result)
     }
 }
 
-void
-throwIf(InvokeHostFunctionResult const& result)
+void throwIf(InvokeHostFunctionResult const& result)
 {
     switch (result.code())
     {
@@ -529,8 +508,7 @@ throwIf(InvokeHostFunctionResult const& result)
     }
 }
 
-void
-throwIf(ExtendFootprintTTLResult const& result)
+void throwIf(ExtendFootprintTTLResult const& result)
 {
     switch (result.code())
     {
@@ -545,8 +523,7 @@ throwIf(ExtendFootprintTTLResult const& result)
     }
 }
 
-void
-throwIf(RestoreFootprintResult const& result)
+void throwIf(RestoreFootprintResult const& result)
 {
     switch (result.code())
     {
@@ -561,8 +538,7 @@ throwIf(RestoreFootprintResult const& result)
     }
 }
 
-void
-throwIf(TransactionResult const& result)
+void throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
     {

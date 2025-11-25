@@ -84,9 +84,8 @@ namespace
 // require majority
 // (>50%). If thresholdLevel is ALL_REQUIRED, require 100%, otherwise assume
 // byzantine failures (~67%)
-unsigned int
-computeDefaultThreshold(SCPQuorumSet const& qset,
-                        ValidationThresholdLevels thresholdLevel)
+unsigned int computeDefaultThreshold(SCPQuorumSet const& qset,
+                                     ValidationThresholdLevels thresholdLevel)
 {
     unsigned int res = 0;
     unsigned int topSize = static_cast<unsigned int>(qset.validators.size() +
@@ -375,8 +374,7 @@ namespace
 
 using ConfigItem = std::pair<std::string, std::shared_ptr<cpptoml::base>>;
 
-bool
-readBool(ConfigItem const& item)
+bool readBool(ConfigItem const& item)
 {
     if (!item.second->as<bool>())
     {
@@ -386,8 +384,7 @@ readBool(ConfigItem const& item)
     return item.second->as<bool>()->get();
 }
 
-double
-readDouble(ConfigItem const& item)
+double readDouble(ConfigItem const& item)
 {
     if (!item.second->as<double>())
     {
@@ -397,8 +394,7 @@ readDouble(ConfigItem const& item)
     return item.second->as<double>()->get();
 }
 
-std::string
-readString(ConfigItem const& item)
+std::string readString(ConfigItem const& item)
 {
     if (!item.second->as<std::string>())
     {
@@ -408,9 +404,7 @@ readString(ConfigItem const& item)
     return item.second->as<std::string>()->get();
 }
 
-template <typename T>
-std::vector<T>
-readArray(ConfigItem const& item)
+template <typename T> std::vector<T> readArray(ConfigItem const& item)
 {
     auto result = std::vector<T>{};
     if (!item.second->is_array())
@@ -461,9 +455,8 @@ castInt(int64_t v, std::string const& name, T min, T max)
 }
 
 template <typename T>
-T
-readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
-        T max = std::numeric_limits<T>::max())
+T readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
+          T max = std::numeric_limits<T>::max())
 {
     if (!item.second->as<int64_t>())
     {
@@ -474,9 +467,9 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
 }
 
 template <typename T>
-std::vector<T>
-readIntArray(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
-             T max = std::numeric_limits<T>::max())
+std::vector<T> readIntArray(ConfigItem const& item,
+                            T min = std::numeric_limits<T>::min(),
+                            T max = std::numeric_limits<T>::max())
 {
     auto resultInt64 = readArray<int64_t>(item);
     auto result = std::vector<T>{};
@@ -487,9 +480,7 @@ readIntArray(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
     return result;
 }
 
-template <typename T>
-std::vector<T>
-readXdrEnumArray(ConfigItem const& item)
+template <typename T> std::vector<T> readXdrEnumArray(ConfigItem const& item)
 {
     UnorderedMap<std::string, T> enumNames;
     for (auto enumVal : xdr::xdr_traits<T>::enum_values())
@@ -526,9 +517,8 @@ readXdrEnumArray(ConfigItem const& item)
 }
 }
 
-void
-Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
-                 uint32 level)
+void Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
+                      uint32 level)
 {
     if (!group)
     {
@@ -605,9 +595,8 @@ Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
     }
 }
 
-void
-Config::addHistoryArchive(std::string const& name, std::string const& get,
-                          std::string const& put, std::string const& mkdir)
+void Config::addHistoryArchive(std::string const& name, std::string const& get,
+                               std::string const& put, std::string const& mkdir)
 {
     auto r = HISTORY.insert(std::make_pair(
         name, HistoryArchiveConfiguration{name, get, put, mkdir}));
@@ -621,14 +610,12 @@ Config::addHistoryArchive(std::string const& name, std::string const& get,
 static std::array<std::string, 4> const kQualities = {"LOW", "MEDIUM", "HIGH",
                                                       "CRITICAL"};
 
-std::string
-Config::toString(ValidatorQuality q) const
+std::string Config::toString(ValidatorQuality q) const
 {
     return kQualities[static_cast<int>(q)];
 }
 
-ValidatorQuality
-Config::parseQuality(std::string const& q) const
+ValidatorQuality Config::parseQuality(std::string const& q) const
 {
     auto it = std::find(kQualities.begin(), kQualities.end(), q);
 
@@ -647,8 +634,7 @@ Config::parseQuality(std::string const& q) const
     return res;
 }
 
-std::vector<ValidatorEntry>
-Config::parseValidators(
+std::vector<ValidatorEntry> Config::parseValidators(
     std::shared_ptr<cpptoml::base> validators,
     UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap)
 {
@@ -823,8 +809,7 @@ Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
     return res;
 }
 
-void
-Config::load(std::string const& filename)
+void Config::load(std::string const& filename)
 {
     if (filename != Config::STDIN_SPECIAL_NAME && !fs::exists(filename))
     {
@@ -863,8 +848,7 @@ Config::load(std::string const& filename)
     }
 }
 
-void
-Config::load(std::istream& in)
+void Config::load(std::istream& in)
 {
     std::shared_ptr<cpptoml::table> t;
     cpptoml::parser p(in);
@@ -872,8 +856,7 @@ Config::load(std::istream& in)
     processConfig(t);
 }
 
-void
-Config::addSelfToValidators(
+void Config::addSelfToValidators(
     std::vector<ValidatorEntry>& validators,
     UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap)
 {
@@ -903,8 +886,7 @@ Config::addSelfToValidators(
     validators.emplace_back(self);
 }
 
-void
-Config::verifyHistoryValidatorsBlocking(
+void Config::verifyHistoryValidatorsBlocking(
     std::vector<ValidatorEntry> const& validators)
 {
     std::vector<NodeID> archives;
@@ -933,11 +915,9 @@ Config::verifyHistoryValidatorsBlocking(
 }
 
 template <typename T>
-void
-Config::verifyLoadGenDistribution(std::vector<T> const& values,
-                                  std::vector<uint32_t> const& distribution,
-                                  std::string const& valuesName,
-                                  std::string const& distributionName)
+void Config::verifyLoadGenDistribution(
+    std::vector<T> const& values, std::vector<uint32_t> const& distribution,
+    std::string const& valuesName, std::string const& distributionName)
 {
     if (values.size() != distribution.size())
     {
@@ -970,8 +950,7 @@ Config::verifyLoadGenDistribution(std::vector<T> const& values,
     }
 }
 
-void
-Config::processOpApplySleepTimeForTestingConfigs()
+void Config::processOpApplySleepTimeForTestingConfigs()
 {
     if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size() !=
         OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.size())
@@ -1007,8 +986,7 @@ Config::processOpApplySleepTimeForTestingConfigs()
     }
 }
 
-void
-Config::processConfig(std::shared_ptr<cpptoml::table> t)
+void Config::processConfig(std::shared_ptr<cpptoml::table> t)
 {
     auto logIfSet = [](auto& item, auto const& message) {
         if (item.second->template as<bool>())
@@ -2082,8 +2060,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
     }
 }
 
-void
-Config::adjust()
+void Config::adjust()
 {
     if (MAX_ADDITIONAL_PEER_CONNECTIONS == -1)
     {
@@ -2217,8 +2194,7 @@ Config::adjust()
                   MAX_PENDING_CONNECTIONS);
 }
 
-void
-Config::logBasicInfo() const
+void Config::logBasicInfo() const
 {
     LOG_INFO(DEFAULT_LOG, "Connection effective settings:");
     LOG_INFO(DEFAULT_LOG, "TARGET_PEER_CONNECTIONS: {}",
@@ -2241,8 +2217,7 @@ Config::logBasicInfo() const
              EXPERIMENTAL_PARALLEL_LEDGER_APPLY ? "true" : "false");
 }
 
-void
-Config::validateConfig(ValidationThresholdLevels thresholdLevel)
+void Config::validateConfig(ValidationThresholdLevels thresholdLevel)
 {
     std::set<NodeID> nodes;
     LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n) {
@@ -2324,15 +2299,14 @@ Config::validateConfig(ValidationThresholdLevels thresholdLevel)
     }
 }
 
-void
-Config::parseNodeID(std::string configStr, PublicKey& retKey)
+void Config::parseNodeID(std::string configStr, PublicKey& retKey)
 {
     SecretKey k;
     parseNodeID(configStr, retKey, k, false);
 }
 
-void
-Config::addValidatorName(std::string const& pubKeyStr, std::string const& name)
+void Config::addValidatorName(std::string const& pubKeyStr,
+                              std::string const& name)
 {
     PublicKey k;
     std::string cName = "$";
@@ -2348,9 +2322,8 @@ Config::addValidatorName(std::string const& pubKeyStr, std::string const& name)
     }
 }
 
-void
-Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
-                    bool isSeed)
+void Config::parseNodeID(std::string configStr, PublicKey& retKey,
+                         SecretKey& sKey, bool isSeed)
 {
     if (configStr.size() < 2)
     {
@@ -2398,10 +2371,9 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
     }
 }
 
-void
-Config::parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
-                            std::string const& configStr,
-                            std::set<PublicKey>& keySet)
+void Config::parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
+                                 std::string const& configStr,
+                                 std::set<PublicKey>& keySet)
 {
     if (t->contains(configStr))
     {
@@ -2419,8 +2391,7 @@ Config::parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
     }
 }
 
-std::string
-Config::toShortString(PublicKey const& pk) const
+std::string Config::toShortString(PublicKey const& pk) const
 {
     std::string ret = KeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
@@ -2430,8 +2401,7 @@ Config::toShortString(PublicKey const& pk) const
         return it->second;
 }
 
-std::string
-Config::toStrKey(PublicKey const& pk, bool fullKey) const
+std::string Config::toStrKey(PublicKey const& pk, bool fullKey) const
 {
     std::string res;
     if (fullKey)
@@ -2445,8 +2415,7 @@ Config::toStrKey(PublicKey const& pk, bool fullKey) const
     return res;
 }
 
-bool
-Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
+bool Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 {
     auto expanded = expandNodeID(s);
     if (expanded.empty())
@@ -2465,8 +2434,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
     return true;
 }
 
-std::string
-Config::expandNodeID(const std::string& s) const
+std::string Config::expandNodeID(const std::string& s) const
 {
     if (s.length() < 2)
     {
@@ -2501,20 +2469,17 @@ Config::expandNodeID(const std::string& s) const
     }
 }
 
-bool
-Config::modeDoesCatchupWithBucketList() const
+bool Config::modeDoesCatchupWithBucketList() const
 {
     return MODE_DOES_CATCHUP;
 }
 
-bool
-Config::allBucketsInMemory() const
+bool Config::allBucketsInMemory() const
 {
     return BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT == 0;
 }
 
-bool
-Config::parallelLedgerClose() const
+bool Config::parallelLedgerClose() const
 {
     // Standalone mode expects synchronous ledger application
     return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
@@ -2522,8 +2487,7 @@ Config::parallelLedgerClose() const
            !RUN_STANDALONE;
 }
 
-void
-Config::setNoListen()
+void Config::setNoListen()
 {
     // prevent opening up a port for other peers
     RUN_STANDALONE = true;
@@ -2532,8 +2496,7 @@ Config::setNoListen()
     MANUAL_CLOSE = true;
 }
 
-void
-Config::setNoPublish()
+void Config::setNoPublish()
 {
     for (auto& item : HISTORY)
     {
@@ -2541,8 +2504,7 @@ Config::setNoPublish()
     }
 }
 
-bool
-Config::skipHighCriticalValidatorChecks() const
+bool Config::skipHighCriticalValidatorChecks() const
 {
 #ifdef BUILD_TESTS
     return SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING;
@@ -2550,8 +2512,7 @@ Config::skipHighCriticalValidatorChecks() const
     return false;
 }
 
-SCPQuorumSet
-Config::generateQuorumSetHelper(
+SCPQuorumSet Config::generateQuorumSetHelper(
     std::vector<ValidatorEntry>::const_iterator begin,
     std::vector<ValidatorEntry>::const_iterator end,
     ValidatorQuality curQuality)
@@ -2634,8 +2595,7 @@ Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
     return res;
 }
 
-std::string
-Config::toString(SCPQuorumSet const& qset)
+std::string Config::toString(SCPQuorumSet const& qset)
 {
     auto json = LocalNode::toJson(
         qset, [&](PublicKey const& k) { return toShortString(k); });
@@ -2643,8 +2603,7 @@ Config::toString(SCPQuorumSet const& qset)
     return fw.write(json);
 }
 
-size_t
-Config::getSorobanByteAllowance() const
+size_t Config::getSorobanByteAllowance() const
 {
 #ifdef BUILD_TESTS
     // Return a big number, but not big enough that it will overflow
@@ -2660,8 +2619,7 @@ Config::getSorobanByteAllowance() const
     return MAX_SOROBAN_BYTE_ALLOWANCE;
 }
 
-size_t
-Config::getClassicByteAllowance() const
+size_t Config::getClassicByteAllowance() const
 {
 #ifdef BUILD_TESTS
     // Return a big number, but not big enough that it will overflow
@@ -2677,8 +2635,8 @@ Config::getClassicByteAllowance() const
     return MAX_CLASSIC_BYTE_ALLOWANCE;
 }
 
-void
-Config::setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators)
+void Config::setValidatorWeightConfig(
+    std::vector<ValidatorEntry> const& validators)
 {
     releaseAssert(!VALIDATOR_WEIGHT_CONFIG.has_value());
 
@@ -2745,8 +2703,7 @@ Config::setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators)
 }
 
 #ifdef BUILD_TESTS
-void
-Config::generateQuorumSetForTesting(
+void Config::generateQuorumSetForTesting(
     std::vector<ValidatorEntry> const& validators)
 {
     QUORUM_SET = generateQuorumSet(validators);

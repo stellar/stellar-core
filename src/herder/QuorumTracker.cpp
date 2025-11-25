@@ -15,8 +15,7 @@ QuorumTracker::QuorumTracker(NodeID const& localNodeID)
 {
 }
 
-bool
-QuorumTracker::isNodeDefinitelyInQuorum(NodeID const& id)
+bool QuorumTracker::isNodeDefinitelyInQuorum(NodeID const& id)
 {
     auto it = mQuorum.find(id);
     return it != mQuorum.end();
@@ -31,8 +30,7 @@ QuorumTracker::isNodeDefinitelyInQuorum(NodeID const& id)
 // cleaned out the structure and only be rebuilding a consistent state;
 // returning `false` in that context should be impossible and will be treated as
 // a logic error, throwing an exception.
-bool
-QuorumTracker::expand(NodeID const& id, SCPQuorumSetPtr qSet)
+bool QuorumTracker::expand(NodeID const& id, SCPQuorumSetPtr qSet)
 {
     ZoneScoped;
 
@@ -132,8 +130,8 @@ QuorumTracker::expand(NodeID const& id, SCPQuorumSetPtr qSet)
     });
 }
 
-void
-QuorumTracker::rebuild(std::function<SCPQuorumSetPtr(NodeID const&)> lookup)
+void QuorumTracker::rebuild(
+    std::function<SCPQuorumSetPtr(NodeID const&)> lookup)
 {
     ZoneScoped;
 
@@ -186,8 +184,7 @@ QuorumTracker::rebuild(std::function<SCPQuorumSetPtr(NodeID const&)> lookup)
     }
 }
 
-QuorumTracker::QuorumMap const&
-QuorumTracker::getQuorum() const
+QuorumTracker::QuorumMap const& QuorumTracker::getQuorum() const
 {
     return mQuorum;
 }

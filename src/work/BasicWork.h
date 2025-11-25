@@ -156,8 +156,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     // internal state of work.
     virtual void shutdown();
 
-    bool
-    isAborting() const
+    bool isAborting() const
     {
         return mState == InternalState::ABORTING;
     }

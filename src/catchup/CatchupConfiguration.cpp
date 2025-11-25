@@ -34,8 +34,7 @@ CatchupConfiguration::resolve(uint32_t remoteCheckpoint) const
     return cfg;
 }
 
-uint32_t
-parseLedger(std::string const& str)
+uint32_t parseLedger(std::string const& str)
 {
     if (str == "current")
     {
@@ -53,8 +52,7 @@ parseLedger(std::string const& str)
     return result;
 }
 
-uint32_t
-parseLedgerCount(std::string const& str)
+uint32_t parseLedgerCount(std::string const& str)
 {
     if (str == "max")
     {

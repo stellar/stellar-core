@@ -22,8 +22,7 @@ WorkScheduler::~WorkScheduler()
 {
 }
 
-std::shared_ptr<WorkScheduler>
-WorkScheduler::create(Application& app)
+std::shared_ptr<WorkScheduler> WorkScheduler::create(Application& app)
 {
     auto work = std::shared_ptr<WorkScheduler>(new WorkScheduler(app));
     work->startWork(nullptr);
@@ -31,8 +30,7 @@ WorkScheduler::create(Application& app)
     return work;
 };
 
-BasicWork::State
-WorkScheduler::doWork()
+BasicWork::State WorkScheduler::doWork()
 {
     if (anyChildRunning())
     {
@@ -41,8 +39,7 @@ WorkScheduler::doWork()
     return State::WORK_WAITING;
 }
 
-void
-WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
+void WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
 {
     auto self = weak.lock();
     if (!self || self->mScheduled)
@@ -76,8 +73,7 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
         "WorkScheduler");
 }
 
-void
-WorkScheduler::shutdown()
+void WorkScheduler::shutdown()
 {
     if (isDone())
     {

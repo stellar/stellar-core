@@ -21,17 +21,16 @@ LiquidityPoolDepositOpFrame::LiquidityPoolDepositOpFrame(
 {
 }
 
-bool
-LiquidityPoolDepositOpFrame::isOpSupported(LedgerHeader const& header) const
+bool LiquidityPoolDepositOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_18) &&
            !isPoolDepositDisabled(header);
 }
 
-static bool
-isBadPrice(int64_t amountA, int64_t amountB, Price const& minPrice,
-           Price const& maxPrice)
+static bool isBadPrice(int64_t amountA, int64_t amountB, Price const& minPrice,
+                       Price const& maxPrice)
 {
     // a * d < b * n is equivalent to a/b < n/d but avoids rounding.
     if (amountA == 0 || amountB == 0 ||
@@ -43,8 +42,7 @@ isBadPrice(int64_t amountA, int64_t amountB, Price const& minPrice,
     return false;
 }
 
-bool
-LiquidityPoolDepositOpFrame::depositIntoEmptyPool(
+bool LiquidityPoolDepositOpFrame::depositIntoEmptyPool(
     int64_t& amountA, int64_t& amountB, int64_t& amountPoolShares,
     int64_t availableA, int64_t availableB, int64_t availableLimitPoolShares,
     OperationResult& res) const
@@ -75,8 +73,8 @@ LiquidityPoolDepositOpFrame::depositIntoEmptyPool(
     return true;
 }
 
-static bool
-minAmongValid(int64_t& res, int64_t x, bool xValid, int64_t y, bool yValid)
+static bool minAmongValid(int64_t& res, int64_t x, bool xValid, int64_t y,
+                          bool yValid)
 {
     if (xValid && yValid)
     {
@@ -97,8 +95,7 @@ minAmongValid(int64_t& res, int64_t x, bool xValid, int64_t y, bool yValid)
     return true;
 }
 
-bool
-LiquidityPoolDepositOpFrame::depositIntoNonEmptyPool(
+bool LiquidityPoolDepositOpFrame::depositIntoNonEmptyPool(
     int64_t& amountA, int64_t& amountB, int64_t& amountPoolShares,
     int64_t availableA, int64_t availableB, int64_t availableLimitPoolShares,
     LiquidityPoolConstantProduct const& cp, OperationResult& res) const
@@ -168,9 +165,8 @@ LiquidityPoolDepositOpFrame::depositIntoNonEmptyPool(
     return true;
 }
 
-static void
-updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
-              LedgerTxnEntry& acc, int64_t delta)
+static void updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
+                          LedgerTxnEntry& acc, int64_t delta)
 {
     if (tl)
     {
@@ -188,10 +184,10 @@ updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
     }
 }
 
-bool
-LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                     OperationResult& res,
-                                     OperationMetaBuilder& opMeta) const
+bool LiquidityPoolDepositOpFrame::doApply(AppConnector& app,
+                                          AbstractLedgerTxn& ltx,
+                                          OperationResult& res,
+                                          OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolDepositOpFrame apply", true);
 
@@ -327,9 +323,8 @@ LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-LiquidityPoolDepositOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                          OperationResult& res) const
+bool LiquidityPoolDepositOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                               OperationResult& res) const
 {
     if (mLiquidityPoolDeposit.maxAmountA <= 0 ||
         mLiquidityPoolDeposit.maxAmountB <= 0)
@@ -367,8 +362,7 @@ LiquidityPoolDepositOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-LiquidityPoolDepositOpFrame::insertLedgerKeysToPrefetch(
+void LiquidityPoolDepositOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(liquidityPoolKey(mLiquidityPoolDeposit.liquidityPoolID));

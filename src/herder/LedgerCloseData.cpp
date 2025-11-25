@@ -41,8 +41,7 @@ LedgerCloseData::LedgerCloseData(
 }
 #endif // BUILD_TESTS
 
-std::string
-stellarValueToString(Config const& c, StellarValue const& sv)
+std::string stellarValueToString(Config const& c, StellarValue const& sv)
 {
     std::stringstream res;
 

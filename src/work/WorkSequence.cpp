@@ -20,8 +20,7 @@ WorkSequence::WorkSequence(Application& app, std::string name,
 {
 }
 
-BasicWork::State
-WorkSequence::onRun()
+BasicWork::State WorkSequence::onRun()
 {
     ZoneScoped;
     if (mNextInSequence == mSequenceOfWork.end())
@@ -57,8 +56,7 @@ WorkSequence::onRun()
     return State::WORK_RUNNING;
 }
 
-bool
-WorkSequence::onAbort()
+bool WorkSequence::onAbort()
 {
     ZoneScoped;
     if (mCurrentExecuting && !mCurrentExecuting->isDone())
@@ -70,8 +68,7 @@ WorkSequence::onAbort()
     return true;
 }
 
-void
-WorkSequence::onReset()
+void WorkSequence::onReset()
 {
     ZoneScoped;
     releaseAssert(std::all_of(
@@ -81,8 +78,7 @@ WorkSequence::onReset()
     mCurrentExecuting.reset();
 }
 
-std::string
-WorkSequence::getStatus() const
+std::string WorkSequence::getStatus() const
 {
     if (!isDone() && mNextInSequence != mSequenceOfWork.end())
     {
@@ -91,8 +87,7 @@ WorkSequence::getStatus() const
     return BasicWork::getStatus();
 }
 
-void
-WorkSequence::shutdown()
+void WorkSequence::shutdown()
 {
     ZoneScoped;
     if (mCurrentExecuting)

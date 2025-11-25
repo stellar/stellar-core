@@ -39,18 +39,15 @@ class StatusManager
     void removeStatusMessage(StatusCategory issue);
     std::string getStatusMessage(StatusCategory issue) const;
 
-    const_iterator
-    begin() const
+    const_iterator begin() const
     {
         return mStatusMessages.begin();
     }
-    const_iterator
-    end() const
+    const_iterator end() const
     {
         return mStatusMessages.end();
     }
-    std::size_t
-    size() const
+    std::size_t size() const
     {
         return mStatusMessages.size();
     }

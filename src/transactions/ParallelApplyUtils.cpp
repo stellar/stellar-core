@@ -96,8 +96,7 @@ using namespace stellar;
 // total order, B could save this fee, but we would lose the ability to run A
 // and B in parallel in the future. CAP 0063 explicitly chose this tradeoff.
 
-std::unordered_set<LedgerKey>
-getReadWriteKeysForStage(ApplyStage const& stage)
+std::unordered_set<LedgerKey> getReadWriteKeysForStage(ApplyStage const& stage)
 {
     ZoneScoped;
     std::unordered_set<LedgerKey> res;
@@ -117,10 +116,10 @@ getReadWriteKeysForStage(ApplyStage const& stage)
     return res;
 }
 
-bool
-maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
-                     ParallelApplyEntry& oldEntry,
-                     std::unordered_set<LedgerKey> const& readWriteSet)
+bool maybeMergeRoTTLBumps(LedgerKey const& key,
+                          ParallelApplyEntry const& newEntry,
+                          ParallelApplyEntry& oldEntry,
+                          std::unordered_set<LedgerKey> const& readWriteSet)
 {
     // Read Only bumps will always be updating a pre-existing value. TTL
     // creation (!oldEntry) or deletion (!newEntry) are write conflicts that
@@ -143,8 +142,7 @@ maybeMergeRoTTLBumps(LedgerKey const& key, ParallelApplyEntry const& newEntry,
     return false;
 }
 
-void
-preParallelApplyAndCollectModifiedClassicEntries(
+void preParallelApplyAndCollectModifiedClassicEntries(
     AppConnector& app, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
     ParallelApplyEntryMap& globalEntryMap,
@@ -207,26 +205,22 @@ preParallelApplyAndCollectModifiedClassicEntries(
     }
 }
 
-inline uint32_t&
-ttl(LedgerEntry& le)
+inline uint32_t& ttl(LedgerEntry& le)
 {
     return le.data.ttl().liveUntilLedgerSeq;
 }
 
-inline uint32_t const&
-ttl(LedgerEntry const& le)
+inline uint32_t const& ttl(LedgerEntry const& le)
 {
     return le.data.ttl().liveUntilLedgerSeq;
 }
 
-inline uint32_t&
-ttl(std::optional<LedgerEntry>& le)
+inline uint32_t& ttl(std::optional<LedgerEntry>& le)
 {
     return ttl(le.value());
 }
 
-inline uint32_t const&
-ttl(std::optional<LedgerEntry> const& le)
+inline uint32_t const& ttl(std::optional<LedgerEntry> const& le)
 {
     return ttl(le.value());
 }
@@ -235,8 +229,7 @@ ttl(std::optional<LedgerEntry> const& le)
 // (code-or-data) keys named in the footprint of the `txBundle`. Note
 // that since RO and RW footprints are disjoint, we only have to look
 // at the RO set.
-UnorderedSet<LedgerKey>
-buildRoTTLSet(TxBundle const& txBundle)
+UnorderedSet<LedgerKey> buildRoTTLSet(TxBundle const& txBundle)
 {
     UnorderedSet<LedgerKey> isReadOnlyTTLSet;
     for (auto const& ro :
@@ -253,10 +246,9 @@ buildRoTTLSet(TxBundle const& txBundle)
 
 // Accumulate into the buffer of `roTTLBumps` the max of any existing entry and
 // the provided `updatedLE`, which must be a non-nullopt TTL LE.
-void
-updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
-                     LedgerKey const& lk,
-                     std::optional<LedgerEntry> const& updatedLe)
+void updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
+                          LedgerKey const& lk,
+                          std::optional<LedgerEntry> const& updatedLe)
 {
     auto [it, emplaced] = roTTLBumps.emplace(lk, ttl(updatedLe));
     if (!emplaced)
@@ -286,21 +278,18 @@ PreV23LedgerAccessHelper::getLedgerEntryOpt(LedgerKey const& key)
     return std::nullopt;
 }
 
-uint32_t
-PreV23LedgerAccessHelper::getLedgerVersion()
+uint32_t PreV23LedgerAccessHelper::getLedgerVersion()
 {
     return mLtx.loadHeader().current().ledgerVersion;
 }
 
-uint32_t
-PreV23LedgerAccessHelper::getLedgerSeq()
+uint32_t PreV23LedgerAccessHelper::getLedgerSeq()
 {
     return mLtx.loadHeader().current().ledgerSeq;
 }
 
-bool
-PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
-                                            LedgerEntry const& entry)
+bool PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
+                                                 LedgerEntry const& entry)
 {
     auto ltxe = mLtx.load(key);
     if (ltxe)
@@ -315,8 +304,7 @@ PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
     }
 }
 
-bool
-PreV23LedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
+bool PreV23LedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 {
     auto ltxe = mLtx.load(key);
     if (ltxe)
@@ -342,29 +330,25 @@ ParallelLedgerAccessHelper::getLedgerEntryOpt(LedgerKey const& key)
     return mOpState.getLiveEntryOpt(key);
 }
 
-uint32_t
-ParallelLedgerAccessHelper::getLedgerSeq()
+uint32_t ParallelLedgerAccessHelper::getLedgerSeq()
 {
     auto applySeq = mLedgerInfo.getLedgerSeq();
     releaseAssertOrThrow(applySeq == mOpState.getSnapshotLedgerSeq() + 1);
     return applySeq;
 }
 
-uint32_t
-ParallelLedgerAccessHelper::getLedgerVersion()
+uint32_t ParallelLedgerAccessHelper::getLedgerVersion()
 {
     return mLedgerInfo.getLedgerVersion();
 }
 
-bool
-ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
-                                              LedgerEntry const& entry)
+bool ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
+                                                   LedgerEntry const& entry)
 {
     return mOpState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
 }
 
-bool
-ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
+bool ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 {
     return mOpState.eraseEntryIfExists(key);
 }
@@ -410,8 +394,7 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
         app, ltx, stages, mGlobalEntryMap, mSorobanConfig);
 }
 
-void
-GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
+void GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     AbstractLedgerTxn& ltx) const
 {
     ZoneScoped;
@@ -465,8 +448,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     ltxInner.commit();
 }
 
-uint32_t
-GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
+uint32_t GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
     releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
                          mHotArchiveSnapshot->getLedgerSeq());
@@ -487,8 +469,7 @@ GlobalParallelApplyLedgerState::getRestoredEntries() const
     return mGlobalRestoredEntries;
 }
 
-void
-GlobalParallelApplyLedgerState::commitChangeFromThread(
+void GlobalParallelApplyLedgerState::commitChangeFromThread(
     LedgerKey const& key, ParallelApplyEntry const& parEntry,
     std::unordered_set<LedgerKey> const& readWriteSet)
 {
@@ -506,8 +487,7 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
     }
 }
 
-void
-GlobalParallelApplyLedgerState::commitChangesFromThread(
+void GlobalParallelApplyLedgerState::commitChangesFromThread(
     AppConnector& app, ThreadParallelApplyLedgerState const& thread,
     std::unordered_set<LedgerKey> const& readWriteSet)
 {
@@ -519,8 +499,7 @@ GlobalParallelApplyLedgerState::commitChangesFromThread(
     mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
 }
 
-void
-GlobalParallelApplyLedgerState::commitChangesFromThreads(
+void GlobalParallelApplyLedgerState::commitChangesFromThreads(
     AppConnector& app,
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const& threads,
     ApplyStage const& stage)
@@ -536,8 +515,7 @@ GlobalParallelApplyLedgerState::commitChangesFromThreads(
     }
 }
 
-void
-ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
+void ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster)
 {
@@ -608,8 +586,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     collectClusterFootprintEntriesFromGlobal(app, global, cluster);
 }
 
-void
-ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
+void ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
     const TxBundle& txBundle)
 {
     auto const& readWrite =
@@ -639,8 +616,7 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
     }
 }
 
-void
-ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
+void ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
 {
     for (auto const& [lk, ttlBump] : mRoTTLBumps)
     {
@@ -657,8 +633,7 @@ ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
     }
 }
 
-ParallelApplyEntryMap const&
-ThreadParallelApplyLedgerState::getEntryMap() const
+ParallelApplyEntryMap const& ThreadParallelApplyLedgerState::getEntryMap() const
 {
     return mThreadEntryMap;
 }
@@ -707,24 +682,21 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     return res ? std::make_optional(*res) : std::nullopt;
 }
 
-void
-ThreadParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
-                                            LedgerEntry const& entry,
-                                            uint32_t ledgerSeq)
+void ThreadParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
+                                                 LedgerEntry const& entry,
+                                                 uint32_t ledgerSeq)
 {
     // Weird syntax avoid extra map lookup
     auto& mapEntry = mThreadEntryMap[key] =
         ParallelApplyEntry::dirtyPopulated(entry);
     mapEntry.mLedgerEntry->lastModifiedLedgerSeq = ledgerSeq;
 }
-void
-ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
+void ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
 {
     mThreadEntryMap[key] = ParallelApplyEntry::dirtyEmpty();
 }
 
-void
-ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
+void ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
     LedgerKey const& key, std::optional<LedgerEntry> const& entryOpt,
     UnorderedSet<LedgerKey> const& roTTLSet)
 {
@@ -745,8 +717,7 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulOp(
     }
 }
 
-void
-ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
+void ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
     ParallelTxReturnVal const& res, ParallelLedgerInfo const& ledgerInfo,
     TxEffects& effects) const
 {
@@ -784,8 +755,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulOp(
     }
 }
 
-void
-ThreadParallelApplyLedgerState::commitChangesFromSuccessfulOp(
+void ThreadParallelApplyLedgerState::commitChangesFromSuccessfulOp(
     ParallelTxReturnVal const& res, TxBundle const& txBundle)
 {
     releaseAssertOrThrow(res.getSuccess());
@@ -797,15 +767,14 @@ ThreadParallelApplyLedgerState::commitChangesFromSuccessfulOp(
     mThreadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }
 
-bool
-ThreadParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
+bool ThreadParallelApplyLedgerState::entryWasRestored(
+    LedgerKey const& key) const
 {
     return mThreadRestoredEntries.entryWasRestored(key) ||
            mPreviouslyRestoredEntries.entryWasRestored(key);
 }
 
-uint32_t
-ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
+uint32_t ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
     releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
                          mHotArchiveSnapshot->getLedgerSeq());
@@ -858,10 +827,9 @@ OpParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
 }
 
-bool
-OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
-                                        LedgerEntry const& entry,
-                                        uint32_t ledgerSeq)
+bool OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
+                                             LedgerEntry const& entry,
+                                             uint32_t ledgerSeq)
 {
     ZoneScoped;
     // There are 4 cases:
@@ -901,8 +869,7 @@ OpParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
     return !liveEntryExistedAlready;
 }
 
-bool
-OpParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
+bool OpParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
 {
     bool liveEntryExistedAlready = getLiveEntryOpt(key).has_value();
     if (liveEntryExistedAlready)
@@ -925,8 +892,7 @@ OpParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
     return liveEntryExistedAlready;
 }
 
-bool
-OpParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
+bool OpParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
 {
     if (mOpRestoredEntries.entryWasRestored(key))
     {
@@ -935,19 +901,16 @@ OpParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
     return mThreadState.entryWasRestored(key);
 }
 
-void
-OpParallelApplyLedgerState::addHotArchiveRestore(LedgerKey const& key,
-                                                 LedgerEntry const& entry,
-                                                 LedgerKey const& ttlKey,
-                                                 LedgerEntry const& ttlEntry)
+void OpParallelApplyLedgerState::addHotArchiveRestore(
+    LedgerKey const& key, LedgerEntry const& entry, LedgerKey const& ttlKey,
+    LedgerEntry const& ttlEntry)
 {
     CLOG_TRACE(Tx, "parallel apply thread {} hot-restoring {}",
                std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
     mOpRestoredEntries.addHotArchiveRestore(key, entry, ttlKey, ttlEntry);
 }
 
-void
-OpParallelApplyLedgerState::addLiveBucketlistRestore(
+void OpParallelApplyLedgerState::addLiveBucketlistRestore(
     LedgerKey const& key, LedgerEntry const& entry, LedgerKey const& ttlKey,
     LedgerEntry const& ttlEntry)
 {
@@ -956,8 +919,7 @@ OpParallelApplyLedgerState::addLiveBucketlistRestore(
     mOpRestoredEntries.addLiveBucketlistRestore(key, entry, ttlKey, ttlEntry);
 }
 
-ParallelTxReturnVal
-OpParallelApplyLedgerState::takeSuccess()
+ParallelTxReturnVal OpParallelApplyLedgerState::takeSuccess()
 {
     CLOG_TRACE(Tx, "parallel apply thread {} succeeded with {} dirty entries",
                std::this_thread::get_id(), mOpEntryMap.size());
@@ -965,16 +927,14 @@ OpParallelApplyLedgerState::takeSuccess()
                                std::move(mOpRestoredEntries)};
 }
 
-ParallelTxReturnVal
-OpParallelApplyLedgerState::takeFailure()
+ParallelTxReturnVal OpParallelApplyLedgerState::takeFailure()
 {
     CLOG_TRACE(Tx, "parallel apply thread {} failed with {} dirty entries",
                std::this_thread::get_id(), mOpEntryMap.size());
     return ParallelTxReturnVal{false, {}};
 }
 
-uint32_t
-OpParallelApplyLedgerState::getSnapshotLedgerSeq() const
+uint32_t OpParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
     return mThreadState.getSnapshotLedgerSeq();
 }

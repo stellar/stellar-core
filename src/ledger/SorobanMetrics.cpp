@@ -157,54 +157,45 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
 {
 }
 
-void
-SorobanMetrics::accumulateModelledCpuInsns(uint64_t insnsCount,
-                                           uint64_t insnsExclVmCount,
-                                           uint64_t hostFnExecTimeNsecs)
+void SorobanMetrics::accumulateModelledCpuInsns(uint64_t insnsCount,
+                                                uint64_t insnsExclVmCount,
+                                                uint64_t hostFnExecTimeNsecs)
 {
     mLedgerInsnsCount += insnsCount;
     mLedgerInsnsExclVmCount += insnsExclVmCount;
     mLedgerHostFnExecTimeNsecs += hostFnExecTimeNsecs;
 }
 
-void
-SorobanMetrics::accumulateLedgerTxCount(uint64_t txCount)
+void SorobanMetrics::accumulateLedgerTxCount(uint64_t txCount)
 {
     mCounterLedgerTxCount += txCount;
 }
-void
-SorobanMetrics::accumulateLedgerCpuInsn(uint64_t cpuInsn)
+void SorobanMetrics::accumulateLedgerCpuInsn(uint64_t cpuInsn)
 {
     mCounterLedgerCpuInsn += cpuInsn;
 }
-void
-SorobanMetrics::accumulateLedgerTxsSizeByte(uint64_t txsSizeByte)
+void SorobanMetrics::accumulateLedgerTxsSizeByte(uint64_t txsSizeByte)
 {
     mCounterLedgerTxsSizeByte += txsSizeByte;
 }
-void
-SorobanMetrics::accumulateLedgerReadEntry(uint64_t readEntry)
+void SorobanMetrics::accumulateLedgerReadEntry(uint64_t readEntry)
 {
     mCounterLedgerReadEntry += readEntry;
 }
-void
-SorobanMetrics::accumulateLedgerReadByte(uint64_t readByte)
+void SorobanMetrics::accumulateLedgerReadByte(uint64_t readByte)
 {
     mCounterLedgerReadByte += readByte;
 }
-void
-SorobanMetrics::accumulateLedgerWriteEntry(uint64_t writeEntry)
+void SorobanMetrics::accumulateLedgerWriteEntry(uint64_t writeEntry)
 {
     mCounterLedgerWriteEntry += writeEntry;
 }
-void
-SorobanMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
+void SorobanMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
 {
     mCounterLedgerWriteByte += writeByte;
 }
 
-void
-SorobanMetrics::publishAndResetLedgerWideMetrics()
+void SorobanMetrics::publishAndResetLedgerWideMetrics()
 {
     mLedgerTxCount.Update(mCounterLedgerTxCount);
     mLedgerCpuInsn.Update(mCounterLedgerCpuInsn);

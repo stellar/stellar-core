@@ -37,8 +37,8 @@ struct TransactionEnvelope;
 struct MuxedAccount;
 
 template <typename IterType>
-std::pair<IterType, bool>
-findSignerByKey(IterType begin, IterType end, SignerKey const& key)
+std::pair<IterType, bool> findSignerByKey(IterType begin, IterType end,
+                                          SignerKey const& key)
 {
     auto it =
         std::find_if(begin, end, [&](auto const& x) { return !(x.key < key); });
@@ -331,9 +331,7 @@ SCVal makeStringSCVal(std::string&& str);
 SCVal makeStringSCVal(std::string const& str);
 SCVal makeU32SCVal(uint32_t u);
 SCVal makeU64SCVal(uint64_t u);
-template <typename T>
-SCVal
-makeBytesSCVal(T const& bytes)
+template <typename T> SCVal makeBytesSCVal(T const& bytes)
 {
     SCVal val(SCV_BYTES);
     val.bytes().assign(bytes.begin(), bytes.end());
@@ -353,9 +351,7 @@ SCAddress makeLiquidityPoolAddress(PoolID const& id);
 SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr);
 bool isIssuer(SCAddress const& addr, Asset const& asset);
 
-template <typename T>
-CxxBuf
-toCxxBuf(T const& t)
+template <typename T> CxxBuf toCxxBuf(T const& t)
 {
     return CxxBuf{
         std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(t))};

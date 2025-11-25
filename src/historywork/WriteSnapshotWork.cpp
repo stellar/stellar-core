@@ -23,8 +23,7 @@ WriteSnapshotWork::WriteSnapshotWork(Application& app,
 {
 }
 
-BasicWork::State
-WriteSnapshotWork::onRun()
+BasicWork::State WriteSnapshotWork::onRun()
 {
     if (mDone)
     {

@@ -183,20 +183,17 @@ class LoadGenerator
     std::vector<LedgerKey>
     checkSorobanStateSynced(Application& app, GeneratedLoadConfig const& cfg);
 
-    UnorderedSet<LedgerKey> const&
-    getContractInstanceKeysForTesting() const
+    UnorderedSet<LedgerKey> const& getContractInstanceKeysForTesting() const
     {
         return mContractInstanceKeys;
     }
 
-    std::optional<LedgerKey> const&
-    getCodeKeyForTesting() const
+    std::optional<LedgerKey> const& getCodeKeyForTesting() const
     {
         return mCodeKey;
     }
 
-    uint64_t
-    getContactOverheadBytesForTesting() const
+    uint64_t getContactOverheadBytesForTesting() const
     {
         return mContactOverheadBytes;
     }

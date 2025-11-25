@@ -13,8 +13,7 @@ class PathPaymentStrictSendOpFrame : public PathPaymentOpFrameBase
 {
     PathPaymentStrictSendOp const& mPathPayment;
 
-    PathPaymentStrictSendResult&
-    innerResult(OperationResult& res) const
+    PathPaymentStrictSendResult& innerResult(OperationResult& res) const
     {
         return res.tr().pathPaymentStrictSendResult();
     }

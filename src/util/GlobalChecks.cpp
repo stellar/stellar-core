@@ -18,14 +18,12 @@ namespace stellar
 {
 static std::thread::id mainThread = std::this_thread::get_id();
 
-bool
-threadIsMain()
+bool threadIsMain()
 {
     return mainThread == std::this_thread::get_id();
 }
 
-void
-dbgAbort()
+void dbgAbort()
 {
 #ifdef _WIN32
     DebugBreak();
@@ -34,8 +32,7 @@ dbgAbort()
 #endif
 }
 
-void
-printErrorAndAbort(const char* s1)
+void printErrorAndAbort(const char* s1)
 {
     std::fprintf(stderr, "%s\n", s1);
     std::fflush(stderr);
@@ -44,8 +41,7 @@ printErrorAndAbort(const char* s1)
     std::abort();
 }
 
-void
-printErrorAndAbort(const char* s1, const char* s2)
+void printErrorAndAbort(const char* s1, const char* s2)
 {
     std::fprintf(stderr, "%s%s\n", s1, s2);
     std::fflush(stderr);
@@ -54,8 +50,7 @@ printErrorAndAbort(const char* s1, const char* s2)
     std::abort();
 }
 
-void
-printAssertFailureAndAbort(const char* s1, const char* file, int line)
+void printAssertFailureAndAbort(const char* s1, const char* file, int line)
 {
     std::fprintf(stderr, "%s at %s:%d\n", s1, file, line);
     std::fflush(stderr);
@@ -64,8 +59,7 @@ printAssertFailureAndAbort(const char* s1, const char* file, int line)
     std::abort();
 }
 
-void
-printAssertFailureAndThrow(const char* s1, const char* file, int line)
+void printAssertFailureAndThrow(const char* s1, const char* file, int line)
 {
     std::fprintf(stderr, "%s at %s:%d\n", s1, file, line);
     std::fflush(stderr);

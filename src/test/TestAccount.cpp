@@ -21,15 +21,13 @@ namespace stellar
 
 using namespace txtest;
 
-SequenceNumber
-TestAccount::loadSequenceNumber()
+SequenceNumber TestAccount::loadSequenceNumber()
 {
     mSn = 0;
     return getLastSequenceNumber();
 }
 
-void
-TestAccount::updateSequenceNumber()
+void TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
@@ -42,8 +40,7 @@ TestAccount::updateSequenceNumber()
     }
 }
 
-uint32_t
-TestAccount::getTrustlineFlags(Asset const& asset) const
+uint32_t TestAccount::getTrustlineFlags(Asset const& asset) const
 {
     LedgerSnapshot lsg(mApp);
     auto const trust = lsg.load(trustlineKey(getPublicKey(), asset));
@@ -51,8 +48,7 @@ TestAccount::getTrustlineFlags(Asset const& asset) const
     return trust.current().data.trustLine().flags;
 }
 
-int64_t
-TestAccount::getTrustlineBalance(Asset const& asset) const
+int64_t TestAccount::getTrustlineBalance(Asset const& asset) const
 {
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto trustLine = stellar::loadTrustLine(ltx, getPublicKey(), asset);
@@ -60,8 +56,7 @@ TestAccount::getTrustlineBalance(Asset const& asset) const
     return trustLine.getBalance();
 }
 
-int64_t
-TestAccount::getTrustlineBalance(PoolID const& poolID) const
+int64_t TestAccount::getTrustlineBalance(PoolID const& poolID) const
 {
     LedgerSnapshot lsg(mApp);
     TrustLineAsset asset(ASSET_TYPE_POOL_SHARE);
@@ -71,16 +66,14 @@ TestAccount::getTrustlineBalance(PoolID const& poolID) const
     return trustLine.current().data.trustLine().balance;
 }
 
-int64_t
-TestAccount::getBalance() const
+int64_t TestAccount::getBalance() const
 {
     LedgerSnapshot lsg(mApp);
     auto const entry = lsg.getAccount(getPublicKey());
     return entry.current().data.account().balance;
 }
 
-int64_t
-TestAccount::getAvailableBalance() const
+int64_t TestAccount::getAvailableBalance() const
 {
     LedgerSnapshot lsg(mApp);
     auto const entry = lsg.getAccount(getPublicKey());
@@ -88,22 +81,19 @@ TestAccount::getAvailableBalance() const
                                         entry.current());
 }
 
-uint32_t
-TestAccount::getNumSubEntries() const
+uint32_t TestAccount::getNumSubEntries() const
 {
     LedgerSnapshot lsg(mApp);
     auto const entry = lsg.getAccount(getPublicKey());
     return entry.current().data.account().numSubEntries;
 }
 
-bool
-TestAccount::exists() const
+bool TestAccount::exists() const
 {
     return doesAccountExist(mApp, getPublicKey());
 }
 
-void
-TestAccount::applyOpsBatch(std::vector<Operation> const& ops)
+void TestAccount::applyOpsBatch(std::vector<Operation> const& ops)
 {
 
     for (int i = 0; i < ops.size(); i += MAX_OPS_PER_TX)
@@ -121,8 +111,8 @@ TestAccount::applyOpsBatch(std::vector<Operation> const& ops)
     }
 }
 
-TransactionTestFramePtr
-TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
+TransactionTestFramePtr TestAccount::tx(std::vector<Operation> const& ops,
+                                        SequenceNumber sn)
 {
     if (sn == 0)
     {
@@ -132,15 +122,14 @@ TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
     return transactionFromOperations(mApp, getSecretKey(), sn, ops);
 }
 
-Operation
-TestAccount::op(Operation operation)
+Operation TestAccount::op(Operation operation)
 {
     operation.sourceAccount.activate() = toMuxedAccount(getPublicKey());
     return operation;
 }
 
-TestAccount
-TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
+TestAccount TestAccount::create(SecretKey const& secretKey,
+                                uint64_t initialBalance)
 {
     auto publicKey = secretKey.getPublicKey();
 
@@ -199,8 +188,8 @@ TestAccount::createBatch(std::vector<SecretKey> const& secretKeys,
     return accounts;
 }
 
-TestAccount
-TestAccount::create(std::string const& name, uint64_t initialBalance)
+TestAccount TestAccount::create(std::string const& name,
+                                uint64_t initialBalance)
 {
     return create(getAccount(name.c_str()), initialBalance);
 }
@@ -217,8 +206,7 @@ TestAccount::createBatch(std::vector<std::string> const& names,
     return createBatch(keys, initialBalance);
 }
 
-void
-TestAccount::merge(PublicKey const& into)
+void TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({accountMerge(into)}), mApp);
 
@@ -227,40 +215,34 @@ TestAccount::merge(PublicKey const& into)
     REQUIRE(!lsg.getAccount(getPublicKey()));
 }
 
-void
-TestAccount::inflation()
+void TestAccount::inflation()
 {
     applyTx(tx({txtest::inflation()}), mApp);
 }
 
-Asset
-TestAccount::asset(std::string const& name)
+Asset TestAccount::asset(std::string const& name)
 {
     return txtest::makeAsset(*this, name);
 }
 
-void
-TestAccount::changeTrust(Asset const& asset, int64_t limit)
+void TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
     applyTx(tx({txtest::changeTrust(asset, limit)}), mApp);
 }
 
-void
-TestAccount::changeTrust(ChangeTrustAsset const& asset, int64_t limit)
+void TestAccount::changeTrust(ChangeTrustAsset const& asset, int64_t limit)
 {
     applyTx(tx({txtest::changeTrust(asset, limit)}), mApp);
 }
 
-void
-TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
-                        uint32_t flag)
+void TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
+                             uint32_t flag)
 {
     applyTx(tx({txtest::allowTrust(trustor, asset, flag)}), mApp);
 }
 
-void
-TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
-                        TrustFlagOp op)
+void TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
+                             TrustFlagOp op)
 {
     if (op == TrustFlagOp::ALLOW_TRUST)
     {
@@ -280,9 +262,8 @@ TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
     }
 }
 
-void
-TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor,
-                       TrustFlagOp op)
+void TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor,
+                            TrustFlagOp op)
 {
     if (op == TrustFlagOp::ALLOW_TRUST)
     {
@@ -299,9 +280,9 @@ TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor,
     }
 }
 
-void
-TestAccount::allowMaintainLiabilities(Asset const& asset,
-                                      PublicKey const& trustor, TrustFlagOp op)
+void TestAccount::allowMaintainLiabilities(Asset const& asset,
+                                           PublicKey const& trustor,
+                                           TrustFlagOp op)
 {
     if (op == TrustFlagOp::ALLOW_TRUST)
     {
@@ -322,22 +303,19 @@ TestAccount::allowMaintainLiabilities(Asset const& asset,
     }
 }
 
-void
-TestAccount::setTrustLineFlags(
+void TestAccount::setTrustLineFlags(
     Asset const& asset, PublicKey const& trustor,
     txtest::SetTrustLineFlagsArguments const& arguments)
 {
     applyTx(tx({txtest::setTrustLineFlags(trustor, asset, arguments)}), mApp);
 }
 
-TrustLineEntry
-TestAccount::loadTrustLine(Asset const& asset) const
+TrustLineEntry TestAccount::loadTrustLine(Asset const& asset) const
 {
     return loadTrustLine(assetToTrustLineAsset(asset));
 }
 
-TrustLineEntry
-TestAccount::loadTrustLine(TrustLineAsset const& asset) const
+TrustLineEntry TestAccount::loadTrustLine(TrustLineAsset const& asset) const
 {
     LedgerSnapshot lsg(mApp);
     LedgerKey key(TRUSTLINE);
@@ -346,14 +324,12 @@ TestAccount::loadTrustLine(TrustLineAsset const& asset) const
     return lsg.load(key).current().data.trustLine();
 }
 
-bool
-TestAccount::hasTrustLine(Asset const& asset) const
+bool TestAccount::hasTrustLine(Asset const& asset) const
 {
     return hasTrustLine(assetToTrustLineAsset(asset));
 }
 
-bool
-TestAccount::hasTrustLine(TrustLineAsset const& asset) const
+bool TestAccount::hasTrustLine(TrustLineAsset const& asset) const
 {
     LedgerSnapshot lsg(mApp);
     LedgerKey key(TRUSTLINE);
@@ -362,14 +338,12 @@ TestAccount::hasTrustLine(TrustLineAsset const& asset) const
     return static_cast<bool>(lsg.load(key));
 }
 
-void
-TestAccount::setOptions(SetOptionsArguments const& arguments)
+void TestAccount::setOptions(SetOptionsArguments const& arguments)
 {
     applyTx(tx({txtest::setOptions(arguments)}), mApp);
 }
 
-void
-TestAccount::manageData(std::string const& name, DataValue* value)
+void TestAccount::manageData(std::string const& name, DataValue* value)
 {
     applyTx(tx({txtest::manageData(name, value)}), mApp);
 
@@ -386,8 +360,7 @@ TestAccount::manageData(std::string const& name, DataValue* value)
     }
 }
 
-void
-TestAccount::bumpSequence(SequenceNumber to)
+void TestAccount::bumpSequence(SequenceNumber to)
 {
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
 
@@ -438,8 +411,7 @@ TestAccount::createClaimableBalance(Asset const& asset, int64_t amount,
     return returnedBalanceID;
 }
 
-void
-TestAccount::claimClaimableBalance(ClaimableBalanceID const& balanceID)
+void TestAccount::claimClaimableBalance(ClaimableBalanceID const& balanceID)
 {
     applyTx(tx({txtest::claimClaimableBalance(balanceID)}), mApp);
 
@@ -447,8 +419,8 @@ TestAccount::claimClaimableBalance(ClaimableBalanceID const& balanceID)
     REQUIRE(!stellar::loadClaimableBalance(ltx, balanceID));
 }
 
-ClaimableBalanceID
-TestAccount::getBalanceID(uint32_t opIndex, SequenceNumber sn)
+ClaimableBalanceID TestAccount::getBalanceID(uint32_t opIndex,
+                                             SequenceNumber sn)
 {
     if (sn == 0)
     {
@@ -467,38 +439,37 @@ TestAccount::getBalanceID(uint32_t opIndex, SequenceNumber sn)
     return balanceID;
 }
 
-int64_t
-TestAccount::manageOffer(int64_t offerID, Asset const& selling,
-                         Asset const& buying, Price const& price,
-                         int64_t amount, ManageOfferEffect expectedEffect)
+int64_t TestAccount::manageOffer(int64_t offerID, Asset const& selling,
+                                 Asset const& buying, Price const& price,
+                                 int64_t amount,
+                                 ManageOfferEffect expectedEffect)
 {
     return applyManageOffer(mApp, offerID, getSecretKey(), selling, buying,
                             price, amount, nextSequenceNumber(),
                             expectedEffect);
 }
 
-int64_t
-TestAccount::manageBuyOffer(int64_t offerID, Asset const& selling,
-                            Asset const& buying, Price const& price,
-                            int64_t amount, ManageOfferEffect expectedEffect)
+int64_t TestAccount::manageBuyOffer(int64_t offerID, Asset const& selling,
+                                    Asset const& buying, Price const& price,
+                                    int64_t amount,
+                                    ManageOfferEffect expectedEffect)
 {
     return applyManageBuyOffer(mApp, offerID, getSecretKey(), selling, buying,
                                price, amount, nextSequenceNumber(),
                                expectedEffect);
 }
 
-int64_t
-TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
-                                Price const& price, int64_t amount,
-                                ManageOfferEffect expectedEffect)
+int64_t TestAccount::createPassiveOffer(Asset const& selling,
+                                        Asset const& buying, Price const& price,
+                                        int64_t amount,
+                                        ManageOfferEffect expectedEffect)
 {
     return applyCreatePassiveOffer(mApp, getSecretKey(), selling, buying, price,
                                    amount, nextSequenceNumber(),
                                    expectedEffect);
 }
 
-void
-TestAccount::pay(PublicKey const& destination, int64_t amount)
+void TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
     std::unique_ptr<LedgerEntry> toAccount;
     {
@@ -545,9 +516,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
     REQUIRE(toAccountAfter);
 }
 
-void
-TestAccount::pay(PublicKey const& destination, Asset const& asset,
-                 int64_t amount)
+void TestAccount::pay(PublicKey const& destination, Asset const& asset,
+                      int64_t amount)
 {
     applyTx(tx({payment(destination, asset, amount)}), mApp);
 }
@@ -579,12 +549,10 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
     return getFirstResult(transaction).tr().pathPaymentStrictReceiveResult();
 }
 
-PathPaymentStrictSendResult
-TestAccount::pathPaymentStrictSend(PublicKey const& destination,
-                                   Asset const& sendCur, int64_t sendAmount,
-                                   Asset const& destCur, int64_t destMin,
-                                   std::vector<Asset> const& path,
-                                   Asset* noIssuer)
+PathPaymentStrictSendResult TestAccount::pathPaymentStrictSend(
+    PublicKey const& destination, Asset const& sendCur, int64_t sendAmount,
+    Asset const& destCur, int64_t destMin, std::vector<Asset> const& path,
+    Asset* noIssuer)
 {
     auto transaction = tx({txtest::pathPaymentStrictSend(
         destination, sendCur, sendAmount, destCur, destMin, path)});
@@ -609,14 +577,13 @@ TestAccount::pathPaymentStrictSend(PublicKey const& destination,
     return getFirstResult(transaction).tr().pathPaymentStrictSendResult();
 }
 
-void
-TestAccount::clawback(PublicKey const& from, Asset const& asset, int64_t amount)
+void TestAccount::clawback(PublicKey const& from, Asset const& asset,
+                           int64_t amount)
 {
     applyTx(tx({txtest::clawback(from, asset, amount)}), mApp);
 }
 
-void
-TestAccount::clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
+void TestAccount::clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
 {
     applyTx(tx({txtest::clawbackClaimableBalance(balanceID)}), mApp);
 
@@ -624,19 +591,18 @@ TestAccount::clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
     REQUIRE(!stellar::loadClaimableBalance(ltx, balanceID));
 }
 
-void
-TestAccount::liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
-                                  int64_t maxAmountB, Price const& minPrice,
-                                  Price const& maxPrice)
+void TestAccount::liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                                       int64_t maxAmountB,
+                                       Price const& minPrice,
+                                       Price const& maxPrice)
 {
     applyTx(tx({txtest::liquidityPoolDeposit(poolID, maxAmountA, maxAmountB,
                                              minPrice, maxPrice)}),
             mApp);
 }
 
-void
-TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
-                                   int64_t minAmountA, int64_t minAmountB)
+void TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
+                                        int64_t minAmountA, int64_t minAmountB)
 {
     applyTx(tx({txtest::liquidityPoolWithdraw(poolID, amount, minAmountA,
                                               minAmountB)}),
