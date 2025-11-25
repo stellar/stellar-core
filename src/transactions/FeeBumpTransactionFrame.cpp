@@ -666,7 +666,11 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
         header.feePool += fee;
     }
 
-    int64_t innerFeeCharged = mInnerTx->getFee(header, baseFee, true);
+    int64_t innerFeeCharged = 0;
+    if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_25))
+    {
+        innerFeeCharged = mInnerTx->getFee(header, baseFee, true);
+    }
     return FeeBumpMutableTransactionResult::createSuccess(*mInnerTx, fee,
                                                           innerFeeCharged);
 }

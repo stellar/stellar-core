@@ -1999,9 +1999,20 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto const feeCharged =
             afterV20 ? initialFee - expectedRefund : initialFee;
 
-        REQUIRE(
-            r.results.at(0).result.result.innerResultPair().result.feeCharged ==
-            feeCharged - 100);
+        if (protocolVersionIsBefore(test.getLedgerVersion(),
+                                    ProtocolVersion::V_25))
+        {
+            REQUIRE(r.results.at(0)
+                        .result.result.innerResultPair()
+                        .result.feeCharged == feeCharged - 100);
+        }
+        else
+        {
+            REQUIRE(r.results.at(0)
+                        .result.result.innerResultPair()
+                        .result.feeCharged == 0);
+        }
+
         REQUIRE(r.results.at(0).result.feeCharged == feeCharged);
 
         REQUIRE(feeBumper.getBalance() ==
