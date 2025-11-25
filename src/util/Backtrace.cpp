@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Backtrace.h"
+#include "config.h"
 #include "util/GlobalChecks.h"
 #include <cstdio>
 #include <cstdlib>
